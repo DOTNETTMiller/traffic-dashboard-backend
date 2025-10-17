@@ -413,11 +413,34 @@ app.get('/api/events/:state', async (req, res) => {
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     states: Object.keys(API_CONFIG).length
   });
+});
+
+// Debug endpoint to check coordinate extraction
+app.get('/api/debug/coordinates', async (req, res) => {
+  const allResults = await Promise.all(
+    Object.keys(API_CONFIG).map(stateKey => fetchStateData(stateKey))
+  );
+
+  const stats = {};
+  allResults.forEach(result => {
+    const validCoords = result.events.filter(e =>
+      e.latitude && e.longitude && e.latitude !== 0 && e.longitude !== 0
+    );
+    stats[result.state] = {
+      total: result.events.length,
+      withCoordinates: validCoords.length,
+      withoutCoordinates: result.events.length - validCoords.length,
+      sampleEvent: result.events[0],
+      sampleValidEvent: validCoords[0] || null
+    };
+  });
+
+  res.json(stats);
 });
 
 // Start server
