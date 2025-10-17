@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "npx serve dist -s -l ${PORT:-3000}"
+    "start": "serve dist -s"
   },
   "dependencies": {
     "react": "^18.2.0",
