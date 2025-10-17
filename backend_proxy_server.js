@@ -211,7 +211,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
           // Log first update structure to see field names
           if (feuUpdate.length > 0) {
             console.log(`${stateName}: First update keys:`, Object.keys(feuUpdate[0]));
-            console.log(`${stateName}: First update sample:`, JSON.stringify(feuUpdate[0], null, 2).substring(0, 1000));
+            console.log(`${stateName}: First update sample:`, JSON.stringify(feuUpdate[0], null, 2).substring(0, 3000));
           }
 
           feuUpdate.forEach(update => {
