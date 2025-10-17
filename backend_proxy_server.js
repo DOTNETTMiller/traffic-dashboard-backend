@@ -196,6 +196,9 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
     else if (format === 'xml') {
       // Debug: Log XML structure
       console.log(`${stateName}: XML root keys:`, Object.keys(rawData));
+      if (rawData.FEUMessages) {
+        console.log(`${stateName}: FEUMessages keys:`, Object.keys(rawData.FEUMessages));
+      }
 
       // Handle FEU-G XML feeds (CARS Program) - uses FEUMessages root
       if (rawData.FEUMessages?.FEU) {
@@ -204,6 +207,9 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
           : [rawData.FEUMessages.FEU];
 
         console.log(`${stateName}: Found ${items.length} FEU items`);
+        if (items.length > 0) {
+          console.log(`${stateName}: Sample FEU structure:`, JSON.stringify(items[0], null, 2).substring(0, 500));
+        }
 
         items.forEach(item => {
           // Extract coordinates from Geo element
