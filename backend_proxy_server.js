@@ -40,7 +40,7 @@ const API_CONFIG = {
   },
   iowa: {
     name: 'Iowa',
-    eventsUrl: 'https://ia.carsprogram.org/hub/mapupdate/data',
+    eventsUrl: 'https://ia.carsprogram.org/hub/data/feu-g.xml',
     wzdxUrl: 'https://cloud.iowadot.gov/Highway/OTO/wzdx.xml',
     username: process.env.CARS_USERNAME || '',
     password: process.env.CARS_PASSWORD || '',
@@ -49,7 +49,7 @@ const API_CONFIG = {
   },
   kansas: {
     name: 'Kansas',
-    eventsUrl: 'https://ks.carsprogram.org/hub/mapupdate/data',
+    eventsUrl: 'https://kscars.kandrive.gov/hub/data/feu-g.xml',
     username: process.env.CARS_USERNAME || '',
     password: process.env.CARS_PASSWORD || '',
     format: 'xml',
@@ -57,7 +57,7 @@ const API_CONFIG = {
   },
   nebraska: {
     name: 'Nebraska',
-    eventsUrl: 'https://ne.carsprogram.org/hub/mapupdate/data',
+    eventsUrl: 'https://ne.carsprogram.org/hub/data/feu-g.xml',
     username: process.env.CARS_USERNAME || '',
     password: process.env.CARS_PASSWORD || '',
     format: 'xml',
@@ -65,7 +65,7 @@ const API_CONFIG = {
   },
   indiana: {
     name: 'Indiana',
-    eventsUrl: 'https://inhub.carsprogram.org/mapupdate/data',
+    eventsUrl: 'https://inhub.carsprogram.org/data/feu-g.xml',
     username: process.env.CARS_USERNAME || '',
     password: process.env.CARS_PASSWORD || '',
     format: 'xml',
@@ -73,7 +73,7 @@ const API_CONFIG = {
   },
   minnesota: {
     name: 'Minnesota',
-    eventsUrl: 'https://mn.carsprogram.org/hub/mapupdate/data',
+    eventsUrl: 'https://mn.carsprogram.org/hub/data/feu-g.xml',
     username: process.env.CARS_USERNAME || '',
     password: process.env.CARS_PASSWORD || '',
     format: 'xml',
@@ -195,20 +195,55 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
       }
     } 
     else if (format === 'xml') {
-      // Handle CARS Program XML feeds
-      if (rawData.rss?.channel?.item) {
-        const items = Array.isArray(rawData.rss.channel.item) 
-          ? rawData.rss.channel.item 
+      // Handle FEU-G XML feeds (CARS Program)
+      if (rawData['feu-g']?.feu) {
+        const items = Array.isArray(rawData['feu-g'].feu)
+          ? rawData['feu-g'].feu
+          : [rawData['feu-g'].feu];
+
+        items.forEach(item => {
+          // Extract coordinates from geo element
+          const lat = parseFloat(item.geo?.lat) || 0;
+          const lng = parseFloat(item.geo?.long) || 0;
+
+          // Extract event details
+          const eventType = item.cat || 'Unknown';
+          const description = item.d || 'Event description not available';
+          const location = item.rd || 'Location not specified';
+
+          normalized.push({
+            id: `${stateName.substring(0, 2).toUpperCase()}-${item.id || Math.random().toString(36).substr(2, 9)}`,
+            state: stateName,
+            corridor: API_CONFIG[stateName.toLowerCase()]?.corridor || 'Unknown',
+            eventType: determineEventType(eventType + ' ' + description),
+            description: description,
+            location: location,
+            county: 'Unknown',
+            latitude: lat,
+            longitude: lng,
+            startTime: item.st || new Date().toISOString(),
+            endTime: item.et || null,
+            lanesAffected: item.lanes || 'Check conditions',
+            severity: determineSeverityFromText(description, eventType),
+            direction: extractDirection(description, location),
+            requiresCollaboration: false
+          });
+        });
+      }
+      // Handle RSS feeds (New Jersey)
+      else if (rawData.rss?.channel?.item) {
+        const items = Array.isArray(rawData.rss.channel.item)
+          ? rawData.rss.channel.item
           : [rawData.rss.channel.item];
-        
+
         items.forEach(item => {
           const description = item.description || '';
           const title = item.title || '';
-          
+
           // Try to extract location info
           const latMatch = description.match(/Lat:\s*([-\d.]+)/i);
           const lonMatch = description.match(/Lon:\s*([-\d.]+)/i);
-          
+
           normalized.push({
             id: `${stateName.substring(0, 2).toUpperCase()}-${Math.random().toString(36).substr(2, 9)}`,
             state: stateName,
