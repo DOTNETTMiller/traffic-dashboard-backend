@@ -197,29 +197,26 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
       // Debug: Log XML structure
       console.log(`${stateName}: XML root keys:`, Object.keys(rawData));
 
-      // Handle FEU-G XML feeds (CARS Program)
-      if (rawData['feu-g']?.feu) {
-        const items = Array.isArray(rawData['feu-g'].feu)
-          ? rawData['feu-g'].feu
-          : [rawData['feu-g'].feu];
+      // Handle FEU-G XML feeds (CARS Program) - uses FEUMessages root
+      if (rawData.FEUMessages?.FEU) {
+        const items = Array.isArray(rawData.FEUMessages.FEU)
+          ? rawData.FEUMessages.FEU
+          : [rawData.FEUMessages.FEU];
 
-        console.log(`${stateName}: Found ${items.length} FEU-G items`);
-        if (items.length > 0) {
-          console.log(`${stateName}: Sample FEU item:`, JSON.stringify(items[0], null, 2));
-        }
+        console.log(`${stateName}: Found ${items.length} FEU items`);
 
         items.forEach(item => {
-          // Extract coordinates from geo element
-          const lat = parseFloat(item.geo?.lat) || 0;
-          const lng = parseFloat(item.geo?.long) || 0;
+          // Extract coordinates from Geo element
+          const lat = parseFloat(item.Geo?.lat) || 0;
+          const lng = parseFloat(item.Geo?.long) || 0;
 
           // Extract event details
-          const eventType = item.cat || 'Unknown';
-          const description = item.d || 'Event description not available';
-          const location = item.rd || 'Location not specified';
+          const eventType = item.Cat || 'Unknown';
+          const description = item.D || 'Event description not available';
+          const location = item.Rd || 'Location not specified';
 
           normalized.push({
-            id: `${stateName.substring(0, 2).toUpperCase()}-${item.id || Math.random().toString(36).substr(2, 9)}`,
+            id: `${stateName.substring(0, 2).toUpperCase()}-${item.$ ?.id || Math.random().toString(36).substr(2, 9)}`,
             state: stateName,
             corridor: API_CONFIG[stateName.toLowerCase()]?.corridor || 'Unknown',
             eventType: determineEventType(eventType + ' ' + description),
@@ -228,9 +225,9 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
             county: 'Unknown',
             latitude: lat,
             longitude: lng,
-            startTime: item.st || new Date().toISOString(),
-            endTime: item.et || null,
-            lanesAffected: item.lanes || 'Check conditions',
+            startTime: item.ST || new Date().toISOString(),
+            endTime: item.ET || null,
+            lanesAffected: item.Lanes || 'Check conditions',
             severity: determineSeverityFromText(description, eventType),
             direction: extractDirection(description, location),
             requiresCollaboration: false
