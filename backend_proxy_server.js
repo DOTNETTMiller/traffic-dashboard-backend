@@ -208,6 +208,12 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
         if (feuUpdate && Array.isArray(feuUpdate)) {
           console.log(`${stateName}: Found ${feuUpdate.length} FEU updates`);
 
+          // Log first update structure to see field names
+          if (feuUpdate.length > 0) {
+            console.log(`${stateName}: First update keys:`, Object.keys(feuUpdate[0]));
+            console.log(`${stateName}: First update sample:`, JSON.stringify(feuUpdate[0], null, 2).substring(0, 1000));
+          }
+
           feuUpdate.forEach(update => {
             // Each update contains event data
             const item = update['feu:event-element-header'] || update;
