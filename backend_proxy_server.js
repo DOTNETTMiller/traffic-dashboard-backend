@@ -153,8 +153,27 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
       if (stateName === 'Utah' && rawData.features) {
         rawData.features.forEach(feature => {
           const props = feature.properties;
-          const coords = feature.geometry?.coordinates || [0, 0];
-          
+          let lat = 0;
+          let lng = 0;
+
+          // Extract coordinates based on geometry type
+          if (feature.geometry?.coordinates) {
+            const coords = feature.geometry.coordinates;
+
+            // Check if it's a LineString (array of points) or Point
+            if (Array.isArray(coords) && coords.length > 0) {
+              if (Array.isArray(coords[0])) {
+                // LineString - take first point
+                lng = parseFloat(coords[0][0]) || 0;
+                lat = parseFloat(coords[0][1]) || 0;
+              } else {
+                // Point - direct coordinates
+                lng = parseFloat(coords[0]) || 0;
+                lat = parseFloat(coords[1]) || 0;
+              }
+            }
+          }
+
           normalized.push({
             id: `UT-${props.road_event_id || Math.random().toString(36).substr(2, 9)}`,
             state: 'Utah',
@@ -163,8 +182,8 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
             description: props.description || 'Work zone',
             location: props.road_names ? props.road_names.join(', ') : 'I-80',
             county: props.county || 'Unknown',
-            latitude: coords[1],
-            longitude: coords[0],
+            latitude: lat,
+            longitude: lng,
             startTime: props.start_date || new Date().toISOString(),
             endTime: props.end_date || null,
             lanesAffected: props.lanes?.[0]?.status || 'Check conditions',
