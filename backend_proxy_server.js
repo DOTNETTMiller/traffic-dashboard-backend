@@ -194,11 +194,19 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
       }
     } 
     else if (format === 'xml') {
+      // Debug: Log XML structure
+      console.log(`${stateName}: XML root keys:`, Object.keys(rawData));
+
       // Handle FEU-G XML feeds (CARS Program)
       if (rawData['feu-g']?.feu) {
         const items = Array.isArray(rawData['feu-g'].feu)
           ? rawData['feu-g'].feu
           : [rawData['feu-g'].feu];
+
+        console.log(`${stateName}: Found ${items.length} FEU-G items`);
+        if (items.length > 0) {
+          console.log(`${stateName}: Sample FEU item:`, JSON.stringify(items[0], null, 2));
+        }
 
         items.forEach(item => {
           // Extract coordinates from geo element
