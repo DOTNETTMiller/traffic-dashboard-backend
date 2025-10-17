@@ -1,6 +1,9 @@
 import axios from 'axios';
+import { config } from '../config';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = config.apiUrl;
+
+console.log('📡 API Base URL:', API_BASE_URL);
 
 class TrafficAPI {
   constructor() {
