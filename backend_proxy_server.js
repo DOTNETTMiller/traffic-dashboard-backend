@@ -332,7 +332,9 @@ const fetchStateData = async (stateKey) => {
       // Fetch JSON data
       const headers = {};
       if (config.apiKey) {
-        headers['Authorization'] = `Bearer ${config.apiKey}`;
+        // Ohio uses "APIKEY {key}" format, Nevada uses "Bearer {key}"
+        const authFormat = config.name === 'Ohio' ? 'APIKEY' : 'Bearer';
+        headers['Authorization'] = `${authFormat} ${config.apiKey}`;
       }
       
       // Fetch events
