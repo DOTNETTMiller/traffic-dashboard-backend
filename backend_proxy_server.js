@@ -233,17 +233,18 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
               }
             }
 
-            // Try to find coordinates in various places
+            // Extract coordinates from primary location
             let lat = 0;
             let lng = 0;
 
-            if (detail?.location?.['geo-location']) {
-              const geoLoc = detail.location['geo-location'];
-              lat = parseFloat(geoLoc.latitude) || 0;
-              lng = parseFloat(geoLoc.longitude) || 0;
-            } else if (detail?.['geo-location']) {
-              lat = parseFloat(detail['geo-location'].latitude) || 0;
-              lng = parseFloat(detail['geo-location'].longitude) || 0;
+            const locationOnLink = detail?.locations?.location?.['location-on-link'];
+            if (locationOnLink) {
+              const primaryLoc = locationOnLink['primary-location']?.['geo-location'];
+              if (primaryLoc) {
+                // Coordinates are in microdegrees - divide by 1,000,000
+                lat = parseFloat(primaryLoc.latitude) / 1000000 || 0;
+                lng = parseFloat(primaryLoc.longitude) / 1000000 || 0;
+              }
             }
 
             // Extract description
@@ -255,9 +256,21 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
             }).join('; ') || 'Event description not available';
 
             // Extract location/roadway name
+            let locationText = 'Location not specified';
+
+            // Try route-designator from location-on-link
+            const routeDesignator = locationOnLink?.['route-designator'];
+            if (routeDesignator) {
+              locationText = routeDesignator;
+            }
+
+            // Also try roadway-names if available
             const roadwayNames = detail?.['roadway-names']?.['roadway-name'] || [];
-            const roadwayArray = Array.isArray(roadwayNames) ? roadwayNames : [roadwayNames];
-            const locationText = roadwayArray.map(r => r._ || r).join(', ') || 'Location not specified';
+            if (roadwayNames && roadwayNames.length > 0) {
+              const roadwayArray = Array.isArray(roadwayNames) ? roadwayNames : [roadwayNames];
+              const roadwayText = roadwayArray.map(r => r._ || r).join(', ');
+              if (roadwayText) locationText = roadwayText;
+            }
 
             normalized.push({
               id: `${stateName.substring(0, 2).toUpperCase()}-${eventId}`,
