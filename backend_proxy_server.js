@@ -214,35 +214,66 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
             console.log(`${stateName}: First update sample:`, JSON.stringify(feuUpdate[0], null, 2).substring(0, 3000));
           }
 
-          feuUpdate.forEach(update => {
-            // Each update contains event data
-            const item = update['feu:event-element-header'] || update;
-            const geo = item['geo:location']?.['geo:geo-coordinate'] || item.Geo;
+          feuUpdate.forEach((update, index) => {
+            // Extract event ID
+            const eventId = update['event-reference']?.['event-id'] || 'unknown';
 
-            // Extract coordinates
-            const lat = parseFloat(geo?.['geo:latitude'] || geo?.lat) || 0;
-            const lng = parseFloat(geo?.['geo:longitude'] || geo?.long) || 0;
+            // Extract headline
+            const headlineObj = update.headline?.headline || {};
+            const headlineText = Object.values(headlineObj)[0] || 'Unknown';
 
-            // Extract event details
-            const eventType = item['feu:category'] || item.Cat || 'Unknown';
-            const description = item['feu:description'] || item.D || 'Event description not available';
-            const location = item['feu:roadway-name'] || item.Rd || 'Location not specified';
+            // Extract details
+            const detail = update.details?.detail;
+
+            // Log first detail structure
+            if (index === 0 && detail) {
+              console.log(`${stateName}: Detail keys:`, Object.keys(detail));
+              if (detail.location) {
+                console.log(`${stateName}: Location structure:`, JSON.stringify(detail.location, null, 2));
+              }
+            }
+
+            // Try to find coordinates in various places
+            let lat = 0;
+            let lng = 0;
+
+            if (detail?.location?.['geo-location']) {
+              const geoLoc = detail.location['geo-location'];
+              lat = parseFloat(geoLoc.latitude) || 0;
+              lng = parseFloat(geoLoc.longitude) || 0;
+            } else if (detail?.['geo-location']) {
+              lat = parseFloat(detail['geo-location'].latitude) || 0;
+              lng = parseFloat(detail['geo-location'].longitude) || 0;
+            }
+
+            // Extract description
+            const descriptions = detail?.descriptions?.description || [];
+            const descArray = Array.isArray(descriptions) ? descriptions : [descriptions];
+            const descText = descArray.map(d => {
+              const phrase = d.phrase || d;
+              return Object.values(phrase)[0] || '';
+            }).join('; ') || 'Event description not available';
+
+            // Extract location/roadway name
+            const roadwayNames = detail?.['roadway-names']?.['roadway-name'] || [];
+            const roadwayArray = Array.isArray(roadwayNames) ? roadwayNames : [roadwayNames];
+            const locationText = roadwayArray.map(r => r._ || r).join(', ') || 'Location not specified';
 
             normalized.push({
-              id: `${stateName.substring(0, 2).toUpperCase()}-${item.$?.id || Math.random().toString(36).substr(2, 9)}`,
+              id: `${stateName.substring(0, 2).toUpperCase()}-${eventId}`,
               state: stateName,
               corridor: API_CONFIG[stateName.toLowerCase()]?.corridor || 'Unknown',
-              eventType: determineEventType(eventType + ' ' + description),
-              description: description,
-              location: location,
+              eventType: determineEventType(headlineText),
+              description: descText,
+              location: locationText,
               county: 'Unknown',
               latitude: lat,
               longitude: lng,
-              startTime: item['feu:start-time'] || item.ST || new Date().toISOString(),
-              endTime: item['feu:end-time'] || item.ET || null,
-              lanesAffected: item['feu:lanes-affected'] || item.Lanes || 'Check conditions',
-              severity: determineSeverityFromText(description, eventType),
-              direction: extractDirection(description, location),
+              startTime: detail?.['event-times']?.['start-time'] || new Date().toISOString(),
+              endTime: detail?.['event-times']?.['end-time'] || null,
+              lanesAffected: 'Check conditions',
+              severity: determineSeverityFromText(descText, headlineText),
+              direction: extractDirection(descText, locationText),
               requiresCollaboration: false
             });
           });
