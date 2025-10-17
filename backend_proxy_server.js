@@ -200,45 +200,47 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
         console.log(`${stateName}: FEUMessages keys:`, Object.keys(rawData.FEUMessages));
       }
 
-      // Handle FEU-G XML feeds (CARS Program) - uses FEUMessages root
-      if (rawData.FEUMessages?.FEU) {
-        const items = Array.isArray(rawData.FEUMessages.FEU)
-          ? rawData.FEUMessages.FEU
-          : [rawData.FEUMessages.FEU];
+      // Handle FEU-G XML feeds (CARS Program) - uses FEUMessages root with namespace
+      if (rawData.FEUMessages?.['feu:full-event-update']) {
+        const feuUpdate = rawData.FEUMessages['feu:full-event-update'];
 
-        console.log(`${stateName}: Found ${items.length} FEU items`);
-        if (items.length > 0) {
-          console.log(`${stateName}: Sample FEU structure:`, JSON.stringify(items[0], null, 2).substring(0, 500));
-        }
+        // Events are in feu:full-event-update array
+        if (feuUpdate && Array.isArray(feuUpdate)) {
+          console.log(`${stateName}: Found ${feuUpdate.length} FEU updates`);
 
-        items.forEach(item => {
-          // Extract coordinates from Geo element
-          const lat = parseFloat(item.Geo?.lat) || 0;
-          const lng = parseFloat(item.Geo?.long) || 0;
+          feuUpdate.forEach(update => {
+            // Each update contains event data
+            const item = update['feu:event-element-header'] || update;
+            const geo = item['geo:location']?.['geo:geo-coordinate'] || item.Geo;
 
-          // Extract event details
-          const eventType = item.Cat || 'Unknown';
-          const description = item.D || 'Event description not available';
-          const location = item.Rd || 'Location not specified';
+            // Extract coordinates
+            const lat = parseFloat(geo?.['geo:latitude'] || geo?.lat) || 0;
+            const lng = parseFloat(geo?.['geo:longitude'] || geo?.long) || 0;
 
-          normalized.push({
-            id: `${stateName.substring(0, 2).toUpperCase()}-${item.$ ?.id || Math.random().toString(36).substr(2, 9)}`,
-            state: stateName,
-            corridor: API_CONFIG[stateName.toLowerCase()]?.corridor || 'Unknown',
-            eventType: determineEventType(eventType + ' ' + description),
-            description: description,
-            location: location,
-            county: 'Unknown',
-            latitude: lat,
-            longitude: lng,
-            startTime: item.ST || new Date().toISOString(),
-            endTime: item.ET || null,
-            lanesAffected: item.Lanes || 'Check conditions',
-            severity: determineSeverityFromText(description, eventType),
-            direction: extractDirection(description, location),
-            requiresCollaboration: false
+            // Extract event details
+            const eventType = item['feu:category'] || item.Cat || 'Unknown';
+            const description = item['feu:description'] || item.D || 'Event description not available';
+            const location = item['feu:roadway-name'] || item.Rd || 'Location not specified';
+
+            normalized.push({
+              id: `${stateName.substring(0, 2).toUpperCase()}-${item.$?.id || Math.random().toString(36).substr(2, 9)}`,
+              state: stateName,
+              corridor: API_CONFIG[stateName.toLowerCase()]?.corridor || 'Unknown',
+              eventType: determineEventType(eventType + ' ' + description),
+              description: description,
+              location: location,
+              county: 'Unknown',
+              latitude: lat,
+              longitude: lng,
+              startTime: item['feu:start-time'] || item.ST || new Date().toISOString(),
+              endTime: item['feu:end-time'] || item.ET || null,
+              lanesAffected: item['feu:lanes-affected'] || item.Lanes || 'Check conditions',
+              severity: determineSeverityFromText(description, eventType),
+              direction: extractDirection(description, location),
+              requiresCollaboration: false
+            });
           });
-        });
+        }
       }
       // Handle RSS feeds (New Jersey)
       else if (rawData.rss?.channel?.item) {
