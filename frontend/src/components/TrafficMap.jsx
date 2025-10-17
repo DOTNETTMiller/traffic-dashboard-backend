@@ -44,10 +44,13 @@ function AutoFitBounds({ events }) {
 
   useEffect(() => {
     if (events.length > 0) {
-      const validEvents = events.filter(e => e.latitude && e.longitude);
-      if (validEvents.length > 0) {
-        const bounds = validEvents.map(e => [e.latitude, e.longitude]);
-        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 });
+      const bounds = events.map(e => [parseFloat(e.latitude), parseFloat(e.longitude)]);
+      if (bounds.length > 0) {
+        try {
+          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 });
+        } catch (error) {
+          console.warn('Error fitting bounds:', error);
+        }
       }
     }
   }, [events, map]);
@@ -57,12 +60,22 @@ function AutoFitBounds({ events }) {
 
 export default function TrafficMap({ events, onEventSelect }) {
   // Filter out events without valid coordinates
-  const validEvents = events.filter(e =>
-    e.latitude &&
-    e.longitude &&
-    e.latitude !== 0 &&
-    e.longitude !== 0
-  );
+  const validEvents = events.filter(e => {
+    const lat = parseFloat(e.latitude);
+    const lng = parseFloat(e.longitude);
+    return (
+      !isNaN(lat) &&
+      !isNaN(lng) &&
+      lat !== 0 &&
+      lng !== 0 &&
+      lat >= -90 &&
+      lat <= 90 &&
+      lng >= -180 &&
+      lng <= 180
+    );
+  });
+
+  console.log(`📍 Map: ${validEvents.length} valid events out of ${events.length} total`);
 
   // Default center (middle of USA)
   const defaultCenter = [39.8283, -98.5795];
@@ -85,7 +98,7 @@ export default function TrafficMap({ events, onEventSelect }) {
         {validEvents.map((event) => (
           <Marker
             key={event.id}
-            position={[event.latitude, event.longitude]}
+            position={[parseFloat(event.latitude), parseFloat(event.longitude)]}
             icon={getMarkerIcon(event.severity, event.eventType)}
             eventHandlers={{
               click: () => onEventSelect && onEventSelect(event)
