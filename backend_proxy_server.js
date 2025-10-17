@@ -41,7 +41,6 @@ const API_CONFIG = {
   iowa: {
     name: 'Iowa',
     eventsUrl: 'https://ia.carsprogram.org/hub/data/feu-g.xml',
-    wzdxUrl: 'https://cloud.iowadot.gov/Highway/OTO/wzdx.xml',
     username: process.env.CARS_USERNAME || '',
     password: process.env.CARS_PASSWORD || '',
     format: 'xml',
