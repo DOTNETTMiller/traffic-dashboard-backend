@@ -1,4 +1,4 @@
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
 import { useEffect } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -11,7 +11,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-// Custom marker icons based on severity
+// Custom marker icons based on severity and event type
 const getMarkerIcon = (severity, eventType, hasMessages) => {
   const colors = {
     high: '#ef4444',    // red
@@ -21,14 +21,25 @@ const getMarkerIcon = (severity, eventType, hasMessages) => {
 
   const color = colors[severity] || colors.medium;
 
+  // Different shapes for different event types
+  const shapes = {
+    'Construction': 'polygon(50% 0%, 100% 100%, 0% 100%)', // Triangle (warning sign)
+    'Incident': 'polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)', // Octagon (stop sign)
+    'Closure': 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)', // Rounded square
+    'Weather': 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)', // Star
+    'Unknown': '50%' // Circle (default)
+  };
+
+  const shape = shapes[eventType] || shapes['Unknown'];
+
   return L.divIcon({
     className: 'custom-marker',
     html: `
       <div style="
         background-color: ${color};
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
+        width: 28px;
+        height: 28px;
+        clip-path: ${shape};
         border: 3px solid white;
         box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         position: relative;
@@ -36,26 +47,27 @@ const getMarkerIcon = (severity, eventType, hasMessages) => {
         ${hasMessages ? `
           <div style="
             position: absolute;
-            top: -4px;
-            right: -4px;
+            top: -8px;
+            right: -8px;
             background-color: #1e40af;
             color: white;
-            width: 14px;
-            height: 14px;
+            width: 16px;
+            height: 16px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 10px;
+            font-size: 11px;
             font-weight: bold;
             border: 2px solid white;
             box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+            clip-path: none;
           ">!</div>
         ` : ''}
       </div>
     `,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12]
+    iconSize: [28, 28],
+    iconAnchor: [14, 14]
   });
 };
 
@@ -102,6 +114,7 @@ export default function TrafficMap({ events, messages = {}, onEventSelect }) {
 
         {validEvents.map((event) => {
           const hasMessages = messages[event.id] && messages[event.id].length > 0;
+          const messageCount = hasMessages ? messages[event.id].length : 0;
 
           return (
             <Marker
@@ -112,6 +125,16 @@ export default function TrafficMap({ events, messages = {}, onEventSelect }) {
                 click: () => onEventSelect && onEventSelect(event)
               }}
             >
+            <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
+              <div style={{ minWidth: '200px' }}>
+                <strong>{event.eventType}</strong><br/>
+                {event.location}<br/>
+                <em>{event.description.substring(0, 100)}{event.description.length > 100 ? '...' : ''}</em>
+                {hasMessages && <div style={{ marginTop: '4px', color: '#1e40af', fontWeight: 'bold' }}>
+                  💬 {messageCount} message{messageCount !== 1 ? 's' : ''}
+                </div>}
+              </div>
+            </Tooltip>
             <Popup maxWidth={300}>
               <div style={{ padding: '8px' }}>
                 <h3 style={{
@@ -130,6 +153,11 @@ export default function TrafficMap({ events, messages = {}, onEventSelect }) {
                 <p style={{ margin: '4px 0' }}>
                   <strong>Description:</strong> {event.description}
                 </p>
+                {hasMessages && (
+                  <p style={{ margin: '8px 0', padding: '6px', backgroundColor: '#dbeafe', borderRadius: '4px' }}>
+                    <strong>💬 {messageCount} Message{messageCount !== 1 ? 's' : ''}</strong>
+                  </p>
+                )}
                 <p style={{ margin: '4px 0' }}>
                   <strong>Lanes:</strong> {event.lanesAffected}
                 </p>
@@ -148,7 +176,7 @@ export default function TrafficMap({ events, messages = {}, onEventSelect }) {
                     cursor: 'pointer'
                   }}
                 >
-                  View Messages
+                  {hasMessages ? 'View Messages' : 'Add Message'}
                 </button>
               </div>
             </Popup>
