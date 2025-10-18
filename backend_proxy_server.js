@@ -301,7 +301,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
                 id: `${stateName.substring(0, 2).toUpperCase()}-${eventId}`,
                 state: stateName,
                 corridor: API_CONFIG[stateName.toLowerCase()]?.corridor || 'Unknown',
-                eventType: determineEventType(headlineText),
+                eventType: determineEventType(headlineText, descText),
                 description: descText,
                 location: locationText,
                 county: 'Unknown',
@@ -364,13 +364,51 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
 };
 
 // Helper functions
-const determineEventType = (text) => {
-  const lowerText = (text || '').toLowerCase();
-  if (lowerText.includes('construction') || lowerText.includes('work zone')) return 'Construction';
-  if (lowerText.includes('accident') || lowerText.includes('crash') || lowerText.includes('incident')) return 'Incident';
-  if (lowerText.includes('closure') || lowerText.includes('closed')) return 'Closure';
-  if (lowerText.includes('weather') || lowerText.includes('snow') || lowerText.includes('ice')) return 'Weather';
-  return 'Unknown';
+const determineEventType = (text, description = '') => {
+  const lowerText = ((text || '') + ' ' + (description || '')).toLowerCase();
+
+  // Construction patterns
+  if (lowerText.includes('construction') ||
+      lowerText.includes('work zone') ||
+      lowerText.includes('road work') ||
+      lowerText.includes('bridge work') ||
+      lowerText.includes('maintenance')) {
+    return 'Construction';
+  }
+
+  // Incident patterns
+  if (lowerText.includes('accident') ||
+      lowerText.includes('crash') ||
+      lowerText.includes('incident') ||
+      lowerText.includes('collision') ||
+      lowerText.includes('vehicle') ||
+      lowerText.includes('stalled')) {
+    return 'Incident';
+  }
+
+  // Closure patterns
+  if (lowerText.includes('closure') ||
+      lowerText.includes('closed') ||
+      lowerText.includes('blocked') ||
+      lowerText.includes('lane closed') ||
+      lowerText.includes('ramp closed')) {
+    return 'Closure';
+  }
+
+  // Weather patterns
+  if (lowerText.includes('weather') ||
+      lowerText.includes('snow') ||
+      lowerText.includes('ice') ||
+      lowerText.includes('seasonal') ||
+      lowerText.includes('winter') ||
+      lowerText.includes('conditions') ||
+      lowerText.includes('fog') ||
+      lowerText.includes('rain') ||
+      lowerText.includes('wind')) {
+    return 'Weather';
+  }
+
+  return 'Construction'; // Default to construction instead of Unknown
 };
 
 const determineSeverity = (item) => {
