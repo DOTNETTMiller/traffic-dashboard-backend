@@ -11,63 +11,214 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-// Custom marker icons based on severity and event type
-const getMarkerIcon = (severity, eventType, hasMessages) => {
-  const colors = {
-    high: '#ef4444',    // red
-    medium: '#f59e0b',  // orange
-    low: '#10b981'      // green
-  };
+// Helper to determine lane closure direction
+const getLaneClosureType = (description, lanesAffected) => {
+  const text = (description + ' ' + lanesAffected).toLowerCase();
 
-  const color = colors[severity] || colors.medium;
+  // Check for full closure
+  if (text.includes('all lanes') || text.includes('road closed') ||
+      text.includes('completely closed') || text.includes('full closure')) {
+    return 'full';
+  }
 
-  // Different shapes for different event types
-  const shapes = {
-    'Construction': 'polygon(50% 0%, 100% 100%, 0% 100%)', // Triangle (warning sign)
-    'Incident': 'polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)', // Octagon (stop sign)
-    'Closure': 'polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%)', // Rounded square
-    'Weather': 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)', // Star
-    'Unknown': '50%' // Circle (default)
-  };
+  // Check for right lane
+  if (text.includes('right lane') || text.includes('right shoulder')) {
+    return 'right';
+  }
 
-  const shape = shapes[eventType] || shapes['Unknown'];
+  // Check for left lane
+  if (text.includes('left lane') || text.includes('left shoulder')) {
+    return 'left';
+  }
+
+  // Check for center/middle or multiple lanes
+  if (text.includes('center') || text.includes('middle') ||
+      text.includes('two lane') || text.includes('2 lane')) {
+    return 'both';
+  }
+
+  return 'both'; // Default
+};
+
+// Helper to determine weather type
+const getWeatherType = (description) => {
+  const text = description.toLowerCase();
+
+  if (text.includes('snow') || text.includes('ice') || text.includes('winter')) {
+    return 'snow';
+  }
+  if (text.includes('rain') || text.includes('wet')) {
+    return 'rain';
+  }
+  if (text.includes('wind') || text.includes('fog')) {
+    return 'wind';
+  }
+
+  return 'general';
+};
+
+// Custom marker icons based on event type with traffic sign symbols
+const getMarkerIcon = (event, hasMessages) => {
+  const { eventType, description = '', lanesAffected = '', severity } = event;
+
+  let iconSvg = '';
+
+  if (eventType === 'Closure') {
+    const closureType = getLaneClosureType(description, lanesAffected);
+
+    if (closureType === 'full') {
+      // Red circle with white bar (Do Not Enter)
+      iconSvg = `
+        <svg width="32" height="32" viewBox="0 0 32 32">
+          <circle cx="16" cy="16" r="14" fill="#dc2626" stroke="white" stroke-width="2"/>
+          <rect x="6" y="14" width="20" height="4" fill="white" rx="1"/>
+        </svg>
+      `;
+    } else if (closureType === 'right') {
+      // Orange diamond with left-pointing arrow (right lane closed, merge left)
+      iconSvg = `
+        <svg width="32" height="32" viewBox="0 0 32 32">
+          <rect x="16" y="0" width="18" height="18" fill="#f97316" stroke="white"
+                stroke-width="2" transform="rotate(45 16 16)"/>
+          <path d="M 20 16 L 12 16 L 15 12 M 12 16 L 15 20"
+                stroke="black" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      `;
+    } else if (closureType === 'left') {
+      // Orange diamond with right-pointing arrow (left lane closed, merge right)
+      iconSvg = `
+        <svg width="32" height="32" viewBox="0 0 32 32">
+          <rect x="16" y="0" width="18" height="18" fill="#f97316" stroke="white"
+                stroke-width="2" transform="rotate(45 16 16)"/>
+          <path d="M 12 16 L 20 16 L 17 12 M 20 16 L 17 20"
+                stroke="black" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      `;
+    } else {
+      // Orange diamond only (multiple lanes or unspecified)
+      iconSvg = `
+        <svg width="32" height="32" viewBox="0 0 32 32">
+          <rect x="16" y="0" width="18" height="18" fill="#f97316" stroke="white"
+                stroke-width="2" transform="rotate(45 16 16)"/>
+        </svg>
+      `;
+    }
+  } else if (eventType === 'Weather') {
+    const weatherType = getWeatherType(description);
+    const color = severity === 'high' ? '#dc2626' : '#3b82f6';
+
+    if (weatherType === 'snow') {
+      // Snowflake
+      iconSvg = `
+        <svg width="32" height="32" viewBox="0 0 32 32">
+          <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
+          <g stroke="white" stroke-width="2" stroke-linecap="round">
+            <line x1="16" y1="8" x2="16" y2="24"/>
+            <line x1="8" y1="16" x2="24" y2="16"/>
+            <line x1="11" y1="11" x2="21" y2="21"/>
+            <line x1="21" y1="11" x2="11" y2="21"/>
+            <line x1="16" y1="8" x2="13" y2="11"/>
+            <line x1="16" y1="8" x2="19" y2="11"/>
+          </g>
+        </svg>
+      `;
+    } else if (weatherType === 'rain') {
+      // Raindrops
+      iconSvg = `
+        <svg width="32" height="32" viewBox="0 0 32 32">
+          <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
+          <path d="M 12 12 Q 12 10 14 10 Q 16 10 16 12 L 16 18 Q 16 20 14 20 Q 12 20 12 18 Z"
+                fill="white"/>
+          <path d="M 18 14 Q 18 12 20 12 Q 22 12 22 14 L 22 20 Q 22 22 20 22 Q 18 22 18 20 Z"
+                fill="white" opacity="0.8"/>
+        </svg>
+      `;
+    } else if (weatherType === 'wind') {
+      // Wavy lines (wind/fog)
+      iconSvg = `
+        <svg width="32" height="32" viewBox="0 0 32 32">
+          <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
+          <path d="M 8 12 Q 12 10 16 12 Q 20 14 24 12" stroke="white" stroke-width="2"
+                fill="none" stroke-linecap="round"/>
+          <path d="M 8 16 Q 12 14 16 16 Q 20 18 24 16" stroke="white" stroke-width="2"
+                fill="none" stroke-linecap="round"/>
+          <path d="M 8 20 Q 12 18 16 20 Q 20 22 24 20" stroke="white" stroke-width="2"
+                fill="none" stroke-linecap="round"/>
+        </svg>
+      `;
+    } else {
+      // General weather (cloud)
+      iconSvg = `
+        <svg width="32" height="32" viewBox="0 0 32 32">
+          <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
+          <path d="M 10 18 Q 10 14 13 14 Q 13 12 15 12 Q 17 12 17 14 Q 20 14 20 17 Q 20 20 17 20 L 13 20 Q 10 20 10 18 Z"
+                fill="white"/>
+        </svg>
+      `;
+    }
+  } else if (eventType === 'Incident') {
+    // Red octagon (stop sign shape) with exclamation
+    iconSvg = `
+      <svg width="32" height="32" viewBox="0 0 32 32">
+        <path d="M 10 4 L 22 4 L 28 10 L 28 22 L 22 28 L 10 28 L 4 22 L 4 10 Z"
+              fill="#dc2626" stroke="white" stroke-width="2"/>
+        <text x="16" y="23" font-size="20" font-weight="bold" fill="white"
+              text-anchor="middle">!</text>
+      </svg>
+    `;
+  } else if (eventType === 'Construction') {
+    // Orange triangle (warning sign)
+    const color = severity === 'high' ? '#dc2626' : '#f97316';
+    iconSvg = `
+      <svg width="32" height="32" viewBox="0 0 32 32">
+        <path d="M 16 4 L 28 26 L 4 26 Z" fill="${color}" stroke="white" stroke-width="2"/>
+        <text x="16" y="22" font-size="14" font-weight="bold" fill="black"
+              text-anchor="middle">!</text>
+      </svg>
+    `;
+  } else {
+    // Default: Circle
+    const colors = {
+      high: '#dc2626',
+      medium: '#f97316',
+      low: '#10b981'
+    };
+    const color = colors[severity] || colors.medium;
+    iconSvg = `
+      <svg width="32" height="32" viewBox="0 0 32 32">
+        <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
+      </svg>
+    `;
+  }
 
   return L.divIcon({
     className: 'custom-marker',
     html: `
-      <div style="
-        background-color: ${color};
-        width: 28px;
-        height: 28px;
-        clip-path: ${shape};
-        border: 3px solid white;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        position: relative;
-      ">
+      <div style="position: relative; width: 32px; height: 32px;">
+        ${iconSvg}
         ${hasMessages ? `
           <div style="
             position: absolute;
-            top: -8px;
-            right: -8px;
+            top: -6px;
+            right: -6px;
             background-color: #1e40af;
             color: white;
-            width: 16px;
-            height: 16px;
+            width: 18px;
+            height: 18px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 11px;
+            font-size: 12px;
             font-weight: bold;
             border: 2px solid white;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-            clip-path: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
           ">!</div>
         ` : ''}
       </div>
     `,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14]
+    iconSize: [32, 32],
+    iconAnchor: [16, 16]
   });
 };
 
@@ -120,7 +271,7 @@ export default function TrafficMap({ events, messages = {}, onEventSelect }) {
             <Marker
               key={event.id}
               position={[parseFloat(event.latitude), parseFloat(event.longitude)]}
-              icon={getMarkerIcon(event.severity, event.eventType, hasMessages)}
+              icon={getMarkerIcon(event, hasMessages)}
               eventHandlers={{
                 click: () => onEventSelect && onEventSelect(event)
               }}
