@@ -1289,13 +1289,23 @@ const mapToWZDxEventType = (eventType) => {
 app.get('/api/compliance/guide/:state', async (req, res) => {
   const stateKey = req.params.state.toLowerCase();
 
-  if (!API_CONFIG[stateKey]) {
+  // Get state from database
+  const stateConfig = db.getState(stateKey);
+  if (!stateConfig) {
     return res.status(404).json({ error: 'State not found' });
   }
 
-  console.log(`Generating SAE J2735 compliance guide for ${API_CONFIG[stateKey].name}...`);
+  console.log(`Generating SAE J2735 compliance guide for ${stateConfig.stateName}...`);
   const result = await fetchStateData(stateKey);
-  const config = API_CONFIG[stateKey];
+
+  // Build config object compatible with the rest of the code
+  const config = {
+    name: stateConfig.stateName,
+    format: stateConfig.format,
+    wzdxUrl: stateConfig.apiType === 'WZDx' ? stateConfig.apiUrl : null,
+    eventsUrl: stateConfig.apiType !== 'WZDx' ? stateConfig.apiUrl : null,
+    apiType: stateConfig.apiType
+  };
 
   // Get a sample event to demonstrate transformation
   const sampleEvent = result.events[0];
@@ -1855,8 +1865,12 @@ app.get('/api/compliance/guide/:state', async (req, res) => {
 app.get('/api/compliance/summary', async (req, res) => {
   console.log('Generating compliance summary for all states...');
 
+  // Get all states from database
+  const allStates = db.getAllStates();
+  const stateKeys = allStates.map(s => s.stateKey);
+
   const allResults = await Promise.all(
-    Object.keys(API_CONFIG).map(stateKey => fetchStateData(stateKey))
+    stateKeys.map(stateKey => fetchStateData(stateKey))
   );
 
   const summary = {
@@ -1866,7 +1880,10 @@ app.get('/api/compliance/summary', async (req, res) => {
   };
 
   allResults.forEach(result => {
-    const config = API_CONFIG[Object.keys(API_CONFIG).find(k => API_CONFIG[k].name === result.state)];
+    // Find the state config from database
+    const stateConfig = allStates.find(s => s.stateName === result.state);
+    if (!stateConfig) return;
+
     const total = result.events.length || 1;
 
     // Calculate data completeness
@@ -1884,17 +1901,17 @@ app.get('/api/compliance/summary', async (req, res) => {
     });
     completenessScore = Math.round(completenessScore / total);
 
-    const isWzdx = !!config.wzdxUrl;
-    const isFEUG = config.eventsUrl?.includes('feu-g');
+    const isWzdx = stateConfig.apiType === 'WZDx';
+    const isFEUG = stateConfig.apiUrl?.includes('feu-g');
 
     summary.states.push({
       name: result.state,
       eventCount: result.events.length,
-      currentFormat: isWzdx ? 'WZDx' : (isFEUG ? 'FEU-G' : (config.format === 'xml' ? 'RSS' : 'Custom JSON')),
+      currentFormat: isWzdx ? 'WZDx' : (isFEUG ? 'FEU-G' : (stateConfig.format === 'xml' ? 'RSS' : stateConfig.apiType || 'Custom JSON')),
       dataCompletenessScore: completenessScore,
       saeJ2735Ready: completenessScore >= 80,
       wzdxCompliant: isWzdx,
-      complianceGuideUrl: `/api/compliance/guide/${Object.keys(API_CONFIG).find(k => API_CONFIG[k].name === result.state)}`,
+      complianceGuideUrl: `/api/compliance/guide/${stateConfig.stateKey}`,
       recommendedAction: isWzdx ? 'Maintain current standard' : (completenessScore < 70 ? 'Improve data quality and migrate to WZDx' : 'Migrate to WZDx')
     });
   });
