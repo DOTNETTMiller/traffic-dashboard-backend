@@ -12,7 +12,7 @@ L.Icon.Default.mergeOptions({
 });
 
 // Custom marker icons based on severity
-const getMarkerIcon = (severity, eventType) => {
+const getMarkerIcon = (severity, eventType, hasMessages) => {
   const colors = {
     high: '#ef4444',    // red
     medium: '#f59e0b',  // orange
@@ -31,7 +31,28 @@ const getMarkerIcon = (severity, eventType) => {
         border-radius: 50%;
         border: 3px solid white;
         box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-      "></div>
+        position: relative;
+      ">
+        ${hasMessages ? `
+          <div style="
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            background-color: #1e40af;
+            color: white;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            border: 2px solid white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+          ">!</div>
+        ` : ''}
+      </div>
     `,
     iconSize: [24, 24],
     iconAnchor: [12, 12]
@@ -58,7 +79,7 @@ function AutoFitBounds({ events }) {
   return null;
 }
 
-export default function TrafficMap({ events, onEventSelect }) {
+export default function TrafficMap({ events, messages = {}, onEventSelect }) {
   // Filter out events without valid coordinates
   const validEvents = events.filter(e => {
     const lat = parseFloat(e.latitude);
@@ -95,15 +116,18 @@ export default function TrafficMap({ events, onEventSelect }) {
 
         <AutoFitBounds events={validEvents} />
 
-        {validEvents.map((event) => (
-          <Marker
-            key={event.id}
-            position={[parseFloat(event.latitude), parseFloat(event.longitude)]}
-            icon={getMarkerIcon(event.severity, event.eventType)}
-            eventHandlers={{
-              click: () => onEventSelect && onEventSelect(event)
-            }}
-          >
+        {validEvents.map((event) => {
+          const hasMessages = messages[event.id] && messages[event.id].length > 0;
+
+          return (
+            <Marker
+              key={event.id}
+              position={[parseFloat(event.latitude), parseFloat(event.longitude)]}
+              icon={getMarkerIcon(event.severity, event.eventType, hasMessages)}
+              eventHandlers={{
+                click: () => onEventSelect && onEventSelect(event)
+              }}
+            >
             <Popup maxWidth={300}>
               <div style={{ padding: '8px' }}>
                 <h3 style={{
@@ -145,7 +169,8 @@ export default function TrafficMap({ events, onEventSelect }) {
               </div>
             </Popup>
           </Marker>
-        ))}
+          );
+        })}
       </MapContainer>
     </div>
   );
