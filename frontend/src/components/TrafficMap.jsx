@@ -1,4 +1,4 @@
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Tooltip } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -12,27 +12,6 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
-
-// Major interstate routes (simplified paths)
-const INTERSTATE_ROUTES = {
-  'I-80': [
-    [41.2, -111.9], // Utah
-    [41.0, -102.0], // Nebraska
-    [41.6, -93.6],  // Iowa
-    [41.5, -87.3],  // Indiana
-    [40.9, -81.7],  // Ohio
-    [40.8, -74.0],  // New Jersey
-  ],
-  'I-35': [
-    [43.1, -93.3],  // Iowa
-    [39.0, -94.6],  // Kansas/Missouri
-    [35.5, -97.5],  // Oklahoma
-  ],
-};
-
-const getInterstateColor = (routeName) => {
-  return '#3b82f6'; // Blue for all interstates
-};
 
 // Helper to determine lane closure direction
 const getLaneClosureType = (description, lanesAffected) => {
@@ -292,24 +271,13 @@ export default function TrafficMap({ events, messages = {}, onEventSelect }) {
           [49.384358, -66.93457] // Northeast corner (northern ME/WA)
         ]}
       >
+        {/* CartoDB Voyager - shows highways prominently with clear labels */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          subdomains="abcd"
+          maxZoom={20}
         />
-
-        {/* Interstate route highlighting */}
-        {Object.entries(INTERSTATE_ROUTES).map(([routeName, coordinates]) => (
-          <Polyline
-            key={routeName}
-            positions={coordinates}
-            pathOptions={{
-              color: getInterstateColor(routeName),
-              weight: 6,
-              opacity: 0.7,
-              dashArray: '10, 10'
-            }}
-          />
-        ))}
 
         <MarkerClusterGroup
           chunkedLoading
