@@ -1,7 +1,9 @@
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
-import { useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, Polyline } from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet.markercluster/dist/MarkerCluster.css';
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 
 // Fix for default marker icons in React-Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -10,6 +12,27 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
+
+// Major interstate routes (simplified paths)
+const INTERSTATE_ROUTES = {
+  'I-80': [
+    [41.2, -111.9], // Utah
+    [41.0, -102.0], // Nebraska
+    [41.6, -93.6],  // Iowa
+    [41.5, -87.3],  // Indiana
+    [40.9, -81.7],  // Ohio
+    [40.8, -74.0],  // New Jersey
+  ],
+  'I-35': [
+    [43.1, -93.3],  // Iowa
+    [39.0, -94.6],  // Kansas/Missouri
+    [35.5, -97.5],  // Oklahoma
+  ],
+};
+
+const getInterstateColor = (routeName) => {
+  return '#3b82f6'; // Blue for all interstates
+};
 
 // Helper to determine lane closure direction
 const getLaneClosureType = (description, lanesAffected) => {
@@ -199,20 +222,21 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
         ${hasMessages ? `
           <div style="
             position: absolute;
-            top: -8px;
-            right: -8px;
+            top: -20px;
+            right: -20px;
             z-index: 2000;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
           ">
-            <svg width="28" height="28" viewBox="0 0 28 28">
+            <svg width="48" height="48" viewBox="0 0 48 48">
               <!-- Message bubble -->
-              <path d="M 4 6 Q 4 4 6 4 L 22 4 Q 24 4 24 6 L 24 16 Q 24 18 22 18 L 12 18 L 8 22 L 8 18 L 6 18 Q 4 18 4 16 Z"
-                    fill="#10b981" stroke="white" stroke-width="2"/>
+              <path d="M 8 10 Q 8 6 12 6 L 36 6 Q 40 6 40 10 L 40 26 Q 40 30 36 30 L 20 30 L 14 38 L 14 30 L 12 30 Q 8 30 8 26 Z"
+                    fill="#10b981" stroke="white" stroke-width="3"/>
               <!-- Exclamation mark -->
-              <line x1="14" y1="8" x2="14" y2="13" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-              <circle cx="14" cy="16" r="1.5" fill="white"/>
+              <line x1="24" y1="12" x2="24" y2="22" stroke="white" stroke-width="4" stroke-linecap="round"/>
+              <circle cx="24" cy="26" r="2.5" fill="white"/>
               <!-- Count badge -->
-              <circle cx="22" cy="8" r="6" fill="#dc2626" stroke="white" stroke-width="2"/>
-              <text x="22" y="11" font-size="9" font-weight="bold" fill="white" text-anchor="middle">${messageCount}</text>
+              <circle cx="38" cy="12" r="10" fill="#dc2626" stroke="white" stroke-width="3"/>
+              <text x="38" y="17" font-size="14" font-weight="bold" fill="white" text-anchor="middle">${messageCount > 9 ? '9+' : messageCount}</text>
             </svg>
           </div>
         ` : ''}
@@ -273,6 +297,54 @@ export default function TrafficMap({ events, messages = {}, onEventSelect }) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
+        {/* Interstate route highlighting */}
+        {Object.entries(INTERSTATE_ROUTES).map(([routeName, coordinates]) => (
+          <Polyline
+            key={routeName}
+            positions={coordinates}
+            pathOptions={{
+              color: getInterstateColor(routeName),
+              weight: 6,
+              opacity: 0.7,
+              dashArray: '10, 10'
+            }}
+          />
+        ))}
+
+        <MarkerClusterGroup
+          chunkedLoading
+          maxClusterRadius={50}
+          spiderfyOnMaxZoom={true}
+          showCoverageOnHover={false}
+          zoomToBoundsOnClick={true}
+          iconCreateFunction={(cluster) => {
+            const count = cluster.getChildCount();
+            const markers = cluster.getAllChildMarkers();
+            const hasAnyMessages = markers.some(m => {
+              const eventId = m.options.eventId;
+              return messages[eventId] && messages[eventId].length > 0;
+            });
+
+            return L.divIcon({
+              html: `<div style="
+                background-color: ${hasAnyMessages ? '#10b981' : '#3b82f6'};
+                color: white;
+                border-radius: 50%;
+                width: 40px;
+                height: 40px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: bold;
+                font-size: 16px;
+                border: 3px solid white;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+              ">${count}</div>`,
+              className: 'custom-cluster-icon',
+              iconSize: L.point(40, 40, true),
+            });
+          }}
+        >
         {sortedEvents.map((event) => {
           const hasMessages = messages[event.id] && messages[event.id].length > 0;
           const messageCount = hasMessages ? messages[event.id].length : 0;
@@ -283,6 +355,7 @@ export default function TrafficMap({ events, messages = {}, onEventSelect }) {
               position={[parseFloat(event.latitude), parseFloat(event.longitude)]}
               icon={getMarkerIcon(event, hasMessages, messageCount)}
               zIndexOffset={hasMessages ? 1000 : 0}
+              eventId={event.id}
               eventHandlers={{
                 click: () => onEventSelect && onEventSelect(event)
               }}
@@ -345,6 +418,7 @@ export default function TrafficMap({ events, messages = {}, onEventSelect }) {
           </Marker>
           );
         })}
+        </MarkerClusterGroup>
       </MapContainer>
     </div>
   );
