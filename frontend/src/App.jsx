@@ -134,6 +134,7 @@ function App() {
           {view === 'map' ? (
             <TrafficMap
               events={filteredEvents}
+              messages={messages}
               onEventSelect={setSelectedEvent}
             />
           ) : (
