@@ -226,7 +226,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
   const normalized = [];
   
   try {
-    if (format === 'json') {
+    if (format === 'json' || format === 'geojson') {
       // Handle Nevada
       if (stateName === 'Nevada' && Array.isArray(rawData)) {
         rawData.forEach(item => {
@@ -834,8 +834,8 @@ const fetchStateData = async (stateKey) => {
   const results = { state: config.name, events: [], errors: [] };
   
   try {
-    if (config.format === 'json') {
-      // Fetch JSON data
+    if (config.format === 'json' || config.format === 'geojson') {
+      // Fetch JSON/GeoJSON data
       const headers = {};
       if (config.apiKey) {
         // Ohio uses "APIKEY {key}" format, Nevada uses "Bearer {key}"
@@ -850,7 +850,7 @@ const fetchStateData = async (stateKey) => {
             headers,
             timeout: 10000 
           });
-          const normalized = normalizeEventData(response.data, config.name, 'json', 'events');
+          const normalized = normalizeEventData(response.data, config.name, config.format, 'events');
           results.events.push(...normalized);
         } catch (error) {
           results.errors.push(`Events: ${error.message}`);
