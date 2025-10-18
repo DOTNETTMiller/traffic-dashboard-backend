@@ -6,13 +6,19 @@
   "scripts": {
     "start": "node backend_proxy_server.js"
   },
-  "keywords": ["traffic", "dot", "api", "proxy"],
+  "keywords": [
+    "traffic",
+    "dot",
+    "api",
+    "proxy"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
     "axios": "^1.6.0",
+    "better-sqlite3": "^12.4.1",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
     "xml2js": "^0.6.2"
   },
   "engines": {
