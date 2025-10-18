@@ -8,10 +8,11 @@ import EventFilters from './components/EventFilters';
 import EventMessaging from './components/EventMessaging';
 import DataQualityReport from './components/DataQualityReport';
 import MessagesPanel from './components/MessagesPanel';
+import StateAdmin from './components/StateAdmin';
 import './styles/App.css';
 
 function App() {
-  const [view, setView] = useState('map'); // 'map', 'table', or 'report'
+  const [view, setView] = useState('map'); // 'map', 'table', 'report', or 'admin'
   const [filters, setFilters] = useState({
     state: '',
     corridor: '',
@@ -154,6 +155,13 @@ function App() {
           >
             Data Quality Report
           </button>
+          <button
+            className={`toggle-btn ${view === 'admin' ? 'active' : ''}`}
+            onClick={() => setView('admin')}
+            style={{ backgroundColor: view === 'admin' ? '#dc3545' : '#6c757d' }}
+          >
+            Admin
+          </button>
         </div>
 
         <div className="control-buttons">
@@ -173,7 +181,7 @@ function App() {
 
       {/* Main Content */}
       <div className="main-content">
-        {view !== 'report' && (
+        {view !== 'report' && view !== 'admin' && (
           <EventFilters
             events={events}
             filters={filters}
@@ -181,13 +189,15 @@ function App() {
           />
         )}
 
-        {error && (
+        {error && view !== 'admin' && (
           <div className="error-banner">
             Error loading events: {error}
           </div>
         )}
 
-        {view === 'map' ? (
+        {view === 'admin' ? (
+          <StateAdmin />
+        ) : view === 'map' ? (
           <div style={{
             flex: 1,
             display: 'flex',

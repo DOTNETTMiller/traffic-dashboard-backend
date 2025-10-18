@@ -7,6 +7,7 @@ const axios = require('axios');
 const xml2js = require('xml2js');
 const fs = require('fs').promises;
 const path = require('path');
+const db = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -14,6 +15,21 @@ const PORT = process.env.PORT || 3001;
 // Enable CORS for your frontend
 app.use(cors());
 app.use(express.json());
+
+// Admin authentication middleware
+const requireAdmin = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing or invalid authorization header' });
+  }
+
+  const token = authHeader.substring(7);
+  if (!db.verifyAdminToken(token)) {
+    return res.status(403).json({ error: 'Invalid or expired admin token' });
+  }
+
+  next();
+};
 
 // Message storage file
 const MESSAGES_FILE = path.join(__dirname, 'messages.json');
@@ -125,6 +141,50 @@ const API_CONFIG = {
     corridor: 'I-80'
   }
 };
+
+// Function to load states from database and merge with API_CONFIG
+function loadStatesFromDatabase() {
+  console.log('📦 Loading states from database...');
+
+  const dbStates = db.getAllStates(true); // Get all with credentials
+
+  dbStates.forEach(state => {
+    if (state.enabled) {
+      // Convert database format to API_CONFIG format
+      API_CONFIG[state.stateKey] = {
+        name: state.stateName,
+        eventsUrl: state.apiUrl,
+        format: state.format,
+        apiType: state.apiType,
+        ...(state.credentials || {})
+      };
+
+      console.log(`  ✅ Loaded ${state.stateName} from database`);
+    }
+  });
+
+  console.log(`📊 Total states configured: ${Object.keys(API_CONFIG).length}`);
+}
+
+// Run migration on first startup (only runs once)
+const existingStates = db.getAllStates();
+if (existingStates.length === 0) {
+  console.log('🔄 First startup detected - migrating existing states to database...');
+  db.migrateFromConfig(API_CONFIG);
+}
+
+// Load any additional states from database
+loadStatesFromDatabase();
+
+// Generate admin token if none exist
+const tokenCheck = db.db.prepare('SELECT COUNT(*) as count FROM admin_tokens').get();
+if (tokenCheck.count === 0) {
+  const initialToken = db.createAdminToken('Initial admin token');
+  console.log('\n🔑 ═══════════════════════════════════════════════════════════');
+  console.log('🔑 ADMIN TOKEN GENERATED (SAVE THIS SECURELY):');
+  console.log(`🔑 ${initialToken}`);
+  console.log('🔑 ═══════════════════════════════════════════════════════════\n');
+}
 
 // Helper function to parse XML
 const parseXML = async (xmlString) => {
@@ -1968,6 +2028,141 @@ app.delete('/api/messages/event/:eventId', async (req, res) => {
   }
 });
 
+// ==================== ADMIN STATE MANAGEMENT ENDPOINTS ====================
+
+// Generate admin token (one-time setup or regenerate)
+app.post('/api/admin/generate-token', (req, res) => {
+  const { description } = req.body;
+  const token = db.createAdminToken(description || 'Admin access token');
+
+  if (token) {
+    res.json({
+      success: true,
+      token: token,
+      message: 'Save this token securely! It will not be shown again.',
+      usage: `Authorization: Bearer ${token}`
+    });
+  } else {
+    res.status(500).json({ error: 'Failed to generate token' });
+  }
+});
+
+// Add new state (admin only)
+app.post('/api/admin/states', requireAdmin, (req, res) => {
+  const { stateKey, stateName, apiUrl, apiType, format, credentials } = req.body;
+
+  // Validation
+  if (!stateKey || !stateName || !apiUrl || !format) {
+    return res.status(400).json({
+      error: 'Missing required fields: stateKey, stateName, apiUrl, format'
+    });
+  }
+
+  const result = db.addState({
+    stateKey,
+    stateName,
+    apiUrl,
+    apiType: apiType || 'Custom',
+    format,
+    credentials
+  });
+
+  if (result.success) {
+    // Reload API_CONFIG to include new state
+    loadStatesFromDatabase();
+    res.status(201).json({
+      success: true,
+      message: `State ${stateName} added successfully`,
+      stateKey: result.stateKey
+    });
+  } else {
+    res.status(400).json({ error: result.error });
+  }
+});
+
+// Update existing state (admin only)
+app.put('/api/admin/states/:stateKey', requireAdmin, (req, res) => {
+  const { stateKey } = req.params;
+  const updates = req.body;
+
+  const result = db.updateState(stateKey, updates);
+
+  if (result.success) {
+    // Reload API_CONFIG
+    loadStatesFromDatabase();
+    res.json({
+      success: true,
+      message: `State ${stateKey} updated successfully`
+    });
+  } else {
+    res.status(400).json({ error: result.error });
+  }
+});
+
+// Delete state (admin only)
+app.delete('/api/admin/states/:stateKey', requireAdmin, (req, res) => {
+  const { stateKey } = req.params;
+
+  const result = db.deleteState(stateKey);
+
+  if (result.success) {
+    // Reload API_CONFIG
+    loadStatesFromDatabase();
+    res.json({
+      success: true,
+      message: `State ${stateKey} deleted successfully`
+    });
+  } else {
+    res.status(400).json({ error: result.error });
+  }
+});
+
+// List all states (public gets basic info, admin gets credentials)
+app.get('/api/admin/states', (req, res) => {
+  const authHeader = req.headers.authorization;
+  const isAdmin = authHeader && authHeader.startsWith('Bearer ') &&
+                  db.verifyAdminToken(authHeader.substring(7));
+
+  const states = db.getAllStates(isAdmin);
+
+  res.json({
+    success: true,
+    count: states.length,
+    states: states
+  });
+});
+
+// Test state API connection (admin only)
+app.get('/api/admin/test-state/:stateKey', requireAdmin, async (req, res) => {
+  const { stateKey } = req.params;
+  const state = db.getState(stateKey, true); // Include credentials
+
+  if (!state) {
+    return res.status(404).json({ error: 'State not found' });
+  }
+
+  try {
+    // Attempt to fetch data using state's configuration
+    const result = await fetchStateData(stateKey);
+
+    res.json({
+      success: true,
+      state: state.stateName,
+      eventsFound: result.events.length,
+      errors: result.errors,
+      message: result.events.length > 0
+        ? 'Connection successful!'
+        : 'Connected but no events found (this may be normal)'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      message: 'Failed to connect to state API'
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`\n🚀 Traffic Dashboard Backend Server`);
@@ -1986,6 +2181,13 @@ app.listen(PORT, () => {
   console.log(`   GET http://localhost:${PORT}/api/messages/event/:eventId - Get event messages`);
   console.log(`   POST http://localhost:${PORT}/api/messages - Create message`);
   console.log(`   DELETE http://localhost:${PORT}/api/messages/:id - Delete message`);
+  console.log(`\n🔐 Admin State Management Endpoints (NEW):`);
+  console.log(`   POST http://localhost:${PORT}/api/admin/generate-token - Generate admin token`);
+  console.log(`   GET http://localhost:${PORT}/api/admin/states - List all states`);
+  console.log(`   POST http://localhost:${PORT}/api/admin/states - Add new state (requires admin token)`);
+  console.log(`   PUT http://localhost:${PORT}/api/admin/states/:stateKey - Update state (requires admin token)`);
+  console.log(`   DELETE http://localhost:${PORT}/api/admin/states/:stateKey - Delete state (requires admin token)`);
+  console.log(`   GET http://localhost:${PORT}/api/admin/test-state/:stateKey - Test state API (requires admin token)`);
   console.log(`\n🌐 Connected to ${Object.keys(API_CONFIG).length} state DOT APIs`);
   console.log(`\nPress Ctrl+C to stop the server\n`);
 });
