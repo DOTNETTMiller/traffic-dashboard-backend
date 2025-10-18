@@ -58,7 +58,7 @@ const getWeatherType = (description) => {
 };
 
 // Custom marker icons based on event type with traffic sign symbols
-const getMarkerIcon = (event, hasMessages) => {
+const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
   const { eventType, description = '', lanesAffected = '', severity } = event;
 
   let iconSvg = '';
@@ -194,26 +194,27 @@ const getMarkerIcon = (event, hasMessages) => {
   return L.divIcon({
     className: 'custom-marker',
     html: `
-      <div style="position: relative; width: 32px; height: 32px;">
+      <div style="position: relative; width: 32px; height: 32px; ${hasMessages ? 'z-index: 1000;' : 'z-index: 1;'}">
         ${iconSvg}
         ${hasMessages ? `
           <div style="
             position: absolute;
-            top: -6px;
-            right: -6px;
-            background-color: #1e40af;
-            color: white;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: bold;
-            border: 2px solid white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
-          ">!</div>
+            top: -8px;
+            right: -8px;
+            z-index: 2000;
+          ">
+            <svg width="28" height="28" viewBox="0 0 28 28">
+              <!-- Message bubble -->
+              <path d="M 4 6 Q 4 4 6 4 L 22 4 Q 24 4 24 6 L 24 16 Q 24 18 22 18 L 12 18 L 8 22 L 8 18 L 6 18 Q 4 18 4 16 Z"
+                    fill="#10b981" stroke="white" stroke-width="2"/>
+              <!-- Exclamation mark -->
+              <line x1="14" y1="8" x2="14" y2="13" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+              <circle cx="14" cy="16" r="1.5" fill="white"/>
+              <!-- Count badge -->
+              <circle cx="22" cy="8" r="6" fill="#dc2626" stroke="white" stroke-width="2"/>
+              <text x="22" y="11" font-size="9" font-weight="bold" fill="white" text-anchor="middle">${messageCount}</text>
+            </svg>
+          </div>
         ` : ''}
       </div>
     `,
@@ -241,6 +242,15 @@ export default function TrafficMap({ events, messages = {}, onEventSelect }) {
 
   console.log(`📍 Map: ${validEvents.length} valid events out of ${events.length} total`);
 
+  // Sort events so those with messages appear on top (render last)
+  const sortedEvents = [...validEvents].sort((a, b) => {
+    const aHasMessages = messages[a.id] && messages[a.id].length > 0;
+    const bHasMessages = messages[b.id] && messages[b.id].length > 0;
+    if (aHasMessages && !bHasMessages) return 1; // a renders after b (on top)
+    if (!aHasMessages && bHasMessages) return -1; // b renders after a (on top)
+    return 0;
+  });
+
   // Center on mainland United States
   const defaultCenter = [39.8283, -98.5795];
   const defaultZoom = 5;
@@ -263,7 +273,7 @@ export default function TrafficMap({ events, messages = {}, onEventSelect }) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {validEvents.map((event) => {
+        {sortedEvents.map((event) => {
           const hasMessages = messages[event.id] && messages[event.id].length > 0;
           const messageCount = hasMessages ? messages[event.id].length : 0;
 
@@ -271,7 +281,8 @@ export default function TrafficMap({ events, messages = {}, onEventSelect }) {
             <Marker
               key={event.id}
               position={[parseFloat(event.latitude), parseFloat(event.longitude)]}
-              icon={getMarkerIcon(event, hasMessages)}
+              icon={getMarkerIcon(event, hasMessages, messageCount)}
+              zIndexOffset={hasMessages ? 1000 : 0}
               eventHandlers={{
                 click: () => onEventSelect && onEventSelect(event)
               }}
