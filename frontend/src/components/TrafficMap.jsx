@@ -1,9 +1,31 @@
-import { MapContainer, TileLayer, Marker, Popup, Tooltip } from 'react-leaflet';
+import { useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+
+// Component to center map on selected event
+function MapCenterController({ selectedEvent }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (selectedEvent && selectedEvent.latitude && selectedEvent.longitude) {
+      const lat = parseFloat(selectedEvent.latitude);
+      const lng = parseFloat(selectedEvent.longitude);
+
+      if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+        map.setView([lat, lng], 12, {
+          animate: true,
+          duration: 1
+        });
+      }
+    }
+  }, [selectedEvent, map]);
+
+  return null;
+}
 
 // Fix for default marker icons in React-Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -226,7 +248,7 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
   });
 };
 
-export default function TrafficMap({ events, messages = {}, onEventSelect }) {
+export default function TrafficMap({ events, messages = {}, onEventSelect, selectedEvent = null }) {
   // Filter out events without valid coordinates
   const validEvents = events.filter(e => {
     const lat = parseFloat(e.latitude);
@@ -271,6 +293,9 @@ export default function TrafficMap({ events, messages = {}, onEventSelect }) {
           [49.384358, -66.93457] // Northeast corner (northern ME/WA)
         ]}
       >
+        {/* Map center controller */}
+        <MapCenterController selectedEvent={selectedEvent} />
+
         {/* CartoDB Voyager - shows highways prominently with clear labels */}
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
