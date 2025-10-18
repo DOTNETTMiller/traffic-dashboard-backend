@@ -173,23 +173,28 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
             }
           }
 
-          normalized.push({
-            id: `UT-${props.road_event_id || Math.random().toString(36).substr(2, 9)}`,
-            state: 'Utah',
-            corridor: 'I-80',
-            eventType: props.event_type || 'Construction',
-            description: props.description || 'Work zone',
-            location: props.road_names ? props.road_names.join(', ') : 'I-80',
-            county: props.county || 'Unknown',
-            latitude: lat,
-            longitude: lng,
-            startTime: props.start_date || new Date().toISOString(),
-            endTime: props.end_date || null,
-            lanesAffected: props.lanes?.[0]?.status || 'Check conditions',
-            severity: props.event_status === 'active' ? 'medium' : 'low',
-            direction: props.direction || 'Both',
-            requiresCollaboration: false
-          });
+          const locationText = props.road_names ? props.road_names.join(', ') : 'I-80';
+
+          // Only include events on interstate highways
+          if (isInterstateRoute(locationText)) {
+            normalized.push({
+              id: `UT-${props.road_event_id || Math.random().toString(36).substr(2, 9)}`,
+              state: 'Utah',
+              corridor: 'I-80',
+              eventType: props.event_type || 'Construction',
+              description: props.description || 'Work zone',
+              location: locationText,
+              county: props.county || 'Unknown',
+              latitude: lat,
+              longitude: lng,
+              startTime: props.start_date || new Date().toISOString(),
+              endTime: props.end_date || null,
+              lanesAffected: props.lanes?.[0]?.status || 'Check conditions',
+              severity: props.event_status === 'active' ? 'medium' : 'low',
+              direction: props.direction || 'Both',
+              requiresCollaboration: false
+            });
+          }
         });
       }
     } 
@@ -272,23 +277,26 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
               if (roadwayText) locationText = roadwayText;
             }
 
-            normalized.push({
-              id: `${stateName.substring(0, 2).toUpperCase()}-${eventId}`,
-              state: stateName,
-              corridor: API_CONFIG[stateName.toLowerCase()]?.corridor || 'Unknown',
-              eventType: determineEventType(headlineText),
-              description: descText,
-              location: locationText,
-              county: 'Unknown',
-              latitude: lat,
-              longitude: lng,
-              startTime: detail?.['event-times']?.['start-time'] || new Date().toISOString(),
-              endTime: detail?.['event-times']?.['end-time'] || null,
-              lanesAffected: 'Check conditions',
-              severity: determineSeverityFromText(descText, headlineText),
-              direction: extractDirection(descText, locationText),
-              requiresCollaboration: false
-            });
+            // Only include events on interstate highways
+            if (isInterstateRoute(locationText)) {
+              normalized.push({
+                id: `${stateName.substring(0, 2).toUpperCase()}-${eventId}`,
+                state: stateName,
+                corridor: API_CONFIG[stateName.toLowerCase()]?.corridor || 'Unknown',
+                eventType: determineEventType(headlineText),
+                description: descText,
+                location: locationText,
+                county: 'Unknown',
+                latitude: lat,
+                longitude: lng,
+                startTime: detail?.['event-times']?.['start-time'] || new Date().toISOString(),
+                endTime: detail?.['event-times']?.['end-time'] || null,
+                lanesAffected: 'Check conditions',
+                severity: determineSeverityFromText(descText, headlineText),
+                direction: extractDirection(descText, locationText),
+                requiresCollaboration: false
+              });
+            }
           });
         }
       }
@@ -305,24 +313,28 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
           // Try to extract location info
           const latMatch = description.match(/Lat:\s*([-\d.]+)/i);
           const lonMatch = description.match(/Lon:\s*([-\d.]+)/i);
+          const locationText = extractLocation(description, title);
 
-          normalized.push({
-            id: `${stateName.substring(0, 2).toUpperCase()}-${Math.random().toString(36).substr(2, 9)}`,
-            state: stateName,
-            corridor: API_CONFIG[stateName.toLowerCase()]?.corridor || 'Unknown',
-            eventType: determineEventType(title),
-            description: title || description,
-            location: extractLocation(description, title),
-            county: 'Unknown',
-            latitude: latMatch ? parseFloat(latMatch[1]) : 0,
-            longitude: lonMatch ? parseFloat(lonMatch[1]) : 0,
-            startTime: item.pubDate || new Date().toISOString(),
-            endTime: null,
-            lanesAffected: extractLaneInfo(description),
-            severity: determineSeverityFromText(description, title),
-            direction: extractDirection(description, title),
-            requiresCollaboration: false
-          });
+          // Only include events on interstate highways
+          if (isInterstateRoute(locationText)) {
+            normalized.push({
+              id: `${stateName.substring(0, 2).toUpperCase()}-${Math.random().toString(36).substr(2, 9)}`,
+              state: stateName,
+              corridor: API_CONFIG[stateName.toLowerCase()]?.corridor || 'Unknown',
+              eventType: determineEventType(title),
+              description: title || description,
+              location: locationText,
+              county: 'Unknown',
+              latitude: latMatch ? parseFloat(latMatch[1]) : 0,
+              longitude: lonMatch ? parseFloat(lonMatch[1]) : 0,
+              startTime: item.pubDate || new Date().toISOString(),
+              endTime: null,
+              lanesAffected: extractLaneInfo(description),
+              severity: determineSeverityFromText(description, title),
+              direction: extractDirection(description, title),
+              requiresCollaboration: false
+            });
+          }
         });
       }
     }
@@ -382,6 +394,19 @@ const extractDirection = (description, title) => {
   if (text.includes('northbound') || text.includes('nb')) return 'Northbound';
   if (text.includes('southbound') || text.includes('sb')) return 'Southbound';
   return 'Both';
+};
+
+// Check if a route is an interstate highway (I-XX format)
+const isInterstateRoute = (locationText) => {
+  if (!locationText) return false;
+
+  // Match patterns like "I-80", "I 80", "Interstate 80", etc.
+  // Avoid state routes like "KS 156", "US 30", "MN 55"
+  const interstatePattern = /\b(I-?\d{1,3}|Interstate\s+\d{1,3})\b/i;
+  const stateRoutePattern = /\b(US|SR|KS|NE|IA|IN|MN|UT|NV|OH|NJ)\s*[-\s]?\d+\b/i;
+
+  // Must match interstate pattern and NOT match state route pattern
+  return interstatePattern.test(locationText) && !stateRoutePattern.test(locationText);
 };
 
 // Fetch data from a single state
