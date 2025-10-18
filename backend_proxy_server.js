@@ -105,6 +105,22 @@ const extractTextValue = (obj) => {
   return '';
 };
 
+// Helper to extract actual interstate corridor from location text
+const extractCorridor = (locationText) => {
+  if (!locationText) return 'Unknown';
+
+  const text = locationText.toUpperCase();
+
+  // Match patterns like "I-80", "I 80", "Interstate 80"
+  const interstateMatch = text.match(/\b(?:I-?|INTERSTATE\s+)(\d{1,3})\b/);
+
+  if (interstateMatch) {
+    return `I-${interstateMatch[1]}`;
+  }
+
+  return 'Unknown';
+};
+
 // Normalize data from different state formats
 const normalizeEventData = (rawData, stateName, format, sourceType = 'events') => {
   const normalized = [];
@@ -114,14 +130,15 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
       // Handle Nevada
       if (stateName === 'Nevada' && Array.isArray(rawData)) {
         rawData.forEach(item => {
-          if (item.routes && item.routes.some(r => r.includes('I-80'))) {
+          const locationText = item.location_description || `I-80 ${item.direction || ''}`;
+          if (item.routes && item.routes.some(r => /I-?\d+/.test(r))) {
             normalized.push({
               id: `NV-${item.id || Math.random().toString(36).substr(2, 9)}`,
               state: 'Nevada',
-              corridor: 'I-80',
+              corridor: extractCorridor(locationText),
               eventType: determineEventType(item.event_category || item.description),
               description: item.description || item.headline || 'Road condition update',
-              location: item.location_description || `I-80 ${item.direction || ''}`,
+              location: locationText,
               county: item.county || 'Unknown',
               latitude: parseFloat(item.start_latitude) || 0,
               longitude: parseFloat(item.start_longitude) || 0,
@@ -135,18 +152,19 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
           }
         });
       }
-      
+
       // Handle Ohio
       if (stateName === 'Ohio' && Array.isArray(rawData)) {
         rawData.forEach(item => {
-          if (item.route && item.route.includes('I-80')) {
+          const locationText = `${item.route} ${item.direction || ''} MM ${item.milepost || ''}`;
+          if (item.route && /I-?\d+/.test(item.route)) {
             normalized.push({
               id: `OH-${item.id || Math.random().toString(36).substr(2, 9)}`,
               state: 'Ohio',
-              corridor: 'I-80',
+              corridor: extractCorridor(locationText),
               eventType: sourceType === 'incidents' ? 'Incident' : 'Construction',
               description: item.description || item.comments || 'Road work',
-              location: `${item.route} ${item.direction || ''} MM ${item.milepost || ''}`,
+              location: locationText,
               county: item.county || 'Unknown',
               latitude: parseFloat(item.latitude) || 0,
               longitude: parseFloat(item.longitude) || 0,
@@ -193,7 +211,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
             normalized.push({
               id: `UT-${props.road_event_id || Math.random().toString(36).substr(2, 9)}`,
               state: 'Utah',
-              corridor: 'I-80',
+              corridor: extractCorridor(locationText),
               eventType: props.event_type || 'Construction',
               description: props.description || 'Work zone',
               location: locationText,
@@ -300,7 +318,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
               normalized.push({
                 id: `${stateName.substring(0, 2).toUpperCase()}-${eventId}`,
                 state: stateName,
-                corridor: API_CONFIG[stateName.toLowerCase()]?.corridor || 'Unknown',
+                corridor: extractCorridor(locationText),
                 eventType: determineEventType(headlineText, descText),
                 description: descText,
                 location: locationText,
@@ -338,7 +356,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
             normalized.push({
               id: `${stateName.substring(0, 2).toUpperCase()}-${Math.random().toString(36).substr(2, 9)}`,
               state: stateName,
-              corridor: API_CONFIG[stateName.toLowerCase()]?.corridor || 'Unknown',
+              corridor: extractCorridor(locationText),
               eventType: determineEventType(title),
               description: title || description,
               location: locationText,
