@@ -59,7 +59,7 @@ const getMarkerIcon = (severity, eventType, hasMessages) => {
   });
 };
 
-// Component to auto-fit bounds when events change
+// Component to auto-fit bounds only on initial load
 function AutoFitBounds({ events }) {
   const map = useMap();
 
@@ -74,7 +74,9 @@ function AutoFitBounds({ events }) {
         }
       }
     }
-  }, [events, map]);
+    // Only run once on mount by omitting events from dependency array
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map]);
 
   return null;
 }
