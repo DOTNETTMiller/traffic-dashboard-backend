@@ -1,13 +1,17 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import axios from 'axios';
 import { useTrafficData } from './hooks/useTrafficData';
+import { config } from './config';
 import TrafficMap from './components/TrafficMap';
 import EventTable from './components/EventTable';
 import EventFilters from './components/EventFilters';
 import EventMessaging from './components/EventMessaging';
+import DataQualityReport from './components/DataQualityReport';
+import MessagesPanel from './components/MessagesPanel';
 import './styles/App.css';
 
 function App() {
-  const [view, setView] = useState('map'); // 'map' or 'table'
+  const [view, setView] = useState('map'); // 'map', 'table', or 'report'
   const [filters, setFilters] = useState({
     state: '',
     corridor: '',
@@ -18,11 +22,41 @@ function App() {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [messages, setMessages] = useState({});
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(true);
 
   // Fetch traffic data with auto-refresh (60 seconds)
   const { events, loading, error, lastUpdate, refetch } = useTrafficData(
     autoRefresh ? 60000 : null
   );
+
+  // Load messages from backend on mount
+  useEffect(() => {
+    loadMessagesFromAPI();
+  }, []);
+
+  const loadMessagesFromAPI = async () => {
+    try {
+      setLoadingMessages(true);
+      const response = await axios.get(`${config.apiUrl}/api/messages`);
+
+      if (response.data.success) {
+        // Convert array to object grouped by eventId
+        const messagesByEvent = {};
+        response.data.messages.forEach(msg => {
+          if (!messagesByEvent[msg.eventId]) {
+            messagesByEvent[msg.eventId] = [];
+          }
+          messagesByEvent[msg.eventId].push(msg);
+        });
+        setMessages(messagesByEvent);
+        console.log('💬 Loaded', response.data.count, 'messages from server');
+      }
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
 
   // Filter events based on active filters
   const filteredEvents = useMemo(() => {
@@ -56,11 +90,26 @@ function App() {
     });
   }, [events, filters]);
 
-  const handleSendMessage = (message) => {
-    setMessages(prev => ({
-      ...prev,
-      [message.eventId]: [...(prev[message.eventId] || []), message]
-    }));
+  const handleSendMessage = async (message) => {
+    try {
+      // Save to backend
+      const response = await axios.post(`${config.apiUrl}/api/messages`, message);
+
+      if (response.data.success) {
+        const savedMessage = response.data.message;
+
+        // Update local state
+        setMessages(prev => ({
+          ...prev,
+          [savedMessage.eventId]: [...(prev[savedMessage.eventId] || []), savedMessage]
+        }));
+
+        console.log('💬 Message saved to server:', savedMessage.id);
+      }
+    } catch (error) {
+      console.error('Error saving message:', error);
+      alert('Failed to send message. Please try again.');
+    }
   };
 
   const eventMessages = selectedEvent ? (messages[selectedEvent.id] || []) : [];
@@ -99,6 +148,12 @@ function App() {
           >
             Table View
           </button>
+          <button
+            className={`toggle-btn ${view === 'report' ? 'active' : ''}`}
+            onClick={() => setView('report')}
+          >
+            Data Quality Report
+          </button>
         </div>
 
         <div className="control-buttons">
@@ -118,11 +173,13 @@ function App() {
 
       {/* Main Content */}
       <div className="main-content">
-        <EventFilters
-          events={events}
-          filters={filters}
-          onFilterChange={setFilters}
-        />
+        {view !== 'report' && (
+          <EventFilters
+            events={events}
+            filters={filters}
+            onFilterChange={setFilters}
+          />
+        )}
 
         {error && (
           <div className="error-banner">
@@ -130,20 +187,45 @@ function App() {
           </div>
         )}
 
-        <div className="view-container">
-          {view === 'map' ? (
-            <TrafficMap
+        {view === 'map' ? (
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'row',
+            minHeight: 0,
+            overflow: 'hidden',
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+          }}>
+            <MessagesPanel
               events={filteredEvents}
               messages={messages}
+              filters={filters}
               onEventSelect={setSelectedEvent}
             />
-          ) : (
-            <EventTable
-              events={filteredEvents}
-              onEventSelect={setSelectedEvent}
-            />
-          )}
-        </div>
+            <div style={{ flex: 1, height: '100%', overflow: 'hidden' }}>
+              <TrafficMap
+                events={filteredEvents}
+                messages={messages}
+                onEventSelect={setSelectedEvent}
+                selectedEvent={selectedEvent}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="view-container">
+            {view === 'table' ? (
+              <EventTable
+                events={filteredEvents}
+                messages={messages}
+                onEventSelect={setSelectedEvent}
+              />
+            ) : (
+              <DataQualityReport />
+            )}
+          </div>
+        )}
       </div>
 
       {/* Messaging Modal */}

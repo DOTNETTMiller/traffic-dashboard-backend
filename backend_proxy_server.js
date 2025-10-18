@@ -5,6 +5,8 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const xml2js = require('xml2js');
+const fs = require('fs').promises;
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -12,6 +14,44 @@ const PORT = process.env.PORT || 3001;
 // Enable CORS for your frontend
 app.use(cors());
 app.use(express.json());
+
+// Message storage file
+const MESSAGES_FILE = path.join(__dirname, 'messages.json');
+
+// Initialize messages file if it doesn't exist
+async function initializeMessagesFile() {
+  try {
+    await fs.access(MESSAGES_FILE);
+  } catch {
+    await fs.writeFile(MESSAGES_FILE, JSON.stringify([], null, 2));
+    console.log('📝 Created messages.json file');
+  }
+}
+
+// Load messages from file
+async function loadMessages() {
+  try {
+    const data = await fs.readFile(MESSAGES_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Error loading messages:', error);
+    return [];
+  }
+}
+
+// Save messages to file
+async function saveMessages(messages) {
+  try {
+    await fs.writeFile(MESSAGES_FILE, JSON.stringify(messages, null, 2));
+    return true;
+  } catch (error) {
+    console.error('Error saving messages:', error);
+    return false;
+  }
+}
+
+// Initialize on startup
+initializeMessagesFile();
 
 // API Configuration
 // IMPORTANT: Credentials are loaded from environment variables for security
@@ -315,10 +355,11 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
 
             // Only include events on interstate highways
             if (isInterstateRoute(locationText)) {
+              const corridor = extractCorridor(locationText);
               normalized.push({
                 id: `${stateName.substring(0, 2).toUpperCase()}-${eventId}`,
                 state: stateName,
-                corridor: extractCorridor(locationText),
+                corridor: corridor,
                 eventType: determineEventType(headlineText, descText),
                 description: descText,
                 location: locationText,
@@ -327,9 +368,9 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
                 longitude: lng,
                 startTime: detail?.['event-times']?.['start-time'] || new Date().toISOString(),
                 endTime: detail?.['event-times']?.['end-time'] || null,
-                lanesAffected: 'Check conditions',
+                lanesAffected: extractLaneInfo(descText, headlineText),
                 severity: determineSeverityFromText(descText, headlineText),
-                direction: extractDirection(descText, locationText),
+                direction: extractDirection(descText, headlineText, corridor, lat, lng),
                 requiresCollaboration: false
               });
             }
@@ -353,21 +394,25 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
 
           // Only include events on interstate highways
           if (isInterstateRoute(locationText)) {
+            const corridor = extractCorridor(locationText);
+            const lat = latMatch ? parseFloat(latMatch[1]) : 0;
+            const lon = lonMatch ? parseFloat(lonMatch[1]) : 0;
+
             normalized.push({
               id: `${stateName.substring(0, 2).toUpperCase()}-${Math.random().toString(36).substr(2, 9)}`,
               state: stateName,
-              corridor: extractCorridor(locationText),
+              corridor: corridor,
               eventType: determineEventType(title),
               description: title || description,
               location: locationText,
               county: 'Unknown',
-              latitude: latMatch ? parseFloat(latMatch[1]) : 0,
-              longitude: lonMatch ? parseFloat(lonMatch[1]) : 0,
+              latitude: lat,
+              longitude: lon,
               startTime: item.pubDate || new Date().toISOString(),
               endTime: null,
-              lanesAffected: extractLaneInfo(description),
+              lanesAffected: extractLaneInfo(description, title),
               severity: determineSeverityFromText(description, title),
-              direction: extractDirection(description, title),
+              direction: extractDirection(description, title, corridor, lat, lon),
               requiresCollaboration: false
             });
           }
@@ -377,7 +422,12 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
   } catch (error) {
     console.error(`Error normalizing ${stateName} data:`, error.message);
   }
-  
+
+  // Apply cross-jurisdictional detection to all events
+  normalized.forEach(event => {
+    event.requiresCollaboration = requiresCrossJurisdictionalResponse(event);
+  });
+
   return normalized;
 };
 
@@ -455,18 +505,130 @@ const extractLocation = (description, title) => {
   return 'Location TBD';
 };
 
-const extractLaneInfo = (description) => {
-  const laneMatch = (description || '').match(/(\d+)\s*lane[s]?\s*(closed|blocked|affected)/i);
+const extractLaneInfo = (description, title = '') => {
+  const text = ((description || '') + ' ' + (title || '')).toLowerCase();
+
+  // Specific lane mentions
+  if (text.includes('left lane') && (text.includes('closed') || text.includes('blocked'))) {
+    return 'Left lane closed';
+  }
+  if (text.includes('right lane') && (text.includes('closed') || text.includes('blocked'))) {
+    return 'Right lane closed';
+  }
+  if (text.includes('center lane') && (text.includes('closed') || text.includes('blocked'))) {
+    return 'Center lane closed';
+  }
+  if (text.includes('middle lane') && (text.includes('closed') || text.includes('blocked'))) {
+    return 'Center lane closed';
+  }
+
+  // Shoulder closures
+  if (text.includes('both shoulders closed') || text.includes('shoulders closed')) {
+    return 'Both shoulders closed';
+  }
+  if (text.includes('left shoulder') && (text.includes('closed') || text.includes('blocked'))) {
+    return 'Left shoulder closed';
+  }
+  if (text.includes('right shoulder') && (text.includes('closed') || text.includes('blocked'))) {
+    return 'Right shoulder closed';
+  }
+  if (text.includes('shoulder') && (text.includes('closed') || text.includes('blocked'))) {
+    return 'Shoulder closed';
+  }
+
+  // Ramp closures
+  if (text.includes('entrance ramp') && text.includes('closed')) {
+    return 'Entrance ramp closed';
+  }
+  if (text.includes('exit ramp') && text.includes('closed')) {
+    return 'Exit ramp closed';
+  }
+  if (text.includes('ramp') && text.includes('closed')) {
+    return 'Ramp closed';
+  }
+
+  // Multiple lanes
+  const laneMatch = text.match(/(\d+)\s*lane[s]?\s*(closed|blocked|affected)/i);
   if (laneMatch) return `${laneMatch[1]} lane(s) ${laneMatch[2]}`;
+
+  // All lanes
+  if (text.includes('all lanes') && (text.includes('closed') || text.includes('blocked'))) {
+    return 'All lanes closed';
+  }
+
+  // Single lane without specification
+  if ((text.includes('lane closed') || text.includes('lane blocked')) && !text.includes('no lane')) {
+    return '1 lane closed';
+  }
+
   return 'Check conditions';
 };
 
-const extractDirection = (description, title) => {
+const extractDirection = (description, title, corridor = '', latitude = 0, longitude = 0) => {
   const text = ((description || '') + ' ' + (title || '')).toLowerCase();
+
+  // First try to extract from text
   if (text.includes('eastbound') || text.includes('eb')) return 'Eastbound';
   if (text.includes('westbound') || text.includes('wb')) return 'Westbound';
   if (text.includes('northbound') || text.includes('nb')) return 'Northbound';
   if (text.includes('southbound') || text.includes('sb')) return 'Southbound';
+
+  // If we have valid coordinates and corridor info, try to determine from GPS
+  if (latitude !== 0 && longitude !== 0 && corridor) {
+    // I-80 runs East-West
+    if (corridor.includes('I-80') || corridor.includes('I-70')) {
+      // Approximate centerlines for I-80 across different states
+      const centerlines = {
+        'Nevada': 40.8,      // I-80 through Nevada ~40.8°N
+        'Utah': 40.8,        // I-80 through Utah ~40.8°N
+        'Wyoming': 41.2,     // I-80 through Wyoming ~41.2°N
+        'Nebraska': 41.0,    // I-80 through Nebraska ~41.0°N
+        'Iowa': 41.6,        // I-80 through Iowa ~41.6°N
+        'Indiana': 41.6,     // I-80 through Indiana ~41.6°N
+        'Ohio': 41.1,        // I-80 through Ohio ~41.1°N
+        'New Jersey': 40.9   // I-80 through New Jersey ~40.9°N
+      };
+
+      // Determine state from description or use default
+      let centerLat = 41.0; // Default centerline
+      for (const [state, lat] of Object.entries(centerlines)) {
+        if (text.includes(state.toLowerCase()) || description.includes(state) || title.includes(state)) {
+          centerLat = lat;
+          break;
+        }
+      }
+
+      // North of centerline = Westbound, South of centerline = Eastbound
+      // Add small buffer zone (0.01° ~= 0.7 miles) to avoid false assignments
+      if (latitude > centerLat + 0.005) return 'Westbound';
+      if (latitude < centerLat - 0.005) return 'Eastbound';
+    }
+
+    // I-35 runs North-South
+    else if (corridor.includes('I-35')) {
+      // Approximate centerlines for I-35 across different states
+      const centerlines = {
+        'Minnesota': -93.2,  // I-35 through Minnesota ~93.2°W
+        'Iowa': -93.6,       // I-35 through Iowa ~93.6°W
+        'Kansas': -95.7      // I-35 through Kansas ~95.7°W
+      };
+
+      // Determine state from description or use default
+      let centerLon = -93.6; // Default centerline
+      for (const [state, lon] of Object.entries(centerlines)) {
+        if (text.includes(state.toLowerCase()) || description.includes(state) || title.includes(state)) {
+          centerLon = lon;
+          break;
+        }
+      }
+
+      // West of centerline = Southbound, East of centerline = Northbound
+      // Add small buffer zone (0.01° ~= 0.7 miles) to avoid false assignments
+      if (longitude < centerLon - 0.005) return 'Southbound';
+      if (longitude > centerLon + 0.005) return 'Northbound';
+    }
+  }
+
   return 'Both';
 };
 
@@ -481,6 +643,58 @@ const isInterstateRoute = (locationText) => {
 
   // Must match interstate pattern and NOT match state route pattern
   return interstatePattern.test(locationText) && !stateRoutePattern.test(locationText);
+};
+
+// Detect if an event requires cross-jurisdictional collaboration
+const requiresCrossJurisdictionalResponse = (event) => {
+  const text = `${event.location || ''} ${event.description || ''}`.toLowerCase();
+
+  // 1. Check for explicit state line/border mentions
+  if (text.includes('state line') ||
+      text.includes('state border') ||
+      text.includes('border') ||
+      text.includes('multi-state') ||
+      text.includes('cross-state')) {
+    return true;
+  }
+
+  // 2. Check for mentions of multiple states in description
+  const stateNames = ['iowa', 'kansas', 'nebraska', 'indiana', 'minnesota',
+                      'utah', 'nevada', 'ohio', 'new jersey', 'illinois',
+                      'wyoming', 'missouri', 'wisconsin', 'michigan', 'pennsylvania'];
+  const mentionedStates = stateNames.filter(state => text.includes(state));
+  if (mentionedStates.length > 1) {
+    return true;
+  }
+
+  // 3. Check for major closures (high severity + closure type)
+  // These could significantly impact traffic in neighboring states
+  if ((event.eventType === 'Closure' || text.includes('closed')) &&
+      event.severity === 'high') {
+
+    // Extract milepost if available
+    const mmMatch = text.match(/\bmm\s*(\d+)/i);
+    if (mmMatch) {
+      const milepost = parseInt(mmMatch[1]);
+
+      // Check if near likely state borders (very low or very high mileposts)
+      // Most interstate state crossings are at extreme mileposts
+      if (milepost <= 10 || milepost >= 400) {
+        return true;
+      }
+    }
+  }
+
+  // 4. Check for specific border locations
+  // I-80: NE/IA border, NE/WY border, IA/IL border, IN/OH border, OH/PA border, UT/NV border
+  // I-35: MN/IA border, IA/MO border, KS/OK border
+  const borderKeywords = ['welcome center', 'rest area near', 'entering', 'leaving'];
+  if (borderKeywords.some(keyword => text.includes(keyword)) &&
+      (event.eventType === 'Closure' || event.severity === 'high')) {
+    return true;
+  }
+
+  return false;
 };
 
 // Fetch data from a single state
@@ -660,6 +874,1100 @@ app.get('/api/debug/coordinates', async (req, res) => {
   res.json(stats);
 });
 
+// Generate normalization report for all states
+app.get('/api/analysis/normalization', async (req, res) => {
+  console.log('Generating normalization analysis...');
+
+  const allResults = await Promise.all(
+    Object.keys(API_CONFIG).map(stateKey => fetchStateData(stateKey))
+  );
+
+  const report = {
+    generatedAt: new Date().toISOString(),
+    summary: {
+      totalStates: allResults.length,
+      totalEvents: 0,
+      statesWithGoodData: 0,
+      statesNeedingImprovement: 0
+    },
+    states: {},
+    recommendations: []
+  };
+
+  allResults.forEach(result => {
+    const stateName = result.state;
+    const events = result.events;
+
+    report.summary.totalEvents += events.length;
+
+    // Analyze data quality
+    const analysis = {
+      eventCount: events.length,
+      dataQuality: {
+        hasCoordinates: 0,
+        hasStartTime: 0,
+        hasEndTime: 0,
+        hasEventType: 0,
+        hasSeverity: 0,
+        hasDirection: 0,
+        hasLaneInfo: 0,
+        hasDescription: 0,
+        hasCorridor: 0
+      },
+      missingFields: [],
+      dataCompleteness: 0,
+      grade: '',
+      issues: [],
+      strengths: [],
+      recommendations: []
+    };
+
+    // Analyze each event
+    events.forEach(event => {
+      if (event.latitude && event.longitude && event.latitude !== 0 && event.longitude !== 0) {
+        analysis.dataQuality.hasCoordinates++;
+      }
+      if (event.startTime) analysis.dataQuality.hasStartTime++;
+      if (event.endTime) analysis.dataQuality.hasEndTime++;
+      if (event.eventType && event.eventType !== 'Unknown') analysis.dataQuality.hasEventType++;
+      if (event.severity) analysis.dataQuality.hasSeverity++;
+      if (event.direction && event.direction !== 'Both') analysis.dataQuality.hasDirection++;
+      if (event.lanesAffected && event.lanesAffected !== 'Check conditions' && event.lanesAffected !== 'Unknown') {
+        analysis.dataQuality.hasLaneInfo++;
+      }
+      if (event.description && event.description !== 'Event description not available') {
+        analysis.dataQuality.hasDescription++;
+      }
+      if (event.corridor && event.corridor !== 'Unknown') {
+        analysis.dataQuality.hasCorridor++;
+      }
+    });
+
+    // Calculate percentages
+    const total = events.length || 1;
+    const scores = {
+      coordinates: (analysis.dataQuality.hasCoordinates / total) * 100,
+      startTime: (analysis.dataQuality.hasStartTime / total) * 100,
+      endTime: (analysis.dataQuality.hasEndTime / total) * 100,
+      eventType: (analysis.dataQuality.hasEventType / total) * 100,
+      severity: (analysis.dataQuality.hasSeverity / total) * 100,
+      direction: (analysis.dataQuality.hasDirection / total) * 100,
+      laneInfo: (analysis.dataQuality.hasLaneInfo / total) * 100,
+      description: (analysis.dataQuality.hasDescription / total) * 100,
+      corridor: (analysis.dataQuality.hasCorridor / total) * 100
+    };
+
+    // Overall completeness (weighted average - coordinates and description are most important)
+    analysis.dataCompleteness = (
+      scores.coordinates * 0.25 +
+      scores.description * 0.20 +
+      scores.eventType * 0.15 +
+      scores.corridor * 0.15 +
+      scores.severity * 0.10 +
+      scores.startTime * 0.10 +
+      scores.direction * 0.05
+    );
+
+    // Assign grade
+    if (analysis.dataCompleteness >= 90) {
+      analysis.grade = 'A';
+      report.summary.statesWithGoodData++;
+    } else if (analysis.dataCompleteness >= 80) {
+      analysis.grade = 'B';
+      report.summary.statesWithGoodData++;
+    } else if (analysis.dataCompleteness >= 70) {
+      analysis.grade = 'C';
+      report.summary.statesNeedingImprovement++;
+    } else if (analysis.dataCompleteness >= 60) {
+      analysis.grade = 'D';
+      report.summary.statesNeedingImprovement++;
+    } else {
+      analysis.grade = 'F';
+      report.summary.statesNeedingImprovement++;
+    }
+
+    // Identify issues and recommendations
+    if (scores.coordinates < 80) {
+      analysis.issues.push('Missing or invalid coordinates on many events');
+      analysis.recommendations.push('Ensure all events include valid latitude/longitude in decimal degrees format');
+    } else {
+      analysis.strengths.push('Good coordinate coverage');
+    }
+
+    if (scores.description < 70) {
+      analysis.issues.push('Insufficient event descriptions');
+      analysis.recommendations.push('Include detailed descriptions explaining event impact and conditions');
+    } else {
+      analysis.strengths.push('Detailed event descriptions');
+    }
+
+    if (scores.eventType < 80) {
+      analysis.issues.push('Event type classification needs improvement');
+      analysis.recommendations.push('Categorize events using standard types: Construction, Incident, Closure, Weather');
+    } else {
+      analysis.strengths.push('Good event type classification');
+    }
+
+    if (scores.corridor < 70) {
+      analysis.issues.push('Corridor/route information inconsistent');
+      analysis.recommendations.push('Include interstate number in standard format (e.g., I-80, I-35)');
+    } else {
+      analysis.strengths.push('Clear corridor identification');
+    }
+
+    if (scores.laneInfo < 50) {
+      analysis.issues.push('Lane closure information often missing');
+      analysis.recommendations.push('Specify which lanes are affected and closure type (e.g., "2 lanes closed", "Right shoulder")');
+    }
+
+    if (scores.endTime < 40) {
+      analysis.issues.push('Estimated end times rarely provided');
+      analysis.recommendations.push('Include estimated duration or end time for events when available');
+    }
+
+    if (scores.direction < 60) {
+      analysis.issues.push('Direction information incomplete');
+      analysis.recommendations.push('Specify direction (Northbound, Southbound, Eastbound, Westbound) for each event');
+    }
+
+    // Add source format info
+    const config = API_CONFIG[Object.keys(API_CONFIG).find(k => API_CONFIG[k].name === stateName)];
+    analysis.sourceFormat = config?.format || 'unknown';
+    analysis.apiType = config?.wzdxUrl ? 'WZDx' : config?.eventsUrl?.includes('feu-g') ? 'FEU-G' : config?.eventsUrl?.includes('rss') ? 'RSS' : 'Custom JSON';
+
+    // Format-specific recommendations
+    if (analysis.apiType === 'FEU-G') {
+      analysis.strengths.push('Using CARS Program FEU-G standard format');
+    } else if (analysis.apiType === 'WZDx') {
+      analysis.strengths.push('Using WZDx (Work Zone Data Exchange) standard format');
+    } else {
+      analysis.recommendations.push('Consider migrating to WZDx standard format for better interoperability');
+    }
+
+    report.states[stateName] = {
+      ...analysis,
+      percentages: scores
+    };
+  });
+
+  // Overall recommendations
+  report.recommendations = [
+    {
+      priority: 'High',
+      category: 'Data Standardization',
+      recommendation: 'Adopt WZDx (Work Zone Data Exchange) format across all states for maximum interoperability',
+      benefit: 'Enables seamless data sharing between states and with third-party applications'
+    },
+    {
+      priority: 'High',
+      category: 'Coordinate Quality',
+      recommendation: 'Ensure all events include valid GPS coordinates in WGS84 decimal degree format',
+      benefit: 'Enables accurate mapping and geofencing for cross-state coordination'
+    },
+    {
+      priority: 'Medium',
+      category: 'Event Classification',
+      recommendation: 'Standardize event types using SAE J2735 categories or WZDx event types',
+      benefit: 'Consistent categorization improves filtering and automated alerting'
+    },
+    {
+      priority: 'Medium',
+      category: 'Temporal Data',
+      recommendation: 'Always include event start time and estimated end time in ISO 8601 format',
+      benefit: 'Enables better planning and real-time traveler information systems'
+    },
+    {
+      priority: 'Low',
+      category: 'Lane Information',
+      recommendation: 'Specify lane closures using standard format (lane number, type, status)',
+      benefit: 'Helps drivers make informed routing decisions'
+    },
+    {
+      priority: 'Low',
+      category: 'Cross-State Collaboration',
+      recommendation: 'Flag events within 20 miles of state borders for automatic cross-state notification',
+      benefit: 'Improves coordination on interstate corridors'
+    }
+  ];
+
+  res.json(report);
+});
+
+// Convert events to SAE J2735-style Traveler Information Messages
+app.get('/api/convert/tim', async (req, res) => {
+  console.log('Converting events to TIM format...');
+
+  const allResults = await Promise.all(
+    Object.keys(API_CONFIG).map(stateKey => fetchStateData(stateKey))
+  );
+
+  const allEvents = [];
+  allResults.forEach(result => allEvents.push(...result.events));
+
+  // Convert to TIM-style messages
+  const timMessages = allEvents.map(event => {
+    // Generate VMS-style message (Variable Message Sign text)
+    const vmsMessage = generateVMSMessage(event);
+
+    // Generate full TIM structure (simplified version of SAE J2735)
+    return {
+      msgCnt: Math.floor(Math.random() * 127), // Message count
+      timeStamp: new Date(event.startTime).toISOString(),
+      packetID: event.id,
+      urlB: null,
+      dataFrames: [
+        {
+          startTime: event.startTime,
+          durationTime: event.endTime ? Math.floor((new Date(event.endTime) - new Date(event.startTime)) / 60000) : null, // minutes
+          priority: event.severity === 'high' ? 0 : event.severity === 'medium' ? 1 : 2,
+          regions: [
+            {
+              name: event.state,
+              anchorPosition: {
+                lat: event.latitude,
+                long: event.longitude,
+                elevation: null
+              },
+              laneWidth: null,
+              directionality: event.direction,
+              closedPath: false,
+              direction: event.direction,
+              description: event.corridor
+            }
+          ],
+          content: {
+            advisory: {
+              item: {
+                itis: getITISCode(event.eventType), // ITIS code (ISO 14823)
+                text: vmsMessage
+              }
+            },
+            workZone: event.eventType === 'Construction' ? {
+              workersPresent: true,
+              speedLimit: null
+            } : null,
+            incident: ['Incident', 'Closure'].includes(event.eventType) ? {
+              eventType: event.eventType,
+              description: event.description
+            } : null
+          }
+        }
+      ],
+      // VMS display message
+      vmsMessage: vmsMessage,
+      // WZDx compatibility
+      wzdx_event_type: mapToWZDxEventType(event.eventType),
+      original_event: event
+    };
+  });
+
+  res.json({
+    format: 'SAE J2735 TIM (Traveler Information Message)',
+    timestamp: new Date().toISOString(),
+    messageCount: timMessages.length,
+    messages: timMessages
+  });
+});
+
+// Helper: Generate VMS-style message text (for highway signs)
+const generateVMSMessage = (event) => {
+  const messages = [];
+
+  // Line 1: Event type and severity
+  if (event.severity === 'high') {
+    messages.push(`*** ${event.eventType.toUpperCase()} ***`);
+  } else {
+    messages.push(event.eventType.toUpperCase());
+  }
+
+  // Line 2: Location
+  const locationShort = event.location.substring(0, 40);
+  messages.push(locationShort);
+
+  // Line 3: Impact
+  if (event.lanesAffected && event.lanesAffected !== 'Check conditions' && event.lanesAffected !== 'Unknown') {
+    messages.push(event.lanesAffected.toUpperCase());
+  } else if (event.eventType === 'Closure') {
+    messages.push('ROAD CLOSED');
+  } else {
+    messages.push('USE CAUTION');
+  }
+
+  // Line 4: Direction or advice
+  if (event.direction && event.direction !== 'Both') {
+    messages.push(`${event.direction.toUpperCase()} ONLY`);
+  }
+
+  return messages.join(' / ');
+};
+
+// Helper: Get ITIS code (Incident Traffic Information Standard)
+const getITISCode = (eventType) => {
+  const itisCodes = {
+    'Construction': 8963, // Road work
+    'Incident': 769,      // Incident
+    'Closure': 773,       // Road closure
+    'Weather': 8704       // Winter weather conditions
+  };
+  return itisCodes[eventType] || 0;
+};
+
+// Helper: Map to WZDx event types
+const mapToWZDxEventType = (eventType) => {
+  const mapping = {
+    'Construction': 'work-zone',
+    'Incident': 'incident',
+    'Closure': 'restriction',
+    'Weather': 'weather-condition'
+  };
+  return mapping[eventType] || 'work-zone';
+};
+
+// ==================== SAE COMPLIANCE GUIDE ENDPOINTS ====================
+
+// Generate state-specific SAE J2735 compliance guide
+app.get('/api/compliance/guide/:state', async (req, res) => {
+  const stateKey = req.params.state.toLowerCase();
+
+  if (!API_CONFIG[stateKey]) {
+    return res.status(404).json({ error: 'State not found' });
+  }
+
+  console.log(`Generating SAE J2735 compliance guide for ${API_CONFIG[stateKey].name}...`);
+  const result = await fetchStateData(stateKey);
+  const config = API_CONFIG[stateKey];
+
+  // Get a sample event to demonstrate transformation
+  const sampleEvent = result.events[0];
+
+  // Analyze the state's data quality
+  const analysis = {
+    hasCoordinates: 0,
+    hasStartTime: 0,
+    hasEndTime: 0,
+    hasEventType: 0,
+    hasSeverity: 0,
+    hasDirection: 0,
+    hasLaneInfo: 0,
+    hasDescription: 0
+  };
+
+  result.events.forEach(event => {
+    if (event.latitude && event.longitude && event.latitude !== 0 && event.longitude !== 0) {
+      analysis.hasCoordinates++;
+    }
+    if (event.startTime) analysis.hasStartTime++;
+    if (event.endTime) analysis.hasEndTime++;
+    if (event.eventType && event.eventType !== 'Unknown') analysis.hasEventType++;
+    if (event.severity) analysis.hasSeverity++;
+    if (event.direction && event.direction !== 'Both') analysis.hasDirection++;
+    if (event.lanesAffected && event.lanesAffected !== 'Check conditions') analysis.hasLaneInfo++;
+    if (event.description) analysis.hasDescription++;
+  });
+
+  const total = result.events.length || 1;
+  const completeness = {
+    coordinates: Math.round((analysis.hasCoordinates / total) * 100),
+    startTime: Math.round((analysis.hasStartTime / total) * 100),
+    endTime: Math.round((analysis.hasEndTime / total) * 100),
+    eventType: Math.round((analysis.hasEventType / total) * 100),
+    severity: Math.round((analysis.hasSeverity / total) * 100),
+    direction: Math.round((analysis.hasDirection / total) * 100),
+    laneInfo: Math.round((analysis.hasLaneInfo / total) * 100),
+    description: Math.round((analysis.hasDescription / total) * 100)
+  };
+
+  // Generate SAE J2735 TIM from sample event
+  const timExample = sampleEvent ? {
+    msgCnt: 1,
+    timeStamp: new Date(sampleEvent.startTime).toISOString(),
+    packetID: sampleEvent.id,
+    dataFrames: [{
+      startTime: sampleEvent.startTime,
+      durationTime: sampleEvent.endTime ? Math.floor((new Date(sampleEvent.endTime) - new Date(sampleEvent.startTime)) / 60000) : null,
+      priority: sampleEvent.severity === 'high' ? 0 : sampleEvent.severity === 'medium' ? 1 : 2,
+      regions: [{
+        name: sampleEvent.state,
+        anchorPosition: {
+          lat: sampleEvent.latitude,
+          long: sampleEvent.longitude,
+          elevation: null
+        },
+        directionality: sampleEvent.direction,
+        description: sampleEvent.corridor
+      }],
+      content: {
+        advisory: {
+          item: {
+            itis: getITISCode(sampleEvent.eventType),
+            text: generateVMSMessage(sampleEvent)
+          }
+        },
+        workZone: sampleEvent.eventType === 'Construction' ? {
+          workersPresent: true,
+          speedLimit: null
+        } : null
+      }
+    }]
+  } : null;
+
+  // Build compliance guide
+  const guide = {
+    state: config.name,
+    generatedAt: new Date().toISOString(),
+    currentFormat: {
+      type: config.format,
+      apiType: config.wzdxUrl ? 'WZDx' : config.eventsUrl?.includes('feu-g') ? 'FEU-G' : config.eventsUrl?.includes('rss') ? 'RSS' : 'Custom JSON',
+      endpointUrl: config.wzdxUrl || config.eventsUrl
+    },
+    dataQualityScore: completeness,
+    gaps: [],
+    recommendations: [],
+    transformationSteps: [],
+    saeJ2735Example: timExample,
+    wzdxMigrationGuide: {
+      currentStandard: config.wzdxUrl ? 'Already using WZDx' : (config.eventsUrl?.includes('feu-g') ? 'FEU-G' : 'Custom format'),
+      recommendedAction: '',
+      benefits: [],
+      implementationSteps: []
+    }
+  };
+
+  // Identify gaps and recommendations
+  if (completeness.coordinates < 90) {
+    guide.gaps.push({
+      field: 'GPS Coordinates',
+      currentCoverage: `${completeness.coordinates}%`,
+      required: '100%',
+      severity: 'HIGH',
+      impact: 'Cannot display events on map or determine cross-state boundaries'
+    });
+    guide.recommendations.push({
+      priority: 'HIGH',
+      field: 'coordinates',
+      recommendation: 'Include latitude and longitude in WGS84 decimal degrees format for all events',
+      example: { latitude: 40.7608, longitude: -111.8910 },
+      saeJ2735Mapping: 'dataFrames[].regions[].anchorPosition.lat/long'
+    });
+  }
+
+  if (completeness.eventType < 90) {
+    guide.gaps.push({
+      field: 'Event Type Classification',
+      currentCoverage: `${completeness.eventType}%`,
+      required: '100%',
+      severity: 'MEDIUM',
+      impact: 'Reduces ability to categorize and filter events'
+    });
+    guide.recommendations.push({
+      priority: 'MEDIUM',
+      field: 'eventType',
+      recommendation: 'Classify all events using standard types',
+      allowedValues: ['Construction', 'Incident', 'Closure', 'Weather'],
+      saeJ2735Mapping: 'ITIS codes - Construction: 8963, Incident: 769, Closure: 773, Weather: 8704',
+      wzdxMapping: 'work-zone, incident, restriction, weather-condition'
+    });
+  }
+
+  if (completeness.direction < 70) {
+    guide.gaps.push({
+      field: 'Direction Information',
+      currentCoverage: `${completeness.direction}%`,
+      required: '95%',
+      severity: 'MEDIUM',
+      impact: 'Cannot determine which direction of travel is affected'
+    });
+    guide.recommendations.push({
+      priority: 'MEDIUM',
+      field: 'direction',
+      recommendation: 'Specify direction for each event',
+      allowedValues: ['Northbound', 'Southbound', 'Eastbound', 'Westbound', 'Both'],
+      saeJ2735Mapping: 'dataFrames[].regions[].directionality'
+    });
+  }
+
+  if (completeness.laneInfo < 60) {
+    guide.gaps.push({
+      field: 'Lane Closure Details',
+      currentCoverage: `${completeness.laneInfo}%`,
+      required: '80%',
+      severity: 'LOW',
+      impact: 'Drivers cannot assess severity or plan lane changes'
+    });
+    guide.recommendations.push({
+      priority: 'LOW',
+      field: 'lanesAffected',
+      recommendation: 'Specify which lanes are closed or affected',
+      examples: ['Left lane closed', 'Right shoulder closed', '2 lanes closed', 'All lanes closed'],
+      saeJ2735Mapping: 'Encoded in advisory text content'
+    });
+  }
+
+  if (completeness.endTime < 50) {
+    guide.gaps.push({
+      field: 'End Time / Duration',
+      currentCoverage: `${completeness.endTime}%`,
+      required: '70%',
+      severity: 'LOW',
+      impact: 'Cannot estimate when conditions will improve'
+    });
+    guide.recommendations.push({
+      priority: 'LOW',
+      field: 'endTime',
+      recommendation: 'Include estimated end time in ISO 8601 format',
+      example: '2025-10-18T18:00:00Z',
+      saeJ2735Mapping: 'dataFrames[].durationTime (in minutes)'
+    });
+  }
+
+  // WZDx migration guide
+  if (!config.wzdxUrl) {
+    guide.wzdxMigrationGuide.recommendedAction = 'Migrate to WZDx v4.x for full SAE J2735 compatibility';
+    guide.wzdxMigrationGuide.benefits = [
+      'Standardized format adopted by USDOT and multiple states',
+      'Native support for work zones, incidents, and restrictions',
+      'Better interoperability with third-party navigation apps',
+      'Easier integration into connected vehicle systems',
+      'Built-in support for lane-level detail and geometry'
+    ];
+    guide.wzdxMigrationGuide.implementationSteps = [
+      {
+        step: 1,
+        title: 'Review WZDx specification',
+        description: 'Study WZDx v4.x specification at https://github.com/usdot-jpo-ode/wzdx',
+        estimatedTime: '1-2 weeks'
+      },
+      {
+        step: 2,
+        title: 'Map existing fields to WZDx schema',
+        description: `Your current ${guide.currentFormat.apiType} format fields should be mapped to WZDx FeatureCollection structure`,
+        estimatedTime: '1 week'
+      },
+      {
+        step: 3,
+        title: 'Implement WZDx feed generation',
+        description: 'Create endpoint that outputs GeoJSON FeatureCollection with WZDx properties',
+        estimatedTime: '2-4 weeks'
+      },
+      {
+        step: 4,
+        title: 'Validate against WZDx schema',
+        description: 'Use WZDx JSON schema validator to ensure compliance',
+        estimatedTime: '1 week'
+      },
+      {
+        step: 5,
+        title: 'Register feed with USDOT',
+        description: 'Submit WZDx feed URL to USDOT Work Zone Data Exchange registry',
+        estimatedTime: '1 week'
+      }
+    ];
+  } else {
+    guide.wzdxMigrationGuide.recommendedAction = 'Already using WZDx - ensure compliance with latest v4.x spec';
+    guide.wzdxMigrationGuide.benefits = ['Maintaining industry-leading data standard'];
+    guide.wzdxMigrationGuide.implementationSteps = [
+      {
+        step: 1,
+        title: 'Validate current WZDx feed',
+        description: 'Ensure feed validates against latest WZDx v4.x JSON schema',
+        estimatedTime: '1 week'
+      }
+    ];
+  }
+
+  // Transformation steps based on current format
+  if (guide.currentFormat.apiType === 'FEU-G') {
+    guide.transformationSteps = [
+      {
+        step: 'Extract coordinates',
+        from: 'details.locations.location.location-on-link.primary-location.geo-location (microdegrees)',
+        to: 'Divide by 1,000,000 to get decimal degrees',
+        example: { from: '40760800', to: '40.7608' }
+      },
+      {
+        step: 'Extract event type',
+        from: 'headline.headline text',
+        to: 'Parse keywords (construction, incident, closure, weather) and map to standard types',
+        example: { from: 'ROAD WORK', to: 'Construction' }
+      },
+      {
+        step: 'Extract location',
+        from: 'details.locations.location.location-on-link.route-designator',
+        to: 'Parse interstate number (e.g., I-80, I-35)',
+        example: { from: 'I 80', to: 'I-80' }
+      }
+    ];
+  } else if (guide.currentFormat.apiType === 'RSS') {
+    guide.transformationSteps = [
+      {
+        step: 'Extract coordinates',
+        from: 'item.description text with "Lat: X, Lon: Y" pattern',
+        to: 'Parse using regex and convert to decimal degrees',
+        example: { from: 'Lat: 40.7608 Lon: -111.8910', to: { lat: 40.7608, lon: -111.8910 } }
+      },
+      {
+        step: 'Extract event details',
+        from: 'item.title and item.description',
+        to: 'Parse for event type, location, and lane information',
+        example: { from: 'I-80 EB accident at MM 123', to: { corridor: 'I-80', direction: 'Eastbound', type: 'Incident' } }
+      }
+    ];
+  } else if (guide.currentFormat.apiType === 'WZDx') {
+    guide.transformationSteps = [
+      {
+        step: 'Already WZDx compliant',
+        from: 'GeoJSON FeatureCollection with WZDx properties',
+        to: 'Directly compatible with SAE J2735 TIM via conversion layer',
+        example: { note: 'No transformation needed - WZDx is SAE J2735 compatible' }
+      }
+    ];
+  }
+
+  // Add C2C/ngTMDD compliance check
+  const c2cCompliance = {
+    hasUniqueEventId: sampleEvent && sampleEvent.id ? 100 : 0,
+    hasOrganizationId: 0, // Not currently in our data model
+    hasLinearReference: 0, // Check if we have route + milepost
+    hasUpdateTimestamp: completeness.startTime,
+    hasEventStatus: completeness.severity >= 90 ? 100 : 0,
+    hasGeographicCoords: completeness.coordinates,
+    hasDirectionalImpact: completeness.direction,
+    hasLaneImpact: completeness.laneInfo
+  };
+
+  // Check for linear reference (route + milepost in description)
+  if (sampleEvent) {
+    const text = (sampleEvent.location + ' ' + sampleEvent.description).toLowerCase();
+    const hasRoute = /\b(i-\d+|interstate \d+)\b/.test(text);
+    const hasMilepost = /\b(mm|mile|milepost|mp)\s*\d+/i.test(text);
+    if (hasRoute && hasMilepost) {
+      c2cCompliance.hasLinearReference = 100;
+    } else if (hasRoute || hasMilepost) {
+      c2cCompliance.hasLinearReference = 50;
+    }
+  }
+
+  // Calculate C2C compliance percentage
+  const c2cScore = Math.round(
+    Object.values(c2cCompliance).reduce((sum, val) => sum + val, 0) /
+    Object.keys(c2cCompliance).length
+  );
+
+  guide.c2cCompliance = {
+    score: c2cScore,
+    grade: c2cScore >= 80 ? 'PASS' : 'FAIL',
+    details: c2cCompliance,
+    validationTool: 'C2C-MVT (Center-to-Center Message Validation Tool)',
+    standard: 'ngTMDD (Next Generation Traffic Management Data Dictionary)',
+    message: c2cScore >= 80
+      ? 'Data is ready for center-to-center sharing between DOT TMCs'
+      : 'Data needs improvement for reliable C2C communication',
+    recommendations: []
+  };
+
+  // Add C2C-specific recommendations
+  if (c2cCompliance.hasUniqueEventId < 100) {
+    guide.c2cCompliance.recommendations.push({
+      field: 'Event ID',
+      issue: 'Missing unique event identifier',
+      solution: 'Assign a unique ID to each event for tracking across TMCs',
+      importance: 'HIGH'
+    });
+  }
+  if (c2cCompliance.hasOrganizationId < 100) {
+    guide.c2cCompliance.recommendations.push({
+      field: 'Organization ID',
+      issue: 'Missing TMC/DOT organization identifier',
+      solution: 'Include organization code (e.g., "UT-DOT", "IA-DOT") to identify event owner',
+      importance: 'MEDIUM'
+    });
+  }
+  if (c2cCompliance.hasLinearReference < 80) {
+    guide.c2cCompliance.recommendations.push({
+      field: 'Linear Reference',
+      issue: 'Missing or incomplete route + milepost information',
+      solution: 'Include both interstate route (I-80) and milepost (MM 123) for precise location',
+      importance: 'HIGH'
+    });
+  }
+
+  // Add categorized scoring system
+  guide.categoryScores = {
+    essential: {
+      name: 'Essential Fields (Required for Cross-State Coordination)',
+      weight: 50,
+      fields: [
+        {
+          field: 'GPS Coordinates',
+          score: completeness.coordinates,
+          maxPoints: 25,
+          currentPoints: Math.round((completeness.coordinates / 100) * 25),
+          impact: completeness.coordinates < 90 ? 'CRITICAL - Cannot map events or detect state borders' : 'Good',
+          status: completeness.coordinates >= 90 ? 'PASS' : 'FAIL'
+        },
+        {
+          field: 'Interstate Route',
+          score: completeness.corridor || 0,
+          maxPoints: 15,
+          currentPoints: Math.round(((completeness.corridor || 0) / 100) * 15),
+          impact: (completeness.corridor || 0) < 80 ? 'HIGH - Cannot filter by corridor' : 'Good',
+          status: (completeness.corridor || 0) >= 80 ? 'PASS' : 'FAIL'
+        },
+        {
+          field: 'Event Description',
+          score: completeness.description,
+          maxPoints: 10,
+          currentPoints: Math.round((completeness.description / 100) * 10),
+          impact: completeness.description < 70 ? 'HIGH - Users cannot understand event details' : 'Good',
+          status: completeness.description >= 70 ? 'PASS' : 'FAIL'
+        }
+      ],
+      totalScore: 0,
+      maxScore: 50,
+      percentage: 0
+    },
+    important: {
+      name: 'Important Fields (Improves Situational Awareness)',
+      weight: 30,
+      fields: [
+        {
+          field: 'Event Type',
+          score: completeness.eventType,
+          maxPoints: 10,
+          currentPoints: Math.round((completeness.eventType / 100) * 10),
+          impact: completeness.eventType < 80 ? 'MEDIUM - Reduces filtering and alerting capability' : 'Good',
+          status: completeness.eventType >= 80 ? 'PASS' : 'FAIL'
+        },
+        {
+          field: 'Severity Level',
+          score: completeness.severity,
+          maxPoints: 10,
+          currentPoints: Math.round((completeness.severity / 100) * 10),
+          impact: completeness.severity < 80 ? 'MEDIUM - Cannot prioritize high-impact events' : 'Good',
+          status: completeness.severity >= 80 ? 'PASS' : 'FAIL'
+        },
+        {
+          field: 'Start Time',
+          score: completeness.startTime,
+          maxPoints: 10,
+          currentPoints: Math.round((completeness.startTime / 100) * 10),
+          impact: completeness.startTime < 90 ? 'MEDIUM - Cannot track event timeline' : 'Good',
+          status: completeness.startTime >= 90 ? 'PASS' : 'FAIL'
+        }
+      ],
+      totalScore: 0,
+      maxScore: 30,
+      percentage: 0
+    },
+    enhanced: {
+      name: 'Enhanced Fields (Optimal for Traveler Information)',
+      weight: 20,
+      fields: [
+        {
+          field: 'Direction',
+          score: completeness.direction,
+          maxPoints: 7,
+          currentPoints: Math.round((completeness.direction / 100) * 7),
+          impact: completeness.direction < 60 ? 'LOW - Travelers cannot determine affected direction' : 'Good',
+          status: completeness.direction >= 60 ? 'PASS' : 'FAIL'
+        },
+        {
+          field: 'Lane Information',
+          score: completeness.laneInfo,
+          maxPoints: 7,
+          currentPoints: Math.round((completeness.laneInfo / 100) * 7),
+          impact: completeness.laneInfo < 50 ? 'LOW - Cannot assess traffic impact severity' : 'Good',
+          status: completeness.laneInfo >= 50 ? 'PASS' : 'FAIL'
+        },
+        {
+          field: 'End Time',
+          score: completeness.endTime,
+          maxPoints: 6,
+          currentPoints: Math.round((completeness.endTime / 100) * 6),
+          impact: completeness.endTime < 40 ? 'LOW - Cannot estimate event duration' : 'Good',
+          status: completeness.endTime >= 40 ? 'PASS' : 'FAIL'
+        }
+      ],
+      totalScore: 0,
+      maxScore: 20,
+      percentage: 0
+    }
+  };
+
+  // Calculate category totals
+  Object.values(guide.categoryScores).forEach(category => {
+    category.totalScore = category.fields.reduce((sum, field) => sum + field.currentPoints, 0);
+    category.percentage = Math.round((category.totalScore / category.maxScore) * 100);
+  });
+
+  // Calculate overall weighted score
+  guide.overallScore = {
+    weightedTotal: 0,
+    maxPossible: 100,
+    percentage: 0,
+    grade: '',
+    rank: ''
+  };
+
+  Object.values(guide.categoryScores).forEach(category => {
+    guide.overallScore.weightedTotal += category.totalScore;
+  });
+
+  guide.overallScore.percentage = Math.round(guide.overallScore.weightedTotal);
+
+  // Assign grade
+  if (guide.overallScore.percentage >= 90) {
+    guide.overallScore.grade = 'A';
+    guide.overallScore.rank = 'Excellent - SAE J2735 Ready';
+  } else if (guide.overallScore.percentage >= 80) {
+    guide.overallScore.grade = 'B';
+    guide.overallScore.rank = 'Good - Minor improvements needed';
+  } else if (guide.overallScore.percentage >= 70) {
+    guide.overallScore.grade = 'C';
+    guide.overallScore.rank = 'Fair - Moderate improvements needed';
+  } else if (guide.overallScore.percentage >= 60) {
+    guide.overallScore.grade = 'D';
+    guide.overallScore.rank = 'Poor - Significant improvements needed';
+  } else {
+    guide.overallScore.grade = 'F';
+    guide.overallScore.rank = 'Critical - Major data quality issues';
+  }
+
+  // Priority action plan
+  guide.actionPlan = {
+    immediate: [],
+    shortTerm: [],
+    longTerm: []
+  };
+
+  // Categorize actions by priority
+  Object.entries(guide.categoryScores).forEach(([categoryKey, category]) => {
+    category.fields.forEach(field => {
+      if (field.status === 'FAIL') {
+        const action = {
+          field: field.field,
+          currentScore: field.score,
+          pointsGained: field.maxPoints - field.currentPoints,
+          impact: field.impact,
+          category: category.name
+        };
+
+        if (categoryKey === 'essential' && field.score < 80) {
+          guide.actionPlan.immediate.push(action);
+        } else if (categoryKey === 'important' && field.score < 70) {
+          guide.actionPlan.shortTerm.push(action);
+        } else {
+          guide.actionPlan.longTerm.push(action);
+        }
+      }
+    });
+  });
+
+  // Sort by points gained (highest impact first)
+  guide.actionPlan.immediate.sort((a, b) => b.pointsGained - a.pointsGained);
+  guide.actionPlan.shortTerm.sort((a, b) => b.pointsGained - a.pointsGained);
+  guide.actionPlan.longTerm.sort((a, b) => b.pointsGained - a.pointsGained);
+
+  // Add improvement potential
+  guide.improvementPotential = {
+    immediateActions: guide.actionPlan.immediate.length,
+    potentialScoreIncrease: guide.actionPlan.immediate.reduce((sum, action) => sum + action.pointsGained, 0),
+    newGradeIfFixed: '',
+    message: ''
+  };
+
+  const potentialScore = guide.overallScore.percentage + guide.improvementPotential.potentialScoreIncrease;
+  if (potentialScore >= 90) {
+    guide.improvementPotential.newGradeIfFixed = 'A';
+    guide.improvementPotential.message = `Fixing ${guide.actionPlan.immediate.length} critical issues would raise your score to ${potentialScore}% (Grade A)`;
+  } else if (potentialScore >= 80) {
+    guide.improvementPotential.newGradeIfFixed = 'B';
+    guide.improvementPotential.message = `Fixing ${guide.actionPlan.immediate.length} critical issues would raise your score to ${potentialScore}% (Grade B)`;
+  } else {
+    guide.improvementPotential.newGradeIfFixed = 'C+';
+    guide.improvementPotential.message = `Fixing ${guide.actionPlan.immediate.length} critical issues would raise your score to ${potentialScore}%`;
+  }
+
+  res.json(guide);
+});
+
+// Get list of all states with their compliance status
+app.get('/api/compliance/summary', async (req, res) => {
+  console.log('Generating compliance summary for all states...');
+
+  const allResults = await Promise.all(
+    Object.keys(API_CONFIG).map(stateKey => fetchStateData(stateKey))
+  );
+
+  const summary = {
+    generatedAt: new Date().toISOString(),
+    totalStates: allResults.length,
+    states: []
+  };
+
+  allResults.forEach(result => {
+    const config = API_CONFIG[Object.keys(API_CONFIG).find(k => API_CONFIG[k].name === result.state)];
+    const total = result.events.length || 1;
+
+    // Calculate data completeness
+    let completenessScore = 0;
+    result.events.forEach(event => {
+      let score = 0;
+      if (event.latitude && event.longitude && event.latitude !== 0 && event.longitude !== 0) score += 25;
+      if (event.description && event.description !== 'Event description not available') score += 20;
+      if (event.eventType && event.eventType !== 'Unknown') score += 15;
+      if (event.corridor && event.corridor !== 'Unknown') score += 15;
+      if (event.severity) score += 10;
+      if (event.startTime) score += 10;
+      if (event.direction && event.direction !== 'Both') score += 5;
+      completenessScore += score;
+    });
+    completenessScore = Math.round(completenessScore / total);
+
+    const isWzdx = !!config.wzdxUrl;
+    const isFEUG = config.eventsUrl?.includes('feu-g');
+
+    summary.states.push({
+      name: result.state,
+      eventCount: result.events.length,
+      currentFormat: isWzdx ? 'WZDx' : (isFEUG ? 'FEU-G' : (config.format === 'xml' ? 'RSS' : 'Custom JSON')),
+      dataCompletenessScore: completenessScore,
+      saeJ2735Ready: completenessScore >= 80,
+      wzdxCompliant: isWzdx,
+      complianceGuideUrl: `/api/compliance/guide/${Object.keys(API_CONFIG).find(k => API_CONFIG[k].name === result.state)}`,
+      recommendedAction: isWzdx ? 'Maintain current standard' : (completenessScore < 70 ? 'Improve data quality and migrate to WZDx' : 'Migrate to WZDx')
+    });
+  });
+
+  res.json(summary);
+});
+
+// ==================== MESSAGE ENDPOINTS ====================
+
+// Get all messages
+app.get('/api/messages', async (req, res) => {
+  try {
+    const messages = await loadMessages();
+    res.json({
+      success: true,
+      count: messages.length,
+      messages: messages
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get messages for a specific event
+app.get('/api/messages/event/:eventId', async (req, res) => {
+  try {
+    const messages = await loadMessages();
+    const eventMessages = messages.filter(m => m.eventId === req.params.eventId);
+    res.json({
+      success: true,
+      eventId: req.params.eventId,
+      count: eventMessages.length,
+      messages: eventMessages
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Create a new message
+app.post('/api/messages', async (req, res) => {
+  try {
+    const { eventId, sender, message, timestamp } = req.body;
+
+    // Validation
+    if (!eventId || !sender || !message) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: eventId, sender, message'
+      });
+    }
+
+    const messages = await loadMessages();
+
+    const newMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      eventId,
+      sender,
+      message,
+      timestamp: timestamp || new Date().toISOString()
+    };
+
+    messages.push(newMessage);
+    await saveMessages(messages);
+
+    console.log(`💬 New message from ${sender} for event ${eventId}`);
+
+    res.status(201).json({
+      success: true,
+      message: newMessage
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Delete a message
+app.delete('/api/messages/:id', async (req, res) => {
+  try {
+    const messages = await loadMessages();
+    const filteredMessages = messages.filter(m => m.id !== req.params.id);
+
+    if (messages.length === filteredMessages.length) {
+      return res.status(404).json({
+        success: false,
+        error: 'Message not found'
+      });
+    }
+
+    await saveMessages(filteredMessages);
+
+    res.json({
+      success: true,
+      message: 'Message deleted'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Delete all messages for an event
+app.delete('/api/messages/event/:eventId', async (req, res) => {
+  try {
+    const messages = await loadMessages();
+    const filteredMessages = messages.filter(m => m.eventId !== req.params.eventId);
+
+    const deletedCount = messages.length - filteredMessages.length;
+    await saveMessages(filteredMessages);
+
+    res.json({
+      success: true,
+      deletedCount: deletedCount
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`\n🚀 Traffic Dashboard Backend Server`);
@@ -668,6 +1976,16 @@ app.listen(PORT, () => {
   console.log(`   GET http://localhost:${PORT}/api/events - Get all events`);
   console.log(`   GET http://localhost:${PORT}/api/events/:state - Get events by state`);
   console.log(`   GET http://localhost:${PORT}/api/health - Health check`);
+  console.log(`   GET http://localhost:${PORT}/api/analysis/normalization - Data quality report`);
+  console.log(`   GET http://localhost:${PORT}/api/convert/tim - Convert to SAE J2735 TIM format`);
+  console.log(`\n📋 SAE J2735 Compliance Endpoints (NEW):`);
+  console.log(`   GET http://localhost:${PORT}/api/compliance/summary - All states compliance status`);
+  console.log(`   GET http://localhost:${PORT}/api/compliance/guide/:state - State-specific SAE compliance guide`);
+  console.log(`\n💬 Message Endpoints:`);
+  console.log(`   GET http://localhost:${PORT}/api/messages - Get all messages`);
+  console.log(`   GET http://localhost:${PORT}/api/messages/event/:eventId - Get event messages`);
+  console.log(`   POST http://localhost:${PORT}/api/messages - Create message`);
+  console.log(`   DELETE http://localhost:${PORT}/api/messages/:id - Delete message`);
   console.log(`\n🌐 Connected to ${Object.keys(API_CONFIG).length} state DOT APIs`);
   console.log(`\nPress Ctrl+C to stop the server\n`);
 });

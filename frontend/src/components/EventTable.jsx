@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 
-export default function EventTable({ events, onEventSelect }) {
+export default function EventTable({ events, messages = {}, onEventSelect }) {
   const [sortField, setSortField] = useState('startTime');
   const [sortDirection, setSortDirection] = useState('desc');
 
@@ -69,6 +69,9 @@ export default function EventTable({ events, onEventSelect }) {
           zIndex: 10
         }}>
           <tr>
+            <th onClick={() => handleSort('requiresCollaboration')} style={headerStyle}>
+              🤝 <SortIcon field="requiresCollaboration" />
+            </th>
             <th onClick={() => handleSort('state')} style={headerStyle}>
               State <SortIcon field="state" />
             </th>
@@ -91,18 +94,39 @@ export default function EventTable({ events, onEventSelect }) {
             <th onClick={() => handleSort('startTime')} style={headerStyle}>
               Started <SortIcon field="startTime" />
             </th>
+            <th style={headerStyle}>Messages</th>
             <th style={headerStyle}>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {sortedEvents.map((event, index) => (
+          {sortedEvents.map((event, index) => {
+            const eventMessages = messages[event.id] || [];
+            const messageCount = eventMessages.length;
+
+            return (
             <tr
               key={event.id}
               style={{
                 backgroundColor: index % 2 === 0 ? 'white' : '#f9fafb',
-                borderBottom: '1px solid #e5e7eb'
+                borderBottom: '1px solid #e5e7eb',
+                cursor: 'pointer'
               }}
+              onClick={() => onEventSelect && onEventSelect(event)}
             >
+              <td style={cellStyle}>
+                {event.requiresCollaboration && (
+                  <span style={{
+                    backgroundColor: '#fef3c7',
+                    color: '#92400e',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    fontWeight: 'bold'
+                  }}>
+                    Cross-State
+                  </span>
+                )}
+              </td>
               <td style={cellStyle}>{event.state}</td>
               <td style={cellStyle}>
                 <span style={{
@@ -138,11 +162,30 @@ export default function EventTable({ events, onEventSelect }) {
                 {event.startTime ? formatDistanceToNow(new Date(event.startTime), { addSuffix: true }) : 'Unknown'}
               </td>
               <td style={cellStyle}>
+                {messageCount > 0 ? (
+                  <span style={{
+                    backgroundColor: '#10b981',
+                    color: 'white',
+                    padding: '4px 8px',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    fontWeight: 'bold'
+                  }}>
+                    💬 {messageCount}
+                  </span>
+                ) : (
+                  <span style={{ color: '#9ca3af', fontSize: '12px' }}>—</span>
+                )}
+              </td>
+              <td style={cellStyle}>
                 <button
-                  onClick={() => onEventSelect && onEventSelect(event)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEventSelect && onEventSelect(event);
+                  }}
                   style={{
                     padding: '4px 12px',
-                    backgroundColor: '#3b82f6',
+                    backgroundColor: messageCount > 0 ? '#10b981' : '#3b82f6',
                     color: 'white',
                     border: 'none',
                     borderRadius: '4px',
@@ -150,11 +193,12 @@ export default function EventTable({ events, onEventSelect }) {
                     fontSize: '12px'
                   }}
                 >
-                  Messages
+                  {messageCount > 0 ? 'View' : 'Add'}
                 </button>
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
       {events.length === 0 && (
