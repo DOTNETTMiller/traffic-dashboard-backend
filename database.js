@@ -45,8 +45,39 @@ class StateDatabase {
         expires_at DATETIME
       );
 
+      CREATE TABLE IF NOT EXISTS state_passwords (
+        state_key TEXT PRIMARY KEY,
+        password_hash TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_login DATETIME
+      );
+
+      CREATE TABLE IF NOT EXISTS state_messages (
+        id TEXT PRIMARY KEY,
+        from_state TEXT NOT NULL,
+        to_state TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        message TEXT NOT NULL,
+        event_id TEXT,
+        priority TEXT DEFAULT 'normal',
+        read BOOLEAN DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS event_comments (
+        id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL,
+        state_key TEXT NOT NULL,
+        state_name TEXT NOT NULL,
+        comment TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE INDEX IF NOT EXISTS idx_state_key ON states(state_key);
       CREATE INDEX IF NOT EXISTS idx_enabled ON states(enabled);
+      CREATE INDEX IF NOT EXISTS idx_message_to ON state_messages(to_state);
+      CREATE INDEX IF NOT EXISTS idx_message_from ON state_messages(from_state);
+      CREATE INDEX IF NOT EXISTS idx_event_comments ON event_comments(event_id);
     `);
 
     console.log('✅ Database schema initialized');
@@ -339,6 +370,168 @@ class StateDatabase {
     });
 
     console.log('✅ Migration complete');
+  }
+
+  // State Authentication Methods
+  hashPassword(password) {
+    return crypto.createHash('sha256').update(password).digest('hex');
+  }
+
+  setStatePassword(stateKey, password) {
+    try {
+      const passwordHash = this.hashPassword(password);
+      const stmt = this.db.prepare(`
+        INSERT INTO state_passwords (state_key, password_hash)
+        VALUES (?, ?)
+        ON CONFLICT(state_key) DO UPDATE SET password_hash = excluded.password_hash
+      `);
+      stmt.run(stateKey, passwordHash);
+      console.log(`✅ Set password for state: ${stateKey}`);
+      return { success: true };
+    } catch (error) {
+      console.error('Error setting state password:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  verifyStatePassword(stateKey, password) {
+    try {
+      const passwordHash = this.hashPassword(password);
+      const result = this.db.prepare(`
+        SELECT * FROM state_passwords WHERE state_key = ? AND password_hash = ?
+      `).get(stateKey, passwordHash);
+
+      if (result) {
+        // Update last login
+        this.db.prepare(`
+          UPDATE state_passwords SET last_login = CURRENT_TIMESTAMP WHERE state_key = ?
+        `).run(stateKey);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error verifying state password:', error);
+      return false;
+    }
+  }
+
+  // Direct Messaging Methods
+  sendMessage(messageData) {
+    const { fromState, toState, subject, message, eventId = null, priority = 'normal' } = messageData;
+    try {
+      const id = crypto.randomBytes(16).toString('hex');
+      const stmt = this.db.prepare(`
+        INSERT INTO state_messages (id, from_state, to_state, subject, message, event_id, priority)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(id, fromState, toState, subject, message, eventId, priority);
+      console.log(`💬 Message sent from ${fromState} to ${toState}`);
+      return { success: true, id };
+    } catch (error) {
+      console.error('Error sending message:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  getInbox(stateKey) {
+    try {
+      const messages = this.db.prepare(`
+        SELECT * FROM state_messages
+        WHERE to_state = ? OR to_state = 'ALL'
+        ORDER BY created_at DESC
+      `).all(stateKey);
+      return messages;
+    } catch (error) {
+      console.error('Error getting inbox:', error);
+      return [];
+    }
+  }
+
+  getSentMessages(stateKey) {
+    try {
+      const messages = this.db.prepare(`
+        SELECT * FROM state_messages
+        WHERE from_state = ?
+        ORDER BY created_at DESC
+      `).all(stateKey);
+      return messages;
+    } catch (error) {
+      console.error('Error getting sent messages:', error);
+      return [];
+    }
+  }
+
+  markMessageRead(messageId, stateKey) {
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE state_messages
+        SET read = 1
+        WHERE id = ? AND (to_state = ? OR to_state = 'ALL')
+      `);
+      stmt.run(messageId, stateKey);
+      return { success: true };
+    } catch (error) {
+      console.error('Error marking message read:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  getUnreadCount(stateKey) {
+    try {
+      const result = this.db.prepare(`
+        SELECT COUNT(*) as count FROM state_messages
+        WHERE (to_state = ? OR to_state = 'ALL') AND read = 0
+      `).get(stateKey);
+      return result.count || 0;
+    } catch (error) {
+      console.error('Error getting unread count:', error);
+      return 0;
+    }
+  }
+
+  // Event Comments Methods
+  addEventComment(commentData) {
+    const { eventId, stateKey, stateName, comment } = commentData;
+    try {
+      const id = crypto.randomBytes(16).toString('hex');
+      const stmt = this.db.prepare(`
+        INSERT INTO event_comments (id, event_id, state_key, state_name, comment)
+        VALUES (?, ?, ?, ?, ?)
+      `);
+      stmt.run(id, eventId, stateKey, stateName, comment);
+      console.log(`💬 Comment added by ${stateName} on event ${eventId}`);
+      return { success: true, id };
+    } catch (error) {
+      console.error('Error adding event comment:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  getEventComments(eventId) {
+    try {
+      const comments = this.db.prepare(`
+        SELECT * FROM event_comments
+        WHERE event_id = ?
+        ORDER BY created_at ASC
+      `).all(eventId);
+      return comments;
+    } catch (error) {
+      console.error('Error getting event comments:', error);
+      return [];
+    }
+  }
+
+  getAllEventComments() {
+    try {
+      const comments = this.db.prepare(`
+        SELECT * FROM event_comments
+        ORDER BY created_at DESC
+      `).all();
+      return comments;
+    } catch (error) {
+      console.error('Error getting all event comments:', error);
+      return [];
+    }
   }
 
   close() {

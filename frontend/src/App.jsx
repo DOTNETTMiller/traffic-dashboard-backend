@@ -9,10 +9,11 @@ import EventMessaging from './components/EventMessaging';
 import DataQualityReport from './components/DataQualityReport';
 import MessagesPanel from './components/MessagesPanel';
 import StateAdmin from './components/StateAdmin';
+import StateMessaging from './components/StateMessaging';
 import './styles/App.css';
 
 function App() {
-  const [view, setView] = useState('map'); // 'map', 'table', 'report', or 'admin'
+  const [view, setView] = useState('map'); // 'map', 'table', 'report', 'messages', or 'admin'
   const [filters, setFilters] = useState({
     state: '',
     corridor: '',
@@ -156,6 +157,13 @@ function App() {
             Data Quality Report
           </button>
           <button
+            className={`toggle-btn ${view === 'messages' ? 'active' : ''}`}
+            onClick={() => setView('messages')}
+            style={{ backgroundColor: view === 'messages' ? '#007bff' : '#6c757d' }}
+          >
+            Messages
+          </button>
+          <button
             className={`toggle-btn ${view === 'admin' ? 'active' : ''}`}
             onClick={() => setView('admin')}
             style={{ backgroundColor: view === 'admin' ? '#dc3545' : '#6c757d' }}
@@ -181,7 +189,7 @@ function App() {
 
       {/* Main Content */}
       <div className="main-content">
-        {view !== 'report' && view !== 'admin' && (
+        {view !== 'report' && view !== 'admin' && view !== 'messages' && (
           <EventFilters
             events={events}
             filters={filters}
@@ -189,7 +197,7 @@ function App() {
           />
         )}
 
-        {error && view !== 'admin' && (
+        {error && view !== 'admin' && view !== 'messages' && (
           <div className="error-banner">
             Error loading events: {error}
           </div>
@@ -197,6 +205,8 @@ function App() {
 
         {view === 'admin' ? (
           <StateAdmin />
+        ) : view === 'messages' ? (
+          <StateMessaging />
         ) : view === 'map' ? (
           <div style={{
             flex: 1,
