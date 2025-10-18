@@ -59,28 +59,6 @@ const getMarkerIcon = (severity, eventType, hasMessages) => {
   });
 };
 
-// Component to auto-fit bounds only on initial load
-function AutoFitBounds({ events }) {
-  const map = useMap();
-
-  useEffect(() => {
-    if (events.length > 0) {
-      const bounds = events.map(e => [parseFloat(e.latitude), parseFloat(e.longitude)]);
-      if (bounds.length > 0) {
-        try {
-          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 });
-        } catch (error) {
-          console.warn('Error fitting bounds:', error);
-        }
-      }
-    }
-    // Only run once on mount by omitting events from dependency array
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map]);
-
-  return null;
-}
-
 export default function TrafficMap({ events, messages = {}, onEventSelect }) {
   // Filter out events without valid coordinates
   const validEvents = events.filter(e => {
@@ -100,23 +78,27 @@ export default function TrafficMap({ events, messages = {}, onEventSelect }) {
 
   console.log(`📍 Map: ${validEvents.length} valid events out of ${events.length} total`);
 
-  // Default center (middle of USA)
+  // Center on mainland United States
   const defaultCenter = [39.8283, -98.5795];
+  const defaultZoom = 5;
 
   return (
     <div style={{ height: '100%', width: '100%' }}>
       <MapContainer
         center={defaultCenter}
-        zoom={5}
+        zoom={defaultZoom}
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
+        minZoom={4}
+        maxBounds={[
+          [24.396308, -125.0],  // Southwest corner (southern CA/TX)
+          [49.384358, -66.93457] // Northeast corner (northern ME/WA)
+        ]}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-
-        <AutoFitBounds events={validEvents} />
 
         {validEvents.map((event) => {
           const hasMessages = messages[event.id] && messages[event.id].length > 0;
