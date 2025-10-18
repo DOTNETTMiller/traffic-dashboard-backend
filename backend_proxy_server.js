@@ -92,6 +92,19 @@ const parseXML = async (xmlString) => {
   return await parser.parseStringPromise(xmlString);
 };
 
+// Helper to extract text strings from potentially nested objects
+const extractTextValue = (obj) => {
+  if (typeof obj === 'string') return obj;
+  if (typeof obj !== 'object' || obj === null) return '';
+
+  // Try to find the first string value in the object
+  for (const value of Object.values(obj)) {
+    if (typeof value === 'string') return value;
+    // Don't recurse into nested objects to avoid getting too deep
+  }
+  return '';
+};
+
 // Normalize data from different state formats
 const normalizeEventData = (rawData, stateName, format, sourceType = 'events') => {
   const normalized = [];
@@ -225,7 +238,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
 
             // Extract headline
             const headlineObj = update.headline?.headline || {};
-            const headlineText = Object.values(headlineObj)[0] || 'Unknown';
+            const headlineText = extractTextValue(headlineObj) || 'Unknown';
 
             // Extract details
             const detail = update.details?.detail;
@@ -255,10 +268,15 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
             // Extract description
             const descriptions = detail?.descriptions?.description || [];
             const descArray = Array.isArray(descriptions) ? descriptions : [descriptions];
-            const descText = descArray.map(d => {
-              const phrase = d.phrase || d;
-              return Object.values(phrase)[0] || '';
-            }).join('; ') || 'Event description not available';
+            const descParts = descArray
+              .map(d => {
+                const phrase = d.phrase || d;
+                return extractTextValue(phrase);
+              })
+              .filter(text => text && text.trim().length > 0); // Remove empty strings
+            const descText = descParts.length > 0
+              ? descParts.join('; ')
+              : 'Event description not available';
 
             // Extract location/roadway name
             let locationText = 'Location not specified';
