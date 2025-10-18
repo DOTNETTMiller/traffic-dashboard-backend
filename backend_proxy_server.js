@@ -328,6 +328,77 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
           }
         });
       }
+
+      // Generic WZDx handling for all other states
+      const apiType = API_CONFIG[Object.keys(API_CONFIG).find(k => API_CONFIG[k].name === stateName)]?.apiType;
+      console.log(`${stateName}: apiType=${apiType}, hasFeatures=${!!rawData.features}, featuresLength=${rawData.features?.length}`);
+
+      if (stateName !== 'Utah' && apiType === 'WZDx' && rawData.features) {
+        console.log(`${stateName}: Processing ${rawData.features.length} WZDx features`);
+
+        rawData.features.forEach(feature => {
+          const props = feature.properties;
+
+          // WZDx v4+ uses core_details, older versions have fields directly on properties
+          const coreDetails = props.core_details || props;
+
+          let lat = 0;
+          let lng = 0;
+
+          // Extract coordinates based on geometry type
+          if (feature.geometry?.coordinates) {
+            const coords = feature.geometry.coordinates;
+
+            // Check if it's a LineString (array of points) or Point
+            if (Array.isArray(coords) && coords.length > 0) {
+              if (Array.isArray(coords[0])) {
+                // LineString - take first point
+                lng = parseFloat(coords[0][0]) || 0;
+                lat = parseFloat(coords[0][1]) || 0;
+              } else {
+                // Point - direct coordinates
+                lng = parseFloat(coords[0]) || 0;
+                lat = parseFloat(coords[1]) || 0;
+              }
+            }
+          }
+
+          // Extract road names from core_details or properties
+          const roadNames = coreDetails.road_names || props.road_names || [];
+          const locationText = Array.isArray(roadNames) && roadNames.length > 0
+            ? roadNames.join(', ')
+            : (coreDetails.name || props.name || 'Unknown location');
+
+          // Get state abbreviation from stateName
+          const stateAbbr = stateName.toUpperCase().substring(0, 2);
+
+          // Only include events on interstate highways
+          if (isInterstateRoute(locationText)) {
+            // Extract event ID from core_details or feature id
+            const eventId = coreDetails.road_event_id || props.road_event_id || feature.id || Math.random().toString(36).substr(2, 9);
+
+            normalized.push({
+              id: `${stateAbbr}-${eventId}`,
+              state: stateName,
+              corridor: extractCorridor(locationText),
+              eventType: coreDetails.event_type || props.event_type || 'work-zone',
+              description: coreDetails.description || props.description || 'Work zone',
+              location: locationText,
+              county: props.county || 'Unknown',
+              latitude: lat,
+              longitude: lng,
+              startTime: props.start_date || coreDetails.start_date || new Date().toISOString(),
+              endTime: props.end_date || coreDetails.end_date || null,
+              lanesAffected: props.vehicle_impact || 'Check conditions',
+              severity: (props.vehicle_impact === 'all-lanes-open') ? 'low' : 'medium',
+              direction: coreDetails.direction || props.direction || 'Both',
+              requiresCollaboration: false
+            });
+          }
+        });
+
+        console.log(`${stateName}: Normalized ${normalized.length} WZDx events`);
+      }
     } 
     else if (format === 'xml') {
       // Debug: Log XML structure
