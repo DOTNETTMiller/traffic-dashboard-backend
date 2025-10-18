@@ -1,53 +1,77 @@
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
+import axios from 'axios';
+import { config } from '../config';
 
 export default function EventMessaging({ event, messages, onSendMessage, onClose }) {
-  const [newMessage, setNewMessage] = useState('');
-  const [username, setUsername] = useState('');
-  const [isUsernameSet, setIsUsernameSet] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [comments, setComments] = useState([]);
+  const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
 
-  useEffect(() => {
-    // Check if username is stored in localStorage
-    const storedUsername = localStorage.getItem('dotUsername');
-    if (storedUsername) {
-      setUsername(storedUsername);
-      setIsUsernameSet(true);
-    }
-  }, []);
+  // Check if user is logged in as a state
+  const stateKey = localStorage.getItem('stateKey');
+  const stateName = localStorage.getItem('stateName');
+  const isStateLoggedIn = !!stateKey && !!stateName;
 
   useEffect(() => {
-    // Auto-scroll to bottom when new messages arrive
+    // Load comments for this event
+    loadComments();
+  }, [event.id]);
+
+  useEffect(() => {
+    // Auto-scroll to bottom when new comments arrive
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [comments]);
 
-  const handleSetUsername = () => {
-    if (username.trim()) {
-      localStorage.setItem('dotUsername', username.trim());
-      setIsUsernameSet(true);
+  const loadComments = async () => {
+    try {
+      const response = await axios.get(`${config.apiUrl}/api/events/${event.id}/comments`);
+      if (response.data.success) {
+        setComments(response.data.comments);
+      }
+    } catch (error) {
+      console.error('Error loading comments:', error);
     }
   };
 
-  const handleSendMessage = () => {
-    if (newMessage.trim() && isUsernameSet) {
-      onSendMessage({
-        eventId: event.id,
-        username,
-        message: newMessage.trim(),
-        timestamp: new Date().toISOString()
-      });
-      setNewMessage('');
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !isStateLoggedIn) return;
+
+    setLoading(true);
+    try {
+      // We need the password but don't store it - user will need to re-login periodically
+      // For now, show message to login
+      const response = await axios.post(
+        `${config.apiUrl}/api/events/${event.id}/comments`,
+        { comment: newComment.trim() },
+        {
+          headers: {
+            Authorization: `State ${stateKey}:temp` // Password not stored
+          }
+        }
+      );
+
+      if (response.data.success) {
+        setNewComment('');
+        loadComments(); // Refresh comments
+      }
+    } catch (error) {
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        alert('Session expired. Please log in again from the Messages tab.');
+      } else {
+        alert('Failed to add comment. Please try again.');
+      }
+      console.error('Error adding comment:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && isStateLoggedIn) {
       e.preventDefault();
-      if (isUsernameSet) {
-        handleSendMessage();
-      } else {
-        handleSetUsername();
-      }
+      handleAddComment();
     }
   };
 
@@ -107,74 +131,42 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
           </button>
         </div>
 
-        {/* Username Setup */}
-        {!isUsernameSet && (
+        {/* State Login Notice */}
+        {!isStateLoggedIn && (
           <div style={{
             padding: '20px',
-            backgroundColor: '#eff6ff',
+            backgroundColor: '#fef3c7',
             borderBottom: '1px solid #e5e7eb'
           }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>
-              Enter your name to join the conversation:
-            </label>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Your name"
-                autoFocus
-                style={{
-                  flex: 1,
-                  padding: '8px 12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}
-              />
-              <button
-                onClick={handleSetUsername}
-                disabled={!username.trim()}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#3b82f6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: username.trim() ? 'pointer' : 'not-allowed',
-                  opacity: username.trim() ? 1 : 0.5
-                }}
-              >
-                Join
-              </button>
-            </div>
+            <p style={{ margin: 0, fontSize: '14px', color: '#92400e' }}>
+              To comment on this event, please log in as your state from the <strong>Messages</strong> tab.
+            </p>
           </div>
         )}
 
-        {/* Messages */}
+        {/* Comments */}
         <div style={{
           flex: 1,
           overflowY: 'auto',
           padding: '20px',
           backgroundColor: '#f9fafb'
         }}>
-          {messages.length === 0 ? (
+          {comments.length === 0 ? (
             <div style={{
               textAlign: 'center',
               color: '#6b7280',
               padding: '40px 20px'
             }}>
-              No messages yet. Start the conversation!
+              No comments yet. {isStateLoggedIn ? 'Start the conversation!' : 'Log in to add the first comment.'}
             </div>
           ) : (
-            messages.map((msg, index) => (
+            comments.map((comment) => (
               <div
-                key={index}
+                key={comment.id}
                 style={{
                   marginBottom: '16px',
                   padding: '12px',
-                  backgroundColor: msg.username === username ? '#dbeafe' : 'white',
+                  backgroundColor: comment.state_key === stateKey ? '#dbeafe' : 'white',
                   borderRadius: '8px',
                   boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                 }}
@@ -185,14 +177,14 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
                   marginBottom: '4px'
                 }}>
                   <span style={{ fontWeight: '600', fontSize: '14px' }}>
-                    {msg.username}
+                    {comment.state_name}
                   </span>
                   <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                    {format(new Date(msg.timestamp), 'MMM d, h:mm a')}
+                    {format(new Date(comment.created_at), 'MMM d, h:mm a')}
                   </span>
                 </div>
                 <p style={{ margin: 0, fontSize: '14px', whiteSpace: 'pre-wrap' }}>
-                  {msg.message}
+                  {comment.comment}
                 </p>
               </div>
             ))
@@ -201,7 +193,7 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
         </div>
 
         {/* Input */}
-        {isUsernameSet && (
+        {isStateLoggedIn && (
           <div style={{
             padding: '16px 20px',
             borderTop: '1px solid #e5e7eb',
@@ -209,11 +201,12 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
           }}>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
               <textarea
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Type a message... (Press Enter to send)"
+                placeholder="Type a comment... (Press Enter to send)"
                 rows={2}
+                disabled={loading}
                 style={{
                   flex: 1,
                   padding: '8px 12px',
@@ -225,42 +218,24 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
                 }}
               />
               <button
-                onClick={handleSendMessage}
-                disabled={!newMessage.trim()}
+                onClick={handleAddComment}
+                disabled={!newComment.trim() || loading}
                 style={{
                   padding: '8px 16px',
                   backgroundColor: '#3b82f6',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
-                  cursor: newMessage.trim() ? 'pointer' : 'not-allowed',
-                  opacity: newMessage.trim() ? 1 : 0.5,
+                  cursor: newComment.trim() && !loading ? 'pointer' : 'not-allowed',
+                  opacity: newComment.trim() && !loading ? 1 : 0.5,
                   height: '40px'
                 }}
               >
-                Send
+                {loading ? 'Sending...' : 'Send'}
               </button>
             </div>
             <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
-              Posting as: <strong>{username}</strong>
-              {' '}
-              <button
-                onClick={() => {
-                  localStorage.removeItem('dotUsername');
-                  setIsUsernameSet(false);
-                  setUsername('');
-                }}
-                style={{
-                  border: 'none',
-                  background: 'none',
-                  color: '#3b82f6',
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                  fontSize: '12px'
-                }}
-              >
-                Change
-              </button>
+              Commenting as: <strong>{stateName}</strong>
             </div>
           </div>
         )}

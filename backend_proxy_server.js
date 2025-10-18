@@ -2028,6 +2028,211 @@ app.delete('/api/messages/event/:eventId', async (req, res) => {
   }
 });
 
+// ==================== STATE-TO-STATE MESSAGING ENDPOINTS ====================
+
+// State authentication middleware
+const requireStateAuth = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('State ')) {
+    return res.status(401).json({ error: 'Missing or invalid state authorization header' });
+  }
+
+  const [stateKey, password] = authHeader.substring(6).split(':');
+  if (!db.verifyStatePassword(stateKey, password)) {
+    return res.status(403).json({ error: 'Invalid state credentials' });
+  }
+
+  req.stateKey = stateKey;
+  req.stateName = db.getState(stateKey)?.stateName;
+  next();
+};
+
+// Set/update state password (admin only)
+app.post('/api/states/password', requireAdmin, (req, res) => {
+  const { stateKey, password } = req.body;
+
+  if (!stateKey || !password) {
+    return res.status(400).json({ error: 'Missing stateKey or password' });
+  }
+
+  // Verify state exists
+  const state = db.getState(stateKey);
+  if (!state) {
+    return res.status(404).json({ error: 'State not found' });
+  }
+
+  const result = db.setStatePassword(stateKey, password);
+
+  if (result.success) {
+    res.json({
+      success: true,
+      message: `Password set for ${state.stateName}`
+    });
+  } else {
+    res.status(500).json({ error: result.error });
+  }
+});
+
+// State login (verify credentials)
+app.post('/api/states/login', (req, res) => {
+  const { stateKey, password } = req.body;
+
+  if (!stateKey || !password) {
+    return res.status(400).json({ error: 'Missing stateKey or password' });
+  }
+
+  const state = db.getState(stateKey);
+  if (!state) {
+    return res.status(404).json({ error: 'State not found' });
+  }
+
+  if (db.verifyStatePassword(stateKey, password)) {
+    res.json({
+      success: true,
+      stateKey: state.stateKey,
+      stateName: state.stateName,
+      message: 'Login successful'
+    });
+  } else {
+    res.status(401).json({ error: 'Invalid password' });
+  }
+});
+
+// Send direct message (state to state)
+app.post('/api/states/messages', requireStateAuth, (req, res) => {
+  const { toState, subject, message, eventId, priority } = req.body;
+
+  if (!toState || !subject || !message) {
+    return res.status(400).json({ error: 'Missing required fields: toState, subject, message' });
+  }
+
+  // Verify recipient state exists (unless it's "ALL")
+  if (toState !== 'ALL') {
+    const recipient = db.getState(toState);
+    if (!recipient) {
+      return res.status(404).json({ error: 'Recipient state not found' });
+    }
+  }
+
+  const result = db.sendMessage({
+    fromState: req.stateKey,
+    toState,
+    subject,
+    message,
+    eventId,
+    priority: priority || 'normal'
+  });
+
+  if (result.success) {
+    res.status(201).json({
+      success: true,
+      messageId: result.id,
+      message: 'Message sent'
+    });
+  } else {
+    res.status(500).json({ error: result.error });
+  }
+});
+
+// Get inbox (messages to this state)
+app.get('/api/states/inbox', requireStateAuth, (req, res) => {
+  const messages = db.getInbox(req.stateKey);
+  const unreadCount = db.getUnreadCount(req.stateKey);
+
+  res.json({
+    success: true,
+    stateKey: req.stateKey,
+    stateName: req.stateName,
+    unreadCount,
+    messages
+  });
+});
+
+// Get sent messages (from this state)
+app.get('/api/states/sent', requireStateAuth, (req, res) => {
+  const messages = db.getSentMessages(req.stateKey);
+
+  res.json({
+    success: true,
+    stateKey: req.stateKey,
+    stateName: req.stateName,
+    messages
+  });
+});
+
+// Mark message as read
+app.post('/api/states/messages/:id/read', requireStateAuth, (req, res) => {
+  const result = db.markMessageRead(req.params.id, req.stateKey);
+
+  if (result.success) {
+    res.json({ success: true, message: 'Message marked as read' });
+  } else {
+    res.status(500).json({ error: result.error });
+  }
+});
+
+// Add comment to event (any authenticated state can comment)
+app.post('/api/events/:eventId/comments', requireStateAuth, (req, res) => {
+  const { comment } = req.body;
+
+  if (!comment) {
+    return res.status(400).json({ error: 'Missing comment' });
+  }
+
+  const result = db.addEventComment({
+    eventId: req.params.eventId,
+    stateKey: req.stateKey,
+    stateName: req.stateName,
+    comment
+  });
+
+  if (result.success) {
+    res.status(201).json({
+      success: true,
+      commentId: result.id,
+      message: 'Comment added'
+    });
+  } else {
+    res.status(500).json({ error: result.error });
+  }
+});
+
+// Get comments for an event (public - no auth required)
+app.get('/api/events/:eventId/comments', (req, res) => {
+  const comments = db.getEventComments(req.params.eventId);
+
+  res.json({
+    success: true,
+    eventId: req.params.eventId,
+    count: comments.length,
+    comments
+  });
+});
+
+// Get all event comments (for viewing all discussions)
+app.get('/api/events/comments/all', (req, res) => {
+  const comments = db.getAllEventComments();
+
+  res.json({
+    success: true,
+    count: comments.length,
+    comments
+  });
+});
+
+// Get list of states available for messaging
+app.get('/api/states/list', (req, res) => {
+  const states = db.getAllStates(false); // No credentials
+
+  res.json({
+    success: true,
+    states: states.map(s => ({
+      stateKey: s.stateKey,
+      stateName: s.stateName
+    }))
+  });
+});
+
 // ==================== ADMIN STATE MANAGEMENT ENDPOINTS ====================
 
 // Generate admin token (one-time setup or regenerate)
