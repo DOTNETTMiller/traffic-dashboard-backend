@@ -7,6 +7,7 @@ export default function DataQualityReport() {
   const [stateGuide, setStateGuide] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingGuide, setLoadingGuide] = useState(false);
+  const [showC2CExplanation, setShowC2CExplanation] = useState(false);
 
   useEffect(() => {
     fetchSummary();
@@ -31,10 +32,12 @@ export default function DataQualityReport() {
     }
   };
 
-  const fetchStateGuide = async (stateName) => {
+  const fetchStateGuide = async (state) => {
     try {
       setLoadingGuide(true);
-      const response = await fetch(`${config.apiUrl}/api/compliance/guide/${stateName.toLowerCase()}`);
+      // Use the complianceGuideUrl provided by the backend
+      const url = `${config.apiUrl}${state.complianceGuideUrl}`;
+      const response = await fetch(url);
       const data = await response.json();
       setStateGuide(data);
     } catch (error) {
@@ -63,6 +66,125 @@ export default function DataQualityReport() {
     return '#991b1b';
   };
 
+  const downloadComplianceReport = (format = 'csv') => {
+    if (!stateGuide) return;
+
+    const timestamp = new Date().toISOString().split('T')[0];
+    const stateKey = stateGuide.state.replace(/\s+/g, '_').toLowerCase();
+
+    if (format === 'csv') {
+      // Create comprehensive CSV with field mappings
+      const rows = [];
+
+      // Header rows
+      rows.push([`${stateGuide.state} - SAE J2735 & C2C Compliance Report`]);
+      rows.push([`Generated: ${new Date(stateGuide.generatedAt).toLocaleString()}`]);
+      rows.push([`Current Format: ${stateGuide.currentFormat?.apiType || 'Unknown'}`]);
+      rows.push([`Overall Score: ${stateGuide.overallScore?.percentage}/100 (Grade ${stateGuide.overallScore?.grade})`]);
+      rows.push([`C2C Compliance: ${stateGuide.c2cCompliance?.score}/100 - ${stateGuide.c2cCompliance?.grade}`]);
+      rows.push([]);
+
+      // Field-level mapping table
+      rows.push(['FIELD-LEVEL COMPLIANCE ANALYSIS']);
+      rows.push(['Field Name', 'Category', 'Status', 'Current Score', 'Max Points', 'Current Points', 'Impact/Issue', 'Recommendation']);
+
+      // Add fields from category scores
+      if (stateGuide.categoryScores) {
+        Object.entries(stateGuide.categoryScores).forEach(([key, category]) => {
+          category.fields.forEach(field => {
+            rows.push([
+              field.field,
+              category.name,
+              field.status,
+              `${field.score}%`,
+              field.maxPoints,
+              field.currentPoints,
+              field.impact,
+              field.status === 'FAIL' ? `Required for ${category.name}` : 'Compliant'
+            ]);
+          });
+        });
+      }
+
+      rows.push([]);
+      rows.push(['C2C COMPLIANCE RECOMMENDATIONS']);
+      rows.push(['Field', 'Importance', 'Current Issue', 'Solution']);
+
+      if (stateGuide.c2cCompliance?.recommendations) {
+        stateGuide.c2cCompliance.recommendations.forEach(rec => {
+          rows.push([
+            rec.field,
+            rec.importance,
+            rec.issue,
+            rec.solution
+          ]);
+        });
+      }
+
+      rows.push([]);
+      rows.push(['PRIORITIZED ACTION PLAN']);
+      rows.push(['Priority', 'Field', 'Current Score', 'Points to Gain', 'Impact']);
+
+      if (stateGuide.actionPlan?.immediate) {
+        stateGuide.actionPlan.immediate.forEach(action => {
+          rows.push(['IMMEDIATE', action.field, `${action.currentScore}%`, action.pointsGained, action.impact]);
+        });
+      }
+
+      if (stateGuide.actionPlan?.shortTerm) {
+        stateGuide.actionPlan.shortTerm.forEach(action => {
+          rows.push(['SHORT-TERM', action.field, `${action.currentScore}%`, action.pointsGained, action.impact || 'Medium priority improvement']);
+        });
+      }
+
+      if (stateGuide.actionPlan?.longTerm) {
+        stateGuide.actionPlan.longTerm.forEach(action => {
+          rows.push(['LONG-TERM', action.field, `${action.currentScore}%`, action.pointsGained || 'N/A', action.impact || 'Optional enhancement']);
+        });
+      }
+
+      // Violations detail
+      if (stateGuide.fieldLevelAnalysis?.violationCategories) {
+        rows.push([]);
+        rows.push(['DETAILED VIOLATIONS']);
+        rows.push(['Category', 'Severity', 'Count', 'Spec Requirement', 'Impact', 'Recommendation']);
+
+        stateGuide.fieldLevelAnalysis.violationCategories.forEach(violation => {
+          rows.push([
+            violation.category,
+            violation.severity,
+            violation.count,
+            violation.specRequirement,
+            violation.impact,
+            violation.recommendation
+          ]);
+        });
+      }
+
+      // Convert to CSV
+      const csvContent = rows.map(row =>
+        row.map(cell => {
+          // Escape quotes and wrap in quotes if contains comma, quote, or newline
+          const cellStr = String(cell || '');
+          if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+            return '"' + cellStr.replace(/"/g, '""') + '"';
+          }
+          return cellStr;
+        }).join(',')
+      ).join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `compliance_report_${stateKey}_${timestamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -86,7 +208,8 @@ export default function DataQualityReport() {
     <div style={{
       padding: '20px',
       backgroundColor: '#f9fafb',
-      minHeight: '100vh'
+      height: '100%',
+      overflowY: 'auto'
     }}>
       {/* Header */}
       <div style={{
@@ -178,7 +301,7 @@ export default function DataQualityReport() {
         {statesWithEvents.map((state) => (
           <div
             key={state.name}
-            onClick={() => setSelectedState(state.name)}
+            onClick={() => setSelectedState(state)}
             style={{
               backgroundColor: 'white',
               padding: '20px',
@@ -186,123 +309,161 @@ export default function DataQualityReport() {
               boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
               cursor: 'pointer',
               transition: 'all 0.2s',
-              border: selectedState === state.name ? '2px solid #3b82f6' : '2px solid transparent'
+              border: selectedState?.name === state.name ? '2px solid #3b82f6' : '2px solid transparent'
             }}
             onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.15)'}
             onMouseLeave={(e) => e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)'}
           >
             {/* State Header */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              marginBottom: '15px'
-            }}>
-              <div>
-                <h3 style={{ margin: '0 0 5px 0', fontSize: '18px', fontWeight: 'bold' }}>
-                  {state.name}
-                </h3>
-                <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                  {state.eventCount} events • {state.currentFormat}
+            <div style={{ marginBottom: '16px' }}>
+              <h3 style={{ margin: '0 0 5px 0', fontSize: '18px', fontWeight: 'bold' }}>
+                {state.name}
+              </h3>
+              <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                {state.eventCount} events • {state.currentFormat}
+              </div>
+              {state.tmddStandards && state.tmddStandards.version && (
+                <div style={{
+                  fontSize: '11px',
+                  color: '#6b7280',
+                  marginTop: '4px'
+                }}>
+                  {state.tmddStandards.version}
                 </div>
-              </div>
-              <div style={{
-                width: '50px',
-                height: '50px',
-                borderRadius: '8px',
-                backgroundColor: getScoreColor(state.dataCompletenessScore),
-                color: 'white',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '18px',
-                fontWeight: 'bold'
-              }}>
-                {state.dataCompletenessScore}
-              </div>
+              )}
             </div>
 
-            {/* Progress Bar */}
-            <div style={{ marginBottom: '15px' }}>
+            {/* Overall Composite Grade */}
+            {state.overallScore && (
               <div style={{
+                padding: '12px',
+                background: `linear-gradient(135deg, ${getGradeColor(state.overallScore.grade)}15 0%, ${getGradeColor(state.overallScore.grade)}05 100%)`,
+                borderRadius: '8px',
+                border: `2px solid ${getGradeColor(state.overallScore.grade)}`,
+                marginBottom: '12px',
                 display: 'flex',
                 justifyContent: 'space-between',
-                fontSize: '12px',
-                marginBottom: '5px'
+                alignItems: 'center'
               }}>
-                <span style={{ color: '#6b7280' }}>Data Completeness</span>
-                <span style={{ fontWeight: 'bold' }}>{state.dataCompletenessScore}%</span>
+                <div>
+                  <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '2px', fontWeight: '600' }}>
+                    COMPOSITE GRADE
+                  </div>
+                  <div style={{ fontSize: '13px', fontWeight: '600', color: '#374151' }}>
+                    {state.overallScore.rank}
+                  </div>
+                </div>
+                <div style={{
+                  width: '55px',
+                  height: '55px',
+                  borderRadius: '10px',
+                  backgroundColor: getGradeColor(state.overallScore.grade),
+                  color: 'white',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
+                }}>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', lineHeight: 1 }}>
+                    {state.overallScore.grade}
+                  </div>
+                  <div style={{ fontSize: '11px', fontWeight: '600', marginTop: '2px' }}>
+                    {state.overallScore.percentage}%
+                  </div>
+                </div>
               </div>
+            )}
+
+            {/* Individual Standard Grades - Always Show */}
+            {state.overallScore?.breakdown ? (
               <div style={{
-                height: '8px',
-                backgroundColor: '#e5e7eb',
-                borderRadius: '4px',
-                overflow: 'hidden'
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '10px',
+                marginBottom: '12px'
               }}>
                 <div style={{
-                  height: '100%',
-                  width: `${state.dataCompletenessScore}%`,
-                  backgroundColor: getScoreColor(state.dataCompletenessScore),
-                  transition: 'width 0.3s ease'
-                }} />
+                  padding: '12px',
+                  backgroundColor: 'white',
+                  borderRadius: '8px',
+                  border: '2px solid #3b82f6',
+                  textAlign: 'center',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                }}>
+                  <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px', fontWeight: '600' }}>WZDx</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#3b82f6', lineHeight: 1 }}>
+                    {state.overallScore.breakdown.wzdx.grade}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', fontWeight: '600' }}>
+                    {state.overallScore.breakdown.wzdx.percentage}%
+                  </div>
+                </div>
+                <div style={{
+                  padding: '12px',
+                  backgroundColor: 'white',
+                  borderRadius: '8px',
+                  border: '2px solid #10b981',
+                  textAlign: 'center',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                }}>
+                  <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px', fontWeight: '600' }}>SAE J2735</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#10b981', lineHeight: 1 }}>
+                    {state.overallScore.breakdown.sae.grade}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', fontWeight: '600' }}>
+                    {state.overallScore.breakdown.sae.percentage}%
+                  </div>
+                </div>
+                <div style={{
+                  padding: '12px',
+                  backgroundColor: 'white',
+                  borderRadius: '8px',
+                  border: '2px solid #f59e0b',
+                  textAlign: 'center',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                }}>
+                  <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px', fontWeight: '600' }}>TMDD</div>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f59e0b', lineHeight: 1 }}>
+                    {state.overallScore.breakdown.tmdd.grade}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', fontWeight: '600' }}>
+                    {state.overallScore.breakdown.tmdd.percentage}%
+                  </div>
+                </div>
               </div>
-            </div>
-
-            {/* Compliance Badges */}
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
-              {state.saeJ2735Ready && (
-                <span style={{
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                  backgroundColor: '#d1fae5',
-                  color: '#065f46',
-                  fontSize: '11px',
-                  fontWeight: '600'
+            ) : (
+              /* Fallback for states without breakdown - show data quality */
+              <div style={{
+                padding: '16px',
+                backgroundColor: '#f3f4f6',
+                borderRadius: '8px',
+                marginBottom: '12px',
+                textAlign: 'center',
+                border: '1px solid #e5e7eb'
+              }}>
+                <div style={{
+                  fontSize: '28px',
+                  fontWeight: 'bold',
+                  color: getScoreColor(state.dataCompletenessScore),
+                  marginBottom: '4px',
+                  lineHeight: 1
                 }}>
-                  SAE J2735 Ready
-                </span>
-              )}
-              {state.wzdxCompliant && (
-                <span style={{
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                  backgroundColor: '#dbeafe',
-                  color: '#1e40af',
-                  fontSize: '11px',
-                  fontWeight: '600'
-                }}>
-                  WZDx Compliant
-                </span>
-              )}
-              {!state.saeJ2735Ready && !state.wzdxCompliant && (
-                <span style={{
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                  backgroundColor: '#fee2e2',
-                  color: '#991b1b',
-                  fontSize: '11px',
-                  fontWeight: '600'
-                }}>
-                  Needs Improvement
-                </span>
-              )}
-            </div>
-
-            {/* Recommended Action */}
-            <div style={{
-              fontSize: '12px',
-              color: '#6b7280',
-              fontStyle: 'italic'
-            }}>
-              {state.recommendedAction}
-            </div>
+                  {state.dataCompletenessScore}%
+                </div>
+                <div style={{ fontSize: '11px', color: '#6b7280', fontWeight: '600' }}>
+                  Data Quality
+                </div>
+              </div>
+            )}
 
             {/* Click to view details */}
             <div style={{
-              marginTop: '10px',
+              marginTop: '12px',
               fontSize: '12px',
               color: '#3b82f6',
-              fontWeight: '600'
+              fontWeight: '600',
+              textAlign: 'center'
             }}>
               Click for detailed compliance guide →
             </div>
@@ -329,12 +490,12 @@ export default function DataQualityReport() {
         >
           <div
             style={{
-              backgroundColor: 'white',
-              borderRadius: '12px',
               maxWidth: '900px',
               width: '100%',
               maxHeight: '90vh',
               overflow: 'auto',
+              backgroundColor: 'white',
+              borderRadius: '12px',
               boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
             }}
             onClick={(e) => e.stopPropagation()}
@@ -361,25 +522,471 @@ export default function DataQualityReport() {
                       Format: {stateGuide.currentFormat?.apiType || 'Unknown'} • Generated: {new Date(stateGuide.generatedAt).toLocaleString()}
                     </div>
                   </div>
-                  <button
-                    onClick={() => setSelectedState(null)}
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: '6px',
-                      border: '1px solid #d1d5db',
-                      backgroundColor: 'white',
-                      cursor: 'pointer',
-                      fontSize: '14px'
-                    }}
-                  >
-                    Close
-                  </button>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      onClick={() => downloadComplianceReport('csv')}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        border: '1px solid #10b981',
+                        backgroundColor: '#10b981',
+                        color: 'white',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '600'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#059669'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#10b981'}
+                    >
+                      📊 Download Spreadsheet (CSV/Excel)
+                    </button>
+                    <button
+                      onClick={() => setSelectedState(null)}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        border: '1px solid #d1d5db',
+                        backgroundColor: 'white',
+                        cursor: 'pointer',
+                        fontSize: '14px'
+                      }}
+                    >
+                      Close
+                    </button>
+                  </div>
                 </div>
 
                 {/* Modal Content */}
                 <div style={{ padding: '24px' }}>
-                  {/* Overall Score */}
+                  {/* Overall Composite Score */}
                   {stateGuide.overallScore && (
+                    <div style={{
+                      marginBottom: '24px',
+                      padding: '24px',
+                      background: `linear-gradient(135deg, ${getGradeColor(stateGuide.overallScore.grade)}15 0%, ${getGradeColor(stateGuide.overallScore.grade)}05 100%)`,
+                      borderRadius: '12px',
+                      border: `2px solid ${getGradeColor(stateGuide.overallScore.grade)}`
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '16px'
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px', fontWeight: '600' }}>
+                            COMPOSITE OVERALL GRADE
+                          </div>
+                          <div style={{ fontSize: '48px', fontWeight: 'bold', color: getGradeColor(stateGuide.overallScore.grade), lineHeight: 1, marginBottom: '8px' }}>
+                            {stateGuide.overallScore.grade}
+                          </div>
+                          <div style={{ fontSize: '16px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>
+                            {stateGuide.overallScore.rank}
+                          </div>
+                          <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '8px' }}>
+                            {stateGuide.overallScore.message}
+                          </div>
+                        </div>
+                        <div style={{
+                          width: '120px',
+                          height: '120px',
+                          borderRadius: '16px',
+                          backgroundColor: getGradeColor(stateGuide.overallScore.grade),
+                          color: 'white',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                        }}>
+                          <div style={{ fontSize: '56px', fontWeight: 'bold', lineHeight: 1 }}>
+                            {stateGuide.overallScore.grade}
+                          </div>
+                          <div style={{ fontSize: '18px', fontWeight: '600', marginTop: '4px' }}>
+                            {stateGuide.overallScore.percentage}%
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Breakdown of individual standard grades */}
+                      {stateGuide.overallScore.breakdown && (
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(3, 1fr)',
+                          gap: '12px',
+                          marginTop: '16px',
+                          paddingTop: '16px',
+                          borderTop: '1px solid rgba(0,0,0,0.1)'
+                        }}>
+                          <div style={{
+                            padding: '12px',
+                            backgroundColor: 'white',
+                            borderRadius: '8px',
+                            border: '2px solid #3b82f6',
+                            textAlign: 'center'
+                          }}>
+                            <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>WZDx</div>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#3b82f6' }}>
+                              {stateGuide.overallScore.breakdown.wzdx.grade}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                              {stateGuide.overallScore.breakdown.wzdx.percentage}%
+                            </div>
+                          </div>
+                          <div style={{
+                            padding: '12px',
+                            backgroundColor: 'white',
+                            borderRadius: '8px',
+                            border: '2px solid #10b981',
+                            textAlign: 'center'
+                          }}>
+                            <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>SAE J2735</div>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#10b981' }}>
+                              {stateGuide.overallScore.breakdown.sae.grade}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                              {stateGuide.overallScore.breakdown.sae.percentage}%
+                            </div>
+                          </div>
+                          <div style={{
+                            padding: '12px',
+                            backgroundColor: 'white',
+                            borderRadius: '8px',
+                            border: '2px solid #f59e0b',
+                            textAlign: 'center'
+                          }}>
+                            <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>TMDD</div>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f59e0b' }}>
+                              {stateGuide.overallScore.breakdown.tmdd.grade}
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                              {stateGuide.overallScore.breakdown.tmdd.percentage}%
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Multi-Standard Compliance Scorecard */}
+                  {stateGuide.multiStandardCompliance && (
+                    <div style={{ marginBottom: '24px' }}>
+                      <h3 style={{ marginBottom: '16px', fontSize: '20px', fontWeight: 'bold' }}>
+                        📊 Multi-Standard Compliance Scorecard
+                      </h3>
+                      <div style={{
+                        padding: '16px',
+                        backgroundColor: '#f9fafb',
+                        borderRadius: '8px',
+                        border: '1px solid #e5e7eb',
+                        marginBottom: '16px',
+                        fontSize: '14px',
+                        color: '#6b7280'
+                      }}>
+                        {stateGuide.multiStandardCompliance.summary.message}
+                        <div style={{ marginTop: '8px', fontSize: '12px' }}>
+                          Evaluated {stateGuide.multiStandardCompliance.summary.eventsAnalyzed} events on {new Date(stateGuide.multiStandardCompliance.summary.evaluationDate).toLocaleDateString()}
+                        </div>
+                      </div>
+
+                      {/* Three Standards Grid */}
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                        gap: '16px',
+                        marginBottom: '24px'
+                      }}>
+                        {/* WZDx v4.x Card */}
+                        <div style={{
+                          padding: '20px',
+                          backgroundColor: 'white',
+                          borderRadius: '8px',
+                          border: '2px solid #3b82f6',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                        }}>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'flex-start',
+                            marginBottom: '12px'
+                          }}>
+                            <div>
+                              <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '4px' }}>
+                                WZDx v4.x
+                              </div>
+                              <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                                Open Data Standard
+                              </div>
+                            </div>
+                            <div style={{
+                              width: '50px',
+                              height: '50px',
+                              borderRadius: '8px',
+                              backgroundColor: getGradeColor(stateGuide.multiStandardCompliance.wzdx.grade),
+                              color: 'white',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '20px',
+                              fontWeight: 'bold'
+                            }}>
+                              {stateGuide.multiStandardCompliance.wzdx.grade}
+                            </div>
+                          </div>
+                          <div style={{ marginBottom: '8px' }}>
+                            <div style={{ fontSize: '28px', fontWeight: 'bold', color: getGradeColor(stateGuide.multiStandardCompliance.wzdx.grade) }}>
+                              {stateGuide.multiStandardCompliance.wzdx.percentage}%
+                            </div>
+                            <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+                              {stateGuide.multiStandardCompliance.wzdx.status}
+                            </div>
+                          </div>
+                          <div style={{
+                            height: '6px',
+                            backgroundColor: '#e5e7eb',
+                            borderRadius: '3px',
+                            overflow: 'hidden',
+                            marginBottom: '12px'
+                          }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${stateGuide.multiStandardCompliance.wzdx.percentage}%`,
+                              backgroundColor: getGradeColor(stateGuide.multiStandardCompliance.wzdx.grade),
+                              transition: 'width 0.3s ease'
+                            }} />
+                          </div>
+                          {stateGuide.multiStandardCompliance.gradeRoadmap.wzdx.pointsNeeded > 0 && (
+                            <div style={{
+                              padding: '8px',
+                              backgroundColor: '#f9fafb',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              color: '#6b7280'
+                            }}>
+                              <strong>Path to Grade A:</strong><br />
+                              +{stateGuide.multiStandardCompliance.gradeRoadmap.wzdx.pointsNeeded} points needed<br />
+                              Est. effort: {stateGuide.multiStandardCompliance.gradeRoadmap.wzdx.estimatedEffort}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* SAE J2735 Card */}
+                        <div style={{
+                          padding: '20px',
+                          backgroundColor: 'white',
+                          borderRadius: '8px',
+                          border: '2px solid #10b981',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                        }}>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'flex-start',
+                            marginBottom: '12px'
+                          }}>
+                            <div>
+                              <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '4px' }}>
+                                SAE J2735
+                              </div>
+                              <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                                V2X Communication
+                              </div>
+                            </div>
+                            <div style={{
+                              width: '50px',
+                              height: '50px',
+                              borderRadius: '8px',
+                              backgroundColor: getGradeColor(stateGuide.multiStandardCompliance.sae.grade),
+                              color: 'white',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '20px',
+                              fontWeight: 'bold'
+                            }}>
+                              {stateGuide.multiStandardCompliance.sae.grade}
+                            </div>
+                          </div>
+                          <div style={{ marginBottom: '8px' }}>
+                            <div style={{ fontSize: '28px', fontWeight: 'bold', color: getGradeColor(stateGuide.multiStandardCompliance.sae.grade) }}>
+                              {stateGuide.multiStandardCompliance.sae.percentage}%
+                            </div>
+                            <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+                              {stateGuide.multiStandardCompliance.sae.status}
+                            </div>
+                          </div>
+                          <div style={{
+                            height: '6px',
+                            backgroundColor: '#e5e7eb',
+                            borderRadius: '3px',
+                            overflow: 'hidden',
+                            marginBottom: '12px'
+                          }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${stateGuide.multiStandardCompliance.sae.percentage}%`,
+                              backgroundColor: getGradeColor(stateGuide.multiStandardCompliance.sae.grade),
+                              transition: 'width 0.3s ease'
+                            }} />
+                          </div>
+                          {stateGuide.multiStandardCompliance.gradeRoadmap.sae.pointsNeeded > 0 && (
+                            <div style={{
+                              padding: '8px',
+                              backgroundColor: '#f9fafb',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              color: '#6b7280'
+                            }}>
+                              <strong>Path to Grade A:</strong><br />
+                              +{stateGuide.multiStandardCompliance.gradeRoadmap.sae.pointsNeeded} points needed<br />
+                              Est. effort: {stateGuide.multiStandardCompliance.gradeRoadmap.sae.estimatedEffort}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* TMDD v3.1 Card */}
+                        <div style={{
+                          padding: '20px',
+                          backgroundColor: 'white',
+                          borderRadius: '8px',
+                          border: '2px solid #f59e0b',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                        }}>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'flex-start',
+                            marginBottom: '12px'
+                          }}>
+                            <div>
+                              <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '4px' }}>
+                                TMDD v3.1
+                              </div>
+                              <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                                Center-to-Center
+                              </div>
+                            </div>
+                            <div style={{
+                              width: '50px',
+                              height: '50px',
+                              borderRadius: '8px',
+                              backgroundColor: getGradeColor(stateGuide.multiStandardCompliance.tmdd.grade),
+                              color: 'white',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '20px',
+                              fontWeight: 'bold'
+                            }}>
+                              {stateGuide.multiStandardCompliance.tmdd.grade}
+                            </div>
+                          </div>
+                          <div style={{ marginBottom: '8px' }}>
+                            <div style={{ fontSize: '28px', fontWeight: 'bold', color: getGradeColor(stateGuide.multiStandardCompliance.tmdd.grade) }}>
+                              {stateGuide.multiStandardCompliance.tmdd.percentage}%
+                            </div>
+                            <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+                              {stateGuide.multiStandardCompliance.tmdd.status}
+                            </div>
+                          </div>
+                          <div style={{
+                            height: '6px',
+                            backgroundColor: '#e5e7eb',
+                            borderRadius: '3px',
+                            overflow: 'hidden',
+                            marginBottom: '12px'
+                          }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${stateGuide.multiStandardCompliance.tmdd.percentage}%`,
+                              backgroundColor: getGradeColor(stateGuide.multiStandardCompliance.tmdd.grade),
+                              transition: 'width 0.3s ease'
+                            }} />
+                          </div>
+                          {stateGuide.multiStandardCompliance.gradeRoadmap.tmdd.pointsNeeded > 0 && (
+                            <div style={{
+                              padding: '8px',
+                              backgroundColor: '#f9fafb',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              color: '#6b7280'
+                            }}>
+                              <strong>Path to Grade A:</strong><br />
+                              +{stateGuide.multiStandardCompliance.gradeRoadmap.tmdd.pointsNeeded} points needed<br />
+                              Est. effort: {stateGuide.multiStandardCompliance.gradeRoadmap.tmdd.estimatedEffort}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Cross-Standard Recommendations */}
+                      {stateGuide.multiStandardCompliance.crossStandardRecommendations && stateGuide.multiStandardCompliance.crossStandardRecommendations.length > 0 && (
+                        <div style={{
+                          padding: '20px',
+                          backgroundColor: '#ecfdf5',
+                          borderRadius: '8px',
+                          border: '1px solid #10b981'
+                        }}>
+                          <h4 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 'bold' }}>
+                            🎯 Cross-Standard Priority Recommendations
+                          </h4>
+                          <div style={{ fontSize: '13px', color: '#065f46', marginBottom: '16px' }}>
+                            These improvements will benefit multiple standards simultaneously:
+                          </div>
+                          {stateGuide.multiStandardCompliance.crossStandardRecommendations.map((rec, idx) => (
+                            <div key={idx} style={{
+                              padding: '12px',
+                              backgroundColor: 'white',
+                              borderRadius: '6px',
+                              marginBottom: idx < stateGuide.multiStandardCompliance.crossStandardRecommendations.length - 1 ? '12px' : '0',
+                              border: '1px solid #d1fae5'
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                                <div>
+                                  <div style={{ fontSize: '14px', fontWeight: '600', color: '#065f46', marginBottom: '4px' }}>
+                                    {rec.issue} ({rec.currentCoverage} coverage)
+                                  </div>
+                                  <div style={{ fontSize: '13px', color: '#374151' }}>
+                                    {rec.recommendation}
+                                  </div>
+                                </div>
+                                <span style={{
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  backgroundColor: rec.priority === 'CRITICAL' ? '#fee2e2' : '#fef3c7',
+                                  color: rec.priority === 'CRITICAL' ? '#991b1b' : '#92400e',
+                                  fontSize: '10px',
+                                  fontWeight: '600',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  {rec.priority}
+                                </span>
+                              </div>
+                              <div style={{
+                                display: 'flex',
+                                gap: '12px',
+                                fontSize: '11px',
+                                color: '#6b7280',
+                                marginTop: '8px',
+                                paddingTop: '8px',
+                                borderTop: '1px solid #e5e7eb'
+                              }}>
+                                <div>
+                                  <strong>Standards:</strong> {rec.benefitsStandards.join(', ')}
+                                </div>
+                                <div style={{ marginLeft: 'auto' }}>
+                                  <strong>Gain:</strong> WZDx +{rec.pointsGained.wzdx}, SAE +{rec.pointsGained.sae}, TMDD +{rec.pointsGained.tmdd} points
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* TMDD Standards Information */}
+                  {selectedState.tmddStandards && (
                     <div style={{
                       marginBottom: '24px',
                       padding: '20px',
@@ -387,58 +994,415 @@ export default function DataQualityReport() {
                       borderRadius: '8px',
                       border: '1px solid #e5e7eb'
                     }}>
+                      <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 'bold' }}>
+                        TMDD Standards Compliance
+                      </h3>
+
                       <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: '16px',
+                        marginBottom: '16px'
                       }}>
+                        {/* Version */}
                         <div>
-                          <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '4px' }}>
-                            OVERALL SCORE
+                          <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
+                            TMDD Version
                           </div>
-                          <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
-                            {stateGuide.overallScore.percentage}/100
-                          </div>
-                          <div style={{ fontSize: '14px', color: '#6b7280', marginTop: '4px' }}>
-                            {stateGuide.overallScore.rank}
+                          <div style={{
+                            fontSize: '16px',
+                            fontWeight: '600',
+                            color: '#111827'
+                          }}>
+                            {selectedState.tmddStandards.version || 'Unknown'}
                           </div>
                         </div>
-                        <div style={{
-                          width: '80px',
-                          height: '80px',
-                          borderRadius: '12px',
-                          backgroundColor: getGradeColor(stateGuide.overallScore.grade),
-                          color: 'white',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '36px',
-                          fontWeight: 'bold'
-                        }}>
-                          {stateGuide.overallScore.grade}
+
+                        {/* Compliance Type */}
+                        <div>
+                          <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
+                            Compliance Type
+                          </div>
+                          <div style={{
+                            fontSize: '16px',
+                            fontWeight: '600',
+                            color: selectedState.tmddStandards.compliance === 'Direct TMDD' ? '#10b981' :
+                                   selectedState.tmddStandards.compliance === 'WZDx (TMDD-adjacent)' ? '#3b82f6' : '#6b7280'
+                          }}>
+                            {selectedState.tmddStandards.compliance || 'Not TMDD'}
+                          </div>
                         </div>
                       </div>
+
+                      {/* Custom Handler Badge */}
+                      {selectedState.tmddStandards.hasCustomHandler && (
+                        <div style={{
+                          padding: '12px',
+                          backgroundColor: '#fffbeb',
+                          borderRadius: '6px',
+                          border: '1px solid #fde68a',
+                          marginBottom: '16px'
+                        }}>
+                          <div style={{ fontSize: '14px', fontWeight: '600', color: '#92400e', marginBottom: '4px' }}>
+                            ⚙️ Custom Data Handler Active
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#78350f' }}>
+                            This state uses a specialized parser to handle format-specific deviations from standard TMDD structure.
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Format Deviations */}
+                      {selectedState.tmddStandards.deviations && selectedState.tmddStandards.deviations.length > 0 && (
+                        <div style={{ marginBottom: '16px' }}>
+                          <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#374151' }}>
+                            Format Deviations from Standard
+                          </div>
+                          <ul style={{
+                            margin: '0',
+                            padding: '0 0 0 20px',
+                            fontSize: '13px',
+                            color: '#6b7280',
+                            lineHeight: '1.6'
+                          }}>
+                            {selectedState.tmddStandards.deviations.map((deviation, idx) => (
+                              <li key={idx} style={{ marginBottom: '4px' }}>
+                                {deviation}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Documentation Link */}
+                      {selectedState.tmddStandards.documentationUrl && (
+                        <div style={{
+                          padding: '12px',
+                          backgroundColor: '#dbeafe',
+                          borderRadius: '6px',
+                          border: '1px solid #3b82f6'
+                        }}>
+                          <a
+                            href={selectedState.tmddStandards.documentationUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              fontSize: '14px',
+                              fontWeight: '600',
+                              color: '#1e40af',
+                              textDecoration: 'none',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px'
+                            }}
+                          >
+                            <span>📚</span>
+                            <span>View {selectedState.tmddStandards.compliance === 'Direct TMDD' ? 'TMDD' : 'WZDx'} Standard Documentation</span>
+                            <span style={{ fontSize: '12px' }}>↗</span>
+                          </a>
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {/* C2C Compliance */}
                   {stateGuide.c2cCompliance && (
-                    <div style={{
-                      marginBottom: '24px',
-                      padding: '20px',
-                      backgroundColor: stateGuide.c2cCompliance.grade === 'PASS' ? '#d1fae5' : '#fee2e2',
-                      borderRadius: '8px',
-                      border: `1px solid ${stateGuide.c2cCompliance.grade === 'PASS' ? '#10b981' : '#ef4444'}`
-                    }}>
-                      <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>
-                        C2C/ngTMDD Compliance ({stateGuide.c2cCompliance.validationTool})
+                    <>
+                      <div style={{
+                        marginBottom: '12px',
+                        padding: '20px',
+                        backgroundColor: stateGuide.c2cCompliance.grade === 'PASS' ? '#d1fae5' : '#fee2e2',
+                        borderRadius: '8px',
+                        border: `1px solid ${stateGuide.c2cCompliance.grade === 'PASS' ? '#10b981' : '#ef4444'}`
+                      }}>
+                        <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>C2C/ngTMDD Compliance ({stateGuide.c2cCompliance.validationTool})</span>
+                          <button
+                            onClick={() => setShowC2CExplanation(!showC2CExplanation)}
+                            style={{
+                              padding: '4px 12px',
+                              borderRadius: '4px',
+                              border: '1px solid #6b7280',
+                              backgroundColor: 'white',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              fontWeight: '600'
+                            }}
+                          >
+                            {showC2CExplanation ? '▲ Hide' : '▼ What is C2C?'}
+                          </button>
+                        </div>
+                        <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '8px' }}>
+                          {stateGuide.c2cCompliance.score}/100 - {stateGuide.c2cCompliance.grade}
+                        </div>
+                        <div style={{ fontSize: '14px' }}>
+                          {stateGuide.c2cCompliance.message}
+                        </div>
                       </div>
-                      <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '8px' }}>
-                        {stateGuide.c2cCompliance.score}/100 - {stateGuide.c2cCompliance.grade}
+
+                      {/* C2C Explanation (Expandable) */}
+                      {showC2CExplanation && (
+                        <div style={{
+                          marginBottom: '24px',
+                          padding: '20px',
+                          backgroundColor: '#f9fafb',
+                          borderRadius: '8px',
+                          border: '1px solid #e5e7eb'
+                        }}>
+                          <h4 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: 'bold' }}>
+                            Understanding C2C Compliance
+                          </h4>
+
+                          <div style={{ fontSize: '14px', marginBottom: '16px', lineHeight: '1.6' }}>
+                            <strong>What is C2C?</strong>
+                            <p style={{ margin: '8px 0 0 0', color: '#374151' }}>
+                              C2C (Center-to-Center) refers to data exchange between Traffic Management Centers (TMCs) operated by different DOT agencies.
+                              This allows states to share real-time traffic and incident information across jurisdictions, especially important for events
+                              near state borders.
+                            </p>
+                          </div>
+
+                          <div style={{ fontSize: '14px', marginBottom: '16px', lineHeight: '1.6' }}>
+                            <strong>What is TMDD/ngTMDD?</strong>
+                            <p style={{ margin: '8px 0 0 0', color: '#374151' }}>
+                              TMDD (Traffic Management Data Dictionary) and ngTMDD (Next Generation TMDD) are standardized data dictionaries that define how traffic
+                              management data should be structured for C2C communication. These standards ensure TMCs from different states speak the same "language"
+                              when exchanging data. WZDx feeds follow their own specification, while traditional event feeds should follow TMDD/ngTMDD standards.
+                            </p>
+                          </div>
+
+                          <div style={{ fontSize: '14px', marginBottom: '16px', lineHeight: '1.6' }}>
+                            <strong>What is C2C-MVT?</strong>
+                            <p style={{ margin: '8px 0 0 0', color: '#374151' }}>
+                              C2C-MVT (Center-to-Center Message Validation Tool) is a validation tool that checks if your data meets ngTMDD requirements.
+                              This compliance score indicates how well your data would work in a C2C data sharing environment.
+                            </p>
+                          </div>
+
+                          <div style={{ fontSize: '14px', marginBottom: '0', lineHeight: '1.6' }}>
+                            <strong>How is the score calculated?</strong>
+                            <p style={{ margin: '8px 0 0 0', color: '#374151' }}>
+                              The C2C compliance score evaluates whether your data includes critical fields for C2C communication:
+                            </p>
+                            <ul style={{ margin: '8px 0 0 20px', color: '#374151' }}>
+                              <li><strong>Unique Event ID:</strong> Allows events to be tracked across TMCs</li>
+                              <li><strong>Organization ID:</strong> Identifies which DOT owns the event</li>
+                              <li><strong>Linear Reference:</strong> Route + milepost for precise location (e.g., "I-80 MM 123")</li>
+                              <li><strong>Geographic Coordinates:</strong> Latitude/longitude for mapping</li>
+                              <li><strong>Update Timestamp:</strong> When the event was last updated</li>
+                              <li><strong>Event Status/Severity:</strong> Impact level for prioritization</li>
+                              <li><strong>Directional Impact:</strong> Which direction of travel is affected</li>
+                              <li><strong>Lane Impact:</strong> Which lanes are closed or restricted</li>
+                            </ul>
+                            <p style={{ margin: '12px 0 0 0', color: '#374151' }}>
+                              A score of 80% or higher means your data is ready for reliable C2C communication with other state TMCs.
+                            </p>
+                          </div>
+
+                          {stateGuide.c2cCompliance.recommendations && stateGuide.c2cCompliance.recommendations.length > 0 && (
+                            <div style={{
+                              marginTop: '16px',
+                              padding: '12px',
+                              backgroundColor: '#fef3c7',
+                              borderRadius: '6px',
+                              border: '1px solid #f59e0b'
+                            }}>
+                              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>
+                                📋 Recommendations to Improve C2C Compliance:
+                              </div>
+                              {stateGuide.c2cCompliance.recommendations.map((rec, idx) => (
+                                <div key={idx} style={{
+                                  fontSize: '13px',
+                                  padding: '8px',
+                                  marginBottom: idx < stateGuide.c2cCompliance.recommendations.length - 1 ? '8px' : '0',
+                                  backgroundColor: 'white',
+                                  borderRadius: '4px'
+                                }}>
+                                  <div style={{ fontWeight: '600', marginBottom: '4px' }}>
+                                    {rec.field} ({rec.importance})
+                                  </div>
+                                  <div style={{ color: '#6b7280', marginBottom: '4px' }}>
+                                    Issue: {rec.issue}
+                                  </div>
+                                  <div style={{ color: '#065f46' }}>
+                                    ✓ Solution: {rec.solution}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Field-Level Violations Analysis */}
+                  {stateGuide.fieldLevelAnalysis && stateGuide.fieldLevelAnalysis.violationCategories && stateGuide.fieldLevelAnalysis.violationCategories.length > 0 && (
+                    <div style={{ marginBottom: '24px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
+                          Detailed Violation Analysis
+                        </h3>
+                        <div style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          backgroundColor: stateGuide.fieldLevelAnalysis.feedType === 'WZDx' ? '#dbeafe' : '#fef3c7',
+                          border: `1px solid ${stateGuide.fieldLevelAnalysis.feedType === 'WZDx' ? '#3b82f6' : '#f59e0b'}`,
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: stateGuide.fieldLevelAnalysis.feedType === 'WZDx' ? '#1e40af' : '#92400e'
+                        }}>
+                          {stateGuide.fieldLevelAnalysis.feedType === 'WZDx' ? '📋 WZDx v4.x Spec' : `📡 TMDD/ngTMDD via C2C-MVT`}
+                        </div>
                       </div>
-                      <div style={{ fontSize: '14px' }}>
-                        {stateGuide.c2cCompliance.message}
+                      <div style={{
+                        fontSize: '14px',
+                        color: '#6b7280',
+                        marginBottom: '16px',
+                        padding: '12px',
+                        backgroundColor: '#f9fafb',
+                        borderRadius: '6px',
+                        border: '1px solid #e5e7eb'
+                      }}>
+                        <strong>Evaluation Standard:</strong> {stateGuide.fieldLevelAnalysis.evaluationStandard}
+                        <br />
+                        {stateGuide.fieldLevelAnalysis.summary}
+                        {stateGuide.fieldLevelAnalysis.note && (
+                          <>
+                            <br />
+                            <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#fffbeb', borderRadius: '4px', border: '1px solid #fde68a' }}>
+                              ℹ️ {stateGuide.fieldLevelAnalysis.note}
+                            </div>
+                          </>
+                        )}
                       </div>
+
+                      {stateGuide.fieldLevelAnalysis.violationCategories.map((violation, idx) => {
+                        const severityColor =
+                          violation.severity === 'CRITICAL' ? '#991b1b' :
+                          violation.severity === 'HIGH' ? '#ef4444' :
+                          violation.severity === 'MEDIUM' ? '#f59e0b' : '#6b7280';
+                        const bgColor =
+                          violation.severity === 'CRITICAL' ? '#fee2e2' :
+                          violation.severity === 'HIGH' ? '#fef2f2' :
+                          violation.severity === 'MEDIUM' ? '#fef3c7' : '#f3f4f6';
+
+                        return (
+                          <div key={idx} style={{
+                            marginBottom: '16px',
+                            padding: '16px',
+                            backgroundColor: bgColor,
+                            borderRadius: '8px',
+                            border: `2px solid ${severityColor}`
+                          }}>
+                            <div style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'start',
+                              marginBottom: '12px'
+                            }}>
+                              <div>
+                                <div style={{
+                                  fontSize: '16px',
+                                  fontWeight: '600',
+                                  color: severityColor,
+                                  marginBottom: '4px'
+                                }}>
+                                  {violation.category}
+                                </div>
+                                <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                                  {violation.count} violation{violation.count > 1 ? 's' : ''} found • {violation.severity} priority
+                                </div>
+                              </div>
+                              <div style={{
+                                padding: '4px 12px',
+                                borderRadius: '6px',
+                                backgroundColor: severityColor,
+                                color: 'white',
+                                fontSize: '12px',
+                                fontWeight: '600'
+                              }}>
+                                {violation.severity}
+                              </div>
+                            </div>
+
+                            <div style={{
+                              fontSize: '14px',
+                              marginBottom: '8px',
+                              padding: '8px',
+                              backgroundColor: 'white',
+                              borderRadius: '4px'
+                            }}>
+                              <strong>Impact:</strong> {violation.impact}
+                            </div>
+
+                            <div style={{
+                              fontSize: '13px',
+                              marginBottom: '12px',
+                              padding: '8px',
+                              backgroundColor: 'white',
+                              borderRadius: '4px'
+                            }}>
+                              <strong>Spec Requirement:</strong> {violation.specRequirement}
+                            </div>
+
+                            <div style={{
+                              fontSize: '13px',
+                              marginBottom: '8px',
+                              fontWeight: '600'
+                            }}>
+                              Examples (showing {Math.min(violation.examples.length, 5)}):
+                            </div>
+
+                            {violation.examples.slice(0, 5).map((example, exIdx) => (
+                              <div key={exIdx} style={{
+                                fontSize: '12px',
+                                padding: '10px',
+                                marginBottom: '8px',
+                                backgroundColor: 'white',
+                                borderRadius: '4px',
+                                border: '1px solid #e5e7eb',
+                                fontFamily: 'monospace'
+                              }}>
+                                <div style={{ marginBottom: '4px' }}>
+                                  <strong>Event ID:</strong> {example.eventId}
+                                </div>
+                                {example.location && (
+                                  <div style={{ marginBottom: '4px', color: '#6b7280' }}>
+                                    <strong>Location:</strong> {example.location}
+                                  </div>
+                                )}
+                                {example.actual !== undefined && (
+                                  <div style={{ marginBottom: '4px', color: '#ef4444' }}>
+                                    <strong>Actual Value:</strong> {typeof example.actual === 'object' ? JSON.stringify(example.actual) : example.actual}
+                                  </div>
+                                )}
+                                {example.expected && (
+                                  <div style={{ color: '#10b981' }}>
+                                    <strong>Expected:</strong> {example.expected}
+                                  </div>
+                                )}
+                                {example.missingFields && (
+                                  <div style={{ color: '#ef4444' }}>
+                                    <strong>Missing Fields:</strong> {example.missingFields.join(', ')}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+
+                            <div style={{
+                              fontSize: '13px',
+                              marginTop: '12px',
+                              padding: '10px',
+                              backgroundColor: 'white',
+                              borderRadius: '4px',
+                              border: '1px solid ' + severityColor
+                            }}>
+                              <strong>✅ Recommendation:</strong> {violation.recommendation}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 

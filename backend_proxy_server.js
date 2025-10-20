@@ -7,7 +7,9 @@ const axios = require('axios');
 const xml2js = require('xml2js');
 const fs = require('fs').promises;
 const path = require('path');
+const jwt = require('jsonwebtoken');
 const db = require('./database');
+const emailService = require('./email-service');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -29,6 +31,74 @@ const requireAdmin = (req, res, next) => {
   }
 
   next();
+};
+
+// JWT Secret (should be in environment variable in production)
+const JWT_SECRET = process.env.JWT_SECRET || 'ccai2026-traffic-dashboard-secret-key';
+
+// User authentication middleware
+const requireUser = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing or invalid authorization header' });
+  }
+
+  const token = authHeader.substring(7);
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded; // { id, username, email, stateKey, role }
+    next();
+  } catch (error) {
+    return res.status(403).json({ error: 'Invalid or expired token' });
+  }
+};
+
+// Combined authentication middleware - accepts both User JWT and State password
+const requireUserOrStateAuth = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json({ error: 'Missing authorization header' });
+  }
+
+  // Try Bearer token first (new user system)
+  if (authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+
+      // User must have a state affiliation
+      if (!decoded.stateKey) {
+        return res.status(403).json({ error: 'User has no state affiliation. Only state-affiliated users can comment.' });
+      }
+
+      const state = db.getState(decoded.stateKey);
+      if (!state) {
+        return res.status(403).json({ error: 'Invalid state affiliation' });
+      }
+
+      req.stateKey = decoded.stateKey;
+      req.stateName = state.stateName;
+      req.user = decoded;
+      return next();
+    } catch (error) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+  }
+
+  // Fall back to State password auth (old system)
+  if (authHeader.startsWith('State ')) {
+    const [stateKey, password] = authHeader.substring(6).split(':');
+    if (!db.verifyStatePassword(stateKey, password)) {
+      return res.status(403).json({ error: 'Invalid state credentials' });
+    }
+
+    req.stateKey = stateKey;
+    req.stateName = db.getState(stateKey)?.stateName;
+    return next();
+  }
+
+  return res.status(401).json({ error: 'Invalid authorization format' });
 };
 
 // Message storage file
@@ -165,6 +235,37 @@ function loadStatesFromDatabase() {
 
   console.log(`📊 Total states configured: ${Object.keys(API_CONFIG).length}`);
 }
+
+// SAE J2735 ITIS Code Mapping
+// Official ITIS codes from SAE J2735 specification
+const ITIS_CODES = {
+  'work-zone': 8963,          // Road work
+  'construction': 8963,       // Construction
+  'incident': 769,            // Accident
+  'accident': 769,            // Accident
+  'weather-condition': 1537,  // Adverse weather
+  'weather': 1537,            // Adverse weather
+  'restriction': 1281,        // Road closure
+  'detour': 1284,             // Detour
+  'special-event': 1289,      // Special event
+  'road-hazard': 1792         // Roadway hazard
+};
+
+// Check if event type is mappable to ITIS code
+function hasITISMapping(eventType) {
+  if (!eventType) return false;
+  const normalizedType = eventType.toLowerCase().trim();
+  return ITIS_CODES.hasOwnProperty(normalizedType);
+}
+
+// Get ITIS code for event type
+function getITISCode(eventType) {
+  if (!eventType) return null;
+  const normalizedType = eventType.toLowerCase().trim();
+  return ITIS_CODES[normalizedType] || null;
+}
+
+// Note: generateVMSMessage function already exists later in the file at line ~1424
 
 // Run migration on first startup (only runs once)
 const existingStates = db.getAllStates();
@@ -563,6 +664,83 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
 };
 
 // Helper functions
+
+// Get TMDD standards and format deviation info for a state
+// Based on STATE_DATA_STANDARDS_ANALYSIS.md
+const getTMDDStandardsInfo = (stateKey, apiUrl, apiType) => {
+  // Detect version from URL patterns
+  let version = null;
+  let compliance = 'Not TMDD';
+  let hasCustomHandler = false;
+  let deviations = [];
+
+  // FEU-G states (Direct TMDD v3.x compliance)
+  if (apiUrl && apiUrl.includes('feu-g.xml')) {
+    version = 'TMDD v3.x (FEU-G)';
+    compliance = 'Direct TMDD';
+    hasCustomHandler = true;
+    deviations = [
+      'Coordinates in microdegrees (÷1,000,000 conversion required)',
+      'Deep namespace nesting with feu: prefix',
+      'Multiple description elements joined with semicolons'
+    ];
+  }
+  // WZDx v4.2
+  else if ((apiUrl && apiUrl.includes('/wzdx/v4.2')) ||
+           (apiUrl && apiUrl.includes('wzdx_v4.1')) ||
+           stateKey === 'il' || stateKey === 'ohio') {
+    version = 'WZDx v4.2';
+    compliance = 'WZDx (TMDD-adjacent)';
+    if (stateKey === 'ohio') {
+      hasCustomHandler = true;
+      deviations = ['Array of objects not GeoJSON', 'Separate endpoints for incidents vs construction'];
+    }
+  }
+  // WZDx v4.1
+  else if (stateKey === 'md' || stateKey === 'ma') {
+    version = 'WZDx v4.1';
+    compliance = 'WZDx (TMDD-adjacent)';
+  }
+  // WZDx v4.0
+  else if ((stateKey === 'utah' || stateKey === 'ut') && apiUrl && apiUrl.includes('/v40/')) {
+    version = 'WZDx v4.0';
+    compliance = 'WZDx (TMDD-adjacent)';
+    hasCustomHandler = true;
+    deviations = ['Plain JSON not GeoJSON', 'Custom coordinate extraction for LineString vs Point'];
+  }
+  // WZDx v4.x (unspecified)
+  else if (apiType === 'WZDx') {
+    version = 'WZDx v4.x';
+    compliance = 'WZDx (TMDD-adjacent)';
+  }
+  // Nevada Custom JSON
+  else if (stateKey === 'nevada') {
+    version = 'Custom';
+    compliance = 'None (Proprietary)';
+    hasCustomHandler = true;
+    deviations = ['Root-level array not GeoJSON', 'String coordinates require parseFloat', 'Routes as array'];
+  }
+  // New Jersey RSS
+  else if (stateKey === 'newjersey') {
+    version = 'RSS 2.0';
+    compliance = 'None (RSS)';
+    hasCustomHandler = true;
+    deviations = ['Coordinates in unstructured text', 'Regex parsing required for all structured data'];
+  }
+
+  return {
+    version,
+    compliance,
+    hasCustomHandler,
+    deviations,
+    documentationUrl: compliance === 'Direct TMDD'
+      ? 'https://www.ite.org/technical-resources/standards/tmdd/'
+      : compliance.includes('WZDx')
+      ? 'https://github.com/usdot-jpo-ode/wzdx'
+      : null
+  };
+};
+
 const determineEventType = (text, description = '') => {
   const lowerText = ((text || '') + ' ' + (description || '')).toLowerCase();
 
@@ -982,6 +1160,166 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ==================== USER AUTHENTICATION ENDPOINTS ====================
+
+// User registration
+app.post('/api/users/register', (req, res) => {
+  const { username, email, password, fullName, organization, stateKey } = req.body;
+
+  if (!username || !email || !password) {
+    return res.status(400).json({ error: 'Username, email, and password are required' });
+  }
+
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Invalid email format' });
+  }
+
+  // Check if user already exists
+  const existingUser = db.getUserByUsername(username);
+  if (existingUser) {
+    return res.status(409).json({ error: 'Username already exists' });
+  }
+
+  // Validate state key if provided
+  if (stateKey) {
+    const state = db.getState(stateKey);
+    if (!state) {
+      return res.status(400).json({ error: 'Invalid state key' });
+    }
+  }
+
+  // Create user
+  const result = db.createUser({
+    username,
+    email,
+    password,
+    fullName,
+    organization,
+    stateKey
+  });
+
+  if (result.success) {
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        id: result.userId,
+        username,
+        email,
+        stateKey,
+        role: 'user'
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      token,
+      user: {
+        id: result.userId,
+        username,
+        email,
+        fullName,
+        organization,
+        stateKey
+      }
+    });
+  } else {
+    res.status(500).json({ error: result.error });
+  }
+});
+
+// User login
+app.post('/api/users/login', (req, res) => {
+  const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+
+  const user = db.verifyUserPassword(username, password);
+
+  if (user) {
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        stateKey: user.stateKey,
+        role: user.role
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        organization: user.organization,
+        stateKey: user.stateKey,
+        role: user.role
+      }
+    });
+  } else {
+    res.status(401).json({ error: 'Invalid username or password' });
+  }
+});
+
+// Verify token and get current user
+app.get('/api/users/me', requireUser, (req, res) => {
+  const user = db.getUserByUsername(req.user.username);
+
+  if (user) {
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        organization: user.organization,
+        stateKey: user.stateKey,
+        role: user.role
+      }
+    });
+  } else {
+    res.status(404).json({ error: 'User not found' });
+  }
+});
+
+// Update user notification preferences
+app.put('/api/users/notifications', requireUser, (req, res) => {
+  const { notifyOnMessages, notifyOnHighSeverity } = req.body;
+
+  const result = db.updateUserNotificationPreferences(req.user.id, {
+    notifyOnMessages,
+    notifyOnHighSeverity
+  });
+
+  if (result.success) {
+    res.json({
+      success: true,
+      message: 'Notification preferences updated',
+      preferences: {
+        notifyOnMessages,
+        notifyOnHighSeverity
+      }
+    });
+  } else {
+    res.status(500).json({ error: result.error });
+  }
+});
+
 // Debug endpoint to check coordinate extraction
 app.get('/api/debug/coordinates', async (req, res) => {
   const allResults = await Promise.all(
@@ -1224,6 +1562,328 @@ app.get('/api/analysis/normalization', async (req, res) => {
   res.json(report);
 });
 
+// Cache for feed alignment analysis (refreshes every 5 minutes)
+let feedAlignmentCache = null;
+let feedAlignmentCacheTime = null;
+const FEED_ALIGNMENT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Cross-State Feed Alignment Analysis
+app.get('/api/analysis/feed-alignment', async (req, res) => {
+  try {
+    // Check if cache is valid
+    if (feedAlignmentCache && feedAlignmentCacheTime &&
+        (Date.now() - feedAlignmentCacheTime) < FEED_ALIGNMENT_CACHE_TTL) {
+      console.log('✅ Serving feed alignment from cache');
+      return res.json(feedAlignmentCache);
+    }
+
+    console.log('Analyzing cross-state feed alignment and generating mapping recommendations...');
+
+    // Get all states from database
+    const allStates = db.getAllStates();
+    const stateKeys = allStates.map(s => s.stateKey);
+
+    // Fetch sample events from all states
+    const allResults = await Promise.all(
+      stateKeys.map(stateKey => fetchStateData(stateKey))
+    );
+
+  const alignment = {
+    generatedAt: new Date().toISOString(),
+    summary: {
+      totalStates: allResults.length,
+      totalEvents: 0,
+      uniqueFieldNames: new Set(),
+      commonFields: {},
+      formatVariations: {}
+    },
+    fieldMapping: {
+      coordinates: { target: 'latitude/longitude', variations: [], states: {} },
+      time: { target: 'startTime/endTime (ISO 8601)', variations: [], states: {} },
+      eventType: { target: 'eventType (WZDx enum)', variations: [], states: {} },
+      severity: { target: 'severity (high/medium/low)', variations: [], states: {} },
+      direction: { target: 'direction (northbound/southbound/etc.)', variations: [], states: {} },
+      lanes: { target: 'lanesAffected', variations: [], states: {} },
+      location: { target: 'location (text description)', variations: [], states: {} },
+      corridor: { target: 'corridor (I-80, US-50, etc.)', variations: [], states: {} },
+      description: { target: 'description', variations: [], states: {} }
+    },
+    stateSpecificMappings: {},
+    normalizationRecommendations: []
+  };
+
+  // Analyze each state's raw event structure
+  allResults.forEach(result => {
+    const stateName = result.state;
+    const events = result.events || [];
+
+    alignment.summary.totalEvents += events.length;
+
+    if (events.length === 0) {
+      alignment.stateSpecificMappings[stateName] = {
+        status: 'NO_EVENTS',
+        message: 'No events available for analysis'
+      };
+      return;
+    }
+
+    // Get first event as sample for structure analysis
+    const sampleEvent = events[0];
+    const rawFields = Object.keys(sampleEvent);
+
+    // Track all unique field names
+    rawFields.forEach(field => alignment.summary.uniqueFieldNames.add(field));
+
+    // Analyze field mappings
+    const stateMapping = {
+      sourceFormat: result.format || 'unknown',
+      apiType: result.apiType || 'Custom',
+      rawFieldsSample: rawFields,
+      mappings: {},
+      issues: [],
+      recommendations: []
+    };
+
+    // COORDINATES MAPPING
+    if (sampleEvent.latitude || sampleEvent.lat || sampleEvent.Latitude) {
+      const latField = sampleEvent.latitude ? 'latitude' : sampleEvent.lat ? 'lat' : 'Latitude';
+      const lonField = sampleEvent.longitude ? 'longitude' : sampleEvent.lon ? 'lon' : sampleEvent.Longitude ? 'Longitude' : 'lng';
+      stateMapping.mappings.coordinates = { from: `${latField}/${lonField}`, to: 'latitude/longitude', status: 'MAPPED' };
+      if (!alignment.fieldMapping.coordinates.variations.includes(latField)) {
+        alignment.fieldMapping.coordinates.variations.push(latField);
+      }
+    } else if (sampleEvent.geometry || sampleEvent.coordinates) {
+      stateMapping.mappings.coordinates = { from: 'geometry/coordinates', to: 'latitude/longitude', status: 'NESTED', note: 'Coordinates in nested structure' };
+      stateMapping.recommendations.push('Extract coordinates from nested geometry object to top-level latitude/longitude fields');
+    } else {
+      stateMapping.mappings.coordinates = { status: 'MISSING' };
+      stateMapping.issues.push('No coordinate fields detected - unable to map events geographically');
+    }
+
+    // TIME MAPPING
+    if (sampleEvent.startTime || sampleEvent.start_time || sampleEvent.start_date || sampleEvent.created_at) {
+      const timeField = sampleEvent.startTime ? 'startTime' : sampleEvent.start_time ? 'start_time' : sampleEvent.start_date ? 'start_date' : 'created_at';
+      stateMapping.mappings.time = { from: timeField, to: 'startTime (ISO 8601)', status: 'MAPPED' };
+
+      // Check if time format is ISO 8601
+      const timeValue = sampleEvent[timeField];
+      if (timeValue && !timeValue.includes('T') && !timeValue.includes('Z')) {
+        stateMapping.issues.push(`Time field "${timeField}" is not in ISO 8601 format (lacks T separator or Z timezone)`);
+        stateMapping.recommendations.push(`Convert ${timeField} to ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ`);
+      }
+
+      if (!alignment.fieldMapping.time.variations.includes(timeField)) {
+        alignment.fieldMapping.time.variations.push(timeField);
+      }
+    } else {
+      stateMapping.mappings.time = { status: 'MISSING' };
+      stateMapping.issues.push('No timestamp field detected - events cannot be temporally ordered');
+    }
+
+    // EVENT TYPE MAPPING
+    if (sampleEvent.eventType || sampleEvent.event_type || sampleEvent.type || sampleEvent.category) {
+      const typeField = sampleEvent.eventType ? 'eventType' : sampleEvent.event_type ? 'event_type' : sampleEvent.type ? 'type' : 'category';
+      const typeValue = sampleEvent[typeField];
+      stateMapping.mappings.eventType = { from: typeField, to: 'eventType (WZDx enum)', status: 'MAPPED', sample: typeValue };
+
+      // Check if it matches WZDx enum
+      const wzdxTypes = ['work-zone', 'detour', 'incident', 'weather-condition', 'restriction'];
+      if (typeValue && !wzdxTypes.some(t => typeValue.toLowerCase().includes(t.toLowerCase()))) {
+        stateMapping.recommendations.push(`Map "${typeValue}" to WZDx standard event types: ${wzdxTypes.join(', ')}`);
+      }
+
+      if (!alignment.fieldMapping.eventType.variations.includes(typeField)) {
+        alignment.fieldMapping.eventType.variations.push(typeField);
+      }
+    } else {
+      stateMapping.mappings.eventType = { status: 'MISSING' };
+      stateMapping.issues.push('No event type/category field - cannot classify events');
+    }
+
+    // SEVERITY MAPPING
+    if (sampleEvent.severity || sampleEvent.priority || sampleEvent.impact || sampleEvent.urgency) {
+      const sevField = sampleEvent.severity ? 'severity' : sampleEvent.priority ? 'priority' : sampleEvent.impact ? 'impact' : 'urgency';
+      const sevValue = sampleEvent[sevField];
+      stateMapping.mappings.severity = { from: sevField, to: 'severity (high/medium/low)', status: 'MAPPED', sample: sevValue };
+
+      // Check if it uses standard values
+      const standardValues = ['high', 'medium', 'low', 'critical', 'minor'];
+      if (sevValue && !standardValues.some(v => sevValue.toLowerCase().includes(v))) {
+        stateMapping.recommendations.push(`Standardize severity values to: high, medium, low (current: "${sevValue}")`);
+      }
+
+      if (!alignment.fieldMapping.severity.variations.includes(sevField)) {
+        alignment.fieldMapping.severity.variations.push(sevField);
+      }
+    } else {
+      stateMapping.mappings.severity = { status: 'MISSING' };
+    }
+
+    // DIRECTION MAPPING
+    if (sampleEvent.direction || sampleEvent.Direction || sampleEvent.lane_direction) {
+      const dirField = sampleEvent.direction ? 'direction' : sampleEvent.Direction ? 'Direction' : 'lane_direction';
+      const dirValue = sampleEvent[dirField];
+      stateMapping.mappings.direction = { from: dirField, to: 'direction', status: 'MAPPED', sample: dirValue };
+
+      if (!alignment.fieldMapping.direction.variations.includes(dirField)) {
+        alignment.fieldMapping.direction.variations.push(dirField);
+      }
+    } else {
+      stateMapping.mappings.direction = { status: 'MISSING' };
+    }
+
+    // LANES MAPPING
+    if (sampleEvent.lanesAffected || sampleEvent.lanes_affected || sampleEvent.lanes || sampleEvent.lane_closure) {
+      const laneField = sampleEvent.lanesAffected ? 'lanesAffected' : sampleEvent.lanes_affected ? 'lanes_affected' : sampleEvent.lanes ? 'lanes' : 'lane_closure';
+      stateMapping.mappings.lanes = { from: laneField, to: 'lanesAffected', status: 'MAPPED' };
+
+      if (!alignment.fieldMapping.lanes.variations.includes(laneField)) {
+        alignment.fieldMapping.lanes.variations.push(laneField);
+      }
+    } else {
+      stateMapping.mappings.lanes = { status: 'MISSING' };
+    }
+
+    // LOCATION MAPPING
+    if (sampleEvent.location || sampleEvent.Location || sampleEvent.location_description) {
+      const locField = sampleEvent.location ? 'location' : sampleEvent.Location ? 'Location' : 'location_description';
+      stateMapping.mappings.location = { from: locField, to: 'location', status: 'MAPPED' };
+
+      if (!alignment.fieldMapping.location.variations.includes(locField)) {
+        alignment.fieldMapping.location.variations.push(locField);
+      }
+    } else {
+      stateMapping.mappings.location = { status: 'MISSING' };
+      stateMapping.issues.push('No location text field - difficult for human readers to understand event location');
+    }
+
+    // CORRIDOR MAPPING
+    if (sampleEvent.corridor || sampleEvent.route || sampleEvent.roadway || sampleEvent.highway) {
+      const corrField = sampleEvent.corridor ? 'corridor' : sampleEvent.route ? 'route' : sampleEvent.roadway ? 'roadway' : 'highway';
+      stateMapping.mappings.corridor = { from: corrField, to: 'corridor', status: 'MAPPED' };
+
+      if (!alignment.fieldMapping.corridor.variations.includes(corrField)) {
+        alignment.fieldMapping.corridor.variations.push(corrField);
+      }
+    } else {
+      stateMapping.mappings.corridor = { status: 'INFERRED', note: 'Extracted from location text' };
+      stateMapping.recommendations.push('Add explicit corridor/route field for better filtering and cross-state coordination');
+    }
+
+    // DESCRIPTION MAPPING
+    if (sampleEvent.description || sampleEvent.Description || sampleEvent.details || sampleEvent.message) {
+      const descField = sampleEvent.description ? 'description' : sampleEvent.Description ? 'Description' : sampleEvent.details ? 'details' : 'message';
+      stateMapping.mappings.description = { from: descField, to: 'description', status: 'MAPPED' };
+
+      if (!alignment.fieldMapping.description.variations.includes(descField)) {
+        alignment.fieldMapping.description.variations.push(descField);
+      }
+    } else {
+      stateMapping.mappings.description = { status: 'MISSING' };
+    }
+
+    alignment.stateSpecificMappings[stateName] = stateMapping;
+  });
+
+  // Convert Set to Array for JSON serialization
+  alignment.summary.uniqueFieldNames = Array.from(alignment.summary.uniqueFieldNames);
+
+  // Generate normalization recommendations
+  alignment.normalizationRecommendations = [
+    {
+      priority: 'CRITICAL',
+      category: 'Field Standardization',
+      issue: `${alignment.fieldMapping.coordinates.variations.length} different coordinate field naming patterns detected`,
+      recommendation: 'Standardize all feeds to use "latitude" and "longitude" fields at top level',
+      affectedStates: Object.entries(alignment.stateSpecificMappings)
+        .filter(([_, m]) => m.mappings && m.mappings.coordinates && m.mappings.coordinates.from !== 'latitude/longitude')
+        .map(([state]) => state),
+      implementation: 'Add normalization logic to map all coordinate variations to standard latitude/longitude fields',
+      codeExample: `
+// Normalize coordinates from various field names
+event.latitude = event.latitude || event.lat || event.Latitude || geometry?.coordinates?.[1];
+event.longitude = event.longitude || event.lon || event.lng || geometry?.coordinates?.[0];
+      `.trim()
+    },
+    {
+      priority: 'HIGH',
+      category: 'Time Format Standardization',
+      issue: `${alignment.fieldMapping.time.variations.length} different time field naming patterns detected`,
+      recommendation: 'Convert all timestamps to ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ) in "startTime" field',
+      affectedStates: Object.entries(alignment.stateSpecificMappings)
+        .filter(([_, m]) => m.issues && m.issues.some(i => i.includes('ISO 8601')))
+        .map(([state]) => state),
+      implementation: 'Parse existing time formats and convert to ISO 8601',
+      codeExample: `
+// Normalize time fields to ISO 8601
+const rawTime = event.startTime || event.start_time || event.start_date || event.created_at;
+event.startTime = new Date(rawTime).toISOString(); // Ensures YYYY-MM-DDTHH:MM:SS.sssZ format
+      `.trim()
+    },
+    {
+      priority: 'HIGH',
+      category: 'Event Type Taxonomy',
+      issue: 'Multiple event type categorization schemes in use',
+      recommendation: 'Map all event types to WZDx v4.x standard event type enum',
+      mapping: {
+        'work-zone': ['Construction', 'Work Zone', 'Maintenance', 'Road Work'],
+        'incident': ['Accident', 'Crash', 'Collision', 'Incident'],
+        'weather-condition': ['Weather', 'Winter', 'Ice', 'Snow', 'Fog'],
+        'restriction': ['Closure', 'Detour', 'Road Closed'],
+        'detour': ['Detour', 'Alternate Route']
+      },
+      implementation: 'Create mapping function that translates state-specific types to WZDx types',
+      codeExample: `
+// Map state-specific event types to WZDx standard
+const typeMapping = {
+  'construction': 'work-zone',
+  'accident': 'incident',
+  'weather': 'weather-condition',
+  'closure': 'restriction'
+};
+event.eventType = typeMapping[event.eventType.toLowerCase()] || event.eventType;
+      `.trim()
+    },
+    {
+      priority: 'MEDIUM',
+      category: 'Severity Standardization',
+      issue: 'Inconsistent severity/priority value schemes',
+      recommendation: 'Normalize all severity values to three-level system: high, medium, low',
+      mapping: {
+        'high': ['critical', 'severe', 'major', 'high', '1', 'urgent'],
+        'medium': ['moderate', 'medium', '2', 'normal'],
+        'low': ['minor', 'low', '3', 'info']
+      },
+      implementation: 'Map all severity variations to standard three-level system'
+    },
+    {
+      priority: 'MEDIUM',
+      category: 'Field Naming Consistency',
+      issue: 'Mix of camelCase, snake_case, and PascalCase field names across states',
+      recommendation: 'Standardize all normalized output to camelCase (WZDx standard)',
+      examples: {
+        correct: 'lanesAffected, eventType, startTime',
+        incorrect: 'lanes_affected, EventType, start_time'
+      },
+      implementation: 'Use consistent camelCase naming in normalization layer'
+    }
+  ];
+
+    // Cache the result
+    feedAlignmentCache = alignment;
+    feedAlignmentCacheTime = Date.now();
+    console.log('✅ Feed alignment analysis complete, cached for 5 minutes');
+
+    res.json(alignment);
+  } catch (error) {
+    console.error('❌ Error in feed alignment analysis:', error);
+    res.status(500).json({
+      error: 'Failed to analyze feed alignment',
+      message: error.message
+    });
+  }
+});
+
 // Convert events to SAE J2735-style Traveler Information Messages
 app.get('/api/convert/tim', async (req, res) => {
   console.log('Converting events to TIM format...');
@@ -1332,16 +1992,7 @@ const generateVMSMessage = (event) => {
   return messages.join(' / ');
 };
 
-// Helper: Get ITIS code (Incident Traffic Information Standard)
-const getITISCode = (eventType) => {
-  const itisCodes = {
-    'Construction': 8963, // Road work
-    'Incident': 769,      // Incident
-    'Closure': 773,       // Road closure
-    'Weather': 8704       // Winter weather conditions
-  };
-  return itisCodes[eventType] || 0;
-};
+// Note: getITISCode function is now defined at the top of the file with comprehensive ITIS mappings
 
 // Helper: Map to WZDx event types
 const mapToWZDxEventType = (eventType) => {
@@ -1352,6 +2003,77 @@ const mapToWZDxEventType = (eventType) => {
     'Weather': 'weather-condition'
   };
   return mapping[eventType] || 'work-zone';
+};
+
+// ==================== WZDx v4.x VALIDATION FUNCTIONS ====================
+
+// WZDx v4.x specification validators
+const WZDxValidators = {
+  // Valid WZDx event_type enum values (WZDx v4.x spec)
+  validEventTypes: [
+    'work-zone',
+    'detour',
+    'restriction',
+    'incident',
+    'weather-event',
+    'special-event',
+    'road-hazard'
+  ],
+
+  // Valid WZDx direction enum values
+  validDirections: [
+    'northbound',
+    'southbound',
+    'eastbound',
+    'westbound',
+    'inner-loop',
+    'outer-loop',
+    'undefined'  // Allowed for bidirectional
+  ],
+
+  // Valid WZDx vehicle_impact enum values
+  validVehicleImpacts: [
+    'all-lanes-open',
+    'some-lanes-closed',
+    'all-lanes-closed',
+    'alternating-one-way',
+    'some-lanes-closed-merge-left',
+    'some-lanes-closed-merge-right',
+    'all-lanes-open-shift-left',
+    'all-lanes-open-shift-right',
+    'some-lanes-closed-split',
+    'flagging',
+    'temporary-traffic-signal',
+    'unknown'
+  ],
+
+  // Check if timestamp is valid ISO 8601
+  isValidISO8601: (timestamp) => {
+    if (!timestamp) return false;
+    const iso8601Regex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?([+-]\d{2}:\d{2})?$/;
+    if (!iso8601Regex.test(timestamp)) return false;
+    // Verify it's a valid date
+    const date = new Date(timestamp);
+    return !isNaN(date.getTime());
+  },
+
+  // Check if event_type matches WZDx spec
+  isValidEventType: (eventType) => {
+    if (!eventType) return false;
+    return WZDxValidators.validEventTypes.includes(eventType.toLowerCase());
+  },
+
+  // Check if direction matches WZDx spec
+  isValidDirection: (direction) => {
+    if (!direction) return false;
+    return WZDxValidators.validDirections.includes(direction.toLowerCase());
+  },
+
+  // Check if vehicle_impact matches WZDx spec
+  isValidVehicleImpact: (impact) => {
+    if (!impact) return false;
+    return WZDxValidators.validVehicleImpacts.includes(impact.toLowerCase().replace(/_/g, '-'));
+  }
 };
 
 // ==================== SAE COMPLIANCE GUIDE ENDPOINTS ====================
@@ -1381,42 +2103,372 @@ app.get('/api/compliance/guide/:state', async (req, res) => {
   // Get a sample event to demonstrate transformation
   const sampleEvent = result.events[0];
 
-  // Analyze the state's data quality
+  // Analyze the state's data quality and collect violation examples
+  // Track VALID values only - not just presence
   const analysis = {
     hasCoordinates: 0,
+    hasValidCoordinates: 0,
     hasStartTime: 0,
+    hasValidStartTime: 0,
     hasEndTime: 0,
     hasEventType: 0,
+    hasValidEventType: 0,
     hasSeverity: 0,
     hasDirection: 0,
+    hasValidDirection: 0,
     hasLaneInfo: 0,
-    hasDescription: 0
+    hasValidLaneInfo: 0,
+    hasDescription: 0,
+    hasCorridor: 0,
+    // SAE J2735 specific validation
+    hasPreciseGPS: 0,        // GPS with 5+ decimal places (~1m precision)
+    hasMillisecondTime: 0,   // Timestamps with millisecond precision
+    hasITISMappableType: 0,  // Event types mappable to ITIS codes
+    hasPriorityField: 0,     // Severity field for TIM priority mapping
+
+    // TMDD v3.1 specific validation
+    hasStructuredLinearRef: 0,  // Route + milepost as structured fields
+    hasMilepostData: 0,         // Milepost or mile marker in location
+    hasOrganizationId: 0,       // TMC/DOT organization identifier
+    hasEventStatusField: 0,     // Event status (active, planned, archived)
+    hasStructuredLanes: 0,      // Lane numbers/identifiers (not just text)
+
+    // SAE J2540-2 Weather Information Message specific validation
+    weatherEvents: 0,               // Total weather-related events
+    hasWeatherCondition: 0,         // Structured weather condition codes (not just "weather")
+    hasSurfaceCondition: 0,         // Road surface status (dry/wet/icy/snow-covered)
+    hasVisibility: 0,               // Visibility distance in meters
+    hasTemperature: 0,              // Temperature data for ice/frost prediction
+    hasPrecipitationType: 0,        // Precipitation type (rain/snow/sleet)
+    hasPrecipitationIntensity: 0,   // Precipitation intensity (light/moderate/heavy)
+    hasWeatherSensorTime: 0         // Weather data timestamp for freshness
   };
 
+  // Collect violation examples (max 5 per category)
+  const violations = {
+    missingCoordinates: [],
+    invalidTimestamps: [],
+    invalidEventTypes: [],
+    invalidDirections: [],
+    missingRequired: [],
+    invalidVehicleImpact: []
+  };
+
+  const isWzdx = stateConfig.apiType === 'WZDx';
+  const MAX_EXAMPLES = 5;
+
   result.events.forEach(event => {
-    if (event.latitude && event.longitude && event.latitude !== 0 && event.longitude !== 0) {
+    // Check coordinates
+    if (event.latitude && event.longitude) {
       analysis.hasCoordinates++;
+      // Valid coordinates: non-zero, within valid lat/lon ranges
+      if (event.latitude !== 0 && event.longitude !== 0 &&
+          event.latitude >= -90 && event.latitude <= 90 &&
+          event.longitude >= -180 && event.longitude <= 180) {
+        analysis.hasValidCoordinates++;
+      } else if (violations.missingCoordinates.length < MAX_EXAMPLES) {
+        violations.missingCoordinates.push({
+          eventId: event.id,
+          location: event.location || 'Unknown',
+          issue: event.latitude === 0 || event.longitude === 0 ? 'Coordinates are 0,0' : 'Coordinates out of valid range',
+          actual: { lat: event.latitude, lon: event.longitude }
+        });
+      }
+    } else if (violations.missingCoordinates.length < MAX_EXAMPLES) {
+      violations.missingCoordinates.push({
+        eventId: event.id,
+        location: event.location || 'Unknown',
+        issue: 'Missing coordinates',
+        actual: { lat: event.latitude, lon: event.longitude }
+      });
     }
-    if (event.startTime) analysis.hasStartTime++;
+
+    // Check start time
+    if (event.startTime) {
+      analysis.hasStartTime++;
+      if (WZDxValidators.isValidISO8601(event.startTime)) {
+        analysis.hasValidStartTime++;
+      } else if (isWzdx && violations.invalidTimestamps.length < MAX_EXAMPLES) {
+        violations.invalidTimestamps.push({
+          eventId: event.id,
+          location: event.location || 'Unknown',
+          issue: 'Invalid ISO 8601 format',
+          actual: event.startTime,
+          expected: '2025-10-19T14:30:00Z'
+        });
+      }
+    }
+
+    // Check end time
     if (event.endTime) analysis.hasEndTime++;
-    if (event.eventType && event.eventType !== 'Unknown') analysis.hasEventType++;
+
+    // Check event type
+    if (event.eventType && event.eventType !== 'Unknown') {
+      analysis.hasEventType++;
+      if (WZDxValidators.isValidEventType(event.eventType)) {
+        analysis.hasValidEventType++;
+      } else if (isWzdx && violations.invalidEventTypes.length < MAX_EXAMPLES) {
+        violations.invalidEventTypes.push({
+          eventId: event.id,
+          location: event.location || 'Unknown',
+          issue: 'Event type not in WZDx v4.x enum',
+          actual: event.eventType,
+          expected: WZDxValidators.validEventTypes.join(', ')
+        });
+      }
+    }
+
+    // Check severity
     if (event.severity) analysis.hasSeverity++;
-    if (event.direction && event.direction !== 'Both') analysis.hasDirection++;
-    if (event.lanesAffected && event.lanesAffected !== 'Check conditions') analysis.hasLaneInfo++;
+
+    // Check direction
+    if (event.direction && event.direction !== 'Both') {
+      analysis.hasDirection++;
+      if (WZDxValidators.isValidDirection(event.direction)) {
+        analysis.hasValidDirection++;
+      } else if (isWzdx && violations.invalidDirections.length < MAX_EXAMPLES) {
+        violations.invalidDirections.push({
+          eventId: event.id,
+          location: event.location || 'Unknown',
+          issue: 'Direction not in WZDx v4.x enum',
+          actual: event.direction,
+          expected: WZDxValidators.validDirections.join(', ')
+        });
+      }
+    }
+
+    // Check lane info (vehicle_impact in WZDx)
+    if (event.lanesAffected && event.lanesAffected !== 'Check conditions') {
+      analysis.hasLaneInfo++;
+      if (WZDxValidators.isValidVehicleImpact(event.lanesAffected)) {
+        analysis.hasValidLaneInfo++;
+      } else if (isWzdx && violations.invalidVehicleImpact.length < MAX_EXAMPLES) {
+        violations.invalidVehicleImpact.push({
+          eventId: event.id,
+          location: event.location || 'Unknown',
+          issue: 'Vehicle impact not in WZDx v4.x enum',
+          actual: event.lanesAffected,
+          expected: WZDxValidators.validVehicleImpacts.join(', ')
+        });
+      }
+    }
+
+    // Check description
     if (event.description) analysis.hasDescription++;
+
+    // Check corridor
+    if (event.corridor && event.corridor !== 'Unknown') analysis.hasCorridor++;
+
+    // ========== SAE J2735 V2X VALIDATION ==========
+    // These checks go beyond basic WZDx compliance to assess V2X readiness
+
+    // 1. GPS Precision Check (SAE J2735 requires ±10m accuracy)
+    // Check decimal places: 5+ decimals = ~1m precision, 4 decimals = ~10m, 3 decimals = ~100m
+    if (event.latitude && event.longitude && event.latitude !== 0 && event.longitude !== 0) {
+      const latString = event.latitude.toString();
+      const lonString = event.longitude.toString();
+      const latDecimals = (latString.split('.')[1] || '').length;
+      const lonDecimals = (lonString.split('.')[1] || '').length;
+
+      // Require at least 4 decimal places for ~10m precision (SAE J2735 minimum)
+      if (latDecimals >= 4 && lonDecimals >= 4) {
+        analysis.hasPreciseGPS++;
+      }
+    }
+
+    // 2. Millisecond Timestamp Check (SAE J2735 TIM requires sub-second precision)
+    if (event.startTime && WZDxValidators.isValidISO8601(event.startTime)) {
+      // Check for milliseconds (e.g., "2025-10-19T14:30:00.123Z" or Unix timestamp with milliseconds)
+      const hasMilliseconds = event.startTime.includes('.') ||
+                             (event.startTime.match(/\d{13,}/) !== null); // Unix timestamp in milliseconds
+      if (hasMilliseconds) {
+        analysis.hasMillisecondTime++;
+      }
+    }
+
+    // 3. ITIS Code Mapping Check (SAE J2735 advisory content requires ITIS codes)
+    if (event.eventType) {
+      if (hasITISMapping(event.eventType)) {
+        analysis.hasITISMappableType++;
+      }
+    }
+
+    // 4. Priority Field Check (SAE J2735 TIM requires priority 0-7, derived from severity)
+    if (event.severity) {
+      analysis.hasPriorityField++;
+    }
+
+    // ========== TMDD v3.1 C2C VALIDATION ==========
+    // These checks assess readiness for center-to-center communication
+
+    // 1. Structured Linear Reference (TMDD location-on-link requires route + milepost)
+    const locationText = ((event.location || '') + ' ' + (event.description || '')).toLowerCase();
+    const hasMilepost = /\b(mm|mile|milepost|mp)\s*\d+/i.test(locationText);
+
+    if (hasMilepost) {
+      analysis.hasMilepostData++;
+    }
+
+    if (event.corridor && hasMilepost) {
+      // Has both route (corridor) and milepost - structured linear reference
+      analysis.hasStructuredLinearRef++;
+    }
+
+    // 2. Organization ID (TMDD requires TMC/DOT identifier)
+    if (event.state || event.organization_id) {
+      analysis.hasOrganizationId++;
+    }
+
+    // 3. Event Status Field (TMDD event-status: active, planned, archived)
+    if (event.status || event.eventStatus) {
+      analysis.hasEventStatusField++;
+    }
+
+    // 4. Structured Lane Information (TMDD event-lanes requires lane numbers)
+    // Check for actual lane numbers (Lane 1, L1, etc.) not just "some lanes closed"
+    if (event.lanesAffected) {
+      const laneText = event.lanesAffected.toLowerCase();
+      const hasLaneNumbers = /\b(lane\s*\d+|l\d+|\d+\s*lane)/i.test(laneText);
+      if (hasLaneNumbers || event.lane_numbers) {
+        analysis.hasStructuredLanes++;
+      }
+    }
+
+    // ========== SAE J2540-2 WEATHER INFORMATION MESSAGE VALIDATION ==========
+    // Only apply to weather-related events
+    const isWeatherEvent = event.eventType && (
+      event.eventType.toLowerCase().includes('weather') ||
+      event.eventType.toLowerCase().includes('winter') ||
+      event.eventType.toLowerCase().includes('ice') ||
+      event.eventType.toLowerCase().includes('snow') ||
+      event.eventType.toLowerCase().includes('fog') ||
+      event.eventType.toLowerCase().includes('rain')
+    );
+
+    if (isWeatherEvent) {
+      analysis.weatherEvents++;
+
+      // 1. Structured Weather Condition (not just "weather" - need specific codes)
+      // SAE J2540-2 requires specific condition codes: ice, snow, fog, rain, etc.
+      if (event.weather_condition || event.weatherCondition) {
+        analysis.hasWeatherCondition++;
+      } else if (event.description) {
+        // Check description for structured weather codes
+        const desc = event.description.toLowerCase();
+        if (desc.includes('ice') || desc.includes('snow') || desc.includes('fog') ||
+            desc.includes('rain') || desc.includes('sleet') || desc.includes('hail')) {
+          analysis.hasWeatherCondition++;
+        }
+      }
+
+      // 2. Surface Condition (dry/wet/icy/snow-covered/slush)
+      if (event.surface_condition || event.surfaceCondition || event.roadCondition) {
+        analysis.hasSurfaceCondition++;
+      } else if (event.description) {
+        const desc = event.description.toLowerCase();
+        if (desc.includes('icy') || desc.includes('wet') || desc.includes('snow-covered') ||
+            desc.includes('slippery') || desc.includes('slush')) {
+          analysis.hasSurfaceCondition++;
+        }
+      }
+
+      // 3. Visibility (distance in meters/feet)
+      if (event.visibility || event.visibility_distance) {
+        analysis.hasVisibility++;
+      } else if (event.description) {
+        const desc = event.description.toLowerCase();
+        if (/visibility.*(reduced|low|poor|\d+\s*(feet|ft|meters|m|miles|mi))/i.test(desc)) {
+          analysis.hasVisibility++;
+        }
+      }
+
+      // 4. Temperature (for ice/frost prediction)
+      if (event.temperature || event.air_temperature || event.temp) {
+        analysis.hasTemperature++;
+      }
+
+      // 5. Precipitation Type (rain/snow/sleet/hail)
+      if (event.precipitation_type || event.precipitationType) {
+        analysis.hasPrecipitationType++;
+      } else if (event.description) {
+        const desc = event.description.toLowerCase();
+        if (desc.includes('rain') || desc.includes('snow') || desc.includes('sleet') ||
+            desc.includes('hail') || desc.includes('freezing')) {
+          analysis.hasPrecipitationType++;
+        }
+      }
+
+      // 6. Precipitation Intensity (light/moderate/heavy)
+      if (event.precipitation_intensity || event.precipitationIntensity) {
+        analysis.hasPrecipitationIntensity++;
+      } else if (event.description) {
+        const desc = event.description.toLowerCase();
+        if (desc.includes('light') || desc.includes('moderate') || desc.includes('heavy') ||
+            desc.includes('intense')) {
+          analysis.hasPrecipitationIntensity++;
+        }
+      }
+
+      // 7. Weather Sensor Timestamp (for data freshness - critical for safety)
+      if (event.weather_timestamp || event.weatherTimestamp || event.sensor_timestamp) {
+        analysis.hasWeatherSensorTime++;
+      }
+    }
+
+    // Check for missing required fields
+    if (!event.id || !event.location || !event.description) {
+      if (violations.missingRequired.length < MAX_EXAMPLES) {
+        violations.missingRequired.push({
+          eventId: event.id || 'NO_ID',
+          missingFields: [
+            !event.id ? 'id' : null,
+            !event.location ? 'location' : null,
+            !event.description ? 'description' : null
+          ].filter(Boolean),
+          impact: 'Cannot uniquely identify or describe this event'
+        });
+      }
+    }
   });
 
   const total = result.events.length || 1;
+
+  // For WZDx feeds, use VALID values only (strict compliance)
+  // For non-WZDx feeds, use presence (but still collect violations for guidance)
   const completeness = {
-    coordinates: Math.round((analysis.hasCoordinates / total) * 100),
-    startTime: Math.round((analysis.hasStartTime / total) * 100),
+    coordinates: Math.round(((isWzdx ? analysis.hasValidCoordinates : analysis.hasCoordinates) / total) * 100),
+    startTime: Math.round(((isWzdx ? analysis.hasValidStartTime : analysis.hasStartTime) / total) * 100),
     endTime: Math.round((analysis.hasEndTime / total) * 100),
-    eventType: Math.round((analysis.hasEventType / total) * 100),
+    eventType: Math.round(((isWzdx ? analysis.hasValidEventType : analysis.hasEventType) / total) * 100),
     severity: Math.round((analysis.hasSeverity / total) * 100),
-    direction: Math.round((analysis.hasDirection / total) * 100),
-    laneInfo: Math.round((analysis.hasLaneInfo / total) * 100),
-    description: Math.round((analysis.hasDescription / total) * 100)
+    direction: Math.round(((isWzdx ? analysis.hasValidDirection : analysis.hasDirection) / total) * 100),
+    laneInfo: Math.round(((isWzdx ? analysis.hasValidLaneInfo : analysis.hasLaneInfo) / total) * 100),
+    description: Math.round((analysis.hasDescription / total) * 100),
+    corridor: Math.round((analysis.hasCorridor / total) * 100),
+    // SAE J2735 V2X-specific metrics
+    preciseGPS: Math.round((analysis.hasPreciseGPS / total) * 100),
+    millisecondTimestamps: Math.round((analysis.hasMillisecondTime / total) * 100),
+    itisMapping: Math.round((analysis.hasITISMappableType / total) * 100),
+    priorityField: Math.round((analysis.hasPriorityField / total) * 100),
+    // TMDD v3.1 C2C-specific metrics
+    structuredLinearRef: Math.round((analysis.hasStructuredLinearRef / total) * 100),
+    milepostData: Math.round((analysis.hasMilepostData / total) * 100),
+    organizationId: Math.round((analysis.hasOrganizationId / total) * 100),
+    eventStatusField: Math.round((analysis.hasEventStatusField / total) * 100),
+    structuredLanes: Math.round((analysis.hasStructuredLanes / total) * 100),
+    // SAE J2540-2 Weather Information Message metrics
+    weatherEvents: analysis.weatherEvents,
+    weatherCondition: analysis.weatherEvents > 0 ? Math.round((analysis.hasWeatherCondition / analysis.weatherEvents) * 100) : 0,
+    surfaceCondition: analysis.weatherEvents > 0 ? Math.round((analysis.hasSurfaceCondition / analysis.weatherEvents) * 100) : 0,
+    visibility: analysis.weatherEvents > 0 ? Math.round((analysis.hasVisibility / analysis.weatherEvents) * 100) : 0,
+    temperature: analysis.weatherEvents > 0 ? Math.round((analysis.hasTemperature / analysis.weatherEvents) * 100) : 0,
+    precipitationType: analysis.weatherEvents > 0 ? Math.round((analysis.hasPrecipitationType / analysis.weatherEvents) * 100) : 0,
+    precipitationIntensity: analysis.weatherEvents > 0 ? Math.round((analysis.hasPrecipitationIntensity / analysis.weatherEvents) * 100) : 0,
+    weatherSensorTime: analysis.weatherEvents > 0 ? Math.round((analysis.hasWeatherSensorTime / analysis.weatherEvents) * 100) : 0
   };
+
+  // Calculate total violation count
+  const totalViolations = Object.values(violations).reduce((sum, arr) => sum + arr.length, 0);
 
   // Generate SAE J2735 TIM from sample event
   const timExample = sampleEvent ? {
@@ -1751,7 +2803,7 @@ app.get('/api/compliance/guide/:state', async (req, res) => {
           score: completeness.corridor || 0,
           maxPoints: 15,
           currentPoints: Math.round(((completeness.corridor || 0) / 100) * 15),
-          impact: (completeness.corridor || 0) < 80 ? 'HIGH - Cannot filter by corridor' : 'Good',
+          impact: (completeness.corridor || 0) < 80 ? 'HIGH - Your events are missing interstate route identifiers (e.g., I-35, I-80). Add route/highway field to enable corridor filtering for cross-state coordination.' : 'Good - Interstate route identifiers present',
           status: (completeness.corridor || 0) >= 80 ? 'PASS' : 'FAIL'
         },
         {
@@ -1929,6 +2981,839 @@ app.get('/api/compliance/guide/:state', async (req, res) => {
     guide.improvementPotential.message = `Fixing ${guide.actionPlan.immediate.length} critical issues would raise your score to ${potentialScore}%`;
   }
 
+  // Add detailed field-level violations with actual data examples
+  guide.fieldLevelAnalysis = {
+    evaluationStandard: isWzdx ? 'WZDx v4.x Specification' : 'TMDD/ngTMDD (Traffic Management Data Dictionary)',
+    feedType: stateConfig.apiType,
+    summary: `Analyzed ${result.events.length} events ${isWzdx ? 'against WZDx v4.x specification' : 'for TMDD/ngTMDD compliance (evaluated via C2C-MVT)'} and found ${
+      Object.values(violations).reduce((sum, v) => sum + v.length, 0)
+    } specific violations across ${
+      Object.values(violations).filter(v => v.length > 0).length
+    } categories`,
+    totalEventsAnalyzed: result.events.length,
+    violationCategories: [],
+    note: isWzdx ? null : 'TMDD compliance ensures your data can be shared via Center-to-Center (C2C) communication with other DOT TMCs'
+  };
+
+  // Add each violation category with examples
+  if (violations.missingCoordinates.length > 0) {
+    guide.fieldLevelAnalysis.violationCategories.push({
+      category: 'Missing GPS Coordinates',
+      severity: 'CRITICAL',
+      count: violations.missingCoordinates.length,
+      impact: 'Cannot display events on map or detect cross-state boundaries',
+      specRequirement: 'WGS84 decimal degrees (latitude/longitude) required for all events',
+      examples: violations.missingCoordinates,
+      recommendation: 'Add GPS coordinates in decimal degrees format. Example: { "latitude": 40.7608, "longitude": -111.8910 }'
+    });
+  }
+
+  // Only add WZDx-specific violations for WZDx feeds
+  if (isWzdx) {
+    if (violations.invalidTimestamps.length > 0) {
+      guide.fieldLevelAnalysis.violationCategories.push({
+        category: 'Invalid Timestamp Format (WZDx Requirement)',
+        severity: 'HIGH',
+        count: violations.invalidTimestamps.length,
+        impact: 'Cannot parse event times or validate event timeline',
+        specRequirement: 'WZDx v4.x requires ISO 8601 format with timezone (YYYY-MM-DDTHH:mm:ssZ)',
+        examples: violations.invalidTimestamps,
+        recommendation: 'Use ISO 8601 format with UTC timezone. Example: "2025-10-19T14:30:00Z"'
+      });
+    }
+
+    if (violations.invalidEventTypes.length > 0) {
+      guide.fieldLevelAnalysis.violationCategories.push({
+        category: 'Invalid Event Type (WZDx Requirement)',
+        severity: 'HIGH',
+        count: violations.invalidEventTypes.length,
+        impact: 'Does not match WZDx v4.x specification - cannot properly categorize events',
+        specRequirement: `WZDx v4.x event_type enum values: ${WZDxValidators.validEventTypes.join(', ')}`,
+        examples: violations.invalidEventTypes,
+        recommendation: 'Use only WZDx v4.x event types. Map custom types to standard values: work-zone, incident, detour, restriction, weather-event, special-event, road-hazard.'
+      });
+    }
+
+    if (violations.invalidDirections.length > 0) {
+      guide.fieldLevelAnalysis.violationCategories.push({
+        category: 'Invalid Direction (WZDx Requirement)',
+        severity: 'MEDIUM',
+        count: violations.invalidDirections.length,
+        impact: 'Does not match WZDx v4.x specification - cannot determine which direction is affected',
+        specRequirement: `WZDx v4.x direction enum values: ${WZDxValidators.validDirections.join(', ')}`,
+        examples: violations.invalidDirections,
+        recommendation: 'Use lowercase WZDx direction values. Example: "northbound" not "Northbound", "NB", or "unknown"'
+      });
+    }
+  }
+
+  if (violations.missingRequired.length > 0) {
+    guide.fieldLevelAnalysis.violationCategories.push({
+      category: 'Missing Required Fields',
+      severity: 'HIGH',
+      count: violations.missingRequired.length,
+      impact: 'Cannot uniquely identify or describe events',
+      specRequirement: 'Every event must have: id, location, description',
+      examples: violations.missingRequired,
+      recommendation: 'Ensure all events have unique ID, location string, and description text'
+    });
+  }
+
+  // ==================== MULTI-STANDARD COMPLIANCE SCORECARD ====================
+  // Calculate compliance scores for WZDx v4.x, SAE J2735, and TMDD v3.1
+
+  // 1. WZDx v4.x Compliance Score (Open Data Standard)
+  const wzdxScore = {
+    standard: 'WZDx v4.x (Work Zone Data Exchange)',
+    purpose: 'Modern open data standard for work zone and traffic event data',
+    applicability: isWzdx ? 'Your feed claims WZDx compliance' : 'Not using WZDx format',
+
+    // Required fields (50 points)
+    requiredFields: {
+      coordinates: { score: completeness.coordinates, weight: 25, points: Math.round((completeness.coordinates / 100) * 25) },
+      route: { score: completeness.corridor || 0, weight: 15, points: Math.round(((completeness.corridor || 0) / 100) * 15) },
+      description: { score: completeness.description, weight: 10, points: Math.round((completeness.description / 100) * 10) }
+    },
+
+    // Important fields (30 points)
+    importantFields: {
+      eventType: { score: completeness.eventType, weight: 10, points: Math.round((completeness.eventType / 100) * 10) },
+      startTime: { score: completeness.startTime, weight: 10, points: Math.round((completeness.startTime / 100) * 10) },
+      severity: { score: completeness.severity, weight: 10, points: Math.round((completeness.severity / 100) * 10) }
+    },
+
+    // Enhanced fields (20 points)
+    enhancedFields: {
+      direction: { score: completeness.direction, weight: 7, points: Math.round((completeness.direction / 100) * 7) },
+      vehicleImpact: { score: completeness.laneInfo, weight: 7, points: Math.round((completeness.laneInfo / 100) * 7) },
+      endTime: { score: completeness.endTime, weight: 6, points: Math.round((completeness.endTime / 100) * 6) }
+    },
+
+    totalScore: 0,
+    percentage: 0,
+    grade: '',
+    status: '',
+    violations: isWzdx ? Object.values(violations).reduce((sum, arr) => sum + arr.length, 0) : 'N/A - Not WZDx format',
+    recommendations: []
+  };
+
+  // Calculate WZDx total
+  wzdxScore.totalScore =
+    Object.values(wzdxScore.requiredFields).reduce((sum, f) => sum + f.points, 0) +
+    Object.values(wzdxScore.importantFields).reduce((sum, f) => sum + f.points, 0) +
+    Object.values(wzdxScore.enhancedFields).reduce((sum, f) => sum + f.points, 0);
+
+  wzdxScore.percentage = Math.round(wzdxScore.totalScore);
+
+  // Assign WZDx grade
+  if (wzdxScore.percentage >= 90) {
+    wzdxScore.grade = 'A';
+    wzdxScore.status = 'Excellent - Fully WZDx v4.x compliant';
+  } else if (wzdxScore.percentage >= 80) {
+    wzdxScore.grade = 'B';
+    wzdxScore.status = 'Good - Minor WZDx compliance issues';
+  } else if (wzdxScore.percentage >= 70) {
+    wzdxScore.grade = 'C';
+    wzdxScore.status = 'Fair - Moderate WZDx improvements needed';
+  } else if (wzdxScore.percentage >= 60) {
+    wzdxScore.grade = 'D';
+    wzdxScore.status = 'Poor - Significant WZDx gaps';
+  } else {
+    wzdxScore.grade = 'F';
+    wzdxScore.status = 'Critical - Not WZDx compliant';
+  }
+
+  // WZDx-specific recommendations with "current vs. should be" examples
+  if (isWzdx && violations.invalidEventTypes.length > 0) {
+    const exampleInvalid = violations.invalidEventTypes[0];
+    wzdxScore.recommendations.push({
+      priority: 'HIGH',
+      field: 'event_type',
+      issue: `${violations.invalidEventTypes.length} events have invalid event_type values`,
+      currentValue: exampleInvalid?.eventType || 'Invalid value (e.g., "Construction", "Accident")',
+      targetValue: `WZDx v4.x compliant: ${WZDxValidators.validEventTypes.slice(0, 4).join(', ')}, etc.`,
+      solution: `Use only WZDx v4.x event types: ${WZDxValidators.validEventTypes.join(', ')}`,
+      impact: `+${Math.round((violations.invalidEventTypes.length / result.events.length) * 10)} points`,
+      exampleCorrection: exampleInvalid?.eventType === 'Construction' ? '"work-zone"' : exampleInvalid?.eventType === 'Accident' ? '"incident"' : '"work-zone" or "incident"'
+    });
+  }
+
+  if (isWzdx && violations.invalidDirections.length > 0) {
+    const exampleInvalid = violations.invalidDirections[0];
+    wzdxScore.recommendations.push({
+      priority: 'MEDIUM',
+      field: 'direction',
+      issue: `${violations.invalidDirections.length} events have invalid direction values`,
+      currentValue: exampleInvalid?.direction || 'Invalid (e.g., "NB", "EB", "Unknown")',
+      targetValue: `WZDx compliant: ${WZDxValidators.validDirections.slice(0, 4).join(', ')}`,
+      solution: `Use WZDx direction enum: ${WZDxValidators.validDirections.join(', ')}`,
+      impact: `+${Math.round((violations.invalidDirections.length / result.events.length) * 7)} points`,
+      exampleCorrection: exampleInvalid?.direction === 'NB' ? '"northbound"' : exampleInvalid?.direction === 'EB' ? '"eastbound"' : 'lowercase directional'
+    });
+  }
+
+  if (isWzdx && violations.invalidVehicleImpact && violations.invalidVehicleImpact.length > 0) {
+    const exampleInvalid = violations.invalidVehicleImpact[0];
+    wzdxScore.recommendations.push({
+      priority: 'MEDIUM',
+      field: 'vehicle_impact',
+      issue: `${violations.invalidVehicleImpact.length} events have invalid vehicle_impact values`,
+      currentValue: exampleInvalid?.vehicleImpact || 'Missing or invalid',
+      targetValue: `WZDx compliant: ${WZDxValidators.validVehicleImpacts.slice(0, 3).join(', ')}`,
+      solution: `Use WZDx vehicle_impact enum: ${WZDxValidators.validVehicleImpacts.join(', ')}`,
+      impact: `+${Math.round((violations.invalidVehicleImpact.length / result.events.length) * 7)} points`,
+      exampleCorrection: '"some-lanes-closed" or "all-lanes-open"'
+    });
+  }
+
+  // Add recommendations for missing fields
+  if (completeness.coordinates < 90) {
+    wzdxScore.recommendations.push({
+      priority: 'CRITICAL',
+      field: 'coordinates',
+      issue: `Only ${completeness.coordinates}% of events have valid GPS coordinates`,
+      currentValue: `${100 - completeness.coordinates}% of events missing or have invalid coordinates (e.g., latitude: 0, longitude: 0)`,
+      targetValue: 'All events must have valid WGS84 decimal degrees',
+      solution: 'Add latitude and longitude in decimal degrees format to every event',
+      impact: `+${Math.round((100 - completeness.coordinates) * 0.25)} points`,
+      example: '{ "latitude": 40.7608, "longitude": -111.8910 }'
+    });
+  }
+
+  if (completeness.corridor < 80) {
+    wzdxScore.recommendations.push({
+      priority: 'HIGH',
+      field: 'road_name / route',
+      issue: `Only ${completeness.corridor}% of events have route/corridor identifiers`,
+      currentValue: `${100 - completeness.corridor}% missing route identifiers like "I-80" or "US-50"`,
+      targetValue: 'All events should have interstate or highway route identifier',
+      solution: 'Add road_name field with route identifier (I-80, US-50, etc.)',
+      impact: `+${Math.round((100 - completeness.corridor) * 0.15)} points`,
+      example: '{ "road_name": "Interstate 80", "road_number": "I-80" }'
+    });
+  }
+
+  // 2. SAE J2735 Readiness Score (V2X Communication)
+  const saeScore = {
+    standard: 'SAE J2735 (V2X Traveler Information Message)',
+    purpose: 'Vehicle-to-everything (V2X) communication for connected vehicles',
+    applicability: 'Measures readiness for SAE J2735 TIM broadcasting',
+
+    // Core TIM requirements - REAL SAE J2735 VALIDATION
+    coreRequirements: {
+      preciseCoordinates: {
+        score: completeness.preciseGPS,  // Now using actual GPS precision check (4+ decimals)
+        weight: 35,  // Increased from 30 - most critical for V2X positioning
+        requirement: 'GPS coordinates with ≥4 decimal places (~10m precision for V2X anchorPosition)',
+        status: completeness.preciseGPS >= 80 ? 'PASS' : 'NEEDS IMPROVEMENT',
+        note: `${completeness.preciseGPS}% of events have precise GPS (4+ decimals). SAE J2735 requires ±10m accuracy.`
+      },
+      millisecondTimestamps: {
+        score: completeness.millisecondTimestamps,  // Now checking actual sub-second precision
+        weight: 20,  // Increased from 15 - V2X timing is critical
+        requirement: 'Timestamps with millisecond precision (SAE J2735 TIM timeStamp field)',
+        status: completeness.millisecondTimestamps >= 70 ? 'PASS' : 'NEEDS IMPROVEMENT',
+        note: `${completeness.millisecondTimestamps}% have millisecond precision. V2X requires sub-second accuracy.`
+      },
+      itisCodeMapping: {
+        score: completeness.itisMapping,  // Now checking actual ITIS code mappability
+        weight: 20,  // Increased from 15 - standardized codes essential for V2X
+        requirement: 'Event types mappable to official ITIS codes (SAE J2735 advisory content)',
+        status: completeness.itisMapping >= 80 ? 'PASS' : 'NEEDS IMPROVEMENT',
+        note: `${completeness.itisMapping}% of event types map to ITIS codes (769=accident, 8963=road work, etc.)`
+      },
+      priorityField: {
+        score: completeness.priorityField,  // Now checking severity field for TIM priority 0-7
+        weight: 10,
+        requirement: 'Severity field present for TIM priority mapping (0=high, 7=low)',
+        status: completeness.priorityField >= 80 ? 'PASS' : 'NEEDS IMPROVEMENT',
+        note: `${completeness.priorityField}% have severity for SAE J2735 priority level (0-7 scale)`
+      },
+      direction: {
+        score: completeness.direction,
+        weight: 15,
+        requirement: 'Valid direction for TIM region directionality (WZDx enum)',
+        status: completeness.direction >= 70 ? 'PASS' : 'NEEDS IMPROVEMENT',
+        note: `${completeness.direction}% have valid direction (northbound/southbound/etc.)`
+      }
+      // NOTE: 'description' field removed - not a real SAE J2735 TIM requirement
+      // SAE J2735 focuses on structured data (ITIS codes, precise GPS, timestamps)
+    },
+
+    totalScore: 0,
+    percentage: 0,
+    grade: '',
+    status: '',
+    readinessLevel: '',
+    recommendations: []
+  };
+
+  // Calculate SAE total
+  Object.values(saeScore.coreRequirements).forEach(req => {
+    saeScore.totalScore += Math.round((req.score / 100) * req.weight);
+  });
+
+  saeScore.percentage = Math.round(saeScore.totalScore);
+
+  // Assign SAE grade and readiness
+  if (saeScore.percentage >= 90) {
+    saeScore.grade = 'A';
+    saeScore.status = 'V2X Ready';
+    saeScore.readinessLevel = 'Your data can be broadcast as SAE J2735 TIM messages with minimal transformation';
+  } else if (saeScore.percentage >= 80) {
+    saeScore.grade = 'B';
+    saeScore.status = 'Near V2X Ready';
+    saeScore.readinessLevel = 'Minor enhancements needed for reliable V2X broadcasting';
+  } else if (saeScore.percentage >= 70) {
+    saeScore.grade = 'C';
+    saeScore.status = 'V2X Compatible';
+    saeScore.readinessLevel = 'Moderate improvements needed for V2X readiness';
+  } else if (saeScore.percentage >= 60) {
+    saeScore.grade = 'D';
+    saeScore.status = 'Limited V2X Compatibility';
+    saeScore.readinessLevel = 'Significant gaps for V2X communication';
+  } else {
+    saeScore.grade = 'F';
+    saeScore.status = 'Not V2X Ready';
+    saeScore.readinessLevel = 'Critical data quality issues prevent V2X use';
+  }
+
+  // SAE-specific recommendations - REAL V2X REQUIREMENTS with current vs. should be
+  if (saeScore.coreRequirements.preciseCoordinates.status === 'NEEDS IMPROVEMENT') {
+    saeScore.recommendations.push({
+      priority: 'CRITICAL',
+      field: 'GPS Coordinates Precision',
+      issue: `Only ${completeness.preciseGPS}% of events have GPS precision ≥4 decimals (~10m accuracy)`,
+      currentValue: `Low precision coordinates (e.g., 40.76, -111.89) providing ~1km accuracy`,
+      targetValue: 'High precision coordinates (e.g., 40.7608, -111.8910) providing ~10m accuracy',
+      solution: 'Increase GPS coordinate precision to ≥4 decimal places. Example: 40.7608 (4 decimals = ~10m), not 40.76 (2 decimals = ~1km)',
+      impact: 'SAE J2735 TIM anchorPosition requires ±10m accuracy for V2X safety messages',
+      technicalDetail: 'Decimal places: 2=~1km, 3=~100m, 4=~10m, 5=~1m, 6=~10cm',
+      example: '{ "latitude": 40.7608, "longitude": -111.8910 } ✓ (4 decimals)'
+    });
+  }
+
+  if (saeScore.coreRequirements.millisecondTimestamps.status === 'NEEDS IMPROVEMENT') {
+    saeScore.recommendations.push({
+      priority: 'HIGH',
+      field: 'Timestamp Precision',
+      issue: `Only ${completeness.millisecondTimestamps}% of timestamps have millisecond precision`,
+      currentValue: 'Second-level precision: "2025-10-19T14:30:00Z"',
+      targetValue: 'Millisecond precision: "2025-10-19T14:30:00.123Z"',
+      solution: 'Add millisecond precision to timestamps. Example: "2025-10-19T14:30:00.123Z" not "2025-10-19T14:30:00Z"',
+      impact: 'SAE J2735 TIM timeStamp field requires sub-second precision for accurate event timing',
+      technicalDetail: 'V2X systems need millisecond accuracy to coordinate with fast-moving vehicles',
+      example: '"start_date": "2025-10-19T14:30:00.123Z" ✓'
+    });
+  }
+
+  if (saeScore.coreRequirements.itisCodeMapping.status === 'NEEDS IMPROVEMENT') {
+    saeScore.recommendations.push({
+      priority: 'MEDIUM',
+      field: 'ITIS Code Mapping',
+      issue: `Only ${completeness.itisMapping}% of event types map to official ITIS codes`,
+      currentValue: 'Non-standard types (e.g., "Construction", "Accident", "Weather")',
+      targetValue: 'ITIS-mappable types: work-zone (8963), incident (769), weather-condition (1537)',
+      solution: 'Use standard event types that map to ITIS codes: work-zone→8963, incident→769, weather-condition→1537, restriction→1281',
+      impact: 'SAE J2735 TIM advisory content requires ITIS codes for standardized message interpretation',
+      technicalDetail: 'ITIS (Incident Types for ITS Systems) provides standardized codes for V2X communication',
+      example: '"event_type": "work-zone" → ITIS code 8963 ✓'
+    });
+  }
+
+  if (saeScore.coreRequirements.priorityField.status === 'NEEDS IMPROVEMENT') {
+    saeScore.recommendations.push({
+      priority: 'MEDIUM',
+      field: 'Priority/Severity Field',
+      issue: `Only ${completeness.priorityField}% of events have severity field for TIM priority`,
+      currentValue: `${100 - completeness.priorityField}% missing severity field`,
+      targetValue: 'All events have severity: high (0-2), medium (3-5), or low (6-7)',
+      solution: 'Add severity classification (high/medium/low) to map to SAE J2735 priority levels (0=highest, 7=lowest)',
+      impact: 'TIM messages require priority field to determine message propagation and display urgency',
+      technicalDetail: 'Priority mapping: high→0-2, medium→3-5, low→6-7',
+      example: '"severity": "high" → TIM priority level 0-2 ✓'
+    });
+  }
+
+  // 3. TMDD v3.1 Compatibility Score (Center-to-Center)
+  const tmddScore = {
+    standard: 'TMDD v3.1 (Traffic Management Data Dictionary)',
+    purpose: 'NTCIP standard for center-to-center communication between TMCs',
+    applicability: 'Measures compatibility with TMDD/ngTMDD for DOT-to-DOT data exchange',
+
+    // TMDD event requirements - REAL TMDD v3.1 VALIDATION
+    tmddElements: {
+      eventId: {
+        score: sampleEvent && sampleEvent.id ? 100 : 0,
+        weight: 10,
+        requirement: 'Unique event identifier (event-id)',
+        status: sampleEvent && sampleEvent.id ? 'PASS' : 'FAIL',
+        note: sampleEvent && sampleEvent.id ? 'All events have unique IDs' : 'Missing event IDs'
+      },
+      organizationId: {
+        score: completeness.organizationId,  // Now using REAL validation across all events
+        weight: 10,
+        requirement: 'TMC/DOT organization identifier for event ownership',
+        status: completeness.organizationId >= 90 ? 'PASS' : 'NEEDS IMPROVEMENT',
+        note: `${completeness.organizationId}% of events have organization/state identifier. TMDD requires TMC org codes.`
+      },
+      structuredLinearReference: {
+        score: completeness.structuredLinearRef,  // Now using REAL validation: route + milepost
+        weight: 20,
+        requirement: 'Route + milepost for TMDD location-on-link element',
+        status: completeness.structuredLinearRef >= 80 ? 'PASS' : 'NEEDS IMPROVEMENT',
+        note: `${completeness.structuredLinearRef}% have both route AND milepost. ${completeness.milepostData}% have milepost data.`
+      },
+      eventCategory: {
+        score: completeness.eventType,
+        weight: 15,
+        requirement: 'Event classification (TMDD event-category)',
+        status: completeness.eventType >= 90 ? 'PASS' : 'NEEDS IMPROVEMENT',
+        note: `${completeness.eventType}% have event type. TMDD requires specific event-category codes.`
+      },
+      eventTimes: {
+        score: Math.min(100, (completeness.startTime + completeness.endTime) / 2),
+        weight: 15,
+        requirement: 'Start and end timestamps (TMDD event-times element)',
+        status: Math.min(100, (completeness.startTime + completeness.endTime) / 2) >= 70 ? 'PASS' : 'NEEDS IMPROVEMENT',
+        note: `${completeness.startTime}% start time, ${completeness.endTime}% end time. TMDD requires temporal bounds.`
+      },
+      eventStatus: {
+        score: completeness.eventStatusField,  // Now using REAL validation for TMDD event-status
+        weight: 10,
+        requirement: 'Event status field (active, planned, archived)',
+        status: completeness.eventStatusField >= 80 ? 'PASS' : 'NEEDS IMPROVEMENT',
+        note: `${completeness.eventStatusField}% have status field. TMDD event-status indicates lifecycle state.`
+      },
+      structuredLanes: {
+        score: completeness.structuredLanes,  // Now using REAL validation for lane numbers
+        weight: 10,
+        requirement: 'Structured lane numbers (TMDD event-lanes element)',
+        status: completeness.structuredLanes >= 60 ? 'PASS' : 'NEEDS IMPROVEMENT',
+        note: `${completeness.structuredLanes}% have structured lane numbers (Lane 1, L2, etc.). TMDD requires lane identifiers.`
+      },
+      geographicCoords: {
+        score: completeness.coordinates,
+        weight: 10,
+        requirement: 'Geographic coordinates for TMDD event-locations',
+        status: completeness.coordinates >= 90 ? 'PASS' : 'NEEDS IMPROVEMENT',
+        note: `${completeness.coordinates}% have valid GPS coordinates for TMDD geographic location.`
+      }
+    },
+
+    totalScore: 0,
+    percentage: 0,
+    grade: '',
+    status: '',
+    c2cReadiness: '',
+    recommendations: []
+  };
+
+  // Calculate TMDD total
+  Object.values(tmddScore.tmddElements).forEach(element => {
+    tmddScore.totalScore += Math.round((element.score / 100) * element.weight);
+  });
+
+  tmddScore.percentage = Math.round(tmddScore.totalScore);
+
+  // Assign TMDD grade
+  if (tmddScore.percentage >= 90) {
+    tmddScore.grade = 'A';
+    tmddScore.status = 'TMDD Compatible';
+    tmddScore.c2cReadiness = 'Ready for center-to-center exchange via TMDD/ngTMDD';
+  } else if (tmddScore.percentage >= 80) {
+    tmddScore.grade = 'B';
+    tmddScore.status = 'Near TMDD Compatible';
+    tmddScore.c2cReadiness = 'Minor improvements needed for TMDD C2C exchange';
+  } else if (tmddScore.percentage >= 70) {
+    tmddScore.grade = 'C';
+    tmddScore.status = 'Partially TMDD Compatible';
+    tmddScore.c2cReadiness = 'Moderate enhancements needed for reliable C2C communication';
+  } else if (tmddScore.percentage >= 60) {
+    tmddScore.grade = 'D';
+    tmddScore.status = 'Limited TMDD Compatibility';
+    tmddScore.c2cReadiness = 'Significant gaps for TMDD-based center-to-center';
+  } else {
+    tmddScore.grade = 'F';
+    tmddScore.status = 'Not TMDD Compatible';
+    tmddScore.c2cReadiness = 'Major improvements required for C2C data exchange';
+  }
+
+  // TMDD-specific recommendations - UPDATED FOR REAL VALIDATION with current vs. should be
+  if (tmddScore.tmddElements.structuredLinearReference.status === 'NEEDS IMPROVEMENT') {
+    tmddScore.recommendations.push({
+      priority: 'HIGH',
+      field: 'Linear Reference (Route + Milepost)',
+      issue: `Only ${completeness.structuredLinearRef}% have structured linear reference (route + milepost)`,
+      currentValue: `Text-based location: "Work on I-80 near Salt Lake City" OR ${100 - completeness.milepostData}% missing milepost`,
+      targetValue: 'Structured fields: route="I-80" + milepost="MM 123"',
+      solution: 'Include both interstate/route (e.g., I-80) and milepost (MM 123) as structured fields, not just in text',
+      impact: 'TMDD location-on-link element requires route AND milepost for precise C2C location sharing',
+      currentState: `${completeness.milepostData}% have milepost data, but need both route and milepost together`,
+      example: '{ "route": "I-80", "milepost": 123, "direction": "eastbound" } ✓'
+    });
+  }
+
+  if (tmddScore.tmddElements.organizationId.status === 'NEEDS IMPROVEMENT') {
+    tmddScore.recommendations.push({
+      priority: 'MEDIUM',
+      field: 'Organization/TMC Identifier',
+      issue: `Only ${completeness.organizationId}% have organization/TMC identifier`,
+      currentValue: 'Missing organization field OR implicit from state only',
+      targetValue: 'Explicit TMC code: "IA-DOT", "UDOT", "WYDOT"',
+      solution: 'Add TMC organization code (e.g., "IA-DOT", "UDOT") to identify event owner',
+      impact: 'TMDD requires organization ID for multi-agency C2C coordination',
+      example: '{ "organization_id": "UDOT", "owning_tmc": "Utah DOT TMC" } ✓'
+    });
+  }
+
+  if (tmddScore.tmddElements.eventStatus.status === 'NEEDS IMPROVEMENT') {
+    tmddScore.recommendations.push({
+      priority: 'MEDIUM',
+      field: 'Event Status/Lifecycle',
+      issue: `Only ${completeness.eventStatusField}% have event status field`,
+      currentValue: 'No status field (implicit "active" assumed)',
+      targetValue: 'Explicit status: "active", "planned", or "archived"',
+      solution: 'Add status field indicating lifecycle: "active", "planned", or "archived"',
+      impact: 'TMDD event-status helps TMCs understand which events are currently affecting traffic',
+      example: '{ "status": "active", "lifecycle_state": "ongoing" } ✓'
+    });
+  }
+
+  if (tmddScore.tmddElements.structuredLanes.status === 'NEEDS IMPROVEMENT') {
+    tmddScore.recommendations.push({
+      priority: 'MEDIUM',
+      field: 'Structured Lane Numbers',
+      issue: `Only ${completeness.structuredLanes}% have structured lane numbers`,
+      currentValue: 'Text description: "some lanes closed" or "left lane blocked"',
+      targetValue: 'Structured identifiers: "Lane 1", "L2", or lane array [1, 2]',
+      solution: 'Include lane identifiers (Lane 1, L2, etc.) instead of just "some lanes closed"',
+      impact: 'TMDD event-lanes element requires specific lane numbers for detailed C2C communication',
+      example: '{ "lanes_affected": [1, 2], "lane_description": "Lanes 1-2 closed" } ✓'
+    });
+  }
+
+  if (tmddScore.tmddElements.eventTimes.status === 'NEEDS IMPROVEMENT') {
+    tmddScore.recommendations.push({
+      priority: 'MEDIUM',
+      field: 'Event Start/End Times',
+      issue: `Missing start (${100 - completeness.startTime}%) or end (${100 - completeness.endTime}%) timestamps`,
+      currentValue: `Events missing temporal bounds`,
+      targetValue: 'Both start_time and end_time in ISO 8601 format',
+      solution: 'Include both event start time and estimated end time',
+      impact: 'TMDD event-times element requires temporal bounds for C2C coordination',
+      example: '{ "start_date": "2025-10-19T14:30:00Z", "end_date": "2025-10-19T18:00:00Z" } ✓'
+    });
+  }
+
+  // 4. SAE J2540-2 Weather Information Message Score (CONDITIONAL - only for weather events)
+  let j2540Score = null;
+
+  if (completeness.weatherEvents > 0) {
+    j2540Score = {
+      standard: 'SAE J2540-2 (Road Weather Information Message)',
+      purpose: 'Structured weather data for safety and mobility decisions',
+      applicability: `Only applies to weather-related events (${completeness.weatherEvents} of ${result.events.length} events)`,
+
+      weatherElements: {
+        weatherCondition: {
+          score: completeness.weatherCondition,
+          weight: 20,
+          requirement: 'Structured weather condition codes (ice, snow, fog, rain, etc.)',
+          status: completeness.weatherCondition >= 80 ? 'PASS' : 'NEEDS IMPROVEMENT',
+          note: `${completeness.weatherCondition}% of weather events have structured condition codes`
+        },
+        surfaceCondition: {
+          score: completeness.surfaceCondition,
+          weight: 20,
+          requirement: 'Road surface status (dry/wet/icy/snow-covered/slush)',
+          status: completeness.surfaceCondition >= 70 ? 'PASS' : 'NEEDS IMPROVEMENT',
+          note: `${completeness.surfaceCondition}% have surface condition data`
+        },
+        visibility: {
+          score: completeness.visibility,
+          weight: 15,
+          requirement: 'Visibility distance measurement in meters',
+          status: completeness.visibility >= 60 ? 'PASS' : 'NEEDS IMPROVEMENT',
+          note: `${completeness.visibility}% include visibility information`
+        },
+        temperature: {
+          score: completeness.temperature,
+          weight: 15,
+          requirement: 'Air/surface temperature for ice/frost prediction',
+          status: completeness.temperature >= 60 ? 'PASS' : 'NEEDS IMPROVEMENT',
+          note: `${completeness.temperature}% include temperature data`
+        },
+        precipitationType: {
+          score: completeness.precipitationType,
+          weight: 15,
+          requirement: 'Precipitation type (rain/snow/sleet/hail)',
+          status: completeness.precipitationType >= 70 ? 'PASS' : 'NEEDS IMPROVEMENT',
+          note: `${completeness.precipitationType}% specify precipitation type`
+        },
+        precipitationIntensity: {
+          score: completeness.precipitationIntensity,
+          weight: 10,
+          requirement: 'Precipitation intensity (light/moderate/heavy)',
+          status: completeness.precipitationIntensity >= 60 ? 'PASS' : 'NEEDS IMPROVEMENT',
+          note: `${completeness.precipitationIntensity}% specify precipitation intensity`
+        },
+        weatherSensorTime: {
+          score: completeness.weatherSensorTime,
+          weight: 5,
+          requirement: 'Weather sensor timestamp for data freshness',
+          status: completeness.weatherSensorTime >= 50 ? 'PASS' : 'NEEDS IMPROVEMENT',
+          note: `${completeness.weatherSensorTime}% have weather sensor timestamps`
+        }
+      },
+
+      totalScore: 0,
+      percentage: 0,
+      grade: '',
+      status: '',
+      weatherReadiness: '',
+      recommendations: []
+    };
+
+    // Calculate J2540-2 total
+    Object.values(j2540Score.weatherElements).forEach(element => {
+      j2540Score.totalScore += Math.round((element.score / 100) * element.weight);
+    });
+
+    j2540Score.percentage = Math.round(j2540Score.totalScore);
+
+    // Assign J2540-2 grade and readiness
+    if (j2540Score.percentage >= 90) {
+      j2540Score.grade = 'A';
+      j2540Score.status = 'Weather Data Ready';
+      j2540Score.weatherReadiness = 'Comprehensive structured weather data suitable for J2540-2 broadcasting';
+    } else if (j2540Score.percentage >= 80) {
+      j2540Score.grade = 'B';
+      j2540Score.status = 'Near Weather Data Ready';
+      j2540Score.weatherReadiness = 'Minor enhancements needed for complete weather information';
+    } else if (j2540Score.percentage >= 70) {
+      j2540Score.grade = 'C';
+      j2540Score.status = 'Partial Weather Data';
+      j2540Score.weatherReadiness = 'Moderate improvements needed for J2540-2 compliance';
+    } else if (j2540Score.percentage >= 60) {
+      j2540Score.grade = 'D';
+      j2540Score.status = 'Limited Weather Data';
+      j2540Score.weatherReadiness = 'Significant gaps in structured weather information';
+    } else {
+      j2540Score.grade = 'F';
+      j2540Score.status = 'Insufficient Weather Data';
+      j2540Score.weatherReadiness = 'Critical weather data elements missing';
+    }
+
+    // J2540-2 specific recommendations
+    if (j2540Score.weatherElements.weatherCondition.status === 'NEEDS IMPROVEMENT') {
+      j2540Score.recommendations.push({
+        priority: 'CRITICAL',
+        field: 'Weather Condition Codes',
+        issue: `Only ${completeness.weatherCondition}% of weather events have structured condition codes`,
+        currentValue: 'Generic "weather" or text descriptions only',
+        targetValue: 'Specific codes: ice, snow, fog, rain, sleet, hail',
+        solution: 'Use structured weather condition fields with specific codes instead of generic "weather" type',
+        impact: 'SAE J2540-2 requires specific weather codes for automated safety systems',
+        example: '{ "weather_condition": "ice", "surface_condition": "icy" } ✓'
+      });
+    }
+
+    if (j2540Score.weatherElements.surfaceCondition.status === 'NEEDS IMPROVEMENT') {
+      j2540Score.recommendations.push({
+        priority: 'HIGH',
+        field: 'Road Surface Condition',
+        issue: `Only ${completeness.surfaceCondition}% specify road surface status`,
+        currentValue: 'Missing surface condition data',
+        targetValue: 'Surface status: dry, wet, icy, snow-covered, slush, frost',
+        solution: 'Add surface_condition field with standardized values',
+        impact: 'Road surface condition is critical for vehicle traction and safety warnings',
+        example: '{ "surface_condition": "icy", "surface_temperature": 28 } ✓'
+      });
+    }
+
+    if (j2540Score.weatherElements.visibility.status === 'NEEDS IMPROVEMENT') {
+      j2540Score.recommendations.push({
+        priority: 'HIGH',
+        field: 'Visibility Distance',
+        issue: `Only ${completeness.visibility}% include visibility measurements`,
+        currentValue: 'No visibility data or qualitative only ("poor visibility")',
+        targetValue: 'Quantitative visibility in meters (e.g., 100m, 500m)',
+        solution: 'Include visibility_distance field with numeric value in meters',
+        impact: 'Visibility measurements essential for fog/weather-related safety warnings',
+        example: '{ "visibility": 100, "visibility_units": "meters" } ✓'
+      });
+    }
+
+    if (j2540Score.weatherElements.temperature.status === 'NEEDS IMPROVEMENT') {
+      j2540Score.recommendations.push({
+        priority: 'MEDIUM',
+        field: 'Temperature Data',
+        issue: `Only ${completeness.temperature}% include temperature information`,
+        currentValue: 'Missing temperature data',
+        targetValue: 'Air and/or surface temperature in Celsius or Fahrenheit',
+        solution: 'Add temperature fields for ice/frost prediction',
+        impact: 'Temperature critical for predicting ice formation and road treatment decisions',
+        example: '{ "air_temperature": 30, "surface_temperature": 28, "temp_units": "F" } ✓'
+      });
+    }
+
+    if (j2540Score.weatherElements.precipitationType.status === 'NEEDS IMPROVEMENT') {
+      j2540Score.recommendations.push({
+        priority: 'MEDIUM',
+        field: 'Precipitation Type',
+        issue: `Only ${completeness.precipitationType}% specify precipitation type`,
+        currentValue: 'Generic "precipitation" or missing type',
+        targetValue: 'Specific type: rain, snow, sleet, freezing rain, hail',
+        solution: 'Add precipitation_type field with standardized values',
+        impact: 'Precipitation type affects visibility, traction, and required vehicle equipment',
+        example: '{ "precipitation_type": "freezing rain", "intensity": "moderate" } ✓'
+      });
+    }
+  }
+
+  // Add multi-standard scorecard to guide
+  guide.multiStandardCompliance = {
+    summary: {
+      message: j2540Score
+        ? `This scorecard evaluates your data against four major transportation standards (including weather-specific J2540-2 for ${completeness.weatherEvents} weather events)`
+        : 'This scorecard evaluates your data against three major transportation standards',
+      evaluationDate: new Date().toISOString(),
+      eventsAnalyzed: result.events.length,
+      weatherEventsAnalyzed: completeness.weatherEvents
+    },
+
+    wzdx: wzdxScore,
+    sae: saeScore,
+    tmdd: tmddScore,
+    j2540: j2540Score,  // Will be null if no weather events
+
+    // Overall recommendations prioritized across all standards
+    crossStandardRecommendations: [
+      {
+        priority: 'CRITICAL',
+        issue: 'GPS coordinates',
+        currentCoverage: `${completeness.coordinates}%`,
+        recommendation: 'Ensure 100% of events have valid GPS coordinates',
+        benefitsStandards: ['WZDx', 'SAE J2735', 'TMDD'],
+        pointsGained: {
+          wzdx: Math.round((100 - completeness.coordinates) * 0.25),
+          sae: Math.round((100 - completeness.coordinates) * 0.25),
+          tmdd: Math.round((100 - completeness.coordinates) * 0.10)
+        }
+      },
+      {
+        priority: 'HIGH',
+        issue: 'Event type standardization',
+        currentCoverage: `${completeness.eventType}%`,
+        recommendation: 'Use standard event type classifications compatible with WZDx/ITIS/TMDD',
+        benefitsStandards: ['WZDx', 'SAE J2735', 'TMDD'],
+        pointsGained: {
+          wzdx: Math.round((100 - completeness.eventType) * 0.10),
+          sae: Math.round((100 - completeness.eventType) * 0.15),
+          tmdd: Math.round((100 - completeness.eventType) * 0.15)
+        }
+      },
+      {
+        priority: 'HIGH',
+        issue: 'Route/corridor identifiers',
+        currentCoverage: `${completeness.corridor || 0}%`,
+        recommendation: 'Add interstate/highway route identifiers (e.g., I-80, US-50)',
+        benefitsStandards: ['WZDx', 'TMDD'],
+        pointsGained: {
+          wzdx: Math.round((100 - (completeness.corridor || 0)) * 0.15),
+          sae: 0,
+          tmdd: Math.round((100 - (completeness.corridor || 0)) * 0.10)
+        }
+      }
+    ],
+
+    // Grade roadmap showing path to Grade A for each standard
+    gradeRoadmap: {
+      wzdx: {
+        currentGrade: wzdxScore.grade,
+        currentScore: wzdxScore.percentage,
+        targetGrade: 'A',
+        targetScore: 90,
+        pointsNeeded: Math.max(0, 90 - wzdxScore.percentage),
+        estimatedEffort: wzdxScore.percentage >= 80 ? 'Low (1-2 weeks)' : wzdxScore.percentage >= 70 ? 'Medium (3-4 weeks)' : 'High (6-8 weeks)',
+        keyImprovements: wzdxScore.recommendations.slice(0, 3)
+      },
+      sae: {
+        currentGrade: saeScore.grade,
+        currentScore: saeScore.percentage,
+        targetGrade: 'A',
+        targetScore: 90,
+        pointsNeeded: Math.max(0, 90 - saeScore.percentage),
+        estimatedEffort: saeScore.percentage >= 80 ? 'Low (2-3 weeks)' : saeScore.percentage >= 70 ? 'Medium (4-6 weeks)' : 'High (8-12 weeks)',
+        keyImprovements: saeScore.recommendations.slice(0, 3)
+      },
+      tmdd: {
+        currentGrade: tmddScore.grade,
+        currentScore: tmddScore.percentage,
+        targetGrade: 'A',
+        targetScore: 90,
+        pointsNeeded: Math.max(0, 90 - tmddScore.percentage),
+        estimatedEffort: tmddScore.percentage >= 80 ? 'Low (2-3 weeks)' : tmddScore.percentage >= 70 ? 'Medium (4-6 weeks)' : 'High (8-12 weeks)',
+        keyImprovements: tmddScore.recommendations.slice(0, 3)
+      }
+    }
+  };
+
+  // ==================== COMPOSITE OVERALL SCORE ====================
+  // Calculate true composite score across 3-4 standards (4 if weather events exist)
+  const standardCount = j2540Score ? 4 : 3;
+  const compositePercentage = j2540Score
+    ? Math.round((wzdxScore.percentage + saeScore.percentage + tmddScore.percentage + j2540Score.percentage) / 4)
+    : Math.round((wzdxScore.percentage + saeScore.percentage + tmddScore.percentage) / 3);
+
+  // Determine composite letter grade
+  let compositeGrade = '';
+  let compositeStatus = '';
+  if (compositePercentage >= 90) {
+    compositeGrade = 'A';
+    compositeStatus = 'Excellent - Multi-Standard Compliant';
+  } else if (compositePercentage >= 80) {
+    compositeGrade = 'B';
+    compositeStatus = 'Good - Strong Standards Alignment';
+  } else if (compositePercentage >= 70) {
+    compositeGrade = 'C';
+    compositeStatus = 'Fair - Moderate Standards Compliance';
+  } else if (compositePercentage >= 60) {
+    compositeGrade = 'D';
+    compositeStatus = 'Poor - Needs Significant Improvement';
+  } else {
+    compositeGrade = 'F';
+    compositeStatus = 'Critical - Major Standards Gaps';
+  }
+
+  // Replace the old overallScore with the new composite score
+  const breakdown = {
+    wzdx: { percentage: wzdxScore.percentage, grade: wzdxScore.grade },
+    sae: { percentage: saeScore.percentage, grade: saeScore.grade },
+    tmdd: { percentage: tmddScore.percentage, grade: tmddScore.grade }
+  };
+
+  if (j2540Score) {
+    breakdown.j2540 = { percentage: j2540Score.percentage, grade: j2540Score.grade };
+  }
+
+  const messageStandards = j2540Score
+    ? `WZDx (${wzdxScore.percentage}%), SAE J2735 (${saeScore.percentage}%), TMDD (${tmddScore.percentage}%), and SAE J2540-2 (${j2540Score.percentage}%)`
+    : `WZDx (${wzdxScore.percentage}%), SAE J2735 (${saeScore.percentage}%), and TMDD (${tmddScore.percentage}%)`;
+
+  guide.overallScore = {
+    weightedTotal: compositePercentage,
+    maxPossible: 100,
+    percentage: compositePercentage,
+    grade: compositeGrade,
+    rank: compositeStatus,
+    breakdown: breakdown,
+    message: `Composite score averaging ${messageStandards}`,
+    standardsEvaluated: standardCount,
+    weatherEventsIncluded: j2540Score ? completeness.weatherEvents : 0
+  };
+
   res.json(guide);
 });
 
@@ -1956,34 +3841,282 @@ app.get('/api/compliance/summary', async (req, res) => {
     if (!stateConfig) return;
 
     const total = result.events.length || 1;
-
-    // Calculate data completeness
-    let completenessScore = 0;
-    result.events.forEach(event => {
-      let score = 0;
-      if (event.latitude && event.longitude && event.latitude !== 0 && event.longitude !== 0) score += 25;
-      if (event.description && event.description !== 'Event description not available') score += 20;
-      if (event.eventType && event.eventType !== 'Unknown') score += 15;
-      if (event.corridor && event.corridor !== 'Unknown') score += 15;
-      if (event.severity) score += 10;
-      if (event.startTime) score += 10;
-      if (event.direction && event.direction !== 'Both') score += 5;
-      completenessScore += score;
-    });
-    completenessScore = Math.round(completenessScore / total);
-
     const isWzdx = stateConfig.apiType === 'WZDx';
     const isFEUG = stateConfig.apiUrl?.includes('feu-g');
+
+    // Calculate WZDx compliance score using strict validators
+    let complianceScore = 0;
+    let violations = {
+      invalidTimestamps: 0,
+      invalidEventTypes: 0,
+      invalidDirections: 0,
+      missingCoords: 0,
+      missingDescription: 0
+    };
+
+    result.events.forEach(event => {
+      let score = 0;
+
+      // Coordinates (25 points) - must be valid and non-zero
+      if (event.latitude && event.longitude && event.latitude !== 0 && event.longitude !== 0) {
+        score += 25;
+      } else {
+        violations.missingCoords++;
+      }
+
+      // Description (20 points) - must not be default text
+      if (event.description && event.description !== 'Event description not available') {
+        score += 20;
+      } else {
+        violations.missingDescription++;
+      }
+
+      // Event Type (15 points) - must match WZDx enum if WZDx state
+      if (event.eventType && event.eventType !== 'Unknown') {
+        if (isWzdx && !WZDxValidators.isValidEventType(event.eventType)) {
+          score += 5; // Partial credit for having a value
+          violations.invalidEventTypes++;
+        } else {
+          score += 15; // Full credit
+        }
+      }
+
+      // Corridor (15 points)
+      if (event.corridor && event.corridor !== 'Unknown') score += 15;
+
+      // Severity (10 points)
+      if (event.severity) score += 10;
+
+      // Start Time (10 points) - must be valid ISO 8601 if WZDx
+      if (event.startTime) {
+        if (isWzdx && !WZDxValidators.isValidISO8601(event.startTime)) {
+          score += 3; // Partial credit for having a timestamp
+          violations.invalidTimestamps++;
+        } else {
+          score += 10; // Full credit
+        }
+      }
+
+      // Direction (5 points) - must match WZDx enum if WZDx
+      if (event.direction && event.direction !== 'Both') {
+        if (isWzdx && !WZDxValidators.isValidDirection(event.direction)) {
+          score += 2; // Partial credit
+          violations.invalidDirections++;
+        } else {
+          score += 5; // Full credit
+        }
+      }
+
+      complianceScore += score;
+    });
+    complianceScore = Math.round(complianceScore / total);
+
+    // Build violation summary for WZDx states
+    const violationSummary = isWzdx ? {
+      invalidTimestamps: violations.invalidTimestamps,
+      invalidEventTypes: violations.invalidEventTypes,
+      invalidDirections: violations.invalidDirections,
+      missingCoords: violations.missingCoords,
+      missingDescription: violations.missingDescription,
+      totalViolations: Object.values(violations).reduce((a, b) => a + b, 0)
+    } : null;
+
+    // Get TMDD standards information
+    const tmddInfo = getTMDDStandardsInfo(stateConfig.stateKey, stateConfig.apiUrl, stateConfig.apiType);
+
+    // Calculate completeness percentages for overall score
+    const analysis = {
+      hasCoordinates: 0,
+      hasStartTime: 0,
+      hasEndTime: 0,
+      hasEventType: 0,
+      hasSeverity: 0,
+      hasDirection: 0,
+      hasLaneInfo: 0,
+      hasDescription: 0,
+      hasCorridor: 0
+    };
+
+    result.events.forEach(event => {
+      if (event.latitude && event.longitude && event.latitude !== 0 && event.longitude !== 0) {
+        analysis.hasCoordinates++;
+      }
+      if (event.startTime) analysis.hasStartTime++;
+      if (event.endTime) analysis.hasEndTime++;
+      if (event.eventType && event.eventType !== 'Unknown') analysis.hasEventType++;
+      if (event.severity) analysis.hasSeverity++;
+      if (event.direction && event.direction !== 'Both') analysis.hasDirection++;
+      if (event.lanesAffected && event.lanesAffected !== 'Check conditions') analysis.hasLaneInfo++;
+      if (event.description) analysis.hasDescription++;
+      if (event.corridor && event.corridor !== 'Unknown') analysis.hasCorridor++;
+    });
+
+    const eventTotal = result.events.length || 1;
+    const completeness = {
+      coordinates: Math.round((analysis.hasCoordinates / eventTotal) * 100),
+      startTime: Math.round((analysis.hasStartTime / eventTotal) * 100),
+      endTime: Math.round((analysis.hasEndTime / eventTotal) * 100),
+      eventType: Math.round((analysis.hasEventType / eventTotal) * 100),
+      severity: Math.round((analysis.hasSeverity / eventTotal) * 100),
+      direction: Math.round((analysis.hasDirection / eventTotal) * 100),
+      laneInfo: Math.round((analysis.hasLaneInfo / eventTotal) * 100),
+      description: Math.round((analysis.hasDescription / eventTotal) * 100),
+      corridor: Math.round((analysis.hasCorridor / eventTotal) * 100)
+    };
+
+    // Calculate overall score using the same formula as the compliance guide
+    const categoryScores = {
+      essential: {
+        fields: [
+          { currentPoints: Math.round((completeness.coordinates / 100) * 25) },  // GPS: 25 points
+          { currentPoints: Math.round((completeness.corridor / 100) * 15) },      // Route: 15 points
+          { currentPoints: Math.round((completeness.description / 100) * 10) }    // Description: 10 points
+        ]
+      },
+      important: {
+        fields: [
+          { currentPoints: Math.round((completeness.eventType / 100) * 10) },     // Event Type: 10 points
+          { currentPoints: Math.round((completeness.severity / 100) * 10) },      // Severity: 10 points
+          { currentPoints: Math.round((completeness.startTime / 100) * 10) }      // Start Time: 10 points
+        ]
+      },
+      enhanced: {
+        fields: [
+          { currentPoints: Math.round((completeness.direction / 100) * 7) },      // Direction: 7 points
+          { currentPoints: Math.round((completeness.laneInfo / 100) * 7) },       // Lane Info: 7 points
+          { currentPoints: Math.round((completeness.endTime / 100) * 6) }         // End Time: 6 points
+        ]
+      }
+    };
+
+    let overallScoreTotal = 0;
+    Object.values(categoryScores).forEach(category => {
+      category.fields.forEach(field => {
+        overallScoreTotal += field.currentPoints;
+      });
+    });
+
+    const overallScorePercentage = Math.round(overallScoreTotal);
+    let overallGrade = 'F';
+    if (overallScorePercentage >= 90) overallGrade = 'A';
+    else if (overallScorePercentage >= 80) overallGrade = 'B';
+    else if (overallScorePercentage >= 70) overallGrade = 'C';
+    else if (overallScorePercentage >= 60) overallGrade = 'D';
+
+    // Calculate individual standard scores for composite breakdown
+    // USING SAME METHODOLOGY AS COMPLIANCE GUIDE ENDPOINT FOR CONSISTENCY
+
+    // WZDx score (100 points): matches compliance guide endpoint
+    // Required fields (50): coordinates (25), route (15), description (10)
+    // Important fields (30): eventType (10), startTime (10), severity (10)
+    // Enhanced fields (20): direction (7), vehicleImpact/laneInfo (7), endTime (6)
+    const wzdxTotal =
+      Math.round((completeness.coordinates / 100) * 25) +  // GPS: 25 points
+      Math.round((completeness.corridor / 100) * 15) +     // Route: 15 points
+      Math.round((completeness.description / 100) * 10) +  // Description: 10 points
+      Math.round((completeness.eventType / 100) * 10) +    // Event Type: 10 points
+      Math.round((completeness.startTime / 100) * 10) +    // Start Time: 10 points
+      Math.round((completeness.severity / 100) * 10) +     // Severity: 10 points
+      Math.round((completeness.direction / 100) * 7) +     // Direction: 7 points
+      Math.round((completeness.laneInfo / 100) * 7) +      // Lane Info: 7 points
+      Math.round((completeness.endTime / 100) * 6);        // End Time: 6 points
+    const wzdxPercentage = Math.round(wzdxTotal);  // Already out of 100
+    let wzdxGrade = 'F';
+    if (wzdxPercentage >= 90) wzdxGrade = 'A';
+    else if (wzdxPercentage >= 80) wzdxGrade = 'B';
+    else if (wzdxPercentage >= 70) wzdxGrade = 'C';
+    else if (wzdxPercentage >= 60) wzdxGrade = 'D';
+
+    // SAE J2735 score (100 points): Conservative estimation matching detail endpoint methodology
+    // preciseCoordinates (35), millisecondTimestamps (20), itisCodeMapping (20),
+    // priorityField (10), direction (15)
+    // NOTE: Using realistic defaults for advanced features that require detailed analysis
+    // NOTE: 'description' removed - not a real SAE J2735 TIM requirement (V2X focuses on structured data)
+    const saeTotal =
+      Math.round((completeness.coordinates / 100) * 35) +   // GPS precision (assume good if coordinates present): 35 points
+      0 +                                                    // Millisecond timestamps (default 0 - rare without explicit detection): 0 points
+      Math.round((completeness.eventType / 100) * 20) +     // ITIS mapping (approximate from event type): 20 points
+      Math.round((completeness.severity / 100) * 10) +      // Priority field: 10 points
+      Math.round((completeness.direction / 100) * 15);      // Direction: 15 points
+    const saePercentage = Math.round(saeTotal);  // Already out of 100
+    let saeGrade = 'F';
+    if (saePercentage >= 90) saeGrade = 'A';
+    else if (saePercentage >= 80) saeGrade = 'B';
+    else if (saePercentage >= 70) saeGrade = 'C';
+    else if (saePercentage >= 60) saeGrade = 'D';
+
+    // TMDD score (100 points): Conservative estimation matching detail endpoint methodology
+    // eventId (10), organizationId (10), structuredLinearReference (20),
+    // eventCategory (15), eventTimes (15), eventStatus (10), structuredLanes (10), geographicCoords (10)
+    // NOTE: Using realistic defaults - most states lack advanced TMDD features
+    const tmddTotal =
+      10 +  // Event ID: assume 100% since we require IDs (10 points)
+      10 +  // Organization ID: 100% since all events have state identifier (10 points)
+      0 +                                                   // Structured linear reference (default 0 - requires specific TMDD format): 0 points
+      Math.round((completeness.eventType / 100) * 15) +                             // Event category: 15 points
+      Math.round(((completeness.startTime + completeness.endTime) / 200) * 15) +    // Event times: 15 points
+      0 +                                                   // Event status (default 0 - requires specific TMDD status field): 0 points
+      0 +                                                   // Structured lanes (default 0 - requires TMDD lane structure): 0 points
+      Math.round((completeness.coordinates / 100) * 10);                            // Geographic coords: 10 points
+    const tmddPercentage = Math.round(tmddTotal);  // Already out of 100
+    let tmddGrade = 'F';
+    if (tmddPercentage >= 90) tmddGrade = 'A';
+    else if (tmddPercentage >= 80) tmddGrade = 'B';
+    else if (tmddPercentage >= 70) tmddGrade = 'C';
+    else if (tmddPercentage >= 60) tmddGrade = 'D';
+
+    // Calculate composite score from three standards
+    const compositePercentage = Math.round((wzdxPercentage + saePercentage + tmddPercentage) / 3);
+    let compositeGrade = 'F';
+    let compositeStatus = '';
+    if (compositePercentage >= 90) {
+      compositeGrade = 'A';
+      compositeStatus = 'Excellent - Multi-Standard Compliant';
+    } else if (compositePercentage >= 80) {
+      compositeGrade = 'B';
+      compositeStatus = 'Good - Strong Standards Alignment';
+    } else if (compositePercentage >= 70) {
+      compositeGrade = 'C';
+      compositeStatus = 'Fair - Moderate Standards Compliance';
+    } else if (compositePercentage >= 60) {
+      compositeGrade = 'D';
+      compositeStatus = 'Poor - Needs Significant Improvement';
+    } else {
+      compositeGrade = 'F';
+      compositeStatus = 'Critical - Major Standards Gaps';
+    }
 
     summary.states.push({
       name: result.state,
       eventCount: result.events.length,
       currentFormat: isWzdx ? 'WZDx' : (isFEUG ? 'FEU-G' : (stateConfig.format === 'xml' ? 'RSS' : stateConfig.apiType || 'Custom JSON')),
-      dataCompletenessScore: completenessScore,
-      saeJ2735Ready: completenessScore >= 80,
-      wzdxCompliant: isWzdx,
+      dataCompletenessScore: complianceScore,
+      overallScore: {
+        percentage: compositePercentage,
+        grade: compositeGrade,
+        rank: compositeStatus,
+        breakdown: {
+          wzdx: { percentage: wzdxPercentage, grade: wzdxGrade },
+          sae: { percentage: saePercentage, grade: saeGrade },
+          tmdd: { percentage: tmddPercentage, grade: tmddGrade }
+        },
+        message: `Composite score averaging WZDx (${wzdxPercentage}%), SAE J2735 (${saePercentage}%), and TMDD (${tmddPercentage}%)`
+      },
+      saeJ2735Ready: complianceScore >= 80,
+      wzdxCompliant: isWzdx && violationSummary.totalViolations === 0,
+      wzdxViolations: violationSummary,
       complianceGuideUrl: `/api/compliance/guide/${stateConfig.stateKey}`,
-      recommendedAction: isWzdx ? 'Maintain current standard' : (completenessScore < 70 ? 'Improve data quality and migrate to WZDx' : 'Migrate to WZDx')
+      recommendedAction: isWzdx
+        ? (violationSummary.totalViolations > 0 ? `Fix ${violationSummary.totalViolations} WZDx violations` : 'Maintain current standard')
+        : (complianceScore < 70 ? 'Improve data quality and migrate to WZDx' : 'Migrate to WZDx'),
+      // TMDD Standards Information
+      tmddStandards: {
+        version: tmddInfo.version || 'Unknown',
+        compliance: tmddInfo.compliance,
+        hasCustomHandler: tmddInfo.hasCustomHandler,
+        deviations: tmddInfo.deviations,
+        documentationUrl: tmddInfo.documentationUrl
+      }
     });
   });
 
@@ -2240,11 +4373,33 @@ app.get('/api/states/inbox', requireStateAuth, (req, res) => {
 app.get('/api/states/sent', requireStateAuth, (req, res) => {
   const messages = db.getSentMessages(req.stateKey);
 
+  // Also get event comments from this state
+  const comments = db.getEventCommentsByState(req.stateKey);
+
+  // Convert comments to message format
+  const commentMessages = comments.map(comment => ({
+    id: `comment-${comment.id}`,
+    from_state: comment.state_key,
+    to_state: 'Event Comment',
+    subject: `Comment on Event`,
+    message: comment.comment,
+    created_at: comment.created_at,
+    read: true,
+    priority: 'normal',
+    event_id: comment.event_id,
+    isEventComment: true
+  }));
+
+  // Merge and sort by date
+  const allMessages = [...messages, ...commentMessages].sort((a, b) =>
+    new Date(b.created_at) - new Date(a.created_at)
+  );
+
   res.json({
     success: true,
     stateKey: req.stateKey,
     stateName: req.stateName,
-    messages
+    messages: allMessages
   });
 });
 
@@ -2259,8 +4414,36 @@ app.post('/api/states/messages/:id/read', requireStateAuth, (req, res) => {
   }
 });
 
-// Add comment to event (any authenticated state can comment)
-app.post('/api/events/:eventId/comments', requireStateAuth, (req, res) => {
+// Delete a state message (only the sender can delete)
+app.delete('/api/states/messages/:id', requireStateAuth, (req, res) => {
+  const result = db.deleteStateMessage(req.params.id, req.stateKey);
+
+  if (result.success) {
+    res.json({ success: true, message: 'Message deleted' });
+  } else {
+    res.status(403).json({ error: result.error });
+  }
+});
+
+// Delete an event comment (only the commenter can delete)
+app.delete('/api/events/comments/:id', requireStateAuth, (req, res) => {
+  // Extract the actual comment ID if it's prefixed with "comment-"
+  let commentId = req.params.id;
+  if (commentId.startsWith('comment-')) {
+    commentId = commentId.substring(8);
+  }
+
+  const result = db.deleteEventComment(commentId, req.stateKey);
+
+  if (result.success) {
+    res.json({ success: true, message: 'Comment deleted' });
+  } else {
+    res.status(403).json({ error: result.error });
+  }
+});
+
+// Add comment to event (any authenticated state or state-affiliated user can comment)
+app.post('/api/events/:eventId/comments', requireUserOrStateAuth, async (req, res) => {
   const { comment } = req.body;
 
   if (!comment) {
@@ -2275,9 +4458,65 @@ app.post('/api/events/:eventId/comments', requireStateAuth, (req, res) => {
   });
 
   if (result.success) {
+    // Send email notifications in the background (don't wait for completion)
+    setImmediate(async () => {
+      try {
+        // Find the event details from all events cache
+        const allStates = db.getAllStates();
+        const allEventsResults = await Promise.all(
+          allStates.map(state => fetchStateData(state.stateKey))
+        );
+
+        let eventDetails = null;
+        for (const stateResult of allEventsResults) {
+          const event = stateResult.events.find(e => e.id === req.params.eventId);
+          if (event) {
+            eventDetails = event;
+            break;
+          }
+        }
+
+        if (eventDetails) {
+          // Get users who should be notified about messages for this state
+          const usersToNotify = db.getUsersForMessageNotification(eventDetails.state);
+
+          console.log(`📧 Sending message notifications to ${usersToNotify.length} users for ${eventDetails.state}`);
+
+          // Send email to each user
+          for (const user of usersToNotify) {
+            // Don't send notification to the person who posted the message
+            if (user.stateKey !== req.stateKey || user.username !== req.user?.username) {
+              await emailService.sendMessageNotification(
+                user.email,
+                user.fullName || user.username,
+                eventDetails,
+                {
+                  sender: req.stateName,
+                  message: comment,
+                  timestamp: new Date().toISOString()
+                }
+              );
+            }
+          }
+        } else {
+          console.log(`⚠️ Could not find event ${req.params.eventId} for email notification`);
+        }
+      } catch (error) {
+        console.error('Error sending message notifications:', error);
+      }
+    });
+
     res.status(201).json({
       success: true,
       commentId: result.id,
+      comment: {
+        id: result.id,
+        event_id: req.params.eventId,
+        state_key: req.stateKey,
+        state_name: req.stateName,
+        comment,
+        created_at: new Date().toISOString()
+      },
       message: 'Comment added'
     });
   } else {
@@ -2456,8 +4695,98 @@ app.get('/api/admin/test-state/:stateKey', requireAdmin, async (req, res) => {
   }
 });
 
+// Admin send message to state (no state login required)
+app.post('/api/admin/messages', requireAdmin, (req, res) => {
+  const { toState, messageType, messageContent } = req.body;
+
+  if (!toState || !messageType || !messageContent) {
+    return res.status(400).json({ error: 'Missing required fields: toState, messageType, messageContent' });
+  }
+
+  // Verify recipient state exists
+  const recipient = db.getState(toState);
+  if (!recipient) {
+    return res.status(404).json({ error: 'Recipient state not found' });
+  }
+
+  // Send message with fromState as 'ADMIN'
+  const result = db.sendMessage({
+    fromState: 'ADMIN',
+    toState,
+    subject: messageType.charAt(0).toUpperCase() + messageType.slice(1), // Capitalize message type
+    message: messageContent,
+    priority: messageType === 'alert' ? 'high' : 'normal'
+  });
+
+  if (result.success) {
+    console.log(`📧 Admin sent ${messageType} message to ${recipient.stateName}`);
+    res.status(201).json({
+      success: true,
+      messageId: result.id,
+      message: `Message sent to ${recipient.stateName}`
+    });
+  } else {
+    res.status(500).json({ error: result.error });
+  }
+});
+
+// High-Severity Event Monitoring
+// Track notified events to avoid duplicate notifications
+const notifiedEvents = new Set();
+
+async function checkHighSeverityEvents() {
+  try {
+    // Fetch all current events
+    const allStates = db.getAllStates();
+    const results = await Promise.all(
+      allStates.map(state => fetchStateData(state.stateKey))
+    );
+
+    // Check each state's events for high severity
+    for (const result of results) {
+      const highSeverityEvents = result.events.filter(event =>
+        event.severity === 'high' &&
+        event.corridor &&
+        !notifiedEvents.has(event.id)
+      );
+
+      if (highSeverityEvents.length > 0) {
+        console.log(`🚨 Found ${highSeverityEvents.length} high-severity events in ${result.state}`);
+
+        // Get users who should be notified for this state
+        const usersToNotify = db.getUsersForHighSeverityNotification(result.state);
+
+        // Send notifications for each high-severity event
+        for (const event of highSeverityEvents) {
+          console.log(`📧 Sending high-severity alerts for event ${event.id} in ${result.state}`);
+
+          for (const user of usersToNotify) {
+            await emailService.sendHighSeverityEventNotification(
+              user.email,
+              user.fullName || user.username,
+              event
+            );
+          }
+
+          // Mark this event as notified to avoid duplicate alerts
+          notifiedEvents.add(event.id);
+        }
+      }
+    }
+
+    // Clean up old events from notified set (keep last 1000)
+    if (notifiedEvents.size > 1000) {
+      const eventsArray = Array.from(notifiedEvents);
+      notifiedEvents.clear();
+      eventsArray.slice(-500).forEach(id => notifiedEvents.add(id));
+    }
+  } catch (error) {
+    console.error('Error checking high-severity events:', error);
+  }
+}
+
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`\n🚀 Traffic Dashboard Backend Server`);
   console.log(`✅ Server running on http://localhost:${PORT}`);
   console.log(`📊 API Endpoints:`);
@@ -2481,6 +4810,25 @@ app.listen(PORT, () => {
   console.log(`   PUT http://localhost:${PORT}/api/admin/states/:stateKey - Update state (requires admin token)`);
   console.log(`   DELETE http://localhost:${PORT}/api/admin/states/:stateKey - Delete state (requires admin token)`);
   console.log(`   GET http://localhost:${PORT}/api/admin/test-state/:stateKey - Test state API (requires admin token)`);
-  console.log(`\n🌐 Connected to ${Object.keys(API_CONFIG).length} state DOT APIs`);
+  console.log(`\n📧 Email Notification Endpoints (NEW):`);
+  console.log(`   PUT http://localhost:${PORT}/api/users/notifications - Update notification preferences`);
+  console.log(`\n🌐 Connected to ${db.getAllStates().length} state DOT APIs`);
+
+  // Verify email configuration
+  console.log(`\n📨 Email Notifications:`);
+  const emailConfigured = await emailService.verifyEmailConfig();
+  if (emailConfigured) {
+    console.log(`   ✅ Email notifications enabled`);
+    console.log(`   📧 Message notifications: Active`);
+    console.log(`   🚨 High-severity alerts: Monitoring every 5 minutes`);
+
+    // Start high-severity event monitoring (check every 5 minutes)
+    checkHighSeverityEvents(); // Initial check
+    setInterval(checkHighSeverityEvents, 5 * 60 * 1000); // Check every 5 minutes
+  } else {
+    console.log(`   ⚠️  Email notifications disabled (SMTP not configured)`);
+    console.log(`   💡 See EMAIL_SETUP.md for configuration instructions`);
+  }
+
   console.log(`\nPress Ctrl+C to stop the server\n`);
 });

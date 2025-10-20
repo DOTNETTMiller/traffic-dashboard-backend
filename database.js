@@ -73,11 +73,28 @@ class StateDatabase {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        full_name TEXT,
+        organization TEXT,
+        state_key TEXT,
+        role TEXT DEFAULT 'user',
+        active BOOLEAN DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_login DATETIME,
+        FOREIGN KEY (state_key) REFERENCES states(state_key)
+      );
+
       CREATE INDEX IF NOT EXISTS idx_state_key ON states(state_key);
       CREATE INDEX IF NOT EXISTS idx_enabled ON states(enabled);
       CREATE INDEX IF NOT EXISTS idx_message_to ON state_messages(to_state);
       CREATE INDEX IF NOT EXISTS idx_message_from ON state_messages(from_state);
       CREATE INDEX IF NOT EXISTS idx_event_comments ON event_comments(event_id);
+      CREATE INDEX IF NOT EXISTS idx_username ON users(username);
+      CREATE INDEX IF NOT EXISTS idx_email ON users(email);
     `);
 
     console.log('✅ Database schema initialized');
@@ -420,13 +437,14 @@ class StateDatabase {
     const { fromState, toState, subject, message, eventId = null, priority = 'normal' } = messageData;
     try {
       const id = crypto.randomBytes(16).toString('hex');
+      const now = new Date().toISOString(); // UTC timestamp
       const stmt = this.db.prepare(`
-        INSERT INTO state_messages (id, from_state, to_state, subject, message, event_id, priority)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO state_messages (id, from_state, to_state, subject, message, event_id, priority, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(id, fromState, toState, subject, message, eventId, priority);
+      stmt.run(id, fromState, toState, subject, message, eventId, priority, now);
       console.log(`💬 Message sent from ${fromState} to ${toState}`);
-      return { success: true, id };
+      return { success: true, id, created_at: now };
     } catch (error) {
       console.error('Error sending message:', error);
       return { success: false, error: error.message };
@@ -494,13 +512,14 @@ class StateDatabase {
     const { eventId, stateKey, stateName, comment } = commentData;
     try {
       const id = crypto.randomBytes(16).toString('hex');
+      const now = new Date().toISOString(); // UTC timestamp
       const stmt = this.db.prepare(`
-        INSERT INTO event_comments (id, event_id, state_key, state_name, comment)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO event_comments (id, event_id, state_key, state_name, comment, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(id, eventId, stateKey, stateName, comment);
+      stmt.run(id, eventId, stateKey, stateName, comment, now);
       console.log(`💬 Comment added by ${stateName} on event ${eventId}`);
-      return { success: true, id };
+      return { success: true, id, created_at: now };
     } catch (error) {
       console.error('Error adding event comment:', error);
       return { success: false, error: error.message };
@@ -531,6 +550,288 @@ class StateDatabase {
     } catch (error) {
       console.error('Error getting all event comments:', error);
       return [];
+    }
+  }
+
+  getEventCommentsByState(stateKey) {
+    try {
+      const comments = this.db.prepare(`
+        SELECT * FROM event_comments
+        WHERE state_key = ?
+        ORDER BY created_at DESC
+      `).all(stateKey);
+      return comments;
+    } catch (error) {
+      console.error('Error getting event comments by state:', error);
+      return [];
+    }
+  }
+
+  deleteEventComment(commentId, stateKey) {
+    try {
+      // Only allow deletion if the comment belongs to this state
+      const result = this.db.prepare(`
+        DELETE FROM event_comments
+        WHERE id = ? AND state_key = ?
+      `).run(commentId, stateKey);
+
+      if (result.changes > 0) {
+        console.log(`🗑️  Deleted event comment ${commentId} by ${stateKey}`);
+        return { success: true };
+      } else {
+        return { success: false, error: 'Comment not found or unauthorized' };
+      }
+    } catch (error) {
+      console.error('Error deleting event comment:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  deleteStateMessage(messageId, stateKey) {
+    try {
+      // Only allow deletion if the message was sent by this state
+      const result = this.db.prepare(`
+        DELETE FROM state_messages
+        WHERE id = ? AND from_state = ?
+      `).run(messageId, stateKey);
+
+      if (result.changes > 0) {
+        console.log(`🗑️  Deleted state message ${messageId} by ${stateKey}`);
+        return { success: true };
+      } else {
+        return { success: false, error: 'Message not found or unauthorized' };
+      }
+    } catch (error) {
+      console.error('Error deleting state message:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // User Management Methods
+  createUser(userData) {
+    const { username, email, password, fullName = null, organization = null, stateKey = null, role = 'user' } = userData;
+    try {
+      const passwordHash = this.hashPassword(password);
+      const stmt = this.db.prepare(`
+        INSERT INTO users (username, email, password_hash, full_name, organization, state_key, role)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      const result = stmt.run(username, email, passwordHash, fullName, organization, stateKey, role);
+      console.log(`✅ Created user: ${username} (${email}) - ${stateKey || 'no state affiliation'}`);
+      return { success: true, userId: result.lastInsertRowid };
+    } catch (error) {
+      console.error('Error creating user:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  verifyUserPassword(username, password) {
+    try {
+      const passwordHash = this.hashPassword(password);
+      const user = this.db.prepare(`
+        SELECT * FROM users WHERE username = ? AND password_hash = ? AND active = 1
+      `).get(username, passwordHash);
+
+      if (user) {
+        // Update last login
+        this.db.prepare(`
+          UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?
+        `).run(user.id);
+        return {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          fullName: user.full_name,
+          organization: user.organization,
+          stateKey: user.state_key,
+          role: user.role
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error verifying user password:', error);
+      return null;
+    }
+  }
+
+  getUserByUsername(username) {
+    try {
+      const user = this.db.prepare(`
+        SELECT id, username, email, full_name, organization, state_key, role, active, created_at, last_login
+        FROM users WHERE username = ?
+      `).get(username);
+
+      if (!user) return null;
+
+      return {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.full_name,
+        organization: user.organization,
+        stateKey: user.state_key,
+        role: user.role,
+        active: user.active === 1,
+        createdAt: user.created_at,
+        lastLogin: user.last_login
+      };
+    } catch (error) {
+      console.error('Error getting user:', error);
+      return null;
+    }
+  }
+
+  getAllUsers() {
+    try {
+      const users = this.db.prepare(`
+        SELECT id, username, email, full_name, organization, role, active, created_at, last_login
+        FROM users
+        ORDER BY created_at DESC
+      `).all();
+
+      return users.map(user => ({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.full_name,
+        organization: user.organization,
+        role: user.role,
+        active: user.active === 1,
+        createdAt: user.created_at,
+        lastLogin: user.last_login
+      }));
+    } catch (error) {
+      console.error('Error getting all users:', error);
+      return [];
+    }
+  }
+
+  updateUser(userId, updates) {
+    try {
+      const fields = [];
+      const values = [];
+
+      if (updates.email) {
+        fields.push('email = ?');
+        values.push(updates.email);
+      }
+      if (updates.fullName !== undefined) {
+        fields.push('full_name = ?');
+        values.push(updates.fullName);
+      }
+      if (updates.organization !== undefined) {
+        fields.push('organization = ?');
+        values.push(updates.organization);
+      }
+      if (updates.role) {
+        fields.push('role = ?');
+        values.push(updates.role);
+      }
+      if (updates.active !== undefined) {
+        fields.push('active = ?');
+        values.push(updates.active ? 1 : 0);
+      }
+      if (updates.password) {
+        fields.push('password_hash = ?');
+        values.push(this.hashPassword(updates.password));
+      }
+
+      if (fields.length === 0) {
+        return { success: false, error: 'No fields to update' };
+      }
+
+      values.push(userId);
+      const sql = `UPDATE users SET ${fields.join(', ')} WHERE id = ?`;
+      const stmt = this.db.prepare(sql);
+      stmt.run(...values);
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating user:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Get users who should receive message notifications for a state
+  getUsersForMessageNotification(stateKey) {
+    try {
+      const users = this.db.prepare(`
+        SELECT id, username, email, full_name, organization, state_key
+        FROM users
+        WHERE state_key = ?
+          AND active = 1
+          AND notify_on_messages = 1
+          AND email IS NOT NULL
+      `).all(stateKey);
+
+      return users.map(user => ({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.full_name,
+        organization: user.organization,
+        stateKey: user.state_key
+      }));
+    } catch (error) {
+      console.error('Error getting users for message notification:', error);
+      return [];
+    }
+  }
+
+  // Get users who should receive high-severity event notifications for a state
+  getUsersForHighSeverityNotification(stateKey) {
+    try {
+      const users = this.db.prepare(`
+        SELECT id, username, email, full_name, organization, state_key
+        FROM users
+        WHERE state_key = ?
+          AND active = 1
+          AND notify_on_high_severity = 1
+          AND email IS NOT NULL
+      `).all(stateKey);
+
+      return users.map(user => ({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.full_name,
+        organization: user.organization,
+        stateKey: user.state_key
+      }));
+    } catch (error) {
+      console.error('Error getting users for high-severity notification:', error);
+      return [];
+    }
+  }
+
+  // Update user notification preferences
+  updateUserNotificationPreferences(userId, preferences) {
+    try {
+      const fields = [];
+      const values = [];
+
+      if (preferences.notifyOnMessages !== undefined) {
+        fields.push('notify_on_messages = ?');
+        values.push(preferences.notifyOnMessages ? 1 : 0);
+      }
+      if (preferences.notifyOnHighSeverity !== undefined) {
+        fields.push('notify_on_high_severity = ?');
+        values.push(preferences.notifyOnHighSeverity ? 1 : 0);
+      }
+
+      if (fields.length === 0) {
+        return { success: false, error: 'No preferences to update' };
+      }
+
+      values.push(userId);
+      const sql = `UPDATE users SET ${fields.join(', ')} WHERE id = ?`;
+      const stmt = this.db.prepare(sql);
+      stmt.run(...values);
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating notification preferences:', error);
+      return { success: false, error: error.message };
     }
   }
 

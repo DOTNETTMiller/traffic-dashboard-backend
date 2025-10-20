@@ -3,16 +3,26 @@ import { format } from 'date-fns';
 import axios from 'axios';
 import { config } from '../config';
 
-export default function EventMessaging({ event, messages, onSendMessage, onClose }) {
+export default function EventMessaging({ event, messages, onSendMessage, onClose, currentUser }) {
   const [newComment, setNewComment] = useState('');
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // Check if user is logged in as a state
-  const stateKey = localStorage.getItem('stateKey');
-  const stateName = localStorage.getItem('stateName');
-  const isStateLoggedIn = !!stateKey && !!stateName;
+  // Check if user is logged in with a state affiliation
+  // First check if user is logged in (new system)
+  const user = currentUser || JSON.parse(localStorage.getItem('user') || 'null');
+  const authToken = localStorage.getItem('authToken');
+
+  // Fall back to old state login system
+  const oldStateKey = localStorage.getItem('stateKey');
+  const oldStateName = localStorage.getItem('stateName');
+  const oldStatePassword = localStorage.getItem('statePassword');
+
+  // Determine which auth system to use
+  const stateKey = user?.stateKey || oldStateKey;
+  const stateName = user?.organization || user?.fullName || oldStateName;
+  const isStateLoggedIn = !!(stateKey && (authToken || oldStatePassword));
 
   useEffect(() => {
     // Load comments for this event
@@ -40,14 +50,17 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
 
     setLoading(true);
     try {
-      // We need the password but don't store it - user will need to re-login periodically
-      // For now, show message to login
+      // Use new user auth system with Bearer token if available, otherwise fall back to old state auth
+      const authHeader = authToken
+        ? `Bearer ${authToken}`
+        : `State ${oldStateKey}:${oldStatePassword}`;
+
       const response = await axios.post(
         `${config.apiUrl}/api/events/${event.id}/comments`,
         { comment: newComment.trim() },
         {
           headers: {
-            Authorization: `State ${stateKey}:temp` // Password not stored
+            Authorization: authHeader
           }
         }
       );
@@ -55,10 +68,22 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
       if (response.data.success) {
         setNewComment('');
         loadComments(); // Refresh comments
+
+        // Notify parent component to update MessagesPanel
+        if (onSendMessage && response.data.comment) {
+          const messageForPanel = {
+            eventId: event.id,
+            sender: stateName,
+            message: response.data.comment.comment,
+            timestamp: response.data.comment.created_at,
+            id: response.data.comment.id
+          };
+          onSendMessage(messageForPanel);
+        }
       }
     } catch (error) {
       if (error.response?.status === 401 || error.response?.status === 403) {
-        alert('Session expired. Please log in again from the Messages tab.');
+        alert('Session expired. Please log in again.');
       } else {
         alert('Failed to add comment. Please try again.');
       }

@@ -145,7 +145,8 @@ body {
   background-color: white;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .error-banner {
@@ -157,15 +158,93 @@ body {
   font-size: 14px;
 }
 
+/* Mobile hamburger menu button */
+.mobile-menu-btn {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1001;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background-color: #1e40af;
+  color: white;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  cursor: pointer;
+  font-size: 24px;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+}
+
+.mobile-menu-btn:active {
+  transform: scale(0.95);
+}
+
+.mobile-messages-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0,0,0,0.5);
+  z-index: 999;
+}
+
+.mobile-messages-overlay.active {
+  display: block;
+}
+
+/* Desktop: messages panel is always visible */
+.messages-panel-mobile {
+  display: block;
+}
+
+/* Hide mobile close button on desktop */
+.mobile-close-btn {
+  display: none;
+}
+
+/* Hide toggle icon on desktop, always show filters */
+.mobile-toggle-icon {
+  display: none;
+}
+
+/* Desktop only: force filters to always show */
+@media (min-width: 769px) {
+  .filters-content {
+    display: grid !important;
+  }
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
+  .header {
+    padding: 12px 16px;
+  }
+
   .header-content {
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
     align-items: flex-start;
   }
 
+  .title {
+    font-size: 18px;
+  }
+
+  .header-info {
+    gap: 12px;
+    font-size: 12px;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
   .controls {
+    padding: 12px 16px;
     flex-direction: column;
     gap: 12px;
     align-items: stretch;
@@ -173,10 +252,15 @@ body {
 
   .view-toggle {
     width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
   }
 
   .toggle-btn {
     flex: 1;
+    font-size: 12px;
+    padding: 8px 12px;
+    white-space: nowrap;
   }
 
   .control-buttons {
@@ -184,8 +268,138 @@ body {
     justify-content: space-between;
   }
 
+  .refresh-toggle {
+    font-size: 12px;
+  }
+
+  .refresh-btn {
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+
   .main-content {
-    padding: 12px;
+    padding: 8px;
+  }
+
+  .mobile-menu-btn {
+    display: flex;
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 999;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    font-size: 24px;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .mobile-menu-btn:active {
+    transform: scale(0.95);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+
+  .mobile-menu-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Hide messages panel on mobile by default */
+  .messages-panel-mobile {
+    position: fixed;
+    top: 0;
+    left: -100%;
+    width: 85%;
+    max-width: 350px;
+    height: 100%;
+    z-index: 1000;
+    transition: left 0.3s ease-in-out;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.2);
+    background: white;
+    overflow-y: auto;
+    /* Remove from flex layout on mobile */
+    flex: none !important;
+  }
+
+  .messages-panel-mobile.open {
+    left: 0;
+  }
+
+  /* Ensure map takes full width on mobile when panel is hidden */
+  @supports (-webkit-touch-callout: none) {
+    .messages-panel-mobile:not(.open) {
+      display: none;
+    }
+  }
+
+  .mobile-messages-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease-in-out;
+  }
+
+  .mobile-messages-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  /* Show close button on mobile */
+  .mobile-close-btn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* Show toggle icon on mobile, make filters collapsible */
+  .mobile-toggle-icon {
+    display: inline !important;
+  }
+
+  /* Remove !important so inline style can control visibility */
+  .filters-content {
+    grid-template-columns: 1fr;
+  }
+
+  .event-filters-container {
+    margin-bottom: 8px !important;
+  }
+}
+
+/* Extra small devices */
+@media (max-width: 480px) {
+  .title {
+    font-size: 16px;
+  }
+
+  .header-info {
+    font-size: 11px;
+  }
+
+  .toggle-btn {
+    font-size: 11px;
+    padding: 6px 8px;
+  }
+
+  .view-toggle {
+    padding: 3px;
+  }
+
+  .messages-panel-mobile {
+    width: 90%;
   }
 }
 

@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
+import { isNearBorder } from '../utils/borderProximity';
 
-export default function MessagesPanel({ events = [], messages = {}, filters = {}, onEventSelect }) {
+export default function MessagesPanel({ events = [], messages = {}, filters = {}, onEventSelect, onClose }) {
   const [selectedCorridor, setSelectedCorridor] = useState('all');
 
   // Get events that have messages
@@ -42,7 +43,28 @@ export default function MessagesPanel({ events = [], messages = {}, filters = {}
         corridors.add(event.corridor);
       }
     });
-    return Array.from(corridors).sort();
+
+    // Sort corridors: major interstates first (I-XX), then secondary routes
+    return Array.from(corridors).sort((a, b) => {
+      // Match major interstates (I-XX where XX is 1-2 digits)
+      const majorInterstatePattern = /^I-(\d{1,2})$/;
+      const aMatch = a.match(majorInterstatePattern);
+      const bMatch = b.match(majorInterstatePattern);
+
+      // Both are major interstates - sort numerically
+      if (aMatch && bMatch) {
+        return parseInt(aMatch[1]) - parseInt(bMatch[1]);
+      }
+
+      // Only a is a major interstate - it comes first
+      if (aMatch) return -1;
+
+      // Only b is a major interstate - it comes first
+      if (bMatch) return 1;
+
+      // Neither are major interstates - sort alphabetically
+      return a.localeCompare(b);
+    });
   }, [events, messages]);
 
   const getSeverityColor = (severity) => {
@@ -81,8 +103,33 @@ export default function MessagesPanel({ events = [], messages = {}, filters = {}
       <div style={{
         padding: '16px',
         borderBottom: '1px solid #e5e7eb',
-        backgroundColor: '#f9fafb'
+        backgroundColor: '#f9fafb',
+        position: 'relative'
       }}>
+        {/* Mobile close button */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="mobile-close-btn"
+            style={{
+              position: 'absolute',
+              top: '12px',
+              right: '12px',
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              background: '#ef4444',
+              color: 'white',
+              border: 'none',
+              fontSize: '18px',
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              zIndex: 10
+            }}
+          >
+            ✕
+          </button>
+        )}
         <h3 style={{
           margin: '0 0 12px 0',
           fontSize: '16px',
@@ -144,6 +191,7 @@ export default function MessagesPanel({ events = [], messages = {}, filters = {}
           eventsWithMessages.map(event => {
             const eventMessages = messages[event.id] || [];
             const latestMessage = eventMessages[eventMessages.length - 1];
+            const borderInfo = isNearBorder(event);
 
             return (
               <div
@@ -155,6 +203,7 @@ export default function MessagesPanel({ events = [], messages = {}, filters = {}
                   backgroundColor: '#f9fafb',
                   borderRadius: '8px',
                   border: '1px solid #e5e7eb',
+                  borderLeft: borderInfo && borderInfo.nearBorder ? '4px solid #6366f1' : '1px solid #e5e7eb',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
                   ':hover': {
@@ -185,7 +234,8 @@ export default function MessagesPanel({ events = [], messages = {}, filters = {}
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
-                      marginBottom: '4px'
+                      marginBottom: '4px',
+                      flexWrap: 'wrap'
                     }}>
                       <span style={{
                         fontSize: '14px',
@@ -205,6 +255,19 @@ export default function MessagesPanel({ events = [], messages = {}, filters = {}
                       }}>
                         {event.severity}
                       </span>
+                      {borderInfo && borderInfo.nearBorder && (
+                        <span style={{
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          backgroundColor: '#e0e7ff',
+                          color: '#4338ca',
+                          fontSize: '10px',
+                          fontWeight: 'bold',
+                          borderLeft: '2px solid #6366f1'
+                        }} title={`${borderInfo.distance} miles from ${borderInfo.borderName}`}>
+                          🔵 Border
+                        </span>
+                      )}
                     </div>
                     <div style={{
                       fontSize: '12px',
