@@ -10,6 +10,8 @@ export default function StateAdmin() {
   const [success, setSuccess] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingState, setEditingState] = useState(null);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [showMessageForm, setShowMessageForm] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -21,6 +23,19 @@ export default function StateAdmin() {
     apiKey: '',
     username: '',
     password: ''
+  });
+
+  // Password form state
+  const [passwordFormData, setPasswordFormData] = useState({
+    stateKey: '',
+    password: ''
+  });
+
+  // Message form state
+  const [messageFormData, setMessageFormData] = useState({
+    toState: '',
+    messageType: 'general',
+    messageContent: ''
   });
 
   useEffect(() => {
@@ -272,6 +287,68 @@ export default function StateAdmin() {
     });
   };
 
+  const handleSetPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await fetch(`${config.apiUrl}/api/states/password`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(passwordFormData)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSuccess(data.message);
+        setPasswordFormData({ stateKey: '', password: '' });
+        setShowPasswordForm(false);
+      } else {
+        setError(data.error || 'Failed to set password');
+      }
+    } catch (err) {
+      setError('Error setting password: ' + err.message);
+    }
+  };
+
+  const handleSendAdminMessage = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await fetch(`${config.apiUrl}/api/admin/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          toState: messageFormData.toState,
+          messageType: messageFormData.messageType,
+          messageContent: messageFormData.messageContent
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setSuccess(`Message sent to ${states.find(s => s.stateKey === messageFormData.toState)?.stateName}!`);
+        setMessageFormData({ toState: '', messageType: 'general', messageContent: '' });
+        setShowMessageForm(false);
+      } else {
+        setError(data.error || 'Failed to send message');
+      }
+    } catch (err) {
+      setError('Error sending message: ' + err.message);
+    }
+  };
+
   // Login form
   if (!isAuthenticated) {
     return (
@@ -323,7 +400,7 @@ export default function StateAdmin() {
 
   // Main admin interface
   return (
-    <div style={{ maxWidth: '1200px', margin: '20px auto', padding: '20px' }}>
+    <div style={{ maxWidth: '1200px', margin: '20px auto', padding: '20px', height: 'calc(100vh - 200px)', overflowY: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2>State Management Admin</h2>
         <button
@@ -353,22 +430,51 @@ export default function StateAdmin() {
         </div>
       )}
 
-      {!showAddForm && !editingState && (
-        <button
-          onClick={() => setShowAddForm(true)}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: '#28a745',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            marginBottom: '20px',
-            fontSize: '14px'
-          }}
-        >
-          + Add New State
-        </button>
+      {!showAddForm && !editingState && !showPasswordForm && !showMessageForm && (
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+          <button
+            onClick={() => setShowAddForm(true)}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#28a745',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            + Add New State
+          </button>
+          <button
+            onClick={() => setShowPasswordForm(true)}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#007bff',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            Set State Password
+          </button>
+          <button
+            onClick={() => setShowMessageForm(true)}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#17a2b8',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            Send Message to State
+          </button>
+        </div>
       )}
 
       {/* Add/Edit Form */}
@@ -558,6 +664,204 @@ export default function StateAdmin() {
                 onClick={() => {
                   setShowAddForm(false);
                   cancelEdit();
+                }}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Password Form */}
+      {showPasswordForm && (
+        <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #007bff', borderRadius: '4px', backgroundColor: '#f0f8ff' }}>
+          <h3>Set State Password for Messaging</h3>
+          <p style={{ marginBottom: '15px', color: '#666', fontSize: '14px' }}>
+            Set a password for a state to allow them to log in to the state-to-state messaging system.
+          </p>
+          <form onSubmit={handleSetPassword}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>State:</label>
+                <select
+                  value={passwordFormData.stateKey}
+                  onChange={(e) => setPasswordFormData({ ...passwordFormData, stateKey: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    fontSize: '14px',
+                    border: '1px solid #ccc',
+                    borderRadius: '4px'
+                  }}
+                  required
+                >
+                  <option value="">Select a state...</option>
+                  {states.map(state => (
+                    <option key={state.stateKey} value={state.stateKey}>
+                      {state.stateName} ({state.stateKey})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Password:</label>
+                <input
+                  type="password"
+                  value={passwordFormData.password}
+                  onChange={(e) => setPasswordFormData({ ...passwordFormData, password: e.target.value })}
+                  placeholder="Enter password for state login"
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    fontSize: '14px',
+                    border: '1px solid #ccc',
+                    borderRadius: '4px'
+                  }}
+                  required
+                />
+              </div>
+            </div>
+
+            <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+              <button
+                type="submit"
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#007bff',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Set Password
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPasswordForm(false);
+                  setPasswordFormData({ stateKey: '', password: '' });
+                }}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Message Form */}
+      {showMessageForm && (
+        <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #17a2b8', borderRadius: '4px', backgroundColor: '#e7f9fc' }}>
+          <h3>Send Message to State</h3>
+          <p style={{ marginBottom: '15px', color: '#666', fontSize: '14px' }}>
+            As an admin, you can send messages directly to any state without needing their login credentials.
+          </p>
+          <form onSubmit={handleSendAdminMessage}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>To State:</label>
+                <select
+                  value={messageFormData.toState}
+                  onChange={(e) => setMessageFormData({ ...messageFormData, toState: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    fontSize: '14px',
+                    border: '1px solid #ccc',
+                    borderRadius: '4px'
+                  }}
+                  required
+                >
+                  <option value="">Select recipient state...</option>
+                  {states.map(state => (
+                    <option key={state.stateKey} value={state.stateKey}>
+                      {state.stateName} ({state.stateKey})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Message Type:</label>
+                <select
+                  value={messageFormData.messageType}
+                  onChange={(e) => setMessageFormData({ ...messageFormData, messageType: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    fontSize: '14px',
+                    border: '1px solid #ccc',
+                    borderRadius: '4px'
+                  }}
+                  required
+                >
+                  <option value="general">General</option>
+                  <option value="alert">Alert</option>
+                  <option value="incident">Incident</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="coordination">Coordination</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '15px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Message:</label>
+              <textarea
+                value={messageFormData.messageContent}
+                onChange={(e) => setMessageFormData({ ...messageFormData, messageContent: e.target.value })}
+                placeholder="Type your message here..."
+                rows="6"
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  fontSize: '14px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  fontFamily: 'inherit',
+                  resize: 'vertical'
+                }}
+                required
+              />
+            </div>
+
+            <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+              <button
+                type="submit"
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#17a2b8',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Send Message
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMessageForm(false);
+                  setMessageFormData({ toState: '', messageType: 'general', messageContent: '' });
                 }}
                 style={{
                   padding: '10px 20px',

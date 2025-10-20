@@ -1,9 +1,9 @@
 // API Configuration
-// Using Railway backend (has all credentials and data)
+// TEMPORARY: Using local backend to see Ohio fix before Railway deployment
 export const config = {
-  apiUrl: 'https://traffic-dashboard-backend-production.up.railway.app',
-  isDevelopment: false,
-  isProduction: true,
+  apiUrl: 'http://localhost:3001',
+  isDevelopment: true,
+  isProduction: false,
 };
 
 // Log config on load (for debugging)

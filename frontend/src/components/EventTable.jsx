@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
+import { isNearBorder } from '../utils/borderProximity';
 
 export default function EventTable({ events, messages = {}, onEventSelect }) {
   const [sortField, setSortField] = useState('startTime');
@@ -102,6 +103,7 @@ export default function EventTable({ events, messages = {}, onEventSelect }) {
           {sortedEvents.map((event, index) => {
             const eventMessages = messages[event.id] || [];
             const messageCount = eventMessages.length;
+            const borderInfo = isNearBorder(event);
 
             return (
             <tr
@@ -109,23 +111,39 @@ export default function EventTable({ events, messages = {}, onEventSelect }) {
               style={{
                 backgroundColor: index % 2 === 0 ? 'white' : '#f9fafb',
                 borderBottom: '1px solid #e5e7eb',
+                borderLeft: borderInfo && borderInfo.nearBorder ? '4px solid #6366f1' : 'none',
                 cursor: 'pointer'
               }}
               onClick={() => onEventSelect && onEventSelect(event)}
             >
               <td style={cellStyle}>
-                {event.requiresCollaboration && (
-                  <span style={{
-                    backgroundColor: '#fef3c7',
-                    color: '#92400e',
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    fontWeight: 'bold'
-                  }}>
-                    Cross-State
-                  </span>
-                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {borderInfo && borderInfo.nearBorder && (
+                    <span style={{
+                      backgroundColor: '#e0e7ff',
+                      color: '#4338ca',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      borderLeft: '2px solid #6366f1'
+                    }} title={`${borderInfo.distance} miles from ${borderInfo.borderName}`}>
+                      🔵 Border
+                    </span>
+                  )}
+                  {event.requiresCollaboration && (
+                    <span style={{
+                      backgroundColor: '#fef3c7',
+                      color: '#92400e',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 'bold'
+                    }}>
+                      Cross-State
+                    </span>
+                  )}
+                </div>
               </td>
               <td style={cellStyle}>{event.state}</td>
               <td style={cellStyle}>

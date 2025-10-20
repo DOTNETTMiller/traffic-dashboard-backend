@@ -5,6 +5,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+import { isNearBorder } from '../utils/borderProximity';
 
 // Component to center map on selected event
 function MapCenterController({ selectedEvent }) {
@@ -84,6 +85,10 @@ const getWeatherType = (description) => {
 // Custom marker icons based on event type with traffic sign symbols
 const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
   const { eventType, description = '', lanesAffected = '', severity } = event;
+
+  // Check if event is near a state border
+  const borderInfo = isNearBorder(event);
+  const isNearStateBorder = borderInfo && borderInfo.nearBorder;
 
   let iconSvg = '';
 
@@ -218,7 +223,48 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
   return L.divIcon({
     className: 'custom-marker',
     html: `
+      <style>
+        @keyframes pulse-border {
+          0%, 100% {
+            transform: scale(1);
+            opacity: 0.8;
+          }
+          50% {
+            transform: scale(1.4);
+            opacity: 0.3;
+          }
+        }
+      </style>
       <div style="position: relative; width: 32px; height: 32px; ${hasMessages ? 'z-index: 1000;' : 'z-index: 1;'}">
+        ${isNearStateBorder ? `
+          <!-- Pulsing border indicator for events near state borders -->
+          <div style="
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 48px;
+            height: 48px;
+            margin-left: -24px;
+            margin-top: -24px;
+            border: 3px solid #6366f1;
+            border-radius: 50%;
+            animation: pulse-border 2s ease-in-out infinite;
+            pointer-events: none;
+          "></div>
+          <div style="
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 40px;
+            height: 40px;
+            margin-left: -20px;
+            margin-top: -20px;
+            border: 2px solid #6366f1;
+            border-radius: 50%;
+            animation: pulse-border 2s ease-in-out infinite 0.3s;
+            pointer-events: none;
+          "></div>
+        ` : ''}
         ${iconSvg}
         ${hasMessages ? `
           <div style="
@@ -341,6 +387,7 @@ export default function TrafficMap({ events, messages = {}, onEventSelect, selec
         {sortedEvents.map((event) => {
           const hasMessages = messages[event.id] && messages[event.id].length > 0;
           const messageCount = hasMessages ? messages[event.id].length : 0;
+          const borderInfo = isNearBorder(event);
 
           return (
             <Marker
@@ -349,15 +396,15 @@ export default function TrafficMap({ events, messages = {}, onEventSelect, selec
               icon={getMarkerIcon(event, hasMessages, messageCount)}
               zIndexOffset={hasMessages ? 1000 : 0}
               eventId={event.id}
-              eventHandlers={{
-                click: () => onEventSelect && onEventSelect(event)
-              }}
             >
             <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
               <div style={{ minWidth: '200px' }}>
                 <strong>{event.eventType}</strong><br/>
                 {event.location}<br/>
                 <em>{event.description.substring(0, 100)}{event.description.length > 100 ? '...' : ''}</em>
+                {borderInfo && borderInfo.nearBorder && <div style={{ marginTop: '4px', color: '#6366f1', fontWeight: 'bold' }}>
+                  🔵 {borderInfo.distance} mi from {borderInfo.borderStates.join('-')} border
+                </div>}
                 {hasMessages && <div style={{ marginTop: '4px', color: '#1e40af', fontWeight: 'bold' }}>
                   💬 {messageCount} message{messageCount !== 1 ? 's' : ''}
                 </div>}
@@ -381,6 +428,18 @@ export default function TrafficMap({ events, messages = {}, onEventSelect, selec
                 <p style={{ margin: '4px 0' }}>
                   <strong>Description:</strong> {event.description}
                 </p>
+                {borderInfo && borderInfo.nearBorder && (
+                  <p style={{ margin: '8px 0', padding: '6px', backgroundColor: '#e0e7ff', borderRadius: '4px', borderLeft: '3px solid #6366f1' }}>
+                    <strong>🔵 Border Event</strong><br/>
+                    <span style={{ fontSize: '13px' }}>
+                      {borderInfo.distance} miles from {borderInfo.borderName}
+                    </span>
+                    <br/>
+                    <span style={{ fontSize: '12px', fontStyle: 'italic', color: '#4338ca' }}>
+                      May require {borderInfo.borderStates.join('-')} coordination
+                    </span>
+                  </p>
+                )}
                 {hasMessages && (
                   <p style={{ margin: '8px 0', padding: '6px', backgroundColor: '#dbeafe', borderRadius: '4px' }}>
                     <strong>💬 {messageCount} Message{messageCount !== 1 ? 's' : ''}</strong>

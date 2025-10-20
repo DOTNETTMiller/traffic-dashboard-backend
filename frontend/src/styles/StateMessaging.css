@@ -2,6 +2,10 @@
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Login Screen */
@@ -112,6 +116,9 @@
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .tab-content h3 {

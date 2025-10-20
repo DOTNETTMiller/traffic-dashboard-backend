@@ -1,10 +1,35 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 
 export default function EventFilters({ events, filters, onFilterChange }) {
+  // Start collapsed on mobile, expanded on desktop
+  const [isExpanded, setIsExpanded] = useState(window.innerWidth > 768);
   // Extract unique values for filters
   const filterOptions = useMemo(() => {
     const states = [...new Set(events.map(e => e.state))].sort();
-    const corridors = [...new Set(events.map(e => e.corridor))].filter(Boolean).sort();
+
+    // Sort corridors: major interstates first (I-XX), then secondary routes
+    const uniqueCorridors = [...new Set(events.map(e => e.corridor))].filter(Boolean);
+    const corridors = uniqueCorridors.sort((a, b) => {
+      // Match major interstates (I-XX where XX is 1-2 digits)
+      const majorInterstatePattern = /^I-(\d{1,2})$/;
+      const aMatch = a.match(majorInterstatePattern);
+      const bMatch = b.match(majorInterstatePattern);
+
+      // Both are major interstates - sort numerically
+      if (aMatch && bMatch) {
+        return parseInt(aMatch[1]) - parseInt(bMatch[1]);
+      }
+
+      // Only a is a major interstate - it comes first
+      if (aMatch) return -1;
+
+      // Only b is a major interstate - it comes first
+      if (bMatch) return 1;
+
+      // Neither are major interstates - sort alphabetically
+      return a.localeCompare(b);
+    });
+
     const eventTypes = [...new Set(events.map(e => e.eventType))].filter(Boolean).sort();
     const severities = ['high', 'medium', 'low'];
 
@@ -31,7 +56,7 @@ export default function EventFilters({ events, filters, onFilterChange }) {
   const activeFilterCount = Object.values(filters).filter(v => v !== '').length;
 
   return (
-    <div style={{
+    <div className="event-filters-container" style={{
       padding: '16px',
       backgroundColor: '#f3f4f6',
       borderRadius: '8px',
@@ -41,14 +66,23 @@ export default function EventFilters({ events, filters, onFilterChange }) {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: '16px'
-      }}>
+        marginBottom: isExpanded ? '16px' : '0',
+        cursor: 'pointer'
+      }}
+      onClick={() => setIsExpanded(!isExpanded)}
+      >
         <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>
           Filters {activeFilterCount > 0 && `(${activeFilterCount} active)`}
+          <span className="mobile-toggle-icon" style={{ marginLeft: '8px', fontSize: '12px' }}>
+            {isExpanded ? '▼' : '▶'}
+          </span>
         </h3>
         {activeFilterCount > 0 && (
           <button
-            onClick={handleReset}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleReset();
+            }}
             style={{
               padding: '4px 12px',
               backgroundColor: '#ef4444',
@@ -64,10 +98,11 @@ export default function EventFilters({ events, filters, onFilterChange }) {
         )}
       </div>
 
-      <div style={{
-        display: 'grid',
+      <div className="filters-content" style={{
+        display: isExpanded ? 'grid' : 'none',
         gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '12px'
+        gap: '12px',
+        transition: 'all 0.3s ease'
       }}>
         {/* Search */}
         <div>
