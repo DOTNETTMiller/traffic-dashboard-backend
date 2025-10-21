@@ -1,0 +1,2 @@
+[node]
+postInstall = ["npm run build:frontend"]

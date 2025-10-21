@@ -1,11 +1,27 @@
-// API Configuration
-// TEMPORARY: Using local backend to see Ohio fix before Railway deployment
+// API Configuration helper
+const envApiUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || '';
+
+const fallbackApiUrl = (() => {
+  if (import.meta.env.DEV) {
+    // Use same-origin paths so Vite's proxy can forward to the backend
+    return '';
+  }
+
+  if (typeof window !== 'undefined') {
+    // Assume production frontend is served from the same origin as the API
+    return window.location.origin;
+  }
+
+  // Fallback for SSR/build tools
+  return 'http://localhost:3001';
+})();
+
 export const config = {
-  apiUrl: 'http://localhost:3001',
-  isDevelopment: true,
-  isProduction: false,
+  apiUrl: envApiUrl || fallbackApiUrl,
+  isDevelopment: import.meta.env.DEV,
+  isProduction: import.meta.env.PROD,
 };
 
 // Log config on load (for debugging)
 console.log('🔧 App Configuration:', config);
-console.log('📡 API Base URL:', config.apiUrl);
+console.log('📡 API Base URL:', config.apiUrl || '(same origin)');

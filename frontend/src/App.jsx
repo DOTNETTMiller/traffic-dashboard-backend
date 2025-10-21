@@ -27,7 +27,7 @@ function App() {
   const [messages, setMessages] = useState({});
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(true);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Start with panel closed
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [authToken, setAuthToken] = useState(null);
@@ -334,14 +334,16 @@ function App() {
               onClick={() => setMobileMenuOpen(false)}
             />
 
-            {/* Mobile menu button */}
-            <button
-              className="mobile-menu-btn"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle messages"
-            >
-              💬
-            </button>
+            {/* Messages toggle button - show when panel is closed */}
+            {!mobileMenuOpen && (
+              <button
+                className="mobile-menu-btn"
+                onClick={() => setMobileMenuOpen(true)}
+                aria-label="Open messages"
+              >
+                💬
+              </button>
+            )}
 
             <div style={{
               flex: 1,
