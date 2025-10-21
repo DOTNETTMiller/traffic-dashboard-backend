@@ -158,17 +158,17 @@ body {
   font-size: 14px;
 }
 
-/* Mobile hamburger menu button */
+/* Mobile hamburger menu button - also show on desktop when panel is closed */
 .mobile-menu-btn {
   display: none;
   position: fixed;
   bottom: 20px;
-  right: 20px;
-  z-index: 1001;
+  left: 20px;
+  z-index: 999;
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background-color: #1e40af;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
@@ -177,6 +177,11 @@ body {
   align-items: center;
   justify-content: center;
   transition: all 0.3s;
+}
+
+.mobile-menu-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.4);
 }
 
 .mobile-menu-btn:active {
@@ -198,14 +203,29 @@ body {
   display: block;
 }
 
-/* Desktop: messages panel is always visible */
+/* Desktop: messages panel can be toggled */
 .messages-panel-mobile {
   display: block;
+  transition: transform 0.3s ease-in-out;
 }
 
-/* Hide mobile close button on desktop */
+/* When panel is closed on desktop, hide it */
+.messages-panel-mobile:not(.open) {
+  transform: translateX(-100%);
+}
+
+/* Show menu button on desktop */
+@media (min-width: 769px) {
+  .mobile-menu-btn {
+    display: flex;
+  }
+}
+
+/* Show close button on desktop too */
 .mobile-close-btn {
-  display: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Hide toggle icon on desktop, always show filters */

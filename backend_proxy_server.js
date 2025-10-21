@@ -5,7 +5,8 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const xml2js = require('xml2js');
-const fs = require('fs').promises;
+const fs = require('fs');
+const fsPromises = fs.promises;
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const db = require('./database');
@@ -103,13 +104,14 @@ const requireUserOrStateAuth = (req, res, next) => {
 
 // Message storage file
 const MESSAGES_FILE = path.join(__dirname, 'messages.json');
+const FRONTEND_DIST_PATH = path.join(__dirname, 'frontend', 'dist');
 
 // Initialize messages file if it doesn't exist
 async function initializeMessagesFile() {
   try {
-    await fs.access(MESSAGES_FILE);
+    await fsPromises.access(MESSAGES_FILE);
   } catch {
-    await fs.writeFile(MESSAGES_FILE, JSON.stringify([], null, 2));
+    await fsPromises.writeFile(MESSAGES_FILE, JSON.stringify([], null, 2));
     console.log('📝 Created messages.json file');
   }
 }
@@ -117,7 +119,7 @@ async function initializeMessagesFile() {
 // Load messages from file
 async function loadMessages() {
   try {
-    const data = await fs.readFile(MESSAGES_FILE, 'utf8');
+    const data = await fsPromises.readFile(MESSAGES_FILE, 'utf8');
     return JSON.parse(data);
   } catch (error) {
     console.error('Error loading messages:', error);
@@ -128,7 +130,7 @@ async function loadMessages() {
 // Save messages to file
 async function saveMessages(messages) {
   try {
-    await fs.writeFile(MESSAGES_FILE, JSON.stringify(messages, null, 2));
+    await fsPromises.writeFile(MESSAGES_FILE, JSON.stringify(messages, null, 2));
     return true;
   } catch (error) {
     console.error('Error saving messages:', error);
@@ -138,6 +140,21 @@ async function saveMessages(messages) {
 
 // Initialize on startup
 initializeMessagesFile();
+
+// Serve production frontend build when available
+if (fs.existsSync(FRONTEND_DIST_PATH)) {
+  console.log('🎯 Serving production frontend from ./frontend/dist');
+  app.use(express.static(FRONTEND_DIST_PATH));
+
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    res.sendFile(path.join(FRONTEND_DIST_PATH, 'index.html'));
+  });
+} else {
+  console.log('⚠️ Production frontend build not found (./frontend/dist). Run `npm run build --prefix frontend` to generate it.');
+}
 
 // API Configuration
 // IMPORTANT: Credentials are loaded from environment variables for security
