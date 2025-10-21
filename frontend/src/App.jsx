@@ -12,6 +12,7 @@ import MessagesPanel from './components/MessagesPanel';
 import StateAdmin from './components/StateAdmin';
 import StateMessaging from './components/StateMessaging';
 import UserLogin from './components/UserLogin';
+import AdminUsers from './components/AdminUsers';
 import './styles/App.css';
 
 function App() {
@@ -280,13 +281,24 @@ function App() {
           >
             Messages
           </button>
-          <button
-            className={`toggle-btn ${view === 'admin' ? 'active' : ''}`}
-            onClick={() => setView('admin')}
-            style={{ backgroundColor: view === 'admin' ? '#dc3545' : '#6c757d' }}
-          >
-            Admin
-          </button>
+          {currentUser?.role === 'admin' && (
+            <>
+              <button
+                className={`toggle-btn ${view === 'admin' ? 'active' : ''}`}
+                onClick={() => setView('admin')}
+                style={{ backgroundColor: view === 'admin' ? '#dc3545' : '#6c757d' }}
+              >
+                Admin (States)
+              </button>
+              <button
+                className={`toggle-btn ${view === 'adminUsers' ? 'active' : ''}`}
+                onClick={() => setView('adminUsers')}
+                style={{ backgroundColor: view === 'adminUsers' ? '#dc3545' : '#6c757d' }}
+              >
+                Admin (Users)
+              </button>
+            </>
+          )}
         </div>
 
         <div className="control-buttons">
@@ -306,7 +318,7 @@ function App() {
 
       {/* Main Content */}
       <div className="main-content">
-        {view !== 'report' && view !== 'alignment' && view !== 'admin' && view !== 'messages' && (
+        {view !== 'report' && view !== 'alignment' && view !== 'admin' && view !== 'adminUsers' && view !== 'messages' && (
           <EventFilters
             events={events}
             filters={filters}
@@ -314,7 +326,7 @@ function App() {
           />
         )}
 
-        {error && view !== 'admin' && view !== 'messages' && view !== 'alignment' && (
+        {error && view !== 'admin' && view !== 'adminUsers' && view !== 'messages' && view !== 'alignment' && (
           <div className="error-banner">
             Error loading events: {error}
           </div>
@@ -322,6 +334,8 @@ function App() {
 
         {view === 'admin' ? (
           <StateAdmin user={currentUser} authToken={authToken} />
+        ) : view === 'adminUsers' ? (
+          <AdminUsers user={currentUser} authToken={authToken} />
         ) : view === 'messages' ? (
           <StateMessaging />
         ) : view === 'alignment' ? (

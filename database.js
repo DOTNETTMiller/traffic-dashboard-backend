@@ -684,7 +684,8 @@ class StateDatabase {
   getAllUsers() {
     try {
       const users = this.db.prepare(`
-        SELECT id, username, email, full_name, organization, role, active, created_at, last_login
+        SELECT id, username, email, full_name, organization, role, active, created_at, last_login,
+               state_key, notify_on_messages, notify_on_high_severity
         FROM users
         ORDER BY created_at DESC
       `).all();
@@ -698,7 +699,10 @@ class StateDatabase {
         role: user.role,
         active: user.active === 1,
         createdAt: user.created_at,
-        lastLogin: user.last_login
+        lastLogin: user.last_login,
+        stateKey: user.state_key,
+        notifyOnMessages: user.notify_on_messages === 1,
+        notifyOnHighSeverity: user.notify_on_high_severity === 1
       }));
     } catch (error) {
       console.error('Error getting all users:', error);
@@ -727,6 +731,10 @@ class StateDatabase {
         fields.push('role = ?');
         values.push(updates.role);
       }
+      if (updates.stateKey !== undefined) {
+        fields.push('state_key = ?');
+        values.push(updates.stateKey || null);
+      }
       if (updates.active !== undefined) {
         fields.push('active = ?');
         values.push(updates.active ? 1 : 0);
@@ -734,6 +742,14 @@ class StateDatabase {
       if (updates.password) {
         fields.push('password_hash = ?');
         values.push(this.hashPassword(updates.password));
+      }
+      if (updates.notifyOnMessages !== undefined) {
+        fields.push('notify_on_messages = ?');
+        values.push(updates.notifyOnMessages ? 1 : 0);
+      }
+      if (updates.notifyOnHighSeverity !== undefined) {
+        fields.push('notify_on_high_severity = ?');
+        values.push(updates.notifyOnHighSeverity ? 1 : 0);
       }
 
       if (fields.length === 0) {
@@ -748,6 +764,56 @@ class StateDatabase {
       return { success: true };
     } catch (error) {
       console.error('Error updating user:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  getUserById(userId) {
+    try {
+      const user = this.db.prepare(`
+        SELECT id, username, email, full_name, organization, role, active, state_key,
+               notify_on_messages, notify_on_high_severity, created_at, last_login
+        FROM users
+        WHERE id = ?
+      `).get(userId);
+
+      if (!user) {
+        return null;
+      }
+
+      return {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.full_name,
+        organization: user.organization,
+        role: user.role,
+        active: user.active === 1,
+        stateKey: user.state_key,
+        notifyOnMessages: user.notify_on_messages === 1,
+        notifyOnHighSeverity: user.notify_on_high_severity === 1,
+        createdAt: user.created_at,
+        lastLogin: user.last_login
+      };
+    } catch (error) {
+      console.error('Error getting user by id:', error);
+      return null;
+    }
+  }
+
+  deleteUser(userId) {
+    try {
+      const result = this.db.prepare(`
+        DELETE FROM users WHERE id = ?
+      `).run(userId);
+
+      if (result.changes > 0) {
+        console.log(`🗑️  Deleted user id ${userId}`);
+        return { success: true };
+      }
+      return { success: false, error: 'User not found' };
+    } catch (error) {
+      console.error('Error deleting user:', error);
       return { success: false, error: error.message };
     }
   }
