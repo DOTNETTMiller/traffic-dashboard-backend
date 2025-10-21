@@ -15,11 +15,14 @@ const emailService = require('./email-service');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// JWT Secret (should be in environment variable in production)
+const JWT_SECRET = process.env.JWT_SECRET || 'ccai2026-traffic-dashboard-secret-key';
+
 // Enable CORS for your frontend
 app.use(cors());
 app.use(express.json());
 
-// Admin authentication middleware
+// Admin authentication middleware - accepts legacy tokens or user JWT with admin role
 const requireAdmin = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -27,15 +30,26 @@ const requireAdmin = (req, res, next) => {
   }
 
   const token = authHeader.substring(7);
-  if (!db.verifyAdminToken(token)) {
-    return res.status(403).json({ error: 'Invalid or expired admin token' });
+
+  // Legacy admin tokens
+  if (db.verifyAdminToken(token)) {
+    req.adminAuthType = 'token';
+    return next();
   }
 
-  next();
+  // User JWT with admin role
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.role === 'admin') {
+      req.user = decoded;
+      req.adminAuthType = 'user';
+      return next();
+    }
+    return res.status(403).json({ error: 'Admin privileges required' });
+  } catch (error) {
+    return res.status(403).json({ error: 'Invalid or expired admin credentials' });
+  }
 };
-
-// JWT Secret (should be in environment variable in production)
-const JWT_SECRET = process.env.JWT_SECRET || 'ccai2026-traffic-dashboard-secret-key';
 
 // User authentication middleware
 const requireUser = (req, res, next) => {
