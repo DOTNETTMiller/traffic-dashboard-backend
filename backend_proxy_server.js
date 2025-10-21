@@ -9,6 +9,7 @@ const fs = require('fs');
 const fsPromises = fs.promises;
 const path = require('path');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const db = require('./database');
 const emailService = require('./email-service');
 
@@ -21,6 +22,26 @@ const JWT_SECRET = process.env.JWT_SECRET || 'ccai2026-traffic-dashboard-secret-
 // Enable CORS for your frontend
 app.use(cors());
 app.use(express.json());
+
+// Ensure Express trusts upstream proxies (Railway, etc.) for HTTPS detection
+app.set('trust proxy', 1);
+
+// Enforce HTTPS in production to avoid browser security warnings
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV === 'production' && !req.secure) {
+    return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
+  }
+  return next();
+});
+
+// Basic security headers for browsers that require them
+app.use((req, res, next) => {
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
 
 // Admin authentication middleware - accepts legacy tokens or user JWT with admin role
 const requireAdmin = (req, res, next) => {
@@ -4591,6 +4612,118 @@ app.get('/api/states/list', (req, res) => {
   });
 });
 
+// Helper to generate secure temporary passwords for admin resets
+const generateTemporaryPassword = (length = 12) => {
+  const raw = crypto.randomBytes(Math.ceil(length * 0.75)).toString('base64');
+  return raw.replace(/[^a-zA-Z0-9]/g, '').slice(0, length) || crypto.randomBytes(length).toString('hex').slice(0, length);
+};
+
+// ==================== ADMIN USER MANAGEMENT ENDPOINTS ====================
+
+// List users
+app.get('/api/admin/users', requireAdmin, (req, res) => {
+  const users = db.getAllUsers();
+  res.json({ success: true, users });
+});
+
+// Create user
+app.post('/api/admin/users', requireAdmin, (req, res) => {
+  const { username, email, password, fullName, organization, stateKey, role } = req.body;
+
+  if (!username || !email) {
+    return res.status(400).json({ error: 'Username and email are required' });
+  }
+
+  let userPassword = password;
+  if (!userPassword) {
+    userPassword = generateTemporaryPassword();
+  }
+
+  const result = db.createUser({
+    username,
+    email,
+    password: userPassword,
+    fullName,
+    organization,
+    stateKey,
+    role: role || 'user'
+  });
+
+  if (result.success) {
+    const createdUser = db.getUserById(result.userId);
+    res.status(201).json({
+      success: true,
+      user: createdUser,
+      temporaryPassword: password ? null : userPassword
+    });
+  } else {
+    res.status(400).json({ error: result.error || 'Failed to create user' });
+  }
+});
+
+// Update user
+app.put('/api/admin/users/:userId', requireAdmin, (req, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  if (Number.isNaN(userId)) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+
+  const updates = {};
+  const allowedFields = ['email', 'fullName', 'organization', 'role', 'stateKey', 'active', 'notifyOnMessages', 'notifyOnHighSeverity'];
+
+  allowedFields.forEach(field => {
+    if (req.body[field] !== undefined) {
+      updates[field] = req.body[field];
+    }
+  });
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ error: 'No valid fields to update' });
+  }
+
+  const result = db.updateUser(userId, updates);
+
+  if (result.success) {
+    const updated = db.getUserById(userId);
+    res.json({ success: true, user: updated });
+  } else {
+    res.status(400).json({ error: result.error || 'Failed to update user' });
+  }
+});
+
+// Reset password
+app.post('/api/admin/users/:userId/reset-password', requireAdmin, (req, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  if (Number.isNaN(userId)) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+
+  const newPassword = req.body?.password || generateTemporaryPassword();
+  const result = db.updateUser(userId, { password: newPassword });
+
+  if (result.success) {
+    res.json({ success: true, temporaryPassword: newPassword, message: 'Password reset successfully' });
+  } else {
+    res.status(400).json({ error: result.error || 'Failed to reset password' });
+  }
+});
+
+// Delete user
+app.delete('/api/admin/users/:userId', requireAdmin, (req, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  if (Number.isNaN(userId)) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+
+  const result = db.deleteUser(userId);
+
+  if (result.success) {
+    res.json({ success: true, message: 'User deleted' });
+  } else {
+    res.status(400).json({ error: result.error || 'Failed to delete user' });
+  }
+});
+
 // ==================== ADMIN STATE MANAGEMENT ENDPOINTS ====================
 
 // Generate admin token (one-time setup or regenerate)
@@ -4841,6 +4974,12 @@ app.listen(PORT, async () => {
   console.log(`   PUT http://localhost:${PORT}/api/admin/states/:stateKey - Update state (requires admin token)`);
   console.log(`   DELETE http://localhost:${PORT}/api/admin/states/:stateKey - Delete state (requires admin token)`);
   console.log(`   GET http://localhost:${PORT}/api/admin/test-state/:stateKey - Test state API (requires admin token)`);
+  console.log(`\n👥 Admin User Management Endpoints (NEW):`);
+  console.log(`   GET http://localhost:${PORT}/api/admin/users - List users`);
+  console.log(`   POST http://localhost:${PORT}/api/admin/users - Create user`);
+  console.log(`   PUT http://localhost:${PORT}/api/admin/users/:userId - Update user`);
+  console.log(`   POST http://localhost:${PORT}/api/admin/users/:userId/reset-password - Reset user password`);
+  console.log(`   DELETE http://localhost:${PORT}/api/admin/users/:userId - Delete user`);
   console.log(`\n📧 Email Notification Endpoints (NEW):`);
   console.log(`   PUT http://localhost:${PORT}/api/users/notifications - Update notification preferences`);
   console.log(`\n🌐 Connected to ${db.getAllStates().length} state DOT APIs`);
