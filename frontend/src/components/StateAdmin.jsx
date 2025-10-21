@@ -1,8 +1,15 @@
 import { useState, useEffect } from 'react';
 import { config } from '../config';
 
-export default function StateAdmin() {
-  const [adminToken, setAdminToken] = useState(localStorage.getItem('adminToken') || '');
+const getStoredAdminToken = () => {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+  return localStorage.getItem('adminToken') || '';
+};
+
+export default function StateAdmin({ user, authToken }) {
+  const [customToken, setCustomToken] = useState(getStoredAdminToken);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [states, setStates] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -13,7 +20,6 @@ export default function StateAdmin() {
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [showMessageForm, setShowMessageForm] = useState(false);
 
-  // Form state
   const [formData, setFormData] = useState({
     stateKey: '',
     stateName: '',
@@ -25,59 +31,67 @@ export default function StateAdmin() {
     password: ''
   });
 
-  // Password form state
   const [passwordFormData, setPasswordFormData] = useState({
     stateKey: '',
     password: ''
   });
 
-  // Message form state
   const [messageFormData, setMessageFormData] = useState({
     toState: '',
     messageType: 'general',
     messageContent: ''
   });
 
-  useEffect(() => {
-    if (adminToken) {
-      verifyToken();
-    }
-  }, [adminToken]);
+  const isUserAdmin = Boolean(user?.role === 'admin');
+  const usingUserJwt = isUserAdmin && Boolean(authToken);
+  const activeToken = usingUserJwt ? authToken : customToken;
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchStates();
+  const verifyToken = async (token, { fromUserJwt = false } = {}) => {
+    if (!token) {
+      setIsAuthenticated(false);
+      return;
     }
-  }, [isAuthenticated]);
 
-  const verifyToken = async () => {
+    setError('');
     try {
       const response = await fetch(`${config.apiUrl}/api/admin/states`, {
         headers: {
-          'Authorization': `Bearer ${adminToken}`
+          Authorization: `Bearer ${token}`
         }
       });
 
       if (response.ok) {
         setIsAuthenticated(true);
-        localStorage.setItem('adminToken', adminToken);
+        if (!fromUserJwt) {
+          localStorage.setItem('adminToken', token);
+          setCustomToken(token);
+        }
       } else {
-        setError('Invalid admin token');
+        const message = fromUserJwt
+          ? 'Your account does not have admin privileges.'
+          : 'Invalid admin token';
+        setError(message);
         setIsAuthenticated(false);
-        localStorage.removeItem('adminToken');
+        if (!fromUserJwt) {
+          localStorage.removeItem('adminToken');
+        }
       }
     } catch (err) {
-      setError('Failed to verify token');
+      setError('Failed to verify admin credentials.');
       setIsAuthenticated(false);
     }
   };
 
-  const fetchStates = async () => {
+  const fetchStates = async (token) => {
+    if (!token) {
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch(`${config.apiUrl}/api/admin/states`, {
         headers: {
-          'Authorization': `Bearer ${adminToken}`
+          Authorization: `Bearer ${token}`
         }
       });
 
@@ -94,31 +108,59 @@ export default function StateAdmin() {
     }
   };
 
+  useEffect(() => {
+    if (usingUserJwt && authToken) {
+      verifyToken(authToken, { fromUserJwt: true });
+    } else if (!usingUserJwt && customToken) {
+      verifyToken(customToken);
+    } else {
+      setIsAuthenticated(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usingUserJwt, authToken]);
+
+  useEffect(() => {
+    if (isAuthenticated && activeToken) {
+      fetchStates(activeToken);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, activeToken]);
+
   const handleTokenSubmit = (e) => {
     e.preventDefault();
-    verifyToken();
+    verifyToken(customToken);
   };
 
   const handleLogout = () => {
-    setAdminToken('');
+    setCustomToken('');
     setIsAuthenticated(false);
+    setStates([]);
     localStorage.removeItem('adminToken');
   };
 
   const handleFormChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: value
     }));
   };
 
+  const ensureToken = () => {
+    if (!activeToken) {
+      setError('Admin authentication is required for this action.');
+      return false;
+    }
+    return true;
+  };
+
   const handleAddState = async (e) => {
     e.preventDefault();
+    if (!ensureToken()) return;
+
     setError('');
     setSuccess('');
 
-    // Build credentials object
     const credentials = {};
     if (formData.apiKey) credentials.apiKey = formData.apiKey;
     if (formData.username) credentials.username = formData.username;
@@ -137,7 +179,7 @@ export default function StateAdmin() {
       const response = await fetch(`${config.apiUrl}/api/admin/states`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${adminToken}`,
+          Authorization: `Bearer ${activeToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)
@@ -149,7 +191,7 @@ export default function StateAdmin() {
         setSuccess(`State ${formData.stateName} added successfully!`);
         setShowAddForm(false);
         resetForm();
-        fetchStates();
+        fetchStates(activeToken);
       } else {
         setError(data.error || 'Failed to add state');
       }
@@ -160,10 +202,11 @@ export default function StateAdmin() {
 
   const handleUpdateState = async (e) => {
     e.preventDefault();
+    if (!ensureToken()) return;
+
     setError('');
     setSuccess('');
 
-    // Build credentials object
     const credentials = {};
     if (formData.apiKey) credentials.apiKey = formData.apiKey;
     if (formData.username) credentials.username = formData.username;
@@ -181,7 +224,7 @@ export default function StateAdmin() {
       const response = await fetch(`${config.apiUrl}/api/admin/states/${editingState.stateKey}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${adminToken}`,
+          Authorization: `Bearer ${activeToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)
@@ -193,7 +236,7 @@ export default function StateAdmin() {
         setSuccess(`State ${formData.stateName} updated successfully!`);
         setEditingState(null);
         resetForm();
-        fetchStates();
+        fetchStates(activeToken);
       } else {
         setError(data.error || 'Failed to update state');
       }
@@ -203,6 +246,8 @@ export default function StateAdmin() {
   };
 
   const handleDeleteState = async (stateKey, stateName) => {
+    if (!ensureToken()) return;
+
     if (!confirm(`Are you sure you want to delete ${stateName}?`)) {
       return;
     }
@@ -214,7 +259,7 @@ export default function StateAdmin() {
       const response = await fetch(`${config.apiUrl}/api/admin/states/${stateKey}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${adminToken}`
+          Authorization: `Bearer ${activeToken}`
         }
       });
 
@@ -222,7 +267,7 @@ export default function StateAdmin() {
 
       if (response.ok) {
         setSuccess(`State ${stateName} deleted successfully!`);
-        fetchStates();
+        fetchStates(activeToken);
       } else {
         setError(data.error || 'Failed to delete state');
       }
@@ -232,13 +277,15 @@ export default function StateAdmin() {
   };
 
   const handleTestConnection = async (stateKey, stateName) => {
+    if (!ensureToken()) return;
+
     setError('');
     setSuccess('');
 
     try {
       const response = await fetch(`${config.apiUrl}/api/admin/test-state/${stateKey}`, {
         headers: {
-          'Authorization': `Bearer ${adminToken}`
+          Authorization: `Bearer ${activeToken}`
         }
       });
 
@@ -289,6 +336,8 @@ export default function StateAdmin() {
 
   const handleSetPassword = async (e) => {
     e.preventDefault();
+    if (!ensureToken()) return;
+
     setError('');
     setSuccess('');
 
@@ -296,7 +345,7 @@ export default function StateAdmin() {
       const response = await fetch(`${config.apiUrl}/api/states/password`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${adminToken}`,
+          Authorization: `Bearer ${activeToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(passwordFormData)
@@ -318,6 +367,8 @@ export default function StateAdmin() {
 
   const handleSendAdminMessage = async (e) => {
     e.preventDefault();
+    if (!ensureToken()) return;
+
     setError('');
     setSuccess('');
 
@@ -325,7 +376,7 @@ export default function StateAdmin() {
       const response = await fetch(`${config.apiUrl}/api/admin/messages`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${adminToken}`,
+          Authorization: `Bearer ${activeToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -338,7 +389,7 @@ export default function StateAdmin() {
       const data = await response.json();
 
       if (response.ok) {
-        setSuccess(`Message sent to ${states.find(s => s.stateKey === messageFormData.toState)?.stateName}!`);
+        setSuccess(`Message sent to ${states.find((s) => s.stateKey === messageFormData.toState)?.stateName}!`);
         setMessageFormData({ toState: '', messageType: 'general', messageContent: '' });
         setShowMessageForm(false);
       } else {
@@ -349,8 +400,16 @@ export default function StateAdmin() {
     }
   };
 
-  // Login form
-  if (!isAuthenticated) {
+  if (usingUserJwt && !isAuthenticated) {
+    return (
+      <div style={{ maxWidth: '500px', margin: '50px auto', padding: '20px', textAlign: 'center' }}>
+        <h2>Verifying Admin Access</h2>
+        <p>Your account has admin privileges. Verifying access…</p>
+      </div>
+    );
+  }
+
+  if (!usingUserJwt && !isAuthenticated) {
     return (
       <div style={{ maxWidth: '500px', margin: '50px auto', padding: '20px' }}>
         <h2 style={{ marginBottom: '20px' }}>State Management Admin</h2>
@@ -361,8 +420,8 @@ export default function StateAdmin() {
             </label>
             <input
               type="password"
-              value={adminToken}
-              onChange={(e) => setAdminToken(e.target.value)}
+              value={customToken}
+              onChange={(e) => setCustomToken(e.target.value)}
               placeholder="Enter admin token"
               style={{
                 width: '100%',
@@ -398,24 +457,32 @@ export default function StateAdmin() {
     );
   }
 
-  // Main admin interface
   return (
     <div style={{ maxWidth: '1200px', margin: '20px auto', padding: '20px', height: 'calc(100vh - 200px)', overflowY: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2>State Management Admin</h2>
-        <button
-          onClick={handleLogout}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#dc3545',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          Logout
-        </button>
+        <div>
+          <h2>State Management Admin</h2>
+          {usingUserJwt && user && (
+            <p style={{ margin: 0, color: '#555', fontSize: '14px' }}>
+              Access granted via user account <strong>{user.username}</strong>
+            </p>
+          )}
+        </div>
+        {!usingUserJwt && (
+          <button
+            onClick={handleLogout}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#dc3545',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Logout
+          </button>
+        )}
       </div>
 
       {error && (
@@ -477,7 +544,6 @@ export default function StateAdmin() {
         </div>
       )}
 
-      {/* Add/Edit Form */}
       {(showAddForm || editingState) && (
         <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #ddd', borderRadius: '4px', backgroundColor: '#f9f9f9' }}>
           <h3>{editingState ? 'Edit State' : 'Add New State'}</h3>
@@ -560,8 +626,9 @@ export default function StateAdmin() {
                 >
                   <option value="Custom JSON">Custom JSON</option>
                   <option value="WZDx">WZDx</option>
-                  <option value="FEU-G">FEU-G (CARS Program)</option>
+                  <option value="FEU-G">FEU-G</option>
                   <option value="RSS">RSS</option>
+                  <option value="XML">XML</option>
                 </select>
               </div>
 
@@ -581,21 +648,19 @@ export default function StateAdmin() {
                 >
                   <option value="json">JSON</option>
                   <option value="xml">XML</option>
+                  <option value="rss">RSS</option>
+                  <option value="csv">CSV</option>
                 </select>
               </div>
 
-              <div style={{ gridColumn: '1 / -1', marginTop: '10px' }}>
-                <h4 style={{ marginBottom: '10px' }}>Authentication (Optional)</h4>
-              </div>
-
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>API Key:</label>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>API Key (optional):</label>
                 <input
                   type="text"
                   name="apiKey"
                   value={formData.apiKey}
                   onChange={handleFormChange}
-                  placeholder="Optional API key"
+                  placeholder="Enter API key if required"
                   style={{
                     width: '100%',
                     padding: '8px',
@@ -606,16 +671,14 @@ export default function StateAdmin() {
                 />
               </div>
 
-              <div></div>
-
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Username:</label>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Username (optional):</label>
                 <input
                   type="text"
                   name="username"
                   value={formData.username}
                   onChange={handleFormChange}
-                  placeholder="Optional username"
+                  placeholder="For basic auth"
                   style={{
                     width: '100%',
                     padding: '8px',
@@ -627,13 +690,13 @@ export default function StateAdmin() {
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Password:</label>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Password (optional):</label>
                 <input
                   type="password"
                   name="password"
                   value={formData.password}
                   onChange={handleFormChange}
-                  placeholder="Optional password"
+                  placeholder="For basic auth"
                   style={{
                     width: '100%',
                     padding: '8px',
@@ -650,8 +713,8 @@ export default function StateAdmin() {
                 type="submit"
                 style={{
                   padding: '10px 20px',
-                  backgroundColor: '#007bff',
-                  color: 'white',
+                  backgroundColor: editingState ? '#ffc107' : '#28a745',
+                  color: editingState ? 'black' : 'white',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer'
@@ -661,10 +724,7 @@ export default function StateAdmin() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setShowAddForm(false);
-                  cancelEdit();
-                }}
+                onClick={editingState ? cancelEdit : () => setShowAddForm(false)}
                 style={{
                   padding: '10px 20px',
                   backgroundColor: '#6c757d',
@@ -681,7 +741,6 @@ export default function StateAdmin() {
         </div>
       )}
 
-      {/* Password Form */}
       {showPasswordForm && (
         <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #007bff', borderRadius: '4px', backgroundColor: '#f0f8ff' }}>
           <h3>Set State Password for Messaging</h3>
@@ -705,7 +764,7 @@ export default function StateAdmin() {
                   required
                 >
                   <option value="">Select a state...</option>
-                  {states.map(state => (
+                  {states.map((state) => (
                     <option key={state.stateKey} value={state.stateKey}>
                       {state.stateName} ({state.stateKey})
                     </option>
@@ -768,7 +827,6 @@ export default function StateAdmin() {
         </div>
       )}
 
-      {/* Message Form */}
       {showMessageForm && (
         <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #17a2b8', borderRadius: '4px', backgroundColor: '#e7f9fc' }}>
           <h3>Send Message to State</h3>
@@ -792,7 +850,7 @@ export default function StateAdmin() {
                   required
                 >
                   <option value="">Select recipient state...</option>
-                  {states.map(state => (
+                  {states.map((state) => (
                     <option key={state.stateKey} value={state.stateKey}>
                       {state.stateName} ({state.stateKey})
                     </option>
@@ -879,7 +937,6 @@ export default function StateAdmin() {
         </div>
       )}
 
-      {/* States List */}
       <h3>Configured States ({states.length})</h3>
       {loading ? (
         <p>Loading states...</p>

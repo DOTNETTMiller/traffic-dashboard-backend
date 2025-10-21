@@ -321,7 +321,7 @@ function App() {
         )}
 
         {view === 'admin' ? (
-          <StateAdmin />
+          <StateAdmin user={currentUser} authToken={authToken} />
         ) : view === 'messages' ? (
           <StateMessaging />
         ) : view === 'alignment' ? (
