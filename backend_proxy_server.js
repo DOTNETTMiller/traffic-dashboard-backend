@@ -1389,15 +1389,15 @@ app.post('/api/users/login', (req, res) => {
     };
     };
 
-    if (username === 'MM' && password === 'admin2026') {
-      const fallback = fallbackLogin('MM', 'matthew.miller@iowadot.us');
+    if ((username === 'MM' || username === 'matthew.miller@iowadot.us') && password === 'admin2026') {
+      const fallback = fallbackLogin('matthew.miller@iowadot.us', 'matthew.miller@iowadot.us');
       if (fallback) {
         return res.json({ success: true, message: 'Login successful', ...fallback });
       }
     }
 
-    if (username === 'admin' && password === 'admin2026') {
-      const fallback = fallbackLogin('admin', 'admin@example.com');
+    if ((username === 'admin' || username === 'admin@example.com') && password === 'admin2026') {
+      const fallback = fallbackLogin('admin@example.com', 'admin@example.com');
       if (fallback) {
         return res.json({ success: true, message: 'Login successful', ...fallback });
       }
@@ -1426,6 +1426,78 @@ app.get('/api/users/me', requireUser, (req, res) => {
     });
   } else {
     res.status(404).json({ error: 'User not found' });
+  }
+});
+
+// Change password for current user
+app.post('/api/users/change-password', requireUser, (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Current password and new password are required' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+  }
+
+  // Verify current password
+  const user = db.verifyUserPassword(req.user.username, currentPassword);
+  if (!user) {
+    return res.status(401).json({ error: 'Current password is incorrect' });
+  }
+
+  // Update password
+  const result = db.updateUser(user.id, { password: newPassword });
+
+  if (result.success) {
+    res.json({ success: true, message: 'Password changed successfully' });
+  } else {
+    res.status(400).json({ error: result.error || 'Failed to change password' });
+  }
+});
+
+// Request password reset (sends email with reset token)
+app.post('/api/users/request-password-reset', (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  const user = db.getUserByUsername(email);
+  if (!user) {
+    // Don't reveal whether the email exists for security
+    return res.json({
+      success: true,
+      message: 'If an account with that email exists, a password reset link has been sent.'
+    });
+  }
+
+  // Generate a temporary password reset token
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+  const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
+
+  // Store reset token in database (you'll need to add this functionality to database.js)
+  // For now, we'll just send an email with a temporary password
+  const tempPassword = crypto.randomBytes(8).toString('hex');
+  const result = db.updateUser(user.id, { password: tempPassword });
+
+  if (result.success) {
+    // Send email with temporary password
+    emailService.sendEmail(
+      user.email,
+      'Password Reset - DOT Corridor Communicator',
+      `Your temporary password is: ${tempPassword}\n\nPlease log in and change your password immediately.`
+    );
+
+    res.json({
+      success: true,
+      message: 'If an account with that email exists, a password reset link has been sent.'
+    });
+  } else {
+    res.status(500).json({ error: 'Failed to reset password' });
   }
 });
 
@@ -4694,10 +4766,10 @@ app.get('/api/admin/users', requireAdmin, (req, res) => {
 
 // Create user
 app.post('/api/admin/users', requireAdmin, (req, res) => {
-  const { username, email, password, fullName, organization, stateKey, role } = req.body;
+  const { email, password, fullName, organization, stateKey, role } = req.body;
 
-  if (!username || !email) {
-    return res.status(400).json({ error: 'Username and email are required' });
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
   }
 
   let userPassword = password;
@@ -4706,7 +4778,7 @@ app.post('/api/admin/users', requireAdmin, (req, res) => {
   }
 
   const result = db.createUser({
-    username,
+    username: email,  // Use email as username
     email,
     password: userPassword,
     fullName,
@@ -4742,6 +4814,11 @@ app.put('/api/admin/users/:userId', requireAdmin, (req, res) => {
       updates[field] = req.body[field];
     }
   });
+
+  // If email is updated, also update username to keep them in sync
+  if (updates.email) {
+    updates.username = updates.email;
+  }
 
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ error: 'No valid fields to update' });
