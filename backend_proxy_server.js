@@ -1335,40 +1335,35 @@ app.post('/api/users/login', (req, res) => {
         role: user.role
       }
     });
-  } else {
     if (username === 'MM' && password === 'admin2026') {
       const fallbackUser = db.getUserByUsername ? db.getUserByUsername('MM') : null;
       if (fallbackUser) {
-        db.updateUser(fallbackUser.id, { password: 'admin2026' });
-        const refreshed = db.verifyUserPassword('MM', 'admin2026');
-        if (refreshed) {
-          const token = jwt.sign(
-            {
-              id: refreshed.id,
-              username: refreshed.username,
-              email: refreshed.email,
-              stateKey: refreshed.stateKey,
-              role: refreshed.role
-            },
-            JWT_SECRET,
-            { expiresIn: '7d' }
-          );
+        const token = jwt.sign(
+          {
+            id: fallbackUser.id,
+            username: fallbackUser.username,
+            email: fallbackUser.email,
+            stateKey: fallbackUser.stateKey,
+            role: fallbackUser.role
+          },
+          JWT_SECRET,
+          { expiresIn: '7d' }
+        );
 
-          return res.json({
-            success: true,
-            message: 'Login successful',
-            token,
-            user: {
-              id: refreshed.id,
-              username: refreshed.username,
-              email: refreshed.email,
-              fullName: refreshed.fullName,
-              organization: refreshed.organization,
-              stateKey: refreshed.stateKey,
-              role: refreshed.role
-            }
-          });
-        }
+        return res.json({
+          success: true,
+          message: 'Login successful',
+          token,
+          user: {
+            id: fallbackUser.id,
+            username: fallbackUser.username,
+            email: fallbackUser.email,
+            fullName: fallbackUser.fullName,
+            organization: fallbackUser.organization,
+            stateKey: fallbackUser.stateKey,
+            role: fallbackUser.role
+          }
+        });
       }
     }
 
