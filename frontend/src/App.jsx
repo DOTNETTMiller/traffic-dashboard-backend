@@ -350,7 +350,7 @@ function App() {
             />
 
             {/* Messages toggle button - show when panel is closed */}
-            {!mobileMenuOpen && !desktopMessagesOpen && (
+            {!mobileMenuOpen && (
               <button
                 className="mobile-menu-btn"
                 onClick={() => {
