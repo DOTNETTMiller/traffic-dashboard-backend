@@ -294,7 +294,7 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
   });
 };
 
-export default function TrafficMap({ events, messages = {}, onEventSelect, selectedEvent = null }) {
+export default function TrafficMap({ events, messages = {}, detourAlerts = [], onEventSelect, selectedEvent = null }) {
   // Filter out events without valid coordinates
   const validEvents = events.filter(e => {
     const lat = parseFloat(e.latitude);
