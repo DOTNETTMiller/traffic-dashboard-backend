@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { isNearBorder } from '../utils/borderProximity';
 
-export default function MessagesPanel({ events = [], messages = {}, filters = {}, onEventSelect, onClose }) {
+export default function MessagesPanel({ events = [], messages = {}, detourAlerts = [], filters = {}, onEventSelect, onClose }) {
   const [selectedCorridor, setSelectedCorridor] = useState('all');
 
   // Get events that have messages
@@ -163,6 +163,65 @@ export default function MessagesPanel({ events = [], messages = {}, filters = {}
           })}
         </select>
       </div>
+
+      {detourAlerts.length > 0 && (
+        <div style={{
+          padding: '12px 16px',
+          backgroundColor: '#fff7ed',
+          borderBottom: '1px solid #fde68a'
+        }}>
+          <div style={{
+            fontSize: '13px',
+            fontWeight: 700,
+            color: '#92400e',
+            marginBottom: '8px'
+          }}>
+            🚗 Detour Advisories ({detourAlerts.length})
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {detourAlerts.map(alert => {
+              const relatedEvent = events.find(ev => ev.id === alert.eventId);
+              return (
+                <div key={alert.id} style={{
+                  padding: '10px',
+                  borderRadius: '6px',
+                  backgroundColor: '#fffbeb',
+                  border: '1px solid #facc15'
+                }}>
+                  <div style={{ fontWeight: 600, color: '#b45309', marginBottom: '4px' }}>
+                    {alert.interchangeName}
+                  </div>
+                  {alert.eventDescription && (
+                    <div style={{ fontSize: '12px', color: '#92400e', marginBottom: '4px' }}>
+                      {alert.eventDescription}
+                    </div>
+                  )}
+                  <div style={{ fontSize: '12px', color: '#78350f' }}>
+                    {alert.message}
+                  </div>
+                  {relatedEvent && (
+                    <button
+                      onClick={() => onEventSelect && onEventSelect(relatedEvent)}
+                      style={{
+                        marginTop: '8px',
+                        padding: '6px 12px',
+                        backgroundColor: '#f97316',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px'
+                      }}
+                    >
+                      View Event
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Messages List */}
       <div style={{

@@ -9,6 +9,26 @@ const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'states.db');
 // Encryption key (should be stored in environment variable in production)
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
 
+const parseStateList = (value) => {
+  if (!value) return [];
+  try {
+    if (value.trim().startsWith('[')) {
+      return JSON.parse(value);
+    }
+    return value.split(',').map(s => s.trim()).filter(Boolean);
+  } catch (error) {
+    console.error('Error parsing state list:', error);
+    return [];
+  }
+};
+
+const serializeStateList = (list = []) => {
+  if (!Array.isArray(list)) {
+    return JSON.stringify([]);
+  }
+  return JSON.stringify(list.map(item => (typeof item === 'string' ? item.trim() : item)).filter(Boolean));
+};
+
 class StateDatabase {
   constructor() {
     this.db = new Database(DB_PATH);
@@ -73,6 +93,40 @@ class StateDatabase {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS interchanges (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        state_key TEXT NOT NULL,
+        corridor TEXT,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        watch_radius_km REAL DEFAULT 15,
+        notify_states TEXT NOT NULL,
+        detour_message TEXT,
+        active BOOLEAN DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS detour_alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        interchange_id INTEGER NOT NULL,
+        event_id TEXT NOT NULL,
+        event_state TEXT,
+        event_corridor TEXT,
+        event_location TEXT,
+        event_description TEXT,
+        severity TEXT,
+        lanes_affected TEXT,
+        notified_states TEXT,
+        message TEXT,
+        status TEXT DEFAULT 'active',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        resolved_at DATETIME,
+        resolution_note TEXT,
+        FOREIGN KEY (interchange_id) REFERENCES interchanges(id)
+      );
+
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
@@ -93,6 +147,10 @@ class StateDatabase {
       CREATE INDEX IF NOT EXISTS idx_message_to ON state_messages(to_state);
       CREATE INDEX IF NOT EXISTS idx_message_from ON state_messages(from_state);
       CREATE INDEX IF NOT EXISTS idx_event_comments ON event_comments(event_id);
+      CREATE INDEX IF NOT EXISTS idx_interchanges_state ON interchanges(state_key);
+      CREATE INDEX IF NOT EXISTS idx_interchanges_active ON interchanges(active);
+      CREATE INDEX IF NOT EXISTS idx_detour_alert_status ON detour_alerts(status);
+      CREATE INDEX IF NOT EXISTS idx_detour_alert_interchange ON detour_alerts(interchange_id);
       CREATE INDEX IF NOT EXISTS idx_username ON users(username);
       CREATE INDEX IF NOT EXISTS idx_email ON users(email);
     `);
@@ -504,6 +562,270 @@ class StateDatabase {
     } catch (error) {
       console.error('Error getting unread count:', error);
       return 0;
+    }
+  }
+
+  // Interchange Management
+  getActiveInterchanges() {
+    try {
+      const rows = this.db.prepare(`
+        SELECT * FROM interchanges WHERE active = 1 ORDER BY name
+      `).all();
+      return rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        stateKey: row.state_key,
+        corridor: row.corridor,
+        latitude: row.latitude,
+        longitude: row.longitude,
+        watchRadiusKm: row.watch_radius_km || 15,
+        notifyStates: parseStateList(row.notify_states),
+        detourMessage: row.detour_message,
+        active: row.active === 1,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      }));
+    } catch (error) {
+      console.error('Error loading interchanges:', error);
+      return [];
+    }
+  }
+
+  getInterchanges() {
+    try {
+      const rows = this.db.prepare(`
+        SELECT * FROM interchanges ORDER BY active DESC, name ASC
+      `).all();
+      return rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        stateKey: row.state_key,
+        corridor: row.corridor,
+        latitude: row.latitude,
+        longitude: row.longitude,
+        watchRadiusKm: row.watch_radius_km || 15,
+        notifyStates: parseStateList(row.notify_states),
+        detourMessage: row.detour_message,
+        active: row.active === 1,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      }));
+    } catch (error) {
+      console.error('Error getting interchanges:', error);
+      return [];
+    }
+  }
+
+  createInterchange(data) {
+    const {
+      name,
+      stateKey,
+      corridor = null,
+      latitude,
+      longitude,
+      watchRadiusKm = 15,
+      notifyStates = [],
+      detourMessage = null,
+      active = true
+    } = data;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO interchanges (name, state_key, corridor, latitude, longitude, watch_radius_km, notify_states, detour_message, active)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      const result = stmt.run(
+        name,
+        stateKey,
+        corridor,
+        latitude,
+        longitude,
+        watchRadiusKm,
+        serializeStateList(notifyStates),
+        detourMessage,
+        active ? 1 : 0
+      );
+      return { success: true, id: result.lastInsertRowid };
+    } catch (error) {
+      console.error('Error creating interchange:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  updateInterchange(id, updates) {
+    try {
+      const fields = [];
+      const values = [];
+
+      if (updates.name !== undefined) {
+        fields.push('name = ?');
+        values.push(updates.name);
+      }
+      if (updates.stateKey !== undefined) {
+        fields.push('state_key = ?');
+        values.push(updates.stateKey);
+      }
+      if (updates.corridor !== undefined) {
+        fields.push('corridor = ?');
+        values.push(updates.corridor);
+      }
+      if (updates.latitude !== undefined) {
+        fields.push('latitude = ?');
+        values.push(updates.latitude);
+      }
+      if (updates.longitude !== undefined) {
+        fields.push('longitude = ?');
+        values.push(updates.longitude);
+      }
+      if (updates.watchRadiusKm !== undefined) {
+        fields.push('watch_radius_km = ?');
+        values.push(updates.watchRadiusKm);
+      }
+      if (updates.notifyStates !== undefined) {
+        fields.push('notify_states = ?');
+        values.push(serializeStateList(updates.notifyStates));
+      }
+      if (updates.detourMessage !== undefined) {
+        fields.push('detour_message = ?');
+        values.push(updates.detourMessage);
+      }
+      if (updates.active !== undefined) {
+        fields.push('active = ?');
+        values.push(updates.active ? 1 : 0);
+      }
+
+      if (fields.length === 0) {
+        return { success: false, error: 'No fields to update' };
+      }
+
+      fields.push('updated_at = CURRENT_TIMESTAMP');
+      const sql = `UPDATE interchanges SET ${fields.join(', ')} WHERE id = ?`;
+      values.push(id);
+      const stmt = this.db.prepare(sql);
+      stmt.run(...values);
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating interchange:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  deleteInterchange(id) {
+    try {
+      const stmt = this.db.prepare(`DELETE FROM interchanges WHERE id = ?`);
+      stmt.run(id);
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting interchange:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  getActiveDetourAlerts() {
+    try {
+      const rows = this.db.prepare(`
+        SELECT da.*, i.name as interchange_name, i.state_key as interchange_state,
+               i.corridor as interchange_corridor, i.latitude, i.longitude, i.notify_states
+        FROM detour_alerts da
+        INNER JOIN interchanges i ON da.interchange_id = i.id
+        WHERE da.status = 'active'
+        ORDER BY da.created_at DESC
+      `).all();
+      return rows.map(row => ({
+        id: row.id,
+        interchangeId: row.interchange_id,
+        interchangeName: row.interchange_name,
+        interchangeState: row.interchange_state,
+        interchangeCorridor: row.interchange_corridor,
+        latitude: row.latitude,
+        longitude: row.longitude,
+        notifyStates: parseStateList(row.notify_states),
+        eventId: row.event_id,
+        eventState: row.event_state,
+        eventCorridor: row.event_corridor,
+        eventLocation: row.event_location,
+        eventDescription: row.event_description,
+        severity: row.severity,
+        lanesAffected: row.lanes_affected,
+        notifiedStates: parseStateList(row.notified_states),
+        message: row.message,
+        status: row.status,
+        createdAt: row.created_at,
+        resolvedAt: row.resolved_at
+      }));
+    } catch (error) {
+      console.error('Error loading detour alerts:', error);
+      return [];
+    }
+  }
+
+  getActiveDetourAlertByInterchange(interchangeId) {
+    try {
+      const row = this.db.prepare(`
+        SELECT * FROM detour_alerts
+        WHERE interchange_id = ? AND status = 'active'
+        ORDER BY created_at DESC
+        LIMIT 1
+      `).get(interchangeId);
+      return row || null;
+    } catch (error) {
+      console.error('Error fetching detour alert:', error);
+      return null;
+    }
+  }
+
+  createDetourAlert(alert) {
+    const {
+      interchangeId,
+      eventId,
+      eventState,
+      eventCorridor,
+      eventLocation,
+      eventDescription,
+      severity,
+      lanesAffected,
+      notifiedStates = [],
+      message
+    } = alert;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO detour_alerts (
+          interchange_id, event_id, event_state, event_corridor, event_location,
+          event_description, severity, lanes_affected, notified_states, message
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      const result = stmt.run(
+        interchangeId,
+        eventId,
+        eventState,
+        eventCorridor,
+        eventLocation,
+        eventDescription,
+        severity,
+        lanesAffected,
+        serializeStateList(notifiedStates),
+        message
+      );
+      return { success: true, id: result.lastInsertRowid };
+    } catch (error) {
+      console.error('Error creating detour alert:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  resolveDetourAlert(alertId, resolutionNote = null) {
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE detour_alerts
+        SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP, resolution_note = ?
+        WHERE id = ?
+      `);
+      stmt.run(resolutionNote, alertId);
+      return { success: true };
+    } catch (error) {
+      console.error('Error resolving detour alert:', error);
+      return { success: false, error: error.message };
     }
   }
 

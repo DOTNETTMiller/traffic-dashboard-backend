@@ -471,6 +471,30 @@ export default function TrafficMap({ events, messages = {}, onEventSelect, selec
           );
         })}
         </MarkerClusterGroup>
+
+        {detourAlerts.map(alert => (
+          <CircleMarker
+            key={`detour-${alert.id}`}
+            center={[alert.latitude, alert.longitude]}
+            radius={14}
+            pathOptions={{ color: '#dc2626', weight: 3, fillOpacity: 0.25 }}
+          >
+            <Popup>
+              <div style={{ maxWidth: '240px' }}>
+                <h3 style={{ marginTop: 0, marginBottom: '8px' }}>Detour Advisory</h3>
+                <p style={{ margin: '4px 0' }}><strong>{alert.interchangeName}</strong></p>
+                {alert.eventCorridor && <p style={{ margin: '4px 0' }}>Corridor: {alert.eventCorridor}</p>}
+                {alert.eventDescription && <p style={{ margin: '4px 0' }}>{alert.eventDescription}</p>}
+                <p style={{ margin: '8px 0' }}>{alert.message}</p>
+              </div>
+            </Popup>
+            <Tooltip direction="top" offset={[0, -10]} opacity={0.9} permanent>
+              🚧 Detour
+            </Tooltip>
+          </CircleMarker>
+        ))}
+
+        <MapCenterController selectedEvent={selectedEvent} />
       </MapContainer>
     </div>
   );

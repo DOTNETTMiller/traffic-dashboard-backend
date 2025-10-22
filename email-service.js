@@ -17,7 +17,7 @@ let transporter = null;
 
 function getTransporter() {
   if (!transporter) {
-    transporter = nodemailer.createTransporter(EMAIL_CONFIG);
+    transporter = nodemailer.createTransport(EMAIL_CONFIG);
   }
   return transporter;
 }
@@ -153,6 +153,61 @@ async function sendHighSeverityEventNotification(recipientEmail, recipientName, 
   }
 }
 
+async function sendDetourAlertNotification(recipientEmail, recipientName, alert) {
+  const transport = getTransporter();
+
+  const mailOptions = {
+    from: `"DOT Corridor Communicator" <${EMAIL_CONFIG.auth.user}>`,
+    to: recipientEmail,
+    subject: `🚗 Detour Advisory: ${alert.interchangeName} (${alert.eventCorridor || alert.interchangeCorridor})`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+          <h2 style="margin: 0;">🚗 Detour Advisory</h2>
+          <p style="margin: 8px 0 0 0;">Significant congestion detected near ${alert.interchangeName}</p>
+        </div>
+
+        <div style="background-color: #f8fafc; padding: 20px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px;">
+          <p>Hello ${recipientName},</p>
+          <p>A major backup has been detected near <strong>${alert.interchangeName}</strong> on <strong>${alert.eventCorridor || alert.interchangeCorridor || 'the monitored corridor'}</strong>.</p>
+
+          <div style="background-color: #eff6ff; padding: 15px; border-radius: 6px; border-left: 4px solid #2563eb; margin: 18px 0;">
+            <h3 style="margin: 0 0 10px 0; color: #1e3a8a;">Event Details</h3>
+            <p style="margin: 4px 0; color: #475569;"><strong>Event:</strong> ${alert.eventDescription || 'See dashboard for details'}</p>
+            ${alert.eventLocation ? `<p style="margin: 4px 0; color: #475569;"><strong>Location:</strong> ${alert.eventLocation}</p>` : ''}
+            ${alert.severity ? `<p style="margin: 4px 0; color: #475569;"><strong>Severity:</strong> ${alert.severity.toUpperCase()}</p>` : ''}
+            ${alert.lanesAffected ? `<p style="margin: 4px 0; color: #475569;"><strong>Lanes:</strong> ${alert.lanesAffected}</p>` : ''}
+          </div>
+
+          <div style="background-color: #fefce8; padding: 15px; border-radius: 6px; border: 1px solid #facc15;">
+            <p style="margin: 0; color: #854d0e; font-weight: 600;">Recommended Action</p>
+            <p style="margin: 6px 0 0 0; color: #92400e;">
+              ${alert.message || 'Consider activating detour messaging to route drivers around the congestion and coordinate with neighboring DOTs.'}
+            </p>
+          </div>
+
+          <p style="margin-top: 20px;">
+            <a href="http://localhost:5173" style="display: inline-block; background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 600;">Open Dashboard →</a>
+          </p>
+
+          <p style="font-size: 12px; color: #64748b; margin-top: 24px;">
+            You’re receiving this advisory because your state is subscribed to detour alerts for ${alert.interchangeName}.
+          </p>
+        </div>
+      </div>
+    `
+  };
+
+  try {
+    const info = await transport.sendMail(mailOptions);
+    console.log('✅ Detour alert notification sent:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('❌ Error sending detour alert notification:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 /**
  * Helper function to get color based on severity
  */
@@ -187,5 +242,6 @@ async function verifyEmailConfig() {
 module.exports = {
   sendMessageNotification,
   sendHighSeverityEventNotification,
+  sendDetourAlertNotification,
   verifyEmailConfig
 };

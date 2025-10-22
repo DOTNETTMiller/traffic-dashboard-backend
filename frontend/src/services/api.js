@@ -45,6 +45,78 @@ class TrafficAPI {
       throw error;
     }
   }
+
+  async getActiveDetourAlerts(authToken) {
+    try {
+      const response = await this.client.get('/api/detour-alerts/active', {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching detour alerts:', error);
+      throw error;
+    }
+  }
+
+  async getInterchanges(authToken) {
+    try {
+      const response = await this.client.get('/api/admin/interchanges', {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching interchanges:', error);
+      throw error;
+    }
+  }
+
+  async createInterchange(data, authToken) {
+    try {
+      const response = await this.client.post('/api/admin/interchanges', data, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error creating interchange:', error);
+      throw error;
+    }
+  }
+
+  async updateInterchange(id, data, authToken) {
+    try {
+      const response = await this.client.put(`/api/admin/interchanges/${id}`, data, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error updating interchange:', error);
+      throw error;
+    }
+  }
+
+  async deleteInterchange(id, authToken) {
+    try {
+      const response = await this.client.delete(`/api/admin/interchanges/${id}`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting interchange:', error);
+      throw error;
+    }
+  }
+
+  async resolveDetourAlert(id, note, authToken) {
+    try {
+      const response = await this.client.post(`/api/admin/detour-alerts/${id}/resolve`, { note }, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error resolving detour alert:', error);
+      throw error;
+    }
+  }
 }
 
 export default new TrafficAPI();

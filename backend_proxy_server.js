@@ -141,6 +141,19 @@ const requireUserOrStateAuth = (req, res, next) => {
 const MESSAGES_FILE = path.join(__dirname, 'messages.json');
 const FRONTEND_DIST_PATH = path.join(__dirname, 'frontend', 'dist');
 
+const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const R = 6371; // Earth's radius in km
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
 // Initialize messages file if it doesn't exist
 async function initializeMessagesFile() {
   try {
@@ -4814,6 +4827,95 @@ app.get('/api/admin/states', (req, res) => {
   });
 });
 
+// Interchange management (admin)
+app.get('/api/admin/interchanges', requireAdmin, (req, res) => {
+  const interchanges = db.getInterchanges();
+  res.json({ success: true, interchanges });
+});
+
+app.post('/api/admin/interchanges', requireAdmin, (req, res) => {
+  const { name, stateKey, corridor, latitude, longitude, watchRadiusKm, notifyStates, detourMessage, active } = req.body;
+
+  if (!name || !stateKey || latitude === undefined || longitude === undefined) {
+    return res.status(400).json({ error: 'name, stateKey, latitude, and longitude are required' });
+  }
+
+  const result = db.createInterchange({
+    name,
+    stateKey: stateKey.toLowerCase(),
+    corridor,
+    latitude,
+    longitude,
+    watchRadiusKm: watchRadiusKm || 15,
+    notifyStates: notifyStates || [],
+    detourMessage,
+    active: active !== undefined ? !!active : true
+  });
+
+  if (result.success) {
+    res.status(201).json({ success: true, id: result.id });
+  } else {
+    res.status(400).json({ error: result.error });
+  }
+});
+
+app.put('/api/admin/interchanges/:id', requireAdmin, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid interchange id' });
+  }
+
+  const updates = { ...req.body };
+  if (updates.stateKey) {
+    updates.stateKey = updates.stateKey.toLowerCase();
+  }
+
+  if (updates.notifyStates) {
+    updates.notifyStates = Array.isArray(updates.notifyStates) ? updates.notifyStates : [updates.notifyStates];
+  }
+
+  const result = db.updateInterchange(id, updates);
+  if (result.success) {
+    res.json({ success: true });
+  } else {
+    res.status(400).json({ error: result.error });
+  }
+});
+
+app.delete('/api/admin/interchanges/:id', requireAdmin, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid interchange id' });
+  }
+
+  const result = db.deleteInterchange(id);
+  if (result.success) {
+    res.json({ success: true });
+  } else {
+    res.status(400).json({ error: result.error });
+  }
+});
+
+app.post('/api/admin/detour-alerts/:id/resolve', requireAdmin, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid alert id' });
+  }
+
+  const note = req.body?.note || null;
+  const result = db.resolveDetourAlert(id, note);
+  if (result.success) {
+    res.json({ success: true });
+  } else {
+    res.status(400).json({ error: result.error });
+  }
+});
+
+app.get('/api/detour-alerts/active', requireUser, (req, res) => {
+  const alerts = db.getActiveDetourAlerts();
+  res.json({ success: true, alerts });
+});
+
 // Test state API connection (admin only)
 app.get('/api/admin/test-state/:stateKey', requireAdmin, async (req, res) => {
   const { stateKey } = req.params;
@@ -4883,6 +4985,185 @@ app.post('/api/admin/messages', requireAdmin, (req, res) => {
 // High-Severity Event Monitoring
 // Track notified events to avoid duplicate notifications
 const notifiedEvents = new Set();
+let detourEvaluationRunning = false;
+
+const severityWeight = (severity) => {
+  if (!severity) return 0;
+  const normalized = severity.toLowerCase();
+  if (['critical', 'high', 'major', 'severe'].includes(normalized)) return 3;
+  if (['medium', 'moderate'].includes(normalized)) return 2;
+  if (['low', 'minor'].includes(normalized)) return 1;
+  return 0;
+};
+
+const isImpactfulEvent = (event) => {
+  const type = (event.eventType || '').toLowerCase();
+  const severity = severityWeight(event.severity) >= 2;
+  const lanes = (event.lanesAffected || '').toLowerCase();
+  const description = (event.description || '').toLowerCase();
+
+  const closureKeywords = ['closure', 'closed', 'blocked', 'standstill', 'stalled', 'crash', 'accident', 'jackknife'];
+  const isClosure = closureKeywords.some(keyword => type.includes(keyword) || description.includes(keyword));
+  const lanesClosed = lanes.includes('closed') || lanes.includes('blocked');
+
+  return severity || isClosure || lanesClosed;
+};
+
+const buildDetourMessage = (interchange, event) => {
+  if (interchange.detourMessage) {
+    return interchange.detourMessage
+      .replace(/{{eventType}}/gi, event.eventType || 'Event')
+      .replace(/{{interchange}}/gi, interchange.name)
+      .replace(/{{corridor}}/gi, event.corridor || interchange.corridor || '')
+      .replace(/{{state}}/gi, event.state || interchange.stateKey.toUpperCase());
+  }
+
+  const base = `${event.eventType || 'Incident'} near ${interchange.name}`;
+  const detail = event.lanesAffected ? `${event.lanesAffected}.` : 'Expect major delays.';
+  return `${base}. ${detail} Consider activating detour messaging for alternate routes.`;
+};
+
+const notifyDetourSubscribers = async (alertRecord, interchange, event) => {
+  const notifyStates = new Set([interchange.stateKey.toLowerCase()]);
+  (interchange.notifyStates || []).forEach(state => notifyStates.add(state.toLowerCase()));
+
+  notifyStates.forEach(stateKey => {
+    const normalizedState = stateKey.toLowerCase();
+    db.sendMessage({
+      fromState: 'ADMIN',
+      toState: normalizedState,
+      subject: `Detour Advisory: ${interchange.name}`,
+      message: alertRecord.message,
+      eventId: event.id,
+      priority: 'high'
+    });
+
+    const recipients = db.getUsersForMessageNotification(normalizedState);
+    recipients.forEach(recipient => {
+      emailService.sendDetourAlertNotification(recipient.email, recipient.fullName || recipient.username, {
+        interchangeName: interchange.name,
+        eventCorridor: event.corridor,
+        interchangeCorridor: interchange.corridor,
+        eventDescription: event.description,
+        eventLocation: event.location,
+        severity: event.severity,
+        lanesAffected: event.lanesAffected,
+        message: alertRecord.message
+      }).catch(err => console.error('Email detour alert error:', err));
+    });
+  });
+};
+
+const evaluateDetourAlerts = async () => {
+  if (detourEvaluationRunning) return;
+  detourEvaluationRunning = true;
+
+  try {
+    const interchanges = db.getActiveInterchanges();
+    if (!interchanges.length) {
+      return;
+    }
+
+    const stateKeys = Object.keys(API_CONFIG);
+    const results = await Promise.all(stateKeys.map(fetchStateData));
+    const allEvents = [];
+    results.forEach(result => {
+      allEvents.push(...result.events);
+    });
+
+    const activeAlerts = db.getActiveDetourAlerts();
+    const alertByInterchange = new Map();
+    activeAlerts.forEach(alert => {
+      alertByInterchange.set(alert.interchangeId, alert);
+    });
+
+    const processedInterchanges = new Set();
+    const now = Date.now();
+
+    interchanges.forEach(interchange => {
+      const radius = interchange.watchRadiusKm || 15;
+
+      const candidates = allEvents.filter(event => {
+        if (!event.latitude || !event.longitude) return false;
+        if (!isImpactfulEvent(event)) return false;
+
+        const distance = haversineDistanceKm(
+          parseFloat(event.latitude),
+          parseFloat(event.longitude),
+          interchange.latitude,
+          interchange.longitude
+        );
+        if (distance > radius) return false;
+
+        if (event.startTime) {
+          const eventTime = new Date(event.startTime).getTime();
+          if (!Number.isNaN(eventTime) && now - eventTime > 6 * 60 * 60 * 1000) {
+            return false;
+          }
+        }
+
+        return true;
+      }).sort((a, b) => severityWeight(b.severity) - severityWeight(a.severity));
+
+      if (candidates.length === 0) {
+        processedInterchanges.add(interchange.id);
+        const existingAlert = alertByInterchange.get(interchange.id);
+        if (existingAlert) {
+          db.resolveDetourAlert(existingAlert.id, 'No qualifying events in watch radius');
+          console.log(`✅ Resolved detour alert at ${interchange.name}`);
+        }
+        return;
+      }
+
+      const event = candidates[0];
+      processedInterchanges.add(interchange.id);
+      const existingAlert = alertByInterchange.get(interchange.id);
+
+      if (existingAlert && existingAlert.event_id === event.id) {
+        return; // already active for this event
+      }
+
+      if (existingAlert && existingAlert.event_id !== event.id) {
+        db.resolveDetourAlert(existingAlert.id, 'Superseded by new event');
+      }
+
+      const message = buildDetourMessage(interchange, event);
+      const notifyStates = new Set([interchange.stateKey.toLowerCase()]);
+      (interchange.notifyStates || []).forEach(state => notifyStates.add(state.toLowerCase()));
+
+      const createResult = db.createDetourAlert({
+        interchangeId: interchange.id,
+        eventId: event.id,
+        eventState: (event.state || '').toLowerCase(),
+        eventCorridor: event.corridor || null,
+        eventLocation: event.location || '',
+        eventDescription: event.description || '',
+        severity: event.severity || null,
+        lanesAffected: event.lanesAffected || null,
+        notifiedStates: Array.from(notifyStates),
+        message
+      });
+
+      if (createResult.success) {
+        console.log(`🚨 Detour alert created for ${interchange.name} (event ${event.id})`);
+        notifyDetourSubscribers({
+          id: createResult.id,
+          message
+        }, interchange, event);
+      }
+    });
+
+    activeAlerts.forEach(alert => {
+      if (!processedInterchanges.has(alert.interchangeId)) {
+        db.resolveDetourAlert(alert.id, 'Interchange no longer monitored');
+      }
+    });
+  } catch (error) {
+    console.error('Error evaluating detour alerts:', error);
+  } finally {
+    detourEvaluationRunning = false;
+  }
+};
 
 async function checkHighSeverityEvents() {
   try {
@@ -4985,6 +5266,9 @@ app.listen(PORT, async () => {
     console.log(`   ⚠️  Email notifications disabled (SMTP not configured)`);
     console.log(`   💡 See EMAIL_SETUP.md for configuration instructions`);
   }
+
+  evaluateDetourAlerts();
+  setInterval(evaluateDetourAlerts, 5 * 60 * 1000);
 
   console.log(`\nPress Ctrl+C to stop the server\n`);
 });
