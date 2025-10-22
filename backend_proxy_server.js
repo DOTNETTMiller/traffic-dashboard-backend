@@ -38,6 +38,8 @@ function migrateUsersToEmailUsernames() {
       });
 
       console.log('✅ User migration complete!');
+    } else {
+      console.log('✅ All users already using email-based usernames');
     }
   } catch (error) {
     console.log('⚠️  User migration skipped (will retry on next startup):', error.message);
