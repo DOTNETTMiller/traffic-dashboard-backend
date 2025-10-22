@@ -190,28 +190,38 @@ body {
 
 .mobile-messages-overlay {
   display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0,0,0,0.5);
-  z-index: 999;
 }
 
 .mobile-messages-overlay.active {
-  display: block;
+  display: none;
 }
 
 /* Desktop: messages panel can be toggled */
-.messages-panel-mobile {
-  display: block;
-  transition: transform 0.3s ease-in-out;
-}
+@media (min-width: 769px) {
+  .messages-panel-mobile {
+    display: flex;
+    max-width: 380px;
+    width: 320px;
+    flex-direction: column;
+    transition: width 0.2s ease;
+  }
 
-/* When panel is closed on desktop, hide it */
-.messages-panel-mobile:not(.open) {
-  transform: translateX(-100%);
+  .messages-panel-mobile.closed {
+    width: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .messages-panel-mobile.closed .messages-panel-content {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .messages-panel-content {
+    flex: 1;
+    opacity: 1;
+    transition: opacity 0.2s ease;
+  }
 }
 
 /* Show menu button on desktop */

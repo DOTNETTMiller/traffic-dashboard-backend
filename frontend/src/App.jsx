@@ -29,6 +29,7 @@ function App() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Start with panel closed
+  const [desktopMessagesOpen, setDesktopMessagesOpen] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [authToken, setAuthToken] = useState(null);
@@ -349,10 +350,16 @@ function App() {
             />
 
             {/* Messages toggle button - show when panel is closed */}
-            {!mobileMenuOpen && (
+            {!mobileMenuOpen && !desktopMessagesOpen && (
               <button
                 className="mobile-menu-btn"
-                onClick={() => setMobileMenuOpen(true)}
+                onClick={() => {
+                  if (window.innerWidth < 769) {
+                    setMobileMenuOpen(true);
+                  } else {
+                    setDesktopMessagesOpen(true);
+                  }
+                }}
                 aria-label="Open messages"
               >
                 💬
@@ -370,7 +377,8 @@ function App() {
               boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
               position: 'relative'
             }}>
-              <div className={`messages-panel-mobile ${mobileMenuOpen ? 'open' : ''}`}>
+              <div className={`messages-panel-mobile ${mobileMenuOpen ? 'open' : ''} ${desktopMessagesOpen ? '' : 'closed'}`}>
+                <div className="messages-panel-content">
                 <MessagesPanel
                   events={filteredEvents}
                   messages={messages}
@@ -378,9 +386,17 @@ function App() {
                   onEventSelect={(event) => {
                     setSelectedEvent(event);
                     setMobileMenuOpen(false);
+                    setDesktopMessagesOpen(true);
                   }}
-                  onClose={() => setMobileMenuOpen(false)}
+                  onClose={() => {
+                    if (window.innerWidth < 769) {
+                      setMobileMenuOpen(false);
+                    } else {
+                      setDesktopMessagesOpen(false);
+                    }
+                  }}
                 />
+                </div>
               </div>
               <div style={{ flex: 1, height: '100%', overflow: 'hidden' }}>
                 <TrafficMap
