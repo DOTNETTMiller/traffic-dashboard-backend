@@ -118,5 +118,295 @@
     "watchRadiusKm": 30,
     "notifyStates": ["oh", "pa", "mi"],
     "detourMessage": "Ohio Turnpike / I-71 backups. Consider messaging for alternate Ohio Turnpike exits." 
+  },
+  {
+    "name": "I-95 / I-295 Jacksonville",
+    "stateKey": "fl",
+    "corridor": "I-95",
+    "latitude": 30.2664,
+    "longitude": -81.5598,
+    "watchRadiusKm": 25,
+    "notifyStates": ["fl", "ga"],
+    "detourMessage": "Congestion at {{interchange}}. Coordinate FL/GA messaging for I-95 detours." 
+  },
+  {
+    "name": "I-95 / I-495 Capital Beltway",
+    "stateKey": "va",
+    "corridor": "I-95",
+    "latitude": 38.7891,
+    "longitude": -77.1853,
+    "watchRadiusKm": 30,
+    "notifyStates": ["va", "md", "dc"],
+    "detourMessage": "Beltway congestion at Springfield Interchange. Coordinate VDOT/MDOT messaging." 
+  },
+  {
+    "name": "I-95 / I-76 Philadelphia",
+    "stateKey": "pa",
+    "corridor": "I-95",
+    "latitude": 39.9025,
+    "longitude": -75.1828,
+    "watchRadiusKm": 20,
+    "notifyStates": ["pa", "nj", "de"],
+    "detourMessage": "Major delay near {{interchange}}. Consider rerouting via I-476 or NJ Turnpike." 
+  },
+  {
+    "name": "I-95 / I-90 Boston",
+    "stateKey": "ma",
+    "corridor": "I-95",
+    "latitude": 42.2486,
+    "longitude": -71.1734,
+    "watchRadiusKm": 25,
+    "notifyStates": ["ma", "ri", "nh"],
+    "detourMessage": "Mass Pike / I-95 congestion. Coordinate MassDOT and adjoining states." 
+  },
+  {
+    "name": "I-95 / I-26 Charleston",
+    "stateKey": "sc",
+    "corridor": "I-95",
+    "latitude": 33.3617,
+    "longitude": -79.9989,
+    "watchRadiusKm": 25,
+    "notifyStates": ["sc", "ga", "nc"],
+    "detourMessage": "Queue near I-26/I-95. Coordinate hurricane evacuation or detour messaging." 
+  },
+  {
+    "name": "I-10 / I-610 Houston",
+    "stateKey": "tx",
+    "corridor": "I-10",
+    "latitude": 29.7916,
+    "longitude": -95.4001,
+    "watchRadiusKm": 25,
+    "notifyStates": ["tx", "la"],
+    "detourMessage": "Katy Freeway congestion near Loop 610. Advise alternate I-610 spurs." 
+  },
+  {
+    "name": "I-10 / I-35 San Antonio",
+    "stateKey": "tx",
+    "corridor": "I-10",
+    "latitude": 29.4252,
+    "longitude": -98.4916,
+    "watchRadiusKm": 20,
+    "notifyStates": ["tx"],
+    "detourMessage": "Downtown San Antonio system interchange delay. Coordinate I-410 bypass messaging." 
+  },
+  {
+    "name": "I-10 / I-17 Phoenix Stack",
+    "stateKey": "az",
+    "corridor": "I-10",
+    "latitude": 33.4510,
+    "longitude": -112.0796,
+    "watchRadiusKm": 20,
+    "notifyStates": ["az", "ca", "nm"],
+    "detourMessage": "Stack interchange congestion. Consider I-17/I-202 detours." 
+  },
+  {
+    "name": "I-10 / I-95 Jacksonville",
+    "stateKey": "fl",
+    "corridor": "I-10",
+    "latitude": 30.3332,
+    "longitude": -81.6601,
+    "watchRadiusKm": 20,
+    "notifyStates": ["fl", "ga"],
+    "detourMessage": "I-10 eastbound delay approaching I-95. Coordinate East Coast traveler messaging." 
+  },
+  {
+    "name": "I-5 / I-90 Seattle",
+    "stateKey": "wa",
+    "corridor": "I-5",
+    "latitude": 47.5952,
+    "longitude": -122.3275,
+    "watchRadiusKm": 20,
+    "notifyStates": ["wa", "or"],
+    "detourMessage": "Seattle downtown interchange congestion. Coordinate reversible lanes or SR-99 usage." 
+  },
+  {
+    "name": "I-5 / I-84 Portland",
+    "stateKey": "or",
+    "corridor": "I-5",
+    "latitude": 45.5309,
+    "longitude": -122.6668,
+    "watchRadiusKm": 20,
+    "notifyStates": ["or", "wa"],
+    "detourMessage": "Rose Quarter interchange delay. Coordinate I-205 detour messaging." 
+  },
+  {
+    "name": "I-5 / I-10 Los Angeles",
+    "stateKey": "ca",
+    "corridor": "I-5",
+    "latitude": 34.0526,
+    "longitude": -118.2016,
+    "watchRadiusKm": 20,
+    "notifyStates": ["ca", "az", "nv"],
+    "detourMessage": "Downtown LA system interchange congestion. Coordinate Caltrans messaging for I-710 & I-605 alternates." 
+  },
+  {
+    "name": "I-40 / I-35 Oklahoma City",
+    "stateKey": "ok",
+    "corridor": "I-40",
+    "latitude": 35.4648,
+    "longitude": -97.5154,
+    "watchRadiusKm": 25,
+    "notifyStates": ["ok", "tx", "ks"],
+    "detourMessage": "Crossroads of America congestion. Coordinate I-44 or Kilpatrick Turnpike detours." 
+  },
+  {
+    "name": "I-40 / I-75 Knoxville",
+    "stateKey": "tn",
+    "corridor": "I-40",
+    "latitude": 35.9625,
+    "longitude": -83.9370,
+    "watchRadiusKm": 25,
+    "notifyStates": ["tn", "nc", "ky"],
+    "detourMessage": "Knoxville SmartFIX congestion. Coordinate I-640 bypass messaging." 
+  },
+  {
+    "name": "I-70 / I-25 Denver",
+    "stateKey": "co",
+    "corridor": "I-70",
+    "latitude": 39.7789,
+    "longitude": -104.9870,
+    "watchRadiusKm": 25,
+    "notifyStates": ["co", "wy", "ut"],
+    "detourMessage": "I-70/I-25 (Mousetrap) congestion. Coordinate mountain corridor detours." 
+  },
+  {
+    "name": "I-70 / I-65 Indianapolis",
+    "stateKey": "in",
+    "corridor": "I-70",
+    "latitude": 39.7642,
+    "longitude": -86.1580,
+    "watchRadiusKm": 20,
+    "notifyStates": ["in", "il", "oh"],
+    "detourMessage": "Downtown Indianapolis interchange delays. Consider I-465 detours." 
+  },
+  {
+    "name": "I-20 / I-75 Atlanta",
+    "stateKey": "ga",
+    "corridor": "I-20",
+    "latitude": 33.7486,
+    "longitude": -84.3958,
+    "watchRadiusKm": 20,
+    "notifyStates": ["ga", "al", "sc"],
+    "detourMessage": "Downtown Connector congestion. Coordinate Georgia NaviGAtor detours." 
+  },
+  {
+    "name": "I-20 / I-35W Fort Worth",
+    "stateKey": "tx",
+    "corridor": "I-20",
+    "latitude": 32.6591,
+    "longitude": -97.3475,
+    "watchRadiusKm": 25,
+    "notifyStates": ["tx"],
+    "detourMessage": "I-20/I-35W congestion. Coordinate with North Tarrant Express for alternates." 
+  },
+  {
+    "name": "I-75 / I-85 Downtown Atlanta",
+    "stateKey": "ga",
+    "corridor": "I-75",
+    "latitude": 33.7545,
+    "longitude": -84.3949,
+    "watchRadiusKm": 20,
+    "notifyStates": ["ga", "tn"],
+    "detourMessage": "Downtown Connector severe congestion. Consider I-285 bypass messaging." 
+  },
+  {
+    "name": "I-75 / I-94 Detroit",
+    "stateKey": "mi",
+    "corridor": "I-75",
+    "latitude": 42.3230,
+    "longitude": -83.0584,
+    "watchRadiusKm": 20,
+    "notifyStates": ["mi", "oh", "on"],
+    "detourMessage": "Detroit Ambassador Bridge approaches congested. Coordinate MDOT/ODOT messaging." 
+  },
+  {
+    "name": "I-71 / I-75 Cincinnati (Brent Spence)",
+    "stateKey": "ky",
+    "corridor": "I-71/I-75",
+    "latitude": 39.0868,
+    "longitude": -84.5372,
+    "watchRadiusKm": 25,
+    "notifyStates": ["ky", "oh", "in"],
+    "detourMessage": "Brent Spence Bridge congestion. Coordinate I-275 bypass messaging with KYTC/ODOT." 
+  },
+  {
+    "name": "I-81 / I-66 Northern Virginia",
+    "stateKey": "va",
+    "corridor": "I-81",
+    "latitude": 38.9430,
+    "longitude": -78.2677,
+    "watchRadiusKm": 25,
+    "notifyStates": ["va", "wv", "md"],
+    "detourMessage": "I-81/I-66 congestion impacting DC freight routes. Coordinate regional response." 
+  },
+  {
+    "name": "I-29 / I-90 Sioux Falls",
+    "stateKey": "sd",
+    "corridor": "I-90",
+    "latitude": 43.5661,
+    "longitude": -96.7250,
+    "watchRadiusKm": 30,
+    "notifyStates": ["sd", "ia", "mn"],
+    "detourMessage": "Sioux Falls system interchange delays. Coordinate with surrounding states for detours." 
+  },
+  {
+    "name": "I-29 / I-94 Fargo",
+    "stateKey": "nd",
+    "corridor": "I-94",
+    "latitude": 46.8772,
+    "longitude": -96.8089,
+    "watchRadiusKm": 30,
+    "notifyStates": ["nd", "mn", "sd"],
+    "detourMessage": "Fargo system interchange congestion. Coordinate ND/MN messaging." 
+  },
+  {
+    "name": "I-44 / I-35 Oklahoma City",
+    "stateKey": "ok",
+    "corridor": "I-35",
+    "latitude": 35.5190,
+    "longitude": -97.5250,
+    "watchRadiusKm": 20,
+    "notifyStates": ["ok", "tx", "ks"],
+    "detourMessage": "I-35/I-44 congestion. Coordinate with Turnpike Authority for alternate routing." 
+  },
+  {
+    "name": "I-64 / I-65 Louisville",
+    "stateKey": "ky",
+    "corridor": "I-65",
+    "latitude": 38.2530,
+    "longitude": -85.7416,
+    "watchRadiusKm": 25,
+    "notifyStates": ["ky", "in", "oh"],
+    "detourMessage": "Ohio River bridges congestion. Coordinate Louisville-Southern Indiana messaging." 
+  },
+  {
+    "name": "I-65 / I-459 Birmingham",
+    "stateKey": "al",
+    "corridor": "I-65",
+    "latitude": 33.3283,
+    "longitude": -86.8270,
+    "watchRadiusKm": 20,
+    "notifyStates": ["al", "ga", "tn"],
+    "detourMessage": "Birmingham system interchange delays. Coordinate ALDOT detour messaging." 
+  },
+  {
+    "name": "I-17 / I-40 Flagstaff",
+    "stateKey": "az",
+    "corridor": "I-40",
+    "latitude": 35.1983,
+    "longitude": -111.6513,
+    "watchRadiusKm": 25,
+    "notifyStates": ["az", "nm", "ut"],
+    "detourMessage": "Flagstaff system interchange impacted. Consider high-profile restrictions and alternate routes." 
+  },
+  {
+    "name": "I-30 / I-45 Dallas",
+    "stateKey": "tx",
+    "corridor": "I-30",
+    "latitude": 32.7782,
+    "longitude": -96.7945,
+    "watchRadiusKm": 20,
+    "notifyStates": ["tx", "ar"],
+    "detourMessage": "Dallas Mixmaster congestion. Coordinate I-635 or US-75 alternates." 
   }
 ]
