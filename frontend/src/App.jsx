@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useTrafficData } from './hooks/useTrafficData';
 import { config } from './config';
+import api from './services/api';
 import TrafficMap from './components/TrafficMap';
 import EventTable from './components/EventTable';
 import EventFilters from './components/EventFilters';
