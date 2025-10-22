@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { config } from '../config';
 
 const defaultUserForm = {
-  username: '',
   email: '',
   password: '',
   confirmPassword: '',
@@ -135,8 +134,7 @@ export default function AdminUsers({ user, authToken }) {
   const handleEditClick = (userRecord) => {
     setEditingUser(userRecord);
     setFormData({
-      username: userRecord.username,
-      email: userRecord.email || '',
+      email: userRecord.email || userRecord.username || '',
       password: '',
       confirmPassword: '',
       fullName: userRecord.fullName || '',
@@ -169,10 +167,6 @@ export default function AdminUsers({ user, authToken }) {
     setError('');
     setSuccess('');
 
-    if (!editingUser && !formData.username.trim()) {
-      setError('Username is required');
-      return;
-    }
     if (!formData.email.trim()) {
       setError('Email is required');
       return;
@@ -194,7 +188,7 @@ export default function AdminUsers({ user, authToken }) {
     };
 
     if (!editingUser) {
-      payload.username = formData.username.trim();
+      // Email is used as username
       if (formData.password) {
         payload.password = formData.password;
       }
@@ -388,25 +382,17 @@ export default function AdminUsers({ user, authToken }) {
       {showForm && (
         <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #ddd', borderRadius: '4px', backgroundColor: '#f9f9f9' }}>
           <h3>{editingUser ? `Edit ${editingUser.username}` : 'Create New User'}</h3>
+          {!editingUser && (
+            <p style={{ fontSize: '0.9em', color: '#666', margin: '0 0 15px 0' }}>
+              Note: Email address will be used as the username for login.
+            </p>
+          )}
           <form onSubmit={handleSubmit}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-              {!editingUser && (
-                <div>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Username *</label>
-                  <input
-                    type="text"
-                    name="username"
-                    value={formData.username}
-                    onChange={handleFormChange}
-                    required
-                    autoComplete="username"
-                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
-                  />
-                </div>
-              )}
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>Email *</label>
+              <div style={{ gridColumn: editingUser ? '1' : '1 / span 2' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
+                  Email {!editingUser && '(used as username)'} *
+                </label>
                 <input
                   type="email"
                   name="email"
@@ -414,8 +400,20 @@ export default function AdminUsers({ user, authToken }) {
                   onChange={handleFormChange}
                   required
                   autoComplete="email"
-                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                  disabled={editingUser}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid #ccc',
+                    backgroundColor: editingUser ? '#f5f5f5' : 'white'
+                  }}
                 />
+                {editingUser && (
+                  <small style={{ color: '#666', fontSize: '0.85em' }}>
+                    Email/username cannot be changed for existing users
+                  </small>
+                )}
               </div>
 
               {!editingUser && (
