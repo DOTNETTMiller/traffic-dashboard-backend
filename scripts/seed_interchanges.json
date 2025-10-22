@@ -1,0 +1,122 @@
+[
+  {
+    "name": "I-80 / I-680 Omaha",
+    "stateKey": "ne",
+    "corridor": "I-80",
+    "latitude": 41.2440,
+    "longitude": -95.9770,
+    "watchRadiusKm": 25,
+    "notifyStates": ["ne", "ia"],
+    "detourMessage": "Heavy congestion near {{interchange}}. Coordinate NE/IA DMS for alternate routing."
+  },
+  {
+    "name": "Council Bluffs I-80 / I-29",
+    "stateKey": "ia",
+    "corridor": "I-80",
+    "latitude": 41.2555,
+    "longitude": -95.8630,
+    "watchRadiusKm": 25,
+    "notifyStates": ["ia", "ne"],
+    "detourMessage": "Major queue near {{interchange}}. Consider routing via I-29/I-680." 
+  },
+  {
+    "name": "Des Moines I-35 / I-80 / I-235",
+    "stateKey": "ia",
+    "corridor": "I-35/I-80",
+    "latitude": 41.6260,
+    "longitude": -93.7065,
+    "watchRadiusKm": 30,
+    "notifyStates": ["ia", "ne", "il"],
+    "detourMessage": "Significant delays at Des Moines systems interchange. Prepare advisory for long-haul I-80 traffic." 
+  },
+  {
+    "name": "Omaha I-80 / US-75",
+    "stateKey": "ne",
+    "corridor": "I-80",
+    "latitude": 41.2307,
+    "longitude": -95.9364,
+    "watchRadiusKm": 15,
+    "notifyStates": ["ne", "ia"],
+    "detourMessage": "Delays near {{interchange}}. Shift through traffic via I-680 if needed." 
+  },
+  {
+    "name": "Wyoming I-80 / I-25 (Cheyenne)",
+    "stateKey": "wy",
+    "corridor": "I-80",
+    "latitude": 41.1129,
+    "longitude": -104.8668,
+    "watchRadiusKm": 30,
+    "notifyStates": ["wy", "co", "ne"],
+    "detourMessage": "Congestion near Cheyenne system interchange. Coordinate with WYDOT/Color ado for alternate messaging." 
+  },
+  {
+    "name": "I-80 / I-76 Big Springs",
+    "stateKey": "ne",
+    "corridor": "I-80",
+    "latitude": 41.0815,
+    "longitude": -102.0876,
+    "watchRadiusKm": 30,
+    "notifyStates": ["ne", "co", "wy"],
+    "detourMessage": "Nebraska/Colorado line congestion. Alert eastbound carriers to consider US-385 detour." 
+  },
+  {
+    "name": "Salt Lake City I-80 / I-215 / I-15",
+    "stateKey": "ut",
+    "corridor": "I-80",
+    "latitude": 40.7701,
+    "longitude": -111.9000,
+    "watchRadiusKm": 35,
+    "notifyStates": ["ut", "wy", "nv"],
+    "detourMessage": "Wasatch Front system interchange delays. Coordinate with UDOT for alternate I-215 routing." 
+  },
+  {
+    "name": "Laramie I-80 / US-287",
+    "stateKey": "wy",
+    "corridor": "I-80",
+    "latitude": 41.3129,
+    "longitude": -105.5922,
+    "watchRadiusKm": 25,
+    "notifyStates": ["wy", "co"],
+    "detourMessage": "High-profile vehicle restrictions near Laramie. Coordinate WY/CO messaging." 
+  },
+  {
+    "name": "I-80 / I-57 Chicago Southland",
+    "stateKey": "il",
+    "corridor": "I-80",
+    "latitude": 41.5570,
+    "longitude": -87.7479,
+    "watchRadiusKm": 30,
+    "notifyStates": ["il", "in", "ia"],
+    "detourMessage": "I-80/I-57 interchange congestion. Consider advising detour via I-294 or I-355." 
+  },
+  {
+    "name": "I-80 / I-94 / I-294 Tri-State",
+    "stateKey": "il",
+    "corridor": "I-80",
+    "latitude": 41.5402,
+    "longitude": -87.5229,
+    "watchRadiusKm": 30,
+    "notifyStates": ["il", "in"],
+    "detourMessage": "Heavy congestion near Tri-State interchange. Coordinate cross-border messaging with INDOT." 
+  },
+  {
+    "name": "I-80 / I-90 / I-94 Indiana Toll Road",
+    "stateKey": "in",
+    "corridor": "I-80",
+    "latitude": 41.6130,
+    "longitude": -87.2677,
+    "watchRadiusKm": 25,
+    "notifyStates": ["in", "il", "oh"],
+    "detourMessage": "Indiana Toll Road congestion impacting I-80. Coordinate resources with Illinois & Ohio." 
+  },
+  {
+    "name": "I-80 / I-71 Columbus",
+    "stateKey": "oh",
+    "corridor": "I-80",
+    "latitude": 41.3730,
+    "longitude": -81.8550,
+    "watchRadiusKm": 30,
+    "notifyStates": ["oh", "pa", "mi"],
+    "detourMessage": "Ohio Turnpike / I-71 backups. Consider messaging for alternate Ohio Turnpike exits." 
+  }
+]
