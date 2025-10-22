@@ -200,8 +200,7 @@ body {
 @media (min-width: 769px) {
   .messages-panel-mobile {
     display: flex;
-    max-width: 380px;
-    width: 320px;
+    width: min(28vw, 360px);
     flex-direction: column;
     transition: width 0.2s ease;
   }
