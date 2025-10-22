@@ -41,7 +41,7 @@ The interface is intuitive and shows all user information including:
 
 Run the interactive user management tool from the command line:
 ```bash
-node manage_users.js
+node scripts/manage_users.js
 ```
 
 #### Features:
@@ -203,14 +203,16 @@ If no password is provided, a temporary password will be generated.
 
 ## Migration Script
 
-To re-run the email username migration (if needed):
+**Note:** Migration now runs automatically on backend startup! No manual migration needed.
+
+If you need to manually re-run the email username migration:
 ```bash
-node migrate_to_email_usernames.js
+node scripts/migrate_to_email_usernames.js
 ```
 
 This script:
 - Updates all usernames to match their email addresses
-- Sets your password to `Bim4infra`
+- Sets password for matthew.miller@iowadot.us to `Bim4infra`
 - Shows before/after state
 
 ## Fallback Login
@@ -230,7 +232,7 @@ sqlite3 states.db "SELECT username, email, role, active FROM users"
 
 **Reset your password via CLI:**
 ```bash
-node manage_users.js
+node scripts/manage_users.js
 # Select option 7 (Quick password reset)
 # Select your user
 # Enter new password
@@ -238,7 +240,7 @@ node manage_users.js
 
 **Test login:**
 ```bash
-node manage_users.js
+node scripts/manage_users.js
 # Select option 6 (Test login)
 # Enter: matthew.miller@iowadot.us
 # Enter: Bim4infra

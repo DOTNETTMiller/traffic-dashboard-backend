@@ -19,6 +19,34 @@ const PORT = process.env.PORT || 3001;
 // JWT Secret (should be in environment variable in production)
 const JWT_SECRET = process.env.JWT_SECRET || 'ccai2026-traffic-dashboard-secret-key';
 
+// Auto-migrate users to email-based usernames on startup (if needed)
+function migrateUsersToEmailUsernames() {
+  try {
+    const users = db.getAllUsers();
+    const needsMigration = users.filter(u => u.username !== u.email);
+
+    if (needsMigration.length > 0) {
+      console.log(`🔄 Migrating ${needsMigration.length} users to email-based usernames...`);
+
+      needsMigration.forEach(user => {
+        const result = db.updateUser(user.id, { username: user.email });
+        if (result.success) {
+          console.log(`  ✅ ${user.username} → ${user.email}`);
+        } else {
+          console.log(`  ❌ Failed to migrate ${user.username}`);
+        }
+      });
+
+      console.log('✅ User migration complete!');
+    }
+  } catch (error) {
+    console.log('⚠️  User migration skipped (will retry on next startup):', error.message);
+  }
+}
+
+// Run migration on startup
+migrateUsersToEmailUsernames();
+
 // Enable CORS for your frontend
 app.use(cors());
 app.use(express.json());

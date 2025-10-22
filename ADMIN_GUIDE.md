@@ -32,7 +32,7 @@ You are logged in as an **admin** user with full access to manage all users in t
 For quick tasks or bulk operations:
 
 ```bash
-node manage_users.js
+node scripts/manage_users.js
 ```
 
 This opens an interactive menu with the same capabilities as the web interface.
@@ -106,7 +106,7 @@ curl -X POST http://localhost:3001/api/admin/users/3/reset-password \
 
 **CLI:**
 ```bash
-node manage_users.js
+node scripts/manage_users.js
 # Select option 7 (Quick password reset)
 # Choose the user
 # Enter new password
@@ -143,7 +143,7 @@ All are using email-based usernames as designed.
 To verify your system is working:
 
 ```bash
-node test_user_system.js
+node scripts/test_user_system.js
 ```
 
 This runs automated tests to ensure:
@@ -163,6 +163,6 @@ This runs automated tests to ensure:
 ## Getting Help
 
 - **User Management Reference:** See `USER_MANAGEMENT.md`
-- **CLI Tool:** Run `node manage_users.js`
+- **CLI Tool:** Run `node scripts/manage_users.js`
 - **API Documentation:** See admin endpoints in `USER_MANAGEMENT.md`
-- **Test System:** Run `node test_user_system.js`
+- **Test System:** Run `node scripts/test_user_system.js`
