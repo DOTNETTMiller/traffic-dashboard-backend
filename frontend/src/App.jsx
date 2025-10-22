@@ -28,8 +28,8 @@ function App() {
   const [messages, setMessages] = useState({});
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(true);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Start with panel closed
-  const [desktopMessagesOpen, setDesktopMessagesOpen] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Mobile starts closed
+  const [desktopMessagesOpen, setDesktopMessagesOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [authToken, setAuthToken] = useState(null);
