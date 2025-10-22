@@ -1335,7 +1335,7 @@ app.post('/api/users/login', (req, res) => {
         role: user.role
       }
     });
-    const fallbackLogin = async (targetUsername, defaultEmail) => {
+    const fallbackLogin = (targetUsername, defaultEmail) => {
       let fallbackUser = db.getUserByUsername ? db.getUserByUsername(targetUsername) : null;
       if (!fallbackUser) {
         const createResult = db.createUser({
@@ -1386,18 +1386,18 @@ app.post('/api/users/login', (req, res) => {
           stateKey: fallbackUser.stateKey,
           role: fallbackUser.role
         }
-      };
+    };
     };
 
     if (username === 'MM' && password === 'admin2026') {
-      const fallback = await fallbackLogin('MM', 'matthew.miller@iowadot.us');
+      const fallback = fallbackLogin('MM', 'matthew.miller@iowadot.us');
       if (fallback) {
         return res.json({ success: true, message: 'Login successful', ...fallback });
       }
     }
 
     if (username === 'admin' && password === 'admin2026') {
-      const fallback = await fallbackLogin('admin', 'admin@example.com');
+      const fallback = fallbackLogin('admin', 'admin@example.com');
       if (fallback) {
         return res.json({ success: true, message: 'Login successful', ...fallback });
       }
