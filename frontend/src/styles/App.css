@@ -196,6 +196,12 @@ body {
   display: none;
 }
 
+.messages-panel-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 /* Desktop: messages panel can be toggled */
 @media (min-width: 769px) {
   .messages-panel-mobile {

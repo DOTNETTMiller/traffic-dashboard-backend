@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useTrafficData } from './hooks/useTrafficData';
 import { config } from './config';
@@ -13,6 +13,7 @@ import StateAdmin from './components/StateAdmin';
 import StateMessaging from './components/StateMessaging';
 import UserLogin from './components/UserLogin';
 import AdminUsers from './components/AdminUsers';
+import AdminInterchanges from './components/AdminInterchanges';
 import './styles/App.css';
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [authToken, setAuthToken] = useState(null);
+  const [detourAlerts, setDetourAlerts] = useState([]);
 
   // Check for existing authentication on mount
   useEffect(() => {
@@ -61,6 +63,35 @@ function App() {
   const { events, loading, error, lastUpdate, refetch } = useTrafficData(
     autoRefresh ? 60000 : null
   );
+
+  const loadDetourAlerts = useCallback(async () => {
+    if (!authToken) {
+      setDetourAlerts([]);
+      return;
+    }
+
+    try {
+      const response = await api.getActiveDetourAlerts(authToken);
+      setDetourAlerts(response.alerts || []);
+    } catch (err) {
+      console.error('Error loading detour alerts:', err);
+    }
+  }, [authToken]);
+
+  useEffect(() => {
+    let intervalId;
+
+    if (authToken) {
+      loadDetourAlerts();
+      intervalId = setInterval(loadDetourAlerts, 60000);
+    } else {
+      setDetourAlerts([]);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [authToken, loadDetourAlerts]);
 
   // Load messages from backend on mount
   useEffect(() => {
@@ -298,6 +329,13 @@ function App() {
               >
                 Admin (Users)
               </button>
+              <button
+                className={`toggle-btn ${view === 'adminInterchanges' ? 'active' : ''}`}
+                onClick={() => setView('adminInterchanges')}
+                style={{ backgroundColor: view === 'adminInterchanges' ? '#dc3545' : '#6c757d' }}
+              >
+                Admin (Detours)
+              </button>
             </>
           )}
         </div>
@@ -337,6 +375,8 @@ function App() {
           <StateAdmin user={currentUser} authToken={authToken} />
         ) : view === 'adminUsers' ? (
           <AdminUsers user={currentUser} authToken={authToken} />
+        ) : view === 'adminInterchanges' ? (
+          <AdminInterchanges authToken={authToken} />
         ) : view === 'messages' ? (
           <StateMessaging user={currentUser} authToken={authToken} />
         ) : view === 'alignment' ? (
@@ -382,6 +422,7 @@ function App() {
                 <MessagesPanel
                   events={filteredEvents}
                   messages={messages}
+                  detourAlerts={detourAlerts}
                   filters={filters}
                   onEventSelect={(event) => {
                     setSelectedEvent(event);
@@ -402,6 +443,7 @@ function App() {
                 <TrafficMap
                   events={filteredEvents}
                   messages={messages}
+                  detourAlerts={detourAlerts}
                   onEventSelect={setSelectedEvent}
                   selectedEvent={selectedEvent}
                 />
