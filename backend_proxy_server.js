@@ -4303,22 +4303,8 @@ app.delete('/api/messages/event/:eventId', async (req, res) => {
 
 // ==================== STATE-TO-STATE MESSAGING ENDPOINTS ====================
 
-// State authentication middleware
-const requireStateAuth = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('State ')) {
-    return res.status(401).json({ error: 'Missing or invalid state authorization header' });
-  }
-
-  const [stateKey, password] = authHeader.substring(6).split(':');
-  if (!db.verifyStatePassword(stateKey, password)) {
-    return res.status(403).json({ error: 'Invalid state credentials' });
-  }
-
-  req.stateKey = stateKey;
-  req.stateName = db.getState(stateKey)?.stateName;
-  next();
-};
+// Support both legacy state passwords and new user JWTs
+const requireStateAuth = requireUserOrStateAuth;
 
 // Set/update state password (admin only)
 app.post('/api/states/password', requireAdmin, (req, res) => {
