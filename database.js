@@ -127,6 +127,27 @@ class StateDatabase {
         FOREIGN KEY (interchange_id) REFERENCES interchanges(id)
       );
 
+      CREATE TABLE IF NOT EXISTS feed_submissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        submitted_by INTEGER,
+        submitter_username TEXT,
+        submitter_email TEXT,
+        feed_name TEXT NOT NULL,
+        feed_url TEXT NOT NULL,
+        format TEXT NOT NULL,
+        api_type TEXT,
+        state_key TEXT,
+        credentials TEXT,
+        notes TEXT,
+        status TEXT DEFAULT 'pending',
+        admin_username TEXT,
+        admin_note TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        approved_at DATETIME,
+        FOREIGN KEY (submitted_by) REFERENCES users(id)
+      );
+
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
@@ -151,6 +172,7 @@ class StateDatabase {
       CREATE INDEX IF NOT EXISTS idx_interchanges_active ON interchanges(active);
       CREATE INDEX IF NOT EXISTS idx_detour_alert_status ON detour_alerts(status);
       CREATE INDEX IF NOT EXISTS idx_detour_alert_interchange ON detour_alerts(interchange_id);
+      CREATE INDEX IF NOT EXISTS idx_feed_submissions_status ON feed_submissions(status);
       CREATE INDEX IF NOT EXISTS idx_username ON users(username);
       CREATE INDEX IF NOT EXISTS idx_email ON users(email);
     `);
@@ -280,6 +302,22 @@ class StateDatabase {
       return { success: true };
     } catch (error) {
       console.error('Error updating state:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  setStateCredentials(stateKey, credentials = {}) {
+    try {
+      const encrypted = this.encrypt(credentials);
+      const stmt = this.db.prepare(`
+        INSERT INTO state_credentials (state_key, credentials_encrypted)
+        VALUES (?, ?)
+        ON CONFLICT(state_key) DO UPDATE SET credentials_encrypted = excluded.credentials_encrypted
+      `);
+      stmt.run(stateKey, encrypted);
+      return { success: true };
+    } catch (error) {
+      console.error('Error setting state credentials:', error);
       return { success: false, error: error.message };
     }
   }
@@ -721,6 +759,130 @@ class StateDatabase {
     }
   }
 
+  submitFeed(data) {
+    const {
+      submittedBy,
+      submitterUsername,
+      submitterEmail,
+      feedName,
+      feedUrl,
+      format,
+      apiType,
+      stateKey,
+      credentials = {},
+      notes
+    } = data;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO feed_submissions (
+          submitted_by, submitter_username, submitter_email,
+          feed_name, feed_url, format, api_type, state_key,
+          credentials, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        submittedBy || null,
+        submitterUsername || null,
+        submitterEmail || null,
+        feedName,
+        feedUrl,
+        format,
+        apiType || null,
+        stateKey ? stateKey.toLowerCase() : null,
+        Object.keys(credentials || {}).length ? this.encrypt(credentials) : null,
+        notes || null
+      );
+
+      return { success: true, id: result.lastInsertRowid };
+    } catch (error) {
+      console.error('Error submitting feed:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  getFeedSubmissions(status = 'pending') {
+    try {
+      const rows = this.db.prepare(`
+        SELECT * FROM feed_submissions
+        ${status === 'all' ? '' : 'WHERE status = ?'}
+        ORDER BY created_at DESC
+      `).all(status === 'all' ? undefined : status);
+
+      return rows.map(row => ({
+        id: row.id,
+        submittedBy: row.submitted_by,
+        submitterUsername: row.submitter_username,
+        submitterEmail: row.submitter_email,
+        feedName: row.feed_name,
+        feedUrl: row.feed_url,
+        format: row.format,
+        apiType: row.api_type,
+        stateKey: row.state_key,
+        credentials: row.credentials ? this.decrypt(row.credentials) : null,
+        notes: row.notes,
+        status: row.status,
+        adminUsername: row.admin_username,
+        adminNote: row.admin_note,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        approvedAt: row.approved_at
+      }));
+    } catch (error) {
+      console.error('Error loading feed submissions:', error);
+      return [];
+    }
+  }
+
+  getFeedSubmission(id) {
+    try {
+      const row = this.db.prepare(`
+        SELECT * FROM feed_submissions WHERE id = ?
+      `).get(id);
+      if (!row) return null;
+
+      return {
+        id: row.id,
+        submittedBy: row.submitted_by,
+        submitterUsername: row.submitter_username,
+        submitterEmail: row.submitter_email,
+        feedName: row.feed_name,
+        feedUrl: row.feed_url,
+        format: row.format,
+        apiType: row.api_type,
+        stateKey: row.state_key,
+        credentials: row.credentials ? this.decrypt(row.credentials) : null,
+        notes: row.notes,
+        status: row.status,
+        adminUsername: row.admin_username,
+        adminNote: row.admin_note,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        approvedAt: row.approved_at
+      };
+    } catch (error) {
+      console.error('Error getting feed submission:', error);
+      return null;
+    }
+  }
+
+  updateFeedSubmissionStatus(id, status, adminUsername = null, adminNote = null) {
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE feed_submissions
+        SET status = ?, admin_username = ?, admin_note = ?,
+            updated_at = CURRENT_TIMESTAMP,
+            approved_at = CASE WHEN ? = 'approved' THEN CURRENT_TIMESTAMP ELSE approved_at END
+        WHERE id = ?
+      `);
+      stmt.run(status, adminUsername, adminNote, status, id);
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating feed submission:', error);
+      return { success: false, error: error.message };
+    }
+  }
   getActiveDetourAlerts() {
     try {
       const rows = this.db.prepare(`

@@ -14,6 +14,8 @@ import StateMessaging from './components/StateMessaging';
 import UserLogin from './components/UserLogin';
 import AdminUsers from './components/AdminUsers';
 import AdminInterchanges from './components/AdminInterchanges';
+import AdminFeedSubmissions from './components/AdminFeedSubmissions';
+import FeedSubmission from './components/FeedSubmission';
 import './styles/App.css';
 
 function App() {
@@ -313,6 +315,15 @@ function App() {
           >
             Messages
           </button>
+          {authToken && (
+            <button
+              className={`toggle-btn ${view === 'feedSubmission' ? 'active' : ''}`}
+              onClick={() => setView('feedSubmission')}
+            >
+              Submit Feed
+            </button>
+          )}
+
           {currentUser?.role === 'admin' && (
             <>
               <button
@@ -335,6 +346,13 @@ function App() {
                 style={{ backgroundColor: view === 'adminInterchanges' ? '#dc3545' : '#6c757d' }}
               >
                 Admin (Detours)
+              </button>
+              <button
+                className={`toggle-btn ${view === 'adminFeeds' ? 'active' : ''}`}
+                onClick={() => setView('adminFeeds')}
+                style={{ backgroundColor: view === 'adminFeeds' ? '#dc3545' : '#6c757d' }}
+              >
+                Admin (Feeds)
               </button>
             </>
           )}
@@ -371,12 +389,16 @@ function App() {
           </div>
         )}
 
-        {view === 'admin' ? (
+        {view === 'feedSubmission' ? (
+          <FeedSubmission authToken={authToken} user={currentUser} />
+        ) : view === 'admin' ? (
           <StateAdmin user={currentUser} authToken={authToken} />
         ) : view === 'adminUsers' ? (
           <AdminUsers user={currentUser} authToken={authToken} />
         ) : view === 'adminInterchanges' ? (
           <AdminInterchanges authToken={authToken} />
+        ) : view === 'adminFeeds' ? (
+          <AdminFeedSubmissions authToken={authToken} />
         ) : view === 'messages' ? (
           <StateMessaging user={currentUser} authToken={authToken} />
         ) : view === 'alignment' ? (
