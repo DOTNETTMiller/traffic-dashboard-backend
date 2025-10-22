@@ -4982,6 +4982,123 @@ app.post('/api/admin/messages', requireAdmin, (req, res) => {
   }
 });
 
+// Feed submission endpoints
+app.post('/api/feeds/submit', requireUser, (req, res) => {
+  const { feedName, feedUrl, format, apiType, stateKey, apiKey, username, password, notes } = req.body;
+
+  if (!feedName || !feedUrl || !format) {
+    return res.status(400).json({ error: 'feedName, feedUrl, and format are required' });
+  }
+
+  const credentials = {};
+  if (apiKey) credentials.apiKey = apiKey;
+  if (username) credentials.username = username;
+  if (password) credentials.password = password;
+
+  const submission = db.submitFeed({
+    submittedBy: req.user.id,
+    submitterUsername: req.user.username,
+    submitterEmail: req.user.email,
+    feedName,
+    feedUrl,
+    format,
+    apiType,
+    stateKey,
+    credentials,
+    notes
+  });
+
+  if (submission.success) {
+    res.status(201).json({ success: true, id: submission.id });
+  } else {
+    res.status(500).json({ error: submission.error });
+  }
+});
+
+app.get('/api/admin/feeds/submissions', requireAdmin, (req, res) => {
+  const status = req.query.status || 'pending';
+  const submissions = db.getFeedSubmissions(status);
+  res.json({ success: true, submissions });
+});
+
+app.post('/api/admin/feeds/submissions/:id/resolve', requireAdmin, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid submission id' });
+  }
+
+  const { status, adminNote, enableState = true, overwriteExisting = false } = req.body || {};
+  if (!['approved', 'rejected'].includes(status)) {
+    return res.status(400).json({ error: 'Status must be approved or rejected' });
+  }
+
+  const submission = db.getFeedSubmission(id);
+  if (!submission) {
+    return res.status(404).json({ error: 'Submission not found' });
+  }
+
+  if (submission.status !== 'pending') {
+    return res.status(400).json({ error: 'Submission already processed' });
+  }
+
+  if (status === 'approved') {
+    if (!submission.stateKey) {
+      return res.status(400).json({ error: 'Submission missing stateKey; cannot auto-configure state' });
+    }
+
+    const stateKey = submission.stateKey.toLowerCase();
+    const existingState = db.getState(stateKey, true);
+    const apiUrl = submission.feedUrl;
+    const format = submission.format;
+    const apiType = submission.apiType || 'Custom';
+    const credentials = submission.credentials || {};
+
+    if (existingState) {
+      if (!overwriteExisting) {
+        console.log(`ℹ️ Feed submission ${id} references existing state ${stateKey}; overwrite not requested`);
+      } else {
+        db.updateState(stateKey, {
+          apiUrl,
+          format,
+          apiType,
+          enabled: enableState
+        });
+
+        if (Object.keys(credentials).length) {
+          db.setStateCredentials(stateKey, credentials);
+        }
+
+        console.log(`✅ Updated state configuration for ${stateKey} via feed submission ${id}`);
+      }
+    } else {
+      const addResult = db.addState({
+        stateKey,
+        stateName: submission.feedName,
+        apiUrl,
+        apiType,
+        format,
+        credentials
+      });
+
+      if (!addResult.success) {
+        return res.status(500).json({ error: addResult.error || 'Failed to add state' });
+      }
+
+      if (enableState === false) {
+        db.updateState(stateKey, { enabled: false });
+      }
+
+      console.log(`✅ Added new state configuration ${stateKey} via feed submission ${id}`);
+    }
+
+    loadStatesFromDatabase();
+  }
+
+  const adminUser = req.user?.username || 'admin-token';
+  db.updateFeedSubmissionStatus(id, status, adminUser, adminNote || null);
+  res.json({ success: true });
+});
+
 // High-Severity Event Monitoring
 // Track notified events to avoid duplicate notifications
 const notifiedEvents = new Set();

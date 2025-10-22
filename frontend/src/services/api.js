@@ -117,6 +117,42 @@ class TrafficAPI {
       throw error;
     }
   }
+
+  async submitFeed(data, authToken) {
+    try {
+      const response = await this.client.post('/api/feeds/submit', data, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error submitting feed:', error);
+      throw error;
+    }
+  }
+
+  async getFeedSubmissions(authToken, status = 'pending') {
+    try {
+      const response = await this.client.get(`/api/admin/feeds/submissions?status=${status}`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching feed submissions:', error);
+      throw error;
+    }
+  }
+
+  async resolveFeedSubmission(id, payload, authToken) {
+    try {
+      const response = await this.client.post(`/api/admin/feeds/submissions/${id}/resolve`, payload, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error resolving feed submission:', error);
+      throw error;
+    }
+  }
 }
 
 export default new TrafficAPI();
