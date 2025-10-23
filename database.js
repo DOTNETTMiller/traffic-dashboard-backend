@@ -35,8 +35,48 @@ class StateDatabase {
     this.initSchema();
   }
 
+  // Run database migrations for schema updates
+  runMigrations() {
+    try {
+      // Check if users table exists
+      const tables = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").all();
+      if (tables.length === 0) return; // Table doesn't exist yet, will be created by initSchema
+
+      // Check if notification columns exist
+      const columns = this.db.prepare("PRAGMA table_info(users)").all();
+      const hasNotifyOnMessages = columns.some(col => col.name === 'notify_on_messages');
+      const hasNotifyOnHighSeverity = columns.some(col => col.name === 'notify_on_high_severity');
+
+      // Add missing columns
+      if (!hasNotifyOnMessages) {
+        console.log('🔄 Adding notify_on_messages column to users table...');
+        this.db.exec('ALTER TABLE users ADD COLUMN notify_on_messages BOOLEAN DEFAULT 1');
+        console.log('✅ Added notify_on_messages column');
+      }
+
+      if (!hasNotifyOnHighSeverity) {
+        console.log('🔄 Adding notify_on_high_severity column to users table...');
+        this.db.exec('ALTER TABLE users ADD COLUMN notify_on_high_severity BOOLEAN DEFAULT 1');
+        console.log('✅ Added notify_on_high_severity column');
+      }
+
+      // Check for state_key column (older databases might not have it)
+      const hasStateKey = columns.some(col => col.name === 'state_key');
+      if (!hasStateKey) {
+        console.log('🔄 Adding state_key column to users table...');
+        this.db.exec('ALTER TABLE users ADD COLUMN state_key TEXT');
+        console.log('✅ Added state_key column');
+      }
+    } catch (error) {
+      console.error('⚠️  Migration error (will retry on next startup):', error.message);
+    }
+  }
+
   // Create database schema
   initSchema() {
+    // Run migrations first
+    this.runMigrations();
+
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS states (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -160,6 +200,8 @@ class StateDatabase {
         active BOOLEAN DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         last_login DATETIME,
+        notify_on_messages BOOLEAN DEFAULT 1,
+        notify_on_high_severity BOOLEAN DEFAULT 1,
         FOREIGN KEY (state_key) REFERENCES states(state_key)
       );
 
