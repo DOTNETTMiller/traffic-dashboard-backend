@@ -20,7 +20,11 @@ const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'ccai2026-traffic-dashboard-secret-key';
 
 // Auto-migrate users to email-based usernames on startup (if needed)
+let migrationAttempted = false;
 function migrateUsersToEmailUsernames() {
+  if (migrationAttempted) return; // Prevent infinite loops
+  migrationAttempted = true;
+
   try {
     const users = db.getAllUsers();
     const needsMigration = users.filter(u => u.username !== u.email);
@@ -42,12 +46,13 @@ function migrateUsersToEmailUsernames() {
       console.log('✅ All users already using email-based usernames');
     }
   } catch (error) {
-    console.log('⚠️  User migration skipped (will retry on next startup):', error.message);
+    console.error('⚠️  User migration skipped:', error.message);
+    // Don't retry - just skip it
   }
 }
 
-// Run migration on startup
-migrateUsersToEmailUsernames();
+// Run migration on startup (only once)
+setTimeout(() => migrateUsersToEmailUsernames(), 1000);
 
 // Enable CORS for your frontend
 app.use(cors());
