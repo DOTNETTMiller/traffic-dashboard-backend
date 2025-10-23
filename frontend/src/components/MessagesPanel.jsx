@@ -178,7 +178,13 @@ export default function MessagesPanel({ events = [], messages = {}, detourAlerts
           }}>
             🚗 Detour Advisories ({detourAlerts.length})
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            maxHeight: '300px',
+            overflowY: 'auto'
+          }}>
             {detourAlerts.map(alert => {
               const relatedEvent = events.find(ev => ev.id === alert.eventId);
               return (

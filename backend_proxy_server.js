@@ -12,6 +12,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const db = require('./database');
 const emailService = require('./email-service');
+const { fetchOhioEvents } = require('./scripts/fetch_ohio_events');
+const { fetchCaltransLCS } = require('./scripts/fetch_caltrans_lcs');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -224,20 +226,30 @@ async function saveMessages(messages) {
 // Initialize on startup
 initializeMessagesFile();
 
-// Serve production frontend build when available
-if (fs.existsSync(FRONTEND_DIST_PATH)) {
-  console.log('🎯 Serving production frontend from ./frontend/dist');
-  app.use(express.static(FRONTEND_DIST_PATH));
+// Serve documentation files (before static frontend)
+app.get('/docs/:filename', (req, res) => {
+  const { filename } = req.params;
+  const docsPath = path.join(__dirname, 'docs', filename);
 
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api')) {
-      return next();
+  // Security: Only allow .md files
+  if (!filename.endsWith('.md')) {
+    return res.status(400).json({ error: 'Only markdown files are allowed' });
+  }
+
+  // Check if file exists
+  if (!fs.existsSync(docsPath)) {
+    return res.status(404).json({ error: 'Documentation file not found' });
+  }
+
+  // Read and send the file
+  fs.readFile(docsPath, 'utf8', (err, data) => {
+    if (err) {
+      console.error('Error reading documentation file:', err);
+      return res.status(500).json({ error: 'Error reading documentation file' });
     }
-    res.sendFile(path.join(FRONTEND_DIST_PATH, 'index.html'));
+    res.type('text/plain').send(data);
   });
-} else {
-  console.log('⚠️ Production frontend build not found (./frontend/dist). Run `npm run build --prefix frontend` to generate it.');
-}
+});
 
 // API Configuration
 // IMPORTANT: Credentials are loaded from environment variables for security
@@ -1203,29 +1215,73 @@ const fetchStateData = async (stateKey) => {
 // Main endpoint to fetch all events
 app.get('/api/events', async (req, res) => {
   console.log('Fetching events from all states...');
-  
+
   const allResults = await Promise.all(
     Object.keys(API_CONFIG).map(stateKey => fetchStateData(stateKey))
   );
-  
+
   const allEvents = [];
   const allErrors = [];
-  
+
   allResults.forEach(result => {
     allEvents.push(...result.events);
     if (result.errors.length > 0) {
       allErrors.push({ state: result.state, errors: result.errors });
     }
   });
-  
-  console.log(`Fetched ${allEvents.length} total events`);
+
+  // Add Ohio API events (construction + incidents)
+  try {
+    console.log('Fetching enhanced Ohio events from OHGO API...');
+    const ohioEvents = await fetchOhioEvents();
+    if (ohioEvents && ohioEvents.length > 0) {
+      allEvents.push(...ohioEvents);
+      console.log(`Added ${ohioEvents.length} Ohio API events`);
+    }
+  } catch (error) {
+    console.error('Error fetching Ohio API events:', error.message);
+    allErrors.push({ state: 'OH (API)', errors: [error.message] });
+  }
+
+  // Add California Caltrans LCS events (lane closures from all 12 districts)
+  try {
+    console.log('Fetching Caltrans LCS events from all districts...');
+    const caltransEvents = await fetchCaltransLCS();
+    if (caltransEvents && caltransEvents.length > 0) {
+      allEvents.push(...caltransEvents);
+      console.log(`Added ${caltransEvents.length} Caltrans LCS events`);
+    }
+  } catch (error) {
+    console.error('Error fetching Caltrans LCS events:', error.message);
+    allErrors.push({ state: 'CA (LCS)', errors: [error.message] });
+  }
+
+  // Deduplicate events by ID (keep first occurrence)
+  const seenIds = new Set();
+  const uniqueEvents = [];
+  let duplicateCount = 0;
+
+  allEvents.forEach(event => {
+    if (!seenIds.has(event.id)) {
+      seenIds.add(event.id);
+      uniqueEvents.push(event);
+    } else {
+      duplicateCount++;
+    }
+  });
+
+  if (duplicateCount > 0) {
+    console.log(`⚠️  Removed ${duplicateCount} duplicate event(s)`);
+  }
+
+  console.log(`Fetched ${uniqueEvents.length} unique events (${allEvents.length} total, ${duplicateCount} duplicates removed)`);
   console.log(`Errors from ${allErrors.length} state(s)`);
-  
+
   res.json({
     success: true,
     timestamp: new Date().toISOString(),
-    totalEvents: allEvents.length,
-    events: allEvents,
+    totalEvents: uniqueEvents.length,
+    events: uniqueEvents,
     errors: allErrors
   });
 });
@@ -1233,20 +1289,68 @@ app.get('/api/events', async (req, res) => {
 // Endpoint to fetch from a specific state
 app.get('/api/events/:state', async (req, res) => {
   const stateKey = req.params.state.toLowerCase();
-  
+
   if (!API_CONFIG[stateKey]) {
     return res.status(404).json({ error: 'State not found' });
   }
-  
+
   console.log(`Fetching events from ${API_CONFIG[stateKey].name}...`);
   const result = await fetchStateData(stateKey);
-  
+
+  // Add Ohio API events if requesting Ohio
+  if (stateKey === 'ohio') {
+    try {
+      console.log('Fetching enhanced Ohio events from OHGO API...');
+      const ohioEvents = await fetchOhioEvents();
+      if (ohioEvents && ohioEvents.length > 0) {
+        result.events.push(...ohioEvents);
+        console.log(`Added ${ohioEvents.length} Ohio API events`);
+      }
+    } catch (error) {
+      console.error('Error fetching Ohio API events:', error.message);
+      result.errors.push(error.message);
+    }
+  }
+
+  // Add California Caltrans LCS events if requesting California
+  if (stateKey === 'ca') {
+    try {
+      console.log('Fetching Caltrans LCS events from all districts...');
+      const caltransEvents = await fetchCaltransLCS();
+      if (caltransEvents && caltransEvents.length > 0) {
+        result.events.push(...caltransEvents);
+        console.log(`Added ${caltransEvents.length} Caltrans LCS events`);
+      }
+    } catch (error) {
+      console.error('Error fetching Caltrans LCS events:', error.message);
+      result.errors.push(error.message);
+    }
+  }
+
+  // Deduplicate events by ID (keep first occurrence)
+  const seenIds = new Set();
+  const uniqueEvents = [];
+  let duplicateCount = 0;
+
+  result.events.forEach(event => {
+    if (!seenIds.has(event.id)) {
+      seenIds.add(event.id);
+      uniqueEvents.push(event);
+    } else {
+      duplicateCount++;
+    }
+  });
+
+  if (duplicateCount > 0) {
+    console.log(`⚠️  Removed ${duplicateCount} duplicate event(s) for ${result.state}`);
+  }
+
   res.json({
     success: true,
     timestamp: new Date().toISOString(),
     state: result.state,
-    totalEvents: result.events.length,
-    events: result.events,
+    totalEvents: uniqueEvents.length,
+    events: uniqueEvents,
     errors: result.errors
   });
 });
@@ -2125,7 +2229,7 @@ event.eventType = typeMapping[event.eventType.toLowerCase()] || event.eventType;
 
 // Convert events to SAE J2735-style Traveler Information Messages
 app.get('/api/convert/tim', async (req, res) => {
-  console.log('Converting events to TIM format...');
+  console.log('Converting events to SAE J2735 TIM format (includes WZDx, Ohio OHGO, Caltrans LCS)...');
 
   const allResults = await Promise.all(
     Object.keys(API_CONFIG).map(stateKey => fetchStateData(stateKey))
@@ -2134,28 +2238,78 @@ app.get('/api/convert/tim', async (req, res) => {
   const allEvents = [];
   allResults.forEach(result => allEvents.push(...result.events));
 
+  // Add Ohio OHGO API events
+  try {
+    const ohioEvents = await fetchOhioEvents();
+    if (ohioEvents && ohioEvents.length > 0) {
+      allEvents.push(...ohioEvents);
+      console.log(`Added ${ohioEvents.length} Ohio OHGO events to TIM conversion`);
+    }
+  } catch (error) {
+    console.error('Error fetching Ohio events for TIM:', error.message);
+  }
+
+  // Add California Caltrans LCS events
+  try {
+    const caltransEvents = await fetchCaltransLCS();
+    if (caltransEvents && caltransEvents.length > 0) {
+      allEvents.push(...caltransEvents);
+      console.log(`Added ${caltransEvents.length} Caltrans LCS events to TIM conversion`);
+    }
+  } catch (error) {
+    console.error('Error fetching Caltrans events for TIM:', error.message);
+  }
+
+  // Deduplicate events by ID (keep first occurrence)
+  const seenIds = new Set();
+  const uniqueEvents = [];
+  let duplicateCount = 0;
+
+  allEvents.forEach(event => {
+    if (!seenIds.has(event.id)) {
+      seenIds.add(event.id);
+      uniqueEvents.push(event);
+    } else {
+      duplicateCount++;
+    }
+  });
+
+  if (duplicateCount > 0) {
+    console.log(`⚠️  Removed ${duplicateCount} duplicate event(s) in TIM conversion`);
+  }
+
+  console.log(`Total events for TIM conversion: ${uniqueEvents.length} (${allEvents.length} before dedup)`);
+
   // Convert to TIM-style messages
-  const timMessages = allEvents.map(event => {
+  const timMessages = uniqueEvents.map(event => {
     // Generate VMS-style message (Variable Message Sign text)
     const vmsMessage = generateVMSMessage(event);
 
     // Generate full TIM structure (simplified version of SAE J2735)
+    // Handle both WZDx (startTime/endTime) and Ohio/Caltrans (startDate/endDate) field names
+    const startDateTime = event.startTime || event.startDate;
+    const endDateTime = event.endTime || event.endDate;
+
+    // Handle both coordinate formats: latitude/longitude fields or coordinates array
+    const latitude = event.latitude || (event.coordinates && event.coordinates[1]);
+    const longitude = event.longitude || (event.coordinates && event.coordinates[0]);
+
     return {
       msgCnt: Math.floor(Math.random() * 127), // Message count
-      timeStamp: new Date(event.startTime).toISOString(),
+      timeStamp: startDateTime ? new Date(startDateTime).toISOString() : new Date().toISOString(),
       packetID: event.id,
       urlB: null,
       dataFrames: [
         {
-          startTime: event.startTime,
-          durationTime: event.endTime ? Math.floor((new Date(event.endTime) - new Date(event.startTime)) / 60000) : null, // minutes
+          startTime: startDateTime,
+          durationTime: endDateTime && startDateTime ? Math.floor((new Date(endDateTime) - new Date(startDateTime)) / 60000) : null, // minutes
           priority: event.severity === 'high' ? 0 : event.severity === 'medium' ? 1 : 2,
           regions: [
             {
               name: event.state,
               anchorPosition: {
-                lat: event.latitude,
-                long: event.longitude,
+                lat: latitude,
+                long: longitude,
                 elevation: null
               },
               laneWidth: null,
@@ -2199,32 +2353,327 @@ app.get('/api/convert/tim', async (req, res) => {
   });
 });
 
+// ==================== SAE J2540 COMMERCIAL VEHICLE TIM ENDPOINT ====================
+// SAE J2540 extends J2735 with commercial vehicle-specific information
+app.get('/api/convert/tim-cv', async (req, res) => {
+  console.log('Converting events to SAE J2540 Commercial Vehicle TIM format...');
+
+  // Fetch all events (same as regular TIM)
+  const allResults = await Promise.all(
+    Object.keys(API_CONFIG).map(stateKey => fetchStateData(stateKey))
+  );
+
+  const allEvents = [];
+  allResults.forEach(result => allEvents.push(...result.events));
+
+  // Add Ohio OHGO API events
+  try {
+    const ohioEvents = await fetchOhioEvents();
+    if (ohioEvents && ohioEvents.length > 0) {
+      allEvents.push(...ohioEvents);
+      console.log(`Added ${ohioEvents.length} Ohio OHGO events to CV-TIM conversion`);
+    }
+  } catch (error) {
+    console.error('Error fetching Ohio events for CV-TIM:', error.message);
+  }
+
+  // Add California Caltrans LCS events
+  try {
+    const caltransEvents = await fetchCaltransLCS();
+    if (caltransEvents && caltransEvents.length > 0) {
+      allEvents.push(...caltransEvents);
+      console.log(`Added ${caltransEvents.length} Caltrans LCS events to CV-TIM conversion`);
+    }
+  } catch (error) {
+    console.error('Error fetching Caltrans events for CV-TIM:', error.message);
+  }
+
+  // Deduplicate events by ID (keep first occurrence)
+  const seenIds = new Set();
+  const uniqueEvents = [];
+  let duplicateCount = 0;
+
+  allEvents.forEach(event => {
+    if (!seenIds.has(event.id)) {
+      seenIds.add(event.id);
+      uniqueEvents.push(event);
+    } else {
+      duplicateCount++;
+    }
+  });
+
+  if (duplicateCount > 0) {
+    console.log(`⚠️  Removed ${duplicateCount} duplicate event(s) in CV-TIM conversion`);
+  }
+
+  console.log(`Total events for CV-TIM conversion: ${uniqueEvents.length} (${allEvents.length} before dedup)`);
+
+  // Convert to Commercial Vehicle TIM messages (J2540)
+  const cvTimMessages = uniqueEvents.map(event => {
+    const vmsMessage = generateVMSMessage(event);
+    const startDateTime = event.startTime || event.startDate;
+    const endDateTime = event.endTime || event.endDate;
+    const latitude = event.latitude || (event.coordinates && event.coordinates[1]);
+    const longitude = event.longitude || (event.coordinates && event.coordinates[0]);
+
+    // Base J2735 structure
+    const baseTIM = {
+      msgCnt: Math.floor(Math.random() * 127),
+      timeStamp: startDateTime ? new Date(startDateTime).toISOString() : new Date().toISOString(),
+      packetID: event.id,
+      urlB: null,
+      dataFrames: [
+        {
+          startTime: startDateTime,
+          durationTime: endDateTime && startDateTime ? Math.floor((new Date(endDateTime) - new Date(startDateTime)) / 60000) : null,
+          priority: event.severity === 'high' ? 0 : event.severity === 'medium' ? 1 : 2,
+          regions: [
+            {
+              name: event.state,
+              anchorPosition: {
+                lat: latitude,
+                long: longitude,
+                elevation: null
+              },
+              laneWidth: null,
+              directionality: event.direction,
+              closedPath: false,
+              direction: event.direction,
+              description: event.corridor
+            }
+          ],
+          content: {
+            advisory: {
+              item: {
+                itis: getITISCode(event.eventType),
+                text: vmsMessage
+              }
+            },
+            workZone: event.eventType === 'Construction' ? {
+              workersPresent: true,
+              speedLimit: null
+            } : null,
+            incident: ['Incident', 'Closure'].includes(event.eventType) ? {
+              eventType: event.eventType,
+              description: event.description
+            } : null
+          }
+        }
+      ],
+      vmsMessage: vmsMessage,
+      wzdx_event_type: mapToWZDxEventType(event.eventType),
+      original_event: event
+    };
+
+    // SAE J2540 Commercial Vehicle Extensions
+    baseTIM.commercialVehicle = {
+      // Truck-specific restrictions
+      restrictions: {
+        truckRestricted: event.roadStatus === 'Closed' || (event.lanesClosed && parseInt(event.lanesClosed) > 0),
+        hazmatRestricted: event.category && event.category.toLowerCase().includes('hazmat'),
+        oversizeRestricted: event.category && (event.category.toLowerCase().includes('bridge') || event.category.toLowerCase().includes('oversize')),
+        // Weight/height restrictions would come from additional data sources
+        weightLimit: null, // kg - would need bridge/route data
+        heightLimit: null, // cm - would need clearance data
+        lengthLimit: null  // cm - would need route data
+      },
+
+      // Lane impact for trucks
+      laneImpact: {
+        totalLanes: event.totalLanes || null,
+        lanesAffected: event.lanesClosed || event.lanesAffected || null,
+        rightLanesClosed: event.lanesClosed ? event.lanesClosed.includes('R') || event.lanesClosed.includes('right') : false,
+        shoulderClosed: event.description && event.description.toLowerCase().includes('shoulder')
+      },
+
+      // Advisory messages for truck drivers
+      advisories: generateTruckAdvisories(event),
+
+      // Parking information (if available)
+      parking: {
+        hasNearbyParking: false, // Would check TPIMS data for nearby facilities
+        parkingFacilities: [], // Would list nearby truck parking from TPIMS
+        estimatedDelay: estimateTruckDelay(event)
+      },
+
+      // Route guidance
+      routeGuidance: {
+        suggestedDetour: null, // Could integrate with route planning
+        alternateRoute: null,
+        avoidArea: event.roadStatus === 'Closed'
+      }
+    };
+
+    return baseTIM;
+  });
+
+  res.json({
+    format: 'SAE J2540 Commercial Vehicle TIM (Extended with CV-specific data)',
+    timestamp: new Date().toISOString(),
+    messageCount: cvTimMessages.length,
+    messages: cvTimMessages,
+    cvExtensions: {
+      description: 'SAE J2540 extensions include truck restrictions, lane impacts, parking info, and route guidance',
+      features: [
+        'Truck-specific restrictions (hazmat, oversize, weight, height)',
+        'Detailed lane impact analysis for trucks',
+        'Commercial vehicle advisories',
+        'Truck parking availability (when available)',
+        'Route guidance and detour suggestions'
+      ]
+    }
+  });
+});
+
+// Helper: Generate truck-specific advisories
+const generateTruckAdvisories = (event) => {
+  const advisories = [];
+
+  // Lane closure advisories
+  if (event.lanesClosed || event.lanesAffected) {
+    if (event.lanesClosed && event.lanesClosed.includes('R')) {
+      advisories.push('Right lane closed - trucks use left lanes');
+    }
+    if (event.lanesAffected && event.lanesAffected.toLowerCase().includes('all')) {
+      advisories.push('CRITICAL: All lanes affected - expect severe delays');
+    }
+  }
+
+  // Road status advisories
+  if (event.roadStatus === 'Closed') {
+    advisories.push('ROAD CLOSED - Find alternate route');
+  } else if (event.roadStatus === 'Restricted') {
+    advisories.push('Lane restrictions in effect - reduce speed');
+  }
+
+  // Facility-specific advisories (Caltrans)
+  if (event.facility) {
+    if (event.facility === 'Ramp') {
+      advisories.push('Ramp closure - plan alternate exit/entrance');
+    } else if (event.facility === 'Connector') {
+      advisories.push('Connector closed - check alternate routes');
+    }
+  }
+
+  // Work zone advisories
+  if (event.type === 'work-zone' || event.eventType === 'Construction') {
+    advisories.push('Active work zone - workers present, reduce speed');
+  }
+
+  // Severity-based advisories
+  if (event.severity === 'Major' || event.severity === 'high') {
+    advisories.push('HIGH PRIORITY: Major traffic impact expected');
+  }
+
+  // Category-specific advisories
+  if (event.category) {
+    const category = event.category.toLowerCase();
+    if (category.includes('bridge')) {
+      advisories.push('Bridge work - oversized loads check clearances');
+    }
+    if (category.includes('paving') || category.includes('grinding')) {
+      advisories.push('Paving operations - expect rough surface and delays');
+    }
+  }
+
+  return advisories.length > 0 ? advisories : ['Monitor conditions and plan accordingly'];
+};
+
+// Helper: Estimate delay for trucks (more conservative than cars)
+const estimateTruckDelay = (event) => {
+  let delayMinutes = 0;
+
+  // Base delay from severity
+  if (event.severity === 'Major' || event.severity === 'high') {
+    delayMinutes = 30;
+  } else if (event.severity === 'Moderate' || event.severity === 'medium') {
+    delayMinutes = 15;
+  } else {
+    delayMinutes = 5;
+  }
+
+  // Additional delay for closures
+  if (event.roadStatus === 'Closed') {
+    delayMinutes += 45; // Detour time
+  } else if (event.roadStatus === 'Restricted') {
+    delayMinutes += 10;
+  }
+
+  // Additional delay for lane closures (trucks slower to merge)
+  if (event.lanesClosed && event.totalLanes) {
+    const percentClosed = parseInt(event.lanesClosed.split(',').length) / parseInt(event.totalLanes);
+    delayMinutes += Math.floor(percentClosed * 20);
+  }
+
+  return delayMinutes > 0 ? `${delayMinutes} minutes` : 'Minimal';
+};
+
 // Helper: Generate VMS-style message text (for highway signs)
+// Enhanced to support WZDx, Ohio OHGO, and Caltrans LCS events
 const generateVMSMessage = (event) => {
   const messages = [];
 
-  // Line 1: Event type and severity
-  if (event.severity === 'high') {
-    messages.push(`*** ${event.eventType.toUpperCase()} ***`);
+  // Line 1: Event type/category and severity
+  const eventLabel = event.category || event.eventType || event.type;
+  if (event.severity === 'Major' || event.severity === 'high') {
+    messages.push(`*** ${eventLabel.toUpperCase()} ***`);
   } else {
-    messages.push(event.eventType.toUpperCase());
+    messages.push(eventLabel.toUpperCase());
   }
 
-  // Line 2: Location
-  const locationShort = event.location.substring(0, 40);
-  messages.push(locationShort);
+  // Line 2: Location (corridor + direction)
+  let locationLine = '';
+  if (event.corridor) {
+    locationLine = event.corridor;
+    if (event.direction && event.direction !== 'Both') {
+      locationLine += ` ${event.direction.toUpperCase()}`;
+    }
+  } else if (event.location) {
+    locationLine = event.location.substring(0, 40);
+  }
+  if (locationLine) messages.push(locationLine);
 
-  // Line 3: Impact
-  if (event.lanesAffected && event.lanesAffected !== 'Check conditions' && event.lanesAffected !== 'Unknown') {
-    messages.push(event.lanesAffected.toUpperCase());
-  } else if (event.eventType === 'Closure') {
-    messages.push('ROAD CLOSED');
+  // Line 3: Impact - prioritize specific lane/road status info
+  let impactLine = '';
+
+  // Caltrans LCS specific: detailed lane closure info
+  if (event.lanesClosed && event.totalLanes) {
+    const lanesArray = event.lanesClosed.split(',').map(l => l.trim());
+    if (event.facility === 'Ramp' && event.roadStatus === 'Closed') {
+      impactLine = 'RAMP CLOSED';
+    } else if (lanesArray.length >= parseInt(event.totalLanes)) {
+      impactLine = 'ALL LANES CLOSED';
+    } else {
+      impactLine = `LANES ${event.lanesClosed} OF ${event.totalLanes} CLOSED`;
+    }
+  }
+  // Ohio OHGO specific: road status
+  else if (event.roadStatus) {
+    if (event.roadStatus === 'Closed') {
+      impactLine = 'ROAD CLOSED';
+    } else if (event.roadStatus === 'Restricted') {
+      impactLine = 'LANE RESTRICTIONS';
+    } else {
+      impactLine = 'USE CAUTION';
+    }
+  }
+  // WZDx legacy: lanesAffected
+  else if (event.lanesAffected && event.lanesAffected !== 'Check conditions' && event.lanesAffected !== 'Unknown') {
+    impactLine = event.lanesAffected.toUpperCase();
+  }
+  // Fallback based on event type
+  else if (event.type === 'restriction' || event.eventType === 'Closure') {
+    impactLine = 'ROAD CLOSED';
   } else {
-    messages.push('USE CAUTION');
+    impactLine = 'USE CAUTION';
   }
 
-  // Line 4: Direction or advice
-  if (event.direction && event.direction !== 'Both') {
+  if (impactLine) messages.push(impactLine);
+
+  // Line 4: Facility type (for Caltrans) or direction
+  if (event.facility && event.facility !== 'Mainline') {
+    messages.push(event.facility.toUpperCase());
+  } else if (event.direction && event.direction !== 'Both' && !locationLine.includes(event.direction.toUpperCase())) {
     messages.push(`${event.direction.toUpperCase()} ONLY`);
   }
 
@@ -4650,6 +5099,26 @@ app.delete('/api/states/messages/:id', requireStateAuth, (req, res) => {
   }
 });
 
+// Bulk delete detour advisory messages
+app.delete('/api/states/messages/bulk/detour-advisories', requireUserOrStateAuth, (req, res) => {
+  try {
+    const result = db.db.prepare(`
+      DELETE FROM state_messages
+      WHERE to_state = ?
+      AND subject LIKE '%Detour Advisory%'
+    `).run(req.stateKey);
+
+    res.json({
+      success: true,
+      message: `Deleted ${result.changes} detour advisory messages`,
+      deletedCount: result.changes
+    });
+  } catch (error) {
+    console.error('Error deleting detour messages:', error);
+    res.status(500).json({ error: 'Failed to delete messages' });
+  }
+});
+
 // Delete an event comment (only the commenter can delete)
 app.delete('/api/events/comments/:id', requireStateAuth, (req, res) => {
   // Extract the actual comment ID if it's prefixed with "comment-"
@@ -5319,12 +5788,94 @@ const buildDetourMessage = (interchange, event) => {
   return `${base}. ${detail} Consider activating detour messaging for alternate routes.`;
 };
 
-const notifyDetourSubscribers = async (alertRecord, interchange, event) => {
-  const notifyStates = new Set([interchange.stateKey.toLowerCase()]);
-  (interchange.notifyStates || []).forEach(state => notifyStates.add(state.toLowerCase()));
+// Mapping of major corridors to states they pass through
+const CORRIDOR_STATES = {
+  'I-5': ['ca', 'or', 'wa'],
+  'I-10': ['ca', 'az', 'nm', 'tx', 'la', 'ms', 'al', 'fl'],
+  'I-15': ['ca', 'nv', 'az', 'ut', 'id', 'mt'],
+  'I-20': ['tx', 'la', 'ms', 'al', 'ga', 'sc'],
+  'I-25': ['nm', 'co', 'wy'],
+  'I-29': ['mo', 'ia', 'sd', 'nd'],
+  'I-35': ['tx', 'ok', 'ks', 'mo', 'ia', 'mn'],
+  'I-40': ['ca', 'az', 'nm', 'tx', 'ok', 'ar', 'tn', 'nc'],
+  'I-44': ['tx', 'ok', 'mo'],
+  'I-55': ['la', 'ms', 'tn', 'ar', 'mo', 'il'],
+  'I-64': ['va', 'wv', 'ky', 'in', 'il', 'mo'],
+  'I-65': ['al', 'tn', 'ky', 'in'],
+  'I-70': ['ut', 'co', 'ks', 'mo', 'il', 'in', 'oh', 'wv', 'pa', 'md'],
+  'I-71': ['ky', 'oh'],
+  'I-75': ['fl', 'ga', 'tn', 'ky', 'oh', 'mi'],
+  'I-76': ['co', 'ne', 'pa', 'nj', 'oh'],
+  'I-77': ['sc', 'nc', 'va', 'wv', 'oh'],
+  'I-78': ['ny', 'nj', 'pa'],
+  'I-79': ['wv', 'pa'],
+  'I-80': ['ca', 'nv', 'ut', 'wy', 'ne', 'ia', 'il', 'in', 'oh', 'pa', 'nj', 'ny'],
+  'I-81': ['tn', 'va', 'wv', 'md', 'pa', 'ny'],
+  'I-84': ['or', 'id', 'ut', 'pa', 'ny', 'ct', 'ma'],
+  'I-85': ['al', 'ga', 'sc', 'nc', 'va'],
+  'I-87': ['ny'],
+  'I-90': ['wa', 'id', 'mt', 'wy', 'sd', 'mn', 'wi', 'il', 'in', 'oh', 'pa', 'ny', 'ma'],
+  'I-94': ['mt', 'nd', 'mn', 'wi', 'il', 'in', 'mi'],
+  'I-95': ['fl', 'ga', 'sc', 'nc', 'va', 'md', 'de', 'pa', 'nj', 'ny', 'ct', 'ri', 'ma', 'nh', 'me']
+};
 
-  notifyStates.forEach(stateKey => {
+// Get states that should be notified based on corridor relevance
+const getRelevantStates = (eventCorridor, interchangeState, notifyStates) => {
+  const relevantStates = new Set([interchangeState.toLowerCase()]);
+
+  // Extract the main corridor (e.g., "I-80" from "I-80 / I-90")
+  const corridorMatch = eventCorridor?.match(/I-\d+/);
+  if (!corridorMatch) {
+    // If no interstate corridor, only notify the interchange's state and explicitly listed states
+    notifyStates.forEach(state => relevantStates.add(state.toLowerCase()));
+    return Array.from(relevantStates);
+  }
+
+  const mainCorridor = corridorMatch[0];
+  const statesOnCorridor = CORRIDOR_STATES[mainCorridor] || [];
+
+  // Only add notify states if they're on the affected corridor
+  notifyStates.forEach(state => {
+    const normalizedState = state.toLowerCase();
+    if (statesOnCorridor.includes(normalizedState)) {
+      relevantStates.add(normalizedState);
+    } else {
+      console.log(`📍 Skipping ${normalizedState} - ${mainCorridor} doesn't pass through their state`);
+    }
+  });
+
+  return Array.from(relevantStates);
+};
+
+const notifyDetourSubscribers = async (alertRecord, interchange, event) => {
+  const notifyStates = interchange.notifyStates || [];
+  const relevantStates = getRelevantStates(event.corridor, interchange.stateKey, notifyStates);
+
+  console.log(`📨 Notifying ${relevantStates.length} relevant state(s) for ${event.corridor}: ${relevantStates.join(', ')}`);
+
+  relevantStates.forEach(stateKey => {
     const normalizedState = stateKey.toLowerCase();
+
+    // Check if we already sent a message for this event+state combination in the last hour
+    try {
+      const recentMessage = db.db.prepare(`
+        SELECT id FROM state_messages
+        WHERE event_id = ?
+        AND to_state = ?
+        AND subject LIKE '%Detour Advisory%'
+        AND from_state = 'ADMIN'
+        AND created_at > datetime('now', '-1 hour')
+        LIMIT 1
+      `).get(event.id, normalizedState);
+
+      if (recentMessage) {
+        console.log(`⏭️  Skipping duplicate detour message for ${normalizedState} (event ${event.id})`);
+        return; // Skip sending duplicate message
+      }
+    } catch (err) {
+      console.error('Error checking for duplicate message:', err);
+    }
+
     db.sendMessage({
       fromState: 'ADMIN',
       toState: normalizedState,
@@ -5415,11 +5966,11 @@ const evaluateDetourAlerts = async () => {
       processedInterchanges.add(interchange.id);
       const existingAlert = alertByInterchange.get(interchange.id);
 
-      if (existingAlert && existingAlert.event_id === event.id) {
+      if (existingAlert && existingAlert.eventId === event.id) {
         return; // already active for this event
       }
 
-      if (existingAlert && existingAlert.event_id !== event.id) {
+      if (existingAlert && existingAlert.eventId !== event.id) {
         db.resolveDetourAlert(existingAlert.id, 'Superseded by new event');
       }
 
@@ -5449,9 +6000,27 @@ const evaluateDetourAlerts = async () => {
       }
     });
 
+    // Clean up alerts for interchanges no longer monitored
     activeAlerts.forEach(alert => {
       if (!processedInterchanges.has(alert.interchangeId)) {
         db.resolveDetourAlert(alert.id, 'Interchange no longer monitored');
+      }
+    });
+
+    // Clean up alerts for events that no longer exist
+    const currentEventIds = new Set(allEvents.map(e => e.id));
+    activeAlerts.forEach(alert => {
+      if (alert.eventId && !currentEventIds.has(alert.eventId)) {
+        db.resolveDetourAlert(alert.id, 'Event no longer active');
+      }
+    });
+
+    // Clean up alerts older than 24 hours
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    activeAlerts.forEach(alert => {
+      const createdAt = new Date(alert.createdAt);
+      if (createdAt < twentyFourHoursAgo) {
+        db.resolveDetourAlert(alert.id, 'Alert expired (>24 hours old)');
       }
     });
   } catch (error) {
@@ -5904,6 +6473,7 @@ app.listen(PORT, async () => {
   console.log(`   GET http://localhost:${PORT}/api/health - Health check`);
   console.log(`   GET http://localhost:${PORT}/api/analysis/normalization - Data quality report`);
   console.log(`   GET http://localhost:${PORT}/api/convert/tim - Convert to SAE J2735 TIM format`);
+  console.log(`   GET http://localhost:${PORT}/api/convert/tim-cv - Convert to SAE J2540 Commercial Vehicle TIM format`);
   console.log(`\n📋 SAE J2735 Compliance Endpoints (NEW):`);
   console.log(`   GET http://localhost:${PORT}/api/compliance/summary - All states compliance status`);
   console.log(`   GET http://localhost:${PORT}/api/compliance/guide/:state - State-specific SAE compliance guide`);

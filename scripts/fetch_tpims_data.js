@@ -20,12 +20,33 @@ const TPIMS_FEEDS = [
     url: 'http://iris.dot.state.mn.us/iris/TPIMS_dynamic',
     state: 'MN',
     protocol: http
+  },
+  {
+    name: 'Ohio TPIMS',
+    url: 'https://publicapi.ohgo.com/api/v1/truck-parking',
+    state: 'OH',
+    protocol: https,
+    requiresApiKey: true,
+    headers: {
+      // API key should be set in environment variable: OHIO_API_KEY
+      // Register at https://publicapi.ohgo.com/accounts/registration
+      'Authorization': process.env.OHIO_API_KEY ? `Bearer ${process.env.OHIO_API_KEY}` : ''
+    }
   }
 ];
 
-async function fetchJSON(url, protocol = https) {
+async function fetchJSON(url, protocol = https, headers = {}) {
   return new Promise((resolve, reject) => {
-    const request = protocol.get(url, (res) => {
+    const urlObj = new URL(url);
+    const options = {
+      hostname: urlObj.hostname,
+      port: urlObj.port,
+      path: urlObj.pathname + urlObj.search,
+      method: 'GET',
+      headers: headers
+    };
+
+    const request = protocol.request(options, (res) => {
       let data = '';
 
       res.on('data', chunk => data += chunk);
@@ -47,26 +68,43 @@ async function fetchJSON(url, protocol = https) {
       request.destroy();
       reject(new Error(`Request timeout for ${url}`));
     });
+
+    request.end();
   });
 }
 
 async function fetchTPIMSFeed(feed) {
   console.log(`\n🚛 Fetching ${feed.name}...`);
 
+  // Check if API key is required but missing
+  if (feed.requiresApiKey && (!feed.headers || !feed.headers.Authorization)) {
+    console.warn(`  ⚠️  ${feed.name} requires an API key. Set ${feed.state}_API_KEY environment variable.`);
+    console.warn(`  📝 Register at https://publicapi.ohgo.com/accounts/registration`);
+    return { imported: 0, updated: 0, failed: 0 };
+  }
+
   try {
-    const data = await fetchJSON(feed.url, feed.protocol);
+    const data = await fetchJSON(feed.url, feed.protocol, feed.headers || {});
 
     console.log(`✅ Retrieved data from ${feed.name}`);
 
     // Parse TPIMS data structure
-    // TPIMS typically has an array of sites with parking info
-    const sites = data.tpims_data || data.sites || data.facilities || [];
+    let sites;
 
-    if (!Array.isArray(sites) && typeof data === 'object') {
-      // Some feeds might have nested structure
-      const possibleArrays = Object.values(data).filter(v => Array.isArray(v));
-      if (possibleArrays.length > 0) {
-        return processSites(possibleArrays[0], feed);
+    // Check if data is directly an array (TRIMARC format)
+    if (Array.isArray(data)) {
+      sites = data;
+    }
+    // Or check if data has nested structure
+    else if (typeof data === 'object') {
+      sites = data.results || data.tpims_data || data.sites || data.facilities || data.parking_sites || [];
+
+      // If still not an array, try to find any array in the object
+      if (!Array.isArray(sites)) {
+        const possibleArrays = Object.values(data).filter(v => Array.isArray(v));
+        if (possibleArrays.length > 0) {
+          sites = possibleArrays[0];
+        }
       }
     }
 
@@ -95,20 +133,43 @@ function processSites(sites, feed) {
     try {
       // Extract facility information
       // TPIMS fields vary, try common field names
-      const facilityId = site.site_id || site.id || site.facility_id || site.name?.replace(/\s+/g, '-').toLowerCase();
-      const facilityName = site.site_name || site.name || site.facility_name || `Unknown Site ${facilityId}`;
-      const latitude = parseFloat(site.lat || site.latitude || site.y);
-      const longitude = parseFloat(site.lon || site.longitude || site.long || site.x);
+      const facilityId = site.Id || site.siteId || site.site_id || site.id || site.facility_id || site.name?.replace(/\s+/g, '-').toLowerCase();
+      const facilityName = site.location || site.Location || site.Description || site.site_name || site.name || site.facility_name || facilityId;
+      const latitude = parseFloat(site.Latitude || site.lat || site.latitude || site.y || 0);
+      const longitude = parseFloat(site.Longitude || site.lon || site.longitude || site.long || site.x || 0);
 
-      if (!facilityId || isNaN(latitude) || isNaN(longitude)) {
-        console.warn(`⚠️  Skipping site with missing data:`, site.site_name || site.name || 'Unknown');
+      if (!facilityId) {
+        console.warn(`⚠️  Skipping site with missing ID`);
         failed++;
         continue;
       }
 
-      // Availability data
-      const totalSpaces = parseInt(site.total_spaces || site.capacity || site.total_truck_spaces || 0);
-      const availableSpaces = parseInt(site.available_spaces || site.spaces_available || site.available || 0);
+      // Skip sites without coordinates for now
+      // (TRIMARC doesn't provide coordinates, only availability updates)
+      if (isNaN(latitude) || isNaN(longitude) || (latitude === 0 && longitude === 0)) {
+        // For now, skip sites without coordinates
+        // TODO: Match against a static facility database with coordinates
+        failed++;
+        continue;
+      }
+
+      // Availability data - handle different field names and formats
+      const totalSpaces = parseInt(site.Capacity || site.capacity || site.total_spaces || site.total_truck_spaces || 0);
+
+      // reportedAvailable can be "LOW", "HIGH", or a number
+      let availableSpaces = 0;
+      const reported = site.ReportedAvailable || site.reportedAvailable || site.available_spaces || site.spaces_available || site.available;
+      if (typeof reported === 'string') {
+        if (reported === 'LOW' || reported.toLowerCase() === 'low') {
+          availableSpaces = Math.floor(totalSpaces * 0.1); // Assume 10% when LOW
+        } else if (reported === 'HIGH' || reported.toLowerCase() === 'high') {
+          availableSpaces = Math.floor(totalSpaces * 0.9); // Assume 90% when HIGH
+        } else {
+          availableSpaces = parseInt(reported) || 0;
+        }
+      } else {
+        availableSpaces = parseInt(reported) || 0;
+      }
       const occupiedSpaces = parseInt(site.occupied_spaces || site.spaces_occupied || (totalSpaces - availableSpaces) || 0);
 
       // Add/update facility
@@ -118,7 +179,7 @@ function processSites(sites, feed) {
         state: feed.state,
         latitude: latitude,
         longitude: longitude,
-        address: site.address || site.location || null,
+        address: site.Address || site.address || site.location || null,
         totalSpaces: totalSpaces || null,
         truckSpaces: totalSpaces || null,
         amenities: site.amenities || null,
@@ -192,6 +253,14 @@ async function validatePredictions() {
       ? (error / actual.availableSpaces) * 100
       : 0;
 
+    // Record accuracy in database for machine learning
+    db.recordPredictionAccuracy(
+      facility.facilityId,
+      prediction.availableSpaces,
+      actual.availableSpaces,
+      false // No way to know if event was nearby from historical data
+    );
+
     validationResults.total++;
 
     if (percentError < 20) { // Within 20% is considered accurate
@@ -225,6 +294,13 @@ async function validatePredictions() {
       });
   } else {
     console.log('  No predictions to validate yet');
+  }
+
+  // Update occupancy patterns based on latest real data
+  console.log('\n📈 Updating occupancy patterns from validated data...');
+  const patternResult = db.updateOccupancyPatterns();
+  if (patternResult.success && patternResult.patternsUpdated > 0) {
+    console.log(`  ✅ Updated ${patternResult.patternsUpdated} time-based patterns`);
   }
 
   return validationResults;

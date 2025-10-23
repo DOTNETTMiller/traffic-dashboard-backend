@@ -17,10 +17,11 @@ import AdminUsers from './components/AdminUsers';
 import AdminInterchanges from './components/AdminInterchanges';
 import AdminFeedSubmissions from './components/AdminFeedSubmissions';
 import FeedSubmission from './components/FeedSubmission';
+import DocumentationViewer from './components/DocumentationViewer';
 import './styles/App.css';
 
 function App() {
-  const [view, setView] = useState('map'); // 'map', 'table', 'report', 'alignment', 'messages', or 'admin'
+  const [view, setView] = useState('map'); // 'map', 'table', 'report', 'alignment', 'messages', 'docs', or 'admin'
   const [filters, setFilters] = useState({
     state: '',
     corridor: '',
@@ -264,6 +265,50 @@ function App() {
             <span className="event-count">
               {filteredEvents.length} {filteredEvents.length === 1 ? 'event' : 'events'}
             </span>
+            <div className="tim-links" style={{ display: 'flex', gap: '8px', marginLeft: '12px' }}>
+              <a
+                href={`${config.apiUrl}/api/convert/tim`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="tim-link"
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '4px',
+                  border: '1px solid #3b82f6',
+                  backgroundColor: '#3b82f6',
+                  color: 'white',
+                  textDecoration: 'none',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  display: 'inline-block'
+                }}
+                title="SAE J2735 Traveler Information Message feed for connected vehicles"
+              >
+                📡 J2735 TIM Feed
+              </a>
+              <a
+                href={`${config.apiUrl}/api/convert/tim-cv`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="tim-link"
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '4px',
+                  border: '1px solid #8b5cf6',
+                  backgroundColor: '#8b5cf6',
+                  color: 'white',
+                  textDecoration: 'none',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  display: 'inline-block'
+                }}
+                title="SAE J2540 Commercial Vehicle TIM feed with truck-specific advisories"
+              >
+                🚛 J2540 CV-TIM Feed
+              </a>
+            </div>
             <button
               onClick={handleLogout}
               className="logout-btn"
@@ -316,6 +361,12 @@ function App() {
             onClick={() => setView('messages')}
           >
             Messages
+          </button>
+          <button
+            className={`toggle-btn ${view === 'docs' ? 'active' : ''}`}
+            onClick={() => setView('docs')}
+          >
+            📚 Documentation
           </button>
           {authToken && (
             <button
@@ -413,6 +464,8 @@ function App() {
           <StateMessaging user={currentUser} authToken={authToken} />
         ) : view === 'alignment' ? (
           <FeedAlignment />
+        ) : view === 'docs' ? (
+          <DocumentationViewer />
         ) : view === 'map' ? (
           <>
             {/* Mobile overlay */}
