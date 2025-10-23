@@ -1,5 +1,6 @@
 // PostgreSQL adapter that mimics better-sqlite3 API
 const { Pool } = require('pg');
+const deasync = require('deasync');
 
 class PostgreSQLAdapter {
   constructor(connectionString) {
@@ -18,11 +19,25 @@ class PostgreSQLAdapter {
       .map(s => s.trim())
       .filter(s => s.length > 0);
 
-    return Promise.all(statements.map(statement => {
+    // Use deasync to make this synchronous
+    let done = false;
+    let error = null;
+
+    Promise.all(statements.map(statement => {
       // Convert SQLite syntax to PostgreSQL
       let pgStatement = this.convertSQLiteToPostgreSQL(statement);
       return this.pool.query(pgStatement);
-    }));
+    })).then(() => {
+      done = true;
+    }).catch(err => {
+      error = err;
+      done = true;
+    });
+
+    // Block until promise resolves
+    deasync.loopWhile(() => !done);
+
+    if (error) throw error;
   }
 
   // Convert SQLite SQL to PostgreSQL SQL
@@ -59,20 +74,62 @@ class PostgreSQLAdapter {
     return {
       // Run a statement (INSERT, UPDATE, DELETE)
       run(...params) {
-        return self.pool.query(pgSql, params).then(result => ({
-          changes: result.rowCount,
-          lastInsertRowid: result.rows[0]?.id
-        }));
+        let done = false;
+        let error = null;
+        let result = null;
+
+        self.pool.query(pgSql, params).then(res => {
+          result = {
+            changes: res.rowCount,
+            lastInsertRowid: res.rows[0]?.id
+          };
+          done = true;
+        }).catch(err => {
+          error = err;
+          done = true;
+        });
+
+        deasync.loopWhile(() => !done);
+        if (error) throw error;
+        return result;
       },
 
       // Get a single row
       get(...params) {
-        return self.pool.query(pgSql, params).then(result => result.rows[0] || null);
+        let done = false;
+        let error = null;
+        let result = null;
+
+        self.pool.query(pgSql, params).then(res => {
+          result = res.rows[0] || null;
+          done = true;
+        }).catch(err => {
+          error = err;
+          done = true;
+        });
+
+        deasync.loopWhile(() => !done);
+        if (error) throw error;
+        return result;
       },
 
       // Get all rows
       all(...params) {
-        return self.pool.query(pgSql, params).then(result => result.rows);
+        let done = false;
+        let error = null;
+        let result = null;
+
+        self.pool.query(pgSql, params).then(res => {
+          result = res.rows;
+          done = true;
+        }).catch(err => {
+          error = err;
+          done = true;
+        });
+
+        deasync.loopWhile(() => !done);
+        if (error) throw error;
+        return result;
       }
     };
   }
