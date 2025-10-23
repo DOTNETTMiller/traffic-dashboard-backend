@@ -1388,7 +1388,7 @@ class StateDatabase {
   }
 
   // User Management Methods
-  createUser(userData) {
+  async createUser(userData) {
     const { username, email, password, fullName = null, organization = null, stateKey = null, role = 'user' } = userData;
     try {
       const passwordHash = this.hashPassword(password);
@@ -1396,7 +1396,7 @@ class StateDatabase {
         INSERT INTO users (username, email, password_hash, full_name, organization, state_key, role)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
-      const result = stmt.run(username, email, passwordHash, fullName, organization, stateKey, role);
+      const result = await stmt.run(username, email, passwordHash, fullName, organization, stateKey, role);
       console.log(`✅ Created user: ${username} (${email}) - ${stateKey || 'no state affiliation'}`);
       return { success: true, userId: result.lastInsertRowid };
     } catch (error) {
@@ -1405,16 +1405,16 @@ class StateDatabase {
     }
   }
 
-  verifyUserPassword(username, password) {
+  async verifyUserPassword(username, password) {
     try {
       const passwordHash = this.hashPassword(password);
-      const user = this.db.prepare(`
+      const user = await this.db.prepare(`
         SELECT * FROM users WHERE username = ? AND password_hash = ? AND active = 1
       `).get(username, passwordHash);
 
       if (user) {
         // Update last login
-        this.db.prepare(`
+        await this.db.prepare(`
           UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?
         `).run(user.id);
         return {
@@ -1434,9 +1434,9 @@ class StateDatabase {
     }
   }
 
-  getUserByUsername(username) {
+  async getUserByUsername(username) {
     try {
-      const user = this.db.prepare(`
+      const user = await this.db.prepare(`
         SELECT id, username, email, full_name, organization, state_key, role, active, created_at, last_login
         FROM users WHERE username = ?
       `).get(username);
@@ -1548,9 +1548,9 @@ class StateDatabase {
     }
   }
 
-  getUserById(userId) {
+  async getUserById(userId) {
     try {
-      const user = this.db.prepare(`
+      const user = await this.db.prepare(`
         SELECT id, username, email, full_name, organization, role, active, state_key,
                notify_on_messages, notify_on_high_severity, created_at, last_login
         FROM users
@@ -1599,9 +1599,9 @@ class StateDatabase {
   }
 
   // Get users who should receive message notifications for a state
-  getUsersForMessageNotification(stateKey) {
+  async getUsersForMessageNotification(stateKey) {
     try {
-      const users = this.db.prepare(`
+      const users = await this.db.prepare(`
         SELECT id, username, email, full_name, organization, state_key
         FROM users
         WHERE state_key = ?
@@ -1625,9 +1625,9 @@ class StateDatabase {
   }
 
   // Get users who should receive high-severity event notifications for a state
-  getUsersForHighSeverityNotification(stateKey) {
+  async getUsersForHighSeverityNotification(stateKey) {
     try {
-      const users = this.db.prepare(`
+      const users = await this.db.prepare(`
         SELECT id, username, email, full_name, organization, state_key
         FROM users
         WHERE state_key = ?
