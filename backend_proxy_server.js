@@ -5513,6 +5513,108 @@ async function checkHighSeverityEvents() {
 }
 
 // ========================================
+// Data Quality & Provenance API Endpoints
+// ========================================
+
+// Data quality tracking
+const dataQualityTracker = require('./data_quality.js');
+
+// Get data quality dashboard for all feeds
+app.get('/api/quality/feeds', (req, res) => {
+  try {
+    const timeWindow = parseInt(req.query.hours) || 24;
+    const feedHealth = dataQualityTracker.getAllFeedHealth(timeWindow);
+
+    res.json({
+      success: true,
+      timeWindowHours: timeWindow,
+      feeds: feedHealth,
+      summary: {
+        total: feedHealth.length,
+        excellent: feedHealth.filter(f => f.status === 'EXCELLENT').length,
+        operational: feedHealth.filter(f => f.status === 'OPERATIONAL').length,
+        degraded: feedHealth.filter(f => f.status === 'DEGRADED').length,
+        critical: feedHealth.filter(f => f.status === 'CRITICAL').length,
+        avgUptime: feedHealth.reduce((sum, f) => sum + f.uptime, 0) / feedHealth.length,
+        avgQuality: feedHealth.reduce((sum, f) => sum + f.avgQuality, 0) / feedHealth.length
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching feed quality:', error);
+    res.status(500).json({ error: 'Failed to fetch feed quality data' });
+  }
+});
+
+// Get quality assessment for a specific event
+app.get('/api/quality/event/:eventId', (req, res) => {
+  try {
+    const eventId = req.params.eventId;
+    // This would need to be implemented to look up events
+    // For now, return a placeholder
+    res.json({
+      success: true,
+      message: 'Event quality assessment endpoint (placeholder)',
+      eventId
+    });
+  } catch (error) {
+    console.error('Error assessing event quality:', error);
+    res.status(500).json({ error: 'Failed to assess event quality' });
+  }
+});
+
+// Get feed health for specific feed
+app.get('/api/quality/feed/:feedKey', (req, res) => {
+  try {
+    const feedKey = req.params.feedKey;
+    const timeWindow = parseInt(req.query.hours) || 24;
+    const health = dataQualityTracker.getFeedHealth(feedKey, timeWindow);
+
+    res.json({
+      success: true,
+      timeWindowHours: timeWindow,
+      ...health
+    });
+  } catch (error) {
+    console.error('Error fetching feed health:', error);
+    res.status(500).json({ error: 'Failed to fetch feed health' });
+  }
+});
+
+// Get anomalies detected across all feeds
+app.get('/api/quality/anomalies', (req, res) => {
+  try {
+    const feedKey = req.query.feed;
+    const anomalies = [];
+
+    if (feedKey) {
+      // Get anomalies for specific feed
+      const feedAnomalies = dataQualityTracker.detectAnomalies(feedKey, 0);
+      if (feedAnomalies.length > 0) {
+        anomalies.push({ feedKey, anomalies: feedAnomalies });
+      }
+    } else {
+      // Get anomalies for all feeds
+      const feeds = dataQualityTracker.getAllFeedHealth(24);
+      feeds.forEach(feed => {
+        const feedAnomalies = dataQualityTracker.detectAnomalies(feed.feedKey, 0);
+        if (feedAnomalies.length > 0) {
+          anomalies.push({ feedKey: feed.feedKey, anomalies: feedAnomalies });
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      count: anomalies.length,
+      anomalies
+    });
+  } catch (error) {
+    console.error('Error detecting anomalies:', error);
+    res.status(500).json({ error: 'Failed to detect anomalies' });
+  }
+});
+
+// ========================================
 // Truck Parking API Endpoints
 // ========================================
 
