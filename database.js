@@ -6,7 +6,7 @@ const fs = require('fs');
 // Detect database type
 const IS_POSTGRES = !!process.env.DATABASE_URL;
 
-let Database, db;
+let Database;
 if (IS_POSTGRES) {
   console.log('🐘 Using PostgreSQL database');
   const PostgreSQLAdapter = require('./database-pg-adapter');
