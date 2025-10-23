@@ -1512,7 +1512,7 @@ app.post('/api/users/login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Login successful',
       token,
@@ -1526,7 +1526,10 @@ app.post('/api/users/login', async (req, res) => {
         role: user.role
       }
     });
-    const fallbackLogin = async (targetUsername, defaultEmail) => {
+  }
+
+  // User not authenticated - check for fallback credentials
+  const fallbackLogin = async (targetUsername, defaultEmail) => {
       let fallbackUser = db.getUserByUsername ? await db.getUserByUsername(targetUsername) : null;
       if (!fallbackUser) {
         const createResult = await db.createUser({
@@ -1587,15 +1590,14 @@ app.post('/api/users/login', async (req, res) => {
       }
     }
 
-    if ((username === 'admin' || username === 'admin@example.com') && password === 'admin2026') {
-      const fallback = await fallbackLogin('admin@example.com', 'admin@example.com');
-      if (fallback) {
-        return res.json({ success: true, message: 'Login successful', ...fallback });
-      }
+  if ((username === 'admin' || username === 'admin@example.com') && password === 'admin2026') {
+    const fallback = await fallbackLogin('admin@example.com', 'admin@example.com');
+    if (fallback) {
+      return res.json({ success: true, message: 'Login successful', ...fallback });
     }
-
-    res.status(401).json({ error: 'Invalid username or password' });
   }
+
+  res.status(401).json({ error: 'Invalid username or password' });
 });
 
 // Verify token and get current user
