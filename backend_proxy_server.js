@@ -1489,14 +1489,14 @@ app.post('/api/users/register', (req, res) => {
 });
 
 // User login
-app.post('/api/users/login', (req, res) => {
+app.post('/api/users/login', async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password are required' });
   }
 
-  const user = db.verifyUserPassword(username, password);
+  const user = await db.verifyUserPassword(username, password);
 
   if (user) {
     // Generate JWT token
@@ -1526,10 +1526,10 @@ app.post('/api/users/login', (req, res) => {
         role: user.role
       }
     });
-    const fallbackLogin = (targetUsername, defaultEmail) => {
-      let fallbackUser = db.getUserByUsername ? db.getUserByUsername(targetUsername) : null;
+    const fallbackLogin = async (targetUsername, defaultEmail) => {
+      let fallbackUser = db.getUserByUsername ? await db.getUserByUsername(targetUsername) : null;
       if (!fallbackUser) {
-        const createResult = db.createUser({
+        const createResult = await db.createUser({
           username: targetUsername,
           email: defaultEmail,
           password,
@@ -1542,14 +1542,14 @@ app.post('/api/users/login', (req, res) => {
           console.error('Fallback user creation failed:', createResult.error);
           return null;
         }
-        fallbackUser = db.getUserByUsername(targetUsername);
+        fallbackUser = await db.getUserByUsername(targetUsername);
       } else {
         db.updateUser(fallbackUser.id, {
           password,
           role: 'admin',
           active: true
         });
-        fallbackUser = db.getUserByUsername(targetUsername);
+        fallbackUser = await db.getUserByUsername(targetUsername);
       }
 
       if (!fallbackUser) return null;
@@ -1581,14 +1581,14 @@ app.post('/api/users/login', (req, res) => {
     };
 
     if ((username === 'MM' || username === 'matthew.miller@iowadot.us') && password === 'admin2026') {
-      const fallback = fallbackLogin('matthew.miller@iowadot.us', 'matthew.miller@iowadot.us');
+      const fallback = await fallbackLogin('matthew.miller@iowadot.us', 'matthew.miller@iowadot.us');
       if (fallback) {
         return res.json({ success: true, message: 'Login successful', ...fallback });
       }
     }
 
     if ((username === 'admin' || username === 'admin@example.com') && password === 'admin2026') {
-      const fallback = fallbackLogin('admin@example.com', 'admin@example.com');
+      const fallback = await fallbackLogin('admin@example.com', 'admin@example.com');
       if (fallback) {
         return res.json({ success: true, message: 'Login successful', ...fallback });
       }
