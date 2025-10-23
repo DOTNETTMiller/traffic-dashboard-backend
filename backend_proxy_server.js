@@ -1361,8 +1361,59 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     states: Object.keys(API_CONFIG).length,
-    version: '1.1.0' // Added version tracking
+    version: '1.1.1' // Updated with database diagnostics
   });
+});
+
+// Database diagnostic endpoint
+app.get('/api/db-status', (req, res) => {
+  const path = require('path');
+  const fs = require('fs');
+  const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'states.db');
+  const dbDir = path.dirname(dbPath);
+
+  const status = {
+    databasePath: dbPath,
+    databaseDir: dbDir,
+    dirExists: fs.existsSync(dbDir),
+    fileExists: fs.existsSync(dbPath),
+    env: {
+      DATABASE_PATH: process.env.DATABASE_PATH || 'not set',
+      NODE_ENV: process.env.NODE_ENV || 'not set'
+    }
+  };
+
+  // Try to check dir permissions
+  try {
+    if (fs.existsSync(dbDir)) {
+      const stats = fs.statSync(dbDir);
+      status.dirStats = {
+        isDirectory: stats.isDirectory(),
+        mode: stats.mode.toString(8),
+        uid: stats.uid,
+        gid: stats.gid
+      };
+    }
+  } catch (error) {
+    status.dirError = error.message;
+  }
+
+  // Try to check file permissions if exists
+  try {
+    if (fs.existsSync(dbPath)) {
+      const stats = fs.statSync(dbPath);
+      status.fileStats = {
+        size: stats.size,
+        mode: stats.mode.toString(8),
+        uid: stats.uid,
+        gid: stats.gid
+      };
+    }
+  } catch (error) {
+    status.fileError = error.message;
+  }
+
+  res.json(status);
 });
 
 // ==================== USER AUTHENTICATION ENDPOINTS ====================
