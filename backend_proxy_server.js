@@ -5509,7 +5509,7 @@ async function checkHighSeverityEvents() {
 
 // Start server
 app.listen(PORT, async () => {
-  console.log(`\n🚀 Traffic Dashboard Backend Server`);
+  console.log(`\n🚀 Traffic Dashboard Backend Server (Email Login Enabled)`);
   console.log(`✅ Server running on http://localhost:${PORT}`);
   console.log(`📊 API Endpoints:`);
   console.log(`   GET http://localhost:${PORT}/api/events - Get all events`);
