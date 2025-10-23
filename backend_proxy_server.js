@@ -5519,6 +5519,24 @@ async function checkHighSeverityEvents() {
 const ParkingPredictor = require('./parking_prediction.js');
 const parkingPredictor = new ParkingPredictor(db);
 
+// TPIMS data fetcher
+const { fetchTPIMSFeed, validatePredictions } = require('./scripts/fetch_tpims_data.js');
+
+const TPIMS_FEEDS = [
+  {
+    name: 'TRIMARC TPIMS',
+    url: 'http://www.trimarc.org/dat/tpims/TPIMS_Dynamic.json',
+    state: 'KY',
+    protocol: require('http')
+  },
+  {
+    name: 'Minnesota DOT TPIMS',
+    url: 'http://iris.dot.state.mn.us/iris/TPIMS_dynamic',
+    state: 'MN',
+    protocol: require('http')
+  }
+];
+
 // Get all parking facilities
 app.get('/api/parking/facilities', (req, res) => {
   try {
@@ -5718,6 +5736,62 @@ app.post('/api/admin/parking/generate-predictions', requireAdmin, (req, res) => 
   }
 });
 
+// Admin: Fetch real-time TPIMS data
+app.post('/api/admin/parking/fetch-tpims', requireAdmin, async (req, res) => {
+  try {
+    console.log('🚛 Manual TPIMS data fetch triggered by admin');
+
+    const results = {
+      imported: 0,
+      updated: 0,
+      failed: 0,
+      feeds: []
+    };
+
+    for (const feed of TPIMS_FEEDS) {
+      const feedResult = await fetchTPIMSFeed(feed);
+      results.imported += feedResult.imported;
+      results.updated += feedResult.updated;
+      results.failed += feedResult.failed;
+      results.feeds.push({
+        name: feed.name,
+        ...feedResult
+      });
+    }
+
+    res.json({ success: true, ...results });
+  } catch (error) {
+    console.error('Error fetching TPIMS data:', error);
+    res.status(500).json({ error: 'Failed to fetch TPIMS data' });
+  }
+});
+
+// Get prediction validation results
+app.get('/api/parking/validation', requireAdmin, async (req, res) => {
+  try {
+    const results = await validatePredictions();
+    res.json({ success: true, ...results });
+  } catch (error) {
+    console.error('Error validating predictions:', error);
+    res.status(500).json({ error: 'Failed to validate predictions' });
+  }
+});
+
+// Scheduled TPIMS data fetch
+async function fetchTPIMSDataScheduled() {
+  try {
+    console.log('🕐 Scheduled TPIMS data fetch starting...');
+
+    for (const feed of TPIMS_FEEDS) {
+      await fetchTPIMSFeed(feed);
+    }
+
+    console.log('✅ Scheduled TPIMS data fetch completed');
+  } catch (error) {
+    console.error('❌ Error in scheduled TPIMS fetch:', error);
+  }
+}
+
 // Start server
 app.listen(PORT, async () => {
   console.log(`\n🚀 Traffic Dashboard Backend Server (Email Login Enabled)`);
@@ -5768,6 +5842,18 @@ app.listen(PORT, async () => {
     console.log(`   ⚠️  Email notifications disabled (SMTP not configured)`);
     console.log(`   💡 See EMAIL_SETUP.md for configuration instructions`);
   }
+
+  // Start TPIMS real-time data fetching
+  console.log(`\n🚛 Truck Parking (TPIMS):`);
+  console.log(`   📡 Real-time data feeds: ${TPIMS_FEEDS.length} sources`);
+  console.log(`   🔄 Auto-refresh: Every 15 minutes`);
+  console.log(`   🎯 Prediction validation: Enabled`);
+
+  // Initial fetch
+  setTimeout(() => fetchTPIMSDataScheduled(), 5000); // Wait 5 seconds after startup
+
+  // Schedule periodic updates every 15 minutes
+  setInterval(fetchTPIMSDataScheduled, 15 * 60 * 1000);
 
   evaluateDetourAlerts();
   setInterval(evaluateDetourAlerts, 5 * 60 * 1000);
