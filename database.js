@@ -59,10 +59,11 @@ class StateDatabase {
       const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'states.db');
       this.db = new Database(DB_PATH);
       this.isPostgres = false;
+      // Initialize schema immediately for SQLite
+      this.initSchema();
     }
     this.initialized = false;
     this.initPromise = null;
-    this.initSchema();
   }
 
   // Async initialization for PostgreSQL
@@ -72,15 +73,145 @@ class StateDatabase {
 
     this.initPromise = (async () => {
       if (this.isPostgres) {
-        // Wait for PostgreSQL connection and schema creation
+        // Initialize PostgreSQL connection first
         await this.db.init();
-        await this.db.waitForPendingOps();
+
+        // Then create schema (using async exec)
+        await this.initSchemaAsync();
+
         console.log('✅ PostgreSQL database initialized');
       }
       this.initialized = true;
     })();
 
     return this.initPromise;
+  }
+
+  // Async version of initSchema for PostgreSQL
+  async initSchemaAsync() {
+    await this.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS states (
+        id SERIAL PRIMARY KEY,
+        state_key TEXT UNIQUE NOT NULL,
+        state_name TEXT NOT NULL,
+        api_url TEXT NOT NULL,
+        api_type TEXT NOT NULL,
+        format TEXT NOT NULL,
+        enabled BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS state_credentials (
+        id SERIAL PRIMARY KEY,
+        state_key TEXT UNIQUE NOT NULL,
+        credentials_encrypted TEXT,
+        FOREIGN KEY (state_key) REFERENCES states(state_key) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS admin_tokens (
+        id SERIAL PRIMARY KEY,
+        token TEXT UNIQUE NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS state_passwords (
+        state_key TEXT PRIMARY KEY,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_login TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS state_messages (
+        id TEXT PRIMARY KEY,
+        from_state TEXT NOT NULL,
+        to_state TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        message TEXT NOT NULL,
+        event_id TEXT,
+        priority TEXT DEFAULT 'normal',
+        read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS event_comments (
+        id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL,
+        state_key TEXT NOT NULL,
+        state_name TEXT NOT NULL,
+        comment TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS interchanges (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        state_key TEXT NOT NULL,
+        corridor TEXT,
+        latitude DOUBLE PRECISION NOT NULL,
+        longitude DOUBLE PRECISION NOT NULL,
+        watch_radius_km DOUBLE PRECISION DEFAULT 15,
+        notify_states TEXT NOT NULL,
+        detour_message TEXT,
+        active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS detour_alerts (
+        id SERIAL PRIMARY KEY,
+        interchange_id INTEGER NOT NULL,
+        event_id TEXT NOT NULL,
+        event_state TEXT,
+        event_corridor TEXT,
+        event_location TEXT,
+        event_description TEXT,
+        severity TEXT,
+        lanes_affected TEXT,
+        notified_states TEXT,
+        message TEXT,
+        status TEXT DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        resolved_at TIMESTAMP,
+        resolution_note TEXT,
+        FOREIGN KEY (interchange_id) REFERENCES interchanges(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS feed_submissions (
+        id SERIAL PRIMARY KEY,
+        submitted_by INTEGER,
+        submitter_username TEXT,
+        state_key TEXT,
+        state_name TEXT NOT NULL,
+        api_url TEXT NOT NULL,
+        api_type TEXT NOT NULL,
+        format TEXT NOT NULL,
+        notes TEXT,
+        test_results TEXT,
+        status TEXT DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        reviewed_at TIMESTAMP,
+        reviewed_by INTEGER,
+        reviewer_username TEXT,
+        review_notes TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        state_key TEXT,
+        role TEXT DEFAULT 'user',
+        active BOOLEAN DEFAULT TRUE,
+        notify_on_messages BOOLEAN DEFAULT TRUE,
+        notify_on_high_severity BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_login TIMESTAMP
+      );
+    `);
   }
 
   // Run database migrations for schema updates
