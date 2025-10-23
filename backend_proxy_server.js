@@ -1544,7 +1544,7 @@ app.post('/api/users/login', async (req, res) => {
         }
         fallbackUser = await db.getUserByUsername(targetUsername);
       } else {
-        db.updateUser(fallbackUser.id, {
+        await db.updateUser(fallbackUser.id, {
           password,
           role: 'admin',
           active: true

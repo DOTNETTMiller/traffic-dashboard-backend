@@ -1490,7 +1490,7 @@ class StateDatabase {
     }
   }
 
-  updateUser(userId, updates) {
+  async updateUser(userId, updates) {
     try {
       const fields = [];
       const values = [];
@@ -1539,7 +1539,7 @@ class StateDatabase {
       values.push(userId);
       const sql = `UPDATE users SET ${fields.join(', ')} WHERE id = ?`;
       const stmt = this.db.prepare(sql);
-      stmt.run(...values);
+      await stmt.run(...values);
 
       return { success: true };
     } catch (error) {
