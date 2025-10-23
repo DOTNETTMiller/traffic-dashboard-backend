@@ -5512,6 +5512,212 @@ async function checkHighSeverityEvents() {
   }
 }
 
+// ========================================
+// Truck Parking API Endpoints
+// ========================================
+
+const ParkingPredictor = require('./parking_prediction.js');
+const parkingPredictor = new ParkingPredictor(db);
+
+// Get all parking facilities
+app.get('/api/parking/facilities', (req, res) => {
+  try {
+    const stateFilter = req.query.state || null;
+    const facilities = db.getParkingFacilities(stateFilter);
+    res.json({ success: true, facilities });
+  } catch (error) {
+    console.error('Error fetching parking facilities:', error);
+    res.status(500).json({ error: 'Failed to fetch parking facilities' });
+  }
+});
+
+// Get latest parking availability for all facilities
+app.get('/api/parking/availability', (req, res) => {
+  try {
+    const availability = db.getLatestParkingAvailability();
+    res.json({ success: true, availability });
+  } catch (error) {
+    console.error('Error fetching parking availability:', error);
+    res.status(500).json({ error: 'Failed to fetch parking availability' });
+  }
+});
+
+// Get parking availability for a specific facility
+app.get('/api/parking/availability/:facilityId', (req, res) => {
+  try {
+    const facilityId = req.params.facilityId;
+    const availability = db.getLatestParkingAvailability(facilityId);
+
+    if (!availability) {
+      return res.status(404).json({ error: 'Facility not found or no availability data' });
+    }
+
+    res.json({ success: true, availability });
+  } catch (error) {
+    console.error('Error fetching facility availability:', error);
+    res.status(500).json({ error: 'Failed to fetch facility availability' });
+  }
+});
+
+// Get parking history for a facility
+app.get('/api/parking/history/:facilityId', (req, res) => {
+  try {
+    const facilityId = req.params.facilityId;
+    const hours = parseInt(req.query.hours || '24', 10);
+    const history = db.getParkingHistory(facilityId, hours);
+    res.json({ success: true, history });
+  } catch (error) {
+    console.error('Error fetching parking history:', error);
+    res.status(500).json({ error: 'Failed to fetch parking history' });
+  }
+});
+
+// Admin: Add or update parking facility
+app.post('/api/admin/parking/facility', requireAdmin, (req, res) => {
+  try {
+    const { facilityId, facilityName, state, latitude, longitude, address, totalSpaces, truckSpaces, amenities, facilityType } = req.body;
+
+    if (!facilityId || !facilityName || !state || latitude === undefined || longitude === undefined) {
+      return res.status(400).json({ error: 'facilityId, facilityName, state, latitude, and longitude are required' });
+    }
+
+    const result = db.addParkingFacility({
+      facilityId,
+      facilityName,
+      state,
+      latitude,
+      longitude,
+      address,
+      totalSpaces,
+      truckSpaces,
+      amenities,
+      facilityType
+    });
+
+    if (result.success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ error: result.error });
+    }
+  } catch (error) {
+    console.error('Error adding parking facility:', error);
+    res.status(500).json({ error: 'Failed to add parking facility' });
+  }
+});
+
+// Admin: Add parking availability data
+app.post('/api/admin/parking/availability', requireAdmin, (req, res) => {
+  try {
+    const { facilityId, availableSpaces, occupiedSpaces, isPrediction, predictionConfidence } = req.body;
+
+    if (!facilityId || availableSpaces === undefined || occupiedSpaces === undefined) {
+      return res.status(400).json({ error: 'facilityId, availableSpaces, and occupiedSpaces are required' });
+    }
+
+    const result = db.addParkingAvailability({
+      facilityId,
+      availableSpaces,
+      occupiedSpaces,
+      isPrediction: isPrediction || false,
+      predictionConfidence: predictionConfidence || null
+    });
+
+    if (result.success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ error: result.error });
+    }
+  } catch (error) {
+    console.error('Error adding parking availability:', error);
+    res.status(500).json({ error: 'Failed to add parking availability' });
+  }
+});
+
+// ========================================
+// Parking Prediction Endpoints
+// ========================================
+
+// Get prediction for a specific facility
+app.get('/api/parking/predict/:facilityId', (req, res) => {
+  try {
+    const facilityId = req.params.facilityId;
+    const targetTime = req.query.time ? new Date(req.query.time) : new Date();
+
+    const prediction = parkingPredictor.predictAvailability(facilityId, targetTime);
+
+    if (!prediction.success) {
+      return res.status(404).json({ error: prediction.error });
+    }
+
+    res.json({ success: true, ...prediction });
+  } catch (error) {
+    console.error('Error generating prediction:', error);
+    res.status(500).json({ error: 'Failed to generate prediction' });
+  }
+});
+
+// Get predictions for all facilities
+app.get('/api/parking/predict-all', (req, res) => {
+  try {
+    const targetTime = req.query.time ? new Date(req.query.time) : new Date();
+    const predictions = parkingPredictor.predictAllFacilities(targetTime);
+    res.json({ success: true, predictions, count: predictions.length });
+  } catch (error) {
+    console.error('Error generating predictions:', error);
+    res.status(500).json({ error: 'Failed to generate predictions' });
+  }
+});
+
+// Find available parking nearby
+app.get('/api/parking/nearby', (req, res) => {
+  try {
+    const lat = parseFloat(req.query.lat);
+    const lon = parseFloat(req.query.lon);
+    const radius = parseFloat(req.query.radius) || 50;
+    const minAvailable = parseInt(req.query.minAvailable) || 1;
+
+    if (isNaN(lat) || isNaN(lon)) {
+      return res.status(400).json({ error: 'lat and lon query parameters are required' });
+    }
+
+    const nearby = parkingPredictor.findAvailableNearby(lat, lon, radius, minAvailable);
+    res.json({ success: true, facilities: nearby, count: nearby.length });
+  } catch (error) {
+    console.error('Error finding nearby parking:', error);
+    res.status(500).json({ error: 'Failed to find nearby parking' });
+  }
+});
+
+// Analyze utilization patterns for a facility
+app.get('/api/parking/analyze/:facilityId', (req, res) => {
+  try {
+    const facilityId = req.params.facilityId;
+    const days = parseInt(req.query.days) || 7;
+
+    const analysis = parkingPredictor.analyzeUtilizationPattern(facilityId, days);
+
+    if (analysis.error) {
+      return res.status(404).json({ error: analysis.error });
+    }
+
+    res.json({ success: true, analysis });
+  } catch (error) {
+    console.error('Error analyzing utilization:', error);
+    res.status(500).json({ error: 'Failed to analyze utilization' });
+  }
+});
+
+// Admin: Generate and store predictions for all facilities
+app.post('/api/admin/parking/generate-predictions', requireAdmin, (req, res) => {
+  try {
+    const result = parkingPredictor.generateAndStorePredictions();
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Error generating predictions:', error);
+    res.status(500).json({ error: 'Failed to generate predictions' });
+  }
+});
+
 // Start server
 app.listen(PORT, async () => {
   console.log(`\n🚀 Traffic Dashboard Backend Server (Email Login Enabled)`);
