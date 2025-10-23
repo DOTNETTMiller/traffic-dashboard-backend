@@ -1,19 +1,31 @@
 // State Configuration Database with Encrypted Credentials
-const Database = require('better-sqlite3');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 
-// Database file location
-const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'states.db');
+// Detect database type
+const IS_POSTGRES = !!process.env.DATABASE_URL;
 
-// Ensure database directory exists
-const dbDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dbDir)) {
-  console.log(`📁 Creating database directory: ${dbDir}`);
-  fs.mkdirSync(dbDir, { recursive: true });
+let Database, db;
+if (IS_POSTGRES) {
+  console.log('🐘 Using PostgreSQL database');
+  const PostgreSQLAdapter = require('./database-pg-adapter');
+  Database = PostgreSQLAdapter;
+} else {
+  console.log('📁 Using SQLite database');
+  Database = require('better-sqlite3');
+
+  // Database file location (SQLite only)
+  const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'states.db');
+
+  // Ensure database directory exists (SQLite only)
+  const dbDir = path.dirname(DB_PATH);
+  if (!fs.existsSync(dbDir)) {
+    console.log(`📁 Creating database directory: ${dbDir}`);
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+  console.log(`🗄️  Database path: ${DB_PATH}`);
 }
-console.log(`🗄️  Database path: ${DB_PATH}`);
 
 // Encryption key (should be stored in environment variable in production)
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
@@ -40,7 +52,12 @@ const serializeStateList = (list = []) => {
 
 class StateDatabase {
   constructor() {
-    this.db = new Database(DB_PATH);
+    if (IS_POSTGRES) {
+      this.db = new Database(process.env.DATABASE_URL);
+    } else {
+      const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'states.db');
+      this.db = new Database(DB_PATH);
+    }
     this.initSchema();
   }
 
