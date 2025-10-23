@@ -6517,6 +6517,9 @@ async function fetchTPIMSDataScheduled() {
 
 // Start server
 app.listen(PORT, async () => {
+  // Initialize database (required for PostgreSQL)
+  await db.init();
+
   console.log(`\n🚀 Traffic Dashboard Backend Server (Email Login Enabled)`);
   console.log(`✅ Server running on http://localhost:${PORT}`);
   console.log(`📊 API Endpoints:`);

@@ -54,11 +54,33 @@ class StateDatabase {
   constructor() {
     if (IS_POSTGRES) {
       this.db = new Database(process.env.DATABASE_URL);
+      this.isPostgres = true;
     } else {
       const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'states.db');
       this.db = new Database(DB_PATH);
+      this.isPostgres = false;
     }
+    this.initialized = false;
+    this.initPromise = null;
     this.initSchema();
+  }
+
+  // Async initialization for PostgreSQL
+  async init() {
+    if (this.initialized) return;
+    if (this.initPromise) return this.initPromise;
+
+    this.initPromise = (async () => {
+      if (this.isPostgres) {
+        // Wait for PostgreSQL connection and schema creation
+        await this.db.init();
+        await this.db.waitForPendingOps();
+        console.log('✅ PostgreSQL database initialized');
+      }
+      this.initialized = true;
+    })();
+
+    return this.initPromise;
   }
 
   // Run database migrations for schema updates
