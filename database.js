@@ -205,6 +205,33 @@ class StateDatabase {
         FOREIGN KEY (state_key) REFERENCES states(state_key)
       );
 
+      CREATE TABLE IF NOT EXISTS truck_parking_facilities (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        facility_id TEXT UNIQUE,
+        facility_name TEXT NOT NULL,
+        state TEXT NOT NULL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        address TEXT,
+        total_spaces INTEGER,
+        truck_spaces INTEGER,
+        amenities TEXT,
+        facility_type TEXT,
+        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS parking_availability (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        facility_id TEXT NOT NULL,
+        available_spaces INTEGER,
+        occupied_spaces INTEGER,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        is_prediction BOOLEAN DEFAULT 0,
+        prediction_confidence REAL,
+        FOREIGN KEY (facility_id) REFERENCES truck_parking_facilities(facility_id)
+      );
+
       CREATE INDEX IF NOT EXISTS idx_state_key ON states(state_key);
       CREATE INDEX IF NOT EXISTS idx_enabled ON states(enabled);
       CREATE INDEX IF NOT EXISTS idx_message_to ON state_messages(to_state);
@@ -217,6 +244,10 @@ class StateDatabase {
       CREATE INDEX IF NOT EXISTS idx_feed_submissions_status ON feed_submissions(status);
       CREATE INDEX IF NOT EXISTS idx_username ON users(username);
       CREATE INDEX IF NOT EXISTS idx_email ON users(email);
+      CREATE INDEX IF NOT EXISTS idx_parking_facility_id ON truck_parking_facilities(facility_id);
+      CREATE INDEX IF NOT EXISTS idx_parking_state ON truck_parking_facilities(state);
+      CREATE INDEX IF NOT EXISTS idx_parking_availability_facility ON parking_availability(facility_id);
+      CREATE INDEX IF NOT EXISTS idx_parking_availability_timestamp ON parking_availability(timestamp);
     `);
 
     console.log('✅ Database schema initialized');
@@ -1424,6 +1455,188 @@ class StateDatabase {
     } catch (error) {
       console.error('Error updating notification preferences:', error);
       return { success: false, error: error.message };
+    }
+  }
+
+  // Truck Parking Methods
+  addParkingFacility(facilityData) {
+    const {
+      facilityId,
+      facilityName,
+      state,
+      latitude,
+      longitude,
+      address = null,
+      totalSpaces = null,
+      truckSpaces = null,
+      amenities = null,
+      facilityType = null
+    } = facilityData;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO truck_parking_facilities (
+          facility_id, facility_name, state, latitude, longitude,
+          address, total_spaces, truck_spaces, amenities, facility_type
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(facility_id) DO UPDATE SET
+          facility_name = excluded.facility_name,
+          latitude = excluded.latitude,
+          longitude = excluded.longitude,
+          address = excluded.address,
+          total_spaces = excluded.total_spaces,
+          truck_spaces = excluded.truck_spaces,
+          amenities = excluded.amenities,
+          facility_type = excluded.facility_type,
+          last_updated = CURRENT_TIMESTAMP
+      `);
+      stmt.run(facilityId, facilityName, state, latitude, longitude, address, totalSpaces, truckSpaces, amenities, facilityType);
+      return { success: true };
+    } catch (error) {
+      console.error('Error adding parking facility:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  getParkingFacilities(stateFilter = null) {
+    try {
+      const sql = stateFilter
+        ? `SELECT * FROM truck_parking_facilities WHERE state = ? ORDER BY facility_name`
+        : `SELECT * FROM truck_parking_facilities ORDER BY state, facility_name`;
+
+      const stmt = this.db.prepare(sql);
+      const facilities = stateFilter ? stmt.all(stateFilter) : stmt.all();
+
+      return facilities.map(f => ({
+        id: f.id,
+        facilityId: f.facility_id,
+        facilityName: f.facility_name,
+        state: f.state,
+        latitude: f.latitude,
+        longitude: f.longitude,
+        address: f.address,
+        totalSpaces: f.total_spaces,
+        truckSpaces: f.truck_spaces,
+        amenities: f.amenities,
+        facilityType: f.facility_type,
+        lastUpdated: f.last_updated,
+        createdAt: f.created_at
+      }));
+    } catch (error) {
+      console.error('Error getting parking facilities:', error);
+      return [];
+    }
+  }
+
+  addParkingAvailability(availabilityData) {
+    const {
+      facilityId,
+      availableSpaces,
+      occupiedSpaces,
+      isPrediction = false,
+      predictionConfidence = null
+    } = availabilityData;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO parking_availability (
+          facility_id, available_spaces, occupied_spaces,
+          is_prediction, prediction_confidence
+        ) VALUES (?, ?, ?, ?, ?)
+      `);
+      stmt.run(facilityId, availableSpaces, occupiedSpaces, isPrediction ? 1 : 0, predictionConfidence);
+      return { success: true };
+    } catch (error) {
+      console.error('Error adding parking availability:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  getLatestParkingAvailability(facilityId = null) {
+    try {
+      if (facilityId) {
+        // Get latest for specific facility
+        const row = this.db.prepare(`
+          SELECT pa.*, tpf.facility_name, tpf.state, tpf.latitude, tpf.longitude, tpf.truck_spaces
+          FROM parking_availability pa
+          JOIN truck_parking_facilities tpf ON pa.facility_id = tpf.facility_id
+          WHERE pa.facility_id = ?
+          ORDER BY pa.timestamp DESC
+          LIMIT 1
+        `).get(facilityId);
+
+        if (!row) return null;
+
+        return {
+          id: row.id,
+          facilityId: row.facility_id,
+          facilityName: row.facility_name,
+          state: row.state,
+          latitude: row.latitude,
+          longitude: row.longitude,
+          truckSpaces: row.truck_spaces,
+          availableSpaces: row.available_spaces,
+          occupiedSpaces: row.occupied_spaces,
+          timestamp: row.timestamp,
+          isPrediction: row.is_prediction === 1,
+          predictionConfidence: row.prediction_confidence
+        };
+      } else {
+        // Get latest for all facilities
+        const rows = this.db.prepare(`
+          SELECT pa.*, tpf.facility_name, tpf.state, tpf.latitude, tpf.longitude, tpf.truck_spaces
+          FROM parking_availability pa
+          JOIN truck_parking_facilities tpf ON pa.facility_id = tpf.facility_id
+          WHERE pa.timestamp = (
+            SELECT MAX(timestamp)
+            FROM parking_availability pa2
+            WHERE pa2.facility_id = pa.facility_id
+          )
+          ORDER BY tpf.state, tpf.facility_name
+        `).all();
+
+        return rows.map(row => ({
+          id: row.id,
+          facilityId: row.facility_id,
+          facilityName: row.facility_name,
+          state: row.state,
+          latitude: row.latitude,
+          longitude: row.longitude,
+          truckSpaces: row.truck_spaces,
+          availableSpaces: row.available_spaces,
+          occupiedSpaces: row.occupied_spaces,
+          timestamp: row.timestamp,
+          isPrediction: row.is_prediction === 1,
+          predictionConfidence: row.prediction_confidence
+        }));
+      }
+    } catch (error) {
+      console.error('Error getting parking availability:', error);
+      return facilityId ? null : [];
+    }
+  }
+
+  getParkingHistory(facilityId, hours = 24) {
+    try {
+      const rows = this.db.prepare(`
+        SELECT * FROM parking_availability
+        WHERE facility_id = ?
+          AND timestamp >= datetime('now', '-' || ? || ' hours')
+        ORDER BY timestamp DESC
+      `).all(facilityId, hours);
+
+      return rows.map(row => ({
+        id: row.id,
+        facilityId: row.facility_id,
+        availableSpaces: row.available_spaces,
+        occupiedSpaces: row.occupied_spaces,
+        timestamp: row.timestamp,
+        isPrediction: row.is_prediction === 1,
+        predictionConfidence: row.prediction_confidence
+      }));
+    } catch (error) {
+      console.error('Error getting parking history:', error);
+      return [];
     }
   }
 

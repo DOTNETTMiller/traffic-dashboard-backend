@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { isNearBorder } from '../utils/borderProximity';
+import ParkingLayer from './ParkingLayer';
 
 // Component to center map on selected event
 function MapCenterController({ selectedEvent }) {
@@ -294,7 +295,7 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
   });
 };
 
-export default function TrafficMap({ events, messages = {}, detourAlerts = [], onEventSelect, selectedEvent = null }) {
+export default function TrafficMap({ events, messages = {}, detourAlerts = [], onEventSelect, selectedEvent = null, showParking = false }) {
   // Filter out events without valid coordinates
   const validEvents = events.filter(e => {
     const lat = parseFloat(e.latitude);
@@ -493,6 +494,8 @@ export default function TrafficMap({ events, messages = {}, detourAlerts = [], o
             </Tooltip>
           </CircleMarker>
         ))}
+
+        <ParkingLayer showParking={showParking} />
 
         <MapCenterController selectedEvent={selectedEvent} />
       </MapContainer>

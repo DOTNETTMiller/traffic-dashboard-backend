@@ -31,6 +31,7 @@ function App() {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [messages, setMessages] = useState({});
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [showParking, setShowParking] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Mobile starts closed
   const [desktopMessagesOpen, setDesktopMessagesOpen] = useState(false);
@@ -368,6 +369,14 @@ function App() {
             />
             Auto-refresh
           </label>
+          <label className="refresh-toggle">
+            <input
+              type="checkbox"
+              checked={showParking}
+              onChange={(e) => setShowParking(e.target.checked)}
+            />
+            🚛 Truck Parking
+          </label>
           <button onClick={refetch} className="refresh-btn" disabled={loading}>
             {loading ? 'Loading...' : 'Refresh Now'}
           </button>
@@ -469,6 +478,7 @@ function App() {
                   detourAlerts={detourAlerts}
                   onEventSelect={setSelectedEvent}
                   selectedEvent={selectedEvent}
+                  showParking={showParking}
                 />
               </div>
             </div>
