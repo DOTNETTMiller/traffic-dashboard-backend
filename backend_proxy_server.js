@@ -1360,7 +1360,8 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    states: Object.keys(API_CONFIG).length
+    states: Object.keys(API_CONFIG).length,
+    version: '1.1.0' // Added version tracking
   });
 });
 
