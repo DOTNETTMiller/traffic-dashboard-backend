@@ -2,9 +2,18 @@
 const Database = require('better-sqlite3');
 const crypto = require('crypto');
 const path = require('path');
+const fs = require('fs');
 
 // Database file location
 const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'states.db');
+
+// Ensure database directory exists
+const dbDir = path.dirname(DB_PATH);
+if (!fs.existsSync(dbDir)) {
+  console.log(`📁 Creating database directory: ${dbDir}`);
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+console.log(`🗄️  Database path: ${DB_PATH}`);
 
 // Encryption key (should be stored in environment variable in production)
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
