@@ -215,6 +215,27 @@ export default function StateMessaging({ user, authToken }) {
     }
   };
 
+  const handleClearDetourAdvisories = async () => {
+    if (!window.confirm('Are you sure you want to clear all detour advisory messages? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await axios.delete(
+        `${config.apiUrl}/api/states/messages/bulk/detour-advisories`,
+        { headers: authHeaders }
+      );
+
+      if (response.data.success) {
+        setSuccess(`Cleared ${response.data.deletedCount} detour advisory messages`);
+        setTimeout(() => setSuccess(''), 3000);
+        loadInbox(); // Refresh inbox
+      }
+    } catch (err) {
+      handleApiError(err, 'Failed to clear detour advisories');
+    }
+  };
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     const options = {
@@ -302,6 +323,35 @@ export default function StateMessaging({ user, authToken }) {
 
       {activeTab === 'inbox' && (
         <div className="messages-list">
+          {inbox.some(msg => msg.subject?.includes('Detour Advisory')) && (
+            <div style={{ padding: '12px', marginBottom: '16px', backgroundColor: '#fef3c7', borderRadius: '8px', border: '1px solid #fbbf24' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <strong style={{ color: '#92400e' }}>🚗 Detour Advisories</strong>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#78350f' }}>
+                    {inbox.filter(msg => msg.subject?.includes('Detour Advisory')).length} detour advisory messages
+                  </p>
+                </div>
+                <button
+                  onClick={handleClearDetourAdvisories}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#dc2626',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '600'
+                  }}
+                  onMouseOver={(e) => e.target.style.backgroundColor = '#b91c1c'}
+                  onMouseOut={(e) => e.target.style.backgroundColor = '#dc2626'}
+                >
+                  Clear All Detour Advisories
+                </button>
+              </div>
+            </div>
+          )}
           {inbox.length === 0 ? (
             <p className="empty-state">No messages in your inbox.</p>
           ) : (

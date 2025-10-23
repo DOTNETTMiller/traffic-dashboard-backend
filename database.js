@@ -232,6 +232,30 @@ class StateDatabase {
         FOREIGN KEY (facility_id) REFERENCES truck_parking_facilities(facility_id)
       );
 
+      CREATE TABLE IF NOT EXISTS parking_occupancy_patterns (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        facility_id TEXT NOT NULL,
+        day_of_week INTEGER NOT NULL,
+        hour_of_day INTEGER NOT NULL,
+        avg_occupancy_rate REAL,
+        sample_count INTEGER DEFAULT 0,
+        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(facility_id, day_of_week, hour_of_day),
+        FOREIGN KEY (facility_id) REFERENCES truck_parking_facilities(facility_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS parking_prediction_accuracy (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        facility_id TEXT NOT NULL,
+        predicted_available INTEGER,
+        actual_available INTEGER,
+        prediction_error INTEGER,
+        percent_error REAL,
+        event_nearby BOOLEAN DEFAULT 0,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (facility_id) REFERENCES truck_parking_facilities(facility_id)
+      );
+
       CREATE INDEX IF NOT EXISTS idx_state_key ON states(state_key);
       CREATE INDEX IF NOT EXISTS idx_enabled ON states(enabled);
       CREATE INDEX IF NOT EXISTS idx_message_to ON state_messages(to_state);
@@ -248,6 +272,10 @@ class StateDatabase {
       CREATE INDEX IF NOT EXISTS idx_parking_state ON truck_parking_facilities(state);
       CREATE INDEX IF NOT EXISTS idx_parking_availability_facility ON parking_availability(facility_id);
       CREATE INDEX IF NOT EXISTS idx_parking_availability_timestamp ON parking_availability(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_occupancy_patterns_facility ON parking_occupancy_patterns(facility_id);
+      CREATE INDEX IF NOT EXISTS idx_occupancy_patterns_time ON parking_occupancy_patterns(day_of_week, hour_of_day);
+      CREATE INDEX IF NOT EXISTS idx_prediction_accuracy_facility ON parking_prediction_accuracy(facility_id);
+      CREATE INDEX IF NOT EXISTS idx_prediction_accuracy_timestamp ON parking_prediction_accuracy(timestamp);
     `);
 
     console.log('✅ Database schema initialized');
@@ -1051,12 +1079,28 @@ class StateDatabase {
 
   resolveDetourAlert(alertId, resolutionNote = null) {
     try {
+      // Get the alert to find the associated event_id
+      const alert = this.db.prepare('SELECT event_id FROM detour_alerts WHERE id = ?').get(alertId);
+
+      // Update the alert status
       const stmt = this.db.prepare(`
         UPDATE detour_alerts
         SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP, resolution_note = ?
         WHERE id = ?
       `);
       stmt.run(resolutionNote, alertId);
+
+      // Delete associated state messages for this event's detour advisory
+      if (alert && alert.event_id) {
+        const deleteStmt = this.db.prepare(`
+          DELETE FROM state_messages
+          WHERE event_id = ?
+          AND subject LIKE '%Detour Advisory%'
+          AND from_state = 'ADMIN'
+        `);
+        deleteStmt.run(alert.event_id);
+      }
+
       return { success: true };
     } catch (error) {
       console.error('Error resolving detour alert:', error);
@@ -1636,6 +1680,177 @@ class StateDatabase {
       }));
     } catch (error) {
       console.error('Error getting parking history:', error);
+      return [];
+    }
+  }
+
+  // Parking Prediction Methods
+  updateOccupancyPatterns() {
+    try {
+      // Calculate patterns from actual (non-prediction) data in the last 30 days
+      const updateStmt = this.db.prepare(`
+        INSERT OR REPLACE INTO parking_occupancy_patterns (
+          facility_id, day_of_week, hour_of_day, avg_occupancy_rate, sample_count, last_updated
+        )
+        SELECT
+          facility_id,
+          CAST(strftime('%w', timestamp) AS INTEGER) as day_of_week,
+          CAST(strftime('%H', timestamp) AS INTEGER) as hour_of_day,
+          AVG(CAST(occupied_spaces AS REAL) / NULLIF(
+            (SELECT truck_spaces FROM truck_parking_facilities WHERE facility_id = pa.facility_id), 0
+          )) as avg_occupancy_rate,
+          COUNT(*) as sample_count,
+          CURRENT_TIMESTAMP
+        FROM parking_availability pa
+        WHERE is_prediction = 0
+          AND timestamp >= datetime('now', '-30 days')
+          AND occupied_spaces IS NOT NULL
+        GROUP BY facility_id, day_of_week, hour_of_day
+        HAVING sample_count >= 3
+      `);
+
+      const result = updateStmt.run();
+      console.log(`📊 Updated occupancy patterns: ${result.changes} patterns`);
+      return { success: true, patternsUpdated: result.changes };
+    } catch (error) {
+      console.error('Error updating occupancy patterns:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  getPredictedAvailability(facilityId, targetTime = null, nearbyEvents = []) {
+    try {
+      // Get facility info
+      const facility = this.db.prepare(`
+        SELECT truck_spaces FROM truck_parking_facilities WHERE facility_id = ?
+      `).get(facilityId);
+
+      if (!facility || !facility.truck_spaces) {
+        return null;
+      }
+
+      const totalSpaces = facility.truck_spaces;
+      const time = targetTime ? new Date(targetTime) : new Date();
+      const dayOfWeek = time.getDay();
+      const hourOfDay = time.getHours();
+
+      // Get baseline occupancy pattern
+      const pattern = this.db.prepare(`
+        SELECT avg_occupancy_rate, sample_count FROM parking_occupancy_patterns
+        WHERE facility_id = ? AND day_of_week = ? AND hour_of_day = ?
+      `).get(facilityId, dayOfWeek, hourOfDay);
+
+      // Default baseline if no pattern exists (use overall average or conservative estimate)
+      let baseOccupancyRate = 0.6; // Default 60% occupancy
+      let confidence = 0.3; // Low confidence without data
+
+      if (pattern && pattern.sample_count >= 3) {
+        baseOccupancyRate = pattern.avg_occupancy_rate;
+        confidence = Math.min(0.9, 0.5 + (pattern.sample_count / 100)); // Higher confidence with more samples
+      }
+
+      // Apply event-based modifiers
+      let eventModifier = 1.0;
+      let eventNearby = false;
+
+      for (const event of nearbyEvents) {
+        eventNearby = true;
+        const distance = event.distance || 0;
+        const severity = event.severity?.toLowerCase() || 'minor';
+
+        // Events increase demand (more trucks looking for parking)
+        if (distance < 10) { // Within 10 miles
+          if (severity === 'major' || severity === 'closure') {
+            eventModifier *= 1.3; // 30% more demand
+          } else if (severity === 'moderate') {
+            eventModifier *= 1.15; // 15% more demand
+          } else {
+            eventModifier *= 1.05; // 5% more demand
+          }
+        } else if (distance < 25) { // 10-25 miles
+          eventModifier *= 1.1; // 10% more demand
+        }
+      }
+
+      // Calculate predicted occupancy
+      let predictedOccupancyRate = Math.min(1.0, baseOccupancyRate * eventModifier);
+      const predictedOccupied = Math.round(totalSpaces * predictedOccupancyRate);
+      const predictedAvailable = Math.max(0, totalSpaces - predictedOccupied);
+
+      // Reduce confidence if events are affecting prediction
+      if (eventNearby) {
+        confidence *= 0.8; // 20% less confident with events
+      }
+
+      return {
+        facilityId,
+        totalSpaces,
+        predictedAvailable,
+        predictedOccupied,
+        predictedOccupancyRate,
+        confidence: Math.round(confidence * 100) / 100,
+        hasPattern: pattern !== undefined,
+        eventNearby,
+        timestamp: time.toISOString()
+      };
+    } catch (error) {
+      console.error('Error calculating prediction:', error);
+      return null;
+    }
+  }
+
+  recordPredictionAccuracy(facilityId, predictedAvailable, actualAvailable, eventNearby = false) {
+    try {
+      const error = Math.abs(predictedAvailable - actualAvailable);
+      const percentError = actualAvailable > 0 ? (error / actualAvailable) * 100 : 0;
+
+      const stmt = this.db.prepare(`
+        INSERT INTO parking_prediction_accuracy (
+          facility_id, predicted_available, actual_available,
+          prediction_error, percent_error, event_nearby
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `);
+
+      stmt.run(facilityId, predictedAvailable, actualAvailable, error, percentError, eventNearby ? 1 : 0);
+      return { success: true };
+    } catch (error) {
+      console.error('Error recording prediction accuracy:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  getPredictionAccuracyStats(facilityId = null, days = 7) {
+    try {
+      const sql = facilityId
+        ? `SELECT
+            facility_id,
+            COUNT(*) as total_predictions,
+            AVG(percent_error) as avg_percent_error,
+            AVG(CASE WHEN percent_error < 20 THEN 1 ELSE 0 END) * 100 as accuracy_rate
+          FROM parking_prediction_accuracy
+          WHERE facility_id = ? AND timestamp >= datetime('now', '-' || ? || ' days')
+          GROUP BY facility_id`
+        : `SELECT
+            facility_id,
+            COUNT(*) as total_predictions,
+            AVG(percent_error) as avg_percent_error,
+            AVG(CASE WHEN percent_error < 20 THEN 1 ELSE 0 END) * 100 as accuracy_rate
+          FROM parking_prediction_accuracy
+          WHERE timestamp >= datetime('now', '-' || ? || ' days')
+          GROUP BY facility_id`;
+
+      const rows = facilityId
+        ? this.db.prepare(sql).all(facilityId, days)
+        : this.db.prepare(sql).all(days);
+
+      return rows.map(row => ({
+        facilityId: row.facility_id,
+        totalPredictions: row.total_predictions,
+        avgPercentError: Math.round(row.avg_percent_error * 10) / 10,
+        accuracyRate: Math.round(row.accuracy_rate * 10) / 10
+      }));
+    } catch (error) {
+      console.error('Error getting prediction accuracy stats:', error);
       return [];
     }
   }

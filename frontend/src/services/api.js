@@ -13,6 +13,28 @@ class TrafficAPI {
     });
   }
 
+  // Generic GET method for any endpoint
+  async get(endpoint, config = {}) {
+    try {
+      const response = await this.client.get(endpoint, config);
+      return response;
+    } catch (error) {
+      console.error(`Error fetching ${endpoint}:`, error);
+      throw error;
+    }
+  }
+
+  // Generic POST method for any endpoint
+  async post(endpoint, data, config = {}) {
+    try {
+      const response = await this.client.post(endpoint, data, config);
+      return response;
+    } catch (error) {
+      console.error(`Error posting to ${endpoint}:`, error);
+      throw error;
+    }
+  }
+
   // Get all events from all states
   async getAllEvents() {
     try {
