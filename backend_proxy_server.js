@@ -28,12 +28,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'ccai2026-traffic-dashboard-secret-
 
 // Auto-migrate users to email-based usernames on startup (if needed)
 let migrationAttempted = false;
-function migrateUsersToEmailUsernames() {
+async function migrateUsersToEmailUsernames() {
   if (migrationAttempted) return; // Prevent infinite loops
   migrationAttempted = true;
 
   try {
-    const users = db.getAllUsers();
+    const users = await db.getAllUsers();
     const needsMigration = users.filter(u => u.username !== u.email);
 
     if (needsMigration.length > 0) {
@@ -5389,8 +5389,8 @@ const generateTemporaryPassword = (length = 12) => {
 // ==================== ADMIN USER MANAGEMENT ENDPOINTS ====================
 
 // List users
-app.get('/api/admin/users', requireAdmin, (req, res) => {
-  const users = db.getAllUsers();
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  const users = await db.getAllUsers();
   res.json({ success: true, users });
 });
 
