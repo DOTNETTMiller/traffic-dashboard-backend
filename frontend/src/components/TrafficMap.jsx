@@ -312,10 +312,15 @@ export default function TrafficMap({ events, messages = {}, detourAlerts = [], o
     );
   });
 
-  console.log(`📍 Map: ${validEvents.length} valid events out of ${events.length} total`);
+  // Filter to only show interstate corridors (I-XX format)
+  const interstateEvents = validEvents.filter(e => {
+    return e.corridor && e.corridor.startsWith('I-');
+  });
+
+  console.log(`📍 Map: ${interstateEvents.length} interstate events out of ${validEvents.length} valid events (${events.length} total)`);
 
   // Sort events so those with messages appear on top (render last)
-  const sortedEvents = [...validEvents].sort((a, b) => {
+  const sortedEvents = [...interstateEvents].sort((a, b) => {
     const aHasMessages = messages[a.id] && messages[a.id].length > 0;
     const bHasMessages = messages[b.id] && messages[b.id].length > 0;
     if (aHasMessages && !bHasMessages) return 1; // a renders after b (on top)
