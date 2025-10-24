@@ -5394,19 +5394,26 @@ app.get('/api/states/list', async (req, res) => {
 // Get compliance summary for all states
 app.get('/api/compliance/summary', async (req, res) => {
   try {
+    console.log('Generating compliance summary for all states...');
     const analyzer = new ComplianceAnalyzer();
     const states = [];
 
-    // Analyze each state's events from the cache
-    for (const [stateKey, cacheData] of Object.entries(eventsCache)) {
-      if (cacheData.events && cacheData.events.length > 0) {
-        const stateName = cacheData.stateName || stateKey;
-        const analysis = analyzer.analyzeState(stateKey, stateName, cacheData.events);
+    // Fetch events from all states
+    const allResults = await Promise.all(
+      Object.keys(API_CONFIG).map(stateKey => fetchStateData(stateKey))
+    );
+
+    // Analyze each state's events
+    for (const result of allResults) {
+      if (result.events && result.events.length > 0) {
+        const stateKey = result.state.toUpperCase();
+        const stateName = API_CONFIG[result.state]?.name || result.state;
+        const analysis = analyzer.analyzeState(stateKey, stateName, result.events);
 
         states.push({
           name: stateName,
           stateKey: stateKey,
-          eventCount: cacheData.events.length,
+          eventCount: result.events.length,
           currentFormat: analysis.currentFormat,
           overallScore: analysis.overallScore,
           dataCompletenessScore: analysis.dataCompletenessScore,
@@ -5420,6 +5427,7 @@ app.get('/api/compliance/summary', async (req, res) => {
     // Sort by overall score (descending)
     states.sort((a, b) => b.overallScore.percentage - a.overallScore.percentage);
 
+    console.log(`Compliance summary generated for ${states.length} states`);
     res.json({
       generatedAt: new Date().toISOString(),
       states: states
@@ -5433,28 +5441,34 @@ app.get('/api/compliance/summary', async (req, res) => {
 // Get detailed compliance guide for specific state
 app.get('/api/compliance/state/:stateKey', async (req, res) => {
   try {
-    const { stateKey } = req.params;
-    const stateKeyUpper = stateKey.toUpperCase();
+    const stateKey = req.params.stateKey.toLowerCase();
 
-    // Find state data in cache
-    const cacheData = eventsCache[stateKeyUpper];
-    if (!cacheData || !cacheData.events || cacheData.events.length === 0) {
+    if (!API_CONFIG[stateKey]) {
+      return res.status(404).json({ error: 'State not found' });
+    }
+
+    console.log(`Generating compliance guide for ${API_CONFIG[stateKey].name}...`);
+
+    // Fetch state events
+    const result = await fetchStateData(stateKey);
+
+    if (!result.events || result.events.length === 0) {
       return res.status(404).json({
-        error: 'State not found or has no events',
-        stateKey: stateKeyUpper
+        error: 'State has no events',
+        stateKey: stateKey.toUpperCase()
       });
     }
 
     const analyzer = new ComplianceAnalyzer();
-    const stateName = cacheData.stateName || stateKeyUpper;
-    const analysis = analyzer.analyzeState(stateKeyUpper, stateName, cacheData.events);
+    const stateName = API_CONFIG[stateKey]?.name || stateKey;
+    const analysis = analyzer.analyzeState(stateKey.toUpperCase(), stateName, result.events);
 
     res.json({
       generatedAt: new Date().toISOString(),
       state: {
-        stateKey: stateKeyUpper,
+        stateKey: stateKey.toUpperCase(),
         stateName: stateName,
-        eventCount: cacheData.events.length
+        eventCount: result.events.length
       },
       ...analysis
     });
