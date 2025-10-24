@@ -114,6 +114,8 @@ function mapClosureToEvent(item, district) {
     lanesClosed: closure.lanesClosed,
     totalLanes: closure.totalExistingLanes,
     roadStatus: closure.typeOfClosure === 'Full' ? 'Closed' : 'Restricted',
+    latitude: latitude,
+    longitude: longitude,
     coordinates: [longitude, latitude],
     startDate: `${closure.closureTimestamp.closureStartDate}T${closure.closureTimestamp.closureStartTime}`,
     endDate: closure.closureTimestamp.isClosureEndIndefinite === 'true' ? null :
