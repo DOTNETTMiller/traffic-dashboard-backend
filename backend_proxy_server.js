@@ -15,6 +15,7 @@ const db = require('./database');
 const emailService = require('./email-service');
 const { fetchOhioEvents } = require('./scripts/fetch_ohio_events');
 const { fetchCaltransLCS } = require('./scripts/fetch_caltrans_lcs');
+const { fetchPennDOTRCRS } = require('./scripts/fetch_penndot_rcrs');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -1260,6 +1261,19 @@ app.get('/api/events', async (req, res) => {
     allErrors.push({ state: 'CA (LCS)', errors: [error.message] });
   }
 
+  // Add Pennsylvania PennDOT RCRS events (live and planned events)
+  try {
+    console.log('Fetching PennDOT RCRS events...');
+    const penndotEvents = await fetchPennDOTRCRS();
+    if (penndotEvents && penndotEvents.length > 0) {
+      allEvents.push(...penndotEvents);
+      console.log(`Added ${penndotEvents.length} PennDOT RCRS events`);
+    }
+  } catch (error) {
+    console.error('Error fetching PennDOT RCRS events:', error.message);
+    allErrors.push({ state: 'PA (RCRS)', errors: [error.message] });
+  }
+
   // Deduplicate events by ID (keep first occurrence)
   const seenIds = new Set();
   const uniqueEvents = [];
@@ -1327,6 +1341,21 @@ app.get('/api/events/:state', async (req, res) => {
       }
     } catch (error) {
       console.error('Error fetching Caltrans LCS events:', error.message);
+      result.errors.push(error.message);
+    }
+  }
+
+  // Add Pennsylvania PennDOT RCRS events if requesting Pennsylvania
+  if (stateKey === 'pa') {
+    try {
+      console.log('Fetching PennDOT RCRS events...');
+      const penndotEvents = await fetchPennDOTRCRS();
+      if (penndotEvents && penndotEvents.length > 0) {
+        result.events.push(...penndotEvents);
+        console.log(`Added ${penndotEvents.length} PennDOT RCRS events`);
+      }
+    } catch (error) {
+      console.error('Error fetching PennDOT RCRS events:', error.message);
       result.errors.push(error.message);
     }
   }
@@ -2318,6 +2347,17 @@ app.get('/api/convert/tim', async (req, res) => {
     console.error('Error fetching Caltrans events for TIM:', error.message);
   }
 
+  // Add Pennsylvania PennDOT RCRS events
+  try {
+    const penndotEvents = await fetchPennDOTRCRS();
+    if (penndotEvents && penndotEvents.length > 0) {
+      allEvents.push(...penndotEvents);
+      console.log(`Added ${penndotEvents.length} PennDOT RCRS events to TIM conversion`);
+    }
+  } catch (error) {
+    console.error('Error fetching PennDOT events for TIM:', error.message);
+  }
+
   // Deduplicate events by ID (keep first occurrence)
   const seenIds = new Set();
   const uniqueEvents = [];
@@ -2444,6 +2484,17 @@ app.get('/api/convert/tim-cv', async (req, res) => {
     }
   } catch (error) {
     console.error('Error fetching Caltrans events for CV-TIM:', error.message);
+  }
+
+  // Add Pennsylvania PennDOT RCRS events
+  try {
+    const penndotEvents = await fetchPennDOTRCRS();
+    if (penndotEvents && penndotEvents.length > 0) {
+      allEvents.push(...penndotEvents);
+      console.log(`Added ${penndotEvents.length} PennDOT RCRS events to CV-TIM conversion`);
+    }
+  } catch (error) {
+    console.error('Error fetching PennDOT events for CV-TIM:', error.message);
   }
 
   // Deduplicate events by ID (keep first occurrence)
