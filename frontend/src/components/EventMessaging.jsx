@@ -22,7 +22,10 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
   // Determine which auth system to use
   const stateKey = user?.stateKey || oldStateKey;
   const stateName = user?.organization || user?.fullName || oldStateName;
-  const isStateLoggedIn = !!(stateKey && (authToken || oldStatePassword));
+  const isAdmin = user?.role === 'admin';
+
+  // Allow admins with authToken OR state-affiliated users with auth
+  const isStateLoggedIn = !!(isAdmin && authToken) || !!(stateKey && (authToken || oldStatePassword));
 
   useEffect(() => {
     // Load comments for this event

@@ -145,6 +145,14 @@ const requireUserOrStateAuth = (req, res, next) => {
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
 
+      // Allow admins without state affiliation
+      if (decoded.role === 'admin') {
+        req.stateKey = 'ADMIN';
+        req.stateName = decoded.organization || decoded.fullName || 'Admin';
+        req.user = decoded;
+        return next();
+      }
+
       // User must have a state affiliation
       if (!decoded.stateKey) {
         return res.status(403).json({ error: 'User has no state affiliation. Only state-affiliated users can comment.' });
