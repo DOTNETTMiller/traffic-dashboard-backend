@@ -16,6 +16,7 @@ const emailService = require('./email-service');
 const { fetchOhioEvents } = require('./scripts/fetch_ohio_events');
 const { fetchCaltransLCS } = require('./scripts/fetch_caltrans_lcs');
 const { fetchPennDOTRCRS } = require('./scripts/fetch_penndot_rcrs');
+const ComplianceAnalyzer = require('./compliance-analyzer');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -5386,6 +5387,81 @@ app.get('/api/states/list', async (req, res) => {
       stateName: s.stateName
     }))
   });
+});
+
+// ==================== COMPLIANCE & DATA QUALITY ENDPOINTS ====================
+
+// Get compliance summary for all states
+app.get('/api/compliance/summary', async (req, res) => {
+  try {
+    const analyzer = new ComplianceAnalyzer();
+    const states = [];
+
+    // Analyze each state's events from the cache
+    for (const [stateKey, cacheData] of Object.entries(eventsCache)) {
+      if (cacheData.events && cacheData.events.length > 0) {
+        const stateName = cacheData.stateName || stateKey;
+        const analysis = analyzer.analyzeState(stateKey, stateName, cacheData.events);
+
+        states.push({
+          name: stateName,
+          stateKey: stateKey,
+          eventCount: cacheData.events.length,
+          currentFormat: analysis.currentFormat,
+          overallScore: analysis.overallScore,
+          dataCompletenessScore: analysis.dataCompletenessScore,
+          saeJ2735Ready: analysis.saeJ2735Ready,
+          wzdxCompliant: analysis.wzdxCompliant,
+          complianceGuideUrl: `/api/compliance/state/${stateKey}`
+        });
+      }
+    }
+
+    // Sort by overall score (descending)
+    states.sort((a, b) => b.overallScore.percentage - a.overallScore.percentage);
+
+    res.json({
+      generatedAt: new Date().toISOString(),
+      states: states
+    });
+  } catch (error) {
+    console.error('Error generating compliance summary:', error);
+    res.status(500).json({ error: 'Failed to generate compliance summary' });
+  }
+});
+
+// Get detailed compliance guide for specific state
+app.get('/api/compliance/state/:stateKey', async (req, res) => {
+  try {
+    const { stateKey } = req.params;
+    const stateKeyUpper = stateKey.toUpperCase();
+
+    // Find state data in cache
+    const cacheData = eventsCache[stateKeyUpper];
+    if (!cacheData || !cacheData.events || cacheData.events.length === 0) {
+      return res.status(404).json({
+        error: 'State not found or has no events',
+        stateKey: stateKeyUpper
+      });
+    }
+
+    const analyzer = new ComplianceAnalyzer();
+    const stateName = cacheData.stateName || stateKeyUpper;
+    const analysis = analyzer.analyzeState(stateKeyUpper, stateName, cacheData.events);
+
+    res.json({
+      generatedAt: new Date().toISOString(),
+      state: {
+        stateKey: stateKeyUpper,
+        stateName: stateName,
+        eventCount: cacheData.events.length
+      },
+      ...analysis
+    });
+  } catch (error) {
+    console.error('Error generating state compliance guide:', error);
+    res.status(500).json({ error: 'Failed to generate compliance guide' });
+  }
 });
 
 // Helper to generate secure temporary passwords for admin resets
