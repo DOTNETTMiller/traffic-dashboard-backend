@@ -384,12 +384,24 @@ function getITISCode(eventType) {
 
 // Note: generateVMSMessage function already exists later in the file at line ~1424
 
-// Run migration on first startup (only runs once)
-const existingStates = db.getAllStates();
-if (existingStates.length === 0) {
-  console.log('🔄 First startup detected - migrating existing states to database...');
-  db.migrateFromConfig(API_CONFIG);
+// Initialize database and run migration (async startup)
+async function initializeDatabase() {
+  // Initialize database (required for PostgreSQL)
+  await db.init();
+
+  // Run migration on first startup (only runs once)
+  const existingStates = db.getAllStates();
+  if (existingStates.length === 0) {
+    console.log('🔄 First startup detected - migrating existing states to database...');
+    db.migrateFromConfig(API_CONFIG);
+  }
 }
+
+// Call database initialization immediately
+initializeDatabase().catch(err => {
+  console.error('❌ Failed to initialize database:', err);
+  process.exit(1);
+});
 
 // Load any additional states from database
 loadStatesFromDatabase();
@@ -6574,9 +6586,6 @@ async function fetchTPIMSDataScheduled() {
 
 // Start server
 app.listen(PORT, async () => {
-  // Initialize database (required for PostgreSQL)
-  await db.init();
-
   console.log(`\n🚀 Traffic Dashboard Backend Server (Email Login Enabled)`);
   console.log(`✅ Server running on http://localhost:${PORT}`);
   console.log(`📊 API Endpoints:`);
