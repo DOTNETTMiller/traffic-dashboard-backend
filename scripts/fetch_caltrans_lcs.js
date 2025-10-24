@@ -124,10 +124,18 @@ function mapClosureToEvent(item, district) {
 }
 
 // Extract corridor from route name (e.g., "I-5" from "I-5")
+// Only extract interstate routes (I-XX format) to match map filter
 function extractCorridor(routeName) {
   if (!routeName) return null;
-  const match = routeName.match(/I-\d+|SR-\d+|US-\d+/);
-  return match ? match[0] : routeName;
+
+  // Only match interstate format
+  const interstateMatch = routeName.match(/I-?\s*(\d+)/i);
+  if (interstateMatch) {
+    return `I-${interstateMatch[1]}`;
+  }
+
+  // If not an interstate, return null so it's filtered out by the map
+  return null;
 }
 
 // Check if closure is currently active
