@@ -64,9 +64,9 @@ function App() {
     }
   }, []);
 
-  // Fetch traffic data with auto-refresh (60 seconds)
+  // Fetch traffic data with auto-refresh (5 minutes = 300 seconds)
   const { events, loading, error, lastUpdate, refetch } = useTrafficData(
-    autoRefresh ? 60000 : null
+    autoRefresh ? 300000 : null
   );
 
   const loadDetourAlerts = useCallback(async () => {
