@@ -7,27 +7,18 @@ export default function EventFilters({ events, filters, onFilterChange }) {
   const filterOptions = useMemo(() => {
     const states = [...new Set(events.map(e => e.state))].sort();
 
-    // Sort corridors: major interstates first (I-XX), then secondary routes
-    const uniqueCorridors = [...new Set(events.map(e => e.corridor))].filter(Boolean);
+    // Only show interstate corridors (I-XX format)
+    const uniqueCorridors = [...new Set(events.map(e => e.corridor))]
+      .filter(Boolean)
+      .filter(corridor => corridor.startsWith('I-')); // Only interstate corridors
+
     const corridors = uniqueCorridors.sort((a, b) => {
-      // Match major interstates (I-XX where XX is 1-2 digits)
-      const majorInterstatePattern = /^I-(\d{1,2})$/;
-      const aMatch = a.match(majorInterstatePattern);
-      const bMatch = b.match(majorInterstatePattern);
-
-      // Both are major interstates - sort numerically
-      if (aMatch && bMatch) {
-        return parseInt(aMatch[1]) - parseInt(bMatch[1]);
-      }
-
-      // Only a is a major interstate - it comes first
-      if (aMatch) return -1;
-
-      // Only b is a major interstate - it comes first
-      if (bMatch) return 1;
-
-      // Neither are major interstates - sort alphabetically
-      return a.localeCompare(b);
+      // Extract numbers from I-XX format for numerical sorting
+      const getNumber = (corridor) => {
+        const match = corridor.match(/^I-(\d+)/);
+        return match ? parseInt(match[1]) : 0;
+      };
+      return getNumber(a) - getNumber(b);
     });
 
     const eventTypes = [...new Set(events.map(e => e.eventType))].filter(Boolean).sort();
