@@ -241,7 +241,11 @@ function DocumentationViewer() {
           style={{
             fontSize: '15px',
             lineHeight: '1.7',
-            color: '#1f2937'
+            color: '#1f2937',
+            maxHeight: 'calc(100vh - 300px)',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            paddingRight: '8px'
           }}
           dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
         />
@@ -346,6 +350,25 @@ function DocumentationViewer() {
 
         .doc-table tr:nth-child(even) {
           background-color: #f9fafb;
+        }
+
+        /* Custom scrollbar styling */
+        .markdown-content::-webkit-scrollbar {
+          width: 8px;
+        }
+
+        .markdown-content::-webkit-scrollbar-track {
+          background: #f1f1f1;
+          border-radius: 10px;
+        }
+
+        .markdown-content::-webkit-scrollbar-thumb {
+          background: #3b82f6;
+          border-radius: 10px;
+        }
+
+        .markdown-content::-webkit-scrollbar-thumb:hover {
+          background: #2563eb;
         }
       `}</style>
     </div>
