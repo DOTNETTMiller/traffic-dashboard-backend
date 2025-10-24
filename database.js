@@ -203,6 +203,8 @@ class StateDatabase {
         username TEXT UNIQUE NOT NULL,
         email TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
+        full_name TEXT,
+        organization TEXT,
         state_key TEXT,
         role TEXT DEFAULT 'user',
         active BOOLEAN DEFAULT TRUE,
