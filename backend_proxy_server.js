@@ -395,6 +395,19 @@ async function initializeDatabase() {
     console.log('🔄 First startup detected - migrating existing states to database...');
     db.migrateFromConfig(API_CONFIG);
   }
+
+  // Load any additional states from database
+  loadStatesFromDatabase();
+
+  // Generate admin token if none exist
+  const tokenCheck = db.db.prepare('SELECT COUNT(*) as count FROM admin_tokens').get();
+  if (tokenCheck.count === 0) {
+    const initialToken = db.createAdminToken('Initial admin token');
+    console.log('\n🔑 ═══════════════════════════════════════════════════════════');
+    console.log('🔑 ADMIN TOKEN GENERATED (SAVE THIS SECURELY):');
+    console.log(`🔑 ${initialToken}`);
+    console.log('🔑 ═══════════════════════════════════════════════════════════\n');
+  }
 }
 
 // Call database initialization immediately
@@ -402,19 +415,6 @@ initializeDatabase().catch(err => {
   console.error('❌ Failed to initialize database:', err);
   process.exit(1);
 });
-
-// Load any additional states from database
-loadStatesFromDatabase();
-
-// Generate admin token if none exist
-const tokenCheck = db.db.prepare('SELECT COUNT(*) as count FROM admin_tokens').get();
-if (tokenCheck.count === 0) {
-  const initialToken = db.createAdminToken('Initial admin token');
-  console.log('\n🔑 ═══════════════════════════════════════════════════════════');
-  console.log('🔑 ADMIN TOKEN GENERATED (SAVE THIS SECURELY):');
-  console.log(`🔑 ${initialToken}`);
-  console.log('🔑 ═══════════════════════════════════════════════════════════\n');
-}
 
 // Helper function to parse XML
 const parseXML = async (xmlString) => {
