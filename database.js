@@ -622,7 +622,7 @@ class StateDatabase {
         SELECT s.*, c.credentials_encrypted
         FROM states s
         LEFT JOIN state_credentials c ON s.state_key = c.state_key
-        WHERE s.enabled = 1
+        WHERE s.enabled = true
         ORDER BY s.state_name
       `).all();
 
@@ -874,7 +874,7 @@ class StateDatabase {
     try {
       const result = this.db.prepare(`
         SELECT COUNT(*) as count FROM state_messages
-        WHERE (to_state = ? OR to_state = 'ALL') AND read = 0
+        WHERE (to_state = ? OR to_state = 'ALL') AND read = false
       `).get(stateKey);
       return result.count || 0;
     } catch (error) {
@@ -887,7 +887,7 @@ class StateDatabase {
   getActiveInterchanges() {
     try {
       const rows = this.db.prepare(`
-        SELECT * FROM interchanges WHERE active = 1 ORDER BY name
+        SELECT * FROM interchanges WHERE active = true ORDER BY name
       `).all();
       return rows.map(row => ({
         id: row.id,
@@ -1409,7 +1409,7 @@ class StateDatabase {
     try {
       const passwordHash = this.hashPassword(password);
       const user = await this.db.prepare(`
-        SELECT * FROM users WHERE username = ? AND password_hash = ? AND active = 1
+        SELECT * FROM users WHERE username = ? AND password_hash = ? AND active = true
       `).get(username, passwordHash);
 
       if (user) {
@@ -1461,9 +1461,9 @@ class StateDatabase {
     }
   }
 
-  getAllUsers() {
+  async getAllUsers() {
     try {
-      const users = this.db.prepare(`
+      const users = await this.db.prepare(`
         SELECT id, username, email, full_name, organization, role, active, created_at, last_login,
                state_key, notify_on_messages, notify_on_high_severity
         FROM users
@@ -1881,7 +1881,7 @@ class StateDatabase {
           COUNT(*) as sample_count,
           CURRENT_TIMESTAMP
         FROM parking_availability pa
-        WHERE is_prediction = 0
+        WHERE is_prediction = false
           AND timestamp >= datetime('now', '-30 days')
           AND occupied_spaces IS NOT NULL
         GROUP BY facility_id, day_of_week, hour_of_day
