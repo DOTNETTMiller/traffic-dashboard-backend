@@ -2,6 +2,7 @@
 // This server fetches data from state DOT APIs and serves it to your dashboard
 
 const express = require('express');
+const compression = require('compression');
 const cors = require('cors');
 const axios = require('axios');
 const xml2js = require('xml2js');
@@ -17,6 +18,9 @@ const { fetchCaltransLCS } = require('./scripts/fetch_caltrans_lcs');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Enable GZIP compression for all responses (reduces bandwidth by 70-80%)
+app.use(compression());
 
 // JWT Secret (should be in environment variable in production)
 const JWT_SECRET = process.env.JWT_SECRET || 'ccai2026-traffic-dashboard-secret-key';
