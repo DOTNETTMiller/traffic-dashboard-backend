@@ -410,11 +410,16 @@ async function initializeDatabase() {
   }
 }
 
-// Call database initialization immediately
-initializeDatabase().catch(err => {
-  console.error('❌ Failed to initialize database:', err);
-  process.exit(1);
-});
+// Initialize database then start server
+initializeDatabase()
+  .then(() => {
+    // Start server after database is ready
+    startServer();
+  })
+  .catch(err => {
+    console.error('❌ Failed to initialize database:', err);
+    process.exit(1);
+  });
 
 // Helper function to parse XML
 const parseXML = async (xmlString) => {
@@ -6584,8 +6589,9 @@ async function fetchTPIMSDataScheduled() {
   }
 }
 
-// Start server
-app.listen(PORT, async () => {
+// Start server function - called after database initialization
+function startServer() {
+  app.listen(PORT, async () => {
   console.log(`\n🚀 Traffic Dashboard Backend Server (Email Login Enabled)`);
   console.log(`✅ Server running on http://localhost:${PORT}`);
   console.log(`📊 API Endpoints:`);
@@ -6652,4 +6658,5 @@ app.listen(PORT, async () => {
   setInterval(evaluateDetourAlerts, 5 * 60 * 1000);
 
   console.log(`\nPress Ctrl+C to stop the server\n`);
-});
+  });
+}
