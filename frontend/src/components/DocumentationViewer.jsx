@@ -5,6 +5,7 @@ function DocumentationViewer() {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeDoc, setActiveDoc] = useState('normalization');
+  const [downloading, setDownloading] = useState(false);
 
   const docs = {
     normalization: {
@@ -42,6 +43,95 @@ function DocumentationViewer() {
       setContent(`# Error Loading Document\n\n${error.message}`);
     }
     setLoading(false);
+  };
+
+  const downloadPDF = async () => {
+    setDownloading(true);
+    try {
+      // Use jsPDF for client-side PDF generation
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF();
+
+      // Set up document
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const maxWidth = pageWidth - (margin * 2);
+      let yPosition = margin;
+
+      // Title
+      doc.setFontSize(16);
+      doc.setFont(undefined, 'bold');
+      doc.text(docs[activeDoc].title, margin, yPosition);
+      yPosition += 10;
+
+      // Description
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
+      const descLines = doc.splitTextToSize(docs[activeDoc].description, maxWidth);
+      doc.text(descLines, margin, yPosition);
+      yPosition += (descLines.length * 5) + 10;
+
+      // Content - parse markdown to plain text
+      const lines = content.split('\n');
+      doc.setFontSize(10);
+
+      for (const line of lines) {
+        // Check if we need a new page
+        if (yPosition > pageHeight - margin) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        // Handle headers
+        if (line.startsWith('# ')) {
+          doc.setFontSize(14);
+          doc.setFont(undefined, 'bold');
+          const text = line.replace(/^#\s+/, '');
+          doc.text(text, margin, yPosition);
+          yPosition += 8;
+          doc.setFontSize(10);
+          doc.setFont(undefined, 'normal');
+        } else if (line.startsWith('## ')) {
+          doc.setFontSize(12);
+          doc.setFont(undefined, 'bold');
+          const text = line.replace(/^##\s+/, '');
+          doc.text(text, margin, yPosition);
+          yPosition += 7;
+          doc.setFontSize(10);
+          doc.setFont(undefined, 'normal');
+        } else if (line.startsWith('### ')) {
+          doc.setFontSize(11);
+          doc.setFont(undefined, 'bold');
+          const text = line.replace(/^###\s+/, '');
+          doc.text(text, margin, yPosition);
+          yPosition += 6;
+          doc.setFontSize(10);
+          doc.setFont(undefined, 'normal');
+        } else if (line.trim()) {
+          // Regular text - strip markdown formatting
+          let text = line
+            .replace(/\*\*(.*?)\*\*/g, '$1') // Bold
+            .replace(/\*(.*?)\*/g, '$1')     // Italic
+            .replace(/`(.*?)`/g, '$1')       // Code
+            .replace(/\[(.*?)\]\(.*?\)/g, '$1'); // Links
+
+          const textLines = doc.splitTextToSize(text, maxWidth);
+          doc.text(textLines, margin, yPosition);
+          yPosition += (textLines.length * 5);
+        } else {
+          yPosition += 3; // Empty line spacing
+        }
+      }
+
+      // Save the PDF
+      const filename = `${docs[activeDoc].title.replace(/\s+/g, '_')}.pdf`;
+      doc.save(filename);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+    }
+    setDownloading(false);
   };
 
   // Simple markdown to HTML converter for basic formatting
@@ -175,8 +265,30 @@ function DocumentationViewer() {
           </button>
         ))}
 
+        {/* Download PDF button */}
+        <button
+          onClick={downloadPDF}
+          disabled={downloading || loading}
+          style={{
+            marginLeft: 'auto',
+            padding: '8px 16px',
+            borderRadius: '6px',
+            border: 'none',
+            backgroundColor: downloading ? '#9ca3af' : '#10b981',
+            color: 'white',
+            cursor: downloading ? 'not-allowed' : 'pointer',
+            fontSize: '13px',
+            fontWeight: '500',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+        >
+          {downloading ? '⏳ Generating...' : '📄 Download PDF'}
+        </button>
+
         {/* Links to TIM feeds */}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <span style={{ fontSize: '13px', color: '#6b7280', marginRight: '8px' }}>
             API Feeds:
           </span>
@@ -245,7 +357,8 @@ function DocumentationViewer() {
             maxHeight: 'calc(100vh - 300px)',
             overflowY: 'auto',
             overflowX: 'hidden',
-            paddingRight: '8px'
+            paddingRight: '8px',
+            paddingBottom: '40px'
           }}
           dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
         />
