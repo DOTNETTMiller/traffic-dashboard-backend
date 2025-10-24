@@ -356,41 +356,43 @@ export default function TrafficMap({ events, messages = {}, detourAlerts = [], o
           maxZoom={20}
         />
 
-        <MarkerClusterGroup
-          chunkedLoading
-          maxClusterRadius={50}
-          spiderfyOnMaxZoom={true}
-          showCoverageOnHover={false}
-          zoomToBoundsOnClick={true}
-          iconCreateFunction={(cluster) => {
-            const count = cluster.getChildCount();
-            const markers = cluster.getAllChildMarkers();
-            const hasAnyMessages = markers.some(m => {
-              const eventId = m.options.eventId;
-              return messages[eventId] && messages[eventId].length > 0;
-            });
+        {/* Only show traffic events when truck parking is NOT active */}
+        {!showParking && (
+          <MarkerClusterGroup
+            chunkedLoading
+            maxClusterRadius={50}
+            spiderfyOnMaxZoom={true}
+            showCoverageOnHover={false}
+            zoomToBoundsOnClick={true}
+            iconCreateFunction={(cluster) => {
+              const count = cluster.getChildCount();
+              const markers = cluster.getAllChildMarkers();
+              const hasAnyMessages = markers.some(m => {
+                const eventId = m.options.eventId;
+                return messages[eventId] && messages[eventId].length > 0;
+              });
 
-            return L.divIcon({
-              html: `<div style="
-                background-color: ${hasAnyMessages ? '#10b981' : '#3b82f6'};
-                color: white;
-                border-radius: 50%;
-                width: 40px;
-                height: 40px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-weight: bold;
-                font-size: 16px;
-                border: 3px solid white;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-              ">${count}</div>`,
-              className: 'custom-cluster-icon',
-              iconSize: L.point(40, 40, true),
-            });
-          }}
-        >
-        {sortedEvents.map((event) => {
+              return L.divIcon({
+                html: `<div style="
+                  background-color: ${hasAnyMessages ? '#10b981' : '#3b82f6'};
+                  color: white;
+                  border-radius: 50%;
+                  width: 40px;
+                  height: 40px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  font-weight: bold;
+                  font-size: 16px;
+                  border: 3px solid white;
+                  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                ">${count}</div>`,
+                className: 'custom-cluster-icon',
+                iconSize: L.point(40, 40, true),
+              });
+            }}
+          >
+          {sortedEvents.map((event) => {
           const hasMessages = messages[event.id] && messages[event.id].length > 0;
           const messageCount = hasMessages ? messages[event.id].length : 0;
           const borderInfo = isNearBorder(event);
@@ -475,10 +477,12 @@ export default function TrafficMap({ events, messages = {}, detourAlerts = [], o
             </Popup>
           </Marker>
           );
-        })}
-        </MarkerClusterGroup>
+          })}
+          </MarkerClusterGroup>
+        )}
 
-        {detourAlerts.map(alert => (
+        {/* Detour alerts only shown when truck parking is NOT active */}
+        {!showParking && detourAlerts.map(alert => (
           <CircleMarker
             key={`detour-${alert.id}`}
             center={[alert.latitude, alert.longitude]}
