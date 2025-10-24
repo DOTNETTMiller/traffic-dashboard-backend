@@ -616,9 +616,9 @@ class StateDatabase {
   }
 
   // Get all states
-  getAllStates(includeCredentials = false) {
+  async getAllStates(includeCredentials = false) {
     try {
-      const states = this.db.prepare(`
+      const states = await this.db.prepare(`
         SELECT s.*, c.credentials_encrypted
         FROM states s
         LEFT JOIN state_credentials c ON s.state_key = c.state_key

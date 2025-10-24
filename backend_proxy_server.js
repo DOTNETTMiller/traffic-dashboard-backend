@@ -330,10 +330,10 @@ const API_CONFIG = {
 };
 
 // Function to load states from database and merge with API_CONFIG
-function loadStatesFromDatabase() {
+async function loadStatesFromDatabase() {
   console.log('📦 Loading states from database...');
 
-  const dbStates = db.getAllStates(true); // Get all with credentials
+  const dbStates = await db.getAllStates(true); // Get all with credentials
 
   dbStates.forEach(state => {
     if (state.enabled) {
@@ -390,14 +390,14 @@ async function initializeDatabase() {
   await db.init();
 
   // Run migration on first startup (only runs once)
-  const existingStates = db.getAllStates();
+  const existingStates = await db.getAllStates();
   if (existingStates.length === 0) {
     console.log('🔄 First startup detected - migrating existing states to database...');
     db.migrateFromConfig(API_CONFIG);
   }
 
   // Load any additional states from database
-  loadStatesFromDatabase();
+  await loadStatesFromDatabase();
 
   // Generate admin token if none exist
   const tokenCheck = db.db.prepare('SELECT COUNT(*) as count FROM admin_tokens').get();
@@ -2027,7 +2027,7 @@ app.get('/api/analysis/feed-alignment', async (req, res) => {
     console.log('Analyzing cross-state feed alignment and generating mapping recommendations...');
 
     // Get all states from database
-    const allStates = db.getAllStates();
+    const allStates = await db.getAllStates();
     const stateKeys = allStates.map(s => s.stateKey);
 
     // Fetch sample events from all states
@@ -4636,7 +4636,7 @@ app.get('/api/compliance/summary', async (req, res) => {
   console.log('Generating compliance summary for all states...');
 
   // Get all states from database
-  const allStates = db.getAllStates();
+  const allStates = await db.getAllStates();
   const stateKeys = allStates.map(s => s.stateKey);
 
   const allResults = await Promise.all(
@@ -5282,7 +5282,7 @@ app.post('/api/events/:eventId/comments', requireUserOrStateAuth, async (req, re
     setImmediate(async () => {
       try {
         // Find the event details from all events cache
-        const allStates = db.getAllStates();
+        const allStates = await db.getAllStates();
         const allEventsResults = await Promise.all(
           allStates.map(state => fetchStateData(state.stateKey))
         );
@@ -5368,8 +5368,8 @@ app.get('/api/events/comments/all', (req, res) => {
 });
 
 // Get list of states available for messaging
-app.get('/api/states/list', (req, res) => {
-  const states = db.getAllStates(false); // No credentials
+app.get('/api/states/list', async (req, res) => {
+  const states = await db.getAllStates(false); // No credentials
 
   res.json({
     success: true,
@@ -5587,12 +5587,12 @@ app.delete('/api/admin/states/:stateKey', requireAdmin, (req, res) => {
 });
 
 // List all states (public gets basic info, admin gets credentials)
-app.get('/api/admin/states', (req, res) => {
+app.get('/api/admin/states', async (req, res) => {
   const authHeader = req.headers.authorization;
   const isAdmin = authHeader && authHeader.startsWith('Bearer ') &&
                   db.verifyAdminToken(authHeader.substring(7));
 
-  const states = db.getAllStates(isAdmin);
+  const states = await db.getAllStates(isAdmin);
 
   res.json({
     success: true,
@@ -6159,7 +6159,7 @@ const evaluateDetourAlerts = async () => {
 async function checkHighSeverityEvents() {
   try {
     // Fetch all current events
-    const allStates = db.getAllStates();
+    const allStates = await db.getAllStates();
     const results = await Promise.all(
       allStates.map(state => fetchStateData(state.stateKey))
     );
@@ -6624,7 +6624,9 @@ function startServer() {
   console.log(`   DELETE http://localhost:${PORT}/api/admin/users/:userId - Delete user`);
   console.log(`\n📧 Email Notification Endpoints (NEW):`);
   console.log(`   PUT http://localhost:${PORT}/api/users/notifications - Update notification preferences`);
-  console.log(`\n🌐 Connected to ${db.getAllStates().length} state DOT APIs`);
+
+  const allStates = await db.getAllStates();
+  console.log(`\n🌐 Connected to ${allStates.length} state DOT APIs`);
 
   // Verify email configuration
   console.log(`\n📨 Email Notifications:`);
