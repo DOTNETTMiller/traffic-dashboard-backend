@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, CircleMarker } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, CircleMarker, Polyline } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -81,6 +81,37 @@ const getWeatherType = (description) => {
   }
 
   return 'general';
+};
+
+// Helper to get polyline color based on event type and severity
+const getPolylineColor = (eventType, severity) => {
+  // Closure - red (most severe)
+  if (eventType === 'Closure') {
+    return '#dc2626'; // red-600
+  }
+
+  // Incident - red/orange based on severity
+  if (eventType === 'Incident') {
+    return severity === 'high' ? '#dc2626' : '#f97316'; // red-600 or orange-500
+  }
+
+  // Construction - orange/yellow based on severity
+  if (eventType === 'Construction') {
+    return severity === 'high' ? '#f97316' : '#fbbf24'; // orange-500 or amber-400
+  }
+
+  // Weather - blue/red based on severity
+  if (eventType === 'Weather') {
+    return severity === 'high' ? '#dc2626' : '#3b82f6'; // red-600 or blue-500
+  }
+
+  // Default - based on severity
+  const colors = {
+    high: '#dc2626',    // red-600
+    medium: '#f97316',  // orange-500
+    low: '#10b981'      // green-500
+  };
+  return colors[severity] || colors.medium;
 };
 
 // Custom marker icons based on event type with traffic sign symbols
@@ -397,85 +428,132 @@ export default function TrafficMap({ events, messages = {}, detourAlerts = [], o
           const messageCount = hasMessages ? messages[event.id].length : 0;
           const borderInfo = isNearBorder(event);
 
+          // Check if event has linear geometry (LineString)
+          const hasGeometry = event.geometry &&
+                             event.geometry.type === 'LineString' &&
+                             event.geometry.coordinates &&
+                             Array.isArray(event.geometry.coordinates) &&
+                             event.geometry.coordinates.length > 1;
+
+          // Convert GeoJSON coordinates [lng, lat] to Leaflet format [lat, lng]
+          const polylinePositions = hasGeometry
+            ? event.geometry.coordinates.map(coord => [coord[1], coord[0]])
+            : [];
+
+          // Tooltip content (shared between marker and polyline)
+          const tooltipContent = (
+            <div style={{ minWidth: '200px' }}>
+              <strong>{event.eventType}</strong><br/>
+              {event.location}<br/>
+              <em>{event.description.substring(0, 100)}{event.description.length > 100 ? '...' : ''}</em>
+              {borderInfo && borderInfo.nearBorder && <div style={{ marginTop: '4px', color: '#6366f1', fontWeight: 'bold' }}>
+                🔵 {borderInfo.distance} mi from {borderInfo.borderStates.join('-')} border
+              </div>}
+              {hasMessages && <div style={{ marginTop: '4px', color: '#1e40af', fontWeight: 'bold' }}>
+                💬 {messageCount} message{messageCount !== 1 ? 's' : ''}
+              </div>}
+            </div>
+          );
+
+          // Popup content (shared between marker and polyline)
+          const popupContent = (
+            <div style={{ padding: '8px' }}>
+              <h3 style={{
+                margin: '0 0 8px 0',
+                fontSize: '16px',
+                fontWeight: 'bold'
+              }}>
+                {event.eventType}
+              </h3>
+              <p style={{ margin: '4px 0' }}>
+                <strong>Location:</strong> {event.location}
+              </p>
+              <p style={{ margin: '4px 0' }}>
+                <strong>State:</strong> {event.state}
+              </p>
+              <p style={{ margin: '4px 0' }}>
+                <strong>Description:</strong> {event.description}
+              </p>
+              {borderInfo && borderInfo.nearBorder && (
+                <p style={{ margin: '8px 0', padding: '6px', backgroundColor: '#e0e7ff', borderRadius: '4px', borderLeft: '3px solid #6366f1' }}>
+                  <strong>🔵 Border Event</strong><br/>
+                  <span style={{ fontSize: '13px' }}>
+                    {borderInfo.distance} miles from {borderInfo.borderName}
+                  </span>
+                  <br/>
+                  <span style={{ fontSize: '12px', fontStyle: 'italic', color: '#4338ca' }}>
+                    May require {borderInfo.borderStates.join('-')} coordination
+                  </span>
+                </p>
+              )}
+              {hasMessages && (
+                <p style={{ margin: '8px 0', padding: '6px', backgroundColor: '#dbeafe', borderRadius: '4px' }}>
+                  <strong>💬 {messageCount} Message{messageCount !== 1 ? 's' : ''}</strong>
+                </p>
+              )}
+              <p style={{ margin: '4px 0' }}>
+                <strong>Lanes:</strong> {event.lanesAffected}
+              </p>
+              <p style={{ margin: '4px 0' }}>
+                <strong>Direction:</strong> {event.direction}
+              </p>
+              <button
+                onClick={() => onEventSelect && onEventSelect(event)}
+                style={{
+                  marginTop: '8px',
+                  padding: '6px 12px',
+                  backgroundColor: '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                {hasMessages ? 'View Messages' : 'Add Message'}
+              </button>
+            </div>
+          );
+
           return (
-            <Marker
-              key={event.id}
-              position={[parseFloat(event.latitude), parseFloat(event.longitude)]}
-              icon={getMarkerIcon(event, hasMessages, messageCount)}
-              zIndexOffset={hasMessages ? 1000 : 0}
-              eventId={event.id}
-            >
-            <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
-              <div style={{ minWidth: '200px' }}>
-                <strong>{event.eventType}</strong><br/>
-                {event.location}<br/>
-                <em>{event.description.substring(0, 100)}{event.description.length > 100 ? '...' : ''}</em>
-                {borderInfo && borderInfo.nearBorder && <div style={{ marginTop: '4px', color: '#6366f1', fontWeight: 'bold' }}>
-                  🔵 {borderInfo.distance} mi from {borderInfo.borderStates.join('-')} border
-                </div>}
-                {hasMessages && <div style={{ marginTop: '4px', color: '#1e40af', fontWeight: 'bold' }}>
-                  💬 {messageCount} message{messageCount !== 1 ? 's' : ''}
-                </div>}
-              </div>
-            </Tooltip>
-            <Popup maxWidth={300}>
-              <div style={{ padding: '8px' }}>
-                <h3 style={{
-                  margin: '0 0 8px 0',
-                  fontSize: '16px',
-                  fontWeight: 'bold'
-                }}>
-                  {event.eventType}
-                </h3>
-                <p style={{ margin: '4px 0' }}>
-                  <strong>Location:</strong> {event.location}
-                </p>
-                <p style={{ margin: '4px 0' }}>
-                  <strong>State:</strong> {event.state}
-                </p>
-                <p style={{ margin: '4px 0' }}>
-                  <strong>Description:</strong> {event.description}
-                </p>
-                {borderInfo && borderInfo.nearBorder && (
-                  <p style={{ margin: '8px 0', padding: '6px', backgroundColor: '#e0e7ff', borderRadius: '4px', borderLeft: '3px solid #6366f1' }}>
-                    <strong>🔵 Border Event</strong><br/>
-                    <span style={{ fontSize: '13px' }}>
-                      {borderInfo.distance} miles from {borderInfo.borderName}
-                    </span>
-                    <br/>
-                    <span style={{ fontSize: '12px', fontStyle: 'italic', color: '#4338ca' }}>
-                      May require {borderInfo.borderStates.join('-')} coordination
-                    </span>
-                  </p>
-                )}
-                {hasMessages && (
-                  <p style={{ margin: '8px 0', padding: '6px', backgroundColor: '#dbeafe', borderRadius: '4px' }}>
-                    <strong>💬 {messageCount} Message{messageCount !== 1 ? 's' : ''}</strong>
-                  </p>
-                )}
-                <p style={{ margin: '4px 0' }}>
-                  <strong>Lanes:</strong> {event.lanesAffected}
-                </p>
-                <p style={{ margin: '4px 0' }}>
-                  <strong>Direction:</strong> {event.direction}
-                </p>
-                <button
-                  onClick={() => onEventSelect && onEventSelect(event)}
-                  style={{
-                    marginTop: '8px',
-                    padding: '6px 12px',
-                    backgroundColor: '#3b82f6',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer'
+            <>
+              {/* Render polyline for linear features (work zones, closures along road segments) */}
+              {hasGeometry && (
+                <Polyline
+                  key={`polyline-${event.id}`}
+                  positions={polylinePositions}
+                  pathOptions={{
+                    color: getPolylineColor(event.eventType, event.severity),
+                    weight: 5,
+                    opacity: 0.7,
+                    lineJoin: 'round',
+                    lineCap: 'round'
                   }}
                 >
-                  {hasMessages ? 'View Messages' : 'Add Message'}
-                </button>
-              </div>
-            </Popup>
-          </Marker>
+                  <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
+                    {tooltipContent}
+                  </Tooltip>
+                  <Popup maxWidth={300}>
+                    {popupContent}
+                  </Popup>
+                </Polyline>
+              )}
+
+              {/* Always render marker for the event location */}
+              <Marker
+                key={event.id}
+                position={[parseFloat(event.latitude), parseFloat(event.longitude)]}
+                icon={getMarkerIcon(event, hasMessages, messageCount)}
+                zIndexOffset={hasMessages ? 1000 : 0}
+                eventId={event.id}
+              >
+                <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
+                  {tooltipContent}
+                </Tooltip>
+                <Popup maxWidth={300}>
+                  {popupContent}
+                </Popup>
+              </Marker>
+            </>
           );
           })}
           </MarkerClusterGroup>
