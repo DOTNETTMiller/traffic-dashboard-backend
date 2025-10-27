@@ -335,6 +335,13 @@ const API_CONFIG = {
     wzdxUrl: 'https://udottraffic.utah.gov/wzdx/udot/v40/data',
     format: 'json',
     corridor: 'I-80'
+  },
+  pennsylvania: {
+    name: 'Pennsylvania',
+    wzdxUrl: 'https://atms.paturnpike.com/api/WZDxWorkZoneFeed',
+    apiKey: process.env.PENNSYLVANIA_API_KEY || '',
+    format: 'geojson',
+    corridor: 'I-80'
   }
 };
 
