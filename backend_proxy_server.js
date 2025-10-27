@@ -338,7 +338,7 @@ const API_CONFIG = {
   },
   pennsylvania: {
     name: 'Pennsylvania',
-    wzdxUrl: 'https://atms.paturnpike.com/api/WZDxWorkZoneFeed',
+    eventsUrl: 'https://atms.paturnpike.com/api/WZDxWorkZoneFeed',
     apiKey: process.env.PENNSYLVANIA_API_KEY || '',
     format: 'geojson',
     corridor: 'I-80'
@@ -1171,6 +1171,10 @@ const fetchStateData = async (stateKey) => {
         // Nevada uses ?key= query parameter
         if (config.name === 'Nevada') {
           params.key = config.apiKey;
+        }
+        // Pennsylvania uses ?api_key= query parameter
+        else if (config.name === 'Pennsylvania') {
+          params.api_key = config.apiKey;
         }
         // Ohio uses "APIKEY {key}" format in Authorization header
         else if (config.name === 'Ohio') {
