@@ -1322,9 +1322,9 @@ class StateDatabase {
     }
   }
 
-  getAllEventComments() {
+  async getAllEventComments() {
     try {
-      const comments = this.db.prepare(`
+      const comments = await this.db.prepare(`
         SELECT * FROM event_comments
         ORDER BY created_at DESC
       `).all();
