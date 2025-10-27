@@ -270,8 +270,8 @@ app.get('/docs/:filename', (req, res) => {
 const API_CONFIG = {
   nevada: {
     name: 'Nevada',
-    eventsUrl: 'https://www.nvroads.com/api/v1/get/road-conditions',
-    parkingUrl: 'https://www.nvroads.com/api/v1/get/truck-parking',
+    eventsUrl: 'https://www.nvroads.com/api/v2/get/roadconditions',
+    parkingUrl: 'https://www.nvroads.com/api/v2/get/truckparking',
     apiKey: process.env.NEVADA_API_KEY || '',
     format: 'json',
     corridor: 'I-80'
@@ -1160,23 +1160,35 @@ const requiresCrossJurisdictionalResponse = (event) => {
 const fetchStateData = async (stateKey) => {
   const config = API_CONFIG[stateKey];
   const results = { state: config.name, events: [], errors: [] };
-  
+
   try {
     if (config.format === 'json' || config.format === 'geojson') {
       // Fetch JSON/GeoJSON data
       const headers = {};
+      const params = {};
+
       if (config.apiKey) {
-        // Ohio uses "APIKEY {key}" format, Nevada uses "Bearer {key}"
-        const authFormat = config.name === 'Ohio' ? 'APIKEY' : 'Bearer';
-        headers['Authorization'] = `${authFormat} ${config.apiKey}`;
+        // Nevada uses ?key= query parameter
+        if (config.name === 'Nevada') {
+          params.key = config.apiKey;
+        }
+        // Ohio uses "APIKEY {key}" format in Authorization header
+        else if (config.name === 'Ohio') {
+          headers['Authorization'] = `APIKEY ${config.apiKey}`;
+        }
+        // Other states use "Bearer {key}" format in Authorization header
+        else {
+          headers['Authorization'] = `Bearer ${config.apiKey}`;
+        }
       }
-      
+
       // Fetch events
       if (config.eventsUrl) {
         try {
-          const response = await axios.get(config.eventsUrl, { 
+          const response = await axios.get(config.eventsUrl, {
             headers,
-            timeout: 10000 
+            params,
+            timeout: 10000
           });
           const normalized = normalizeEventData(response.data, config.name, config.format, 'events');
           results.events.push(...normalized);
