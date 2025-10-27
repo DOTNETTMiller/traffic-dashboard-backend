@@ -226,18 +226,19 @@ async function fetchPennDOTRCRS() {
       PENNDOT_PASSWORD
     );
 
+    // Handle different response structures
+    let liveEvents = [];
     if (Array.isArray(liveData)) {
-      const relevantLive = liveData.filter(item => isEventRelevant(item, false));
-      console.log(`  ✅ Retrieved ${liveData.length} live events, ${relevantLive.length} relevant`);
-
-      relevantLive.forEach(item => {
-        allEvents.push(mapRCRSToEvent(item, false));
-      });
-      liveCount = relevantLive.length;
+      liveEvents = liveData;
+    } else if (liveData.values && Array.isArray(liveData.values)) {
+      liveEvents = liveData.values;
     } else if (liveData.events && Array.isArray(liveData.events)) {
-      // Handle if data is wrapped in an object
-      const relevantLive = liveData.events.filter(item => isEventRelevant(item, false));
-      console.log(`  ✅ Retrieved ${liveData.events.length} live events, ${relevantLive.length} relevant`);
+      liveEvents = liveData.events;
+    }
+
+    if (liveEvents.length > 0) {
+      const relevantLive = liveEvents.filter(item => isEventRelevant(item, false));
+      console.log(`  ✅ Retrieved ${liveEvents.length} live events, ${relevantLive.length} relevant`);
 
       relevantLive.forEach(item => {
         allEvents.push(mapRCRSToEvent(item, false));
@@ -257,17 +258,19 @@ async function fetchPennDOTRCRS() {
       PENNDOT_PASSWORD
     );
 
+    // Handle different response structures
+    let plannedEvents = [];
     if (Array.isArray(plannedData)) {
-      const relevantPlanned = plannedData.filter(item => isEventRelevant(item, true));
-      console.log(`  ✅ Retrieved ${plannedData.length} planned events, ${relevantPlanned.length} relevant`);
-
-      relevantPlanned.forEach(item => {
-        allEvents.push(mapRCRSToEvent(item, true));
-      });
-      plannedCount = relevantPlanned.length;
+      plannedEvents = plannedData;
+    } else if (plannedData.values && Array.isArray(plannedData.values)) {
+      plannedEvents = plannedData.values;
     } else if (plannedData.events && Array.isArray(plannedData.events)) {
-      const relevantPlanned = plannedData.events.filter(item => isEventRelevant(item, true));
-      console.log(`  ✅ Retrieved ${plannedData.events.length} planned events, ${relevantPlanned.length} relevant`);
+      plannedEvents = plannedData.events;
+    }
+
+    if (plannedEvents.length > 0) {
+      const relevantPlanned = plannedEvents.filter(item => isEventRelevant(item, true));
+      console.log(`  ✅ Retrieved ${plannedEvents.length} planned events, ${relevantPlanned.length} relevant`);
 
       relevantPlanned.forEach(item => {
         allEvents.push(mapRCRSToEvent(item, true));
