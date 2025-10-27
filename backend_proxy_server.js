@@ -5366,8 +5366,8 @@ app.get('/api/events/:eventId/comments', (req, res) => {
 });
 
 // Get all event comments (for viewing all discussions)
-app.get('/api/events/comments/all', (req, res) => {
-  const comments = db.getAllEventComments();
+app.get('/api/events/comments/all', async (req, res) => {
+  const comments = await db.getAllEventComments();
 
   res.json({
     success: true,
