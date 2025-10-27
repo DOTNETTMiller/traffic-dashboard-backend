@@ -1165,9 +1165,9 @@ class StateDatabase {
       return { success: false, error: error.message };
     }
   }
-  getActiveDetourAlerts() {
+  async getActiveDetourAlerts() {
     try {
-      const rows = this.db.prepare(`
+      const rows = await this.db.prepare(`
         SELECT da.*, i.name as interchange_name, i.state_key as interchange_state,
                i.corridor as interchange_corridor, i.latitude, i.longitude, i.notify_states
         FROM detour_alerts da

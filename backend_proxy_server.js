@@ -5783,8 +5783,8 @@ app.post('/api/admin/detour-alerts/:id/resolve', requireAdmin, (req, res) => {
   }
 });
 
-app.get('/api/detour-alerts/active', requireUser, (req, res) => {
-  const alerts = db.getActiveDetourAlerts();
+app.get('/api/detour-alerts/active', requireUser, async (req, res) => {
+  const alerts = await db.getActiveDetourAlerts();
   res.json({ success: true, alerts });
 });
 
@@ -6142,7 +6142,7 @@ const evaluateDetourAlerts = async () => {
       allEvents.push(...result.events);
     });
 
-    const activeAlerts = db.getActiveDetourAlerts();
+    const activeAlerts = await db.getActiveDetourAlerts();
     const alertByInterchange = new Map();
     activeAlerts.forEach(alert => {
       alertByInterchange.set(alert.interchangeId, alert);
