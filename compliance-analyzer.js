@@ -28,6 +28,60 @@ class ComplianceAnalyzer {
       source: 3,
       category: 3
     };
+
+    // Field name mappings - recognizes data in different formats
+    this.fieldMappings = {
+      startDate: ['startDate', 'start_date', 'startTime', 'start_time', 'start'],
+      endDate: ['endDate', 'end_date', 'endTime', 'end_time', 'end'],
+      type: ['type', 'eventType', 'event_type', 'category', 'event_category'],
+      lanesClosed: ['lanesClosed', 'lanes_closed', 'lanesAffected', 'lanes_affected', 'closedLanes'],
+      coordinates: ['coordinates', 'geometry.coordinates'],
+      description: ['description', 'headline', 'summary', 'title'],
+      severity: ['severity', 'impact', 'priority'],
+      direction: ['direction', 'travelDirection', 'travel_direction'],
+      roadStatus: ['roadStatus', 'road_status', 'status', 'roadway_status']
+    };
+  }
+
+  // Helper: Get field value from event, trying multiple possible field names
+  getFieldValue(event, standardFieldName) {
+    const possibleNames = this.fieldMappings[standardFieldName] || [standardFieldName];
+
+    for (const fieldName of possibleNames) {
+      // Handle nested fields like "geometry.coordinates"
+      if (fieldName.includes('.')) {
+        const parts = fieldName.split('.');
+        let value = event;
+        for (const part of parts) {
+          value = value?.[part];
+          if (value === undefined) break;
+        }
+        if (value !== undefined && value !== null && value !== '') {
+          return value;
+        }
+      } else {
+        const value = event[fieldName];
+        if (value !== undefined && value !== null && value !== '') {
+          return value;
+        }
+      }
+    }
+
+    // Special handling for coordinates from lat/lng
+    if (standardFieldName === 'coordinates') {
+      const lat = event.latitude || event.lat;
+      const lng = event.longitude || event.lon || event.lng;
+      if (lat !== undefined && lng !== undefined && lat !== 0 && lng !== 0) {
+        return [lng, lat];  // GeoJSON format: [longitude, latitude]
+      }
+    }
+
+    return null;
+  }
+
+  // Helper: Check if event has a field (in any variation)
+  hasField(event, standardFieldName) {
+    return this.getFieldValue(event, standardFieldName) !== null;
   }
 
   // Main analysis function for a state
@@ -85,16 +139,16 @@ class ComplianceAnalyzer {
     events.forEach(event => {
       let eventScore = 0;
 
-      // Check core WZDx fields
+      // Check core WZDx fields using normalized field access
       if (event.id) eventScore += 15;
-      if (event.type) eventScore += 10;
-      if (event.coordinates && event.coordinates.length === 2) eventScore += 15;
+      if (this.hasField(event, 'type')) eventScore += 10;
+      if (this.hasField(event, 'coordinates')) eventScore += 15;
       if (event.location) eventScore += 10;
-      if (event.direction) eventScore += 10;
-      if (event.startDate) eventScore += 15;
-      if (event.endDate) eventScore += 10;
-      if (event.roadStatus) eventScore += 10;
-      if (event.lanesClosed) eventScore += 5;
+      if (this.hasField(event, 'direction')) eventScore += 10;
+      if (this.hasField(event, 'startDate')) eventScore += 15;
+      if (this.hasField(event, 'endDate')) eventScore += 10;
+      if (this.hasField(event, 'roadStatus')) eventScore += 10;
+      if (this.hasField(event, 'lanesClosed')) eventScore += 5;
 
       totalScore += eventScore;
 
@@ -239,7 +293,7 @@ class ComplianceAnalyzer {
     };
   }
 
-  // Analyze field completeness
+  // Analyze field completeness using normalized field access
   analyzeFieldCompleteness(events) {
     const fieldStats = {};
 
@@ -253,16 +307,8 @@ class ComplianceAnalyzer {
 
     events.forEach(event => {
       Object.keys(this.fieldWeights).forEach(field => {
-        if (field === 'coordinates') {
-          if (event.coordinates && event.coordinates.length === 2) {
-            fieldStats[field].present++;
-          } else {
-            fieldStats[field].missing++;
-            if (fieldStats[field].examples.length < 5) {
-              fieldStats[field].examples.push(event.id);
-            }
-          }
-        } else if (event[field] !== null && event[field] !== undefined && event[field] !== '') {
+        // Use normalized field access to check for data in any format
+        if (this.hasField(event, field)) {
           fieldStats[field].present++;
         } else {
           fieldStats[field].missing++;
@@ -282,8 +328,8 @@ class ComplianceAnalyzer {
     const sampleEvent = events[0] || {};
     const feedType = sampleEvent.source?.includes('WZDx') ? 'WZDx' : 'TMDD';
 
-    // Check for missing coordinates
-    const missingCoords = events.filter(e => !e.coordinates || e.coordinates.length !== 2);
+    // Check for missing coordinates (using normalized field access)
+    const missingCoords = events.filter(e => !this.hasField(e, 'coordinates'));
     if (missingCoords.length > events.length * 0.1) {
       violations.push({
         category: 'Missing Geographic Coordinates',
