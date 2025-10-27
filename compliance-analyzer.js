@@ -594,11 +594,11 @@ class ComplianceAnalyzer {
     const sample = events[0] || {};
 
     if (sample.source?.includes('WZDx')) {
-      return { apiType: 'WZDx v4.x', format: 'GeoJSON' };
+      return 'WZDx v4.x (GeoJSON)';
     } else if (sample.source?.includes('TMDD')) {
-      return { apiType: 'TMDD/ngTMDD', format: 'XML/JSON' };
+      return 'TMDD/ngTMDD (XML/JSON)';
     } else {
-      return { apiType: 'Custom/Proprietary', format: 'JSON' };
+      return 'Custom/Proprietary (JSON)';
     }
   }
 
