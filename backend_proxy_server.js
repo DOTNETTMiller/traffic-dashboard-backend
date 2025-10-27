@@ -6130,7 +6130,7 @@ const evaluateDetourAlerts = async () => {
   detourEvaluationRunning = true;
 
   try {
-    const interchanges = db.getActiveInterchanges();
+    const interchanges = await db.getActiveInterchanges();
     if (!interchanges.length) {
       return;
     }

@@ -886,9 +886,9 @@ class StateDatabase {
   }
 
   // Interchange Management
-  getActiveInterchanges() {
+  async getActiveInterchanges() {
     try {
-      const rows = this.db.prepare(`
+      const rows = await this.db.prepare(`
         SELECT * FROM interchanges WHERE active = true ORDER BY name
       `).all();
       return rows.map(row => ({
