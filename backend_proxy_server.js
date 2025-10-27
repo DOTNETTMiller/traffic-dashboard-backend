@@ -336,14 +336,9 @@ const API_CONFIG = {
     format: 'json',
     corridor: 'I-80'
   },
-  pennsylvania: {
-    name: 'Pennsylvania',
-    eventsUrl: 'https://atms.paturnpike.com/api/WZDxWorkZoneFeed',
-    username: process.env.PENNDOT_USERNAME || '',
-    password: process.env.PENNDOT_PASSWORD || '',
-    format: 'geojson',
-    corridor: 'I-80'
-  }
+  // pennsylvania: Pennsylvania Turnpike Commission - DISABLED: Requires API key (not username/password)
+  // The API expects ?api_key=... but we don't have a Turnpike API key
+  // Pennsylvania statewide data is provided by PennDOT RCRS via fetchPennDOTRCRS()
 };
 
 // Function to load states from database and merge with API_CONFIG
