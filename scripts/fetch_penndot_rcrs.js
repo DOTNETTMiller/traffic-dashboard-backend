@@ -62,22 +62,33 @@ async function fetchJSON(url, username, password) {
 
 // Map PennDOT RCRS event to our normalized event format
 function mapRCRSToEvent(item, isPlanned = false) {
-  // Extract key fields from RCRS event
-  // Note: Field names are based on typical RCRS structure - may need adjustment
-  const eventId = item.EventID || item.eventId || item.id;
-  const eventType = item.EventType || item.eventType || item.type;
-  const description = item.Description || item.description || '';
-  const route = item.Route || item.route || item.roadway || '';
-  const location = item.Location || item.location || '';
-  const county = item.County || item.county || '';
-  const latitude = parseFloat(item.Latitude || item.latitude || 0);
-  const longitude = parseFloat(item.Longitude || item.longitude || 0);
-  const startTime = item.StartTime || item.startTime || item.start;
-  const endTime = item.EndTime || item.endTime || item.end;
-  const status = item.Status || item.status || '';
-  const severity = item.Severity || item.severity || '';
-  const lanesClosed = item.LanesClosed || item.lanesClosed || '';
-  const direction = item.Direction || item.direction || '';
+  // Extract key fields from RCRS event (actual API field names)
+  const eventId = item.eventID || item.id;
+  const eventType = item.eventType || item.type || '';
+  const description = item.description || '';
+  const route = item.facility || item.roadway || '';
+  const fromLoc = item.fromLoc || '';
+  const toLoc = item.toLoc || '';
+  const county = item.county || '';
+  const countyName = item.countyName || '';
+
+  // Parse coordinates from comma-separated lat,long strings
+  let latitude = 0;
+  let longitude = 0;
+  const fromLocLatLong = item.fromLocLatLong || item.incidentLocLatLong || '';
+  if (fromLocLatLong) {
+    const coords = fromLocLatLong.split(',').map(c => parseFloat(c.trim()));
+    if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1])) {
+      latitude = coords[0];
+      longitude = coords[1];
+    }
+  }
+
+  const startTime = item.dateTimeEventOccurs || item.createTime;
+  const endTime = item.estDateTimeToOpen || item.lastUpdate;
+  const laneStatus = item.laneStatus || '';
+  const affectedLanes = item.affectedLanes || '';
+  const direction = item.direction || '';
 
   // Determine event type based on RCRS event type
   let type = 'incident';
@@ -93,28 +104,35 @@ function mapRCRSToEvent(item, isPlanned = false) {
 
   // Determine severity
   let normalizedSeverity = 'Minor';
-  const severityLower = (severity || '').toLowerCase();
-  const statusLower = (status || '').toLowerCase();
+  const laneStatusLower = (laneStatus || '').toLowerCase();
 
-  if (severityLower.includes('major') || statusLower.includes('closed') ||
-      eventTypeLower.includes('closure')) {
+  if (laneStatusLower.includes('closed') || eventTypeLower.includes('closure')) {
     normalizedSeverity = 'Major';
-  } else if (severityLower.includes('moderate') || severityLower.includes('medium') ||
-             lanesClosed) {
+  } else if (affectedLanes || laneStatusLower.includes('restricted')) {
     normalizedSeverity = 'Moderate';
   }
 
-  // Extract corridor from route (e.g., "I-80" from "I-80 EB")
+  // Extract corridor from route (e.g., "I-80" from "PA - 80" or "I-80")
   const corridor = extractCorridor(route);
 
+  // Build location string from fromLoc and toLoc
+  let location = '';
+  if (fromLoc && toLoc) {
+    location = `${route} between ${fromLoc} and ${toLoc}`;
+  } else if (fromLoc) {
+    location = `${route} at ${fromLoc}`;
+  } else {
+    location = route;
+  }
+
   // Build headline
-  const headline = description || `${eventType} on ${route} at ${location}`;
+  const headline = description || `${eventType} on ${location}`;
 
   // Determine road status
   let roadStatus = 'Open';
-  if (statusLower.includes('closed') || eventTypeLower.includes('closure')) {
+  if (laneStatusLower.includes('closed')) {
     roadStatus = 'Closed';
-  } else if (lanesClosed || eventTypeLower.includes('restriction')) {
+  } else if (affectedLanes || laneStatusLower.includes('restricted')) {
     roadStatus = 'Restricted';
   }
 
@@ -127,11 +145,11 @@ function mapRCRSToEvent(item, isPlanned = false) {
     severity: normalizedSeverity,
     category: eventType || 'Road Event',
     state: 'PA',
-    county: county || null,
+    county: countyName || county || null,
     corridor: corridor,
-    location: location || `${route} at ${location}`,
+    location: location,
     direction: extractDirection(direction || route),
-    lanesClosed: lanesClosed || null,
+    lanesClosed: affectedLanes || null,
     roadStatus: roadStatus,
     coordinates: longitude && latitude ? [longitude, latitude] : null,
     startDate: startTime ? new Date(startTime).toISOString() : null,
@@ -190,11 +208,11 @@ function isEventRelevant(event, isPlanned = false) {
   if (isPlanned) return true;
 
   // For live events, check if they have valid coordinates
-  if (!event.Latitude && !event.latitude) return false;
-  if (!event.Longitude && !event.longitude) return false;
+  const fromLocLatLong = event.fromLocLatLong || event.incidentLocLatLong || '';
+  if (!fromLocLatLong) return false;
 
   // Check if event has ended
-  const endTime = event.EndTime || event.endTime || event.end;
+  const endTime = event.estDateTimeToOpen || event.lastUpdate;
   if (endTime) {
     const endDate = new Date(endTime);
     if (endDate < new Date()) return false; // Event has ended
