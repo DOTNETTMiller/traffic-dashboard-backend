@@ -1373,7 +1373,26 @@ app.get('/api/events/:state', async (req, res) => {
   }
 
   console.log(`Fetching events from ${API_CONFIG[stateKey].name}...`);
-  const result = await fetchStateData(stateKey);
+
+  // For Pennsylvania, skip database read and use only fresh PennDOT RCRS data
+  let result;
+  if (stateKey === 'pa') {
+    result = { events: [], errors: [] };
+    // Clean up old Pennsylvania events from database first
+    try {
+      console.log('Cleaning up old Pennsylvania events from database...');
+      const deleteStmt = db.prepare('DELETE FROM events WHERE state = ?');
+      const deleteResult = await deleteStmt.run('PA');
+      if (deleteResult.changes > 0) {
+        console.log(`🗑️  Deleted ${deleteResult.changes} old Pennsylvania event(s) from database`);
+      }
+    } catch (error) {
+      console.error('Warning: Failed to clean up old Pennsylvania events:', error.message);
+      // Continue anyway - non-fatal
+    }
+  } else {
+    result = await fetchStateData(stateKey);
+  }
 
   // Add Ohio API events if requesting Ohio
   if (stateKey === 'ohio') {
@@ -1407,19 +1426,6 @@ app.get('/api/events/:state', async (req, res) => {
 
   // Add Pennsylvania PennDOT RCRS events if requesting Pennsylvania
   if (stateKey === 'pa') {
-    // First, clean up old Pennsylvania events from database
-    try {
-      console.log('Cleaning up old Pennsylvania events from database...');
-      const deleteStmt = db.prepare('DELETE FROM events WHERE state = ?');
-      const deleteResult = await deleteStmt.run('PA');
-      if (deleteResult.changes > 0) {
-        console.log(`🗑️  Deleted ${deleteResult.changes} old Pennsylvania event(s) from database`);
-      }
-    } catch (error) {
-      console.error('Warning: Failed to clean up old Pennsylvania events:', error.message);
-      // Continue anyway - non-fatal
-    }
-
     try {
       console.log('Fetching PennDOT RCRS events...');
       const penndotEvents = await fetchPennDOTRCRS();
