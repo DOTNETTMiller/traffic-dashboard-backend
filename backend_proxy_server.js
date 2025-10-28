@@ -1381,6 +1381,7 @@ app.get('/api/events/:state', async (req, res) => {
     // Clean up old Pennsylvania events from database first
     try {
       console.log('Cleaning up old Pennsylvania events from database...');
+      await db.init(); // Ensure database is initialized
       const deleteStmt = db.db.prepare('DELETE FROM events WHERE state = ?');
       const deleteResult = await deleteStmt.run('PA');
       if (deleteResult.changes > 0) {
