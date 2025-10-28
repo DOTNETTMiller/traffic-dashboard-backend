@@ -1562,17 +1562,53 @@ app.get('/api/db-status', (req, res) => {
   res.json(status);
 });
 
-// Pennsylvania database cleanup endpoint
-app.post('/api/admin/cleanup-pennsylvania', async (req, res) => {
+// Pennsylvania database cleanup endpoint (GET for easy browser access)
+app.get('/api/admin/cleanup-pennsylvania', async (req, res) => {
   try {
     console.log('Pennsylvania cleanup requested via API...');
 
-    const { cleanupPennsylvaniaEvents } = require('./scripts/cleanup_pennsylvania_db');
-    await cleanupPennsylvaniaEvents();
+    await db.init();
+
+    // Get stats before cleanup
+    const beforeQuery = `
+      SELECT
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE source LIKE '%PennDOT RCRS%') as legitimate,
+        COUNT(*) FILTER (WHERE source NOT LIKE '%PennDOT RCRS%' OR source IS NULL) as polluted
+      FROM events WHERE state = 'PA'
+    `;
+    const beforeStats = await db.pool.query(beforeQuery);
+    const before = beforeStats.rows[0];
+
+    console.log(`Before cleanup: ${before.total} total, ${before.legitimate} legitimate, ${before.polluted} polluted`);
+
+    // Run cleanup
+    const deleteQuery = `
+      DELETE FROM events
+      WHERE state = 'PA'
+        AND (source NOT LIKE '%PennDOT RCRS%' OR source IS NULL)
+    `;
+    const deleteResult = await db.pool.query(deleteQuery);
+
+    console.log(`Deleted ${deleteResult.rowCount} polluted Pennsylvania events`);
+
+    // Get stats after cleanup
+    const afterQuery = `SELECT COUNT(*) as total FROM events WHERE state = 'PA'`;
+    const afterStats = await db.pool.query(afterQuery);
+    const after = afterStats.rows[0];
 
     res.json({
       success: true,
-      message: 'Pennsylvania database cleanup completed successfully'
+      before: {
+        total: parseInt(before.total),
+        legitimate: parseInt(before.legitimate),
+        polluted: parseInt(before.polluted)
+      },
+      deleted: deleteResult.rowCount,
+      after: {
+        total: parseInt(after.total)
+      },
+      message: `Successfully cleaned Pennsylvania database. Deleted ${deleteResult.rowCount} polluted events. ${after.total} legitimate events remaining.`
     });
   } catch (error) {
     console.error('Cleanup error:', error);
