@@ -1382,23 +1382,10 @@ app.get('/api/events/:state', async (req, res) => {
 
   console.log(`Fetching events from ${API_CONFIG[stateKey].name}...`);
 
-  // For Pennsylvania, skip database read and use only fresh PennDOT RCRS data
+  // For Pennsylvania, fetch only PennDOT RCRS data
   let result;
   if (stateKey === 'pa') {
     result = { events: [], errors: [] };
-    // Clean up old Pennsylvania events from database first
-    try {
-      console.log('Cleaning up old Pennsylvania events from database...');
-      await db.init(); // Ensure database is initialized
-      const deleteStmt = db.db.prepare('DELETE FROM events WHERE state = ?');
-      const deleteResult = await deleteStmt.run('PA');
-      if (deleteResult.changes > 0) {
-        console.log(`🗑️  Deleted ${deleteResult.changes} old Pennsylvania event(s) from database`);
-      }
-    } catch (error) {
-      console.error('Warning: Failed to clean up old Pennsylvania events:', error.message);
-      // Continue anyway - non-fatal
-    }
   } else {
     result = await fetchStateData(stateKey);
   }
@@ -1568,61 +1555,6 @@ app.get('/api/db-status', (req, res) => {
   }
 
   res.json(status);
-});
-
-// Pennsylvania database cleanup endpoint (GET for easy browser access)
-app.get('/api/admin/cleanup-pennsylvania', async (req, res) => {
-  try {
-    console.log('Pennsylvania cleanup requested via API...');
-
-    // Access the PostgreSQL pool directly from db.db
-    const pool = db.db.pool;
-
-    // Get stats before cleanup
-    const beforeResult = await pool.query(`
-      SELECT
-        COUNT(*) as total,
-        COUNT(*) FILTER (WHERE source LIKE '%PennDOT RCRS%') as legitimate,
-        COUNT(*) FILTER (WHERE source NOT LIKE '%PennDOT RCRS%' OR source IS NULL) as polluted
-      FROM events WHERE state = 'PA'
-    `);
-    const before = beforeResult.rows[0];
-
-    console.log(`Before cleanup: ${before.total} total, ${before.legitimate} legitimate, ${before.polluted} polluted`);
-
-    // Run cleanup
-    const deleteResult = await pool.query(`
-      DELETE FROM events
-      WHERE state = 'PA'
-        AND (source NOT LIKE '%PennDOT RCRS%' OR source IS NULL)
-    `);
-
-    console.log(`Deleted ${deleteResult.rowCount} polluted Pennsylvania events`);
-
-    // Get stats after cleanup
-    const afterResult = await pool.query(`SELECT COUNT(*) as total FROM events WHERE state = 'PA'`);
-    const after = afterResult.rows[0];
-
-    res.json({
-      success: true,
-      before: {
-        total: parseInt(before.total) || 0,
-        legitimate: parseInt(before.legitimate) || 0,
-        polluted: parseInt(before.polluted) || 0
-      },
-      deleted: deleteResult.rowCount || 0,
-      after: {
-        total: parseInt(after.total) || 0
-      },
-      message: `Successfully cleaned Pennsylvania database. Deleted ${deleteResult.rowCount} polluted events. ${after.total} legitimate events remaining.`
-    });
-  } catch (error) {
-    console.error('Cleanup error:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
 });
 
 // ==================== USER AUTHENTICATION ENDPOINTS ====================
