@@ -1425,12 +1425,45 @@ app.get('/api/events/:state', async (req, res) => {
     console.log(`⚠️  Removed ${duplicateCount} duplicate event(s) for ${result.state}`);
   }
 
+  // Filter out events without valid coordinates (fixes map display issues)
+  const validEvents = uniqueEvents.filter(event => {
+    // Check for coordinates array [longitude, latitude]
+    if (event.coordinates && Array.isArray(event.coordinates) && event.coordinates.length === 2) {
+      const [lon, lat] = event.coordinates;
+      // Valid coordinates must be non-zero
+      if (lon !== 0 && lat !== 0 && !isNaN(lon) && !isNaN(lat)) {
+        return true;
+      }
+    }
+
+    // Check for legacy latitude/longitude fields
+    if (event.latitude && event.longitude) {
+      const lat = parseFloat(event.latitude);
+      const lon = parseFloat(event.longitude);
+      if (lat !== 0 && lon !== 0 && !isNaN(lat) && !isNaN(lon)) {
+        return true;
+      }
+    }
+
+    // Check for geometry field (used by some states like Ohio)
+    if (event.geometry && event.geometry.coordinates) {
+      return true;
+    }
+
+    return false;
+  });
+
+  const invalidCount = uniqueEvents.length - validEvents.length;
+  if (invalidCount > 0) {
+    console.log(`🗺️  Filtered out ${invalidCount} event(s) without valid coordinates for ${result.state}`);
+  }
+
   res.json({
     success: true,
     timestamp: new Date().toISOString(),
     state: result.state,
-    totalEvents: uniqueEvents.length,
-    events: uniqueEvents,
+    totalEvents: validEvents.length,
+    events: validEvents,
     errors: result.errors
   });
 });
