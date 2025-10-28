@@ -1309,19 +1309,6 @@ app.get('/api/events', async (req, res) => {
   }
 
   // Add Pennsylvania PennDOT RCRS events (live and planned events)
-  // First, clean up old Pennsylvania events from database
-  try {
-    console.log('Cleaning up old Pennsylvania events...');
-    const deleteStmt = db.prepare('DELETE FROM events WHERE state = ?');
-    const deleteResult = await deleteStmt.run('PA');
-    if (deleteResult.changes > 0) {
-      console.log(`🗑️  Deleted ${deleteResult.changes} old Pennsylvania event(s)`);
-    }
-  } catch (error) {
-    console.error('Warning: Failed to clean up old Pennsylvania events:', error.message);
-    // Continue anyway - non-fatal
-  }
-
   try {
     console.log('Fetching PennDOT RCRS events...');
     const penndotEvents = await fetchPennDOTRCRS();
@@ -1355,11 +1342,32 @@ app.get('/api/events', async (req, res) => {
   console.log(`Fetched ${uniqueEvents.length} unique events (${allEvents.length} total, ${duplicateCount} duplicates removed)`);
   console.log(`Errors from ${allErrors.length} state(s)`);
 
+  // Filter by state query parameter if provided
+  let filteredEvents = uniqueEvents;
+  const stateFilter = req.query.state;
+
+  if (stateFilter) {
+    const stateFilterLower = stateFilter.toLowerCase();
+    const stateFilterNormalized = stateFilter.substring(0, 2).toUpperCase(); // e.g., "pa" -> "PA", "ohio" -> "OH"
+
+    filteredEvents = uniqueEvents.filter(event => {
+      const eventState = event.state || '';
+      const eventStateLower = eventState.toLowerCase();
+
+      // Match by full name (e.g., "Pennsylvania") or abbreviation (e.g., "PA")
+      return eventStateLower === stateFilterLower ||
+             eventStateLower.startsWith(stateFilterLower) ||
+             eventState === stateFilterNormalized;
+    });
+
+    console.log(`Filtered to ${filteredEvents.length} events for state: ${stateFilter}`);
+  }
+
   res.json({
     success: true,
     timestamp: new Date().toISOString(),
-    totalEvents: uniqueEvents.length,
-    events: uniqueEvents,
+    totalEvents: filteredEvents.length,
+    events: filteredEvents,
     errors: allErrors
   });
 });
