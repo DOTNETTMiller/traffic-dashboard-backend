@@ -1542,6 +1542,27 @@ app.get('/api/db-status', (req, res) => {
   res.json(status);
 });
 
+// Pennsylvania database cleanup endpoint
+app.post('/api/admin/cleanup-pennsylvania', async (req, res) => {
+  try {
+    console.log('Pennsylvania cleanup requested via API...');
+
+    const { cleanupPennsylvaniaEvents } = require('./scripts/cleanup_pennsylvania_db');
+    await cleanupPennsylvaniaEvents();
+
+    res.json({
+      success: true,
+      message: 'Pennsylvania database cleanup completed successfully'
+    });
+  } catch (error) {
+    console.error('Cleanup error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // ==================== USER AUTHENTICATION ENDPOINTS ====================
 
 // User registration
