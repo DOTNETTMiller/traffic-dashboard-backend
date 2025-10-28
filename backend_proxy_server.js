@@ -1309,6 +1309,19 @@ app.get('/api/events', async (req, res) => {
   }
 
   // Add Pennsylvania PennDOT RCRS events (live and planned events)
+  // First, clean up old Pennsylvania events from database
+  try {
+    console.log('Cleaning up old Pennsylvania events...');
+    const deleteStmt = db.prepare('DELETE FROM events WHERE state = ?');
+    const deleteResult = await deleteStmt.run('PA');
+    if (deleteResult.changes > 0) {
+      console.log(`🗑️  Deleted ${deleteResult.changes} old Pennsylvania event(s)`);
+    }
+  } catch (error) {
+    console.error('Warning: Failed to clean up old Pennsylvania events:', error.message);
+    // Continue anyway - non-fatal
+  }
+
   try {
     console.log('Fetching PennDOT RCRS events...');
     const penndotEvents = await fetchPennDOTRCRS();
