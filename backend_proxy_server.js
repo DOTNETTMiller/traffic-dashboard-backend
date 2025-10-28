@@ -1577,7 +1577,7 @@ app.get('/api/admin/cleanup-pennsylvania', async (req, res) => {
         COUNT(*) FILTER (WHERE source NOT LIKE '%PennDOT RCRS%' OR source IS NULL) as polluted
       FROM events WHERE state = 'PA'
     `;
-    const beforeStats = await db.pool.query(beforeQuery);
+    const beforeStats = await db.db.pool.query(beforeQuery);
     const before = beforeStats.rows[0];
 
     console.log(`Before cleanup: ${before.total} total, ${before.legitimate} legitimate, ${before.polluted} polluted`);
@@ -1588,13 +1588,13 @@ app.get('/api/admin/cleanup-pennsylvania', async (req, res) => {
       WHERE state = 'PA'
         AND (source NOT LIKE '%PennDOT RCRS%' OR source IS NULL)
     `;
-    const deleteResult = await db.pool.query(deleteQuery);
+    const deleteResult = await db.db.pool.query(deleteQuery);
 
     console.log(`Deleted ${deleteResult.rowCount} polluted Pennsylvania events`);
 
     // Get stats after cleanup
     const afterQuery = `SELECT COUNT(*) as total FROM events WHERE state = 'PA'`;
-    const afterStats = await db.pool.query(afterQuery);
+    const afterStats = await db.db.pool.query(afterQuery);
     const after = afterStats.rows[0];
 
     res.json({
