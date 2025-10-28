@@ -1567,31 +1567,33 @@ app.get('/api/admin/cleanup-pennsylvania', async (req, res) => {
   try {
     console.log('Pennsylvania cleanup requested via API...');
 
-    // Get stats before cleanup using prepare/get pattern
-    const beforeStmt = db.prepare(`
+    // Access the PostgreSQL pool directly from db.db
+    const pool = db.db.pool;
+
+    // Get stats before cleanup
+    const beforeResult = await pool.query(`
       SELECT
         COUNT(*) as total,
-        SUM(CASE WHEN source LIKE '%PennDOT RCRS%' THEN 1 ELSE 0 END) as legitimate,
-        SUM(CASE WHEN source NOT LIKE '%PennDOT RCRS%' OR source IS NULL THEN 1 ELSE 0 END) as polluted
+        COUNT(*) FILTER (WHERE source LIKE '%PennDOT RCRS%') as legitimate,
+        COUNT(*) FILTER (WHERE source NOT LIKE '%PennDOT RCRS%' OR source IS NULL) as polluted
       FROM events WHERE state = 'PA'
     `);
-    const before = await beforeStmt.get();
+    const before = beforeResult.rows[0];
 
     console.log(`Before cleanup: ${before.total} total, ${before.legitimate} legitimate, ${before.polluted} polluted`);
 
-    // Run cleanup using prepare/run pattern
-    const deleteStmt = db.prepare(`
+    // Run cleanup
+    const deleteResult = await pool.query(`
       DELETE FROM events
       WHERE state = 'PA'
         AND (source NOT LIKE '%PennDOT RCRS%' OR source IS NULL)
     `);
-    const deleteResult = await deleteStmt.run();
 
-    console.log(`Deleted ${deleteResult.changes} polluted Pennsylvania events`);
+    console.log(`Deleted ${deleteResult.rowCount} polluted Pennsylvania events`);
 
     // Get stats after cleanup
-    const afterStmt = db.prepare(`SELECT COUNT(*) as total FROM events WHERE state = 'PA'`);
-    const after = await afterStmt.get();
+    const afterResult = await pool.query(`SELECT COUNT(*) as total FROM events WHERE state = 'PA'`);
+    const after = afterResult.rows[0];
 
     res.json({
       success: true,
@@ -1600,11 +1602,11 @@ app.get('/api/admin/cleanup-pennsylvania', async (req, res) => {
         legitimate: parseInt(before.legitimate) || 0,
         polluted: parseInt(before.polluted) || 0
       },
-      deleted: deleteResult.changes || 0,
+      deleted: deleteResult.rowCount || 0,
       after: {
         total: parseInt(after.total) || 0
       },
-      message: `Successfully cleaned Pennsylvania database. Deleted ${deleteResult.changes} polluted events. ${after.total} legitimate events remaining.`
+      message: `Successfully cleaned Pennsylvania database. Deleted ${deleteResult.rowCount} polluted events. ${after.total} legitimate events remaining.`
     });
   } catch (error) {
     console.error('Cleanup error:', error);
