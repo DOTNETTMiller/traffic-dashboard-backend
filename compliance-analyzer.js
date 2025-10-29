@@ -1,6 +1,475 @@
 // Comprehensive Standards Compliance Analyzer
 // Evaluates traffic events against SAE J2735, WZDx v4.x, and TMDD/ngTMDD standards
 
+// Spec-based rubric describing mandated and optional data requirements per standard.
+// This is the authoritative checklist used to align scoring logic with real specifications.
+const STANDARD_REQUIREMENTS = {
+  WZDx_v4: {
+    label: 'Work Zone Data Exchange v4.0',
+    reference: 'https://usdoti.github.io/codehub/docs/wzdx-feed-specification-4.0',
+    requiredFields: [
+      { field: 'id', specField: 'Feature.id', description: 'Unique event identifier', severity: 'critical' },
+      { field: 'eventType', specField: 'coreDetails.event_type', description: 'WZDx event classification', severity: 'critical', enum: ['work-zone', 'work zone', 'closure', 'restriction', 'incident', 'construction', 'weather', 'special-event'] },
+      { field: 'startTime', fallbackFields: ['startDate'], specField: 'coreDetails.start_date', description: 'Start time (ISO 8601)', severity: 'critical', format: 'ISO8601' },
+      { field: 'coordinates', specField: 'geography.coordinates', description: 'Geospatial location (lat/long)', severity: 'critical', validator: 'coordinates' },
+      { field: 'corridor', fallbackFields: ['location'], specField: 'coreDetails.road_names', description: 'Primary roadway/corridor', severity: 'high', minLength: 3 },
+      { field: 'direction', specField: 'coreDetails.direction', description: 'Direction of travel', severity: 'high', enum: ['northbound','southbound','eastbound','westbound','both','unknown','n','s','e','w','nb','sb','eb','wb'] },
+      { field: 'lanesAffected', fallbackFields: ['lanesClosed'], specField: 'impacts.lanes', description: 'Lane impact details', severity: 'high' },
+      { field: 'description', specField: 'coreDetails.description', description: 'Human-readable description', severity: 'medium', minLength: 10 },
+      { field: 'endTime', fallbackFields: ['endDate'], specField: 'coreDetails.end_date', description: 'Estimated end time', severity: 'medium', format: 'ISO8601', optional: true },
+      { field: 'severity', specField: 'impacts.severity', description: 'Impact severity/priority', severity: 'medium', enum: ['high','medium','low','major','moderate','minor'] }
+    ],
+    optionalEnhancements: [
+      { field: 'restrictions', description: 'Vehicle restrictions (height/weight)', benefit: 'Supports connected vehicle use cases' },
+      { field: 'workerPresence', description: 'Structured worker presence data', benefit: 'Improves safety messaging' }
+    ]
+  },
+  SAE_J2735_TIM: {
+    label: 'SAE J2735 Traveler Information Message',
+    reference: 'https://standards.sae.org/j2735_202011/',
+    requiredFields: [
+      { field: 'id', specField: 'TravelerInformation.packetID', description: 'TIM packet identifier', severity: 'critical' },
+      { field: 'startTime', fallbackFields: ['startDate'], specField: 'TravelerDataFrame.startTime', description: 'Start time (ISO 8601)', severity: 'critical', format: 'ISO8601' },
+      { field: 'endTime', fallbackFields: ['endDate'], specField: 'TravelerDataFrame.endTime', description: 'End time', severity: 'high', format: 'ISO8601', optional: true },
+      { field: 'coordinates', specField: 'Position3D', description: 'Latitude/longitude', severity: 'critical', validator: 'coordinates' },
+      { field: 'eventType', fallbackFields: ['type'], specField: 'Content.itis', description: 'ITIS-compatible event type', severity: 'high' },
+      { field: 'severity', specField: 'TravelerDataFrame.priority', description: 'Priority (0-7 -> high/medium/low)', severity: 'high', enum: ['high','medium','low','major','moderate','minor'] },
+      { field: 'description', specField: 'TravelerDataFrame.content', description: 'Advisory text', severity: 'high', minLength: 15 },
+      { field: 'direction', specField: 'GeographicalPath.direction', description: 'Direction of travel', severity: 'medium', enum: ['northbound','southbound','eastbound','westbound','both','unknown','n','s','e','w','nb','sb','eb','wb'] },
+      { field: 'lanesClosed', fallbackFields: ['lanesAffected'], specField: 'WorkZone.lanes', description: 'Lane closure details', severity: 'medium' },
+      { field: 'roadStatus', fallbackFields: ['status'], specField: 'RoadClosure.status', description: 'Open/closed/restricted state', severity: 'medium', enum: ['open','closed','restricted','Open','Closed','Restricted'] }
+    ],
+    optionalEnhancements: [
+      { field: 'detourRoute', description: 'Linked detour guidance', benefit: 'Enhances traveler routing' },
+      { field: 'speedLimit', description: 'Regulatory/advisory speed', benefit: 'Improves CV applications' }
+    ]
+  },
+  TMDD_ngC2C: {
+    label: 'TMDD v3 / ngC2C MVT',
+    reference: 'https://www.ite.org/technical-resources/topics/traffic-management-data-dictionary/',
+    requiredFields: [
+      { field: 'id', fallbackFields: ['eventId'], specField: 'tmdd:eventID', description: 'Event identifier', severity: 'critical' },
+      { field: 'state', specField: 'tmdd:organization-id', description: 'Owning organization/state', severity: 'critical', minLength: 2 },
+      { field: 'startTime', fallbackFields: ['startDate'], specField: 'tmdd:event-update-time', description: 'Event update/start time', severity: 'critical', format: 'ISO8601' },
+      { field: 'roadStatus', specField: 'tmdd:event-status', description: 'Event status (open/closed/planned)', severity: 'high', enum: ['open','closed','planned','restricted','Active','active','Planned','Closed'] },
+      { field: 'corridor', fallbackFields: ['location'], specField: 'tmdd:roadway-name', description: 'Roadway identifier', severity: 'high', minLength: 3 },
+      { field: 'direction', specField: 'tmdd:direction', description: 'Direction of travel', severity: 'high', enum: ['northbound','southbound','eastbound','westbound','both','unknown','n','s','e','w','nb','sb','eb','wb'] },
+      { field: 'lanesAffected', fallbackFields: ['lanesClosed'], specField: 'tmdd:lane-closure-status', description: 'Lane impact details', severity: 'high' },
+      { field: 'severity', specField: 'tmdd:event-impact-level', description: 'Impact severity level', severity: 'medium', enum: ['high','medium','low','major','moderate','minor'] },
+      { field: 'description', specField: 'tmdd:event-description', description: 'Narrative description', severity: 'medium', minLength: 10 },
+      { field: 'coordinates', specField: 'tmdd:point', description: 'Spatial reference', severity: 'medium', validator: 'coordinates' }
+    ],
+    optionalEnhancements: [
+      { field: 'detourRoute', description: 'Structured detour routing', benefit: 'Improves C2C coordination' },
+      { field: 'contact', description: 'Incident command contact', benefit: 'Supports center-to-center escalation' }
+    ]
+  }
+};
+
+const SEVERITY_WEIGHTS = {
+  critical: 0.6,
+  high: 0.3,
+  medium: 0.1
+};
+
+const DIRECTION_MAP = {
+  n: 'northbound',
+  north: 'northbound',
+  nb: 'northbound',
+  'north-bound': 'northbound',
+  northbound: 'northbound',
+  s: 'southbound',
+  south: 'southbound',
+  sb: 'southbound',
+  'south-bound': 'southbound',
+  southbound: 'southbound',
+  e: 'eastbound',
+  east: 'eastbound',
+  eb: 'eastbound',
+  'east-bound': 'eastbound',
+  eastbound: 'eastbound',
+  w: 'westbound',
+  west: 'westbound',
+  wb: 'westbound',
+  'west-bound': 'westbound',
+  westbound: 'westbound',
+  both: 'both',
+  'bi-directional': 'both',
+  unknown: 'unknown'
+};
+
+const SEVERITY_NORMALIZATION = {
+  high: 'high',
+  severe: 'high',
+  major: 'high',
+  critical: 'high',
+  urgent: 'high',
+  medium: 'medium',
+  moderate: 'medium',
+  normal: 'medium',
+  low: 'low',
+  minor: 'low',
+  informational: 'low',
+  info: 'low'
+};
+
+const ROAD_STATUS_MAP = {
+  open: 'open',
+  opened: 'open',
+  normal: 'open',
+  closed: 'closed',
+  closure: 'closed',
+  restricted: 'restricted',
+  restricteds: 'restricted',
+  partial: 'restricted',
+  planned: 'planned',
+  active: 'open'
+};
+
+const EVENT_TYPE_SYNONYMS = [
+  { keywords: ['construction', 'work', 'maintenance'], normalized: 'work-zone' },
+  { keywords: ['closure', 'closed', 'detour'], normalized: 'closure' },
+  { keywords: ['restriction'], normalized: 'restriction' },
+  { keywords: ['incident', 'crash', 'accident', 'collision'], normalized: 'incident' },
+  { keywords: ['weather', 'snow', 'ice', 'fog', 'rain'], normalized: 'weather' },
+  { keywords: ['special'], normalized: 'special-event' }
+];
+
+function resolveFieldValue(obj, path) {
+  if (!path) return undefined;
+  const segments = path.split('.');
+  let current = obj;
+  for (const segment of segments) {
+    if (current === undefined || current === null) return undefined;
+    const arrayMatch = segment.match(/^(.+)\[(\d+)\]$/);
+    if (arrayMatch) {
+      const [, key, indexStr] = arrayMatch;
+      const index = parseInt(indexStr, 10);
+      const arrayValue = current[key];
+      if (!Array.isArray(arrayValue) || arrayValue.length <= index) {
+        return undefined;
+      }
+      current = arrayValue[index];
+    } else {
+      current = current[segment];
+    }
+  }
+  return current;
+}
+
+function getRequirementValue(event, requirement) {
+  const fields = [requirement.field, ...(requirement.fallbackFields || [])];
+  for (const field of fields) {
+    if (!field) continue;
+    if (field === 'coordinates') {
+      if (Array.isArray(event.coordinates) && event.coordinates.length >= 2) {
+        return event.coordinates;
+      }
+    }
+    const value = resolveFieldValue(event, field);
+    if (value !== undefined && value !== null && value !== '') {
+      if (typeof value === 'string' && value.trim().length === 0) {
+        continue;
+      }
+      return value;
+    }
+  }
+
+  if (requirement.validator === 'coordinates' || requirement.field === 'coordinates') {
+    const lat = event.latitude ?? resolveFieldValue(event, 'latitude');
+    const lon = event.longitude ?? resolveFieldValue(event, 'longitude');
+    if (lat !== undefined && lon !== undefined) {
+      return [lon, lat];
+    }
+  }
+
+  return null;
+}
+
+function normalizeDirection(value) {
+  if (value === undefined || value === null) return '';
+  const text = String(value).trim().toLowerCase();
+  if (!text) return '';
+  return DIRECTION_MAP[text] || text;
+}
+
+function normalizeSeverity(value) {
+  if (value === undefined || value === null) return '';
+  const text = String(value).trim().toLowerCase();
+  if (!text) return '';
+  return SEVERITY_NORMALIZATION[text] || text;
+}
+
+function normalizeRoadStatus(value) {
+  if (value === undefined || value === null) return '';
+  const text = String(value).trim().toLowerCase();
+  if (!text) return '';
+  return ROAD_STATUS_MAP[text] || text;
+}
+
+function normalizeEventType(value) {
+  if (value === undefined || value === null) return '';
+  const text = String(value).trim().toLowerCase();
+  if (!text) return '';
+
+  for (const synonym of EVENT_TYPE_SYNONYMS) {
+    if (synonym.keywords.some(keyword => text.includes(keyword))) {
+      return synonym.normalized;
+    }
+  }
+
+  return text;
+}
+
+function validateCoordinates(event, rawValue) {
+  let lon;
+  let lat;
+
+  if (Array.isArray(rawValue) && rawValue.length >= 2) {
+    lon = parseFloat(rawValue[0]);
+    lat = parseFloat(rawValue[1]);
+  } else if (rawValue && typeof rawValue === 'object') {
+    lon = parseFloat(rawValue.lon ?? rawValue.lng ?? rawValue.longitude);
+    lat = parseFloat(rawValue.lat ?? rawValue.latitude);
+  } else if (typeof rawValue === 'string' && rawValue.includes(',')) {
+    const parts = rawValue.split(',').map(part => parseFloat(part.trim()));
+    if (parts.length === 2) {
+      lon = parts[0];
+      lat = parts[1];
+    }
+  }
+
+  if ((!Number.isFinite(lat) || !Number.isFinite(lon)) && event) {
+    const fallbackLat = parseFloat(event.latitude);
+    const fallbackLon = parseFloat(event.longitude);
+    if (Number.isFinite(fallbackLat) && Number.isFinite(fallbackLon)) {
+      lat = fallbackLat;
+      lon = fallbackLon;
+    }
+  }
+
+  const isValid =
+    Number.isFinite(lat) &&
+    Number.isFinite(lon) &&
+    lat !== 0 &&
+    lon !== 0 &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lon >= -180 &&
+    lon <= 180;
+
+  return {
+    passed: isValid,
+    normalizedValue: isValid ? { lat, lon } : null,
+    message: isValid ? null : 'Missing or invalid latitude/longitude'
+  };
+}
+
+function matchesEnumeration(value, allowed) {
+  if (!value) return false;
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) return false;
+
+  const variants = new Set([
+    normalized,
+    normalized.replace(/\s+/g, '-'),
+    normalized.replace(/-/g, ' ')
+  ]);
+
+  const allowedSet = new Set(allowed.map(item => item.toLowerCase()));
+
+  for (const variant of variants) {
+    if (allowedSet.has(variant)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function validateRequirementValue(event, requirement, value) {
+  if (value === null || value === undefined || value === '') {
+    return {
+      passed: false,
+      message: 'Value missing'
+    };
+  }
+
+  if (requirement.validator === 'coordinates' || requirement.field === 'coordinates') {
+    return validateCoordinates(event, value);
+  }
+
+  if (requirement.enum) {
+    let normalizedValue = value;
+
+    if (requirement.field === 'direction') {
+      normalizedValue = normalizeDirection(value);
+    } else if (requirement.field === 'severity') {
+      normalizedValue = normalizeSeverity(value);
+    } else if (requirement.field === 'roadStatus') {
+      normalizedValue = normalizeRoadStatus(value);
+    } else if (requirement.field === 'eventType') {
+      normalizedValue = normalizeEventType(value);
+    } else if (Array.isArray(value)) {
+      normalizedValue = value[0];
+    }
+
+    const isMatch = matchesEnumeration(normalizedValue, requirement.enum);
+
+    return {
+      passed: isMatch,
+      normalizedValue,
+      message: isMatch ? null : `Value "${value}" is not in allowed set`
+    };
+  }
+
+  if (requirement.format === 'ISO8601') {
+    const candidate = Array.isArray(value) ? value[0] : value;
+    const parsed = Date.parse(candidate);
+    if (Number.isNaN(parsed)) {
+      return {
+        passed: false,
+        message: `Value "${candidate}" is not a valid ISO 8601 timestamp`
+      };
+    }
+  }
+
+  if (requirement.minLength) {
+    const candidate = String(value).trim();
+    if (candidate.length < requirement.minLength) {
+      return {
+        passed: false,
+        message: `Value too short (minimum ${requirement.minLength} characters required)`
+      };
+    }
+  }
+
+  return {
+    passed: true,
+    normalizedValue: value
+  };
+}
+
+function computeStandardCompliance(events, spec) {
+  if (!events || events.length === 0) {
+    return {
+      weightedScore: 0,
+      severityRatios: { critical: 0, high: 0, medium: 0 },
+      totals: { critical: 0, high: 0, medium: 0 },
+      passes: { critical: 0, high: 0, medium: 0 },
+      violations: [],
+      optionalMissing: []
+    };
+  }
+
+  const required = spec.requiredFields.filter(req => !req.optional);
+  const optional = spec.requiredFields.filter(req => req.optional);
+
+  const severityCounts = required.reduce((acc, req) => {
+    acc[req.severity] = (acc[req.severity] || 0) + 1;
+    return acc;
+  }, {});
+
+  const totals = {
+    critical: (severityCounts.critical || 0) * events.length,
+    high: (severityCounts.high || 0) * events.length,
+    medium: (severityCounts.medium || 0) * events.length
+  };
+
+  const passes = { critical: 0, high: 0, medium: 0 };
+  const violations = [];
+  const optionalMissingMap = new Map();
+
+  events.forEach(event => {
+    required.forEach(requirement => {
+      const value = getRequirementValue(event, requirement);
+      const evaluation = validateRequirementValue(event, requirement, value);
+
+      if (evaluation.passed) {
+        passes[requirement.severity] += 1;
+      } else {
+        violations.push({
+          eventId: event.id,
+          state: event.state || null,
+          field: requirement.field,
+          specField: requirement.specField,
+          severity: requirement.severity,
+          description: requirement.description,
+          message: evaluation.message || 'Missing or invalid value',
+          sampleValue: value
+        });
+      }
+    });
+
+    optional.forEach(requirement => {
+      const value = getRequirementValue(event, requirement);
+      const evaluation = validateRequirementValue(event, requirement, value);
+
+      if (!evaluation.passed && !optionalMissingMap.has(requirement.field)) {
+        optionalMissingMap.set(requirement.field, {
+          field: requirement.field,
+          specField: requirement.specField,
+          description: requirement.description,
+          message: evaluation.message || 'Not provided',
+          sampleEventId: event.id
+        });
+      }
+    });
+  });
+
+  const severityRatios = {
+    critical: totals.critical === 0 ? 1 : passes.critical / totals.critical,
+    high: totals.high === 0 ? 1 : passes.high / totals.high,
+    medium: totals.medium === 0 ? 1 : passes.medium / totals.medium
+  };
+
+  const weightedScore = Object.entries(SEVERITY_WEIGHTS).reduce((total, [severity, weight]) => {
+    return total + (severityRatios[severity] * weight);
+  }, 0);
+
+  return {
+    weightedScore,
+    severityRatios,
+    totals,
+    passes,
+    violations,
+    optionalMissing: Array.from(optionalMissingMap.values())
+  };
+}
+
+function adjustGradeForCritical(baseGrade, criticalRatio) {
+  if (criticalRatio >= 0.85) return baseGrade;
+  if (criticalRatio >= 0.75) {
+    if (baseGrade === 'A') return 'B';
+    if (baseGrade === 'B') return 'C';
+    return baseGrade;
+  }
+  if (criticalRatio >= 0.6) {
+    if (['A', 'B'].includes(baseGrade)) return 'C';
+    if (baseGrade === 'C') return 'D';
+    return baseGrade;
+  }
+  return 'F';
+}
+
+function deriveStatus(percentage, criticalRatio, labels) {
+  const defaults = {
+    compliant: 'Compliant',
+    partial: 'Partially Compliant',
+    non: 'Non-Compliant'
+  };
+
+  const merged = { ...defaults, ...(labels || {}) };
+
+  if (criticalRatio >= 0.9 && percentage >= 85) {
+    return merged.compliant;
+  }
+  if (criticalRatio >= 0.75 && percentage >= 65) {
+    return merged.partial;
+  }
+  return merged.non;
+}
+
 class ComplianceAnalyzer {
   constructor() {
     // Field weights for scoring
@@ -128,126 +597,79 @@ class ComplianceAnalyzer {
 
   // Analyze WZDx v4.x compliance
   analyzeWZDxCompliance(events) {
-    const requiredFields = [
-      'id', 'type', 'geometry', 'properties.road_names',
-      'properties.direction', 'properties.start_date'
-    ];
-
-    let totalScore = 0;
-    const violations = [];
-
-    events.forEach(event => {
-      let eventScore = 0;
-
-      // Check core WZDx fields using normalized field access
-      if (event.id) eventScore += 15;
-      if (this.hasField(event, 'type')) eventScore += 10;
-      if (this.hasField(event, 'coordinates')) eventScore += 15;
-      if (event.location) eventScore += 10;
-      if (this.hasField(event, 'direction')) eventScore += 10;
-      if (this.hasField(event, 'startDate')) eventScore += 15;
-      if (this.hasField(event, 'endDate')) eventScore += 10;
-      if (this.hasField(event, 'roadStatus')) eventScore += 10;
-      if (this.hasField(event, 'lanesClosed')) eventScore += 5;
-
-      totalScore += eventScore;
-
-      if (eventScore < 50) {
-        violations.push({
-          eventId: event.id,
-          score: eventScore,
-          missing: this.getMissingFields(event, requiredFields)
-        });
-      }
+    const spec = STANDARD_REQUIREMENTS.WZDx_v4;
+    const evaluation = computeStandardCompliance(events, spec);
+    let percentage = Math.round(evaluation.weightedScore * 100);
+    let grade = this.getLetterGrade(percentage);
+    grade = adjustGradeForCritical(grade, evaluation.severityRatios.critical);
+    const status = deriveStatus(percentage, evaluation.severityRatios.critical, {
+      compliant: 'Compliant',
+      partial: 'Partially Compliant',
+      non: 'Non-Compliant'
     });
 
-    const avgScore = Math.round(totalScore / events.length);
-    const percentage = Math.min(100, avgScore);
-
     return {
-      percentage: percentage,
-      grade: this.getLetterGrade(percentage),
-      status: percentage >= 80 ? 'Compliant' : percentage >= 60 ? 'Partially Compliant' : 'Non-Compliant',
-      violations: violations.slice(0, 10)
+      percentage,
+      grade,
+      status,
+      severityBreakdown: evaluation.severityRatios,
+      violations: evaluation.violations.slice(0, 15),
+      optionalRecommendations: [
+        ...evaluation.optionalMissing,
+        ...(spec.optionalEnhancements || [])
+      ].slice(0, 10)
     };
   }
 
   // Analyze SAE J2735 compliance
   analyzeSAEJ2735Compliance(events) {
-    let totalScore = 0;
-    const violations = [];
-
-    events.forEach(event => {
-      let eventScore = 0;
-
-      // SAE J2735 core message elements
-      if (event.id) eventScore += 15; // msgID
-      if (event.coordinates) eventScore += 20; // Position3D
-      if (event.type) eventScore += 10; // itis codes
-      if (event.severity) eventScore += 10; // priority
-      if (event.startDate) eventScore += 15; // timeDetails
-      if (event.description) eventScore += 10; // advisory message
-      if (event.direction) eventScore += 10; // heading
-      if (event.lanesClosed) eventScore += 10; // lane data
-
-      totalScore += eventScore;
-
-      if (eventScore < 60) {
-        violations.push({
-          eventId: event.id,
-          score: eventScore
-        });
-      }
+    const spec = STANDARD_REQUIREMENTS.SAE_J2735_TIM;
+    const evaluation = computeStandardCompliance(events, spec);
+    let percentage = Math.round(evaluation.weightedScore * 100);
+    let grade = this.getLetterGrade(percentage);
+    grade = adjustGradeForCritical(grade, evaluation.severityRatios.critical);
+    const status = deriveStatus(percentage, evaluation.severityRatios.critical, {
+      compliant: 'V2X Ready',
+      partial: 'Partial Support',
+      non: 'Limited Support'
     });
 
-    const avgScore = Math.round(totalScore / events.length);
-    const percentage = Math.min(100, avgScore);
-
     return {
-      percentage: percentage,
-      grade: this.getLetterGrade(percentage),
-      status: percentage >= 80 ? 'V2X Ready' : percentage >= 60 ? 'Partial Support' : 'Limited Support',
-      violations: violations.slice(0, 10)
+      percentage,
+      grade,
+      status,
+      severityBreakdown: evaluation.severityRatios,
+      violations: evaluation.violations.slice(0, 15),
+      optionalRecommendations: [
+        ...evaluation.optionalMissing,
+        ...(spec.optionalEnhancements || [])
+      ].slice(0, 10)
     };
   }
 
   // Analyze TMDD/ngTMDD compliance
   analyzeTMDDCompliance(events) {
-    let totalScore = 0;
-    const violations = [];
-
-    events.forEach(event => {
-      let eventScore = 0;
-
-      // TMDD/ngTMDD required elements
-      if (event.id) eventScore += 15; // organization-incident-id
-      if (event.type) eventScore += 10; // event-type
-      if (event.location) eventScore += 15; // event-locations
-      if (event.startDate) eventScore += 15; // start-time
-      if (event.severity) eventScore += 10; // event-severity
-      if (event.state) eventScore += 10; // organization-id
-      if (event.description) eventScore += 10; // event-description
-      if (event.roadStatus) eventScore += 10; // event-status
-      if (event.direction) eventScore += 5; // direction
-
-      totalScore += eventScore;
-
-      if (eventScore < 60) {
-        violations.push({
-          eventId: event.id,
-          score: eventScore
-        });
-      }
+    const spec = STANDARD_REQUIREMENTS.TMDD_ngC2C;
+    const evaluation = computeStandardCompliance(events, spec);
+    let percentage = Math.round(evaluation.weightedScore * 100);
+    let grade = this.getLetterGrade(percentage);
+    grade = adjustGradeForCritical(grade, evaluation.severityRatios.critical);
+    const status = deriveStatus(percentage, evaluation.severityRatios.critical, {
+      compliant: 'C2C Ready',
+      partial: 'Needs Enhancement',
+      non: 'Requires Work'
     });
 
-    const avgScore = Math.round(totalScore / events.length);
-    const percentage = Math.min(100, avgScore);
-
     return {
-      percentage: percentage,
-      grade: this.getLetterGrade(percentage),
-      status: percentage >= 80 ? 'C2C Ready' : percentage >= 60 ? 'Needs Enhancement' : 'Requires Work',
-      violations: violations.slice(0, 10)
+      percentage,
+      grade,
+      status,
+      severityBreakdown: evaluation.severityRatios,
+      violations: evaluation.violations.slice(0, 15),
+      optionalRecommendations: [
+        ...evaluation.optionalMissing,
+        ...(spec.optionalEnhancements || [])
+      ].slice(0, 10)
     };
   }
 
@@ -657,23 +1079,6 @@ class ComplianceAnalyzer {
     return 'F';
   }
 
-  // Get missing fields for an event
-  getMissingFields(event, requiredFields) {
-    const missing = [];
-    requiredFields.forEach(field => {
-      const parts = field.split('.');
-      let value = event;
-      for (const part of parts) {
-        if (!value || !value[part]) {
-          missing.push(field);
-          break;
-        }
-        value = value[part];
-      }
-    });
-    return missing;
-  }
-
   // Get empty analysis for states with no events
   getEmptyStateAnalysis(stateKey, stateName) {
     return {
@@ -693,3 +1098,4 @@ class ComplianceAnalyzer {
 }
 
 module.exports = ComplianceAnalyzer;
+module.exports.STANDARD_REQUIREMENTS = STANDARD_REQUIREMENTS;
