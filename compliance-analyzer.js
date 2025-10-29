@@ -358,7 +358,8 @@ function computeStandardCompliance(events, spec) {
       totals: { critical: 0, high: 0, medium: 0 },
       passes: { critical: 0, high: 0, medium: 0 },
       violations: [],
-      optionalMissing: []
+      optionalMissing: [],
+      fieldCoverage: []
     };
   }
 
@@ -369,6 +370,17 @@ function computeStandardCompliance(events, spec) {
     acc[req.severity] = (acc[req.severity] || 0) + 1;
     return acc;
   }, {});
+
+  const perField = new Map();
+  required.forEach(requirement => {
+    perField.set(requirement.field, {
+      requirement,
+      passes: 0,
+      total: 0,
+      sampleValid: null,
+      sampleInvalid: null
+    });
+  });
 
   const totals = {
     critical: (severityCounts.critical || 0) * events.length,
@@ -384,9 +396,17 @@ function computeStandardCompliance(events, spec) {
     required.forEach(requirement => {
       const value = getRequirementValue(event, requirement);
       const evaluation = validateRequirementValue(event, requirement, value);
+      const fieldStat = perField.get(requirement.field);
+      fieldStat.total += 1;
 
       if (evaluation.passed) {
         passes[requirement.severity] += 1;
+        fieldStat.passes += 1;
+        if (fieldStat.sampleValid === null && evaluation.normalizedValue !== undefined) {
+          fieldStat.sampleValid = evaluation.normalizedValue;
+        } else if (fieldStat.sampleValid === null && value !== undefined) {
+          fieldStat.sampleValid = value;
+        }
       } else {
         violations.push({
           eventId: event.id,
@@ -398,6 +418,9 @@ function computeStandardCompliance(events, spec) {
           message: evaluation.message || 'Missing or invalid value',
           sampleValue: value
         });
+        if (fieldStat.sampleInvalid === null && value !== undefined) {
+          fieldStat.sampleInvalid = value;
+        }
       }
     });
 
@@ -427,13 +450,28 @@ function computeStandardCompliance(events, spec) {
     return total + (severityRatios[severity] * weight);
   }, 0);
 
+  const fieldCoverage = Array.from(perField.values()).map(stat => {
+    const coverage = stat.total === 0 ? 0 : stat.passes / stat.total;
+    return {
+      field: stat.requirement.field,
+      specField: stat.requirement.specField,
+      description: stat.requirement.description,
+      severity: stat.requirement.severity,
+      coverage,
+      coveragePercentage: Math.round(coverage * 100),
+      sampleValue: stat.sampleValid,
+      missingExample: stat.sampleInvalid
+    };
+  });
+
   return {
     weightedScore,
     severityRatios,
     totals,
     passes,
     violations,
-    optionalMissing: Array.from(optionalMissingMap.values())
+    optionalMissing: Array.from(optionalMissingMap.values()),
+    fieldCoverage
   };
 }
 
@@ -615,6 +653,7 @@ class ComplianceAnalyzer {
       grade,
       status,
       severityBreakdown: evaluation.severityRatios,
+      fieldCoverage: evaluation.fieldCoverage,
       violations: evaluation.violations.slice(0, 15),
       optionalRecommendations: [
         ...evaluation.optionalMissing,
@@ -641,6 +680,7 @@ class ComplianceAnalyzer {
       grade,
       status,
       severityBreakdown: evaluation.severityRatios,
+      fieldCoverage: evaluation.fieldCoverage,
       violations: evaluation.violations.slice(0, 15),
       optionalRecommendations: [
         ...evaluation.optionalMissing,
@@ -667,6 +707,7 @@ class ComplianceAnalyzer {
       grade,
       status,
       severityBreakdown: evaluation.severityRatios,
+      fieldCoverage: evaluation.fieldCoverage,
       violations: evaluation.violations.slice(0, 15),
       optionalRecommendations: [
         ...evaluation.optionalMissing,
