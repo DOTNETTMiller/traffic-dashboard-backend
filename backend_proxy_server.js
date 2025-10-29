@@ -341,6 +341,14 @@ const API_CONFIG = {
   // Pennsylvania statewide data is provided by PennDOT RCRS via fetchPennDOTRCRS()
 };
 
+const getAllStateKeys = () => {
+  const keys = Object.keys(API_CONFIG).map(key => key.toLowerCase());
+  if (!keys.includes('pa')) {
+    keys.push('pa');
+  }
+  return Array.from(new Set(keys));
+};
+
 // Function to load states from database and merge with API_CONFIG
 async function loadStatesFromDatabase() {
   console.log('📦 Loading states from database...');
@@ -1155,7 +1163,26 @@ const requiresCrossJurisdictionalResponse = (event) => {
 // Fetch data from a single state
 const fetchStateData = async (stateKey) => {
   const config = API_CONFIG[stateKey];
-  const results = { state: config.name, events: [], errors: [] };
+  const stateName = config?.name || (stateKey === 'pa' ? 'Pennsylvania' : stateKey.toUpperCase());
+  const normalizedStateKey = stateKey.toLowerCase();
+  const results = { state: stateName, stateKey: normalizedStateKey, events: [], errors: [] };
+
+  if (stateKey === 'pa') {
+    try {
+      const penndotEvents = await fetchPennDOTRCRS();
+      if (penndotEvents && penndotEvents.length > 0) {
+        results.events.push(...penndotEvents);
+      }
+    } catch (error) {
+      results.errors.push(`PennDOT RCRS: ${error.message}`);
+    }
+    return results;
+  }
+
+  if (!config) {
+    results.errors.push('State configuration not found');
+    return results;
+  }
 
   try {
     if (config.format === 'json' || config.format === 'geojson') {
@@ -1269,7 +1296,7 @@ app.get('/api/events', async (req, res) => {
   console.log('Fetching events from all states...');
 
   const allResults = await Promise.all(
-    Object.keys(API_CONFIG).map(stateKey => fetchStateData(stateKey))
+    getAllStateKeys().map(stateKey => fetchStateData(stateKey))
   );
 
   const allEvents = [];
@@ -1306,19 +1333,6 @@ app.get('/api/events', async (req, res) => {
   } catch (error) {
     console.error('Error fetching Caltrans LCS events:', error.message);
     allErrors.push({ state: 'CA (LCS)', errors: [error.message] });
-  }
-
-  // Add Pennsylvania PennDOT RCRS events (live and planned events)
-  try {
-    console.log('Fetching PennDOT RCRS events...');
-    const penndotEvents = await fetchPennDOTRCRS();
-    if (penndotEvents && penndotEvents.length > 0) {
-      allEvents.push(...penndotEvents);
-      console.log(`Added ${penndotEvents.length} PennDOT RCRS events`);
-    }
-  } catch (error) {
-    console.error('Error fetching PennDOT RCRS events:', error.message);
-    allErrors.push({ state: 'PA (RCRS)', errors: [error.message] });
   }
 
   // Deduplicate events by ID (keep first occurrence)
@@ -1376,19 +1390,15 @@ app.get('/api/events', async (req, res) => {
 app.get('/api/events/:state', async (req, res) => {
   const stateKey = req.params.state.toLowerCase();
 
-  if (!API_CONFIG[stateKey]) {
+  if (!API_CONFIG[stateKey] && stateKey !== 'pa') {
     return res.status(404).json({ error: 'State not found' });
   }
 
-  console.log(`Fetching events from ${API_CONFIG[stateKey].name}...`);
+  const stateName = API_CONFIG[stateKey]?.name || 'Pennsylvania';
+  console.log(`Fetching events from ${stateName}...`);
 
-  // For Pennsylvania, fetch only PennDOT RCRS data
-  let result;
-  if (stateKey === 'pa') {
-    result = { events: [], errors: [], state: API_CONFIG[stateKey].name };
-  } else {
-    result = await fetchStateData(stateKey);
-  }
+  const result = await fetchStateData(stateKey);
+  result.state = result.state || stateName;
 
   // Add Ohio API events if requesting Ohio
   if (stateKey === 'ohio') {
@@ -1422,17 +1432,7 @@ app.get('/api/events/:state', async (req, res) => {
 
   // Add Pennsylvania PennDOT RCRS events if requesting Pennsylvania
   if (stateKey === 'pa') {
-    try {
-      console.log('Fetching PennDOT RCRS events...');
-      const penndotEvents = await fetchPennDOTRCRS();
-      if (penndotEvents && penndotEvents.length > 0) {
-        result.events.push(...penndotEvents);
-        console.log(`Added ${penndotEvents.length} PennDOT RCRS events`);
-      }
-    } catch (error) {
-      console.error('Error fetching PennDOT RCRS events:', error.message);
-      result.errors.push(error.message);
-    }
+    console.log(`Using ${result.events.length} PennDOT RCRS events for Pennsylvania`);
   }
 
   // Deduplicate events by ID (keep first occurrence)
@@ -1501,7 +1501,7 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    states: Object.keys(API_CONFIG).length,
+    states: getAllStateKeys().length,
     version: '1.1.1' // Updated with database diagnostics
   });
 });
@@ -1861,7 +1861,7 @@ app.put('/api/users/notifications', requireUser, (req, res) => {
 // Debug endpoint to check coordinate extraction
 app.get('/api/debug/coordinates', async (req, res) => {
   const allResults = await Promise.all(
-    Object.keys(API_CONFIG).map(stateKey => fetchStateData(stateKey))
+    getAllStateKeys().map(stateKey => fetchStateData(stateKey))
   );
 
   const stats = {};
@@ -1886,7 +1886,7 @@ app.get('/api/analysis/normalization', async (req, res) => {
   console.log('Generating normalization analysis...');
 
   const allResults = await Promise.all(
-    Object.keys(API_CONFIG).map(stateKey => fetchStateData(stateKey))
+    getAllStateKeys().map(stateKey => fetchStateData(stateKey))
   );
 
   const report = {
@@ -2119,7 +2119,10 @@ app.get('/api/analysis/feed-alignment', async (req, res) => {
 
     // Get all states from database
     const allStates = await db.getAllStates();
-    const stateKeys = allStates.map(s => s.stateKey);
+    const stateKeys = allStates.map(s => s.stateKey.toLowerCase());
+    if (!stateKeys.includes('pa')) {
+      stateKeys.push('pa');
+    }
 
     // Fetch sample events from all states
     const allResults = await Promise.all(
@@ -2427,7 +2430,7 @@ app.get('/api/convert/tim', async (req, res) => {
   console.log('Converting events to SAE J2735 TIM format (includes WZDx, Ohio OHGO, Caltrans LCS)...');
 
   const allResults = await Promise.all(
-    Object.keys(API_CONFIG).map(stateKey => fetchStateData(stateKey))
+    getAllStateKeys().map(stateKey => fetchStateData(stateKey))
   );
 
   const allEvents = [];
@@ -2453,17 +2456,6 @@ app.get('/api/convert/tim', async (req, res) => {
     }
   } catch (error) {
     console.error('Error fetching Caltrans events for TIM:', error.message);
-  }
-
-  // Add Pennsylvania PennDOT RCRS events
-  try {
-    const penndotEvents = await fetchPennDOTRCRS();
-    if (penndotEvents && penndotEvents.length > 0) {
-      allEvents.push(...penndotEvents);
-      console.log(`Added ${penndotEvents.length} PennDOT RCRS events to TIM conversion`);
-    }
-  } catch (error) {
-    console.error('Error fetching PennDOT events for TIM:', error.message);
   }
 
   // Deduplicate events by ID (keep first occurrence)
@@ -2566,7 +2558,7 @@ app.get('/api/convert/tim-cv', async (req, res) => {
 
   // Fetch all events (same as regular TIM)
   const allResults = await Promise.all(
-    Object.keys(API_CONFIG).map(stateKey => fetchStateData(stateKey))
+    getAllStateKeys().map(stateKey => fetchStateData(stateKey))
   );
 
   const allEvents = [];
@@ -2592,17 +2584,6 @@ app.get('/api/convert/tim-cv', async (req, res) => {
     }
   } catch (error) {
     console.error('Error fetching Caltrans events for CV-TIM:', error.message);
-  }
-
-  // Add Pennsylvania PennDOT RCRS events
-  try {
-    const penndotEvents = await fetchPennDOTRCRS();
-    if (penndotEvents && penndotEvents.length > 0) {
-      allEvents.push(...penndotEvents);
-      console.log(`Added ${penndotEvents.length} PennDOT RCRS events to CV-TIM conversion`);
-    }
-  } catch (error) {
-    console.error('Error fetching PennDOT events for CV-TIM:', error.message);
   }
 
   // Deduplicate events by ID (keep first occurrence)
@@ -5176,15 +5157,15 @@ app.get('/api/compliance/summary', async (req, res) => {
 
     // Fetch events from all states
     const allResults = await Promise.all(
-      Object.keys(API_CONFIG).map(stateKey => fetchStateData(stateKey))
+      getAllStateKeys().map(stateKey => fetchStateData(stateKey))
     );
 
     // Analyze each state's events
     for (const result of allResults) {
       if (result.events && result.events.length > 0) {
-        const stateKey = result.state.toUpperCase();
-        const stateName = API_CONFIG[result.state]?.name || result.state;
-        const analysis = analyzer.analyzeState(stateKey, stateName, result.events);
+        const stateKey = result.stateKey || result.state.toLowerCase();
+        const stateName = API_CONFIG[stateKey]?.name || result.state;
+        const analysis = analyzer.analyzeState(stateKey.toUpperCase(), stateName, result.events);
 
         states.push({
           name: stateName,
@@ -5219,11 +5200,12 @@ app.get('/api/compliance/state/:stateKey', async (req, res) => {
   try {
     const stateKey = req.params.stateKey.toLowerCase();
 
-    if (!API_CONFIG[stateKey]) {
+    if (!API_CONFIG[stateKey] && stateKey !== 'pa') {
       return res.status(404).json({ error: 'State not found' });
     }
 
-    console.log(`Generating compliance guide for ${API_CONFIG[stateKey].name}...`);
+    const stateName = API_CONFIG[stateKey]?.name || 'Pennsylvania';
+    console.log(`Generating compliance guide for ${stateName}...`);
 
     // Fetch state events
     const result = await fetchStateData(stateKey);
@@ -5236,7 +5218,6 @@ app.get('/api/compliance/state/:stateKey', async (req, res) => {
     }
 
     const analyzer = new ComplianceAnalyzer();
-    const stateName = API_CONFIG[stateKey]?.name || stateKey;
     const analysis = analyzer.analyzeState(stateKey.toUpperCase(), stateName, result.events);
 
     res.json({
@@ -5911,7 +5892,7 @@ const evaluateDetourAlerts = async () => {
       return;
     }
 
-    const stateKeys = Object.keys(API_CONFIG);
+    const stateKeys = getAllStateKeys();
     const results = await Promise.all(stateKeys.map(fetchStateData));
     const allEvents = [];
     results.forEach(result => {
