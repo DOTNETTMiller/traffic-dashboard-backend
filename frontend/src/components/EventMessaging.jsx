@@ -41,7 +41,8 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
     try {
       const response = await axios.get(`${config.apiUrl}/api/events/${event.id}/comments`);
       if (response.data.success) {
-        setComments(response.data.comments);
+        const loadedComments = Array.isArray(response.data.comments) ? response.data.comments : [];
+        setComments(loadedComments);
       }
     } catch (error) {
       console.error('Error loading comments:', error);
@@ -102,6 +103,8 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
       handleAddComment();
     }
   };
+
+  const safeComments = Array.isArray(comments) ? comments : [];
 
   if (!event) return null;
 
@@ -179,7 +182,7 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
           padding: '20px',
           backgroundColor: '#f9fafb'
         }}>
-          {comments.length === 0 ? (
+          {safeComments.length === 0 ? (
             <div style={{
               textAlign: 'center',
               color: '#6b7280',
@@ -188,7 +191,7 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
               No comments yet. {isStateLoggedIn ? 'Start the conversation!' : 'Log in to add the first comment.'}
             </div>
           ) : (
-            comments.map((comment) => (
+            safeComments.map((comment) => (
               <div
                 key={comment.id}
                 style={{
