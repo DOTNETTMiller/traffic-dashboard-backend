@@ -136,13 +136,47 @@ function mapRCRSToEvent(item, isPlanned = false) {
     roadStatus = 'Restricted';
   }
 
+  // Normalize severity for UI components that expect high/medium/low
+  const severityLevel = normalizedSeverity === 'Major'
+    ? 'high'
+    : normalizedSeverity === 'Moderate'
+    ? 'medium'
+    : 'low';
+
+  // Provide a consistent event type label for frontend filters
+  const eventTypeLabel = (() => {
+    switch (type) {
+      case 'work-zone':
+        return 'Construction';
+      case 'restriction':
+        return 'Closure';
+      case 'weather':
+        return 'Weather';
+      default:
+        return 'Incident';
+    }
+  })();
+
+  const startIso = startTime ? new Date(startTime).toISOString() : null;
+  const endIso = endTime ? new Date(endTime).toISOString() : null;
+
+  const hasValidCoordinates =
+    typeof latitude === 'number' &&
+    typeof longitude === 'number' &&
+    !isNaN(latitude) &&
+    !isNaN(longitude) &&
+    latitude !== 0 &&
+    longitude !== 0;
+
   return {
     id: `penndot-rcrs-${eventId}`,
     type: type,
+    eventType: eventTypeLabel,
     source: isPlanned ? 'PennDOT RCRS (Planned)' : 'PennDOT RCRS',
     headline: headline,
     description: description,
     severity: normalizedSeverity,
+    severityLevel,
     category: eventType || 'Road Event',
     state: 'PA',
     county: countyName || county || null,
@@ -150,10 +184,15 @@ function mapRCRSToEvent(item, isPlanned = false) {
     location: location,
     direction: extractDirection(direction || route),
     lanesClosed: affectedLanes || null,
+    lanesAffected: affectedLanes || null,
     roadStatus: roadStatus,
-    coordinates: longitude && latitude ? [longitude, latitude] : null,
-    startDate: startTime ? new Date(startTime).toISOString() : null,
-    endDate: endTime ? new Date(endTime).toISOString() : null,
+    coordinates: hasValidCoordinates ? [longitude, latitude] : null,
+    latitude: hasValidCoordinates ? latitude : 0,
+    longitude: hasValidCoordinates ? longitude : 0,
+    startTime: startIso,
+    endTime: endIso,
+    startDate: startIso,
+    endDate: endIso,
     created: new Date().toISOString(),
     updated: new Date().toISOString(),
     rawData: item // Keep original for debugging

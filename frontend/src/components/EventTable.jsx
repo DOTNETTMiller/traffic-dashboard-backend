@@ -2,6 +2,15 @@ import { useState, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { isNearBorder } from '../utils/borderProximity';
 
+const normalizeSeverity = (severity) => {
+  if (!severity) return 'medium';
+  const value = severity.toString().toLowerCase();
+  if (value === 'major' || value === 'high') return 'high';
+  if (value === 'moderate' || value === 'medium') return 'medium';
+  if (value === 'minor' || value === 'low') return 'low';
+  return value;
+};
+
 export default function EventTable({ events, messages = {}, onEventSelect }) {
   const [sortField, setSortField] = useState('startTime');
   const [sortDirection, setSortDirection] = useState('desc');
@@ -33,21 +42,23 @@ export default function EventTable({ events, messages = {}, onEventSelect }) {
   }, [events, sortField, sortDirection]);
 
   const getSeverityColor = (severity) => {
+    const normalized = normalizeSeverity(severity);
     const colors = {
       high: '#fee2e2',
       medium: '#fed7aa',
       low: '#d1fae5'
     };
-    return colors[severity] || colors.medium;
+    return colors[normalized] || colors.medium;
   };
 
   const getSeverityTextColor = (severity) => {
+    const normalized = normalizeSeverity(severity);
     const colors = {
       high: '#991b1b',
       medium: '#9a3412',
       low: '#065f46'
     };
-    return colors[severity] || colors.medium;
+    return colors[normalized] || colors.medium;
   };
 
   const SortIcon = ({ field }) => {
@@ -161,8 +172,8 @@ export default function EventTable({ events, messages = {}, onEventSelect }) {
                 <span style={{
                   padding: '2px 8px',
                   borderRadius: '4px',
-                  backgroundColor: getSeverityColor(event.severity),
-                  color: getSeverityTextColor(event.severity),
+                  backgroundColor: getSeverityColor(event.severityLevel || event.severity),
+                  color: getSeverityTextColor(event.severityLevel || event.severity),
                   fontSize: '12px',
                   fontWeight: '500',
                   textTransform: 'uppercase'
