@@ -66,6 +66,85 @@ export default function DataQualityReport() {
     return '#991b1b';
   };
 
+  const severityLevels = [
+    { key: 'critical', label: 'Critical', color: '#dc2626' },
+    { key: 'high', label: 'High', color: '#f97316' },
+    { key: 'medium', label: 'Medium', color: '#3b82f6' }
+  ];
+
+  const renderSeverityBreakdown = (breakdown) => {
+    if (!breakdown) return null;
+
+    return (
+      <div style={{
+        display: 'flex',
+        gap: '10px',
+        marginTop: '8px',
+        marginBottom: '8px',
+        flexWrap: 'wrap'
+      }}>
+        {severityLevels.map(({ key, label, color }) => {
+          const ratio = typeof breakdown[key] === 'number' ? breakdown[key] : null;
+          if (ratio === null) return null;
+          const percent = Math.round(ratio * 100);
+          return (
+            <div
+              key={key}
+              style={{
+                minWidth: '100px',
+                padding: '8px 10px',
+                borderRadius: '8px',
+                backgroundColor: `${color}0F`,
+                border: `1px solid ${color}33`,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px'
+              }}
+            >
+              <span style={{ fontSize: '11px', fontWeight: 600, color }}>
+                {label} coverage
+              </span>
+              <span style={{ fontSize: '16px', fontWeight: 700, color: '#111827' }}>
+                {percent}%
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderOptionalRecommendations = (recommendations) => {
+    if (!recommendations || recommendations.length === 0) return null;
+
+    const topRecommendations = recommendations.slice(0, 3);
+
+    return (
+      <div style={{
+        marginTop: '10px',
+        padding: '10px 12px',
+        backgroundColor: '#f9fafb',
+        borderRadius: '8px',
+        border: '1px solid #e5e7eb'
+      }}>
+        <div style={{ fontSize: '12px', fontWeight: 600, color: '#1f2937', marginBottom: '6px' }}>
+          Recommended Enhancements
+        </div>
+        <ul style={{ margin: 0, paddingLeft: '18px', color: '#4b5563', fontSize: '12px' }}>
+          {topRecommendations.map((rec, idx) => {
+            const label = rec.field || rec.name || rec.description || 'Enhancement';
+            const detail = rec.message || rec.benefit || rec.description || 'Add supplemental coverage';
+            return (
+              <li key={`${label}-${idx}`} style={{ marginBottom: '4px' }}>
+                <strong>{label}:</strong> {detail}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
+  };
+
   const downloadComplianceReport = (format = 'csv') => {
     if (!stateGuide) return;
 
@@ -398,6 +477,11 @@ export default function DataQualityReport() {
                   <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', fontWeight: '600' }}>
                     {state.overallScore.breakdown.wzdx.percentage}%
                   </div>
+                  {state.overallScore.breakdown.wzdx.severityBreakdown && (
+                    <div style={{ fontSize: '10px', color: '#4b5563', marginTop: '4px' }}>
+                      Critical cover: {Math.round((state.overallScore.breakdown.wzdx.severityBreakdown.critical || 0) * 100)}%
+                    </div>
+                  )}
                 </div>
                 <div style={{
                   padding: '12px',
@@ -414,6 +498,11 @@ export default function DataQualityReport() {
                   <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', fontWeight: '600' }}>
                     {state.overallScore.breakdown.sae.percentage}%
                   </div>
+                  {state.overallScore.breakdown.sae.severityBreakdown && (
+                    <div style={{ fontSize: '10px', color: '#4b5563', marginTop: '4px' }}>
+                      Critical cover: {Math.round((state.overallScore.breakdown.sae.severityBreakdown.critical || 0) * 100)}%
+                    </div>
+                  )}
                 </div>
                 <div style={{
                   padding: '12px',
@@ -430,6 +519,11 @@ export default function DataQualityReport() {
                   <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', fontWeight: '600' }}>
                     {state.overallScore.breakdown.tmdd.percentage}%
                   </div>
+                  {state.overallScore.breakdown.tmdd.severityBreakdown && (
+                    <div style={{ fontSize: '10px', color: '#4b5563', marginTop: '4px' }}>
+                      Critical cover: {Math.round((state.overallScore.breakdown.tmdd.severityBreakdown.critical || 0) * 100)}%
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -629,14 +723,15 @@ export default function DataQualityReport() {
                             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#3b82f6' }}>
                               {stateGuide.overallScore.breakdown.wzdx.grade}
                             </div>
-                            <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-                              {stateGuide.overallScore.breakdown.wzdx.percentage}%
-                            </div>
+                          <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                            {stateGuide.overallScore.breakdown.wzdx.percentage}%
                           </div>
-                          <div style={{
-                            padding: '12px',
-                            backgroundColor: 'white',
-                            borderRadius: '8px',
+                          {renderSeverityBreakdown(stateGuide.overallScore.breakdown.wzdx.severityBreakdown)}
+                        </div>
+                        <div style={{
+                          padding: '12px',
+                          backgroundColor: 'white',
+                          borderRadius: '8px',
                             border: '2px solid #10b981',
                             textAlign: 'center'
                           }}>
@@ -644,14 +739,15 @@ export default function DataQualityReport() {
                             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#10b981' }}>
                               {stateGuide.overallScore.breakdown.sae.grade}
                             </div>
-                            <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-                              {stateGuide.overallScore.breakdown.sae.percentage}%
-                            </div>
+                          <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                            {stateGuide.overallScore.breakdown.sae.percentage}%
                           </div>
-                          <div style={{
-                            padding: '12px',
-                            backgroundColor: 'white',
-                            borderRadius: '8px',
+                          {renderSeverityBreakdown(stateGuide.overallScore.breakdown.sae.severityBreakdown)}
+                        </div>
+                        <div style={{
+                          padding: '12px',
+                          backgroundColor: 'white',
+                          borderRadius: '8px',
                             border: '2px solid #f59e0b',
                             textAlign: 'center'
                           }}>
@@ -659,11 +755,12 @@ export default function DataQualityReport() {
                             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f59e0b' }}>
                               {stateGuide.overallScore.breakdown.tmdd.grade}
                             </div>
-                            <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-                              {stateGuide.overallScore.breakdown.tmdd.percentage}%
-                            </div>
+                          <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                            {stateGuide.overallScore.breakdown.tmdd.percentage}%
                           </div>
+                          {renderSeverityBreakdown(stateGuide.overallScore.breakdown.tmdd.severityBreakdown)}
                         </div>
+                      </div>
                       )}
                     </div>
                   )}
@@ -768,6 +865,8 @@ export default function DataQualityReport() {
                               Est. effort: {stateGuide.multiStandardCompliance.gradeRoadmap.wzdx.estimatedEffort}
                             </div>
                           )}
+                          {renderSeverityBreakdown(stateGuide.multiStandardCompliance.wzdx.severityBreakdown)}
+                          {renderOptionalRecommendations(stateGuide.multiStandardCompliance.wzdx.optionalRecommendations)}
                         </div>
 
                         {/* SAE J2735 Card */}
@@ -842,6 +941,8 @@ export default function DataQualityReport() {
                               Est. effort: {stateGuide.multiStandardCompliance.gradeRoadmap.sae.estimatedEffort}
                             </div>
                           )}
+                          {renderSeverityBreakdown(stateGuide.multiStandardCompliance.sae.severityBreakdown)}
+                          {renderOptionalRecommendations(stateGuide.multiStandardCompliance.sae.optionalRecommendations)}
                         </div>
 
                         {/* TMDD v3.1 Card */}
@@ -916,6 +1017,8 @@ export default function DataQualityReport() {
                               Est. effort: {stateGuide.multiStandardCompliance.gradeRoadmap.tmdd.estimatedEffort}
                             </div>
                           )}
+                          {renderSeverityBreakdown(stateGuide.multiStandardCompliance.tmdd.severityBreakdown)}
+                          {renderOptionalRecommendations(stateGuide.multiStandardCompliance.tmdd.optionalRecommendations)}
                         </div>
                       </div>
 
