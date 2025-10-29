@@ -120,22 +120,6 @@ function App() {
       setLoadingMessages(true);
       const messagesByEvent = {};
 
-      // Load old-style messages
-      try {
-        const response = await axios.get(`${config.apiUrl}/api/messages`);
-        if (response.data.success) {
-          response.data.messages.forEach(msg => {
-            if (!messagesByEvent[msg.eventId]) {
-              messagesByEvent[msg.eventId] = [];
-            }
-            messagesByEvent[msg.eventId].push(msg);
-          });
-          console.log('💬 Loaded', response.data.count, 'old messages from server');
-        }
-      } catch (error) {
-        console.error('Error loading old messages:', error);
-      }
-
       // Load event comments
       try {
         const response = await axios.get(`${config.apiUrl}/api/events/comments/all`);
@@ -199,26 +183,13 @@ function App() {
     });
   }, [events, filters]);
 
-  const handleSendMessage = async (message) => {
-    try {
-      // Save to backend
-      const response = await axios.post(`${config.apiUrl}/api/messages`, message);
+  const handleCommentAdded = (message) => {
+    if (!message || !message.eventId) return;
 
-      if (response.data.success) {
-        const savedMessage = response.data.message;
-
-        // Update local state
-        setMessages(prev => ({
-          ...prev,
-          [savedMessage.eventId]: [...(prev[savedMessage.eventId] || []), savedMessage]
-        }));
-
-        console.log('💬 Message saved to server:', savedMessage.id);
-      }
-    } catch (error) {
-      console.error('Error saving message:', error);
-      alert('Failed to send message. Please try again.');
-    }
+    setMessages(prev => ({
+      ...prev,
+      [message.eventId]: [...(prev[message.eventId] || []), message]
+    }));
   };
 
   const eventMessages = selectedEvent ? (messages[selectedEvent.id] || []) : [];
@@ -556,7 +527,7 @@ function App() {
         <EventMessaging
           event={selectedEvent}
           messages={eventMessages}
-          onSendMessage={handleSendMessage}
+          onSendMessage={handleCommentAdded}
           onClose={() => setSelectedEvent(null)}
           currentUser={currentUser}
         />
