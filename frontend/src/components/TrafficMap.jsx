@@ -114,9 +114,19 @@ const getPolylineColor = (eventType, severity) => {
   return colors[severity] || colors.medium;
 };
 
+const normalizeSeverity = (severity) => {
+  if (!severity) return 'medium';
+  const value = severity.toString().toLowerCase();
+  if (value === 'major' || value === 'high') return 'high';
+  if (value === 'moderate' || value === 'medium') return 'medium';
+  if (value === 'minor' || value === 'low') return 'low';
+  return value;
+};
+
 // Custom marker icons based on event type with traffic sign symbols
 const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
-  const { eventType, description = '', lanesAffected = '', severity } = event;
+  const { eventType, description = '', lanesAffected = '', severity, severityLevel } = event;
+  const normalizedSeverity = normalizeSeverity(severityLevel || severity);
 
   // Check if event is near a state border
   const borderInfo = isNearBorder(event);
@@ -163,10 +173,10 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
                 stroke-width="2" transform="rotate(45 16 16)"/>
         </svg>
       `;
-    }
+  }
   } else if (eventType === 'Weather') {
     const weatherType = getWeatherType(description);
-    const color = severity === 'high' ? '#dc2626' : '#3b82f6';
+    const color = normalizedSeverity === 'high' ? '#dc2626' : '#3b82f6';
 
     if (weatherType === 'snow') {
       // Snowflake
@@ -229,7 +239,7 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
     `;
   } else if (eventType === 'Construction') {
     // Orange triangle (warning sign)
-    const color = severity === 'high' ? '#dc2626' : '#f97316';
+    const color = normalizedSeverity === 'high' ? '#dc2626' : '#f97316';
     iconSvg = `
       <svg width="32" height="32" viewBox="0 0 32 32">
         <path d="M 16 4 L 28 26 L 4 26 Z" fill="${color}" stroke="white" stroke-width="2"/>
@@ -244,7 +254,7 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
       medium: '#f97316',
       low: '#10b981'
     };
-    const color = colors[severity] || colors.medium;
+    const color = colors[normalizedSeverity] || colors.medium;
     iconSvg = `
       <svg width="32" height="32" viewBox="0 0 32 32">
         <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
@@ -522,7 +532,7 @@ export default function TrafficMap({ events, messages = {}, detourAlerts = [], o
                   key={`polyline-${event.id}`}
                   positions={polylinePositions}
                   pathOptions={{
-                    color: getPolylineColor(event.eventType, event.severity),
+                    color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)),
                     weight: 5,
                     opacity: 0.7,
                     lineJoin: 'round',
