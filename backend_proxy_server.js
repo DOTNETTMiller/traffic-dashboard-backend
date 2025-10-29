@@ -16,7 +16,6 @@ const { fetchOhioEvents } = require('./scripts/fetch_ohio_events');
 const { fetchCaltransLCS } = require('./scripts/fetch_caltrans_lcs');
 const { fetchPennDOTRCRS } = require('./scripts/fetch_penndot_rcrs');
 const ComplianceAnalyzer = require('./compliance-analyzer');
-
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -200,6 +199,22 @@ const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
+};
+
+// ==================== REAL-TIME COMMENT STREAM ====================
+const commentStreamClients = new Set();
+
+const broadcastComment = (commentPayload) => {
+  const data = `event: comment\ndata: ${JSON.stringify(commentPayload)}\n\n`;
+  commentStreamClients.forEach((client) => {
+    try {
+      client.res.write(data);
+    } catch (error) {
+      console.error('Error broadcasting comment to client:', error.message);
+      clearInterval(client.heartbeat);
+      commentStreamClients.delete(client);
+    }
+  });
 };
 
 // Serve documentation files (before static frontend)
@@ -4955,6 +4970,18 @@ app.post('/api/events/:eventId/comments', requireUserOrStateAuth, async (req, re
   });
 
   if (result.success) {
+    const createdAt = result.created_at || new Date().toISOString();
+    const publicComment = {
+      id: result.id,
+      eventId: req.params.eventId,
+      stateKey: req.stateKey,
+      sender: req.stateName,
+      message: comment,
+      timestamp: createdAt
+    };
+
+    broadcastComment(publicComment);
+
     // Send email notifications in the background (don't wait for completion)
     setImmediate(async () => {
       try {
@@ -4990,7 +5017,7 @@ app.post('/api/events/:eventId/comments', requireUserOrStateAuth, async (req, re
                 {
                   sender: req.stateName,
                   message: comment,
-                  timestamp: new Date().toISOString()
+                  timestamp: createdAt
                 }
               );
             }
@@ -5012,7 +5039,7 @@ app.post('/api/events/:eventId/comments', requireUserOrStateAuth, async (req, re
         state_key: req.stateKey,
         state_name: req.stateName,
         comment,
-        created_at: new Date().toISOString()
+        created_at: createdAt
       },
       message: 'Comment added'
     });
@@ -5042,6 +5069,39 @@ app.get('/api/events/comments/all', async (req, res) => {
     count: comments.length,
     comments
   });
+});
+
+// Live comment stream (Server-Sent Events)
+app.get('/api/events/comments/stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+
+  if (typeof res.flushHeaders === 'function') {
+    res.flushHeaders();
+  }
+
+  res.write('event: connected\ndata: {}\n\n');
+
+  const heartbeat = setInterval(() => {
+    try {
+      res.write('event: ping\ndata: {}\n\n');
+    } catch (error) {
+      clearInterval(heartbeat);
+    }
+  }, 30000);
+
+  const client = { res, heartbeat };
+  commentStreamClients.add(client);
+
+  const cleanup = () => {
+    clearInterval(heartbeat);
+    commentStreamClients.delete(client);
+  };
+
+  req.on('close', cleanup);
+  req.on('error', cleanup);
 });
 
 // Get list of states available for messaging
