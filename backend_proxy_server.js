@@ -1385,7 +1385,7 @@ app.get('/api/events/:state', async (req, res) => {
   // For Pennsylvania, fetch only PennDOT RCRS data
   let result;
   if (stateKey === 'pa') {
-    result = { events: [], errors: [] };
+    result = { events: [], errors: [], state: API_CONFIG[stateKey].name };
   } else {
     result = await fetchStateData(stateKey);
   }
