@@ -7,7 +7,6 @@ const cors = require('cors');
 const axios = require('axios');
 const xml2js = require('xml2js');
 const fs = require('fs');
-const fsPromises = fs.promises;
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
@@ -188,8 +187,6 @@ const requireUserOrStateAuth = (req, res, next) => {
   return res.status(401).json({ error: 'Invalid authorization format' });
 };
 
-// Message storage file
-const MESSAGES_FILE = path.join(__dirname, 'messages.json');
 const FRONTEND_DIST_PATH = path.join(__dirname, 'frontend', 'dist');
 
 const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
@@ -204,41 +201,6 @@ const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
-
-// Initialize messages file if it doesn't exist
-async function initializeMessagesFile() {
-  try {
-    await fsPromises.access(MESSAGES_FILE);
-  } catch {
-    await fsPromises.writeFile(MESSAGES_FILE, JSON.stringify([], null, 2));
-    console.log('📝 Created messages.json file');
-  }
-}
-
-// Load messages from file
-async function loadMessages() {
-  try {
-    const data = await fsPromises.readFile(MESSAGES_FILE, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    console.error('Error loading messages:', error);
-    return [];
-  }
-}
-
-// Save messages to file
-async function saveMessages(messages) {
-  try {
-    await fsPromises.writeFile(MESSAGES_FILE, JSON.stringify(messages, null, 2));
-    return true;
-  } catch (error) {
-    console.error('Error saving messages:', error);
-    return false;
-  }
-}
-
-// Initialize on startup
-initializeMessagesFile();
 
 // Serve documentation files (before static frontend)
 app.get('/docs/:filename', (req, res) => {
@@ -4705,14 +4667,23 @@ app.get('/api/compliance/guide/:state', async (req, res) => {
 
 // ==================== MESSAGE ENDPOINTS ====================
 
-// Get all messages
-app.get('/api/messages', async (req, res) => {
+// Legacy message endpoints now proxy to event comments for backward compatibility
+app.get('/api/messages', (req, res) => {
   try {
-    const messages = await loadMessages();
+    const comments = db.getAllEventComments();
+    const messages = comments.map(comment => ({
+      id: comment.id,
+      eventId: comment.event_id,
+      sender: comment.state_name,
+      message: comment.comment,
+      timestamp: comment.created_at,
+      stateKey: comment.state_key
+    }));
+
     res.json({
       success: true,
       count: messages.length,
-      messages: messages
+      messages
     });
   } catch (error) {
     res.status(500).json({
@@ -4722,16 +4693,23 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
-// Get messages for a specific event
-app.get('/api/messages/event/:eventId', async (req, res) => {
+app.get('/api/messages/event/:eventId', (req, res) => {
   try {
-    const messages = await loadMessages();
-    const eventMessages = messages.filter(m => m.eventId === req.params.eventId);
+    const comments = db.getEventComments(req.params.eventId);
+    const messages = comments.map(comment => ({
+      id: comment.id,
+      eventId: comment.event_id,
+      sender: comment.state_name,
+      message: comment.comment,
+      timestamp: comment.created_at,
+      stateKey: comment.state_key
+    }));
+
     res.json({
       success: true,
       eventId: req.params.eventId,
-      count: eventMessages.length,
-      messages: eventMessages
+      count: messages.length,
+      messages
     });
   } catch (error) {
     res.status(500).json({
@@ -4741,92 +4719,25 @@ app.get('/api/messages/event/:eventId', async (req, res) => {
   }
 });
 
-// Create a new message
-app.post('/api/messages', async (req, res) => {
-  try {
-    const { eventId, sender, message, timestamp } = req.body;
-
-    // Validation
-    if (!eventId || !sender || !message) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields: eventId, sender, message'
-      });
-    }
-
-    const messages = await loadMessages();
-
-    const newMessage = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      eventId,
-      sender,
-      message,
-      timestamp: timestamp || new Date().toISOString()
-    };
-
-    messages.push(newMessage);
-    await saveMessages(messages);
-
-    console.log(`💬 New message from ${sender} for event ${eventId}`);
-
-    res.status(201).json({
-      success: true,
-      message: newMessage
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
+app.post('/api/messages', (req, res) => {
+  res.status(410).json({
+    success: false,
+    error: 'Legacy endpoint deprecated. Use POST /api/events/:eventId/comments with authorization.'
+  });
 });
 
-// Delete a message
-app.delete('/api/messages/:id', async (req, res) => {
-  try {
-    const messages = await loadMessages();
-    const filteredMessages = messages.filter(m => m.id !== req.params.id);
-
-    if (messages.length === filteredMessages.length) {
-      return res.status(404).json({
-        success: false,
-        error: 'Message not found'
-      });
-    }
-
-    await saveMessages(filteredMessages);
-
-    res.json({
-      success: true,
-      message: 'Message deleted'
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
+app.delete('/api/messages/:id', (req, res) => {
+  res.status(410).json({
+    success: false,
+    error: 'Legacy endpoint deprecated. Use DELETE /api/events/comments/:id with authorization.'
+  });
 });
 
-// Delete all messages for an event
-app.delete('/api/messages/event/:eventId', async (req, res) => {
-  try {
-    const messages = await loadMessages();
-    const filteredMessages = messages.filter(m => m.eventId !== req.params.eventId);
-
-    const deletedCount = messages.length - filteredMessages.length;
-    await saveMessages(filteredMessages);
-
-    res.json({
-      success: true,
-      deletedCount: deletedCount
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
+app.delete('/api/messages/event/:eventId', (req, res) => {
+  res.status(410).json({
+    success: false,
+    error: 'Legacy endpoint deprecated. Use the event comment APIs.'
+  });
 });
 
 // ==================== STATE-TO-STATE MESSAGING ENDPOINTS ====================
