@@ -2372,6 +2372,14 @@ event.eventType = typeMapping[event.eventType.toLowerCase()] || event.eventType;
     }
   ];
 
+  alignment.normalizationRecommendations.push({
+    priority: 'HIGH',
+    category: 'Corridor Standardization',
+    issue: 'Multiple corridor naming conventions detected (e.g., "I80", "Interstate 80", "I-080")',
+    recommendation: 'Normalize interstate corridors to canonical "I-XX" format before filtering or comparisons',
+    implementation: 'Convert corridor values to uppercase, strip spaces, pad zeros, and output as `I-<number>`.'
+  });
+
     // Cache the result
     feedAlignmentCache = alignment;
     feedAlignmentCacheTime = Date.now();
