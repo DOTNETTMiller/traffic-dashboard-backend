@@ -5,6 +5,29 @@ import { isNearBorder } from '../utils/borderProximity';
 export default function MessagesPanel({ events = [], messages = {}, detourAlerts = [], filters = {}, onEventSelect, onClose }) {
   const [selectedCorridor, setSelectedCorridor] = useState('all');
 
+  const normalizeCorridorKey = (value = '') => {
+    if (!value) return '';
+    const upper = value.toString().toUpperCase();
+    const interstateMatch = upper.match(/I[\s-]?0*(\d+)/);
+    if (interstateMatch) {
+      return `I-${interstateMatch[1]}`;
+    }
+    return upper.trim();
+  };
+
+  const corridorMatches = (eventCorridor, filterCorridor) => {
+    if (!filterCorridor || filterCorridor === 'all') return true;
+    const normalizedFilter = normalizeCorridorKey(filterCorridor);
+    if (!normalizedFilter) return true;
+
+    const normalizedEvent = normalizeCorridorKey(eventCorridor);
+    if (!normalizedEvent) return false;
+
+    if (normalizedEvent === normalizedFilter) return true;
+
+    return normalizedEvent.startsWith(normalizedFilter);
+  };
+
   // Get events that have messages
   const eventsWithMessages = useMemo(() => {
     return events
@@ -13,7 +36,7 @@ export default function MessagesPanel({ events = [], messages = {}, detourAlerts
         if (eventMessages.length === 0) return false;
 
         // Apply corridor filter
-        if (selectedCorridor !== 'all' && event.corridor !== selectedCorridor) {
+        if (selectedCorridor !== 'all' && !corridorMatches(event.corridor, selectedCorridor)) {
           return false;
         }
 
@@ -36,35 +59,34 @@ export default function MessagesPanel({ events = [], messages = {}, detourAlerts
 
   // Get unique corridors that have messages
   const corridorsWithMessages = useMemo(() => {
-    const corridors = new Set();
+    const corridorMap = new Map();
     events.forEach(event => {
       const eventMessages = messages[event.id] || [];
       if (eventMessages.length > 0 && event.corridor && event.corridor !== 'Unknown') {
-        corridors.add(event.corridor);
+        const key = normalizeCorridorKey(event.corridor);
+        if (!corridorMap.has(key)) {
+          corridorMap.set(key, event.corridor);
+        }
       }
     });
 
-    // Sort corridors: major interstates first (I-XX), then secondary routes
-    return Array.from(corridors).sort((a, b) => {
-      // Match major interstates (I-XX where XX is 1-2 digits)
-      const majorInterstatePattern = /^I-(\d{1,2})$/;
-      const aMatch = a.match(majorInterstatePattern);
-      const bMatch = b.match(majorInterstatePattern);
+    const entries = Array.from(corridorMap.entries());
 
-      // Both are major interstates - sort numerically
+    entries.sort((a, b) => {
+      const [keyA, labelA] = a;
+      const [keyB, labelB] = b;
+      const interstatePattern = /^I-(\d{1,2})$/;
+      const aMatch = keyA.match(interstatePattern);
+      const bMatch = keyB.match(interstatePattern);
       if (aMatch && bMatch) {
-        return parseInt(aMatch[1]) - parseInt(bMatch[1]);
+        return parseInt(aMatch[1], 10) - parseInt(bMatch[1], 10);
       }
-
-      // Only a is a major interstate - it comes first
       if (aMatch) return -1;
-
-      // Only b is a major interstate - it comes first
       if (bMatch) return 1;
-
-      // Neither are major interstates - sort alphabetically
-      return a.localeCompare(b);
+      return labelA.localeCompare(labelB);
     });
+
+    return entries;
   }, [events, messages]);
 
   const getSeverityColor = (severity) => {
@@ -153,11 +175,11 @@ export default function MessagesPanel({ events = [], messages = {}, detourAlerts
           }}
         >
           <option value="all">All Corridors ({eventsWithMessages.length})</option>
-          {corridorsWithMessages.map(corridor => {
-            const count = eventsWithMessages.filter(e => e.corridor === corridor).length;
+          {corridorsWithMessages.map(([corridorKey, displayLabel]) => {
+            const count = eventsWithMessages.filter(e => corridorMatches(e.corridor, corridorKey)).length;
             return (
-              <option key={corridor} value={corridor}>
-                {corridor} ({count})
+              <option key={corridorKey} value={corridorKey}>
+                {displayLabel} ({count})
               </option>
             );
           })}
