@@ -123,6 +123,23 @@ const normalizeSeverity = (severity) => {
   return value;
 };
 
+const isInterstateEvent = (event) => {
+  const corridor = event.corridor || '';
+  const location = event.location || '';
+  const description = event.description || '';
+
+  const text = `${corridor} ${location} ${description}`;
+  if (!text) return false;
+
+  // Match I-5, I 80, Interstate 90, I-080, etc.
+  const interstatePattern = /\b(?:I[-\s]?|Interstate\s+)(0*\d{1,3})\b/i;
+
+  // Exclude state routes like US-30, PA-070, SR-55
+  const stateRoutePattern = /\b(?:US|SR|PA|CA|KS|NV|UT|OH|NJ|MN|IN|IA|NE)[-\s]?\d{1,3}\b/i;
+
+  return interstatePattern.test(text) && !stateRoutePattern.test(corridor);
+};
+
 // Custom marker icons based on event type with traffic sign symbols
 const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
   const { eventType, description = '', lanesAffected = '', severity, severityLevel } = event;
@@ -353,8 +370,8 @@ export default function TrafficMap({ events, messages = {}, detourAlerts = [], o
     );
   });
 
-  // Allow all valid events (clusters keep the map usable even with large counts)
-  const displayEvents = validEvents;
+  // Focus on interstate events while still leveraging clustering for performance
+  const displayEvents = validEvents.filter(isInterstateEvent);
 
   console.log(`📍 Map: ${displayEvents.length} mapped events out of ${validEvents.length} valid events (${events.length} total)`);
 
