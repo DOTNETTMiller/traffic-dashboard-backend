@@ -79,8 +79,7 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
             sender: stateName,
             message: response.data.comment.comment,
             timestamp: response.data.comment.created_at,
-            id: response.data.comment.id,
-            stateKey: stateKey
+            id: response.data.comment.id
           };
           onSendMessage(messageForPanel);
         }

@@ -115,56 +115,6 @@ function App() {
     };
   }, []);
 
-  // Subscribe to real-time comment updates via SSE
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.EventSource === 'undefined') {
-      return undefined;
-    }
-
-    const streamUrl = `${config.apiUrl}/api/events/comments/stream`;
-    const eventSource = new window.EventSource(streamUrl, { withCredentials: false });
-
-    const handleCommentEvent = (event) => {
-      try {
-        const payload = JSON.parse(event.data);
-        if (!payload || !payload.eventId || !payload.id) return;
-
-        setMessages(prev => {
-          const existing = prev[payload.eventId] || [];
-          if (existing.some(msg => msg.id === payload.id)) {
-            return prev;
-          }
-
-          const normalized = {
-            id: payload.id,
-            eventId: payload.eventId,
-            sender: payload.sender,
-            message: payload.message,
-            timestamp: payload.timestamp,
-            stateKey: payload.stateKey || null
-          };
-
-          return {
-            ...prev,
-            [payload.eventId]: [...existing, normalized]
-          };
-        });
-      } catch (err) {
-        console.error('Error parsing comment stream payload:', err);
-      }
-    };
-
-    eventSource.addEventListener('comment', handleCommentEvent);
-    eventSource.onerror = (err) => {
-      console.error('Comment stream error:', err);
-    };
-
-    return () => {
-      eventSource.removeEventListener('comment', handleCommentEvent);
-      eventSource.close();
-    };
-  }, []);
-
   const loadMessagesFromAPI = async () => {
     try {
       setLoadingMessages(true);
@@ -236,22 +186,10 @@ function App() {
   const handleCommentAdded = (message) => {
     if (!message || !message.eventId) return;
 
-    const enrichedMessage = {
-      ...message,
-      stateKey: message.stateKey || currentUser?.stateKey || null
-    };
-
-    setMessages(prev => {
-      const existing = prev[enrichedMessage.eventId] || [];
-      if (existing.some(msg => msg.id === enrichedMessage.id)) {
-        return prev;
-      }
-
-      return {
-        ...prev,
-        [enrichedMessage.eventId]: [...existing, enrichedMessage]
-      };
-    });
+    setMessages(prev => ({
+      ...prev,
+      [message.eventId]: [...(prev[message.eventId] || []), message]
+    }));
   };
 
   const eventMessages = selectedEvent ? (messages[selectedEvent.id] || []) : [];
