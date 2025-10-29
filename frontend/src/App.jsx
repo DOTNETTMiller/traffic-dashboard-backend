@@ -151,6 +151,29 @@ function App() {
     }
   };
 
+  const normalizeCorridorKey = (value = '') => {
+    if (!value) return '';
+    const upper = value.toString().toUpperCase();
+    const interstateMatch = upper.match(/I[\s-]?0*(\d+)/);
+    if (interstateMatch) {
+      return `I-${interstateMatch[1]}`;
+    }
+    return upper.trim();
+  };
+
+  const corridorMatches = (eventCorridor, filterCorridor) => {
+    if (!filterCorridor) return true;
+    const normalizedFilter = normalizeCorridorKey(filterCorridor);
+    if (!normalizedFilter) return true;
+
+    const normalizedEvent = normalizeCorridorKey(eventCorridor);
+    if (!normalizedEvent) return false;
+
+    if (normalizedEvent === normalizedFilter) return true;
+
+    return normalizedEvent.startsWith(normalizedFilter);
+  };
+
   // Filter events based on active filters
   const filteredEvents = useMemo(() => {
     return events.filter(event => {
@@ -158,7 +181,7 @@ function App() {
       if (filters.state && event.state !== filters.state) return false;
 
       // Corridor filter
-      if (filters.corridor && event.corridor !== filters.corridor) return false;
+      if (filters.corridor && !corridorMatches(event.corridor, filters.corridor)) return false;
 
       // Event type filter
       if (filters.eventType && event.eventType !== filters.eventType) return false;
@@ -186,10 +209,22 @@ function App() {
   const handleCommentAdded = (message) => {
     if (!message || !message.eventId) return;
 
-    setMessages(prev => ({
-      ...prev,
-      [message.eventId]: [...(prev[message.eventId] || []), message]
-    }));
+    const enrichedMessage = {
+      ...message,
+      stateKey: message.stateKey || currentUser?.stateKey || null
+    };
+
+    setMessages(prev => {
+      const existing = prev[enrichedMessage.eventId] || [];
+      if (existing.some(msg => msg.id === enrichedMessage.id)) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [enrichedMessage.eventId]: [...existing, enrichedMessage]
+      };
+    });
   };
 
   const eventMessages = selectedEvent ? (messages[selectedEvent.id] || []) : [];
