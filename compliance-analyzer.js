@@ -560,6 +560,7 @@ class ComplianceAnalyzer {
     }
 
     const fieldAnalysis = this.analyzeFieldCompleteness(events);
+    const dataCompletenessScore = this.calculateDataCompleteness(fieldAnalysis);
     const wzdxScore = this.analyzeWZDxCompliance(events);
     const saeScore = this.analyzeSAEJ2735Compliance(events);
     const tmddScore = this.analyzeTMDDCompliance(events);
@@ -587,6 +588,7 @@ class ComplianceAnalyzer {
       overallScore: overallScore,
       multiStandardCompliance: multiStandardCompliance,
       c2cCompliance: c2cCompliance,
+      dataCompletenessScore,
       fieldLevelAnalysis: this.generateFieldLevelAnalysis(events),
       categoryScores: this.generateCategoryScores(fieldAnalysis),
       actionPlan: actionPlan,
@@ -744,6 +746,25 @@ class ComplianceAnalyzer {
     return fieldStats;
   }
 
+  calculateDataCompleteness(fieldStats) {
+    let earnedPoints = 0;
+    let possiblePoints = 0;
+
+    Object.entries(this.fieldWeights).forEach(([field, weight]) => {
+      const stats = fieldStats[field];
+      if (!stats) return;
+      const total = stats.present + stats.missing;
+      earnedPoints += stats.present * weight;
+      possiblePoints += total * weight;
+    });
+
+    if (possiblePoints === 0) {
+      return 0;
+    }
+
+    return Math.round((earnedPoints / possiblePoints) * 100);
+  }
+
   // Generate field-level violation analysis
   generateFieldLevelAnalysis(events) {
     const violations = [];
@@ -820,7 +841,7 @@ class ComplianceAnalyzer {
 
   // Generate category-based scores
   generateCategoryScores(fieldStats) {
-    return {
+    const scores = {
       essential: {
         name: 'Essential Information',
         fields: [
@@ -894,6 +915,14 @@ class ComplianceAnalyzer {
         percentage: 0
       }
     };
+
+    Object.values(scores).forEach(category => {
+      category.percentage = category.maxScore === 0
+        ? 0
+        : Math.round((category.totalScore / category.maxScore) * 100);
+    });
+
+    return scores;
   }
 
   // Analyze C2C compliance
@@ -1087,6 +1116,7 @@ class ComplianceAnalyzer {
       generatedAt: new Date().toISOString(),
       eventCount: 0,
       currentFormat: { apiType: 'Unknown', format: 'N/A' },
+      dataCompletenessScore: 0,
       overallScore: {
         percentage: 0,
         grade: 'N/A',
