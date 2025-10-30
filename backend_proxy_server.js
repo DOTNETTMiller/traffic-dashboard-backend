@@ -6061,6 +6061,14 @@ const notifyDetourSubscribers = async (alertRecord, interchange, event) => {
       priority: 'high'
     });
 
+    // Also add as event comment so it shows in the event modal
+    db.addEventComment({
+      eventId: event.id,
+      stateKey: normalizedState,
+      stateName: 'DOT Corridor Communicator',
+      comment: alertRecord.message
+    });
+
     const recipients = db.getUsersForMessageNotification(normalizedState);
     if (Array.isArray(recipients)) {
       recipients.forEach(recipient => {
