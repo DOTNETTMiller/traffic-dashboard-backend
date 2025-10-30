@@ -135,6 +135,30 @@ const EVENT_TYPE_SYNONYMS = [
   { keywords: ['special'], normalized: 'special-event' }
 ];
 
+const CANONICAL_FIELD_MAP = {
+  id: 'id',
+  eventType: 'eventType',
+  type: 'eventType',
+  event_type: 'eventType',
+  category: 'eventType',
+  startTime: 'startTime',
+  startDate: 'startTime',
+  start_date: 'startTime',
+  endTime: 'endTime',
+  endDate: 'endTime',
+  end_date: 'endTime',
+  description: 'description',
+  lanesAffected: 'lanesAffected',
+  lanesClosed: 'lanesAffected',
+  severity: 'severity',
+  priority: 'severity',
+  direction: 'direction',
+  roadStatus: 'roadStatus',
+  status: 'roadStatus',
+  coordinates: 'coordinates',
+  corridor: 'corridor'
+};
+
 function resolveFieldValue(obj, path) {
   if (!path) return undefined;
   const segments = path.split('.');
@@ -180,6 +204,23 @@ function getRequirementValue(event, requirement) {
     const lon = event.longitude ?? resolveFieldValue(event, 'longitude');
     if (lat !== undefined && lon !== undefined) {
       return [lon, lat];
+    }
+  }
+
+  return null;
+}
+
+function getRawRequirementValue(event, requirement) {
+  if (!event.rawFields) return null;
+  const fields = [requirement.field, ...(requirement.fallbackFields || [])];
+  for (const field of fields) {
+    if (!field) continue;
+    const canonical = CANONICAL_FIELD_MAP[field.split('.')[0]];
+    if (canonical && Object.prototype.hasOwnProperty.call(event.rawFields, canonical)) {
+      const value = event.rawFields[canonical];
+      if (value !== undefined && value !== null && value !== '') {
+        return value;
+      }
     }
   }
 
@@ -350,7 +391,7 @@ function validateRequirementValue(event, requirement, value) {
   };
 }
 
-function computeStandardCompliance(events, spec) {
+function computeStandardCompliance(events, spec, useRaw = false) {
   if (!events || events.length === 0) {
     return {
       weightedScore: 0,
@@ -377,8 +418,12 @@ function computeStandardCompliance(events, spec) {
       requirement,
       passes: 0,
       total: 0,
-      sampleValid: null,
-      sampleInvalid: null
+      rawHits: 0,
+      normalizedHits: 0,
+      rawSampleValid: null,
+      rawSampleInvalid: null,
+      normalizedSampleValid: null,
+      normalizedSampleInvalid: null
     });
   });
 
@@ -394,19 +439,44 @@ function computeStandardCompliance(events, spec) {
 
   events.forEach(event => {
     required.forEach(requirement => {
-      const value = getRequirementValue(event, requirement);
-      const evaluation = validateRequirementValue(event, requirement, value);
+      const normalizedValue = getRequirementValue(event, requirement);
+      const normalizedEval = validateRequirementValue(event, requirement, normalizedValue);
+
+      const rawValue = useRaw ? getRawRequirementValue(event, requirement) : null;
+      const rawContext = event.rawFields ? { ...event, ...event.rawFields } : event;
+      const rawEval = validateRequirementValue(rawContext, requirement, rawValue !== null ? rawValue : normalizedValue);
+
       const fieldStat = perField.get(requirement.field);
       fieldStat.total += 1;
 
-      if (evaluation.passed) {
+      if (normalizedEval.passed) {
+        fieldStat.normalizedHits += 1;
+        if (fieldStat.normalizedSampleValid === null && normalizedEval.normalizedValue !== undefined) {
+          fieldStat.normalizedSampleValid = normalizedEval.normalizedValue;
+        } else if (fieldStat.normalizedSampleValid === null && normalizedValue !== undefined) {
+          fieldStat.normalizedSampleValid = normalizedValue;
+        }
+      } else if (fieldStat.normalizedSampleInvalid === null && normalizedValue !== undefined) {
+        fieldStat.normalizedSampleInvalid = normalizedValue;
+      }
+
+      if (rawEval.passed) {
+        fieldStat.rawHits += 1;
+        if (fieldStat.rawSampleValid === null && rawEval.normalizedValue !== undefined) {
+          fieldStat.rawSampleValid = rawEval.normalizedValue;
+        } else if (fieldStat.rawSampleValid === null && rawValue !== null && rawValue !== undefined) {
+          fieldStat.rawSampleValid = rawValue;
+        }
+      } else if (fieldStat.rawSampleInvalid === null && rawValue !== null && rawValue !== undefined) {
+        fieldStat.rawSampleInvalid = rawValue;
+      }
+
+      const primaryEval = useRaw ? rawEval : normalizedEval;
+      const primaryValue = useRaw ? (rawValue !== null ? rawValue : normalizedValue) : normalizedValue;
+
+      if (primaryEval.passed) {
         passes[requirement.severity] += 1;
         fieldStat.passes += 1;
-        if (fieldStat.sampleValid === null && evaluation.normalizedValue !== undefined) {
-          fieldStat.sampleValid = evaluation.normalizedValue;
-        } else if (fieldStat.sampleValid === null && value !== undefined) {
-          fieldStat.sampleValid = value;
-        }
       } else {
         violations.push({
           eventId: event.id,
@@ -415,26 +485,35 @@ function computeStandardCompliance(events, spec) {
           specField: requirement.specField,
           severity: requirement.severity,
           description: requirement.description,
-          message: evaluation.message || 'Missing or invalid value',
-          sampleValue: value
+          message: primaryEval.message || 'Missing or invalid value',
+          sampleValue: primaryValue,
+          normalizedSample: normalizedEval.normalizedValue,
+          rawSample: rawEval.normalizedValue,
+          rawValue: rawValue !== null ? rawValue : normalizedValue
         });
-        if (fieldStat.sampleInvalid === null && value !== undefined) {
-          fieldStat.sampleInvalid = value;
-        }
       }
     });
 
     optional.forEach(requirement => {
-      const value = getRequirementValue(event, requirement);
-      const evaluation = validateRequirementValue(event, requirement, value);
+      const normalizedValue = getRequirementValue(event, requirement);
+      const normalizedEval = validateRequirementValue(event, requirement, normalizedValue);
 
-      if (!evaluation.passed && !optionalMissingMap.has(requirement.field)) {
+      const rawValue = useRaw ? getRawRequirementValue(event, requirement) : null;
+      const rawContext = event.rawFields ? { ...event, ...event.rawFields } : event;
+      const rawEval = validateRequirementValue(rawContext, requirement, rawValue !== null ? rawValue : normalizedValue);
+
+      const primaryEval = useRaw ? rawEval : normalizedEval;
+      const primaryValue = useRaw ? (rawValue !== null ? rawValue : normalizedValue) : normalizedValue;
+
+      if (!primaryEval.passed && !optionalMissingMap.has(requirement.field)) {
         optionalMissingMap.set(requirement.field, {
           field: requirement.field,
           specField: requirement.specField,
           description: requirement.description,
-          message: evaluation.message || 'Not provided',
-          sampleEventId: event.id
+          message: primaryEval.message || 'Not provided',
+          sampleEventId: event.id,
+          rawSample: rawValue,
+          normalizedSample: normalizedValue
         });
       }
     });
@@ -452,6 +531,9 @@ function computeStandardCompliance(events, spec) {
 
   const fieldCoverage = Array.from(perField.values()).map(stat => {
     const coverage = stat.total === 0 ? 0 : stat.passes / stat.total;
+    const rawCoverage = stat.total === 0 ? 0 : stat.rawHits / stat.total;
+    const normalizedCoverage = stat.total === 0 ? 0 : stat.normalizedHits / stat.total;
+
     return {
       field: stat.requirement.field,
       specField: stat.requirement.specField,
@@ -459,8 +541,16 @@ function computeStandardCompliance(events, spec) {
       severity: stat.requirement.severity,
       coverage,
       coveragePercentage: Math.round(coverage * 100),
+      rawCoverage,
+      rawCoveragePercentage: Math.round(rawCoverage * 100),
+      normalizedCoverage,
+      normalizedCoveragePercentage: Math.round(normalizedCoverage * 100),
       sampleValue: stat.sampleValid,
-      missingExample: stat.sampleInvalid
+      missingExample: stat.sampleInvalid,
+      rawSampleValid: stat.rawSampleValid,
+      rawSampleInvalid: stat.rawSampleInvalid,
+      normalizedSampleValid: stat.normalizedSampleValid,
+      normalizedSampleInvalid: stat.normalizedSampleInvalid
     };
   });
 
@@ -638,87 +728,154 @@ class ComplianceAnalyzer {
   // Analyze WZDx v4.x compliance
   analyzeWZDxCompliance(events) {
     const spec = STANDARD_REQUIREMENTS.WZDx_v4;
-    const evaluation = computeStandardCompliance(events, spec);
-    let percentage = Math.round(evaluation.weightedScore * 100);
-    let grade = this.getLetterGrade(percentage);
-    grade = adjustGradeForCritical(grade, evaluation.severityRatios.critical);
-    const status = deriveStatus(percentage, evaluation.severityRatios.critical, {
+
+    // Compute normalized compliance (default behavior)
+    const normalizedEval = computeStandardCompliance(events, spec, false);
+    let normalizedPercentage = Math.round(normalizedEval.weightedScore * 100);
+    let normalizedGrade = this.getLetterGrade(normalizedPercentage);
+    normalizedGrade = adjustGradeForCritical(normalizedGrade, normalizedEval.severityRatios.critical);
+    const normalizedStatus = deriveStatus(normalizedPercentage, normalizedEval.severityRatios.critical, {
+      compliant: 'Compliant',
+      partial: 'Partially Compliant',
+      non: 'Non-Compliant'
+    });
+
+    // Compute raw compliance (based on original feed data)
+    const rawEval = computeStandardCompliance(events, spec, true);
+    let rawPercentage = Math.round(rawEval.weightedScore * 100);
+    let rawGrade = this.getLetterGrade(rawPercentage);
+    rawGrade = adjustGradeForCritical(rawGrade, rawEval.severityRatios.critical);
+    const rawStatus = deriveStatus(rawPercentage, rawEval.severityRatios.critical, {
       compliant: 'Compliant',
       partial: 'Partially Compliant',
       non: 'Non-Compliant'
     });
 
     return {
-      percentage,
-      grade,
-      status,
-      severityBreakdown: evaluation.severityRatios,
-      fieldCoverage: evaluation.fieldCoverage,
-      violations: evaluation.violations.slice(0, 15),
+      // Primary scores (RAW - what feed actually provides)
+      percentage: rawPercentage,
+      grade: rawGrade,
+      status: rawStatus,
+      severityBreakdown: rawEval.severityRatios,
+      fieldCoverage: rawEval.fieldCoverage,
+      violations: rawEval.violations.slice(0, 15),
       optionalRecommendations: [
-        ...evaluation.optionalMissing,
+        ...rawEval.optionalMissing,
         ...(spec.optionalEnhancements || [])
-      ].slice(0, 10)
+      ].slice(0, 10),
+      // Enhanced scores (with normalization/inference)
+      enhanced: {
+        percentage: normalizedPercentage,
+        grade: normalizedGrade,
+        status: normalizedStatus,
+        severityBreakdown: normalizedEval.severityRatios,
+        fieldCoverage: normalizedEval.fieldCoverage
+      }
     };
   }
 
   // Analyze SAE J2735 compliance
   analyzeSAEJ2735Compliance(events) {
     const spec = STANDARD_REQUIREMENTS.SAE_J2735_TIM;
-    const evaluation = computeStandardCompliance(events, spec);
-    let percentage = Math.round(evaluation.weightedScore * 100);
-    let grade = this.getLetterGrade(percentage);
-    grade = adjustGradeForCritical(grade, evaluation.severityRatios.critical);
-    const status = deriveStatus(percentage, evaluation.severityRatios.critical, {
+
+    // Compute normalized compliance (default behavior)
+    const normalizedEval = computeStandardCompliance(events, spec, false);
+    let normalizedPercentage = Math.round(normalizedEval.weightedScore * 100);
+    let normalizedGrade = this.getLetterGrade(normalizedPercentage);
+    normalizedGrade = adjustGradeForCritical(normalizedGrade, normalizedEval.severityRatios.critical);
+    const normalizedStatus = deriveStatus(normalizedPercentage, normalizedEval.severityRatios.critical, {
+      compliant: 'V2X Ready',
+      partial: 'Partial Support',
+      non: 'Limited Support'
+    });
+
+    // Compute raw compliance (based on original feed data)
+    const rawEval = computeStandardCompliance(events, spec, true);
+    let rawPercentage = Math.round(rawEval.weightedScore * 100);
+    let rawGrade = this.getLetterGrade(rawPercentage);
+    rawGrade = adjustGradeForCritical(rawGrade, rawEval.severityRatios.critical);
+    const rawStatus = deriveStatus(rawPercentage, rawEval.severityRatios.critical, {
       compliant: 'V2X Ready',
       partial: 'Partial Support',
       non: 'Limited Support'
     });
 
     return {
-      percentage,
-      grade,
-      status,
-      severityBreakdown: evaluation.severityRatios,
-      fieldCoverage: evaluation.fieldCoverage,
-      violations: evaluation.violations.slice(0, 15),
+      // Primary scores (RAW - what feed actually provides)
+      percentage: rawPercentage,
+      grade: rawGrade,
+      status: rawStatus,
+      severityBreakdown: rawEval.severityRatios,
+      fieldCoverage: rawEval.fieldCoverage,
+      violations: rawEval.violations.slice(0, 15),
       optionalRecommendations: [
-        ...evaluation.optionalMissing,
+        ...rawEval.optionalMissing,
         ...(spec.optionalEnhancements || [])
-      ].slice(0, 10)
+      ].slice(0, 10),
+      // Enhanced scores (with normalization/inference)
+      enhanced: {
+        percentage: normalizedPercentage,
+        grade: normalizedGrade,
+        status: normalizedStatus,
+        severityBreakdown: normalizedEval.severityRatios,
+        fieldCoverage: normalizedEval.fieldCoverage
+      }
     };
   }
 
   // Analyze TMDD/ngTMDD compliance
   analyzeTMDDCompliance(events) {
     const spec = STANDARD_REQUIREMENTS.TMDD_ngC2C;
-    const evaluation = computeStandardCompliance(events, spec);
-    let percentage = Math.round(evaluation.weightedScore * 100);
-    let grade = this.getLetterGrade(percentage);
-    grade = adjustGradeForCritical(grade, evaluation.severityRatios.critical);
-    const status = deriveStatus(percentage, evaluation.severityRatios.critical, {
+
+    // Compute normalized compliance (default behavior)
+    const normalizedEval = computeStandardCompliance(events, spec, false);
+    let normalizedPercentage = Math.round(normalizedEval.weightedScore * 100);
+    let normalizedGrade = this.getLetterGrade(normalizedPercentage);
+    normalizedGrade = adjustGradeForCritical(normalizedGrade, normalizedEval.severityRatios.critical);
+    const normalizedStatus = deriveStatus(normalizedPercentage, normalizedEval.severityRatios.critical, {
+      compliant: 'C2C Ready',
+      partial: 'Needs Enhancement',
+      non: 'Requires Work'
+    });
+
+    // Compute raw compliance (based on original feed data)
+    const rawEval = computeStandardCompliance(events, spec, true);
+    let rawPercentage = Math.round(rawEval.weightedScore * 100);
+    let rawGrade = this.getLetterGrade(rawPercentage);
+    rawGrade = adjustGradeForCritical(rawGrade, rawEval.severityRatios.critical);
+    const rawStatus = deriveStatus(rawPercentage, rawEval.severityRatios.critical, {
       compliant: 'C2C Ready',
       partial: 'Needs Enhancement',
       non: 'Requires Work'
     });
 
     return {
-      percentage,
-      grade,
-      status,
-      severityBreakdown: evaluation.severityRatios,
-      fieldCoverage: evaluation.fieldCoverage,
-      violations: evaluation.violations.slice(0, 15),
+      // Primary scores (RAW - what feed actually provides)
+      percentage: rawPercentage,
+      grade: rawGrade,
+      status: rawStatus,
+      severityBreakdown: rawEval.severityRatios,
+      fieldCoverage: rawEval.fieldCoverage,
+      violations: rawEval.violations.slice(0, 15),
       optionalRecommendations: [
-        ...evaluation.optionalMissing,
+        ...rawEval.optionalMissing,
         ...(spec.optionalEnhancements || [])
-      ].slice(0, 10)
+      ].slice(0, 10),
+      // Enhanced scores (with normalization/inference)
+      enhanced: {
+        percentage: normalizedPercentage,
+        grade: normalizedGrade,
+        status: normalizedStatus,
+        severityBreakdown: normalizedEval.severityRatios,
+        fieldCoverage: normalizedEval.fieldCoverage
+      }
     };
   }
 
   // Calculate composite score across all standards
   calculateCompositeScore(wzdx, sae, tmdd) {
     // Weighted average: WZDx 40%, SAE 35%, TMDD 25%
+    // Primary scores are now RAW (actual feed data)
     const percentage = Math.round(
       (wzdx.percentage * 0.4) +
       (sae.percentage * 0.35) +
@@ -726,6 +883,15 @@ class ComplianceAnalyzer {
     );
 
     const grade = this.getLetterGrade(percentage);
+
+    // Calculate enhanced composite score (with normalization)
+    const enhancedPercentage = Math.round(
+      (wzdx.enhanced.percentage * 0.4) +
+      (sae.enhanced.percentage * 0.35) +
+      (tmdd.enhanced.percentage * 0.25)
+    );
+
+    const enhancedGrade = this.getLetterGrade(enhancedPercentage);
 
     let rank, message;
     if (percentage >= 90) {
@@ -754,6 +920,10 @@ class ComplianceAnalyzer {
         wzdx: wzdx,
         sae: sae,
         tmdd: tmdd
+      },
+      enhanced: {
+        percentage: enhancedPercentage,
+        grade: enhancedGrade
       }
     };
   }
