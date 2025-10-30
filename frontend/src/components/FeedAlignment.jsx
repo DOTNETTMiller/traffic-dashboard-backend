@@ -273,9 +273,13 @@ export default function FeedAlignment() {
 
       {/* State-Specific Mappings */}
       <div>
-        <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '16px' }}>
+        <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '8px' }}>
           🗺️ State-Specific Field Mappings
         </h2>
+        <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+          {Object.values(alignment.stateSpecificMappings).filter(m => m.status !== 'NO_EVENTS').length} states with analyzable data •
+          {' '}{Object.values(alignment.stateSpecificMappings).filter(m => m.status === 'NO_EVENTS').length} states without current events
+        </p>
 
         <div style={{
           display: 'grid',
@@ -326,8 +330,13 @@ export default function FeedAlignment() {
               </div>
 
               {mapping.status === 'NO_EVENTS' ? (
-                <div style={{ color: '#9ca3af', fontSize: '14px' }}>
-                  {mapping.message}
+                <div>
+                  <div style={{ color: '#9ca3af', fontSize: '14px', marginBottom: '8px' }}>
+                    ⓘ No current events to analyze
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#6b7280', fontStyle: 'italic' }}>
+                    Feed structure analysis requires active events. Check back when this state has events.
+                  </div>
                 </div>
               ) : (
                 <>
