@@ -217,7 +217,9 @@ function getRawRequirementValue(event, requirement) {
     if (!field) continue;
     const canonical = CANONICAL_FIELD_MAP[field.split('.')[0]];
     if (canonical && Object.prototype.hasOwnProperty.call(event.rawFields, canonical)) {
-      const value = event.rawFields[canonical];
+      const fieldData = event.rawFields[canonical];
+      // Use .raw value (what actually exists in feed), not .extracted or .normalized
+      const value = fieldData?.raw ?? fieldData;
       if (value !== undefined && value !== null && value !== '') {
         return value;
       }
@@ -419,9 +421,12 @@ function computeStandardCompliance(events, spec, useRaw = false) {
       passes: 0,
       total: 0,
       rawHits: 0,
+      extractedHits: 0,
       normalizedHits: 0,
       rawSampleValid: null,
       rawSampleInvalid: null,
+      extractedSampleValid: null,
+      extractedSampleInvalid: null,
       normalizedSampleValid: null,
       normalizedSampleInvalid: null
     });
@@ -442,13 +447,19 @@ function computeStandardCompliance(events, spec, useRaw = false) {
       const normalizedValue = getRequirementValue(event, requirement);
       const normalizedEval = validateRequirementValue(event, requirement, normalizedValue);
 
+      // Get raw value (what actually exists in feed)
       const rawValue = useRaw ? getRawRequirementValue(event, requirement) : null;
       const rawContext = event.rawFields ? { ...event, ...event.rawFields } : event;
       const rawEval = validateRequirementValue(rawContext, requirement, rawValue !== null ? rawValue : normalizedValue);
 
+      // Get extracted value (what we can parse from text)
+      const extractedValue = event.rawFields?.[CANONICAL_FIELD_MAP[requirement.field.split('.')[0]]]?.extracted ?? null;
+      const extractedEval = validateRequirementValue(event, requirement, extractedValue ?? normalizedValue);
+
       const fieldStat = perField.get(requirement.field);
       fieldStat.total += 1;
 
+      // Track normalized (final) values
       if (normalizedEval.passed) {
         fieldStat.normalizedHits += 1;
         if (fieldStat.normalizedSampleValid === null && normalizedEval.normalizedValue !== undefined) {
@@ -460,6 +471,17 @@ function computeStandardCompliance(events, spec, useRaw = false) {
         fieldStat.normalizedSampleInvalid = normalizedValue;
       }
 
+      // Track extracted (parsed from text) values
+      if (extractedEval.passed) {
+        fieldStat.extractedHits += 1;
+        if (fieldStat.extractedSampleValid === null && extractedValue !== null) {
+          fieldStat.extractedSampleValid = extractedValue;
+        }
+      } else if (fieldStat.extractedSampleInvalid === null && extractedValue !== null) {
+        fieldStat.extractedSampleInvalid = extractedValue;
+      }
+
+      // Track raw (actually exists in feed) values
       if (rawEval.passed) {
         fieldStat.rawHits += 1;
         if (fieldStat.rawSampleValid === null && rawEval.normalizedValue !== undefined) {
@@ -532,6 +554,7 @@ function computeStandardCompliance(events, spec, useRaw = false) {
   const fieldCoverage = Array.from(perField.values()).map(stat => {
     const coverage = stat.total === 0 ? 0 : stat.passes / stat.total;
     const rawCoverage = stat.total === 0 ? 0 : stat.rawHits / stat.total;
+    const extractedCoverage = stat.total === 0 ? 0 : stat.extractedHits / stat.total;
     const normalizedCoverage = stat.total === 0 ? 0 : stat.normalizedHits / stat.total;
 
     return {
@@ -543,12 +566,16 @@ function computeStandardCompliance(events, spec, useRaw = false) {
       coveragePercentage: Math.round(coverage * 100),
       rawCoverage,
       rawCoveragePercentage: Math.round(rawCoverage * 100),
+      extractedCoverage,
+      extractedCoveragePercentage: Math.round(extractedCoverage * 100),
       normalizedCoverage,
       normalizedCoveragePercentage: Math.round(normalizedCoverage * 100),
       sampleValue: stat.sampleValid,
       missingExample: stat.sampleInvalid,
       rawSampleValid: stat.rawSampleValid,
       rawSampleInvalid: stat.rawSampleInvalid,
+      extractedSampleValid: stat.extractedSampleValid,
+      extractedSampleInvalid: stat.extractedSampleInvalid,
       normalizedSampleValid: stat.normalizedSampleValid,
       normalizedSampleInvalid: stat.normalizedSampleInvalid
     };

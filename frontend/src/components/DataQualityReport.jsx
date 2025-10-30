@@ -181,9 +181,14 @@ export default function DataQualityReport() {
         borderRadius: '8px',
         border: '1px solid #e5e7eb'
       }}>
-        <h4 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: 'bold', color: '#111827' }}>
+        <h4 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: 'bold', color: '#111827' }}>
           {title} • Required Field Coverage
         </h4>
+        <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#6b7280', lineHeight: '1.5' }}>
+          <strong>Raw:</strong> Fields that exist in your feed structure •
+          <strong style={{ marginLeft: '8px' }}>Extracted:</strong> Values we parse from text •
+          <strong style={{ marginLeft: '8px' }}>Normalized:</strong> Final values with fallbacks
+        </p>
         <div style={{
           overflowX: 'auto'
         }}>
@@ -193,9 +198,12 @@ export default function DataQualityReport() {
                 <th style={{ padding: '8px', minWidth: '160px' }}>Required Field</th>
                 <th style={{ padding: '8px', minWidth: '180px' }}>Spec Field</th>
                 <th style={{ padding: '8px', minWidth: '80px' }}>Severity</th>
-                <th style={{ padding: '8px', minWidth: '80px' }}>Coverage</th>
-                <th style={{ padding: '8px', minWidth: '160px' }}>Sample Value</th>
-                <th style={{ padding: '8px', minWidth: '160px' }}>Missing Example</th>
+                <th style={{ padding: '8px', minWidth: '70px', textAlign: 'center' }}>Raw %</th>
+                <th style={{ padding: '8px', minWidth: '70px', textAlign: 'center' }}>Extract %</th>
+                <th style={{ padding: '8px', minWidth: '70px', textAlign: 'center' }}>Norm %</th>
+                <th style={{ padding: '8px', minWidth: '140px' }}>Raw Sample</th>
+                <th style={{ padding: '8px', minWidth: '140px' }}>Extracted Sample</th>
+                <th style={{ padding: '8px', minWidth: '140px' }}>Normalized Sample</th>
               </tr>
             </thead>
             <tbody>
@@ -210,19 +218,29 @@ export default function DataQualityReport() {
                       borderRadius: '9999px',
                       backgroundColor: `${severityBadgeColor(row.severity)}20`,
                       color: severityBadgeColor(row.severity),
-                      fontWeight: 600
+                      fontWeight: 600,
+                      fontSize: '11px'
                     }}>
                       {row.severity || 'medium'}
                     </span>
                   </td>
-                  <td style={{ padding: '8px', fontWeight: 600 }}>
-                    {typeof row.coveragePercentage === 'number' ? `${row.coveragePercentage}%` : '—'}
+                  <td style={{ padding: '8px', fontWeight: 600, textAlign: 'center', color: getScoreColor(row.rawCoveragePercentage || 0) }}>
+                    {typeof row.rawCoveragePercentage === 'number' ? `${row.rawCoveragePercentage}%` : '—'}
                   </td>
-                  <td style={{ padding: '8px', fontFamily: 'monospace', color: '#065f46' }}>
-                    {formatSample(row.sampleValue)}
+                  <td style={{ padding: '8px', fontWeight: 600, textAlign: 'center', color: getScoreColor(row.extractedCoveragePercentage || 0) }}>
+                    {typeof row.extractedCoveragePercentage === 'number' ? `${row.extractedCoveragePercentage}%` : '—'}
                   </td>
-                  <td style={{ padding: '8px', fontFamily: 'monospace', color: '#b91c1c' }}>
-                    {formatSample(row.missingExample)}
+                  <td style={{ padding: '8px', fontWeight: 600, textAlign: 'center', color: getScoreColor(row.normalizedCoveragePercentage || 0) }}>
+                    {typeof row.normalizedCoveragePercentage === 'number' ? `${row.normalizedCoveragePercentage}%` : '—'}
+                  </td>
+                  <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: '12px', color: row.rawSampleValid ? '#065f46' : '#9ca3af' }}>
+                    {formatSample(row.rawSampleValid || row.rawSampleInvalid)}
+                  </td>
+                  <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: '12px', color: row.extractedSampleValid ? '#0369a1' : '#9ca3af' }}>
+                    {formatSample(row.extractedSampleValid || row.extractedSampleInvalid)}
+                  </td>
+                  <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: '12px', color: row.normalizedSampleValid ? '#065f46' : '#9ca3af' }}>
+                    {formatSample(row.normalizedSampleValid || row.normalizedSampleInvalid)}
                   </td>
                 </tr>
               ))}
