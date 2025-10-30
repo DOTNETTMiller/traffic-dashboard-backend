@@ -646,14 +646,8 @@ class ComplianceAnalyzer {
     // Generate action plan
     const actionPlan = this.generateActionPlan(fieldAnalysis, events);
 
-    // C2C compliance
+    // C2C compliance (ngTMDD tool placeholder)
     const c2cCompliance = this.analyzeC2CCompliance(events);
-
-    // Multi-standard compliance
-    const multiStandardCompliance = this.analyzeMultiStandardCompliance(
-      wzdxScore, saeScore, tmddScore, events
-    );
-
     if (c2cCompliance && typeof c2cCompliance.score === 'number') {
       const cappedPercentage = Math.min(overallScore.percentage, Math.round(c2cCompliance.score));
       if (cappedPercentage !== overallScore.percentage) {
@@ -1026,48 +1020,12 @@ class ComplianceAnalyzer {
 
   // Analyze C2C compliance
   analyzeC2CCompliance(events) {
-    let score = 0;
-    const recommendations = [];
-
-    // Check critical C2C fields
-    const hasIds = events.filter(e => e.id).length / events.length;
-    const hasCoords = events.filter(e => e.coordinates && e.coordinates.length === 2).length / events.length;
-    const hasTimestamps = events.filter(e => e.startDate).length / events.length;
-    const hasLocation = events.filter(e => e.location).length / events.length;
-
-    score += hasIds * 25;
-    score += hasCoords * 25;
-    score += hasTimestamps * 25;
-    score += hasLocation * 25;
-
-    if (hasIds < 0.9) {
-      recommendations.push({
-        field: 'Event ID',
-        importance: 'CRITICAL',
-        issue: `Only ${Math.round(hasIds * 100)}% of events have unique IDs`,
-        solution: 'Add unique identifiers to all events for C2C tracking'
-      });
-    }
-
-    if (hasCoords < 0.9) {
-      recommendations.push({
-        field: 'Geographic Coordinates',
-        importance: 'CRITICAL',
-        issue: `Only ${Math.round(hasCoords * 100)}% of events have coordinates`,
-        solution: 'Include latitude/longitude for all events'
-      });
-    }
-
-    const finalScore = Math.round(score);
-
     return {
-      score: finalScore,
-      grade: finalScore >= 80 ? 'PASS' : 'FAIL',
-      message: finalScore >= 80 ?
-        'Data meets C2C requirements for inter-agency communication' :
-        `Score of ${finalScore}/100 - Improvements needed for C2C readiness`,
-      validationTool: 'C2C-MVT Analysis',
-      recommendations: recommendations
+      score: null,
+      grade: 'Pending',
+      message: 'ngTMDD C2C-MVT validation not yet run',
+      validationTool: 'C2C-MVT (integration pending)',
+      recommendations: []
     };
   }
 
