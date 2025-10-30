@@ -4921,8 +4921,9 @@ app.get('/api/messages', (req, res) => {
 
 app.get('/api/messages/event/:eventId', (req, res) => {
   try {
+    // Get comments from event_comments table
     const comments = db.getEventComments(req.params.eventId);
-    const messages = comments.map(comment => ({
+    const commentMessages = comments.map(comment => ({
       id: comment.id,
       eventId: comment.event_id,
       sender: comment.state_name,
@@ -4931,11 +4932,33 @@ app.get('/api/messages/event/:eventId', (req, res) => {
       stateKey: comment.state_key
     }));
 
+    // Also get messages from state_messages table linked to this event
+    const stateMessages = db.db.prepare(`
+      SELECT id, from_state, to_state, subject, message, created_at, event_id
+      FROM state_messages
+      WHERE event_id = ?
+      ORDER BY created_at ASC
+    `).all(req.params.eventId);
+
+    const stateMsgFormatted = stateMessages.map(msg => ({
+      id: msg.id,
+      eventId: msg.event_id,
+      sender: msg.from_state === 'ADMIN' ? 'DOT Corridor Communicator' : msg.from_state,
+      message: msg.subject ? `${msg.subject}\n\n${msg.message}` : msg.message,
+      timestamp: msg.created_at,
+      stateKey: msg.from_state.toLowerCase()
+    }));
+
+    // Merge and sort by timestamp
+    const allMessages = [...commentMessages, ...stateMsgFormatted].sort((a, b) =>
+      new Date(a.timestamp) - new Date(b.timestamp)
+    );
+
     res.json({
       success: true,
       eventId: req.params.eventId,
-      count: messages.length,
-      messages
+      count: allMessages.length,
+      messages: allMessages
     });
   } catch (error) {
     res.status(500).json({
