@@ -4,6 +4,7 @@ import { config } from '../config';
 import '../styles/StateMessaging.css';
 
 export default function StateMessaging({ user, authToken }) {
+  const isAdmin = user?.role === 'admin';
   const userStateKey = user?.stateKey ? user.stateKey.toLowerCase() : '';
   const [states, setStates] = useState([]);
   const [stateName, setStateName] = useState('');
@@ -21,7 +22,7 @@ export default function StateMessaging({ user, authToken }) {
   const [success, setSuccess] = useState('');
   const [expandedMessageId, setExpandedMessageId] = useState(null);
 
-  const isAuthenticated = Boolean(authToken && userStateKey);
+  const isAuthenticated = Boolean(authToken && (userStateKey || isAdmin));
   const authHeaders = useMemo(() => (
     authToken
       ? { Authorization: `Bearer ${authToken}` }
@@ -46,7 +47,7 @@ export default function StateMessaging({ user, authToken }) {
 
   // Resolve the friendly state name once we know the user's state
   useEffect(() => {
-    if (!states.length || !userStateKey) {
+    if (!states.length || (!userStateKey && !isAdmin)) {
       setStateName('');
       return;
     }
