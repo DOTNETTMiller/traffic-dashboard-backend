@@ -479,24 +479,59 @@ const extractCorridor = (locationText) => {
   return 'Unknown';
 };
 
-const attachRawFields = (event, overrides = {}) => {
-  const coordinates = overrides.coordinates
-    ? overrides.coordinates
-    : (event.longitude !== undefined && event.latitude !== undefined
-        ? [event.longitude, event.latitude]
-        : null);
+const attachRawFields = (event, rawData = {}, extractedData = {}) => {
+  // rawData = what actually exists in the feed structure
+  // extractedData = what we can infer from text parsing
+  // event = final normalized value (with fallbacks)
 
   event.rawFields = {
-    eventType: overrides.eventType ?? event.eventType ?? null,
-    startTime: overrides.startTime ?? (event.startTime ?? null),
-    endTime: overrides.endTime ?? (event.endTime ?? null),
-    description: overrides.description ?? (event.description ?? null),
-    lanesAffected: overrides.lanesAffected ?? (event.lanesAffected ?? null),
-    severity: overrides.severity ?? (event.severity ?? null),
-    direction: overrides.direction ?? (event.direction ?? null),
-    roadStatus: overrides.roadStatus ?? (event.roadStatus ?? null),
-    corridor: overrides.corridor ?? (event.corridor ?? null),
-    coordinates,
+    // Capture all three levels for transparency
+    eventType: {
+      raw: rawData.eventType ?? null,
+      extracted: extractedData.eventType ?? null,
+      normalized: event.eventType ?? null
+    },
+    startTime: {
+      raw: rawData.startTime ?? null,
+      extracted: extractedData.startTime ?? null,
+      normalized: event.startTime ?? null
+    },
+    endTime: {
+      raw: rawData.endTime ?? null,
+      extracted: extractedData.endTime ?? null,
+      normalized: event.endTime ?? null
+    },
+    description: {
+      raw: rawData.description ?? null,
+      extracted: extractedData.description ?? null,
+      normalized: event.description ?? null
+    },
+    lanesAffected: {
+      raw: rawData.lanesAffected ?? null,
+      extracted: extractedData.lanesAffected ?? null,
+      normalized: event.lanesAffected ?? null
+    },
+    severity: {
+      raw: rawData.severity ?? null,
+      extracted: extractedData.severity ?? null,
+      normalized: event.severity ?? null
+    },
+    direction: {
+      raw: rawData.direction ?? null,
+      extracted: extractedData.direction ?? null,
+      normalized: event.direction ?? null
+    },
+    corridor: {
+      raw: rawData.corridor ?? null,
+      extracted: extractedData.corridor ?? null,
+      normalized: event.corridor ?? null
+    },
+    coordinates: {
+      raw: rawData.coordinates ?? null,
+      extracted: extractedData.coordinates ?? null,
+      normalized: (event.longitude !== undefined && event.latitude !== undefined)
+        ? [event.longitude, event.latitude] : null
+    }
   };
 
   return event;
@@ -900,39 +935,52 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
             const lat = latMatch ? parseFloat(latMatch[1]) : 0;
             const lon = lonMatch ? parseFloat(lonMatch[1]) : 0;
 
-            const startRaw = item.pubDate || null;
-            const descriptionRaw = title || description || null;
-            const lanesRaw = extractLaneInfo(description, title);
-            const directionRaw = extractDirection(description, title, corridor, lat, lon);
-            const severityRaw = determineSeverityFromText(description, title);
+            // RAW: What actually exists in the RSS feed structure
+            const rawData = {
+              eventType: item.eventType ?? item.category ?? null,  // RSS doesn't have this
+              startTime: item.pubDate ?? null,  // RSS has pubDate
+              endTime: item.endDate ?? null,  // RSS doesn't have this
+              description: title || description || null,  // RSS has title/description
+              lanesAffected: item.lanes ?? item.lanesAffected ?? null,  // RSS doesn't have this
+              severity: item.severity ?? item.priority ?? null,  // RSS doesn't have this
+              direction: item.direction ?? null,  // RSS doesn't have this
+              corridor: item.route ?? item.corridor ?? null,  // RSS doesn't have this
+              coordinates: (latMatch && lonMatch) ? [parseFloat(lonMatch[1]), parseFloat(latMatch[1])] : null  // RSS has lat/lon in text
+            };
 
+            // EXTRACTED: What we can infer from text parsing
+            const extractedData = {
+              eventType: determineEventType(title),
+              startTime: item.pubDate ?? null,  // No extraction needed
+              endTime: null,  // Can't extract
+              description: title || description || null,  // No extraction needed
+              lanesAffected: extractLaneInfo(description, title),
+              severity: determineSeverityFromText(description, title),
+              direction: extractDirection(description, title, corridor, lat, lon),
+              corridor: corridor,
+              coordinates: (lat && lon) ? [lon, lat] : null
+            };
+
+            // NORMALIZED: Final values with fallbacks
             const normalizedEvent = {
               id: `${stateName.substring(0, 2).toUpperCase()}-${Math.random().toString(36).substr(2, 9)}`,
               state: stateName,
-              corridor: corridor,
-              eventType: determineEventType(title),
-              description: descriptionRaw,
+              corridor: extractedData.corridor || 'Unknown',
+              eventType: extractedData.eventType || 'Unknown',
+              description: extractedData.description || 'No description',
               location: locationText,
               county: 'Unknown',
               latitude: lat,
               longitude: lon,
-              startTime: startRaw,
+              startTime: extractedData.startTime,
               endTime: null,
-              lanesAffected: lanesRaw,
-              severity: severityRaw,
-              direction: directionRaw,
+              lanesAffected: extractedData.lanesAffected || 'Check conditions',
+              severity: extractedData.severity || 'medium',
+              direction: extractedData.direction || 'Both',
               requiresCollaboration: false
             };
 
-            normalized.push(attachRawFields(normalizedEvent, {
-              startTime: startRaw,
-              description: descriptionRaw,
-              lanesAffected: lanesRaw,
-              severity: severityRaw,
-              direction: directionRaw,
-              corridor,
-              coordinates: (lat && lon) ? [lon, lat] : null
-            }));
+            normalized.push(attachRawFields(normalizedEvent, rawData, extractedData));
           }
         });
       }
@@ -6014,18 +6062,20 @@ const notifyDetourSubscribers = async (alertRecord, interchange, event) => {
     });
 
     const recipients = db.getUsersForMessageNotification(normalizedState);
-    recipients.forEach(recipient => {
-      emailService.sendDetourAlertNotification(recipient.email, recipient.fullName || recipient.username, {
-        interchangeName: interchange.name,
-        eventCorridor: event.corridor,
-        interchangeCorridor: interchange.corridor,
-        eventDescription: event.description,
-        eventLocation: event.location,
-        severity: event.severity,
-        lanesAffected: event.lanesAffected,
-        message: alertRecord.message
-      }).catch(err => console.error('Email detour alert error:', err));
-    });
+    if (Array.isArray(recipients)) {
+      recipients.forEach(recipient => {
+        emailService.sendDetourAlertNotification(recipient.email, recipient.fullName || recipient.username, {
+          interchangeName: interchange.name,
+          eventCorridor: event.corridor,
+          interchangeCorridor: interchange.corridor,
+          eventDescription: event.description,
+          eventLocation: event.location,
+          severity: event.severity,
+          lanesAffected: event.lanesAffected,
+          message: alertRecord.message
+        }).catch(err => console.error('Email detour alert error:', err));
+      });
+    }
   });
 };
 
