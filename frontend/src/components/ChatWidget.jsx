@@ -28,7 +28,7 @@ export default function ChatWidget({ user, context }) {
 
   const loadHistory = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       const response = await axios.get(`${config.apiUrl}/api/chat/history?limit=20`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -58,7 +58,7 @@ export default function ChatWidget({ user, context }) {
     setMessages(prev => [...prev, userMsg]);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       const response = await axios.post(
         `${config.apiUrl}/api/chat`,
         { message: userMessage, context },
@@ -97,7 +97,7 @@ export default function ChatWidget({ user, context }) {
     if (!window.confirm('Clear all chat history?')) return;
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       await axios.delete(`${config.apiUrl}/api/chat/history`, {
         headers: { Authorization: `Bearer ${token}` }
       });
