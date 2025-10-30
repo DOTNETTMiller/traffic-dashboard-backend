@@ -8,6 +8,7 @@ export default function DataQualityReport() {
   const [loading, setLoading] = useState(true);
   const [loadingGuide, setLoadingGuide] = useState(false);
   const [showC2CExplanation, setShowC2CExplanation] = useState(false);
+  const [showEnhancedScores, setShowEnhancedScores] = useState(false);
 
   useEffect(() => {
     fetchSummary();
@@ -349,6 +350,137 @@ export default function DataQualityReport() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }
+  };
+
+  const renderStandardCard = (standard, title, subtitle, enhancedData) => {
+    if (!standard) return null;
+
+    // Default to RAW (what feed provides), optionally show ENHANCED (with normalization)
+    const displayData = showEnhancedScores && enhancedData ? enhancedData : standard;
+    const hasEnhancedData = enhancedData && enhancedData.percentage !== undefined;
+
+    return (
+      <div style={{
+        padding: '20px',
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        border: `2px solid ${getGradeColor(displayData.grade)}`,
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        position: 'relative'
+      }}>
+        {/* Data Source Badge */}
+        {hasEnhancedData && (
+          <div style={{
+            position: 'absolute',
+            top: '10px',
+            right: '10px',
+            padding: '4px 10px',
+            borderRadius: '12px',
+            fontSize: '11px',
+            fontWeight: 600,
+            backgroundColor: showEnhancedScores ? '#dbeafe' : '#fef3c7',
+            color: showEnhancedScores ? '#1e40af' : '#92400e',
+            border: `1px solid ${showEnhancedScores ? '#93c5fd' : '#fcd34d'}`
+          }}>
+            {showEnhancedScores ? '✨ Enhanced Data' : '📊 Raw Feed Data'}
+          </div>
+        )}
+
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          marginBottom: '12px',
+          marginTop: hasEnhancedData ? '20px' : '0'
+        }}>
+          <div>
+            <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '4px' }}>
+              {title}
+            </div>
+            <div style={{ fontSize: '11px', color: '#6b7280' }}>
+              {subtitle}
+            </div>
+          </div>
+          <div style={{
+            width: '50px',
+            height: '50px',
+            borderRadius: '8px',
+            backgroundColor: getGradeColor(displayData.grade),
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '20px',
+            fontWeight: 'bold'
+          }}>
+            {displayData.grade}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: '8px' }}>
+          <div style={{ fontSize: '28px', fontWeight: 'bold', color: getGradeColor(displayData.grade) }}>
+            {displayData.percentage}%
+          </div>
+          <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
+            {displayData.status}
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div style={{
+          height: '6px',
+          backgroundColor: '#e5e7eb',
+          borderRadius: '3px',
+          overflow: 'hidden',
+          marginBottom: '12px'
+        }}>
+          <div style={{
+            height: '100%',
+            width: `${displayData.percentage}%`,
+            backgroundColor: getGradeColor(displayData.grade),
+            transition: 'width 0.3s ease'
+          }} />
+        </div>
+
+        {/* Raw vs Enhanced Comparison */}
+        {hasEnhancedData && standard.percentage !== enhancedData.percentage && (
+          <div style={{
+            padding: '10px',
+            backgroundColor: '#f9fafb',
+            borderRadius: '6px',
+            marginBottom: '12px',
+            border: '1px solid #e5e7eb'
+          }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: '#1f2937', marginBottom: '6px' }}>
+              📈 Score Comparison
+            </div>
+            <div style={{ display: 'flex', gap: '12px', fontSize: '12px' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: '#92400e', fontWeight: 600 }}>Raw Feed</div>
+                <div style={{ color: '#6b7280' }}>
+                  {standard.percentage}% ({standard.grade})
+                </div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: '#1e40af', fontWeight: 600 }}>Enhanced</div>
+                <div style={{ color: '#6b7280' }}>
+                  {enhancedData.percentage}% ({enhancedData.grade})
+                </div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: '#10b981', fontWeight: 600 }}>Improvement</div>
+                <div style={{ color: '#6b7280' }}>
+                  +{enhancedData.percentage - standard.percentage}%
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {renderSeverityBreakdown(displayData.severityBreakdown)}
+        {renderOptionalRecommendations(displayData.optionalRecommendations || standard.optionalRecommendations)}
+      </div>
+    );
   };
 
   if (loading) {
@@ -873,6 +1005,59 @@ export default function DataQualityReport() {
                         </div>
                       </div>
 
+                      {/* Raw vs Enhanced Toggle */}
+                      {(stateGuide.multiStandardCompliance.wzdx?.enhanced || stateGuide.multiStandardCompliance.sae?.enhanced || stateGuide.multiStandardCompliance.tmdd?.enhanced) && (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          marginBottom: '16px',
+                          padding: '12px',
+                          backgroundColor: 'white',
+                          borderRadius: '8px',
+                          border: '1px solid #e5e7eb'
+                        }}>
+                          <div style={{ fontSize: '14px', fontWeight: 600, color: '#1f2937' }}>
+                            View Mode:
+                          </div>
+                          <button
+                            onClick={() => setShowEnhancedScores(false)}
+                            style={{
+                              padding: '6px 14px',
+                              borderRadius: '6px',
+                              border: showEnhancedScores ? '1px solid #e5e7eb' : '2px solid #f59e0b',
+                              backgroundColor: showEnhancedScores ? 'white' : '#fef3c7',
+                              color: showEnhancedScores ? '#6b7280' : '#92400e',
+                              fontSize: '13px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            📊 Raw Feed Data (Actual)
+                          </button>
+                          <button
+                            onClick={() => setShowEnhancedScores(true)}
+                            style={{
+                              padding: '6px 14px',
+                              borderRadius: '6px',
+                              border: showEnhancedScores ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+                              backgroundColor: showEnhancedScores ? '#eff6ff' : 'white',
+                              color: showEnhancedScores ? '#1e40af' : '#6b7280',
+                              fontSize: '13px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            ✨ Enhanced (With Inference)
+                          </button>
+                          <div style={{ fontSize: '12px', color: '#6b7280', marginLeft: 'auto', maxWidth: '300px' }}>
+                            Default shows actual feed data. Toggle to see enhanced scores.
+                          </div>
+                        </div>
+                      )}
+
                       {/* Three Standards Grid */}
                       <div style={{
                         display: 'grid',
@@ -880,233 +1065,26 @@ export default function DataQualityReport() {
                         gap: '16px',
                         marginBottom: '24px'
                       }}>
-                        {/* WZDx v4.x Card */}
-                        <div style={{
-                          padding: '20px',
-                          backgroundColor: 'white',
-                          borderRadius: '8px',
-                          border: '2px solid #3b82f6',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                        }}>
-                          <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'flex-start',
-                            marginBottom: '12px'
-                          }}>
-                            <div>
-                              <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '4px' }}>
-                                WZDx v4.x
-                              </div>
-                              <div style={{ fontSize: '11px', color: '#6b7280' }}>
-                                Open Data Standard
-                              </div>
-                            </div>
-                            <div style={{
-                              width: '50px',
-                              height: '50px',
-                              borderRadius: '8px',
-                              backgroundColor: getGradeColor(stateGuide.multiStandardCompliance.wzdx.grade),
-                              color: 'white',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '20px',
-                              fontWeight: 'bold'
-                            }}>
-                              {stateGuide.multiStandardCompliance.wzdx.grade}
-                            </div>
-                          </div>
-                          <div style={{ marginBottom: '8px' }}>
-                            <div style={{ fontSize: '28px', fontWeight: 'bold', color: getGradeColor(stateGuide.multiStandardCompliance.wzdx.grade) }}>
-                              {stateGuide.multiStandardCompliance.wzdx.percentage}%
-                            </div>
-                            <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
-                              {stateGuide.multiStandardCompliance.wzdx.status}
-                            </div>
-                          </div>
-                          <div style={{
-                            height: '6px',
-                            backgroundColor: '#e5e7eb',
-                            borderRadius: '3px',
-                            overflow: 'hidden',
-                            marginBottom: '12px'
-                          }}>
-                            <div style={{
-                              height: '100%',
-                              width: `${stateGuide.multiStandardCompliance.wzdx.percentage}%`,
-                              backgroundColor: getGradeColor(stateGuide.multiStandardCompliance.wzdx.grade),
-                              transition: 'width 0.3s ease'
-                            }} />
-                          </div>
-                          {stateGuide.multiStandardCompliance.gradeRoadmap.wzdx.pointsNeeded > 0 && (
-                            <div style={{
-                              padding: '8px',
-                              backgroundColor: '#f9fafb',
-                              borderRadius: '4px',
-                              fontSize: '11px',
-                              color: '#6b7280'
-                            }}>
-                              <strong>Path to Grade A:</strong><br />
-                              +{stateGuide.multiStandardCompliance.gradeRoadmap.wzdx.pointsNeeded} points needed<br />
-                              Est. effort: {stateGuide.multiStandardCompliance.gradeRoadmap.wzdx.estimatedEffort}
-                            </div>
-                          )}
-                          {renderSeverityBreakdown(stateGuide.multiStandardCompliance.wzdx.severityBreakdown)}
-                          {renderOptionalRecommendations(stateGuide.multiStandardCompliance.wzdx.optionalRecommendations)}
-                        </div>
+                        {renderStandardCard(
+                          stateGuide.multiStandardCompliance.wzdx,
+                          'WZDx v4.x',
+                          'Open Data Standard',
+                          stateGuide.multiStandardCompliance.wzdx?.enhanced
+                        )}
 
-                        {/* SAE J2735 Card */}
-                        <div style={{
-                          padding: '20px',
-                          backgroundColor: 'white',
-                          borderRadius: '8px',
-                          border: '2px solid #10b981',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                        }}>
-                          <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'flex-start',
-                            marginBottom: '12px'
-                          }}>
-                            <div>
-                              <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '4px' }}>
-                                SAE J2735
-                              </div>
-                              <div style={{ fontSize: '11px', color: '#6b7280' }}>
-                                V2X Communication
-                              </div>
-                            </div>
-                            <div style={{
-                              width: '50px',
-                              height: '50px',
-                              borderRadius: '8px',
-                              backgroundColor: getGradeColor(stateGuide.multiStandardCompliance.sae.grade),
-                              color: 'white',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '20px',
-                              fontWeight: 'bold'
-                            }}>
-                              {stateGuide.multiStandardCompliance.sae.grade}
-                            </div>
-                          </div>
-                          <div style={{ marginBottom: '8px' }}>
-                            <div style={{ fontSize: '28px', fontWeight: 'bold', color: getGradeColor(stateGuide.multiStandardCompliance.sae.grade) }}>
-                              {stateGuide.multiStandardCompliance.sae.percentage}%
-                            </div>
-                            <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
-                              {stateGuide.multiStandardCompliance.sae.status}
-                            </div>
-                          </div>
-                          <div style={{
-                            height: '6px',
-                            backgroundColor: '#e5e7eb',
-                            borderRadius: '3px',
-                            overflow: 'hidden',
-                            marginBottom: '12px'
-                          }}>
-                            <div style={{
-                              height: '100%',
-                              width: `${stateGuide.multiStandardCompliance.sae.percentage}%`,
-                              backgroundColor: getGradeColor(stateGuide.multiStandardCompliance.sae.grade),
-                              transition: 'width 0.3s ease'
-                            }} />
-                          </div>
-                          {stateGuide.multiStandardCompliance.gradeRoadmap.sae.pointsNeeded > 0 && (
-                            <div style={{
-                              padding: '8px',
-                              backgroundColor: '#f9fafb',
-                              borderRadius: '4px',
-                              fontSize: '11px',
-                              color: '#6b7280'
-                            }}>
-                              <strong>Path to Grade A:</strong><br />
-                              +{stateGuide.multiStandardCompliance.gradeRoadmap.sae.pointsNeeded} points needed<br />
-                              Est. effort: {stateGuide.multiStandardCompliance.gradeRoadmap.sae.estimatedEffort}
-                            </div>
-                          )}
-                          {renderSeverityBreakdown(stateGuide.multiStandardCompliance.sae.severityBreakdown)}
-                          {renderOptionalRecommendations(stateGuide.multiStandardCompliance.sae.optionalRecommendations)}
-                        </div>
+                        {renderStandardCard(
+                          stateGuide.multiStandardCompliance.sae,
+                          'SAE J2735',
+                          'V2X Communication',
+                          stateGuide.multiStandardCompliance.sae?.enhanced
+                        )}
 
-                        {/* TMDD v3.1 Card */}
-                        <div style={{
-                          padding: '20px',
-                          backgroundColor: 'white',
-                          borderRadius: '8px',
-                          border: '2px solid #f59e0b',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                        }}>
-                          <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'flex-start',
-                            marginBottom: '12px'
-                          }}>
-                            <div>
-                              <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '4px' }}>
-                                TMDD v3.1
-                              </div>
-                              <div style={{ fontSize: '11px', color: '#6b7280' }}>
-                                Center-to-Center
-                              </div>
-                            </div>
-                            <div style={{
-                              width: '50px',
-                              height: '50px',
-                              borderRadius: '8px',
-                              backgroundColor: getGradeColor(stateGuide.multiStandardCompliance.tmdd.grade),
-                              color: 'white',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '20px',
-                              fontWeight: 'bold'
-                            }}>
-                              {stateGuide.multiStandardCompliance.tmdd.grade}
-                            </div>
-                          </div>
-                          <div style={{ marginBottom: '8px' }}>
-                            <div style={{ fontSize: '28px', fontWeight: 'bold', color: getGradeColor(stateGuide.multiStandardCompliance.tmdd.grade) }}>
-                              {stateGuide.multiStandardCompliance.tmdd.percentage}%
-                            </div>
-                            <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
-                              {stateGuide.multiStandardCompliance.tmdd.status}
-                            </div>
-                          </div>
-                          <div style={{
-                            height: '6px',
-                            backgroundColor: '#e5e7eb',
-                            borderRadius: '3px',
-                            overflow: 'hidden',
-                            marginBottom: '12px'
-                          }}>
-                            <div style={{
-                              height: '100%',
-                              width: `${stateGuide.multiStandardCompliance.tmdd.percentage}%`,
-                              backgroundColor: getGradeColor(stateGuide.multiStandardCompliance.tmdd.grade),
-                              transition: 'width 0.3s ease'
-                            }} />
-                          </div>
-                          {stateGuide.multiStandardCompliance.gradeRoadmap.tmdd.pointsNeeded > 0 && (
-                            <div style={{
-                              padding: '8px',
-                              backgroundColor: '#f9fafb',
-                              borderRadius: '4px',
-                              fontSize: '11px',
-                              color: '#6b7280'
-                            }}>
-                              <strong>Path to Grade A:</strong><br />
-                              +{stateGuide.multiStandardCompliance.gradeRoadmap.tmdd.pointsNeeded} points needed<br />
-                              Est. effort: {stateGuide.multiStandardCompliance.gradeRoadmap.tmdd.estimatedEffort}
-                            </div>
-                          )}
-                          {renderSeverityBreakdown(stateGuide.multiStandardCompliance.tmdd.severityBreakdown)}
-                          {renderOptionalRecommendations(stateGuide.multiStandardCompliance.tmdd.optionalRecommendations)}
-                        </div>
+                        {renderStandardCard(
+                          stateGuide.multiStandardCompliance.tmdd,
+                          'TMDD v3.1',
+                          'Center-to-Center',
+                          stateGuide.multiStandardCompliance.tmdd?.enhanced
+                        )}
                       </div>
 
                       {renderFieldCoverageTable(stateGuide.multiStandardCompliance.wzdx?.fieldCoverage, 'WZDx v4.x')}
