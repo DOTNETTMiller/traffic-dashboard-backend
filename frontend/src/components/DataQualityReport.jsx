@@ -186,18 +186,15 @@ export default function DataQualityReport() {
         <div style={{
           overflowX: 'auto'
         }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', tableLayout: 'fixed' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ backgroundColor: '#e5e7eb', textAlign: 'left' }}>
                 <th style={{ padding: '8px', minWidth: '160px' }}>Required Field</th>
                 <th style={{ padding: '8px', minWidth: '180px' }}>Spec Field</th>
                 <th style={{ padding: '8px', minWidth: '80px' }}>Severity</th>
-                <th style={{ padding: '8px', minWidth: '80px' }}>Raw Coverage</th>
-                <th style={{ padding: '8px', minWidth: '100px' }}>Normalized Coverage</th>
-                <th style={{ padding: '8px', minWidth: '160px' }}>Raw Sample</th>
-                <th style={{ padding: '8px', minWidth: '160px' }}>Normalized Sample</th>
-                <th style={{ padding: '8px', minWidth: '160px' }}>Raw Missing</th>
-                <th style={{ padding: '8px', minWidth: '160px' }}>Normalized Missing</th>
+                <th style={{ padding: '8px', minWidth: '80px' }}>Coverage</th>
+                <th style={{ padding: '8px', minWidth: '160px' }}>Sample Value</th>
+                <th style={{ padding: '8px', minWidth: '160px' }}>Missing Example</th>
               </tr>
             </thead>
             <tbody>
@@ -218,22 +215,13 @@ export default function DataQualityReport() {
                     </span>
                   </td>
                   <td style={{ padding: '8px', fontWeight: 600 }}>
-                    {typeof row.rawCoveragePercentage === 'number' ? `${row.rawCoveragePercentage}%` : '—'}
+                    {typeof row.coveragePercentage === 'number' ? `${row.coveragePercentage}%` : '—'}
                   </td>
-                  <td style={{ padding: '8px', fontWeight: 600 }}>
-                    {typeof row.normalizedCoveragePercentage === 'number' ? `${row.normalizedCoveragePercentage}%` : '—'}
+                  <td style={{ padding: '8px', fontFamily: 'monospace', color: '#065f46' }}>
+                    {formatSample(row.sampleValue)}
                   </td>
-                  <td style={{ padding: '8px', fontFamily: 'monospace', color: '#065f46', wordBreak: 'break-word' }}>
-                    {formatSample(row.rawSample)}
-                  </td>
-                  <td style={{ padding: '8px', fontFamily: 'monospace', color: '#0f766e', wordBreak: 'break-word' }}>
-                    {formatSample(row.normalizedSample)}
-                  </td>
-                  <td style={{ padding: '8px', fontFamily: 'monospace', color: '#b91c1c', wordBreak: 'break-word' }}>
-                    {formatSample(row.rawMissingExample)}
-                  </td>
-                  <td style={{ padding: '8px', fontFamily: 'monospace', color: '#b91c1c', wordBreak: 'break-word' }}>
-                    {formatSample(row.normalizedMissingExample)}
+                  <td style={{ padding: '8px', fontFamily: 'monospace', color: '#b91c1c' }}>
+                    {formatSample(row.missingExample)}
                   </td>
                 </tr>
               ))}

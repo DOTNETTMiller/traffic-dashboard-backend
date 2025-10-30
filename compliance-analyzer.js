@@ -350,7 +350,7 @@ function validateRequirementValue(event, requirement, value) {
   };
 }
 
-function computeStandardCompliance(events, spec, useRaw = false) {
+function computeStandardCompliance(events, spec) {
   if (!events || events.length === 0) {
     return {
       weightedScore: 0,
@@ -378,11 +378,7 @@ function computeStandardCompliance(events, spec, useRaw = false) {
       passes: 0,
       total: 0,
       sampleValid: null,
-      sampleInvalid: null,
-      rawHits: 0,
-      normalizedHits: 0,
-      rawSampleValid: null,
-      rawSampleInvalid: null
+      sampleInvalid: null
     });
   });
 
@@ -398,44 +394,19 @@ function computeStandardCompliance(events, spec, useRaw = false) {
 
   events.forEach(event => {
     required.forEach(requirement => {
-      const rawCandidate = useRaw && event.rawData
-        ? getRequirementValue(event.rawData, requirement)
-        : null;
-      const normalizedValue = getRequirementValue(event, requirement);
-      const normalizedEval = validateRequirementValue(event, requirement, normalizedValue);
-      const effectiveRawValue = rawCandidate !== null ? rawCandidate : normalizedValue;
-      const rawEval = validateRequirementValue(event.rawData || {}, requirement, effectiveRawValue);
+      const value = getRequirementValue(event, requirement);
+      const evaluation = validateRequirementValue(event, requirement, value);
       const fieldStat = perField.get(requirement.field);
       fieldStat.total += 1;
 
-      if (normalizedEval.passed) {
-        fieldStat.normalizedHits = (fieldStat.normalizedHits || 0) + 1;
-        if (fieldStat.sampleValid === null && normalizedEval.normalizedValue !== undefined) {
-          fieldStat.sampleValid = normalizedEval.normalizedValue;
-        } else if (fieldStat.sampleValid === null && normalizedValue !== undefined) {
-          fieldStat.sampleValid = normalizedValue;
-        }
-      } else if (fieldStat.sampleInvalid === null && normalizedValue !== undefined) {
-        fieldStat.sampleInvalid = normalizedValue;
-      }
-
-      if (rawEval.passed) {
-        fieldStat.rawHits = (fieldStat.rawHits || 0) + 1;
-        if (fieldStat.rawSampleValid === null && rawEval.normalizedValue !== undefined) {
-          fieldStat.rawSampleValid = rawEval.normalizedValue;
-        } else if (fieldStat.rawSampleValid === null && effectiveRawValue !== undefined) {
-          fieldStat.rawSampleValid = effectiveRawValue;
-        }
-      } else if (fieldStat.rawSampleInvalid === null && effectiveRawValue !== undefined) {
-        fieldStat.rawSampleInvalid = effectiveRawValue;
-      }
-
-      const primaryEval = useRaw ? rawEval : normalizedEval;
-      const primaryValue = useRaw ? effectiveRawValue : normalizedValue;
-
-      if (primaryEval.passed) {
+      if (evaluation.passed) {
         passes[requirement.severity] += 1;
         fieldStat.passes += 1;
+        if (fieldStat.sampleValid === null && evaluation.normalizedValue !== undefined) {
+          fieldStat.sampleValid = evaluation.normalizedValue;
+        } else if (fieldStat.sampleValid === null && value !== undefined) {
+          fieldStat.sampleValid = value;
+        }
       } else {
         violations.push({
           eventId: event.id,
@@ -444,12 +415,12 @@ function computeStandardCompliance(events, spec, useRaw = false) {
           specField: requirement.specField,
           severity: requirement.severity,
           description: requirement.description,
-          message: primaryEval.message || 'Missing or invalid value',
-          sampleValue: primaryValue,
-          normalizedSample: normalizedEval.normalizedValue,
-          rawSample: rawEval.normalizedValue,
-          rawValue: effectiveRawValue
+          message: evaluation.message || 'Missing or invalid value',
+          sampleValue: value
         });
+        if (fieldStat.sampleInvalid === null && value !== undefined) {
+          fieldStat.sampleInvalid = value;
+        }
       }
     });
 
@@ -480,24 +451,16 @@ function computeStandardCompliance(events, spec, useRaw = false) {
   }, 0);
 
   const fieldCoverage = Array.from(perField.values()).map(stat => {
-    const primaryCoverage = stat.total === 0 ? 0 : stat.passes / stat.total;
-    const rawCoverage = stat.total === 0 ? 0 : (stat.rawHits || 0) / stat.total;
-    const normalizedCoverage = stat.total === 0 ? 0 : (stat.normalizedHits || 0) / stat.total;
+    const coverage = stat.total === 0 ? 0 : stat.passes / stat.total;
     return {
       field: stat.requirement.field,
       specField: stat.requirement.specField,
       description: stat.requirement.description,
       severity: stat.requirement.severity,
-      coverage: primaryCoverage,
-      coveragePercentage: Math.round(primaryCoverage * 100),
-      rawCoverage,
-      rawCoveragePercentage: Math.round(rawCoverage * 100),
-      normalizedCoverage,
-      normalizedCoveragePercentage: Math.round(normalizedCoverage * 100),
-      rawSample: stat.rawSampleValid,
-      normalizedSample: stat.sampleValid,
-      rawMissingExample: stat.rawSampleInvalid,
-      normalizedMissingExample: stat.sampleInvalid
+      coverage,
+      coveragePercentage: Math.round(coverage * 100),
+      sampleValue: stat.sampleValid,
+      missingExample: stat.sampleInvalid
     };
   });
 
@@ -641,26 +604,18 @@ class ComplianceAnalyzer {
     const tmddScore = this.analyzeTMDDCompliance(events);
 
     // Calculate overall composite score
-    let overallScore = this.calculateCompositeScore(wzdxScore, saeScore, tmddScore);
+    const overallScore = this.calculateCompositeScore(wzdxScore, saeScore, tmddScore);
 
     // Generate action plan
     const actionPlan = this.generateActionPlan(fieldAnalysis, events);
 
-    // C2C compliance (ngTMDD tool placeholder)
+    // C2C compliance
     const c2cCompliance = this.analyzeC2CCompliance(events);
-    if (c2cCompliance && typeof c2cCompliance.score === 'number') {
-      const cappedPercentage = Math.min(overallScore.percentage, Math.round(c2cCompliance.score));
-      if (cappedPercentage !== overallScore.percentage) {
-        const descriptors = this.describeComposite(cappedPercentage);
-        overallScore = {
-          ...overallScore,
-          percentage: cappedPercentage,
-          grade: descriptors.grade,
-          rank: descriptors.rank,
-          message: descriptors.message
-        };
-      }
-    }
+
+    // Multi-standard compliance
+    const multiStandardCompliance = this.analyzeMultiStandardCompliance(
+      wzdxScore, saeScore, tmddScore, events
+    );
 
     return {
       state: stateName,
@@ -683,7 +638,7 @@ class ComplianceAnalyzer {
   // Analyze WZDx v4.x compliance
   analyzeWZDxCompliance(events) {
     const spec = STANDARD_REQUIREMENTS.WZDx_v4;
-    const evaluation = computeStandardCompliance(events, spec, true);
+    const evaluation = computeStandardCompliance(events, spec);
     let percentage = Math.round(evaluation.weightedScore * 100);
     let grade = this.getLetterGrade(percentage);
     grade = adjustGradeForCritical(grade, evaluation.severityRatios.critical);
@@ -710,7 +665,7 @@ class ComplianceAnalyzer {
   // Analyze SAE J2735 compliance
   analyzeSAEJ2735Compliance(events) {
     const spec = STANDARD_REQUIREMENTS.SAE_J2735_TIM;
-    const evaluation = computeStandardCompliance(events, spec, true);
+    const evaluation = computeStandardCompliance(events, spec);
     let percentage = Math.round(evaluation.weightedScore * 100);
     let grade = this.getLetterGrade(percentage);
     grade = adjustGradeForCritical(grade, evaluation.severityRatios.critical);
@@ -737,7 +692,7 @@ class ComplianceAnalyzer {
   // Analyze TMDD/ngTMDD compliance
   analyzeTMDDCompliance(events) {
     const spec = STANDARD_REQUIREMENTS.TMDD_ngC2C;
-    const evaluation = computeStandardCompliance(events, spec, true);
+    const evaluation = computeStandardCompliance(events, spec);
     let percentage = Math.round(evaluation.weightedScore * 100);
     let grade = this.getLetterGrade(percentage);
     grade = adjustGradeForCritical(grade, evaluation.severityRatios.critical);
@@ -770,26 +725,9 @@ class ComplianceAnalyzer {
       (tmdd.percentage * 0.25)
     );
 
-    const { grade, rank, message } = this.describeComposite(percentage);
-
-    return {
-      percentage: percentage,
-      grade: grade,
-      rank: rank,
-      message: message,
-      breakdown: {
-        wzdx: wzdx,
-        sae: sae,
-        tmdd: tmdd
-      }
-    };
-  }
-
-  describeComposite(percentage) {
     const grade = this.getLetterGrade(percentage);
-    let rank;
-    let message;
 
+    let rank, message;
     if (percentage >= 90) {
       rank = '🏆 Excellent - Multi-Standard Leader';
       message = 'Outstanding compliance across all standards';
@@ -807,7 +745,17 @@ class ComplianceAnalyzer {
       message = 'Major compliance issues, immediate action needed';
     }
 
-    return { grade, rank, message };
+    return {
+      percentage: percentage,
+      grade: grade,
+      rank: rank,
+      message: message,
+      breakdown: {
+        wzdx: wzdx,
+        sae: sae,
+        tmdd: tmdd
+      }
+    };
   }
 
   // Analyze field completeness using normalized field access
@@ -1020,12 +968,48 @@ class ComplianceAnalyzer {
 
   // Analyze C2C compliance
   analyzeC2CCompliance(events) {
+    let score = 0;
+    const recommendations = [];
+
+    // Check critical C2C fields
+    const hasIds = events.filter(e => e.id).length / events.length;
+    const hasCoords = events.filter(e => e.coordinates && e.coordinates.length === 2).length / events.length;
+    const hasTimestamps = events.filter(e => e.startDate).length / events.length;
+    const hasLocation = events.filter(e => e.location).length / events.length;
+
+    score += hasIds * 25;
+    score += hasCoords * 25;
+    score += hasTimestamps * 25;
+    score += hasLocation * 25;
+
+    if (hasIds < 0.9) {
+      recommendations.push({
+        field: 'Event ID',
+        importance: 'CRITICAL',
+        issue: `Only ${Math.round(hasIds * 100)}% of events have unique IDs`,
+        solution: 'Add unique identifiers to all events for C2C tracking'
+      });
+    }
+
+    if (hasCoords < 0.9) {
+      recommendations.push({
+        field: 'Geographic Coordinates',
+        importance: 'CRITICAL',
+        issue: `Only ${Math.round(hasCoords * 100)}% of events have coordinates`,
+        solution: 'Include latitude/longitude for all events'
+      });
+    }
+
+    const finalScore = Math.round(score);
+
     return {
-      score: null,
-      grade: 'Pending',
-      message: 'ngTMDD C2C-MVT validation not yet run',
-      validationTool: 'C2C-MVT (integration pending)',
-      recommendations: []
+      score: finalScore,
+      grade: finalScore >= 80 ? 'PASS' : 'FAIL',
+      message: finalScore >= 80 ?
+        'Data meets C2C requirements for inter-agency communication' :
+        `Score of ${finalScore}/100 - Improvements needed for C2C readiness`,
+      validationTool: 'C2C-MVT Analysis',
+      recommendations: recommendations
     };
   }
 

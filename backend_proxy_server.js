@@ -188,48 +188,6 @@ const requireUserOrStateAuth = (req, res, next) => {
 };
 
 const FRONTEND_DIST_PATH = path.join(__dirname, 'frontend', 'dist');
-const TRUCK_PARKING_PREDICTIONS_PATH = path.join(__dirname, 'data', 'truck_parking_predictions.json');
-
-let truckParkingPredictions = null;
-
-const loadTruckParkingPredictions = () => {
-  if (!fs.existsSync(TRUCK_PARKING_PREDICTIONS_PATH)) {
-    console.warn('⚠️  Truck parking predictions file not found');
-    return null;
-  }
-
-  try {
-    const raw = JSON.parse(fs.readFileSync(TRUCK_PARKING_PREDICTIONS_PATH, 'utf-8'));
-
-    // Build quick lookup tables for requested hours
-    Object.entries(raw.sites).forEach(([siteId, siteData]) => {
-      const hourMap = {};
-      (siteData.hourly || []).forEach(entry => {
-        hourMap[entry.hour_of_week] = entry;
-      });
-      siteData.hourMap = hourMap;
-    });
-
-    raw.statewideHourMap = {};
-    (raw.statewide_hourly || []).forEach(entry => {
-      raw.statewideHourMap[entry.hour_of_week] = entry;
-    });
-
-    console.log('✅ Loaded truck parking predictions');
-    return raw;
-  } catch (error) {
-    console.error('⚠️  Failed to parse truck parking predictions:', error.message);
-    return null;
-  }
-};
-
-truckParkingPredictions = loadTruckParkingPredictions();
-
-const getHourOfWeekUTC = (date) => {
-  const hour = date.getUTCHours();
-  const day = date.getUTCDay();
-  return ((day * 24) + hour) % 168;
-};
 
 const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
   const toRad = (deg) => (deg * Math.PI) / 180;
@@ -501,7 +459,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
               county: item.county || 'Unknown',
               latitude: parseFloat(item.start_latitude) || 0,
               longitude: parseFloat(item.start_longitude) || 0,
-              startTime: item.start_time || null,
+              startTime: item.start_time || new Date().toISOString(),
               endTime: item.end_time || null,
               lanesAffected: item.lanes_affected || 'Check conditions',
               severity: determineSeverity(item),
@@ -527,7 +485,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
               county: item.county || 'Unknown',
               latitude: parseFloat(item.latitude) || 0,
               longitude: parseFloat(item.longitude) || 0,
-              startTime: item.startDate || item.created || null,
+              startTime: item.startDate || item.created || new Date().toISOString(),
               endTime: item.estimatedEndDate || item.endDate || null,
               lanesAffected: item.lanesBlocked || item.lanesAffected || 'Unknown',
               severity: item.severity || 'medium',
@@ -567,46 +525,23 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
 
           // Only include events on interstate highways
           if (isInterstateRoute(locationText)) {
-            const corridor = extractCorridor(locationText);
-            const startRaw = props.start_date || null;
-            const endRaw = props.end_date || null;
-            const descriptionRaw = props.description || null;
-            const lanesRaw = props.lanes?.[0]?.status || null;
-            const directionRaw = props.direction || null;
-            const severityRaw = props.event_status || null;
-
-            const normalizedEvent = {
+            normalized.push({
               id: `UT-${props.road_event_id || Math.random().toString(36).substr(2, 9)}`,
               state: 'Utah',
-              corridor,
+              corridor: extractCorridor(locationText),
               eventType: props.event_type || 'Construction',
-              description: descriptionRaw || 'Work zone',
+              description: props.description || 'Work zone',
               location: locationText,
               county: props.county || 'Unknown',
               latitude: lat,
               longitude: lng,
-              startTime: startRaw || null,
-              endTime: endRaw || null,
-              lanesAffected: lanesRaw || 'Check conditions',
-              severity: severityRaw === 'active' ? 'medium' : 'low',
-              direction: directionRaw || 'Both',
+              startTime: props.start_date || new Date().toISOString(),
+              endTime: props.end_date || null,
+              lanesAffected: props.lanes?.[0]?.status || 'Check conditions',
+              severity: props.event_status === 'active' ? 'medium' : 'low',
+              direction: props.direction || 'Both',
               requiresCollaboration: false
-            };
-
-            normalizedEvent.rawData = {
-              id: props.road_event_id || null,
-              eventType: props.event_type || null,
-              startTime: startRaw,
-              endTime: endRaw,
-              description: descriptionRaw,
-              lanesAffected: lanesRaw,
-              direction: directionRaw,
-              severity: severityRaw,
-              coordinates: (lat && lng) ? [lng, lat] : null,
-              corridor
-            };
-
-            normalized.push(normalizedEvent);
+            });
           }
         });
       }
@@ -659,45 +594,23 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
             // Extract event ID from core_details or feature id
             const eventId = coreDetails.road_event_id || props.road_event_id || feature.id || Math.random().toString(36).substr(2, 9);
 
-            const corridor = extractCorridor(locationText);
-            const startRaw = props.start_date || coreDetails.start_date || null;
-            const endRaw = props.end_date || coreDetails.end_date || null;
-            const descriptionRaw = coreDetails.description || props.description || null;
-            const lanesRaw = props.vehicle_impact || null;
-            const directionRaw = coreDetails.direction || props.direction || null;
-
-            const normalizedEvent = {
+            normalized.push({
               id: `${stateAbbr}-${eventId}`,
               state: stateName,
-              corridor,
+              corridor: extractCorridor(locationText),
               eventType: coreDetails.event_type || props.event_type || 'work-zone',
-              description: descriptionRaw || 'Work zone',
+              description: coreDetails.description || props.description || 'Work zone',
               location: locationText,
               county: props.county || 'Unknown',
               latitude: lat,
               longitude: lng,
-              startTime: startRaw || null,
-              endTime: endRaw || null,
-              lanesAffected: lanesRaw || 'Check conditions',
-              severity: lanesRaw === 'all-lanes-open' ? 'low' : 'medium',
-              direction: directionRaw || 'Both',
+              startTime: props.start_date || coreDetails.start_date || new Date().toISOString(),
+              endTime: props.end_date || coreDetails.end_date || null,
+              lanesAffected: props.vehicle_impact || 'Check conditions',
+              severity: (props.vehicle_impact === 'all-lanes-open') ? 'low' : 'medium',
+              direction: coreDetails.direction || props.direction || 'Both',
               requiresCollaboration: false
-            };
-
-            normalizedEvent.rawData = {
-              id: eventId,
-              eventType: coreDetails.event_type || props.event_type || null,
-              startTime: startRaw,
-              endTime: endRaw,
-              description: descriptionRaw,
-              lanesAffected: lanesRaw,
-              direction: directionRaw,
-              severity: props.vehicle_impact || null,
-              coordinates: (lat && lng) ? [lng, lat] : null,
-              corridor
-            };
-
-            normalized.push(normalizedEvent);
+            });
           }
         });
 
@@ -801,7 +714,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
                 county: 'Unknown',
                 latitude: lat,
                 longitude: lng,
-                startTime: detail?.['event-times']?.['start-time'] || null,
+                startTime: detail?.['event-times']?.['start-time'] || new Date().toISOString(),
                 endTime: detail?.['event-times']?.['end-time'] || null,
                 lanesAffected: extractLaneInfo(descText, headlineText),
                 severity: determineSeverityFromText(descText, headlineText),
@@ -843,7 +756,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
               county: 'Unknown',
               latitude: lat,
               longitude: lon,
-              startTime: item.pubDate || null,
+              startTime: item.pubDate || new Date().toISOString(),
               endTime: null,
               lanesAffected: extractLaneInfo(description, title),
               severity: determineSeverityFromText(description, title),
@@ -5149,64 +5062,6 @@ app.get('/api/states/list', async (req, res) => {
       stateKey: s.stateKey,
       stateName: s.stateName
     }))
-  });
-});
-
-// ==================== TRUCK PARKING PREDICTIONS ====================
-
-app.get('/api/truck-parking/predictions', (req, res) => {
-  if (!truckParkingPredictions) {
-    return res.status(503).json({ error: 'Truck parking predictions unavailable' });
-  }
-
-  const timestampParam = req.query.timestamp;
-  const hourOffsetParam = req.query.hourOffset;
-  const siteFilter = req.query.siteId;
-
-  const requestDate = timestampParam ? new Date(timestampParam) : new Date();
-  if (Number.isNaN(requestDate.getTime())) {
-    return res.status(400).json({ error: 'Invalid timestamp parameter' });
-  }
-
-  let targetHour = getHourOfWeekUTC(requestDate);
-  if (hourOffsetParam !== undefined) {
-    const offset = parseInt(hourOffsetParam, 10);
-    if (!Number.isNaN(offset)) {
-      targetHour = ((targetHour + offset) % 168 + 168) % 168;
-    }
-  }
-
-  const sitesRequested = siteFilter
-    ? siteFilter.split(',').map(s => s.trim()).filter(Boolean)
-    : Object.keys(truckParkingPredictions.sites);
-
-  const siteResults = [];
-  sitesRequested.forEach(siteId => {
-    const siteData = truckParkingPredictions.sites[siteId];
-    if (!siteData) return;
-    const hourly = siteData.hourMap[targetHour] || null;
-    siteResults.push({
-      siteId,
-      siteName: siteData.site_name || null,
-      latitude: siteData.latitude || null,
-      longitude: siteData.longitude || null,
-      capacity: siteData.capacity || (hourly ? hourly.mean_capacity : null),
-      roadway: siteData.roadway || null,
-      state: siteData.state || null,
-      prediction: hourly
-    });
-  });
-
-  const statewide = truckParkingPredictions.statewideHourMap[targetHour] || null;
-
-  res.json({
-    success: true,
-    generatedAt: truckParkingPredictions.generated_at,
-    requestTimestamp: requestDate.toISOString(),
-    hourOfWeek: targetHour,
-    metadata: truckParkingPredictions.metadata,
-    statewide,
-    sites: siteResults
   });
 });
 
