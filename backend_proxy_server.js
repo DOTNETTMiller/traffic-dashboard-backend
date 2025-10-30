@@ -16,6 +16,7 @@ const { fetchOhioEvents } = require('./scripts/fetch_ohio_events');
 const { fetchCaltransLCS } = require('./scripts/fetch_caltrans_lcs');
 const { fetchPennDOTRCRS } = require('./scripts/fetch_penndot_rcrs');
 const ComplianceAnalyzer = require('./compliance-analyzer');
+const { OpenAI } = require('openai');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -25,6 +26,11 @@ app.use(compression());
 
 // JWT Secret (should be in environment variable in production)
 const JWT_SECRET = process.env.JWT_SECRET || 'ccai2026-traffic-dashboard-secret-key';
+
+// OpenAI initialization for chat assistance
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || ''
+});
 
 // Auto-migrate users to email-based usernames on startup (if needed)
 let migrationAttempted = false;
@@ -5304,6 +5310,147 @@ app.get('/api/states/list', async (req, res) => {
       stateName: s.stateName
     }))
   });
+});
+
+// ==================== AI CHAT ASSISTANT ====================
+
+// System prompt with WZDx, TMDD, SAE J2735 expertise
+const SYSTEM_PROMPT = `You are an expert AI assistant for the DOT Corridor Communicator system. You help state DOTs understand and improve their traffic data feed compliance.
+
+Your expertise includes:
+- WZDx v4.x (Work Zone Data Exchange) specification
+- SAE J2735 (V2X messaging standard)
+- TMDD (Traffic Management Data Dictionary) standard
+- Feed alignment and normalization best practices
+- Compliance scoring and data quality assessment
+
+You can help users with:
+1. **Compliance Scores**: Explain why they received a specific score and what fields they need to add
+2. **Standards Questions**: Answer questions about WZDx, TMDD, SAE J2735 field definitions and requirements
+3. **Feed Issues**: Diagnose parsing errors, validation issues, and field mapping problems
+4. **Implementation Guidance**: Provide code examples and best practices for improving feed quality
+
+When a user asks about their compliance:
+- Reference their actual data (provided in context)
+- Be specific about missing fields
+- Explain the difference between raw (in feed structure), extracted (parsed from text), and normalized (with fallbacks)
+- Provide actionable recommendations
+
+Be concise, technical, and helpful. Focus on practical solutions.`;
+
+app.post('/api/chat', requireUser, async (req, res) => {
+  const { message, context } = req.body;
+
+  if (!message) {
+    return res.status(400).json({ error: 'Message is required' });
+  }
+
+  // Check if OpenAI API key is configured
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(503).json({
+      error: 'AI chat is not configured. Please contact administrator to add OPENAI_API_KEY.'
+    });
+  }
+
+  try {
+    const userId = req.user?.id;
+    const stateKey = req.user?.stateKey;
+
+    // Get conversation history
+    const history = db.getChatHistory(userId, stateKey, 20);
+
+    // Build context for the AI based on what the user is viewing
+    let contextInfo = '';
+
+    if (context) {
+      if (context.type === 'compliance' && context.data) {
+        // User is viewing compliance scores
+        const { stateKey, complianceData } = context.data;
+        contextInfo = `\n\nCURRENT CONTEXT: User is viewing compliance report for ${stateKey}\n`;
+        if (complianceData) {
+          contextInfo += `Compliance Scores:\n`;
+          contextInfo += `- WZDx: ${complianceData.wzdx || 'N/A'}%\n`;
+          contextInfo += `- SAE J2735: ${complianceData.sae || 'N/A'}%\n`;
+          contextInfo += `- TMDD: ${complianceData.tmdd || 'N/A'}%\n`;
+          if (complianceData.fieldCoverage) {
+            contextInfo += `\nField Coverage:\n`;
+            complianceData.fieldCoverage.slice(0, 5).forEach(field => {
+              contextInfo += `- ${field.field}: Raw ${field.rawCoveragePercentage}%, Extracted ${field.extractedCoveragePercentage}%, Normalized ${field.normalizedCoveragePercentage}%\n`;
+            });
+          }
+        }
+      } else if (context.type === 'feed-alignment' && context.data) {
+        contextInfo = `\n\nCURRENT CONTEXT: User is viewing feed alignment analysis\n`;
+        const { issues, recommendations } = context.data;
+        if (issues && issues.length > 0) {
+          contextInfo += `Issues: ${issues.join(', ')}\n`;
+        }
+        if (recommendations && recommendations.length > 0) {
+          contextInfo += `Recommendations: ${recommendations.slice(0, 3).join(', ')}\n`;
+        }
+      }
+    }
+
+    // Build conversation messages for OpenAI
+    const messages = [
+      { role: 'system', content: SYSTEM_PROMPT + contextInfo },
+      ...history.map(h => ({ role: h.role, content: h.message })),
+      { role: 'user', content: message }
+    ];
+
+    // Call OpenAI API
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',  // Fast and cost-effective
+      messages,
+      temperature: 0.7,
+      max_tokens: 800
+    });
+
+    const assistantMessage = completion.choices[0].message.content;
+
+    // Save both messages to database
+    db.saveChatMessage(userId, stateKey, 'user', message, context?.type, context?.data);
+    db.saveChatMessage(userId, stateKey, 'assistant', assistantMessage);
+
+    res.json({
+      success: true,
+      message: assistantMessage,
+      usage: {
+        promptTokens: completion.usage.prompt_tokens,
+        completionTokens: completion.usage.completion_tokens,
+        totalTokens: completion.usage.total_tokens
+      }
+    });
+  } catch (error) {
+    console.error('Error in chat endpoint:', error);
+    res.status(500).json({
+      error: 'Failed to process chat message',
+      details: error.message
+    });
+  }
+});
+
+// Get chat history for current user
+app.get('/api/chat/history', requireUser, (req, res) => {
+  const userId = req.user?.id;
+  const stateKey = req.user?.stateKey;
+  const limit = parseInt(req.query.limit) || 50;
+
+  const history = db.getChatHistory(userId, stateKey, limit);
+
+  res.json({
+    success: true,
+    count: history.length,
+    messages: history
+  });
+});
+
+// Clear chat history for current user
+app.delete('/api/chat/history', requireUser, (req, res) => {
+  const userId = req.user?.id;
+  const result = db.clearChatHistory(userId);
+
+  res.json(result);
 });
 
 // ==================== TRUCK PARKING PREDICTIONS ====================
