@@ -213,6 +213,18 @@ class StateDatabase {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_login TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS chat_conversations (
+        id TEXT PRIMARY KEY,
+        user_id INTEGER,
+        state_key TEXT,
+        role TEXT NOT NULL,
+        message TEXT NOT NULL,
+        context_type TEXT,
+        context_data TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
     `);
   }
 
@@ -435,6 +447,18 @@ class StateDatabase {
         event_nearby BOOLEAN DEFAULT 0,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (facility_id) REFERENCES truck_parking_facilities(facility_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS chat_conversations (
+        id TEXT PRIMARY KEY,
+        user_id INTEGER,
+        state_key TEXT,
+        role TEXT NOT NULL,
+        message TEXT NOT NULL,
+        context_type TEXT,
+        context_data TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
       );
 
       CREATE INDEX IF NOT EXISTS idx_state_key ON states(state_key);
@@ -2033,6 +2057,68 @@ class StateDatabase {
     } catch (error) {
       console.error('Error getting prediction accuracy stats:', error);
       return [];
+    }
+  }
+
+  // ==================== Chat Conversation Methods ====================
+
+  saveChatMessage(userId, stateKey, role, message, contextType = null, contextData = null) {
+    try {
+      const id = crypto.randomBytes(16).toString('hex');
+      const stmt = this.db.prepare(`
+        INSERT INTO chat_conversations (id, user_id, state_key, role, message, context_type, context_data)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(id, userId, stateKey, role, message, contextType, contextData ? JSON.stringify(contextData) : null);
+      return { success: true, id };
+    } catch (error) {
+      console.error('Error saving chat message:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  getChatHistory(userId = null, stateKey = null, limit = 50) {
+    try {
+      let sql = 'SELECT * FROM chat_conversations WHERE 1=1';
+      const params = [];
+
+      if (userId) {
+        sql += ' AND user_id = ?';
+        params.push(userId);
+      }
+
+      if (stateKey) {
+        sql += ' AND state_key = ?';
+        params.push(stateKey);
+      }
+
+      sql += ' ORDER BY created_at DESC LIMIT ?';
+      params.push(limit);
+
+      const rows = this.db.prepare(sql).all(...params);
+      return rows.map(row => ({
+        id: row.id,
+        userId: row.user_id,
+        stateKey: row.state_key,
+        role: row.role,
+        message: row.message,
+        contextType: row.context_type,
+        contextData: row.context_data ? JSON.parse(row.context_data) : null,
+        createdAt: row.created_at
+      })).reverse();
+    } catch (error) {
+      console.error('Error getting chat history:', error);
+      return [];
+    }
+  }
+
+  clearChatHistory(userId) {
+    try {
+      this.db.prepare('DELETE FROM chat_conversations WHERE user_id = ?').run(userId);
+      return { success: true };
+    } catch (error) {
+      console.error('Error clearing chat history:', error);
+      return { success: false, error: error.message };
     }
   }
 

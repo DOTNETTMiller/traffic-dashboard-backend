@@ -18,6 +18,7 @@ import AdminInterchanges from './components/AdminInterchanges';
 import AdminFeedSubmissions from './components/AdminFeedSubmissions';
 import FeedSubmission from './components/FeedSubmission';
 import DocumentationViewer from './components/DocumentationViewer';
+import ChatWidget from './components/ChatWidget';
 import './styles/App.css';
 
 function App() {
@@ -565,6 +566,25 @@ function App() {
           onSendMessage={handleCommentAdded}
           onClose={() => setSelectedEvent(null)}
           currentUser={currentUser}
+        />
+      )}
+
+      {/* AI Chat Widget */}
+      {isAuthenticated && currentUser && (
+        <ChatWidget
+          user={currentUser}
+          context={view === 'report' ? {
+            type: 'compliance',
+            data: {
+              stateKey: currentUser.stateKey,
+              view: 'data-quality'
+            }
+          } : view === 'alignment' ? {
+            type: 'feed-alignment',
+            data: {
+              view: 'alignment-analysis'
+            }
+          } : null}
         />
       )}
     </div>
