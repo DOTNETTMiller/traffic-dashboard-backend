@@ -459,7 +459,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
               county: item.county || 'Unknown',
               latitude: parseFloat(item.start_latitude) || 0,
               longitude: parseFloat(item.start_longitude) || 0,
-              startTime: item.start_time || new Date().toISOString(),
+              startTime: item.start_time || null,
               endTime: item.end_time || null,
               lanesAffected: item.lanes_affected || 'Check conditions',
               severity: determineSeverity(item),
@@ -485,7 +485,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
               county: item.county || 'Unknown',
               latitude: parseFloat(item.latitude) || 0,
               longitude: parseFloat(item.longitude) || 0,
-              startTime: item.startDate || item.created || new Date().toISOString(),
+              startTime: item.startDate || item.created || null,
               endTime: item.estimatedEndDate || item.endDate || null,
               lanesAffected: item.lanesBlocked || item.lanesAffected || 'Unknown',
               severity: item.severity || 'medium',
@@ -525,23 +525,46 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
 
           // Only include events on interstate highways
           if (isInterstateRoute(locationText)) {
-            normalized.push({
+            const corridor = extractCorridor(locationText);
+            const startRaw = props.start_date || null;
+            const endRaw = props.end_date || null;
+            const descriptionRaw = props.description || null;
+            const lanesRaw = props.lanes?.[0]?.status || null;
+            const directionRaw = props.direction || null;
+            const severityRaw = props.event_status || null;
+
+            const normalizedEvent = {
               id: `UT-${props.road_event_id || Math.random().toString(36).substr(2, 9)}`,
               state: 'Utah',
-              corridor: extractCorridor(locationText),
+              corridor,
               eventType: props.event_type || 'Construction',
-              description: props.description || 'Work zone',
+              description: descriptionRaw || 'Work zone',
               location: locationText,
               county: props.county || 'Unknown',
               latitude: lat,
               longitude: lng,
-              startTime: props.start_date || new Date().toISOString(),
-              endTime: props.end_date || null,
-              lanesAffected: props.lanes?.[0]?.status || 'Check conditions',
-              severity: props.event_status === 'active' ? 'medium' : 'low',
-              direction: props.direction || 'Both',
+              startTime: startRaw || null,
+              endTime: endRaw || null,
+              lanesAffected: lanesRaw || 'Check conditions',
+              severity: severityRaw === 'active' ? 'medium' : 'low',
+              direction: directionRaw || 'Both',
               requiresCollaboration: false
-            });
+            };
+
+            normalizedEvent.rawData = {
+              id: props.road_event_id || null,
+              eventType: props.event_type || null,
+              startTime: startRaw,
+              endTime: endRaw,
+              description: descriptionRaw,
+              lanesAffected: lanesRaw,
+              direction: directionRaw,
+              severity: severityRaw,
+              coordinates: (lat && lng) ? [lng, lat] : null,
+              corridor
+            };
+
+            normalized.push(normalizedEvent);
           }
         });
       }
@@ -594,23 +617,45 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
             // Extract event ID from core_details or feature id
             const eventId = coreDetails.road_event_id || props.road_event_id || feature.id || Math.random().toString(36).substr(2, 9);
 
-            normalized.push({
+            const corridor = extractCorridor(locationText);
+            const startRaw = props.start_date || coreDetails.start_date || null;
+            const endRaw = props.end_date || coreDetails.end_date || null;
+            const descriptionRaw = coreDetails.description || props.description || null;
+            const lanesRaw = props.vehicle_impact || null;
+            const directionRaw = coreDetails.direction || props.direction || null;
+
+            const normalizedEvent = {
               id: `${stateAbbr}-${eventId}`,
               state: stateName,
-              corridor: extractCorridor(locationText),
+              corridor,
               eventType: coreDetails.event_type || props.event_type || 'work-zone',
-              description: coreDetails.description || props.description || 'Work zone',
+              description: descriptionRaw || 'Work zone',
               location: locationText,
               county: props.county || 'Unknown',
               latitude: lat,
               longitude: lng,
-              startTime: props.start_date || coreDetails.start_date || new Date().toISOString(),
-              endTime: props.end_date || coreDetails.end_date || null,
-              lanesAffected: props.vehicle_impact || 'Check conditions',
-              severity: (props.vehicle_impact === 'all-lanes-open') ? 'low' : 'medium',
-              direction: coreDetails.direction || props.direction || 'Both',
+              startTime: startRaw || null,
+              endTime: endRaw || null,
+              lanesAffected: lanesRaw || 'Check conditions',
+              severity: lanesRaw === 'all-lanes-open' ? 'low' : 'medium',
+              direction: directionRaw || 'Both',
               requiresCollaboration: false
-            });
+            };
+
+            normalizedEvent.rawData = {
+              id: eventId,
+              eventType: coreDetails.event_type || props.event_type || null,
+              startTime: startRaw,
+              endTime: endRaw,
+              description: descriptionRaw,
+              lanesAffected: lanesRaw,
+              direction: directionRaw,
+              severity: props.vehicle_impact || null,
+              coordinates: (lat && lng) ? [lng, lat] : null,
+              corridor
+            };
+
+            normalized.push(normalizedEvent);
           }
         });
 
@@ -714,7 +759,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
                 county: 'Unknown',
                 latitude: lat,
                 longitude: lng,
-                startTime: detail?.['event-times']?.['start-time'] || new Date().toISOString(),
+                startTime: detail?.['event-times']?.['start-time'] || null,
                 endTime: detail?.['event-times']?.['end-time'] || null,
                 lanesAffected: extractLaneInfo(descText, headlineText),
                 severity: determineSeverityFromText(descText, headlineText),
@@ -756,7 +801,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
               county: 'Unknown',
               latitude: lat,
               longitude: lon,
-              startTime: item.pubDate || new Date().toISOString(),
+              startTime: item.pubDate || null,
               endTime: null,
               lanesAffected: extractLaneInfo(description, title),
               severity: determineSeverityFromText(description, title),
