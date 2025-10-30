@@ -5400,7 +5400,7 @@ app.post('/api/chat', requireUser, async (req, res) => {
 
     // Call OpenAI API
     const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',  // Very cost-effective
+      model: 'gpt-4o-mini',  // Most cost-effective
       messages,
       temperature: 0.7,
       max_tokens: 800
