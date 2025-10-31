@@ -120,19 +120,37 @@ class TruckParkingService {
     }
 
     const predictions = [];
+    const alerts = [];
 
     for (const [facilityId] of this.facilities) {
       const result = this.predictAvailability(facilityId, targetTime);
       if (result.success) {
         predictions.push(result.prediction);
+
+        // Check for low parking availability (5 or fewer spaces)
+        if (result.prediction.predictedAvailable <= 5 && result.prediction.predictedAvailable >= 0) {
+          alerts.push({
+            facilityId: result.prediction.facilityId,
+            facilityName: result.prediction.siteId,
+            state: result.prediction.state,
+            availableSpaces: result.prediction.predictedAvailable,
+            severity: result.prediction.predictedAvailable === 0 ? 'critical' : 'warning',
+            message: result.prediction.predictedAvailable === 0
+              ? `🅿️ PARKING FULL at ${result.prediction.siteId}`
+              : `🅿️ PARKING LIMITED at ${result.prediction.siteId} - Only ${result.prediction.predictedAvailable} space${result.prediction.predictedAvailable === 1 ? '' : 's'} available`,
+            timestamp: targetTime.toISOString()
+          });
+        }
       }
     }
 
     return {
       success: true,
       predictions,
+      alerts,
       predictedFor: targetTime.toISOString(),
-      count: predictions.length
+      count: predictions.length,
+      alertCount: alerts.length
     };
   }
 
