@@ -50,16 +50,33 @@ export default function ParkingLayer({ showParking = false }) {
       setError(null);
 
       try {
-        // Fetch both facilities and their latest availability
-        const response = await api.get('/api/parking/availability');
+        // Fetch historical pattern-based predictions for all facilities
+        const response = await api.get('/api/parking/historical/predict-all');
 
         if (response.data && response.data.success) {
-          setParkingData(response.data.availability);
+          // Transform the prediction data to match the expected format
+          const transformedData = response.data.predictions.map(pred => ({
+            facilityId: pred.facilityId,
+            facilityName: pred.siteId || pred.facilityId,
+            state: pred.state,
+            latitude: pred.latitude || 0, // Will need coordinates from TruckStopsExport.xlsx
+            longitude: pred.longitude || 0,
+            availableSpaces: pred.predictedAvailable,
+            occupiedSpaces: pred.predictedOccupied,
+            truckSpaces: pred.capacity,
+            isPrediction: true,
+            predictionConfidence: pred.confidence === 'high' ? 0.9 : pred.confidence === 'medium' ? 0.7 : 0.5,
+            timestamp: pred.predictedFor,
+            occupancyRate: pred.occupancyRate,
+            status: pred.status
+          }));
+
+          setParkingData(transformedData);
         } else {
-          setError('Failed to fetch parking data');
+          setError('Failed to fetch parking predictions');
         }
       } catch (err) {
-        console.error('Error fetching parking data:', err);
+        console.error('Error fetching parking predictions:', err);
         setError(err.message);
       } finally {
         setLoading(false);

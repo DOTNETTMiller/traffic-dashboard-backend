@@ -6743,6 +6743,19 @@ app.get('/api/quality/anomalies', (req, res) => {
 const ParkingPredictor = require('./parking_prediction.js');
 const parkingPredictor = new ParkingPredictor(db);
 
+// Historical pattern-based parking service
+const truckParkingService = require('./truck_parking_service.js');
+
+// Load historical patterns on startup
+setTimeout(() => {
+  const loaded = truckParkingService.loadPatterns();
+  if (loaded) {
+    console.log('✅ Truck parking historical patterns loaded successfully');
+  } else {
+    console.log('⚠️  Truck parking patterns not loaded - run process_truck_parking_historical.js first');
+  }
+}, 2000);
+
 // TPIMS data fetcher
 const { fetchTPIMSFeed, validatePredictions } = require('./scripts/fetch_tpims_data.js');
 
@@ -6957,6 +6970,79 @@ app.post('/api/admin/parking/generate-predictions', requireAdmin, (req, res) => 
   } catch (error) {
     console.error('Error generating predictions:', error);
     res.status(500).json({ error: 'Failed to generate predictions' });
+  }
+});
+
+// ========================================
+// Historical Pattern-Based Predictions
+// ========================================
+
+// Get prediction for a specific facility using historical patterns
+app.get('/api/parking/historical/predict/:facilityId', (req, res) => {
+  try {
+    const facilityId = req.params.facilityId;
+    const targetTime = req.query.time ? new Date(req.query.time) : new Date();
+
+    const result = truckParkingService.predictAvailability(facilityId, targetTime);
+
+    if (!result.success) {
+      return res.status(404).json({ error: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error generating historical prediction:', error);
+    res.status(500).json({ error: 'Failed to generate prediction' });
+  }
+});
+
+// Get predictions for all facilities using historical patterns
+app.get('/api/parking/historical/predict-all', (req, res) => {
+  try {
+    const targetTime = req.query.time ? new Date(req.query.time) : new Date();
+    const result = truckParkingService.predictAll(targetTime);
+
+    if (!result.success) {
+      return res.status(503).json({ error: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error generating historical predictions:', error);
+    res.status(500).json({ error: 'Failed to generate predictions' });
+  }
+});
+
+// Get facilities by state with predictions
+app.get('/api/parking/historical/state/:stateCode', (req, res) => {
+  try {
+    const stateCode = req.params.stateCode.toUpperCase();
+    const result = truckParkingService.getFacilitiesByState(stateCode);
+
+    if (!result.success) {
+      return res.status(503).json({ error: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching state facilities:', error);
+    res.status(500).json({ error: 'Failed to fetch facilities' });
+  }
+});
+
+// Get summary statistics
+app.get('/api/parking/historical/summary', (req, res) => {
+  try {
+    const result = truckParkingService.getSummary();
+
+    if (!result.success) {
+      return res.status(503).json({ error: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching summary:', error);
+    res.status(500).json({ error: 'Failed to fetch summary' });
   }
 });
 
