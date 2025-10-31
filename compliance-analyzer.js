@@ -10,7 +10,7 @@ const STANDARD_REQUIREMENTS = {
     requiredFields: [
       { field: 'id', specField: 'Feature.id', description: 'Unique event identifier', severity: 'critical' },
       { field: 'eventType', specField: 'coreDetails.event_type', description: 'WZDx event classification', severity: 'critical', enum: ['work-zone', 'work zone', 'closure', 'restriction', 'incident', 'construction', 'weather', 'special-event'] },
-      { field: 'startTime', fallbackFields: ['startDate'], specField: 'coreDetails.start_date', description: 'Start time (ISO 8601)', severity: 'critical', format: 'ISO8601' },
+      { field: 'startTime', fallbackFields: ['startDate', 'start_date', 'start_time', 'created_at', 'event-update-time', 'eventUpdateTime'], specField: 'coreDetails.start_date', description: 'Start time (ISO 8601)', severity: 'critical', format: 'ISO8601' },
       { field: 'coordinates', specField: 'geography.coordinates', description: 'Geospatial location (lat/long)', severity: 'critical', validator: 'coordinates' },
       { field: 'corridor', fallbackFields: ['location'], specField: 'coreDetails.road_names', description: 'Primary roadway/corridor', severity: 'high', minLength: 3 },
       { field: 'direction', specField: 'coreDetails.direction', description: 'Direction of travel', severity: 'high', enum: ['northbound','southbound','eastbound','westbound','both','unknown','n','s','e','w','nb','sb','eb','wb'] },
@@ -29,7 +29,7 @@ const STANDARD_REQUIREMENTS = {
     reference: 'https://standards.sae.org/j2735_202011/',
     requiredFields: [
       { field: 'id', specField: 'TravelerInformation.packetID', description: 'TIM packet identifier', severity: 'critical' },
-      { field: 'startTime', fallbackFields: ['startDate'], specField: 'TravelerDataFrame.startTime', description: 'Start time (ISO 8601)', severity: 'critical', format: 'ISO8601' },
+      { field: 'startTime', fallbackFields: ['startDate', 'start_date', 'start_time', 'created_at', 'event-update-time', 'eventUpdateTime'], specField: 'TravelerDataFrame.startTime', description: 'Start time (ISO 8601)', severity: 'critical', format: 'ISO8601' },
       { field: 'endTime', fallbackFields: ['endDate'], specField: 'TravelerDataFrame.endTime', description: 'End time', severity: 'high', format: 'ISO8601', optional: true },
       { field: 'coordinates', specField: 'Position3D', description: 'Latitude/longitude', severity: 'critical', validator: 'coordinates' },
       { field: 'eventType', fallbackFields: ['type'], specField: 'Content.itis', description: 'ITIS-compatible event type', severity: 'high' },
@@ -50,7 +50,7 @@ const STANDARD_REQUIREMENTS = {
     requiredFields: [
       { field: 'id', fallbackFields: ['eventId'], specField: 'tmdd:eventID', description: 'Event identifier', severity: 'critical' },
       { field: 'state', specField: 'tmdd:organization-id', description: 'Owning organization/state', severity: 'critical', minLength: 2 },
-      { field: 'startTime', fallbackFields: ['startDate'], specField: 'tmdd:event-update-time', description: 'Event update/start time', severity: 'critical', format: 'ISO8601' },
+      { field: 'startTime', fallbackFields: ['startDate', 'start_date', 'start_time', 'created_at', 'event-update-time', 'eventUpdateTime'], specField: 'tmdd:event-update-time', description: 'Event update/start time', severity: 'critical', format: 'ISO8601' },
       { field: 'roadStatus', specField: 'tmdd:event-status', description: 'Event status (open/closed/planned)', severity: 'high', enum: ['open','closed','planned','restricted','Active','active','Planned','Closed'] },
       { field: 'corridor', fallbackFields: ['location'], specField: 'tmdd:roadway-name', description: 'Roadway identifier', severity: 'high', minLength: 3 },
       { field: 'direction', specField: 'tmdd:direction', description: 'Direction of travel', severity: 'high', enum: ['northbound','southbound','eastbound','westbound','both','unknown','n','s','e','w','nb','sb','eb','wb'] },
@@ -183,17 +183,36 @@ function resolveFieldValue(obj, path) {
 
 function getRequirementValue(event, requirement) {
   const fields = [requirement.field, ...(requirement.fallbackFields || [])];
-  for (const field of fields) {
+  let usedFallback = false;
+  let usedFieldName = null;
+
+  for (let i = 0; i < fields.length; i++) {
+    const field = fields[i];
     if (!field) continue;
+
     if (field === 'coordinates') {
       if (Array.isArray(event.coordinates) && event.coordinates.length >= 2) {
-        return event.coordinates;
+        usedFieldName = 'coordinates';
+        if (i > 0) usedFallback = true;
+        const result = event.coordinates;
+        result._usedFallback = usedFallback;
+        result._usedFieldName = usedFieldName;
+        return result;
       }
     }
+
     const value = resolveFieldValue(event, field);
     if (value !== undefined && value !== null && value !== '') {
       if (typeof value === 'string' && value.trim().length === 0) {
         continue;
+      }
+      usedFieldName = field;
+      if (i > 0) usedFallback = true;
+
+      // Track which field was used (for deviation warnings)
+      if (typeof value === 'object' && value !== null) {
+        value._usedFallback = usedFallback;
+        value._usedFieldName = usedFieldName;
       }
       return value;
     }
@@ -203,7 +222,10 @@ function getRequirementValue(event, requirement) {
     const lat = event.latitude ?? resolveFieldValue(event, 'latitude');
     const lon = event.longitude ?? resolveFieldValue(event, 'longitude');
     if (lat !== undefined && lon !== undefined) {
-      return [lon, lat];
+      const result = [lon, lat];
+      result._usedFallback = true;
+      result._usedFieldName = 'latitude/longitude';
+      return result;
     }
   }
 
@@ -593,17 +615,31 @@ function computeStandardCompliance(events, spec, useRaw = false) {
 }
 
 function adjustGradeForCritical(baseGrade, criticalRatio) {
-  if (criticalRatio >= 0.85) return baseGrade;
+  // Cap downgrades at maximum 2 letter grades to avoid overly punitive scoring
+  // Critical fields are already weighted heavily (60%) in the base score
+
+  if (criticalRatio >= 0.85) return baseGrade; // No downgrade for strong critical coverage
+
   if (criticalRatio >= 0.75) {
+    // 1 grade downgrade for good critical coverage
     if (baseGrade === 'A') return 'B';
     if (baseGrade === 'B') return 'C';
-    return baseGrade;
-  }
-  if (criticalRatio >= 0.6) {
-    if (['A', 'B'].includes(baseGrade)) return 'C';
     if (baseGrade === 'C') return 'D';
+    if (baseGrade === 'D') return 'F';
     return baseGrade;
   }
+
+  if (criticalRatio >= 0.5) {
+    // 2 grade downgrade for moderate critical coverage
+    if (baseGrade === 'A') return 'C';
+    if (baseGrade === 'B') return 'D';
+    if (baseGrade === 'C') return 'F';
+    return 'F';
+  }
+
+  // Maximum 2 grade downgrade even for very low critical coverage
+  if (baseGrade === 'A') return 'C';
+  if (baseGrade === 'B') return 'D';
   return 'F';
 }
 
