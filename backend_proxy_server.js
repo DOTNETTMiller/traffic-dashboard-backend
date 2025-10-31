@@ -18,6 +18,46 @@ const { fetchPennDOTRCRS } = require('./scripts/fetch_penndot_rcrs');
 const ComplianceAnalyzer = require('./compliance-analyzer');
 const { OpenAI } = require('openai');
 
+// Initialize volume data from bundled sources on startup
+function initVolumeData() {
+  try {
+    const bundledFile = path.join(__dirname, 'bundled_data/truck_parking_patterns.json');
+    const volumeDir = path.join(__dirname, 'data');
+    const volumeFile = path.join(volumeDir, 'truck_parking_patterns.json');
+
+    // Create data directory if needed
+    if (!fs.existsSync(volumeDir)) {
+      console.log(`📁 Creating data directory: ${volumeDir}`);
+      fs.mkdirSync(volumeDir, { recursive: true });
+    }
+
+    // Check if file exists on volume
+    if (fs.existsSync(volumeFile)) {
+      const stats = fs.statSync(volumeFile);
+      console.log(`✅ Data file already exists on volume (${(stats.size/1024).toFixed(2)} KB)`);
+      return;
+    }
+
+    // Copy bundled file to volume
+    if (!fs.existsSync(bundledFile)) {
+      console.log(`⚠️  Bundled file not found: ${bundledFile}`);
+      return;
+    }
+
+    console.log(`📦 Copying bundled data to volume...`);
+    fs.copyFileSync(bundledFile, volumeFile);
+
+    const stats = fs.statSync(volumeFile);
+    console.log(`✅ Data file copied successfully (${(stats.size/1024).toFixed(2)} KB)`);
+  } catch (error) {
+    console.error('❌ Failed to initialize volume data:', error);
+  }
+}
+
+// Run initialization before starting the server
+console.log('\n🔄 Initializing volume data...\n');
+initVolumeData();
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
