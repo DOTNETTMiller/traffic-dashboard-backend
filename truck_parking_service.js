@@ -1,66 +1,86 @@
 // Truck Parking Prediction Service
 // Uses historical patterns to predict parking availability
+// Data is loaded from SQLite database for reliable Railway deployments
 
-const fs = require('fs');
-const path = require('path');
+const Database = require('./database.js');
 
 class TruckParkingService {
   constructor() {
     this.patterns = null;
     this.facilities = null;
     this.loaded = false;
+    this.db = null;
   }
 
-  // Load patterns from processed historical data
-  loadPatterns() {
+  // Load patterns from database
+  async loadPatterns() {
     try {
-      const dataPath = path.join(__dirname, 'data/truck_parking_patterns.json');
-      console.log(`📂 Loading parking patterns from: ${dataPath}`);
+      console.log(`📂 Loading parking patterns from database...`);
 
-      if (!fs.existsSync(dataPath)) {
-        console.log('⚠️  No parking patterns file found. Creating minimal fallback...');
-        // Create data directory if it doesn't exist
-        const dataDir = path.join(__dirname, 'data');
-        if (!fs.existsSync(dataDir)) {
-          fs.mkdirSync(dataDir, { recursive: true });
-        }
-
-        // Create minimal patterns file with empty data
-        const minimalData = {
-          facilities: [],
-          patterns: [],
-          generatedAt: new Date().toISOString(),
-          source: 'fallback-empty'
-        };
-        fs.writeFileSync(dataPath, JSON.stringify(minimalData, null, 2));
-        console.log('⚠️  Created empty patterns file. To populate with data, run: node scripts/process_truck_parking_historical.js');
+      // Initialize database connection
+      if (!this.db) {
+        this.db = new Database.constructor();
+        await this.db.init();
       }
 
-      const fileStats = fs.statSync(dataPath);
-      console.log(`📊 File size: ${(fileStats.size / 1024).toFixed(1)} KB`);
+      // Load facilities
+      const facilitiesRows = this.db.db.prepare(`
+        SELECT facility_id, site_id, state, avg_capacity, total_samples
+        FROM parking_facilities
+      `).all();
 
-      const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-      console.log(`📦 Parsed data - facilities: ${data.facilities?.length || 0}, patterns: ${data.patterns?.length || 0}`);
+      console.log(`📦 Loaded ${facilitiesRows.length} facilities from database`);
 
-      this.facilities = new Map(data.facilities.map(f => [f.facilityId, f]));
+      this.facilities = new Map();
+      for (const row of facilitiesRows) {
+        this.facilities.set(row.facility_id, {
+          facilityId: row.facility_id,
+          siteId: row.site_id,
+          state: row.state,
+          avgCapacity: row.avg_capacity,
+          totalSamples: row.total_samples
+        });
+      }
+
+      // Load patterns
+      const patternsRows = this.db.db.prepare(`
+        SELECT facility_id, day_of_week, hour, avg_occupancy_rate, sample_count, capacity
+        FROM parking_patterns
+      `).all();
+
+      console.log(`📦 Loaded ${patternsRows.length} patterns from database`);
 
       // Index patterns by facility and time
       this.patterns = new Map();
-      for (const pattern of data.patterns) {
-        const key = `${pattern.facilityId}-${pattern.dayOfWeek}-${pattern.hour}`;
-        this.patterns.set(key, pattern);
+      for (const row of patternsRows) {
+        const key = `${row.facility_id}-${row.day_of_week}-${row.hour}`;
+        this.patterns.set(key, {
+          facilityId: row.facility_id,
+          dayOfWeek: row.day_of_week,
+          hour: row.hour,
+          avgOccupancyRate: row.avg_occupancy_rate,
+          sampleCount: row.sample_count,
+          capacity: row.capacity
+        });
       }
 
       this.loaded = true;
+
       if (this.facilities.size === 0) {
-        console.log('⚠️  Parking patterns loaded but no facilities found. Service is running with empty data.');
+        console.log('⚠️  No parking facilities found in database. Run: node scripts/migrate_parking_to_db.js');
+        return true; // Still return true, service is "loaded" just with no data
       } else {
         console.log(`✅ Loaded ${this.facilities.size} parking facilities with ${this.patterns.size} time-based patterns`);
       }
+
       return true;
 
     } catch (error) {
-      console.error('❌ Error loading parking patterns:', error.message);
+      console.error('❌ Error loading parking patterns from database:', error.message);
+      // If tables don't exist, service is still "loaded" just with no data
+      this.loaded = true;
+      this.facilities = new Map();
+      this.patterns = new Map();
       return false;
     }
   }
