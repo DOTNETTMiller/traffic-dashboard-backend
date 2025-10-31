@@ -70,9 +70,14 @@ function App() {
               hourOffset: parkingPredictionHours
             }
           });
+        } else {
+          // Service returned but without success
+          setParkingContext(null);
         }
       } catch (error) {
         console.error('Error fetching parking context:', error);
+        // Don't set parking context on error (503, etc.)
+        setParkingContext(null);
       }
     };
 
