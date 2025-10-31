@@ -7124,6 +7124,43 @@ app.post('/api/parking/historical/reload', async (req, res) => {
   }
 });
 
+// Diagnostic endpoint to check JSON file status
+app.get('/api/parking/historical/diagnose', async (req, res) => {
+  try {
+    const jsonPath = path.join(__dirname, 'data/truck_parking_patterns.json');
+    const diagnostic = {
+      path: jsonPath,
+      exists: fs.existsSync(jsonPath),
+      cwd: process.cwd(),
+      dirname: __dirname
+    };
+
+    if (diagnostic.exists) {
+      const stats = fs.statSync(jsonPath);
+      const rawData = fs.readFileSync(jsonPath, 'utf8');
+      diagnostic.fileSize = stats.size;
+      diagnostic.fileSizeKB = (stats.size / 1024).toFixed(2);
+      diagnostic.first200Chars = rawData.substring(0, 200);
+
+      try {
+        const data = JSON.parse(rawData);
+        diagnostic.parsedKeys = Object.keys(data);
+        diagnostic.facilitiesCount = data.facilities?.length || 0;
+        diagnostic.patternsCount = data.patterns?.length || 0;
+        if (data.facilities && data.facilities.length > 0) {
+          diagnostic.sampleFacility = data.facilities[0];
+        }
+      } catch (parseErr) {
+        diagnostic.parseError = parseErr.message;
+      }
+    }
+
+    res.json({ success: true, diagnostic });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Migrate parking patterns from JSON to database (one-time setup)
 app.post('/api/parking/historical/migrate', async (req, res) => {
   try {
