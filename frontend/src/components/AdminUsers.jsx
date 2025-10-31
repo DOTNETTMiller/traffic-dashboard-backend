@@ -560,7 +560,7 @@ export default function AdminUsers({ user, authToken }) {
                 }}
                 style={{
                   padding: '10px 20px',
-                  backgroundColor: '#6c757d',
+                  backgroundColor: '#ff6b6b',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
@@ -670,7 +670,7 @@ export default function AdminUsers({ user, authToken }) {
                         onClick={() => handleDeleteUser(userRecord)}
                         style={{
                           padding: '6px 10px',
-                          backgroundColor: '#6c757d',
+                          backgroundColor: '#dc3545',
                           color: 'white',
                           border: 'none',
                           borderRadius: '3px',

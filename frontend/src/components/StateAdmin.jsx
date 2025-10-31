@@ -727,7 +727,7 @@ export default function StateAdmin({ user, authToken }) {
                 onClick={editingState ? cancelEdit : () => setShowAddForm(false)}
                 style={{
                   padding: '10px 20px',
-                  backgroundColor: '#6c757d',
+                  backgroundColor: '#ff6b6b',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
@@ -813,7 +813,7 @@ export default function StateAdmin({ user, authToken }) {
                 }}
                 style={{
                   padding: '10px 20px',
-                  backgroundColor: '#6c757d',
+                  backgroundColor: '#ff6b6b',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
@@ -923,7 +923,7 @@ export default function StateAdmin({ user, authToken }) {
                 }}
                 style={{
                   padding: '10px 20px',
-                  backgroundColor: '#6c757d',
+                  backgroundColor: '#ff6b6b',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',

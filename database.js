@@ -225,6 +225,65 @@ class StateDatabase {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id)
       );
+
+      CREATE TABLE IF NOT EXISTS truck_parking_facilities (
+        id SERIAL PRIMARY KEY,
+        facility_id TEXT UNIQUE,
+        facility_name TEXT NOT NULL,
+        state TEXT NOT NULL,
+        latitude DOUBLE PRECISION,
+        longitude DOUBLE PRECISION,
+        address TEXT,
+        total_spaces INTEGER,
+        truck_spaces INTEGER,
+        amenities TEXT,
+        facility_type TEXT DEFAULT 'Rest Area',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS parking_availability (
+        id SERIAL PRIMARY KEY,
+        facility_id TEXT NOT NULL,
+        available_spaces INTEGER,
+        occupied_spaces INTEGER,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_prediction BOOLEAN DEFAULT FALSE,
+        prediction_confidence DOUBLE PRECISION,
+        FOREIGN KEY (facility_id) REFERENCES truck_parking_facilities(facility_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS parking_occupancy_patterns (
+        id SERIAL PRIMARY KEY,
+        facility_id TEXT NOT NULL,
+        day_of_week INTEGER NOT NULL,
+        hour_of_day INTEGER NOT NULL,
+        avg_occupancy_rate DOUBLE PRECISION NOT NULL,
+        sample_count INTEGER DEFAULT 1,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(facility_id, day_of_week, hour_of_day),
+        FOREIGN KEY (facility_id) REFERENCES truck_parking_facilities(facility_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS parking_prediction_accuracy (
+        id SERIAL PRIMARY KEY,
+        facility_id TEXT NOT NULL,
+        predicted_available INTEGER NOT NULL,
+        actual_available INTEGER NOT NULL,
+        error_magnitude INTEGER NOT NULL,
+        percent_error DOUBLE PRECISION NOT NULL,
+        event_nearby BOOLEAN DEFAULT FALSE,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (facility_id) REFERENCES truck_parking_facilities(facility_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_parking_facility_id ON truck_parking_facilities(facility_id);
+      CREATE INDEX IF NOT EXISTS idx_parking_state ON truck_parking_facilities(state);
+      CREATE INDEX IF NOT EXISTS idx_parking_availability_facility ON parking_availability(facility_id);
+      CREATE INDEX IF NOT EXISTS idx_parking_availability_timestamp ON parking_availability(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_occupancy_patterns_facility ON parking_occupancy_patterns(facility_id);
+      CREATE INDEX IF NOT EXISTS idx_occupancy_patterns_time ON parking_occupancy_patterns(day_of_week, hour_of_day);
+      CREATE INDEX IF NOT EXISTS idx_prediction_accuracy_facility ON parking_prediction_accuracy(facility_id);
     `);
   }
 
