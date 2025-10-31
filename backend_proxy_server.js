@@ -2021,6 +2021,39 @@ app.post('/api/users/request-password-reset', (req, res) => {
   }
 });
 
+// TEMPORARY: Migrate users table schema (no auth required - REMOVE AFTER USE)
+app.post('/api/temp-migrate-schema', async (req, res) => {
+  try {
+    if (!db.isPostgres) {
+      return res.json({ success: true, message: 'SQLite does not need migration' });
+    }
+
+    console.log('Running PostgreSQL schema migration...');
+
+    await db.db.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name TEXT');
+    console.log('✅ Added full_name column');
+
+    await db.db.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS organization TEXT');
+    console.log('✅ Added organization column');
+
+    await db.db.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_on_messages BOOLEAN DEFAULT TRUE');
+    console.log('✅ Added notify_on_messages column');
+
+    await db.db.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_on_high_severity BOOLEAN DEFAULT TRUE');
+    console.log('✅ Added notify_on_high_severity column');
+
+    console.log('✅ Migration complete!');
+
+    res.json({
+      success: true,
+      message: 'Schema migration completed successfully'
+    });
+  } catch (error) {
+    console.error('❌ Migration error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // TEMPORARY: Direct password reset endpoint (no auth required - REMOVE AFTER USE)
 app.post('/api/temp-reset-password', async (req, res) => {
   try {
