@@ -5,6 +5,9 @@ import '../styles/UserLogin.css';
 
 export default function UserLogin({ onLoginSuccess }) {
   const [isLogin, setIsLogin] = useState(true);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetMessage, setResetMessage] = useState('');
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -112,6 +115,31 @@ export default function UserLogin({ onLoginSuccess }) {
     }
   };
 
+  const handlePasswordReset = async (e) => {
+    e.preventDefault();
+    setResetMessage('');
+    setLoading(true);
+
+    try {
+      const response = await axios.post(`${config.apiUrl}/api/users/request-password-reset`, {
+        email: resetEmail
+      });
+
+      if (response.data.success) {
+        setResetMessage('Password reset instructions sent! Check your email.');
+        setTimeout(() => {
+          setShowPasswordReset(false);
+          setResetEmail('');
+          setResetMessage('');
+        }, 3000);
+      }
+    } catch (error) {
+      setResetMessage(error.response?.data?.error || 'Password reset failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="user-login-container">
       <div className="user-login-card">
@@ -169,6 +197,22 @@ export default function UserLogin({ onLoginSuccess }) {
                 required
                 autoComplete="current-password"
               />
+              <div style={{ textAlign: 'right', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordReset(true)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#3b82f6',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    fontSize: '14px'
+                  }}
+                >
+                  Forgot Password?
+                </button>
+              </div>
             </div>
 
             <button type="submit" disabled={loading} className="btn-login">
@@ -285,6 +329,113 @@ export default function UserLogin({ onLoginSuccess }) {
           <p>Access traffic events, send messages to state agencies, and view compliance reports.</p>
         </div>
       </div>
+
+      {/* Password Reset Modal */}
+      {showPasswordReset && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '32px',
+            borderRadius: '12px',
+            maxWidth: '450px',
+            width: '90%',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+          }}>
+            <h2 style={{ marginTop: 0, marginBottom: '16px', fontSize: '24px' }}>Reset Password</h2>
+            <p style={{ marginBottom: '24px', color: '#6b7280', fontSize: '14px' }}>
+              Enter your email address and we'll send you instructions to reset your password.
+            </p>
+
+            {resetMessage && (
+              <div style={{
+                padding: '12px',
+                marginBottom: '16px',
+                borderRadius: '8px',
+                backgroundColor: resetMessage.includes('sent') ? '#d1fae5' : '#fee2e2',
+                color: resetMessage.includes('sent') ? '#065f46' : '#991b1b',
+                fontSize: '14px'
+              }}>
+                {resetMessage}
+              </div>
+            )}
+
+            <form onSubmit={handlePasswordReset}>
+              <div className="form-group">
+                <label htmlFor="resetEmail">Email Address</label>
+                <input
+                  type="email"
+                  id="resetEmail"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  required
+                  placeholder="your.email@example.com"
+                  autoComplete="email"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordReset(false);
+                    setResetEmail('');
+                    setResetMessage('');
+                  }}
+                  disabled={loading}
+                  style={{
+                    flex: 1,
+                    padding: '10px 20px',
+                    backgroundColor: '#f3f4f6',
+                    color: '#374151',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: loading ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  style={{
+                    flex: 1,
+                    padding: '10px 20px',
+                    backgroundColor: loading ? '#9ca3af' : '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: loading ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {loading ? 'Sending...' : 'Send Reset Link'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
