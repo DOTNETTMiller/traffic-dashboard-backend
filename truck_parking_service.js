@@ -24,7 +24,7 @@ class TruckParkingService {
       }
 
       // Load facilities
-      const facilitiesRows = this.db.db.prepare(`
+      const facilitiesRows = await this.db.db.prepare(`
         SELECT facility_id, site_id, state, avg_capacity, total_samples
         FROM parking_facilities
       `).all();
@@ -43,7 +43,7 @@ class TruckParkingService {
       }
 
       // Load patterns
-      const patternsRows = this.db.db.prepare(`
+      const patternsRows = await this.db.db.prepare(`
         SELECT facility_id, day_of_week, hour, avg_occupancy_rate, sample_count, capacity
         FROM parking_patterns
       `).all();

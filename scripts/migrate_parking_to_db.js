@@ -60,8 +60,13 @@ async function migrateParkingData() {
 
   // Clear existing data
   console.log('🧹 Clearing existing parking data...');
-  db.db.exec('DELETE FROM parking_patterns');
-  db.db.exec('DELETE FROM parking_facilities');
+  if (db.isPostgres) {
+    await db.db.execAsync('DELETE FROM parking_patterns');
+    await db.db.execAsync('DELETE FROM parking_facilities');
+  } else {
+    db.db.exec('DELETE FROM parking_patterns');
+    db.db.exec('DELETE FROM parking_facilities');
+  }
   console.log('✅ Cleared\n');
 
   // Insert facilities
@@ -74,7 +79,7 @@ async function migrateParkingData() {
 
   let facilityCount = 0;
   for (const facility of data.facilities || []) {
-    facilityStmt.run(
+    await facilityStmt.run(
       facility.facilityId,
       facility.siteId,
       facility.state,
@@ -95,7 +100,7 @@ async function migrateParkingData() {
 
   let patternCount = 0;
   for (const pattern of data.patterns || []) {
-    patternStmt.run(
+    await patternStmt.run(
       pattern.facilityId,
       pattern.dayOfWeek,
       pattern.hour,
@@ -113,8 +118,8 @@ async function migrateParkingData() {
 
   // Verify data
   console.log('🔍 Verifying migration...');
-  const facilityCountCheck = db.db.prepare('SELECT COUNT(*) as count FROM parking_facilities').get();
-  const patternCountCheck = db.db.prepare('SELECT COUNT(*) as count FROM parking_patterns').get();
+  const facilityCountCheck = await db.db.prepare('SELECT COUNT(*) as count FROM parking_facilities').get();
+  const patternCountCheck = await db.db.prepare('SELECT COUNT(*) as count FROM parking_patterns').get();
 
   console.log(`   Facilities in DB: ${facilityCountCheck.count}`);
   console.log(`   Patterns in DB: ${patternCountCheck.count}`);
