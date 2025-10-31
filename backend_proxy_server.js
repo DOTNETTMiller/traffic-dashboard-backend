@@ -7161,6 +7161,51 @@ app.get('/api/parking/historical/diagnose', async (req, res) => {
   }
 });
 
+// Fix stale parking data on Railway persistent volume
+app.post('/api/parking/historical/fix-volume', async (req, res) => {
+  try {
+    const jsonPath = path.join(__dirname, 'data/truck_parking_patterns.json');
+
+    if (!fs.existsSync(jsonPath)) {
+      return res.json({
+        success: false,
+        message: 'File does not exist'
+      });
+    }
+
+    // Read existing file
+    const rawData = fs.readFileSync(jsonPath, 'utf8');
+    const data = JSON.parse(rawData);
+
+    const result = {
+      path: jsonPath,
+      originalSize: rawData.length,
+      originalFacilities: data.facilities?.length || 0,
+      originalPatterns: data.patterns?.length || 0
+    };
+
+    // Check if this is the fallback-empty file
+    if (data.source === 'fallback-empty' || (data.facilities?.length === 0 && rawData.length < 1000)) {
+      result.action = 'deleted_stale_file';
+      result.message = 'Detected and deleted stale "fallback-empty" file';
+
+      // Delete the stale file
+      fs.unlinkSync(jsonPath);
+
+      result.deleted = true;
+      result.nextSteps = 'Restart the server to use the real bundled file from git';
+    } else {
+      result.action = 'no_action_needed';
+      result.message = 'File looks good - contains real data';
+      result.deleted = false;
+    }
+
+    res.json({ success: true, result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Migrate parking patterns from JSON to database (one-time setup)
 app.post('/api/parking/historical/migrate', async (req, res) => {
   try {
