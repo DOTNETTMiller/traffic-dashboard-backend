@@ -18,7 +18,8 @@
       "latitude": 41.682497,
       "longitude": -93.334167,
       "facilityName": "I-80: Colfax WB Weigh Station",
-      "address": ""
+      "address": "Colfax, IA",
+      "city": "Colfax"
     },
     {
       "facilityId": "tpims-historical-ky00075is0007500swaltonws",
@@ -38,7 +39,8 @@
       "latitude": 41.597293,
       "longitude": -90.479436,
       "facilityName": "I-80: Davenport WB Rest Area",
-      "address": ""
+      "address": "Davenport, IA",
+      "city": "Davenport"
     },
     {
       "facilityId": "tpims-historical-ia00080is0018000wra180w00",
@@ -50,7 +52,8 @@
       "latitude": 41.695938,
       "longitude": -92.772399,
       "facilityName": "I-80: Grinnell WB Rest Area",
-      "address": ""
+      "address": "Grinnell, IA",
+      "city": "Grinnell"
     },
     {
       "facilityId": "tpims-historical-ky00065is0000020n65welcom",
@@ -86,7 +89,8 @@
       "latitude": 41.689367,
       "longitude": -92.006667,
       "facilityName": "I-80: Exit 220 McDonald's",
-      "address": ""
+      "address": "Williamsburg, IA",
+      "city": "Williamsburg"
     },
     {
       "facilityId": "tpims-historical-ky00065is0005900s65sra059",
@@ -118,7 +122,12 @@
       "state": "IA",
       "capacity": 11,
       "firstSeen": "2023-12-29 00:05:26.0000000",
-      "lastSeen": "2023-12-31 02:44:23.0000000"
+      "lastSeen": "2023-12-31 02:44:23.0000000",
+      "latitude": 41.615499,
+      "longitude": -93.579246,
+      "facilityName": "I-235: Exit 11 Kum & Go",
+      "address": "Des Moines, IA",
+      "city": "Des Moines"
     },
     {
       "facilityId": "tpims-historical-ia00080is0014400wprairiem",
@@ -130,7 +139,8 @@
       "latitude": 41.656917,
       "longitude": -93.492095,
       "facilityName": "I-80: Exit 142 Prairie Meadows Casino",
-      "address": ""
+      "address": " Altoona, IA",
+      "city": " Altoona"
     },
     {
       "facilityId": "tpims-historical-ia00080is0008000wra80w000",
@@ -142,7 +152,8 @@
       "latitude": 41.497286,
       "longitude": -94.572974,
       "facilityName": "I-80: Adair WB Rest Area",
-      "address": ""
+      "address": "Adair, IA",
+      "city": "Adair"
     },
     {
       "facilityId": "tpims-historical-ia00080is0030000era300e00",
@@ -154,7 +165,8 @@
       "latitude": 41.595882,
       "longitude": -90.490563,
       "facilityName": "I-80: Davenport EB Rest Area",
-      "address": ""
+      "address": "Davenport, IA",
+      "city": "Davenport"
     },
     {
       "facilityId": "tpims-historical-ia00080is0026700wkumandgo",
@@ -162,7 +174,12 @@
       "state": "IA",
       "capacity": 12,
       "firstSeen": "2023-12-29 00:05:42.0000000",
-      "lastSeen": "2023-12-31 02:40:39.0000000"
+      "lastSeen": "2023-12-31 02:40:39.0000000",
+      "latitude": 41.647495,
+      "longitude": -91.114625,
+      "facilityName": "I-80: Exit 267 Kum & Go",
+      "address": "Tipton, IA",
+      "city": "Tipton"
     },
     {
       "facilityId": "tpims-historical-ia00080is0008000era80e000",
@@ -174,7 +191,8 @@
       "latitude": 41.496399,
       "longitude": -94.561971,
       "facilityName": "I-80: Adair EB Rest Area",
-      "address": ""
+      "address": "Adair, IA",
+      "city": "Adair"
     },
     {
       "facilityId": "tpims-historical-ia00080is0001900era19e000",
@@ -186,7 +204,8 @@
       "latitude": 41.40174,
       "longitude": -95.658743,
       "facilityName": "I-80: Underwood EB Welcome Center",
-      "address": ""
+      "address": "Underwood, IA",
+      "city": "Underwood"
     },
     {
       "facilityId": "tpims-historical-ia00035is0012000sra120s00",
@@ -198,7 +217,8 @@
       "latitude": 42.109707,
       "longitude": -93.556608,
       "facilityName": "I-35: Story City SB Rest Area",
-      "address": ""
+      "address": "Story City, IA",
+      "city": "Story City"
     },
     {
       "facilityId": "tpims-historical-mn00094is0021500eelmcreek",
@@ -218,7 +238,8 @@
       "latitude": 41.680928,
       "longitude": -93.390472,
       "facilityName": "I-80: Mitchellville WB Rest Area",
-      "address": ""
+      "address": "Mitchellville, IA",
+      "city": "Mitchellville"
     },
     {
       "facilityId": "tpims-historical-ia00080is0023700era237e00",
@@ -230,7 +251,8 @@
       "latitude": 41.69389,
       "longitude": -91.682717,
       "facilityName": "I-80: Tiffin EB Rest Area",
-      "address": ""
+      "address": "Tiffin, IA",
+      "city": "Tiffin"
     },
     {
       "facilityId": "tpims-historical-ia00035is0009870nra98n000",
@@ -242,7 +264,8 @@
       "latitude": 41.82925,
       "longitude": -93.569768,
       "facilityName": "I-35: Elkhart NB Rest Area",
-      "address": ""
+      "address": "Elkhart, IA",
+      "city": "Elkhart"
     },
     {
       "facilityId": "tpims-historical-ia00080is0026800wra268w00",
@@ -254,7 +277,8 @@
       "latitude": 41.645221,
       "longitude": -91.086462,
       "facilityName": "I-80: Wilton WB Parking Only",
-      "address": ""
+      "address": "Wilton, IA",
+      "city": "Wilton"
     },
     {
       "facilityId": "tpims-historical-ia00080is0003200wra32w000",
@@ -266,7 +290,8 @@
       "latitude": 41.499576,
       "longitude": -95.492333,
       "facilityName": "I-80: Minden WB Parking Only",
-      "address": ""
+      "address": "Minden, IA",
+      "city": "Minden"
     },
     {
       "facilityId": "tpims-historical-mn00094is0025580w0stcroix",
@@ -326,7 +351,8 @@
       "latitude": 41.550786,
       "longitude": -95.912777,
       "facilityName": "I-29: Exit 75 Taylor Quik Pik",
-      "address": ""
+      "address": "Missouri Valley, IA",
+      "city": "Missouri Valley"
     },
     {
       "facilityId": "tpims-historical-in00080is00012600wra0126w00",
@@ -446,7 +472,12 @@
       "state": "IA",
       "capacity": 14,
       "firstSeen": "2023-12-29 00:07:46.0000000",
-      "lastSeen": "2023-12-31 02:43:17.0000000"
+      "lastSeen": "2023-12-31 02:43:17.0000000",
+      "latitude": 41.696441,
+      "longitude": -91.665492,
+      "facilityName": "I-80: Exit 237 Kum & Go",
+      "address": "Tiffin, IA",
+      "city": "Tiffin"
     },
     {
       "facilityId": "tpims-historical-ia00080is001150oedallscal",
@@ -458,7 +489,8 @@
       "latitude": 41.553933,
       "longitude": -93.91531,
       "facilityName": "I-80: Van Meter EB Weigh Station",
-      "address": ""
+      "address": "Van Meter, IA",
+      "city": "Van Meter"
     },
     {
       "facilityId": "tpims-historical-mi000i94we0092mm0000arlenepr",
@@ -478,7 +510,8 @@
       "latitude": 41.639515,
       "longitude": -91.053874,
       "facilityName": "I-80: Wilton EB Rest Area",
-      "address": ""
+      "address": "Wilton, IA",
+      "city": "Wilton"
     },
     {
       "facilityId": "tpims-historical-ia00080is0020800wra208w00",
@@ -490,7 +523,8 @@
       "latitude": 41.69648,
       "longitude": -92.23196,
       "facilityName": "I-80: Victor WB Rest Area",
-      "address": ""
+      "address": "Victor, IA",
+      "city": "Victor"
     },
     {
       "facilityId": "tpims-historical-ia00080is0001900wra19w000",
@@ -502,7 +536,8 @@
       "latitude": 41.403634,
       "longitude": -95.658533,
       "facilityName": "I-80: Underwood WB Rest Area",
-      "address": ""
+      "address": "Underwood, IA",
+      "city": "Underwood"
     },
     {
       "facilityId": "tpims-historical-ia00080is0004400era44e000",
@@ -514,7 +549,8 @@
       "latitude": 41.496638,
       "longitude": -95.260938,
       "facilityName": "I-80: Avoca EB Parking Only",
-      "address": ""
+      "address": "Aurora, IA",
+      "city": "Aurora"
     },
     {
       "facilityId": "tpims-historical-mi000i94ee0029mm0000primarpr",
@@ -534,7 +570,8 @@
       "latitude": 41.88896,
       "longitude": -91.674075,
       "facilityName": "I-380: Exit 13 Casey's General Store",
-      "address": ""
+      "address": "Cedar Rapids, IA",
+      "city": "Cedar Rapids"
     },
     {
       "facilityId": "tpims-historical-ia00380is0001300wkwikstar",
@@ -546,7 +583,8 @@
       "latitude": 41.892161,
       "longitude": -91.673888,
       "facilityName": "I-380: Exit 13 Kwik Star",
-      "address": ""
+      "address": "Cedar Rapids, IA",
+      "city": "Cedar Rapids"
     },
     {
       "facilityId": "tpims-historical-ia00080is0025900wbp000000",
@@ -558,7 +596,8 @@
       "latitude": 41.661394,
       "longitude": -91.25127,
       "facilityName": "I-80: Exit 259 BP",
-      "address": ""
+      "address": "West Branch, IA",
+      "city": "West Branch"
     },
     {
       "facilityId": "tpims-historical-ia00080is0018200wkumandgo",
@@ -566,7 +605,12 @@
       "state": "IA",
       "capacity": 11,
       "firstSeen": "2023-12-29 00:08:53.0000000",
-      "lastSeen": "2023-12-31 02:43:50.0000000"
+      "lastSeen": "2023-12-31 02:43:50.0000000",
+      "latitude": 41.700128,
+      "longitude": -92.725488,
+      "facilityName": "I-80: Exit 182 Kum & Go",
+      "address": "Grinnell, IA",
+      "city": "Grinnell"
     },
     {
       "facilityId": "tpims-historical-ia00080is0014800era148e00",
@@ -578,7 +622,8 @@
       "latitude": 41.68007,
       "longitude": -93.394721,
       "facilityName": "I-80: Mitchellville EB Rest Area",
-      "address": ""
+      "address": "Mitchellville, IA",
+      "city": "Mitchellville"
     },
     {
       "facilityId": "tpims-historical-ia00080is0021600wkumandgo",
@@ -586,7 +631,12 @@
       "state": "IA",
       "capacity": 9,
       "firstSeen": "2023-12-29 00:08:53.0000000",
-      "lastSeen": "2023-12-31 02:43:51.0000000"
+      "lastSeen": "2023-12-31 02:43:51.0000000",
+      "latitude": 41.690985,
+      "longitude": -92.067406,
+      "facilityName": "I-80: Exit 216 Kum & Go",
+      "address": "Williamsburg, IA",
+      "city": "Williamsburg"
     },
     {
       "facilityId": "tpims-historical-ia00080is0020200wkwikstar",
@@ -598,7 +648,8 @@
       "latitude": 41.691821,
       "longitude": -92.357318,
       "facilityName": "I-80: Exit 201 Kwik Star",
-      "address": ""
+      "address": "Brooklyn, IA",
+      "city": "Brooklyn"
     },
     {
       "facilityId": "tpims-historical-ia00029is0003700nra37n000",
@@ -610,7 +661,8 @@
       "latitude": 41.079968,
       "longitude": -95.825478,
       "facilityName": "I-29:  Pacific Junction NB Rest Area",
-      "address": ""
+      "address": "Pacific Junction, IA",
+      "city": "Pacific Junction"
     },
     {
       "facilityId": "tpims-historical-ia00080is0027000wra270w00",
@@ -622,7 +674,8 @@
       "latitude": 41.641816,
       "longitude": -91.054516,
       "facilityName": "I-80: Wilton WB Welcome Center",
-      "address": ""
+      "address": "Wilton, IA",
+      "city": "Wilton"
     },
     {
       "facilityId": "tpims-historical-co00070is004050oesieberpr",
@@ -642,7 +695,8 @@
       "latitude": 42.128251,
       "longitude": -93.553802,
       "facilityName": "I-35: Story City NB Rest Area",
-      "address": ""
+      "address": "Story City, IA",
+      "city": "Story City"
     },
     {
       "facilityId": "tpims-historical-ia00380is0001150nra11n000",
@@ -654,7 +708,8 @@
       "latitude": 41.867849,
       "longitude": -91.668687,
       "facilityName": "I-380: Cedar Rapids NB Rest Area",
-      "address": ""
+      "address": "Cedar Rapids, IA",
+      "city": "Cedar Rapids"
     },
     {
       "facilityId": "tpims-historical-ia00080is0020800era208e00",
@@ -666,7 +721,8 @@
       "latitude": 41.695174,
       "longitude": -92.230584,
       "facilityName": "I-80: Victor EB Rest Area",
-      "address": ""
+      "address": "Victor, IA",
+      "city": "Victor"
     },
     {
       "facilityId": "tpims-historical-ia00380is0001140sra11s000",
@@ -678,7 +734,8 @@
       "latitude": 41.867239,
       "longitude": -91.670361,
       "facilityName": "I-380: Cedar Rapids SB Rest Area",
-      "address": ""
+      "address": "Cedar Rapids, IA",
+      "city": "Cedar Rapids"
     },
     {
       "facilityId": "tpims-historical-ia00080is0018000era180e00",
@@ -690,7 +747,8 @@
       "latitude": 41.694393,
       "longitude": -92.772218,
       "facilityName": "I-80: Grinnell EB Rest Area",
-      "address": ""
+      "address": "Grinnell, IA",
+      "city": "Grinnell"
     },
     {
       "facilityId": "tpims-historical-mn00094is0018700e0enfield",
@@ -30285,8 +30343,8 @@
     "recordCount": 100000,
     "facilityCount": 73,
     "patternCount": 3695,
-    "coordinatesAddedAt": "2025-10-31T12:17:28.256Z",
-    "facilitiesWithCoordinates": 33,
-    "facilitiesWithoutCoordinates": 40
+    "coordinatesAddedAt": "2025-10-31T13:50:15.152Z",
+    "facilitiesWithCoordinates": 38,
+    "facilitiesWithoutCoordinates": 35
   }
 }
