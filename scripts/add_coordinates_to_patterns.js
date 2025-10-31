@@ -28,18 +28,23 @@ async function addCoordinates() {
   const locationMap = new Map();
 
   excelData.forEach(row => {
-    const siteId = row.SiteId || row.SiteID || row.siteid;
+    const siteId = (row.SiteId || row.SiteID || row.siteid || '').toUpperCase();
     const latitude = parseFloat(row.Latitude || row.latitude || row.Lat || row.lat);
     const longitude = parseFloat(row.Longitude || row.longitude || row.Lon || row.lon || row.Long || row.long);
     const name = row.SiteName || row.Name || row.FacilityName || '';
-    const address = row.Address || row.address || '';
+    const city = row.City || row.city || '';
+    const state = row.State || row.state || '';
+    const capacity = parseInt(row.Capacity || row.capacity || 0);
 
     if (siteId && !isNaN(latitude) && !isNaN(longitude)) {
       locationMap.set(siteId, {
         latitude,
         longitude,
         name,
-        address
+        city,
+        state,
+        capacity,
+        address: city && state ? `${city}, ${state}` : ''
       });
     }
   });
@@ -79,7 +84,9 @@ async function addCoordinates() {
           latitude: location.latitude,
           longitude: location.longitude,
           facilityName: location.name || facility.siteId,
-          address: location.address
+          address: location.address,
+          city: location.city,
+          capacity: location.capacity || facility.capacity
         };
       }
     }
