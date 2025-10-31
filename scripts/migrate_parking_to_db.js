@@ -82,10 +82,21 @@ async function migrateParkingData() {
   }
 
   console.log(`📂 Loading data from: ${jsonPath}`);
-  const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
 
+  // Read raw file and log details
+  const rawData = fs.readFileSync(jsonPath, 'utf8');
+  console.log(`📊 File size: ${rawData.length} bytes`);
+  console.log(`📄 First 200 chars: ${rawData.substring(0, 200)}`);
+
+  const data = JSON.parse(rawData);
+  console.log(`📦 Parsed data keys: ${Object.keys(data).join(', ')}`);
   console.log(`   Facilities: ${data.facilities?.length || 0}`);
-  console.log(`   Patterns: ${data.patterns?.length || 0}\n`);
+  console.log(`   Patterns: ${data.patterns?.length || 0}`);
+
+  if (data.facilities && data.facilities.length > 0) {
+    console.log(`   Sample facility: ${JSON.stringify(data.facilities[0])}`);
+  }
+  console.log('');
 
   // Clear existing data
   console.log('🧹 Clearing existing parking data...');
