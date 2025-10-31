@@ -93,6 +93,23 @@ async function migrateParkingData() {
   console.log(`   Facilities: ${data.facilities?.length || 0}`);
   console.log(`   Patterns: ${data.patterns?.length || 0}`);
 
+  // Check if this is the old fallback-empty file from persistent storage
+  if (data.source === 'fallback-empty' || (data.facilities?.length === 0 && data.patterns?.length === 0 && rawData.length < 1000)) {
+    console.log('\n⚠️  WARNING: Found empty fallback file from old deployment (size: ' + rawData.length + ' bytes)');
+    console.log('💡 This is a stale file created by a previous version that persists in Railway storage');
+    console.log('🔄 Attempting to use the real bundled data file from git deployment...\n');
+
+    // The real file should be in the deployment from git
+    // If we're seeing the fallback, it means Railway has a persistent volume overriding it
+    // We need to delete the old file and force Railway to use the git version
+    console.log('❌ ERROR: Cannot migrate with empty data file');
+    console.log('💡 Solution: Delete the persistent data volume on Railway, then redeploy');
+    console.log('   This will allow the real 772KB file from git to be used\n');
+    console.log('   Railway CLI: railway volume list, then railway volume delete <volume-id>');
+    console.log('   Or remove/remount the volume via Railway dashboard\n');
+    process.exit(1);
+  }
+
   if (data.facilities && data.facilities.length > 0) {
     console.log(`   Sample facility: ${JSON.stringify(data.facilities[0])}`);
   }
