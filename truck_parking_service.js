@@ -17,8 +17,22 @@ class TruckParkingService {
       const dataPath = path.join(__dirname, 'data/truck_parking_patterns.json');
 
       if (!fs.existsSync(dataPath)) {
-        console.log('⚠️  No parking patterns file found. Run: node scripts/process_truck_parking_historical.js');
-        return false;
+        console.log('⚠️  No parking patterns file found. Creating minimal fallback...');
+        // Create data directory if it doesn't exist
+        const dataDir = path.join(__dirname, 'data');
+        if (!fs.existsSync(dataDir)) {
+          fs.mkdirSync(dataDir, { recursive: true });
+        }
+
+        // Create minimal patterns file with empty data
+        const minimalData = {
+          facilities: [],
+          patterns: [],
+          generatedAt: new Date().toISOString(),
+          source: 'fallback-empty'
+        };
+        fs.writeFileSync(dataPath, JSON.stringify(minimalData, null, 2));
+        console.log('⚠️  Created empty patterns file. To populate with data, run: node scripts/process_truck_parking_historical.js');
       }
 
       const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
@@ -32,7 +46,11 @@ class TruckParkingService {
       }
 
       this.loaded = true;
-      console.log(`✅ Loaded ${this.facilities.size} parking facilities with ${this.patterns.size} time-based patterns`);
+      if (this.facilities.size === 0) {
+        console.log('⚠️  Parking patterns loaded but no facilities found. Service is running with empty data.');
+      } else {
+        console.log(`✅ Loaded ${this.facilities.size} parking facilities with ${this.patterns.size} time-based patterns`);
+      }
       return true;
 
     } catch (error) {
@@ -117,6 +135,19 @@ class TruckParkingService {
   predictAll(targetTime = new Date()) {
     if (!this.loaded) {
       return { success: false, error: 'Service not initialized' };
+    }
+
+    // Handle case where no facilities are loaded
+    if (this.facilities.size === 0) {
+      return {
+        success: true,
+        predictions: [],
+        alerts: [],
+        predictedFor: targetTime.toISOString(),
+        count: 0,
+        alertCount: 0,
+        warning: 'No parking facilities loaded. Data may need to be populated.'
+      };
     }
 
     const predictions = [];
