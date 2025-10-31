@@ -4,7 +4,7 @@
   "description": "Backend proxy server for multi-state traffic dashboard",
   "main": "backend_proxy_server.js",
   "scripts": {
-    "start": "node backend_proxy_server.js",
+    "start": "node start.js",
     "build:frontend": "npm run build --prefix frontend",
     "postinstall": "node scripts/ensure-frontend-build.js",
     "test": "node tests/compliance-analyzer.test.js"
