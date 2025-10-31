@@ -19,6 +19,7 @@ import AdminFeedSubmissions from './components/AdminFeedSubmissions';
 import FeedSubmission from './components/FeedSubmission';
 import DocumentationViewer from './components/DocumentationViewer';
 import ChatWidget from './components/ChatWidget';
+import UserProfile from './components/UserProfile';
 import './styles/App.css';
 
 function App() {
@@ -317,6 +318,22 @@ function App() {
               </a>
             </div>
             <button
+              onClick={() => setView('profile')}
+              className="profile-btn"
+              style={{
+                padding: '6px 12px',
+                borderRadius: '4px',
+                border: '1px solid #6b7280',
+                backgroundColor: view === 'profile' ? '#3b82f6' : 'white',
+                color: view === 'profile' ? 'white' : '#374151',
+                cursor: 'pointer',
+                fontSize: '13px',
+                marginLeft: '10px'
+              }}
+            >
+              My Profile
+            </button>
+            <button
               onClick={handleLogout}
               className="logout-btn"
               style={{
@@ -459,6 +476,12 @@ function App() {
 
         {view === 'feedSubmission' ? (
           <FeedSubmission authToken={authToken} user={currentUser} />
+        ) : view === 'profile' ? (
+          <UserProfile
+            user={currentUser}
+            authToken={authToken}
+            onProfileUpdate={(updatedUser) => setCurrentUser(updatedUser)}
+          />
         ) : view === 'admin' ? (
           <StateAdmin user={currentUser} authToken={authToken} />
         ) : view === 'adminUsers' ? (

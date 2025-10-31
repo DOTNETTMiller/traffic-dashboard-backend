@@ -1949,8 +1949,48 @@ app.get('/api/users/me', requireUser, (req, res) => {
   }
 });
 
+// Update user profile
+app.put('/api/users/profile', requireUser, async (req, res) => {
+  const { fullName, organization, stateKey, notifyOnMessages, notifyOnHighSeverity } = req.body;
+
+  const user = db.getUserByUsername(req.user.username);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  // Update user information
+  const result = await db.updateUser(user.id, {
+    fullName,
+    organization,
+    stateKey: stateKey || null,
+    notifyOnMessages: notifyOnMessages !== undefined ? notifyOnMessages : user.notifyOnMessages,
+    notifyOnHighSeverity: notifyOnHighSeverity !== undefined ? notifyOnHighSeverity : user.notifyOnHighSeverity
+  });
+
+  if (result.success) {
+    const updatedUser = db.getUserByUsername(req.user.username);
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      user: {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        fullName: updatedUser.fullName,
+        organization: updatedUser.organization,
+        stateKey: updatedUser.stateKey,
+        role: updatedUser.role,
+        notifyOnMessages: updatedUser.notifyOnMessages,
+        notifyOnHighSeverity: updatedUser.notifyOnHighSeverity
+      }
+    });
+  } else {
+    res.status(400).json({ error: result.error || 'Failed to update profile' });
+  }
+});
+
 // Change password for current user
-app.post('/api/users/change-password', requireUser, (req, res) => {
+app.put('/api/users/password', requireUser, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
 
   if (!currentPassword || !newPassword) {
@@ -1962,13 +2002,41 @@ app.post('/api/users/change-password', requireUser, (req, res) => {
   }
 
   // Verify current password
-  const user = db.verifyUserPassword(req.user.username, currentPassword);
+  const user = await db.verifyUserPassword(req.user.username, currentPassword);
   if (!user) {
     return res.status(401).json({ error: 'Current password is incorrect' });
   }
 
   // Update password
-  const result = db.updateUser(user.id, { password: newPassword });
+  const result = await db.updateUser(user.id, { password: newPassword });
+
+  if (result.success) {
+    res.json({ success: true, message: 'Password changed successfully' });
+  } else {
+    res.status(400).json({ error: result.error || 'Failed to change password' });
+  }
+});
+
+// Legacy endpoint - redirect to new endpoint
+app.post('/api/users/change-password', requireUser, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Current password and new password are required' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'New password must be at least 6 characters long' });
+  }
+
+  // Verify current password
+  const user = await db.verifyUserPassword(req.user.username, currentPassword);
+  if (!user) {
+    return res.status(401).json({ error: 'Current password is incorrect' });
+  }
+
+  // Update password
+  const result = await db.updateUser(user.id, { password: newPassword });
 
   if (result.success) {
     res.json({ success: true, message: 'Password changed successfully' });
