@@ -14,32 +14,61 @@ async function migrateParkingData() {
   // Create tables for parking data
   console.log('📋 Creating database tables...');
 
-  db.db.exec(`
-    CREATE TABLE IF NOT EXISTS parking_facilities (
-      facility_id TEXT PRIMARY KEY,
-      site_id TEXT NOT NULL,
-      state TEXT NOT NULL,
-      avg_capacity INTEGER NOT NULL,
-      total_samples INTEGER NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+  if (db.isPostgres) {
+    await db.db.execAsync(`
+      CREATE TABLE IF NOT EXISTS parking_facilities (
+        facility_id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        state TEXT NOT NULL,
+        avg_capacity INTEGER NOT NULL,
+        total_samples INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
 
-    CREATE TABLE IF NOT EXISTS parking_patterns (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      facility_id TEXT NOT NULL,
-      day_of_week INTEGER NOT NULL,
-      hour INTEGER NOT NULL,
-      avg_occupancy_rate REAL NOT NULL,
-      sample_count INTEGER NOT NULL,
-      capacity INTEGER NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (facility_id) REFERENCES parking_facilities(facility_id),
-      UNIQUE(facility_id, day_of_week, hour)
-    );
+      CREATE TABLE IF NOT EXISTS parking_patterns (
+        id SERIAL PRIMARY KEY,
+        facility_id TEXT NOT NULL,
+        day_of_week INTEGER NOT NULL,
+        hour INTEGER NOT NULL,
+        avg_occupancy_rate DOUBLE PRECISION NOT NULL,
+        sample_count INTEGER NOT NULL,
+        capacity INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (facility_id) REFERENCES parking_facilities(facility_id),
+        UNIQUE(facility_id, day_of_week, hour)
+      );
 
-    CREATE INDEX IF NOT EXISTS idx_parking_patterns_lookup
-    ON parking_patterns(facility_id, day_of_week, hour);
-  `);
+      CREATE INDEX IF NOT EXISTS idx_parking_patterns_lookup
+      ON parking_patterns(facility_id, day_of_week, hour);
+    `);
+  } else {
+    db.db.exec(`
+      CREATE TABLE IF NOT EXISTS parking_facilities (
+        facility_id TEXT PRIMARY KEY,
+        site_id TEXT NOT NULL,
+        state TEXT NOT NULL,
+        avg_capacity INTEGER NOT NULL,
+        total_samples INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS parking_patterns (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        facility_id TEXT NOT NULL,
+        day_of_week INTEGER NOT NULL,
+        hour INTEGER NOT NULL,
+        avg_occupancy_rate REAL NOT NULL,
+        sample_count INTEGER NOT NULL,
+        capacity INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (facility_id) REFERENCES parking_facilities(facility_id),
+        UNIQUE(facility_id, day_of_week, hour)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_parking_patterns_lookup
+      ON parking_patterns(facility_id, day_of_week, hour);
+    `);
+  }
 
   console.log('✅ Tables created successfully\n');
 
