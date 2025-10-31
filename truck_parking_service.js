@@ -15,6 +15,7 @@ class TruckParkingService {
   loadPatterns() {
     try {
       const dataPath = path.join(__dirname, 'data/truck_parking_patterns.json');
+      console.log(`📂 Loading parking patterns from: ${dataPath}`);
 
       if (!fs.existsSync(dataPath)) {
         console.log('⚠️  No parking patterns file found. Creating minimal fallback...');
@@ -35,7 +36,12 @@ class TruckParkingService {
         console.log('⚠️  Created empty patterns file. To populate with data, run: node scripts/process_truck_parking_historical.js');
       }
 
+      const fileStats = fs.statSync(dataPath);
+      console.log(`📊 File size: ${(fileStats.size / 1024).toFixed(1)} KB`);
+
       const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+      console.log(`📦 Parsed data - facilities: ${data.facilities?.length || 0}, patterns: ${data.patterns?.length || 0}`);
+
       this.facilities = new Map(data.facilities.map(f => [f.facilityId, f]));
 
       // Index patterns by facility and time
