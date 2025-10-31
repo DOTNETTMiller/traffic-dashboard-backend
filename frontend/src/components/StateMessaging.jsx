@@ -263,12 +263,21 @@ export default function StateMessaging({ user, authToken }) {
     );
   }
 
-  if (!userStateKey) {
+  if (!userStateKey && !isAdmin) {
     return (
       <div className="state-messaging">
         <div className="login-container">
           <h2>State Messaging</h2>
-          <p>Your account is not associated with a state yet. Contact an administrator to assign one so you can send and receive messages.</p>
+          <p>Your account is not associated with a state agency. To use state-to-state messaging:</p>
+          <ol style={{ textAlign: 'left', marginLeft: '40px', marginTop: '16px' }}>
+            <li>Click "My Profile" in the header</li>
+            <li>Select your state/agency affiliation from the dropdown</li>
+            <li>Click "Save Changes"</li>
+            <li>Return to this page to send and receive messages</li>
+          </ol>
+          <p style={{ marginTop: '16px', fontSize: '14px', color: '#6b7280' }}>
+            State affiliation is required to send messages to other DOT agencies and receive notifications about events affecting your corridors.
+          </p>
         </div>
       </div>
     );

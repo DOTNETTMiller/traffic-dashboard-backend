@@ -25,12 +25,14 @@ export default function UserLogin({ onLoginSuccess }) {
   useEffect(() => {
     const fetchStates = async () => {
       try {
-        const response = await axios.get(`${config.apiUrl}/api/admin/states`);
+        const response = await axios.get(`${config.apiUrl}/api/states/list`);
         if (response.data.success) {
           setStates(response.data.states);
         }
       } catch (error) {
         console.error('Error fetching states:', error);
+        // Fallback to empty array if fetch fails
+        setStates([]);
       }
     };
     fetchStates();
