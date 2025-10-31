@@ -5458,7 +5458,7 @@ app.get('/api/states/list', async (req, res) => {
 // ==================== AI CHAT ASSISTANT ====================
 
 // System prompt with WZDx, TMDD, SAE J2735 expertise
-const SYSTEM_PROMPT = `You are an expert AI assistant for the DOT Corridor Communicator system. You help state DOTs understand and improve their traffic data feed compliance.
+const SYSTEM_PROMPT = `You are an expert AI assistant for the DOT Corridor Communicator system. You help state DOTs with traffic data compliance and truck parking availability.
 
 Your expertise includes:
 - WZDx v4.x (Work Zone Data Exchange) specification
@@ -5466,12 +5466,20 @@ Your expertise includes:
 - TMDD (Traffic Management Data Dictionary) standard
 - Feed alignment and normalization best practices
 - Compliance scoring and data quality assessment
+- Truck parking availability predictions and TPIMS data analysis
 
 You can help users with:
 1. **Compliance Scores**: Explain why they received a specific score and what fields they need to add
 2. **Standards Questions**: Answer questions about WZDx, TMDD, SAE J2735 field definitions and requirements
 3. **Feed Issues**: Diagnose parsing errors, validation issues, and field mapping problems
 4. **Implementation Guidance**: Provide code examples and best practices for improving feed quality
+5. **Truck Parking**: Answer questions about parking availability, predictions, alerts, and facility details
+
+When a user asks about truck parking:
+- Reference actual prediction data (provided in context)
+- Explain availability patterns and confidence levels
+- Help interpret alerts and recommend alternative facilities
+- Provide context about peak times and occupancy trends
 
 When a user asks about their compliance:
 - Reference their actual data (provided in context)
@@ -5530,6 +5538,45 @@ app.post('/api/chat', requireUser, async (req, res) => {
         }
         if (recommendations && recommendations.length > 0) {
           contextInfo += `Recommendations: ${recommendations.slice(0, 3).join(', ')}\n`;
+        }
+      } else if (context.type === 'parking' && context.data) {
+        contextInfo = `\n\nCURRENT CONTEXT: User is viewing truck parking predictions\n`;
+        const { predictions, alerts, targetTime, hourOffset } = context.data;
+
+        if (targetTime) {
+          contextInfo += `Prediction Time: ${new Date(targetTime).toLocaleString()} ${hourOffset ? `(+${hourOffset}hr from now)` : '(current)'}\n`;
+        }
+
+        if (alerts && alerts.length > 0) {
+          contextInfo += `\nACTIVE ALERTS (${alerts.length}):\n`;
+          alerts.forEach(alert => {
+            contextInfo += `- ${alert.severity.toUpperCase()}: ${alert.message}\n`;
+          });
+        }
+
+        if (predictions && predictions.length > 0) {
+          // Summarize predictions
+          const total = predictions.length;
+          const withCoords = predictions.filter(p => p.latitude && p.longitude).length;
+          const limited = predictions.filter(p => p.predictedAvailable <= 5).length;
+          const full = predictions.filter(p => p.predictedAvailable === 0).length;
+
+          contextInfo += `\nPREDICTIONS SUMMARY:\n`;
+          contextInfo += `- Total Facilities: ${total}\n`;
+          contextInfo += `- With GPS Coordinates: ${withCoords}\n`;
+          contextInfo += `- Limited Parking (≤5 spaces): ${limited}\n`;
+          contextInfo += `- Full (0 spaces): ${full}\n`;
+
+          // List facilities with limited parking
+          if (limited > 0) {
+            contextInfo += `\nFACILITIES WITH LIMITED PARKING:\n`;
+            predictions
+              .filter(p => p.predictedAvailable <= 5)
+              .slice(0, 10)
+              .forEach(p => {
+                contextInfo += `- ${p.siteId} (${p.state}): ${p.predictedAvailable} spaces, ${Math.round(p.occupancyRate * 100)}% occupancy, ${p.confidence} confidence\n`;
+              });
+          }
         }
       }
     }
@@ -7043,6 +7090,33 @@ app.get('/api/parking/historical/summary', (req, res) => {
   } catch (error) {
     console.error('Error fetching summary:', error);
     res.status(500).json({ error: 'Failed to fetch summary' });
+  }
+});
+
+// Reload parking patterns from file
+app.post('/api/parking/historical/reload', (req, res) => {
+  try {
+    console.log('🔄 Manually reloading truck parking patterns...');
+    const loaded = truckParkingService.loadPatterns();
+
+    if (loaded) {
+      const summary = truckParkingService.getSummary();
+      console.log('✅ Parking patterns reloaded successfully');
+      res.json({
+        success: true,
+        message: 'Parking patterns reloaded successfully',
+        summary: summary.success ? summary : null
+      });
+    } else {
+      console.log('⚠️  Failed to reload parking patterns');
+      res.status(500).json({
+        success: false,
+        error: 'Failed to reload patterns'
+      });
+    }
+  } catch (error) {
+    console.error('Error reloading patterns:', error);
+    res.status(500).json({ error: 'Failed to reload patterns' });
   }
 });
 
