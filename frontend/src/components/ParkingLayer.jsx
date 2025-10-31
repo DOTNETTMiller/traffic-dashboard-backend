@@ -35,7 +35,7 @@ const createParkingIcon = (availableSpaces, totalSpaces, isPrediction) => {
   });
 };
 
-export default function ParkingLayer({ showParking = false }) {
+export default function ParkingLayer({ showParking = false, predictionHoursAhead = 0 }) {
   const [parkingData, setParkingData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -50,8 +50,13 @@ export default function ParkingLayer({ showParking = false }) {
       setError(null);
 
       try {
+        // Calculate target time based on hours ahead
+        const targetTime = new Date();
+        targetTime.setHours(targetTime.getHours() + predictionHoursAhead);
+        const timeParam = targetTime.toISOString();
+
         // Fetch historical pattern-based predictions for all facilities
-        const response = await api.get('/api/parking/historical/predict-all');
+        const response = await api.get(`/api/parking/historical/predict-all?time=${timeParam}`);
 
         if (response.data && response.data.success) {
           // Transform the prediction data to match the expected format
@@ -89,7 +94,7 @@ export default function ParkingLayer({ showParking = false }) {
     const interval = setInterval(fetchParkingData, 5 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [showParking]);
+  }, [showParking, predictionHoursAhead]);
 
   if (!showParking) {
     return null;
@@ -198,7 +203,10 @@ export default function ParkingLayer({ showParking = false }) {
                   </p>
                 )}
                 <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#6b7280' }}>
-                  Last updated: {new Date(facility.timestamp).toLocaleString()}
+                  {predictionHoursAhead > 0
+                    ? `Predicted for: ${new Date(facility.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})} (${predictionHoursAhead}hr ahead)`
+                    : `Predicted for: ${new Date(facility.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})} (now)`
+                  }
                 </p>
               </div>
             </Popup>

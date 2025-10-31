@@ -353,7 +353,7 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
   });
 };
 
-export default function TrafficMap({ events, messages = {}, detourAlerts = [], onEventSelect, selectedEvent = null, showParking = false }) {
+export default function TrafficMap({ events, messages = {}, detourAlerts = [], onEventSelect, selectedEvent = null, showParking = false, parkingPredictionHours = 0 }) {
   // Filter out events without valid coordinates
   const validEvents = events.filter(e => {
     const lat = parseFloat(e.latitude);
@@ -607,7 +607,7 @@ export default function TrafficMap({ events, messages = {}, detourAlerts = [], o
           </CircleMarker>
         ))}
 
-        <ParkingLayer showParking={showParking} />
+        <ParkingLayer showParking={showParking} predictionHoursAhead={parkingPredictionHours} />
 
         <MapCenterController selectedEvent={selectedEvent} />
       </MapContainer>

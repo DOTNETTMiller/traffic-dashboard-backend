@@ -35,6 +35,7 @@ function App() {
   const [messages, setMessages] = useState({});
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [showParking, setShowParking] = useState(false);
+  const [parkingPredictionHours, setParkingPredictionHours] = useState(0);
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Mobile starts closed
   const [desktopMessagesOpen, setDesktopMessagesOpen] = useState(false);
@@ -448,10 +449,36 @@ function App() {
             <input
               type="checkbox"
               checked={showParking}
-              onChange={(e) => setShowParking(e.target.checked)}
+              onChange={(e) => {
+                setShowParking(e.target.checked);
+                if (!e.target.checked) setParkingPredictionHours(0);
+              }}
             />
             🚛 Truck Parking
           </label>
+          {showParking && (
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '13px' }}>
+              <span style={{ color: '#6b7280', marginRight: '4px' }}>Predict:</span>
+              {[0, 1, 2, 3, 4].map(hours => (
+                <button
+                  key={hours}
+                  onClick={() => setParkingPredictionHours(hours)}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '4px',
+                    backgroundColor: parkingPredictionHours === hours ? '#3b82f6' : 'white',
+                    color: parkingPredictionHours === hours ? 'white' : '#374151',
+                    cursor: 'pointer',
+                    fontWeight: parkingPredictionHours === hours ? '600' : '400'
+                  }}
+                >
+                  {hours === 0 ? 'Now' : `+${hours}hr`}
+                </button>
+              ))}
+            </div>
+          )}
           <button onClick={refetch} className="refresh-btn" disabled={loading}>
             {loading ? 'Loading...' : 'Refresh Now'}
           </button>
@@ -562,6 +589,7 @@ function App() {
                   onEventSelect={setSelectedEvent}
                   selectedEvent={selectedEvent}
                   showParking={showParking}
+                  parkingPredictionHours={parkingPredictionHours}
                 />
               </div>
             </div>
