@@ -36,6 +36,7 @@ function App() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [showParking, setShowParking] = useState(false);
   const [parkingPredictionHours, setParkingPredictionHours] = useState(0);
+  const [parkingContext, setParkingContext] = useState(null);
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Mobile starts closed
   const [desktopMessagesOpen, setDesktopMessagesOpen] = useState(false);
@@ -43,6 +44,40 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authToken, setAuthToken] = useState(null);
   const [detourAlerts, setDetourAlerts] = useState([]);
+
+  // Fetch parking data when parking view is active
+  useEffect(() => {
+    if (!showParking) {
+      setParkingContext(null);
+      return;
+    }
+
+    const fetchParkingContext = async () => {
+      try {
+        const targetTime = new Date();
+        targetTime.setHours(targetTime.getHours() + parkingPredictionHours);
+        const timeParam = targetTime.toISOString();
+
+        const response = await axios.get(`${config.apiUrl}/api/parking/historical/predict-all?time=${timeParam}`);
+
+        if (response.data && response.data.success) {
+          setParkingContext({
+            type: 'parking',
+            data: {
+              predictions: response.data.predictions,
+              alerts: response.data.alerts || [],
+              targetTime: response.data.predictedFor,
+              hourOffset: parkingPredictionHours
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching parking context:', error);
+      }
+    };
+
+    fetchParkingContext();
+  }, [showParking, parkingPredictionHours]);
 
   // Check for existing authentication on mount
   useEffect(() => {
@@ -624,18 +659,21 @@ function App() {
       {isAuthenticated && currentUser && (
         <ChatWidget
           user={currentUser}
-          context={view === 'report' ? {
-            type: 'compliance',
-            data: {
-              stateKey: currentUser.stateKey,
-              view: 'data-quality'
-            }
-          } : view === 'alignment' ? {
-            type: 'feed-alignment',
-            data: {
-              view: 'alignment-analysis'
-            }
-          } : null}
+          context={
+            parkingContext ? parkingContext :
+            view === 'report' ? {
+              type: 'compliance',
+              data: {
+                stateKey: currentUser.stateKey,
+                view: 'data-quality'
+              }
+            } : view === 'alignment' ? {
+              type: 'feed-alignment',
+              data: {
+                view: 'alignment-analysis'
+              }
+            } : null
+          }
         />
       )}
     </div>
