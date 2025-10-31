@@ -6793,13 +6793,17 @@ const parkingPredictor = new ParkingPredictor(db);
 // Historical pattern-based parking service
 const truckParkingService = require('./truck_parking_service.js');
 
-// Load historical patterns on startup
-setTimeout(() => {
-  const loaded = truckParkingService.loadPatterns();
-  if (loaded) {
-    console.log('✅ Truck parking historical patterns loaded successfully');
-  } else {
-    console.log('⚠️  Truck parking patterns not loaded - run process_truck_parking_historical.js first');
+// Load historical patterns on startup (async)
+setTimeout(async () => {
+  try {
+    const loaded = await truckParkingService.loadPatterns();
+    if (loaded) {
+      console.log('✅ Truck parking historical patterns loaded successfully from database');
+    } else {
+      console.log('⚠️  Truck parking patterns not loaded - run: node scripts/migrate_parking_to_db.js');
+    }
+  } catch (error) {
+    console.error('❌ Failed to load parking patterns:', error.message);
   }
 }, 2000);
 
@@ -7093,25 +7097,25 @@ app.get('/api/parking/historical/summary', (req, res) => {
   }
 });
 
-// Reload parking patterns from file
-app.post('/api/parking/historical/reload', (req, res) => {
+// Reload parking patterns from database
+app.post('/api/parking/historical/reload', async (req, res) => {
   try {
-    console.log('🔄 Manually reloading truck parking patterns...');
-    const loaded = truckParkingService.loadPatterns();
+    console.log('🔄 Manually reloading truck parking patterns from database...');
+    const loaded = await truckParkingService.loadPatterns();
 
     if (loaded) {
       const summary = truckParkingService.getSummary();
-      console.log('✅ Parking patterns reloaded successfully');
+      console.log('✅ Parking patterns reloaded successfully from database');
       res.json({
         success: true,
-        message: 'Parking patterns reloaded successfully',
+        message: 'Parking patterns reloaded successfully from database',
         summary: summary.success ? summary : null
       });
     } else {
       console.log('⚠️  Failed to reload parking patterns');
       res.status(500).json({
         success: false,
-        error: 'Failed to reload patterns'
+        error: 'Failed to reload patterns from database'
       });
     }
   } catch (error) {
