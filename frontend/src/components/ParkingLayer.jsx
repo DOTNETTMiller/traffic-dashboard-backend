@@ -37,6 +37,7 @@ const createParkingIcon = (availableSpaces, totalSpaces, isPrediction) => {
 
 export default function ParkingLayer({ showParking = false, predictionHoursAhead = 0 }) {
   const [parkingData, setParkingData] = useState([]);
+  const [parkingAlerts, setParkingAlerts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -64,7 +65,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
             facilityId: pred.facilityId,
             facilityName: pred.siteId || pred.facilityId,
             state: pred.state,
-            latitude: pred.latitude || 0, // Will need coordinates from TruckStopsExport.xlsx
+            latitude: pred.latitude || 0,
             longitude: pred.longitude || 0,
             availableSpaces: pred.predictedAvailable,
             occupiedSpaces: pred.predictedOccupied,
@@ -77,6 +78,13 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
           }));
 
           setParkingData(transformedData);
+
+          // Store parking alerts for display
+          if (response.data.alerts && response.data.alerts.length > 0) {
+            setParkingAlerts(response.data.alerts);
+          } else {
+            setParkingAlerts([]);
+          }
         } else {
           setError('Failed to fetch parking predictions');
         }
@@ -105,8 +113,75 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
   }
 
   return (
-    <LayerGroup>
-      {parkingData.map((facility) => {
+    <>
+      {/* Parking Alerts Banner */}
+      {parkingAlerts.length > 0 && (
+        <div style={{
+          position: 'fixed',
+          top: '80px',
+          right: '20px',
+          zIndex: 1000,
+          maxWidth: '350px',
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+          border: '2px solid #f59e0b',
+          maxHeight: '400px',
+          overflow: 'auto'
+        }}>
+          <div style={{
+            padding: '12px 16px',
+            backgroundColor: '#fef3c7',
+            borderBottom: '1px solid #f59e0b',
+            borderRadius: '6px 6px 0 0',
+            fontWeight: 'bold',
+            color: '#92400e',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span>⚠️ Parking Alerts ({parkingAlerts.length})</span>
+            <button
+              onClick={() => setParkingAlerts([])}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#92400e',
+                cursor: 'pointer',
+                fontSize: '18px',
+                padding: '0 4px'
+              }}
+            >
+              ×
+            </button>
+          </div>
+          <div style={{ padding: '8px' }}>
+            {parkingAlerts.map((alert, idx) => (
+              <div
+                key={idx}
+                style={{
+                  padding: '10px',
+                  marginBottom: '8px',
+                  backgroundColor: alert.severity === 'critical' ? '#fee2e2' : '#fef3c7',
+                  borderLeft: `4px solid ${alert.severity === 'critical' ? '#dc2626' : '#f59e0b'}`,
+                  borderRadius: '4px',
+                  fontSize: '13px'
+                }}
+              >
+                <div style={{ fontWeight: '600', marginBottom: '4px', color: '#1f2937' }}>
+                  {alert.message}
+                </div>
+                <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                  {alert.state} • {new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <LayerGroup>
+        {parkingData.map((facility) => {
         const lat = parseFloat(facility.latitude);
         const lon = parseFloat(facility.longitude);
 
@@ -213,6 +288,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
           </Marker>
         );
       })}
-    </LayerGroup>
+      </LayerGroup>
+    </>
   );
 }
