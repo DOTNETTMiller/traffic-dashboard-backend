@@ -1,0 +1,12 @@
+# Exclude large data files from Railway deployments
+TruckStopsExport/
+
+# Also exclude other unnecessary files
+node_modules/
+.git/
+.DS_Store
+*.log
+.env.local
+states.db
+states.db-journal
+messages.json
