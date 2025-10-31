@@ -7124,6 +7124,34 @@ app.post('/api/parking/historical/reload', async (req, res) => {
   }
 });
 
+// Migrate parking patterns from JSON to database (one-time setup)
+app.post('/api/parking/historical/migrate', async (req, res) => {
+  try {
+    console.log('🚛 Running parking patterns migration to database...');
+    const { migrateParkingData } = require('./scripts/migrate_parking_to_db.js');
+
+    // Run migration
+    await migrateParkingData();
+
+    // Reload patterns into memory
+    await truckParkingService.loadPatterns();
+
+    const summary = truckParkingService.getSummary();
+
+    res.json({
+      success: true,
+      message: 'Migration completed successfully',
+      summary
+    });
+  } catch (error) {
+    console.error('❌ Migration failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Migration failed: ' + error.message
+    });
+  }
+});
+
 // Admin: Fetch real-time TPIMS data
 app.post('/api/admin/parking/fetch-tpims', requireAdmin, async (req, res) => {
   try {
