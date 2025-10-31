@@ -7275,6 +7275,29 @@ function startServer() {
   // Schedule periodic updates every 15 minutes
   setInterval(fetchTPIMSDataScheduled, 15 * 60 * 1000);
 
+  // Diagnostic: Check truck parking JSON file
+  console.log(`\n🔍 Diagnostic: Checking truck parking JSON file...`);
+  const jsonPath = path.join(__dirname, 'data/truck_parking_patterns.json');
+  console.log(`   Path: ${jsonPath}`);
+  console.log(`   Exists: ${fs.existsSync(jsonPath)}`);
+  if (fs.existsSync(jsonPath)) {
+    try {
+      const stats = fs.statSync(jsonPath);
+      const rawData = fs.readFileSync(jsonPath, 'utf8');
+      console.log(`   File size: ${stats.size} bytes (${(stats.size/1024).toFixed(2)} KB)`);
+      console.log(`   First 150 chars: ${rawData.substring(0, 150)}`);
+      const data = JSON.parse(rawData);
+      console.log(`   Parsed keys: ${Object.keys(data).join(', ')}`);
+      console.log(`   Facilities: ${data.facilities?.length || 0}`);
+      console.log(`   Patterns: ${data.patterns?.length || 0}`);
+      if (data.facilities && data.facilities.length > 0) {
+        console.log(`   Sample facility: ${JSON.stringify(data.facilities[0])}`);
+      }
+    } catch (err) {
+      console.log(`   ❌ Error reading file: ${err.message}`);
+    }
+  }
+
   evaluateDetourAlerts();
   setInterval(evaluateDetourAlerts, 5 * 60 * 1000);
 
