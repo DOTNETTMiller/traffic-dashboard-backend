@@ -221,6 +221,40 @@ function getSeverityColor(severity) {
 }
 
 /**
+ * Generic email sender
+ */
+async function sendEmail(to, subject, text, html) {
+  // If email is not configured, just log and return success
+  // This prevents the password reset from failing
+  if (!process.env.EMAIL_USER || process.env.EMAIL_USER === 'your-email@gmail.com') {
+    console.log('⚠️  Email not configured, would have sent:');
+    console.log(`   To: ${to}`);
+    console.log(`   Subject: ${subject}`);
+    console.log(`   Body: ${text}`);
+    return { success: true, messageId: 'no-email-configured' };
+  }
+
+  const transport = getTransporter();
+
+  const mailOptions = {
+    from: `"DOT Corridor Communicator" <${EMAIL_CONFIG.auth.user}>`,
+    to,
+    subject,
+    text,
+    html: html || text
+  };
+
+  try {
+    const info = await transport.sendMail(mailOptions);
+    console.log('✅ Email sent:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('❌ Error sending email:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Verify email configuration
  */
 async function verifyEmailConfig() {
@@ -240,6 +274,7 @@ async function verifyEmailConfig() {
 }
 
 module.exports = {
+  sendEmail,
   sendMessageNotification,
   sendHighSeverityEventNotification,
   sendDetourAlertNotification,
