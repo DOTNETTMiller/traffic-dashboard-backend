@@ -2021,6 +2021,48 @@ app.post('/api/users/request-password-reset', (req, res) => {
   }
 });
 
+// TEMPORARY: Direct password reset endpoint (no auth required - REMOVE AFTER USE)
+app.post('/api/temp-reset-password', async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    if (!email || !newPassword) {
+      return res.status(400).json({ error: 'Email and newPassword required' });
+    }
+
+    const user = db.getUserByUsername(email);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Directly update the password using SQL
+    const hashedPassword = db.hashPassword(newPassword);
+
+    if (db.isPostgres) {
+      // PostgreSQL
+      await db.db.pool.query(
+        'UPDATE users SET password_hash = $1 WHERE id = $2',
+        [hashedPassword, user.id]
+      );
+    } else {
+      // SQLite
+      db.db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashedPassword, user.id);
+    }
+
+    console.log(`✅ Password reset for ${email} - new password: ${newPassword}`);
+
+    res.json({
+      success: true,
+      message: 'Password reset successful',
+      email,
+      newPassword
+    });
+  } catch (error) {
+    console.error('Error in temp password reset:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Update user notification preferences
 app.put('/api/users/notifications', requireUser, (req, res) => {
   const { notifyOnMessages, notifyOnHighSeverity } = req.body;
