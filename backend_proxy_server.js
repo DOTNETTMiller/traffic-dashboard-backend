@@ -5621,6 +5621,60 @@ app.get('/api/compliance/summary', async (req, res) => {
       }
     }
 
+    // Add Ohio with enhanced OHGO API data
+    try {
+      console.log('Fetching enhanced Ohio events for compliance analysis...');
+      const ohioEvents = await fetchOhioEvents();
+      if (ohioEvents && ohioEvents.length > 0) {
+        const analysis = analyzer.analyzeState('OH', 'Ohio', ohioEvents);
+
+        // Remove standard Ohio if it exists (replace with enhanced version)
+        const ohioIndex = states.findIndex(s => s.stateKey === 'ohio');
+        if (ohioIndex !== -1) {
+          states.splice(ohioIndex, 1);
+        }
+
+        states.push({
+          name: 'Ohio',
+          stateKey: 'ohio',
+          eventCount: ohioEvents.length,
+          currentFormat: analysis.currentFormat,
+          overallScore: analysis.overallScore,
+          dataCompletenessScore: analysis.dataCompletenessScore,
+          saeJ2735Ready: analysis.saeJ2735Ready,
+          wzdxCompliant: analysis.wzdxCompliant,
+          complianceGuideUrl: `/api/compliance/state/ohio`
+        });
+        console.log(`✅ Added Ohio with ${ohioEvents.length} enhanced events`);
+      }
+    } catch (error) {
+      console.error('Error adding Ohio to compliance summary:', error.message);
+    }
+
+    // Add California with Caltrans LCS data
+    try {
+      console.log('Fetching Caltrans LCS events for compliance analysis...');
+      const caltransEvents = await fetchCaltransLCS();
+      if (caltransEvents && caltransEvents.length > 0) {
+        const analysis = analyzer.analyzeState('CA', 'California', caltransEvents);
+
+        states.push({
+          name: 'California',
+          stateKey: 'ca',
+          eventCount: caltransEvents.length,
+          currentFormat: analysis.currentFormat,
+          overallScore: analysis.overallScore,
+          dataCompletenessScore: analysis.dataCompletenessScore,
+          saeJ2735Ready: analysis.saeJ2735Ready,
+          wzdxCompliant: analysis.wzdxCompliant,
+          complianceGuideUrl: `/api/compliance/state/ca`
+        });
+        console.log(`✅ Added California with ${caltransEvents.length} Caltrans LCS events`);
+      }
+    } catch (error) {
+      console.error('Error adding California to compliance summary:', error.message);
+    }
+
     // Sort by overall score (descending)
     states.sort((a, b) => b.overallScore.percentage - a.overallScore.percentage);
 
