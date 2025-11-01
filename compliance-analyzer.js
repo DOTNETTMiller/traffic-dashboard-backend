@@ -615,31 +615,25 @@ function computeStandardCompliance(events, spec, useRaw = false) {
 }
 
 function adjustGradeForCritical(baseGrade, criticalRatio) {
-  // Cap downgrades at maximum 2 letter grades to avoid overly punitive scoring
+  // More lenient grading - overall percentage should be primary factor
   // Critical fields are already weighted heavily (60%) in the base score
+  // Only downgrade for significantly poor critical coverage
 
-  if (criticalRatio >= 0.85) return baseGrade; // No downgrade for strong critical coverage
+  if (criticalRatio >= 0.70) return baseGrade; // No downgrade for good critical coverage (70%+)
 
-  if (criticalRatio >= 0.75) {
-    // 1 grade downgrade for good critical coverage
+  if (criticalRatio >= 0.50) {
+    // 1 grade downgrade for moderate critical coverage (50-70%)
+    // But never drop C below D
     if (baseGrade === 'A') return 'B';
     if (baseGrade === 'B') return 'C';
     if (baseGrade === 'C') return 'D';
-    if (baseGrade === 'D') return 'F';
-    return baseGrade;
+    return 'D'; // D is lowest for this tier
   }
 
-  if (criticalRatio >= 0.5) {
-    // 2 grade downgrade for moderate critical coverage
-    if (baseGrade === 'A') return 'C';
-    if (baseGrade === 'B') return 'D';
-    if (baseGrade === 'C') return 'F';
-    return 'F';
-  }
-
-  // Maximum 2 grade downgrade even for very low critical coverage
+  // Only 2 grade downgrade for very poor critical coverage (< 50%)
   if (baseGrade === 'A') return 'C';
   if (baseGrade === 'B') return 'D';
+  if (baseGrade === 'C') return 'F'; // C → F only if critical coverage < 50%
   return 'F';
 }
 
