@@ -128,11 +128,20 @@ async function migrateParkingData() {
 
   // Insert facilities
   console.log('📝 Inserting facilities...');
-  const facilityStmt = db.db.prepare(`
-    INSERT OR REPLACE INTO parking_facilities
-    (facility_id, site_id, state, avg_capacity, total_samples)
-    VALUES (?, ?, ?, ?, ?)
-  `);
+  const facilityQuery = db.isPostgres ?
+    `INSERT INTO parking_facilities
+     (facility_id, site_id, state, avg_capacity, total_samples)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (facility_id) DO UPDATE SET
+       site_id = EXCLUDED.site_id,
+       state = EXCLUDED.state,
+       avg_capacity = EXCLUDED.avg_capacity,
+       total_samples = EXCLUDED.total_samples` :
+    `INSERT OR REPLACE INTO parking_facilities
+     (facility_id, site_id, state, avg_capacity, total_samples)
+     VALUES (?, ?, ?, ?, ?)`;
+
+  const facilityStmt = db.db.prepare(facilityQuery);
 
   let facilityCount = 0;
   for (const facility of data.facilities || []) {
@@ -149,11 +158,19 @@ async function migrateParkingData() {
 
   // Insert patterns
   console.log('📝 Inserting patterns...');
-  const patternStmt = db.db.prepare(`
-    INSERT OR REPLACE INTO parking_patterns
-    (facility_id, day_of_week, hour, avg_occupancy_rate, sample_count, capacity)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
+  const patternQuery = db.isPostgres ?
+    `INSERT INTO parking_patterns
+     (facility_id, day_of_week, hour, avg_occupancy_rate, sample_count, capacity)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (facility_id, day_of_week, hour) DO UPDATE SET
+       avg_occupancy_rate = EXCLUDED.avg_occupancy_rate,
+       sample_count = EXCLUDED.sample_count,
+       capacity = EXCLUDED.capacity` :
+    `INSERT OR REPLACE INTO parking_patterns
+     (facility_id, day_of_week, hour, avg_occupancy_rate, sample_count, capacity)
+     VALUES (?, ?, ?, ?, ?, ?)`;
+
+  const patternStmt = db.db.prepare(patternQuery);
 
   let patternCount = 0;
   for (const pattern of data.patterns || []) {
