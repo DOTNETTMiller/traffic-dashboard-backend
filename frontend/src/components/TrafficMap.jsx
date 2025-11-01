@@ -395,11 +395,7 @@ export default function TrafficMap({ events, messages = {}, detourAlerts = [], o
         zoom={defaultZoom}
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
-        minZoom={4}
-        maxBounds={[
-          [24.396308, -125.0],  // Southwest corner (southern CA/TX)
-          [49.384358, -66.93457] // Northeast corner (northern ME/WA)
-        ]}
+        minZoom={3}
       >
         {/* Map center controller */}
         <MapCenterController selectedEvent={selectedEvent} />
@@ -608,8 +604,6 @@ export default function TrafficMap({ events, messages = {}, detourAlerts = [], o
         ))}
 
         <ParkingLayer showParking={showParking} predictionHoursAhead={parkingPredictionHours} />
-
-        <MapCenterController selectedEvent={selectedEvent} />
       </MapContainer>
     </div>
   );

@@ -40,6 +40,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
   const [parkingAlerts, setParkingAlerts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [observations, setObservations] = useState({}); // { facilityId: { availableSpaces: number, submitting: boolean } }
 
   useEffect(() => {
     if (!showParking) {
@@ -113,6 +114,49 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
     return () => clearInterval(interval);
   }, [showParking, predictionHoursAhead]);
 
+  const handleObservationSubmit = async (facilityId, availableSpaces) => {
+    setObservations(prev => ({
+      ...prev,
+      [facilityId]: { ...prev[facilityId], submitting: true }
+    }));
+
+    try {
+      await api.post('/api/parking/observations', {
+        facilityId,
+        availableSpaces: parseInt(availableSpaces),
+        timestamp: new Date().toISOString()
+      });
+
+      // Reset form and show success
+      setObservations(prev => ({
+        ...prev,
+        [facilityId]: { availableSpaces: '', submitting: false, success: true }
+      }));
+
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setObservations(prev => ({
+          ...prev,
+          [facilityId]: { ...prev[facilityId], success: false }
+        }));
+      }, 3000);
+    } catch (error) {
+      console.error('Error submitting observation:', error);
+      setObservations(prev => ({
+        ...prev,
+        [facilityId]: { ...prev[facilityId], submitting: false, error: true }
+      }));
+
+      // Clear error message after 3 seconds
+      setTimeout(() => {
+        setObservations(prev => ({
+          ...prev,
+          [facilityId]: { ...prev[facilityId], error: false }
+        }));
+      }, 3000);
+    }
+  };
+
   if (!showParking) {
     return null;
   }
@@ -176,13 +220,13 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
           right: '20px',
           zIndex: 1000,
           maxWidth: '350px',
+          maxHeight: '60vh',
           backgroundColor: 'white',
           borderRadius: '8px',
           boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
           border: '2px solid #f59e0b',
           display: 'flex',
-          flexDirection: 'column',
-          maxHeight: '500px'
+          flexDirection: 'column'
         }}>
           <div style={{
             padding: '12px 16px',
@@ -341,10 +385,10 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                 {/* Camera Feeds */}
                 {facility.cameras && (
                   <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e7eb' }}>
-                    <div style={{ fontWeight: '600', marginBottom: '6px', fontSize: '13px', color: '#374151' }}>
+                    <div style={{ fontWeight: '600', marginBottom: '8px', fontSize: '13px', color: '#374151' }}>
                       📷 Live Camera Feeds
                     </div>
-                    <div style={{ display: 'grid', gap: '6px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px' }}>
                       {Object.entries(facility.cameras).map(([view, url]) => (
                         <a
                           key={view}
@@ -353,29 +397,150 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                           rel="noopener noreferrer"
                           style={{
                             display: 'block',
-                            padding: '6px 10px',
-                            backgroundColor: '#f3f4f6',
-                            borderRadius: '4px',
                             textDecoration: 'none',
-                            color: '#3b82f6',
-                            fontSize: '12px',
-                            textAlign: 'center',
-                            transition: 'all 0.2s',
-                            border: '1px solid #e5e7eb'
+                            borderRadius: '4px',
+                            overflow: 'hidden',
+                            border: '2px solid #e5e7eb',
+                            transition: 'all 0.2s'
                           }}
                           onMouseOver={(e) => {
-                            e.currentTarget.style.backgroundColor = '#3b82f6';
-                            e.currentTarget.style.color = 'white';
+                            e.currentTarget.style.borderColor = '#3b82f6';
+                            e.currentTarget.style.boxShadow = '0 2px 8px rgba(59, 130, 246, 0.3)';
                           }}
                           onMouseOut={(e) => {
-                            e.currentTarget.style.backgroundColor = '#f3f4f6';
-                            e.currentTarget.style.color = '#3b82f6';
+                            e.currentTarget.style.borderColor = '#e5e7eb';
+                            e.currentTarget.style.boxShadow = 'none';
                           }}
                         >
-                          View {view.replace(/([A-Z])/g, ' $1').trim()}
+                          <img
+                            src={url}
+                            alt={`${view} camera view`}
+                            style={{
+                              width: '100%',
+                              height: '80px',
+                              objectFit: 'cover',
+                              display: 'block'
+                            }}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.nextSibling.style.display = 'flex';
+                            }}
+                          />
+                          <div style={{
+                            display: 'none',
+                            height: '80px',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: '#f3f4f6',
+                            color: '#6b7280',
+                            fontSize: '11px'
+                          }}>
+                            Image unavailable
+                          </div>
+                          <div style={{
+                            padding: '4px',
+                            backgroundColor: '#f9fafb',
+                            fontSize: '10px',
+                            color: '#374151',
+                            textAlign: 'center',
+                            fontWeight: '500'
+                          }}>
+                            {view.replace(/([A-Z])/g, ' $1').trim()}
+                          </div>
                         </a>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* Ground-Truth Observation Form */}
+                {facility.cameras && (
+                  <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e7eb' }}>
+                    <div style={{ fontWeight: '600', marginBottom: '6px', fontSize: '13px', color: '#374151' }}>
+                      👁️ Submit Ground-Truth Observation
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '8px' }}>
+                      Count available spaces from the camera feeds above
+                    </div>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.target);
+                        const spaces = formData.get('availableSpaces');
+                        if (spaces !== '') {
+                          handleObservationSubmit(facility.facilityId, spaces);
+                        }
+                      }}
+                      style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+                    >
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <input
+                          type="number"
+                          name="availableSpaces"
+                          min="0"
+                          max={facility.truckSpaces || 999}
+                          placeholder="Count available"
+                          value={observations[facility.facilityId]?.availableSpaces || ''}
+                          onChange={(e) => {
+                            setObservations(prev => ({
+                              ...prev,
+                              [facility.facilityId]: { ...prev[facility.facilityId], availableSpaces: e.target.value }
+                            }));
+                          }}
+                          disabled={observations[facility.facilityId]?.submitting}
+                          style={{
+                            flex: 1,
+                            padding: '6px 10px',
+                            fontSize: '13px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            outline: 'none'
+                          }}
+                          required
+                        />
+                        <button
+                          type="submit"
+                          disabled={observations[facility.facilityId]?.submitting || !observations[facility.facilityId]?.availableSpaces}
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            color: 'white',
+                            backgroundColor: observations[facility.facilityId]?.submitting ? '#9ca3af' : '#10b981',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: observations[facility.facilityId]?.submitting ? 'not-allowed' : 'pointer',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          {observations[facility.facilityId]?.submitting ? 'Submitting...' : 'Submit'}
+                        </button>
+                      </div>
+                      {observations[facility.facilityId]?.success && (
+                        <div style={{
+                          padding: '6px 10px',
+                          backgroundColor: '#d1fae5',
+                          color: '#065f46',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          textAlign: 'center'
+                        }}>
+                          ✓ Observation submitted successfully!
+                        </div>
+                      )}
+                      {observations[facility.facilityId]?.error && (
+                        <div style={{
+                          padding: '6px 10px',
+                          backgroundColor: '#fee2e2',
+                          color: '#991b1b',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          textAlign: 'center'
+                        }}>
+                          ✗ Error submitting observation. Please try again.
+                        </div>
+                      )}
+                    </form>
                   </div>
                 )}
 
