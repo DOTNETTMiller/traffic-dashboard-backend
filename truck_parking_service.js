@@ -25,7 +25,7 @@ class TruckParkingService {
 
       // Load facilities
       const facilitiesRows = await this.db.db.prepare(`
-        SELECT facility_id, site_id, state, avg_capacity, total_samples
+        SELECT facility_id, site_id, state, avg_capacity, total_samples, latitude, longitude
         FROM parking_facilities
       `).all();
 
@@ -38,7 +38,9 @@ class TruckParkingService {
           siteId: row.site_id,
           state: row.state,
           avgCapacity: row.avg_capacity,
-          totalSamples: row.total_samples
+          totalSamples: row.total_samples,
+          latitude: row.latitude,
+          longitude: row.longitude
         });
       }
 
@@ -143,6 +145,8 @@ class TruckParkingService {
         facilityId,
         siteId: facility.siteId,
         state: facility.state,
+        latitude: facility.latitude,
+        longitude: facility.longitude,
         capacity: pattern.capacity,
         predictedAvailable,
         predictedOccupied: pattern.capacity - predictedAvailable,
