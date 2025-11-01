@@ -7094,6 +7094,76 @@ app.get('/api/parking/historical/predict/:facilityId', (req, res) => {
   }
 });
 
+// Facility metadata with friendly names and camera feeds
+const FACILITY_METADATA = {
+  'tpims-historical-ia00080is0030000wra300w00': {
+    name: 'I-80 EB MM 300 (Davenport)',
+    cameras: {
+      center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB300-01-CENTER.jpg',
+      entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB300-01-ENTRY.jpg',
+      exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB300-01-EXIT.jpg'
+    }
+  },
+  'tpims-historical-ia00080is0018000era180e00': {
+    name: 'I-80 EB MM 180 (Grinnell)',
+    cameras: {
+      center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB180-01-CENTER.jpg',
+      entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB180-01-ENTRY.jpg',
+      exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB180-01-EXIT.jpg'
+    }
+  },
+  'tpims-historical-ia00080is0014800wra148w00': {
+    name: 'I-80 EB MM 148 (Mitchellville)',
+    cameras: {
+      center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB148-01-CENTER.jpg',
+      entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB148-01-ENTRY.jpg',
+      exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB148-01-EXIT.jpg'
+    }
+  },
+  'tpims-historical-ia00080is0026800wra268w00': {
+    name: 'I-80 WB MM 268 (Wilton)',
+    cameras: {
+      center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB268-01-CENTER.jpg',
+      entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB268-01-ENTRY.jpg',
+      exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB268-01-EXIT.jpg'
+    }
+  },
+  'tpims-historical-ia00080is0018000wra180w00': {
+    name: 'I-80 WB MM 180 (Grinnell)',
+    cameras: {
+      center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB180-01-CENTER.jpg',
+      entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB180-01-ENTRY.jpg',
+      exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB180-01-EXIT.jpg'
+    }
+  },
+  'tpims-historical-ia00080is0001900wra19w000': {
+    name: 'I-80 WB MM 19 (Underwood)',
+    cameras: {
+      center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB19-01-CENTER.jpg',
+      entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB19-01-ENTRY.jpg',
+      exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB19-01-EXIT.jpg'
+    }
+  },
+  'tpims-historical-ia00035is0012000nra120n00': {
+    name: 'I-35 NB MM 120 (Story City)',
+    cameras: {
+      truckParking1: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-TruckParking1.jpg',
+      truckParking2: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-TruckParking2.jpg',
+      entrance: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-Entrance.jpg',
+      exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-01-EXIT.jpg'
+    }
+  },
+  'tpims-historical-ia00035is0012000sra120s00': {
+    name: 'I-35 SB MM 119 (Story City)',
+    cameras: {
+      truckParking1: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-TruckParking1.jpg',
+      truckParking2: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-TruckParking2.jpg',
+      entrance: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-Entrance.jpg',
+      exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-01-EXIT.jpg'
+    }
+  }
+};
+
 // Get predictions for all facilities using historical patterns
 app.get('/api/parking/historical/predict-all', (req, res) => {
   try {
@@ -7104,7 +7174,20 @@ app.get('/api/parking/historical/predict-all', (req, res) => {
       return res.status(503).json({ error: result.error });
     }
 
-    res.json(result);
+    // Enhance predictions with metadata (friendly names and camera feeds)
+    const enhancedPredictions = result.predictions.map(pred => {
+      const metadata = FACILITY_METADATA[pred.facilityId];
+      return {
+        ...pred,
+        friendlyName: metadata?.name || null,
+        cameras: metadata?.cameras || null
+      };
+    });
+
+    res.json({
+      ...result,
+      predictions: enhancedPredictions
+    });
   } catch (error) {
     console.error('Error generating historical predictions:', error);
     res.status(500).json({ error: 'Failed to generate predictions' });

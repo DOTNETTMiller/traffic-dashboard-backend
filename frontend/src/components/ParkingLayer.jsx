@@ -63,7 +63,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
           // Transform the prediction data to match the expected format
           const transformedData = response.data.predictions.map(pred => ({
             facilityId: pred.facilityId,
-            facilityName: pred.siteId || pred.facilityId,
+            facilityName: pred.friendlyName || pred.siteId || pred.facilityId,
             state: pred.state,
             latitude: pred.latitude || 0,
             longitude: pred.longitude || 0,
@@ -74,7 +74,8 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
             predictionConfidence: pred.confidence === 'high' ? 0.9 : pred.confidence === 'medium' ? 0.7 : 0.5,
             timestamp: pred.predictedFor,
             occupancyRate: pred.occupancyRate,
-            status: pred.status
+            status: pred.status,
+            cameras: pred.cameras || null
           }));
 
           setParkingData(transformedData);
@@ -336,6 +337,48 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                     </span>
                   </p>
                 )}
+
+                {/* Camera Feeds */}
+                {facility.cameras && (
+                  <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e7eb' }}>
+                    <div style={{ fontWeight: '600', marginBottom: '6px', fontSize: '13px', color: '#374151' }}>
+                      📷 Live Camera Feeds
+                    </div>
+                    <div style={{ display: 'grid', gap: '6px' }}>
+                      {Object.entries(facility.cameras).map(([view, url]) => (
+                        <a
+                          key={view}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'block',
+                            padding: '6px 10px',
+                            backgroundColor: '#f3f4f6',
+                            borderRadius: '4px',
+                            textDecoration: 'none',
+                            color: '#3b82f6',
+                            fontSize: '12px',
+                            textAlign: 'center',
+                            transition: 'all 0.2s',
+                            border: '1px solid #e5e7eb'
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.backgroundColor = '#3b82f6';
+                            e.currentTarget.style.color = 'white';
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f3f4f6';
+                            e.currentTarget.style.color = '#3b82f6';
+                          }}
+                        >
+                          View {view.replace(/([A-Z])/g, ' $1').trim()}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#6b7280' }}>
                   {predictionHoursAhead > 0
                     ? `Predicted for: ${new Date(facility.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})} (${predictionHoursAhead}hr ahead)`
