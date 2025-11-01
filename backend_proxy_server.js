@@ -7167,8 +7167,9 @@ app.post('/api/parking/historical/reload', async (req, res) => {
 // Ground-truthing endpoint - Get facilities with camera feeds for validation
 app.get('/api/parking/ground-truth', async (req, res) => {
   try {
-    // Camera-equipped facilities on Iowa I-80
+    // Camera-equipped facilities on Iowa I-80 and I-35
     const facilitiesWithCameras = [
+      // I-80 Facilities
       {
         facilityId: 'tpims-historical-ia00080is0030000wra300w00',
         name: 'I-80 EB MM 300 (Davenport)',
@@ -7177,6 +7178,16 @@ app.get('/api/parking/ground-truth', async (req, res) => {
           center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB300-01-CENTER.jpg',
           entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB300-01-ENTRY.jpg',
           exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB300-01-EXIT.jpg'
+        }
+      },
+      {
+        facilityId: 'tpims-historical-ia00080is0018000era180e00',
+        name: 'I-80 EB MM 180 (Grinnell)',
+        location: { lat: 41.694153, lon: -92.773646 },
+        cameras: {
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB180-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB180-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB180-01-EXIT.jpg'
         }
       },
       {
@@ -7200,6 +7211,16 @@ app.get('/api/parking/ground-truth', async (req, res) => {
         }
       },
       {
+        facilityId: 'tpims-historical-ia00080is0018000wra180w00',
+        name: 'I-80 WB MM 180 (Grinnell)',
+        location: { lat: 41.696185, lon: -92.772749 },
+        cameras: {
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB180-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB180-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB180-01-EXIT.jpg'
+        }
+      },
+      {
         facilityId: 'tpims-historical-ia00080is0001900wra19w000',
         name: 'I-80 WB MM 19 (Underwood)',
         location: { lat: 41.403845, lon: -95.658712 },
@@ -7207,6 +7228,29 @@ app.get('/api/parking/ground-truth', async (req, res) => {
           center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB19-01-CENTER.jpg',
           entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB19-01-ENTRY.jpg',
           exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB19-01-EXIT.jpg'
+        }
+      },
+      // I-35 Facilities (Story City) - With dedicated truck parking cameras
+      {
+        facilityId: 'tpims-historical-ia00035is0012000nra120n00',
+        name: 'I-35 NB MM 120 (Story City)',
+        location: { lat: 42.128125, lon: -93.553536 },
+        cameras: {
+          truckParking1: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-TruckParking1.jpg',
+          truckParking2: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-TruckParking2.jpg',
+          entrance: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-Entrance.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-01-EXIT.jpg'
+        }
+      },
+      {
+        facilityId: 'tpims-historical-ia00035is0012000sra120s00',
+        name: 'I-35 SB MM 119 (Story City)',
+        location: { lat: 42.110185, lon: -93.556607 },
+        cameras: {
+          truckParking1: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-TruckParking1.jpg',
+          truckParking2: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-TruckParking2.jpg',
+          entrance: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-Entrance.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-01-EXIT.jpg'
         }
       }
     ];

@@ -5,9 +5,17 @@ export default function GroundTruthDashboard() {
   const [facilities, setFacilities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedView, setSelectedView] = useState('center'); // center, entry, exit
+  const [selectedViewByFacility, setSelectedViewByFacility] = useState({}); // Track view per facility
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
+
+  const getAvailableCameraViews = (cameras) => {
+    return Object.keys(cameras || {});
+  };
+
+  const formatViewName = (view) => {
+    return view.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+  };
 
   const fetchGroundTruthData = async () => {
     try {
@@ -15,7 +23,19 @@ export default function GroundTruthDashboard() {
       const response = await api.get('/api/parking/ground-truth');
 
       if (response.data.success) {
-        setFacilities(response.data.facilities);
+        const facilities = response.data.facilities;
+        setFacilities(facilities);
+
+        // Initialize selected views for each facility (use first available camera)
+        const initialViews = {};
+        facilities.forEach(facility => {
+          const views = getAvailableCameraViews(facility.cameras);
+          if (views.length > 0) {
+            initialViews[facility.facilityId] = views[0];
+          }
+        });
+        setSelectedViewByFacility(initialViews);
+
         setLastUpdate(new Date());
       } else {
         setError('Failed to load ground-truth data');
@@ -105,31 +125,6 @@ export default function GroundTruthDashboard() {
           flexWrap: 'wrap',
           alignItems: 'center'
         }}>
-          {/* Camera View Selector */}
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <span style={{ fontSize: '14px', fontWeight: '500', color: '#374151' }}>
-              Camera View:
-            </span>
-            {['center', 'entry', 'exit'].map(view => (
-              <button
-                key={view}
-                onClick={() => setSelectedView(view)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  border: selectedView === view ? '2px solid #3b82f6' : '1px solid #d1d5db',
-                  backgroundColor: selectedView === view ? '#eff6ff' : 'white',
-                  color: selectedView === view ? '#3b82f6' : '#6b7280',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  textTransform: 'capitalize'
-                }}
-              >
-                {view}
-              </button>
-            ))}
-          </div>
 
           {/* Auto-refresh Toggle */}
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -200,6 +195,8 @@ export default function GroundTruthDashboard() {
         {facilities.map((facility) => {
           const pred = facility.prediction;
           const conf = pred ? getConfidenceLabel(pred.confidence) : null;
+          const availableViews = getAvailableCameraViews(facility.cameras);
+          const currentView = selectedViewByFacility[facility.facilityId] || availableViews[0];
 
           return (
             <div
@@ -243,14 +240,43 @@ export default function GroundTruthDashboard() {
               }}>
                 {/* Camera Feed */}
                 <div>
-                  <h3 style={{
-                    margin: '0 0 8px 0',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: '#374151'
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '8px'
                   }}>
-                    Live Camera ({selectedView})
-                  </h3>
+                    <h3 style={{
+                      margin: 0,
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      color: '#374151'
+                    }}>
+                      Live Camera
+                    </h3>
+                    {/* Camera View Selector */}
+                    <select
+                      value={currentView}
+                      onChange={(e) => setSelectedViewByFacility(prev => ({
+                        ...prev,
+                        [facility.facilityId]: e.target.value
+                      }))}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        border: '1px solid #d1d5db',
+                        fontSize: '12px',
+                        backgroundColor: 'white',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {availableViews.map(view => (
+                        <option key={view} value={view}>
+                          {formatViewName(view)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <div style={{
                     backgroundColor: '#f9fafb',
                     borderRadius: '6px',
@@ -258,8 +284,8 @@ export default function GroundTruthDashboard() {
                     border: '1px solid #e5e7eb'
                   }}>
                     <img
-                      src={facility.cameras[selectedView]}
-                      alt={`${facility.name} - ${selectedView} view`}
+                      src={facility.cameras[currentView]}
+                      alt={`${facility.name} - ${formatViewName(currentView)} view`}
                       style={{
                         width: '100%',
                         height: '200px',
@@ -277,7 +303,9 @@ export default function GroundTruthDashboard() {
                     color: '#9ca3af',
                     fontStyle: 'italic'
                   }}>
-                    Manually count trucks visible in the parking area
+                    {currentView.includes('truckParking') ?
+                      'Count occupied truck parking spaces visible in camera' :
+                      'Manually count trucks visible in the parking area'}
                   </p>
                 </div>
 
