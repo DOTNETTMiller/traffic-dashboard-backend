@@ -226,7 +226,8 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
           boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
           border: '2px solid #f59e0b',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          overflow: 'hidden'
         }}>
           <div style={{
             padding: '12px 16px',
