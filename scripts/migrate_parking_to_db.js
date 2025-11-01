@@ -204,7 +204,11 @@ async function migrateParkingData() {
     console.log('\n⚠️  Warning: Count mismatch detected\n');
   }
 
-  process.exit(0);
+  // Don't exit when called as a module from the API endpoint
+  // Only exit when run directly from command line
+  if (require.main === module) {
+    process.exit(0);
+  }
 }
 
 if (require.main === module) {
