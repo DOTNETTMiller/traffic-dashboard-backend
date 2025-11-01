@@ -7274,6 +7274,34 @@ app.post('/api/parking/historical/migrate', async (req, res) => {
   }
 });
 
+// Admin: Update parking facility coordinates
+app.post('/api/parking/historical/update-coordinates', async (req, res) => {
+  try {
+    console.log('📍 Updating parking facility coordinates...');
+    const { updateProductionCoordinates } = require('./scripts/update_production_coordinates.js');
+
+    // Run coordinate update
+    await updateProductionCoordinates();
+
+    // Reload patterns into memory (to pick up new coordinates)
+    await truckParkingService.loadPatterns();
+
+    const summary = truckParkingService.getSummary();
+
+    res.json({
+      success: true,
+      message: 'Coordinates updated successfully',
+      summary
+    });
+  } catch (error) {
+    console.error('❌ Coordinate update failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Coordinate update failed: ' + error.message
+    });
+  }
+});
+
 // Admin: Fetch real-time TPIMS data
 app.post('/api/admin/parking/fetch-tpims', requireAdmin, async (req, res) => {
   try {
