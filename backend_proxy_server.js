@@ -7294,6 +7294,71 @@ app.get('/api/parking/ground-truth', async (req, res) => {
   }
 });
 
+// Save ground-truth observation from user
+app.post('/api/parking/ground-truth/observations', async (req, res) => {
+  try {
+    const {
+      facilityId,
+      cameraView,
+      observedCount,
+      predictedCount = null,
+      predictedOccupancyRate = null,
+      observerNotes = null
+    } = req.body;
+
+    // Validate required fields
+    if (!facilityId || !cameraView || observedCount === undefined || observedCount === null) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: facilityId, cameraView, observedCount'
+      });
+    }
+
+    // Validate observedCount is a non-negative integer
+    if (!Number.isInteger(observedCount) || observedCount < 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'observedCount must be a non-negative integer'
+      });
+    }
+
+    // Save to database
+    const query = db.isPostgres
+      ? `INSERT INTO parking_ground_truth_observations
+         (facility_id, camera_view, observed_count, predicted_count, predicted_occupancy_rate, observer_notes)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, timestamp`
+      : `INSERT INTO parking_ground_truth_observations
+         (facility_id, camera_view, observed_count, predicted_count, predicted_occupancy_rate, observer_notes)
+         VALUES (?, ?, ?, ?, ?, ?)`;
+
+    const stmt = db.db.prepare(query);
+    const result = await stmt.run(
+      facilityId,
+      cameraView,
+      observedCount,
+      predictedCount,
+      predictedOccupancyRate,
+      observerNotes
+    );
+
+    console.log(`📝 Ground-truth observation saved: ${facilityId} - ${observedCount} trucks in ${cameraView}`);
+
+    res.json({
+      success: true,
+      observationId: db.isPostgres ? result.id : result.lastID,
+      timestamp: new Date().toISOString(),
+      message: 'Observation saved successfully'
+    });
+  } catch (error) {
+    console.error('Error saving ground-truth observation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to save observation'
+    });
+  }
+});
+
 // Diagnostic endpoint to check JSON file status
 app.get('/api/parking/historical/diagnose', async (req, res) => {
   try {

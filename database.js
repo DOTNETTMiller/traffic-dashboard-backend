@@ -277,6 +277,18 @@ class StateDatabase {
         FOREIGN KEY (facility_id) REFERENCES truck_parking_facilities(facility_id)
       );
 
+      CREATE TABLE IF NOT EXISTS parking_ground_truth_observations (
+        id SERIAL PRIMARY KEY,
+        facility_id TEXT NOT NULL,
+        camera_view TEXT NOT NULL,
+        observed_count INTEGER NOT NULL,
+        predicted_count INTEGER,
+        predicted_occupancy_rate DOUBLE PRECISION,
+        observer_notes TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (facility_id) REFERENCES truck_parking_facilities(facility_id)
+      );
+
       CREATE INDEX IF NOT EXISTS idx_parking_facility_id ON truck_parking_facilities(facility_id);
       CREATE INDEX IF NOT EXISTS idx_parking_state ON truck_parking_facilities(state);
       CREATE INDEX IF NOT EXISTS idx_parking_availability_facility ON parking_availability(facility_id);
@@ -504,6 +516,18 @@ class StateDatabase {
         prediction_error INTEGER,
         percent_error REAL,
         event_nearby BOOLEAN DEFAULT 0,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (facility_id) REFERENCES truck_parking_facilities(facility_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS parking_ground_truth_observations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        facility_id TEXT NOT NULL,
+        camera_view TEXT NOT NULL,
+        observed_count INTEGER NOT NULL,
+        predicted_count INTEGER,
+        predicted_occupancy_rate REAL,
+        observer_notes TEXT,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (facility_id) REFERENCES truck_parking_facilities(facility_id)
       );

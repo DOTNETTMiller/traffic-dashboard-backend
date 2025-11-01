@@ -8,6 +8,8 @@ export default function GroundTruthDashboard() {
   const [selectedViewByFacility, setSelectedViewByFacility] = useState({}); // Track view per facility
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [manualCounts, setManualCounts] = useState({}); // Track manual count per facility
+  const [submitStatus, setSubmitStatus] = useState({}); // Track submission status per facility
 
   const getAvailableCameraViews = (cameras) => {
     return Object.keys(cameras || {});
@@ -15,6 +17,77 @@ export default function GroundTruthDashboard() {
 
   const formatViewName = (view) => {
     return view.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+  };
+
+  const handleSubmitObservation = async (facility) => {
+    const manualCount = manualCounts[facility.facilityId];
+
+    // Validate input
+    if (manualCount === undefined || manualCount === '' || manualCount === null) {
+      setSubmitStatus(prev => ({
+        ...prev,
+        [facility.facilityId]: { type: 'error', message: 'Please enter a count' }
+      }));
+      return;
+    }
+
+    const count = parseInt(manualCount);
+    if (isNaN(count) || count < 0) {
+      setSubmitStatus(prev => ({
+        ...prev,
+        [facility.facilityId]: { type: 'error', message: 'Please enter a valid number' }
+      }));
+      return;
+    }
+
+    // Set submitting status
+    setSubmitStatus(prev => ({
+      ...prev,
+      [facility.facilityId]: { type: 'submitting', message: 'Saving...' }
+    }));
+
+    try {
+      const currentView = selectedViewByFacility[facility.facilityId];
+      const pred = facility.prediction;
+
+      const response = await api.post('/api/parking/ground-truth/observations', {
+        facilityId: facility.facilityId,
+        cameraView: currentView,
+        observedCount: count,
+        predictedCount: pred ? pred.occupied : null,
+        predictedOccupancyRate: pred ? pred.occupancyRate : null
+      });
+
+      if (response.data.success) {
+        setSubmitStatus(prev => ({
+          ...prev,
+          [facility.facilityId]: { type: 'success', message: 'Observation saved!' }
+        }));
+
+        // Clear the input and success message after 3 seconds
+        setTimeout(() => {
+          setManualCounts(prev => ({
+            ...prev,
+            [facility.facilityId]: ''
+          }));
+          setSubmitStatus(prev => ({
+            ...prev,
+            [facility.facilityId]: null
+          }));
+        }, 3000);
+      } else {
+        setSubmitStatus(prev => ({
+          ...prev,
+          [facility.facilityId]: { type: 'error', message: 'Failed to save observation' }
+        }));
+      }
+    } catch (err) {
+      console.error('Error submitting observation:', err);
+      setSubmitStatus(prev => ({
+        ...prev,
+        [facility.facilityId]: { type: 'error', message: 'Failed to save observation' }
+      }));
+    }
   };
 
   const fetchGroundTruthData = async () => {
@@ -489,28 +562,66 @@ export default function GroundTruthDashboard() {
                       color: '#1e40af',
                       marginBottom: '6px'
                     }}>
-                      Manual Count (optional):
+                      Manual Count:
                     </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max={pred ? pred.capacity : 100}
-                      placeholder="Count trucks in camera"
-                      style={{
-                        width: '100%',
-                        padding: '8px',
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        max={pred ? pred.capacity : 100}
+                        placeholder="Count trucks"
+                        value={manualCounts[facility.facilityId] || ''}
+                        onChange={(e) => setManualCounts(prev => ({
+                          ...prev,
+                          [facility.facilityId]: e.target.value
+                        }))}
+                        style={{
+                          flex: 1,
+                          padding: '8px',
+                          borderRadius: '4px',
+                          border: '1px solid #bfdbfe',
+                          fontSize: '13px'
+                        }}
+                      />
+                      <button
+                        onClick={() => handleSubmitObservation(facility)}
+                        disabled={submitStatus[facility.facilityId]?.type === 'submitting'}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '4px',
+                          border: 'none',
+                          backgroundColor: submitStatus[facility.facilityId]?.type === 'submitting' ? '#9ca3af' : '#3b82f6',
+                          color: 'white',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          cursor: submitStatus[facility.facilityId]?.type === 'submitting' ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        {submitStatus[facility.facilityId]?.type === 'submitting' ? 'Saving...' : 'Submit'}
+                      </button>
+                    </div>
+
+                    {/* Status Message */}
+                    {submitStatus[facility.facilityId] && submitStatus[facility.facilityId].type !== 'submitting' && (
+                      <div style={{
+                        marginTop: '8px',
+                        padding: '6px',
                         borderRadius: '4px',
-                        border: '1px solid #bfdbfe',
-                        fontSize: '13px'
-                      }}
-                    />
+                        fontSize: '12px',
+                        backgroundColor: submitStatus[facility.facilityId].type === 'success' ? '#d1fae5' : '#fee2e2',
+                        color: submitStatus[facility.facilityId].type === 'success' ? '#065f46' : '#991b1b'
+                      }}>
+                        {submitStatus[facility.facilityId].message}
+                      </div>
+                    )}
+
                     <p style={{
                       margin: '6px 0 0 0',
                       fontSize: '11px',
                       color: '#6b7280',
                       fontStyle: 'italic'
                     }}>
-                      Enter number of occupied spaces you count
+                      Enter number of occupied spaces you count in the camera
                     </p>
                   </div>
                 </div>
