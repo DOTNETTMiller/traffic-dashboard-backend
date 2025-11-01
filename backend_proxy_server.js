@@ -7164,6 +7164,92 @@ app.post('/api/parking/historical/reload', async (req, res) => {
   }
 });
 
+// Ground-truthing endpoint - Get facilities with camera feeds for validation
+app.get('/api/parking/ground-truth', async (req, res) => {
+  try {
+    // Camera-equipped facilities on Iowa I-80
+    const facilitiesWithCameras = [
+      {
+        facilityId: 'tpims-historical-ia00080is0030000wra300w00',
+        name: 'I-80 EB MM 300 (Davenport)',
+        location: { lat: 41.59596, lon: -90.491053 },
+        cameras: {
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB300-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB300-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB300-01-EXIT.jpg'
+        }
+      },
+      {
+        facilityId: 'tpims-historical-ia00080is0014800wra148w00',
+        name: 'I-80 EB MM 148 (Mitchellville)',
+        location: { lat: 41.679979, lon: -93.394699 },
+        cameras: {
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB148-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB148-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB148-01-EXIT.jpg'
+        }
+      },
+      {
+        facilityId: 'tpims-historical-ia00080is0026800wra268w00',
+        name: 'I-80 WB MM 268 (Wilton)',
+        location: { lat: 41.645429, lon: -91.086291 },
+        cameras: {
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB268-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB268-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB268-01-EXIT.jpg'
+        }
+      },
+      {
+        facilityId: 'tpims-historical-ia00080is0001900wra19w000',
+        name: 'I-80 WB MM 19 (Underwood)',
+        location: { lat: 41.403845, lon: -95.658712 },
+        cameras: {
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB19-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB19-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB19-01-EXIT.jpg'
+        }
+      }
+    ];
+
+    // Get current predictions for each facility
+    const targetTime = req.query.time ? new Date(req.query.time) : new Date();
+
+    const facilitiesWithPredictions = facilitiesWithCameras.map(facility => {
+      // Get prediction from truck parking service
+      const prediction = truckParkingService.predictAvailability(
+        facility.facilityId,
+        targetTime
+      );
+
+      return {
+        ...facility,
+        prediction: prediction.success ? {
+          available: prediction.predictedAvailable,
+          occupied: prediction.predictedOccupied,
+          capacity: prediction.capacity,
+          occupancyRate: prediction.occupancyRate,
+          confidence: prediction.confidence,
+          predictedFor: prediction.predictedFor
+        } : null,
+        timestamp: new Date().toISOString()
+      };
+    });
+
+    res.json({
+      success: true,
+      facilities: facilitiesWithPredictions,
+      count: facilitiesWithPredictions.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error fetching ground-truth data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch ground-truth data'
+    });
+  }
+});
+
 // Diagnostic endpoint to check JSON file status
 app.get('/api/parking/historical/diagnose', async (req, res) => {
   try {

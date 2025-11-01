@@ -20,6 +20,7 @@ import FeedSubmission from './components/FeedSubmission';
 import DocumentationViewer from './components/DocumentationViewer';
 import ChatWidget from './components/ChatWidget';
 import UserProfile from './components/UserProfile';
+import GroundTruthDashboard from './components/GroundTruthDashboard';
 import './styles/App.css';
 
 function App() {
@@ -445,6 +446,13 @@ function App() {
           {currentUser?.role === 'admin' && (
             <>
               <button
+                className={`toggle-btn ${view === 'groundTruth' ? 'active' : ''}`}
+                onClick={() => setView('groundTruth')}
+                style={{ backgroundColor: view === 'groundTruth' ? '#10b981' : '#6c757d' }}
+              >
+                Ground Truth
+              </button>
+              <button
                 className={`toggle-btn ${view === 'admin' ? 'active' : ''}`}
                 onClick={() => setView('admin')}
                 style={{ backgroundColor: view === 'admin' ? '#dc3545' : '#6c757d' }}
@@ -549,6 +557,8 @@ function App() {
             authToken={authToken}
             onProfileUpdate={(updatedUser) => setCurrentUser(updatedUser)}
           />
+        ) : view === 'groundTruth' ? (
+          <GroundTruthDashboard />
         ) : view === 'admin' ? (
           <StateAdmin user={currentUser} authToken={authToken} />
         ) : view === 'adminUsers' ? (
