@@ -2486,12 +2486,9 @@ app.get('/api/analysis/feed-alignment', async (req, res) => {
 
     console.log('Analyzing cross-state feed alignment and generating mapping recommendations...');
 
-    // Get all states from database
-    const allStates = await db.getAllStates();
-    const stateKeys = allStates.map(s => s.stateKey.toLowerCase());
-    if (!stateKeys.includes('pa')) {
-      stateKeys.push('pa');
-    }
+    // Get all states from API_CONFIG (includes hardcoded states + database states)
+    const stateKeys = getAllStateKeys();
+    console.log(`📊 Analyzing feed alignment for ${stateKeys.length} states: ${stateKeys.join(', ')}`);
 
     // Fetch sample events from all states
     const allResults = await Promise.all(
