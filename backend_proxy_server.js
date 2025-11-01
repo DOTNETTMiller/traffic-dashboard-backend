@@ -5460,15 +5460,25 @@ app.post('/api/events/:eventId/comments', requireUserOrStateAuth, async (req, re
 });
 
 // Get comments for an event (public - no auth required)
-app.get('/api/events/:eventId/comments', (req, res) => {
-  const comments = db.getEventComments(req.params.eventId);
+app.get('/api/events/:eventId/comments', async (req, res) => {
+  try {
+    const comments = await db.getEventComments(req.params.eventId);
 
-  res.json({
-    success: true,
-    eventId: req.params.eventId,
-    count: comments.length,
-    comments
-  });
+    res.json({
+      success: true,
+      eventId: req.params.eventId,
+      count: comments.length,
+      comments
+    });
+  } catch (error) {
+    console.error('Error fetching event comments:', error);
+    res.json({
+      success: false,
+      eventId: req.params.eventId,
+      count: 0,
+      comments: []
+    });
+  }
 });
 
 // Get all event comments (for viewing all discussions)

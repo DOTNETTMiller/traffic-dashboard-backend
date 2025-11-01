@@ -1415,14 +1415,14 @@ class StateDatabase {
     }
   }
 
-  getEventComments(eventId) {
+  async getEventComments(eventId) {
     try {
-      const comments = this.db.prepare(`
+      const comments = await this.db.prepare(`
         SELECT * FROM event_comments
         WHERE event_id = ?
         ORDER BY created_at ASC
       `).all(eventId);
-      return comments;
+      return comments || [];
     } catch (error) {
       console.error('Error getting event comments:', error);
       return [];
