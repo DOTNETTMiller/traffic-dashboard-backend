@@ -179,8 +179,9 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
           borderRadius: '8px',
           boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
           border: '2px solid #f59e0b',
-          maxHeight: '400px',
-          overflow: 'auto'
+          display: 'flex',
+          flexDirection: 'column',
+          maxHeight: '500px'
         }}>
           <div style={{
             padding: '12px 16px',
@@ -191,7 +192,8 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
             color: '#92400e',
             display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'center'
+            alignItems: 'center',
+            flexShrink: 0
           }}>
             <span>⚠️ Parking Alerts ({parkingAlerts.length})</span>
             <button
@@ -208,7 +210,11 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
               ×
             </button>
           </div>
-          <div style={{ padding: '8px' }}>
+          <div style={{
+            padding: '8px',
+            overflowY: 'auto',
+            flexGrow: 1
+          }}>
             {parkingAlerts.map((alert, idx) => (
               <div
                 key={idx}
