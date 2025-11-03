@@ -8254,21 +8254,22 @@ app.get('/api/chatgpt/docs', requireAPIKey, (req, res) => {
 
 // ==================== End ChatGPT API Endpoints ====================
 
+// TEMPORARILY DISABLED FOR TESTING - Testing if static serving is causing routing issues
 // Serve static frontend files only for non-API routes
-app.use((req, res, next) => {
-  // Skip static file serving for API routes
-  if (req.path.startsWith('/api/')) {
-    console.log(`⚠️ Skipping static middleware for API route: ${req.method} ${req.path}`);
-    return next();
-  }
-  staticFileMiddleware(req, res, next);
-});
+// app.use((req, res, next) => {
+//   // Skip static file serving for API routes
+//   if (req.path.startsWith('/api/')) {
+//     console.log(`⚠️ Skipping static middleware for API route: ${req.method} ${req.path}`);
+//     return next();
+//   }
+//   staticFileMiddleware(req, res, next);
+// });
 
-// Catch-all route for SPA - only for GET requests that didn't match anything
-app.get('*', (req, res) => {
-  console.log(`⚠️ Catch-all route hit: ${req.method} ${req.path}`);
-  res.sendFile(path.join(FRONTEND_DIST_PATH, 'index.html'));
-});
+// // Catch-all route for SPA - only for GET requests that didn't match anything
+// app.get('*', (req, res) => {
+//   console.log(`⚠️ Catch-all route hit: ${req.method} ${req.path}`);
+//   res.sendFile(path.join(FRONTEND_DIST_PATH, 'index.html'));
+// });
 
 // Scheduled TPIMS data fetch
 async function fetchTPIMSDataScheduled() {
