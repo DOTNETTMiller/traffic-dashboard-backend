@@ -10,28 +10,33 @@ async function applyOffsets() {
   await db.init();
 
   // Find facilities with duplicate coordinates
-  const duplicates = db.db.prepare(`
-    SELECT latitude, longitude, GROUP_CONCAT(facility_id, '|') as facilities, COUNT(*) as count
+  // Use STRING_AGG for PostgreSQL instead of GROUP_CONCAT for SQLite
+  const duplicatesQuery = `
+    SELECT latitude, longitude,
+           STRING_AGG(facility_id, '|') as facilities,
+           COUNT(*) as count
     FROM parking_facilities
     WHERE latitude <> 0 AND longitude <> 0
     GROUP BY latitude, longitude
     HAVING COUNT(*) > 1
     ORDER BY count DESC
-  `).all();
+  `;
+
+  const duplicates = await db.allAsync(duplicatesQuery);
 
   console.log(`Found ${duplicates.length} locations with multiple facilities\n`);
 
   if (duplicates.length === 0) {
     console.log('✅ No duplicate coordinates found - offsets already applied!\n');
-    return;
+    process.exit(0);
   }
 
   let offsetCount = 0;
 
   for (const dup of duplicates) {
     const facilityIds = dup.facilities.split('|');
-    const baseLatitude = dup.latitude;
-    const baseLongitude = dup.longitude;
+    const baseLatitude = parseFloat(dup.latitude);
+    const baseLongitude = parseFloat(dup.longitude);
 
     console.log(`  Processing ${facilityIds.length} facilities at (${baseLatitude}, ${baseLongitude})`);
 
@@ -40,9 +45,10 @@ async function applyOffsets() {
     const offsetDistance = 0.0005;
     const angleStep = (2 * Math.PI) / facilityIds.length;
 
-    facilityIds.forEach((facilityId, index) => {
-      if (index === 0) return; // Keep first one at original location
+    for (let index = 0; index < facilityIds.length; index++) {
+      if (index === 0) continue; // Keep first one at original location
 
+      const facilityId = facilityIds[index];
       const angle = angleStep * index;
       const latOffset = Math.sin(angle) * offsetDistance;
       const lonOffset = Math.cos(angle) * offsetDistance;
@@ -50,20 +56,21 @@ async function applyOffsets() {
       const newLat = baseLatitude + latOffset;
       const newLon = baseLongitude + lonOffset;
 
-      db.db.prepare(`
-        UPDATE parking_facilities
-        SET latitude = ?, longitude = ?
-        WHERE facility_id = ?
-      `).run(newLat, newLon, facilityId);
+      await db.runAsync(
+        `UPDATE parking_facilities
+         SET latitude = $1, longitude = $2
+         WHERE facility_id = $3`,
+        [newLat, newLon, facilityId]
+      );
 
       offsetCount++;
-    });
+    }
   }
 
   console.log(`\n✅ Applied offsets to ${offsetCount} facilities\n`);
 
   // Verify results
-  const remaining = db.db.prepare(`
+  const remainingQuery = `
     SELECT COUNT(*) as count
     FROM (
       SELECT latitude, longitude
@@ -71,10 +78,13 @@ async function applyOffsets() {
       WHERE latitude <> 0 AND longitude <> 0
       GROUP BY latitude, longitude
       HAVING COUNT(*) > 1
-    )
-  `).get();
+    ) AS duplicates
+  `;
+
+  const remaining = await db.getAsync(remainingQuery);
 
   console.log(`Remaining duplicate locations: ${remaining.count}\n`);
+  process.exit(0);
 }
 
 applyOffsets().catch(err => {
