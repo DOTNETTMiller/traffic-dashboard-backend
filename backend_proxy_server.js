@@ -54,6 +54,111 @@ function initVolumeData() {
   }
 }
 
+// Auto-import parking facilities on startup if database is empty
+async function initParkingFacilities() {
+  try {
+    console.log('\n🚗 Checking parking facilities...\n');
+
+    // Count existing facilities
+    const countResult = await db.getAsync('SELECT COUNT(*) as count FROM parking_facilities');
+    const currentCount = countResult.count;
+
+    console.log(`📊 Current facilities in database: ${currentCount}`);
+
+    // If we have 174 or more facilities, assume database is already populated
+    if (currentCount >= 174) {
+      console.log('✅ Parking facilities already populated\n');
+      return;
+    }
+
+    // Import facilities from JSON
+    console.log('📥 Importing parking facilities from JSON...');
+    const facilitiesPath = path.join(__dirname, 'scripts', 'facilities_data.json');
+
+    if (!fs.existsSync(facilitiesPath)) {
+      console.log('⚠️  facilities_data.json not found, skipping import\n');
+      return;
+    }
+
+    const facilitiesData = JSON.parse(fs.readFileSync(facilitiesPath, 'utf8'));
+    console.log(`📦 Loaded ${facilitiesData.length} facilities from JSON`);
+
+    // Clear existing facilities
+    await db.runAsync('DELETE FROM parking_facilities');
+    console.log('🗑️  Cleared existing facilities');
+
+    // Import facilities
+    let imported = 0;
+    for (const f of facilitiesData) {
+      try {
+        await db.runAsync(
+          `INSERT INTO parking_facilities
+           (facility_id, site_id, state, capacity, latitude, longitude)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [f.facility_id, f.site_id, f.state, f.capacity || 0, f.latitude || 0, f.longitude || 0]
+        );
+        imported++;
+      } catch (err) {
+        console.error(`⚠️  Error importing ${f.facility_id}:`, err.message);
+      }
+    }
+
+    console.log(`✅ Imported ${imported} facilities`);
+
+    // Apply coordinate offsets to separate co-located facilities
+    console.log('📍 Applying coordinate offsets...');
+    const duplicatesQuery = `
+      SELECT latitude, longitude,
+             STRING_AGG(facility_id, '|') as facilities,
+             COUNT(*) as count
+      FROM parking_facilities
+      WHERE latitude <> 0 AND longitude <> 0
+      GROUP BY latitude, longitude
+      HAVING COUNT(*) > 1
+      ORDER BY count DESC
+    `;
+
+    const duplicates = await db.allAsync(duplicatesQuery);
+    console.log(`  Found ${duplicates.length} locations with multiple facilities`);
+
+    let offsetCount = 0;
+    for (const dup of duplicates) {
+      const facilityIds = dup.facilities.split('|');
+      const baseLatitude = parseFloat(dup.latitude);
+      const baseLongitude = parseFloat(dup.longitude);
+
+      const offsetDistance = 0.0005; // ~50 meters
+      const angleStep = (2 * Math.PI) / facilityIds.length;
+
+      for (let index = 1; index < facilityIds.length; index++) {
+        const facilityId = facilityIds[index];
+        const angle = angleStep * index;
+        const latOffset = Math.sin(angle) * offsetDistance;
+        const lonOffset = Math.cos(angle) * offsetDistance;
+
+        const newLat = baseLatitude + latOffset;
+        const newLon = baseLongitude + lonOffset;
+
+        await db.runAsync(
+          `UPDATE parking_facilities
+           SET latitude = $1, longitude = $2
+           WHERE facility_id = $3`,
+          [newLat, newLon, facilityId]
+        );
+
+        offsetCount++;
+      }
+    }
+
+    console.log(`✅ Applied offsets to ${offsetCount} facilities`);
+    console.log('🎉 Parking facilities initialization complete!\n');
+
+  } catch (error) {
+    console.error('❌ Error initializing parking facilities:', error);
+    console.error(error.stack);
+  }
+}
+
 // Run initialization before starting the server
 console.log('\n🔄 Initializing volume data...\n');
 initVolumeData();
@@ -8455,6 +8560,9 @@ function startServer() {
 
   const allStates = await db.getAllStates();
   console.log(`\n🌐 Connected to ${allStates.length} state DOT APIs`);
+
+  // Initialize parking facilities if needed
+  await initParkingFacilities();
 
   // Verify email configuration
   console.log(`\n📨 Email Notifications:`);
