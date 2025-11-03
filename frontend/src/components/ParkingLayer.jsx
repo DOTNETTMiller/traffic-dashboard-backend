@@ -224,15 +224,18 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
           top: '80px',
           right: '20px',
           zIndex: 1000,
-          maxWidth: '350px',
-          maxHeight: '80vh',
+          width: '350px',
+          height: 'calc(100vh - 120px)',
+          maxHeight: '90vh',
+          minHeight: '400px',
           backgroundColor: 'white',
           borderRadius: '8px',
           boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
           border: '2px solid #f59e0b',
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          resize: 'vertical'
         }}>
           <div style={{
             padding: '12px 16px',
