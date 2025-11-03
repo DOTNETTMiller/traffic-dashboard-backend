@@ -8569,8 +8569,13 @@ function startServer() {
   const allStates = await db.getAllStates();
   console.log(`\n🌐 Connected to ${allStates.length} state DOT APIs`);
 
-  // Initialize parking facilities if needed
-  await initParkingFacilities();
+  // Run parking data migration on startup
+  try {
+    const { migrateParkingData } = require('./scripts/migrate_parking_to_db.js');
+    await migrateParkingData();
+  } catch (error) {
+    console.error('⚠️  Parking migration error (continuing anyway):', error.message);
+  }
 
   // Verify email configuration
   console.log(`\n📨 Email Notifications:`);
