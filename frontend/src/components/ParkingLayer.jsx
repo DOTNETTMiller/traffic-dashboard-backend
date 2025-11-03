@@ -267,7 +267,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
           <div style={{
             padding: '8px',
             overflowY: 'auto',
-            flex: '1 1 0',
+            flex: 1,
             minHeight: 0
           }}>
             {parkingAlerts.map((alert, idx) => (
