@@ -2250,6 +2250,95 @@ app.get('/api/debug/coordinates', async (req, res) => {
   res.json(stats);
 });
 
+// Admin endpoint to apply coordinate offsets
+app.post('/api/admin/apply-coordinate-offsets', async (req, res) => {
+  try {
+    console.log('📍 Starting coordinate offset application...');
+
+    // Find facilities with duplicate coordinates
+    const duplicatesQuery = `
+      SELECT latitude, longitude,
+             STRING_AGG(facility_id, '|') as facilities,
+             COUNT(*) as count
+      FROM parking_facilities
+      WHERE latitude <> 0 AND longitude <> 0
+      GROUP BY latitude, longitude
+      HAVING COUNT(*) > 1
+      ORDER BY count DESC
+    `;
+
+    const duplicates = await db.allAsync(duplicatesQuery);
+
+    if (duplicates.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No duplicate coordinates found - offsets already applied!',
+        offsetCount: 0
+      });
+    }
+
+    let offsetCount = 0;
+
+    for (const dup of duplicates) {
+      const facilityIds = dup.facilities.split('|');
+      const baseLatitude = parseFloat(dup.latitude);
+      const baseLongitude = parseFloat(dup.longitude);
+
+      // Apply small offsets in a circular pattern
+      // Offset by ~50 meters (~0.0005 degrees)
+      const offsetDistance = 0.0005;
+      const angleStep = (2 * Math.PI) / facilityIds.length;
+
+      for (let index = 0; index < facilityIds.length; index++) {
+        if (index === 0) continue; // Keep first one at original location
+
+        const facilityId = facilityIds[index];
+        const angle = angleStep * index;
+        const latOffset = Math.sin(angle) * offsetDistance;
+        const lonOffset = Math.cos(angle) * offsetDistance;
+
+        const newLat = baseLatitude + latOffset;
+        const newLon = baseLongitude + lonOffset;
+
+        await db.runAsync(
+          `UPDATE parking_facilities
+           SET latitude = $1, longitude = $2
+           WHERE facility_id = $3`,
+          [newLat, newLon, facilityId]
+        );
+
+        offsetCount++;
+      }
+    }
+
+    // Verify results
+    const remainingQuery = `
+      SELECT COUNT(*) as count
+      FROM (
+        SELECT latitude, longitude
+        FROM parking_facilities
+        WHERE latitude <> 0 AND longitude <> 0
+        GROUP BY latitude, longitude
+        HAVING COUNT(*) > 1
+      ) AS duplicates
+    `;
+
+    const remaining = await db.getAsync(remainingQuery);
+
+    res.json({
+      success: true,
+      message: `Applied offsets to ${offsetCount} facilities`,
+      offsetCount,
+      duplicateLocationsFound: duplicates.length,
+      remainingDuplicates: remaining.count
+    });
+
+  } catch (error) {
+    console.error('Error applying coordinate offsets:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Generate normalization report for all states
 app.get('/api/analysis/normalization', async (req, res) => {
   console.log('Generating normalization analysis...');
