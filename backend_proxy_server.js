@@ -2264,6 +2264,136 @@ app.get('/api/debug/coordinates', async (req, res) => {
   res.json(stats);
 });
 
+// WORKAROUND: Uncached path to bypass Railway Edge CDN caching
+app.post('/xapi/admin/import-facilities', async (req, res) => {
+  try {
+    console.log('📥 Starting facility import...');
+
+    const fs = require('fs');
+    const path = require('path');
+
+    // Read facilities from JSON file
+    const facilitiesPath = path.join(__dirname, 'scripts', 'facilities_data.json');
+    const facilitiesData = JSON.parse(fs.readFileSync(facilitiesPath, 'utf8'));
+
+    console.log(`Found ${facilitiesData.length} facilities to import`);
+
+    // Delete existing facilities
+    await db.runAsync('DELETE FROM parking_facilities');
+    console.log('Cleared existing facilities');
+
+    // Import facilities
+    let imported = 0;
+    for (const f of facilitiesData) {
+      try {
+        await db.runAsync(
+          `INSERT INTO parking_facilities
+           (facility_id, site_id, state, capacity, latitude, longitude)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [f.facility_id, f.site_id, f.state, f.capacity || 0, f.latitude || 0, f.longitude || 0]
+        );
+        imported++;
+        if (imported % 50 === 0) {
+          console.log(`Imported ${imported}/${facilitiesData.length}`);
+        }
+      } catch (err) {
+        console.error(`Error importing ${f.facility_id}:`, err.message);
+      }
+    }
+
+    // Get counts by state
+    const stateCountsQuery = `
+      SELECT state, COUNT(*) as count
+      FROM parking_facilities
+      GROUP BY state
+      ORDER BY state
+    `;
+    const stateCounts = await db.allAsync(stateCountsQuery);
+
+    res.json({
+      success: true,
+      message: `Imported ${imported} facilities`,
+      imported,
+      total: facilitiesData.length,
+      byState: stateCounts
+    });
+
+  } catch (error) {
+    console.error('Error importing facilities:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/xapi/admin/apply-coordinate-offsets', async (req, res) => {
+  try {
+    console.log('📍 Starting coordinate offset application...');
+
+    const duplicatesQuery = `
+      SELECT latitude, longitude,
+             STRING_AGG(facility_id, '|') as facilities,
+             COUNT(*) as count
+      FROM parking_facilities
+      WHERE latitude <> 0 AND longitude <> 0
+      GROUP BY latitude, longitude
+      HAVING COUNT(*) > 1
+      ORDER BY count DESC
+    `;
+
+    const duplicates = await db.allAsync(duplicatesQuery);
+
+    if (duplicates.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No duplicate coordinates found - offsets already applied!',
+        offsetCount: 0
+      });
+    }
+
+    let offsetCount = 0;
+
+    for (const dup of duplicates) {
+      const facilityIds = dup.facilities.split('|');
+      const baseLatitude = parseFloat(dup.latitude);
+      const baseLongitude = parseFloat(dup.longitude);
+
+      const offsetDistance = 0.0005;
+      const angleStep = (2 * Math.PI) / facilityIds.length;
+
+      for (let index = 0; index < facilityIds.length; index++) {
+        if (index === 0) continue;
+
+        const facilityId = facilityIds[index];
+        const angle = angleStep * index;
+        const latOffset = Math.sin(angle) * offsetDistance;
+        const lonOffset = Math.cos(angle) * offsetDistance;
+
+        const newLat = baseLatitude + latOffset;
+        const newLon = baseLongitude + lonOffset;
+
+        await db.runAsync(
+          `UPDATE parking_facilities
+           SET latitude = $1, longitude = $2
+           WHERE facility_id = $3`,
+          [newLat, newLon, facilityId]
+        );
+
+        offsetCount++;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Applied offsets to ${offsetCount} facilities`,
+      offsetCount,
+      duplicateLocationsFound: duplicates.length
+    });
+
+  } catch (error) {
+    console.error('Error applying coordinate offsets:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Admin endpoint to import facilities from JSON file
 app.post('/api/admin/import-facilities', async (req, res) => {
   try {
