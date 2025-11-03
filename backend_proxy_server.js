@@ -1727,6 +1727,7 @@ app.get('/api/events/:state', async (req, res) => {
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  console.log('✅ /api/health endpoint hit!');
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -8257,6 +8258,7 @@ app.get('/api/chatgpt/docs', requireAPIKey, (req, res) => {
 app.use((req, res, next) => {
   // Skip static file serving for API routes
   if (req.path.startsWith('/api/')) {
+    console.log(`⚠️ Skipping static middleware for API route: ${req.method} ${req.path}`);
     return next();
   }
   staticFileMiddleware(req, res, next);
@@ -8264,6 +8266,7 @@ app.use((req, res, next) => {
 
 // Catch-all route for SPA - only for GET requests that didn't match anything
 app.get('*', (req, res) => {
+  console.log(`⚠️ Catch-all route hit: ${req.method} ${req.path}`);
   res.sendFile(path.join(FRONTEND_DIST_PATH, 'index.html'));
 });
 
