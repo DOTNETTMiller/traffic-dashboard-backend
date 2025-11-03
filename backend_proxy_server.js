@@ -64,6 +64,16 @@ const PORT = process.env.PORT || 3001;
 // Enable GZIP compression for all responses (reduces bandwidth by 70-80%)
 app.use(compression());
 
+// Prevent Railway Edge CDN from caching API routes
+app.use('/api', (req, res, next) => {
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+  next();
+});
+
 // JWT Secret (should be in environment variable in production)
 const JWT_SECRET = process.env.JWT_SECRET || 'ccai2026-traffic-dashboard-secret-key';
 
@@ -8254,22 +8264,13 @@ app.get('/api/chatgpt/docs', requireAPIKey, (req, res) => {
 
 // ==================== End ChatGPT API Endpoints ====================
 
-// TEMPORARILY DISABLED FOR TESTING - Testing if static serving is causing routing issues
-// Serve static frontend files only for non-API routes
-// app.use((req, res, next) => {
-//   // Skip static file serving for API routes
-//   if (req.path.startsWith('/api/')) {
-//     console.log(`⚠️ Skipping static middleware for API route: ${req.method} ${req.path}`);
-//     return next();
-//   }
-//   staticFileMiddleware(req, res, next);
-// });
+// Serve static frontend files
+app.use(express.static(FRONTEND_DIST_PATH));
 
-// // Catch-all route for SPA - only for GET requests that didn't match anything
-// app.get('*', (req, res) => {
-//   console.log(`⚠️ Catch-all route hit: ${req.method} ${req.path}`);
-//   res.sendFile(path.join(FRONTEND_DIST_PATH, 'index.html'));
-// });
+// Catch-all route for SPA - serve index.html for any unmatched routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(FRONTEND_DIST_PATH, 'index.html'));
+});
 
 // Scheduled TPIMS data fetch
 async function fetchTPIMSDataScheduled() {
