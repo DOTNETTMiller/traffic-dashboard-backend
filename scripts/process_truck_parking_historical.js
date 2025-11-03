@@ -142,6 +142,7 @@ async function processParkingData(filePath, limit = null) {
   let lineCount = 0;
   let processedCount = 0;
   let skipCount = 0;
+  const startTime = Date.now();
 
   const fileStream = fs.createReadStream(filePath);
   const rl = readline.createInterface({
@@ -205,8 +206,11 @@ async function processParkingData(filePath, limit = null) {
 
       processedCount++;
 
-      if (processedCount % 10000 === 0) {
-        process.stdout.write(`\r✅ Processed ${processedCount.toLocaleString()} records...`);
+      if (processedCount % 100000 === 0) {
+        const patternsCount = patternBuilder.patterns.size;
+        const elapsed = Date.now() - startTime;
+        const rate = processedCount / (elapsed / 1000);
+        process.stdout.write(`\r✅ Processed ${processedCount.toLocaleString()} records | ${facilities.size} facilities | ${rate.toFixed(0)} rec/sec`);
       }
 
     } catch (error) {
@@ -260,13 +264,14 @@ async function main() {
   const fileStats = fs.statSync(exportPath);
   console.log(`\n📁 File size: ${(fileStats.size / 1024 / 1024 / 1024).toFixed(2)} GB`);
 
-  // Process with limit for initial testing (remove limit to process all)
-  const SAMPLE_LIMIT = 100000; // Process first 100k records for testing
-  console.log(`\n⚙️  Processing first ${SAMPLE_LIMIT.toLocaleString()} records (modify SAMPLE_LIMIT in code to process more)\n`);
+  // Process ALL records (no limit) to get comprehensive patterns
+  console.log(`\n⚙️  Processing FULL dataset - this will take a while for ${(fileStats.size / 1024 / 1024 / 1024).toFixed(2)} GB`);
+  console.log(`⏱️  Estimated time: ${Math.round(fileStats.size / 1024 / 1024 / 10)} minutes\n`);
 
-  await processParkingData(exportPath, SAMPLE_LIMIT);
+  await processParkingData(exportPath, null); // null = no limit
 
   console.log('✅ Processing complete!\n');
+  console.log('💡 Run: node scripts/migrate_parking_to_db.js to update database\n');
   process.exit(0);
 }
 
