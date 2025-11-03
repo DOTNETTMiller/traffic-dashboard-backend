@@ -8250,6 +8250,15 @@ app.get('/api/chatgpt/docs', requireAPIKey, (req, res) => {
 
 // ==================== End ChatGPT API Endpoints ====================
 
+// Serve static frontend files
+app.use(express.static(FRONTEND_DIST_PATH));
+
+// Catch-all route for SPA - must be LAST
+// Serve index.html for any routes that didn't match API endpoints
+app.get('*', (req, res) => {
+  res.sendFile(path.join(FRONTEND_DIST_PATH, 'index.html'));
+});
+
 // Scheduled TPIMS data fetch
 async function fetchTPIMSDataScheduled() {
   try {
