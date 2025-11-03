@@ -323,18 +323,12 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
             <Tooltip direction="top" offset={[0, -16]} opacity={0.9}>
               <div style={{ minWidth: '150px' }}>
                 <strong>{facility.facilityName}</strong><br />
-                {facility.status === 'unknown' ? (
-                  <span style={{ color: '#9ca3af' }}>
-                    No data available
-                  </span>
-                ) : (
-                  <span style={{ color: availableSpaces > 0 ? '#22c55e' : '#ef4444' }}>
-                    {availableSpaces} spaces available
-                  </span>
-                )}
-                {isPrediction && facility.status !== 'unknown' && (
+                <span style={{ color: availableSpaces > 0 ? '#22c55e' : '#ef4444' }}>
+                  {availableSpaces} spaces available
+                </span>
+                {isPrediction && (
                   <div style={{ fontSize: '11px', fontStyle: 'italic', color: '#6b7280' }}>
-                    (Predicted)
+                    {facility.sampleCount === 0 ? '(Generic estimate)' : '(Predicted)'}
                   </div>
                 )}
               </div>
@@ -365,53 +359,40 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                   backgroundColor: '#f3f4f6',
                   borderRadius: '4px'
                 }}>
-                  {facility.status === 'unknown' ? (
-                    <>
-                      {totalSpaces > 0 && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                          <span><strong>Total Capacity:</strong></span>
-                          <span style={{ fontWeight: 'bold' }}>{totalSpaces} spaces</span>
-                        </div>
-                      )}
-                      <div style={{
-                        padding: '8px',
-                        backgroundColor: '#fef3c7',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        color: '#92400e',
-                        textAlign: 'center'
-                      }}>
-                        <strong>⚠️ No prediction available</strong><br />
-                        <span style={{ fontSize: '11px' }}>
-                          {facility.note || 'Historical data not available for this time'}
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                        <span><strong>Available:</strong></span>
-                        <span style={{
-                          color: availableSpaces > 0 ? '#22c55e' : '#ef4444',
-                          fontWeight: 'bold'
-                        }}>
-                          {availableSpaces}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                        <span><strong>Occupied:</strong></span>
-                        <span>{occupiedSpaces}</span>
-                      </div>
-                      {totalSpaces > 0 && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span><strong>Total Spaces:</strong></span>
-                          <span>{totalSpaces}</span>
-                        </div>
-                      )}
-                    </>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span><strong>Available:</strong></span>
+                    <span style={{
+                      color: availableSpaces > 0 ? '#22c55e' : '#ef4444',
+                      fontWeight: 'bold'
+                    }}>
+                      {availableSpaces}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span><strong>Occupied:</strong></span>
+                    <span>{occupiedSpaces}</span>
+                  </div>
+                  {totalSpaces > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span><strong>Total Spaces:</strong></span>
+                      <span>{totalSpaces}</span>
+                    </div>
+                  )}
+                  {facility.sampleCount === 0 && facility.note && (
+                    <div style={{
+                      marginTop: '8px',
+                      padding: '6px',
+                      backgroundColor: '#fef3c7',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      color: '#92400e',
+                      textAlign: 'center'
+                    }}>
+                      ℹ️ {facility.note}
+                    </div>
                   )}
                 </div>
-                {isPrediction && facility.status !== 'unknown' && (
+                {isPrediction && facility.sampleCount > 0 && (
                   <p style={{
                     margin: '8px 0',
                     padding: '6px',
@@ -422,7 +403,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                   }}>
                     <strong>✅ Predicted Availability</strong><br />
                     <span style={{ fontSize: '11px', fontStyle: 'italic' }}>
-                      Confidence: {Math.round((facility.predictionConfidence || 0) * 100)}%
+                      Confidence: {Math.round((facility.predictionConfidence || 0) * 100)}% • Based on {facility.sampleCount} samples
                     </span>
                   </p>
                 )}

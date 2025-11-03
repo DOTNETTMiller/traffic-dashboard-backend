@@ -89,6 +89,34 @@ class TruckParkingService {
     }
   }
 
+  // Calculate generic occupancy rate based on time of day and day of week
+  calculateGenericOccupancy(dayOfWeek, hour) {
+    // Weekend (Friday evening through Sunday) typically has higher occupancy
+    const isWeekend = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0;
+
+    // Peak hours: evening/night (6pm-6am) when truckers rest
+    const isPeakHours = hour >= 18 || hour <= 6;
+
+    // Base occupancy rates
+    let occupancyRate = 0.5; // Default 50%
+
+    if (isWeekend) {
+      if (isPeakHours) {
+        occupancyRate = 0.75; // 75% on weekend nights
+      } else {
+        occupancyRate = 0.60; // 60% on weekend days
+      }
+    } else {
+      if (isPeakHours) {
+        occupancyRate = 0.65; // 65% on weeknight rest hours
+      } else {
+        occupancyRate = 0.45; // 45% on weekday daytime
+      }
+    }
+
+    return occupancyRate;
+  }
+
   // Get prediction for a specific facility at a specific time
   predictAvailability(facilityId, targetTime = new Date()) {
     if (!this.loaded) {
@@ -121,10 +149,36 @@ class TruckParkingService {
                this.patterns.get(`${facilityId}-${dayOfWeek}-${nextHour}`);
     }
 
+    // If still no pattern, use generic prediction based on time of day
     if (!pattern) {
+      const genericOccupancy = this.calculateGenericOccupancy(dayOfWeek, hour);
+      const capacity = facility.avgCapacity || 0;
+      const predictedAvailable = Math.round(capacity * (1 - genericOccupancy));
+
+      let status = 'available';
+      if (genericOccupancy > 0.9) status = 'full';
+      else if (genericOccupancy > 0.7) status = 'limited';
+
       return {
-        success: false,
-        error: 'No historical pattern available for this time'
+        success: true,
+        prediction: {
+          facilityId,
+          siteId: facility.siteId,
+          state: facility.state,
+          latitude: facility.latitude,
+          longitude: facility.longitude,
+          capacity,
+          predictedAvailable,
+          predictedOccupied: capacity - predictedAvailable,
+          occupancyRate: genericOccupancy,
+          status,
+          confidence: 'low',
+          sampleCount: 0,
+          predictedFor: targetTime.toISOString(),
+          dayOfWeek,
+          hour,
+          note: 'Generic prediction based on typical patterns (no historical data)'
+        }
       };
     }
 
@@ -205,26 +259,6 @@ class TruckParkingService {
             timestamp: targetTime.toISOString()
           });
         }
-      } else {
-        // No historical pattern available - show facility with "unknown" status
-        predictions.push({
-          facilityId,
-          siteId: facility.siteId,
-          state: facility.state,
-          latitude: facility.latitude,
-          longitude: facility.longitude,
-          capacity: facility.avgCapacity || 0,
-          predictedAvailable: null,
-          predictedOccupied: null,
-          occupancyRate: null,
-          status: 'unknown',
-          confidence: 'none',
-          sampleCount: 0,
-          predictedFor: targetTime.toISOString(),
-          dayOfWeek: targetTime.getDay(),
-          hour: targetTime.getHours(),
-          note: 'No historical data available for this time'
-        });
       }
     }
 
