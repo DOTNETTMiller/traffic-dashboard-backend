@@ -172,6 +172,27 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
 
   return (
     <>
+      <style>{`
+        .parking-alerts-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: #f59e0b #fef3c7;
+        }
+        .parking-alerts-scroll::-webkit-scrollbar {
+          width: 12px;
+        }
+        .parking-alerts-scroll::-webkit-scrollbar-track {
+          background: #fef3c7;
+          border-radius: 4px;
+        }
+        .parking-alerts-scroll::-webkit-scrollbar-thumb {
+          background: #f59e0b;
+          border-radius: 4px;
+          border: 2px solid #fef3c7;
+        }
+        .parking-alerts-scroll::-webkit-scrollbar-thumb:hover {
+          background: #d97706;
+        }
+      `}</style>
       {/* Error Banner */}
       {error && (
         <div style={{
@@ -261,14 +282,17 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
               ×
             </button>
           </div>
-          <div style={{
-            padding: '8px',
-            overflowY: 'auto',
-            overflowX: 'hidden',
-            flex: '1 1 auto',
-            minHeight: 0,
-            WebkitOverflowScrolling: 'touch'
-          }}>
+          <div
+            className="parking-alerts-scroll"
+            style={{
+              padding: '8px',
+              overflowY: 'scroll',
+              overflowX: 'hidden',
+              flex: '1 1 auto',
+              minHeight: 0,
+              WebkitOverflowScrolling: 'touch'
+            }}
+          >
             {parkingAlerts.map((alert, idx) => (
               <div
                 key={idx}
