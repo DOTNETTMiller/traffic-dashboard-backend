@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Marker, Popup, Tooltip, LayerGroup } from 'react-leaflet';
+import { Marker, Popup, Tooltip } from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import api from '../services/api';
 
@@ -290,7 +291,13 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
         </div>
       )}
 
-      <LayerGroup>
+      <MarkerClusterGroup
+        chunkedLoading
+        spiderfyOnMaxZoom={true}
+        showCoverageOnHover={false}
+        zoomToBoundsOnClick={true}
+        maxClusterRadius={50}
+      >
         {parkingData.map((facility) => {
         const lat = parseFloat(facility.latitude);
         const lon = parseFloat(facility.longitude);
@@ -593,7 +600,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
           </Marker>
         );
       })}
-      </LayerGroup>
+      </MarkerClusterGroup>
     </>
   );
 }
