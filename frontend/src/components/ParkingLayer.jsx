@@ -358,36 +358,62 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                   backgroundColor: '#f3f4f6',
                   borderRadius: '4px'
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span><strong>Available:</strong></span>
-                    <span style={{
-                      color: availableSpaces > 0 ? '#22c55e' : '#ef4444',
-                      fontWeight: 'bold'
-                    }}>
-                      {availableSpaces}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span><strong>Occupied:</strong></span>
-                    <span>{occupiedSpaces}</span>
-                  </div>
-                  {totalSpaces > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span><strong>Total Spaces:</strong></span>
-                      <span>{totalSpaces}</span>
-                    </div>
+                  {facility.status === 'unknown' ? (
+                    <>
+                      {totalSpaces > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                          <span><strong>Total Capacity:</strong></span>
+                          <span style={{ fontWeight: 'bold' }}>{totalSpaces} spaces</span>
+                        </div>
+                      )}
+                      <div style={{
+                        padding: '8px',
+                        backgroundColor: '#fef3c7',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        color: '#92400e',
+                        textAlign: 'center'
+                      }}>
+                        <strong>⚠️ No prediction available</strong><br />
+                        <span style={{ fontSize: '11px' }}>
+                          {facility.note || 'Historical data not available for this time'}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <span><strong>Available:</strong></span>
+                        <span style={{
+                          color: availableSpaces > 0 ? '#22c55e' : '#ef4444',
+                          fontWeight: 'bold'
+                        }}>
+                          {availableSpaces}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <span><strong>Occupied:</strong></span>
+                        <span>{occupiedSpaces}</span>
+                      </div>
+                      {totalSpaces > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span><strong>Total Spaces:</strong></span>
+                          <span>{totalSpaces}</span>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
-                {isPrediction && (
+                {isPrediction && facility.status !== 'unknown' && (
                   <p style={{
                     margin: '8px 0',
                     padding: '6px',
-                    backgroundColor: '#fef3c7',
+                    backgroundColor: '#dcfce7',
                     borderRadius: '4px',
                     fontSize: '12px',
-                    borderLeft: '3px solid #f59e0b'
+                    borderLeft: '3px solid #22c55e'
                   }}>
-                    <strong>⚡ Predicted Availability</strong><br />
+                    <strong>✅ Predicted Availability</strong><br />
                     <span style={{ fontSize: '11px', fontStyle: 'italic' }}>
                       Confidence: {Math.round((facility.predictionConfidence || 0) * 100)}%
                     </span>
