@@ -236,6 +236,9 @@ const requireUserOrStateAuth = (req, res, next) => {
 const FRONTEND_DIST_PATH = path.join(__dirname, 'frontend', 'dist');
 const TRUCK_PARKING_PREDICTIONS_PATH = path.join(__dirname, 'data', 'truck_parking_predictions.json');
 
+// Create static file middleware once
+const staticFileMiddleware = express.static(FRONTEND_DIST_PATH);
+
 let truckParkingPredictions = null;
 
 const loadTruckParkingPredictions = () => {
@@ -8256,7 +8259,7 @@ app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) {
     return next();
   }
-  express.static(FRONTEND_DIST_PATH)(req, res, next);
+  staticFileMiddleware(req, res, next);
 });
 
 // Catch-all route for SPA - only for GET requests that didn't match anything
