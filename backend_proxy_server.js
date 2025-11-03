@@ -65,11 +65,19 @@ async function initParkingFacilities() {
 
     console.log(`📊 Current facilities in database: ${currentCount}`);
 
-    // If we have 174 or more facilities, assume database is already populated
-    if (currentCount >= 174) {
-      console.log('✅ Parking facilities already populated\n');
+    // Check how many Iowa facilities we have (should be 44)
+    const iowaResult = await db.getAsync('SELECT COUNT(*) as count FROM parking_facilities WHERE state = \'IA\'');
+    const iowaCount = iowaResult.count;
+
+    console.log(`🌽 Iowa facilities in database: ${iowaCount}`);
+
+    // If we have all 44 Iowa facilities, assume database is properly populated
+    if (iowaCount >= 44) {
+      console.log('✅ Parking facilities already populated (Iowa check passed)\n');
       return;
     }
+
+    console.log(`⚠️  Missing Iowa facilities! Expected 44, found ${iowaCount}. Running import...\n`);
 
     // Import facilities from JSON
     console.log('📥 Importing parking facilities from JSON...');
