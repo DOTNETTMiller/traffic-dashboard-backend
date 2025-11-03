@@ -8250,11 +8250,16 @@ app.get('/api/chatgpt/docs', requireAPIKey, (req, res) => {
 
 // ==================== End ChatGPT API Endpoints ====================
 
-// Serve static frontend files
-app.use(express.static(FRONTEND_DIST_PATH));
+// Serve static frontend files only for non-API routes
+app.use((req, res, next) => {
+  // Skip static file serving for API routes
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+  express.static(FRONTEND_DIST_PATH)(req, res, next);
+});
 
-// Catch-all route for SPA - must be LAST
-// Serve index.html for any routes that didn't match API endpoints
+// Catch-all route for SPA - only for GET requests that didn't match anything
 app.get('*', (req, res) => {
   res.sendFile(path.join(FRONTEND_DIST_PATH, 'index.html'));
 });
