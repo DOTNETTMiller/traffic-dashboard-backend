@@ -1,0 +1,352 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "DOT Corridor Communicator API",
+    "version": "1.0.0",
+    "description": "Access real-time traffic events, truck parking availability, and interstate communications across 44 state DOT systems."
+  },
+  "servers": [
+    {
+      "url": "https://corridor-communication-dashboard-production.up.railway.app",
+      "description": "Production Server"
+    },
+    {
+      "url": "http://localhost:3001",
+      "description": "Local Development Server"
+    }
+  ],
+  "paths": {
+    "/api/chatgpt/docs": {
+      "get": {
+        "summary": "Get API Documentation",
+        "description": "Returns comprehensive API documentation with all available endpoints",
+        "operationId": "getAPIDocs",
+        "responses": {
+          "200": {
+            "description": "API documentation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "documentation": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chatgpt/events": {
+      "get": {
+        "summary": "Get All Traffic Events",
+        "description": "Returns traffic events from all 44 states. Can filter by state, severity, or limit results.",
+        "operationId": "getAllEvents",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Filter by state (e.g., 'ohio', 'georgia', 'pa')",
+            "required": false,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "description": "Filter by severity level (e.g., 'major', 'moderate', 'minor')",
+            "required": false,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of events to return",
+            "required": false,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of traffic events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "count": { "type": "integer" },
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "state": { "type": "string" },
+                          "description": { "type": "string" },
+                          "severity": { "type": "string" },
+                          "location": { "type": "string" },
+                          "latitude": { "type": "number" },
+                          "longitude": { "type": "number" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chatgpt/events/{state}": {
+      "get": {
+        "summary": "Get Events for Specific State",
+        "description": "Returns all traffic events for a specific state",
+        "operationId": "getEventsByState",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "path",
+            "required": true,
+            "description": "State identifier (e.g., 'ohio', 'georgia', 'pa')",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Events for the specified state"
+          }
+        }
+      }
+    },
+    "/api/chatgpt/events/id/{eventId}": {
+      "get": {
+        "summary": "Get Specific Event Details",
+        "description": "Returns detailed information about a specific event including comments from DOT officials",
+        "operationId": "getEventById",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "description": "Unique event identifier",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event details with comments"
+          },
+          "404": {
+            "description": "Event not found"
+          }
+        }
+      }
+    },
+    "/api/chatgpt/states": {
+      "get": {
+        "summary": "Get List of States",
+        "description": "Returns all 44 states participating in the corridor communication system",
+        "operationId": "getStates",
+        "responses": {
+          "200": {
+            "description": "List of states",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "count": { "type": "integer" },
+                    "states": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "stateKey": { "type": "string" },
+                          "stateName": { "type": "string" },
+                          "apiType": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chatgpt/parking/facilities": {
+      "get": {
+        "summary": "Get Truck Parking Facilities",
+        "description": "Returns truck parking facilities with real-time availability data",
+        "operationId": "getParkingFacilities",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Filter by state code (e.g., 'KY', 'MN')",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of parking facilities"
+          }
+        }
+      }
+    },
+    "/api/chatgpt/parking/availability": {
+      "get": {
+        "summary": "Get Current Parking Availability",
+        "description": "Returns real-time parking space availability for truck parking facilities",
+        "operationId": "getParkingAvailability",
+        "parameters": [
+          {
+            "name": "facilityId",
+            "in": "query",
+            "description": "Specific facility ID (optional - returns all if not specified)",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current parking availability data"
+          }
+        }
+      }
+    },
+    "/api/chatgpt/parking/history/{facilityId}": {
+      "get": {
+        "summary": "Get Parking Availability History",
+        "description": "Returns historical parking availability data for trend analysis",
+        "operationId": "getParkingHistory",
+        "parameters": [
+          {
+            "name": "facilityId",
+            "in": "path",
+            "required": true,
+            "description": "Facility identifier",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "description": "Number of hours of history to return (default: 24)",
+            "required": false,
+            "schema": { "type": "integer", "default": 24 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Historical parking data"
+          }
+        }
+      }
+    },
+    "/api/chatgpt/interchanges": {
+      "get": {
+        "summary": "Get Interstate Interchanges",
+        "description": "Returns monitored interstate interchanges for detour coordination",
+        "operationId": "getInterchanges",
+        "responses": {
+          "200": {
+            "description": "List of monitored interchanges"
+          }
+        }
+      }
+    },
+    "/api/chatgpt/detour-alerts": {
+      "get": {
+        "summary": "Get Active Detour Alerts",
+        "description": "Returns active detour alerts affecting interstate corridors",
+        "operationId": "getDetourAlerts",
+        "responses": {
+          "200": {
+            "description": "Active detour alerts"
+          }
+        }
+      }
+    },
+    "/api/chatgpt/messages": {
+      "get": {
+        "summary": "Get Event Comments",
+        "description": "Returns comments and communications from DOT officials about traffic events",
+        "operationId": "getMessages",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Filter by state",
+            "required": false,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Limit number of results",
+            "required": false,
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of messages and comments"
+          }
+        }
+      }
+    },
+    "/api/chatgpt/messages/event/{eventId}": {
+      "get": {
+        "summary": "Get Comments for Specific Event",
+        "description": "Returns all comments and communications about a specific event",
+        "operationId": "getEventMessages",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "description": "Event identifier",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Event comments"
+          }
+        }
+      }
+    },
+    "/api/chatgpt/users": {
+      "get": {
+        "summary": "Get System Users",
+        "description": "Returns list of DOT users in the system (limited information)",
+        "operationId": "getUsers",
+        "responses": {
+          "200": {
+            "description": "List of users"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    }
+  },
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ]
+}

@@ -62,21 +62,23 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
 
         if (response.data && response.data.success) {
           // Transform the prediction data to match the expected format
+          console.log('Received parking predictions:', response.data.predictions.length);
           const transformedData = response.data.predictions.map(pred => ({
             facilityId: pred.facilityId,
             facilityName: pred.friendlyName || pred.siteId || pred.facilityId,
             state: pred.state,
             latitude: pred.latitude || 0,
             longitude: pred.longitude || 0,
-            availableSpaces: pred.predictedAvailable,
-            occupiedSpaces: pred.predictedOccupied,
-            truckSpaces: pred.capacity,
+            availableSpaces: pred.predictedAvailable !== null ? pred.predictedAvailable : 0,
+            occupiedSpaces: pred.predictedOccupied !== null ? pred.predictedOccupied : 0,
+            truckSpaces: pred.capacity || 0,
             isPrediction: true,
-            predictionConfidence: pred.confidence === 'high' ? 0.9 : pred.confidence === 'medium' ? 0.7 : 0.5,
+            predictionConfidence: pred.confidence === 'high' ? 0.9 : pred.confidence === 'medium' ? 0.7 : pred.confidence === 'none' ? 0 : 0.5,
             timestamp: pred.predictedFor,
             occupancyRate: pred.occupancyRate,
             status: pred.status,
-            cameras: pred.cameras || null
+            cameras: pred.cameras || null,
+            note: pred.note
           }));
 
           setParkingData(transformedData);
@@ -92,6 +94,8 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
         }
       } catch (err) {
         console.error('Error fetching parking predictions:', err);
+        console.error('Error details:', err.response?.data);
+        console.error('Error status:', err.response?.status);
         // Handle 503 - service not initialized yet
         if (err.response && err.response.status === 503) {
           setError('Parking prediction service is initializing. Please try again in a moment.');
@@ -220,7 +224,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
           right: '20px',
           zIndex: 1000,
           maxWidth: '350px',
-          maxHeight: '60vh',
+          maxHeight: '80vh',
           backgroundColor: 'white',
           borderRadius: '8px',
           boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
@@ -312,10 +316,16 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
             <Tooltip direction="top" offset={[0, -16]} opacity={0.9}>
               <div style={{ minWidth: '150px' }}>
                 <strong>{facility.facilityName}</strong><br />
-                <span style={{ color: availableSpaces > 0 ? '#22c55e' : '#ef4444' }}>
-                  {availableSpaces} spaces available
-                </span>
-                {isPrediction && (
+                {facility.status === 'unknown' ? (
+                  <span style={{ color: '#9ca3af' }}>
+                    No data available
+                  </span>
+                ) : (
+                  <span style={{ color: availableSpaces > 0 ? '#22c55e' : '#ef4444' }}>
+                    {availableSpaces} spaces available
+                  </span>
+                )}
+                {isPrediction && facility.status !== 'unknown' && (
                   <div style={{ fontSize: '11px', fontStyle: 'italic', color: '#6b7280' }}>
                     (Predicted)
                   </div>

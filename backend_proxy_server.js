@@ -7628,6 +7628,479 @@ app.get('/api/parking/validation', requireAdmin, async (req, res) => {
   }
 });
 
+// ==================== ChatGPT / External API Endpoints ====================
+// These endpoints are designed for ChatGPT and other AI assistants to access
+// the database with read-only permissions using API key authentication
+
+// API Key authentication middleware for ChatGPT
+const requireAPIKey = (req, res, next) => {
+  const apiKey = req.headers['x-api-key'];
+
+  if (!apiKey) {
+    return res.status(401).json({ error: 'Missing API key. Include X-API-Key header.' });
+  }
+
+  // Verify API key using admin tokens table
+  if (db.verifyAdminToken(apiKey)) {
+    req.apiKeyAuth = true;
+    return next();
+  }
+
+  return res.status(403).json({ error: 'Invalid API key' });
+};
+
+// Generate API key for ChatGPT (admin only)
+app.post('/api/chatgpt/generate-key', requireAdmin, (req, res) => {
+  try {
+    const { description } = req.body;
+    const apiKey = db.createAdminToken(description || 'ChatGPT API Access');
+
+    res.json({
+      success: true,
+      apiKey,
+      message: 'API key generated successfully. Store this securely - it cannot be retrieved again.',
+      usage: 'Include this key in the X-API-Key header for all ChatGPT API requests'
+    });
+  } catch (error) {
+    console.error('Error generating API key:', error);
+    res.status(500).json({ error: 'Failed to generate API key' });
+  }
+});
+
+// Get all events (read-only for ChatGPT)
+app.get('/api/chatgpt/events', requireAPIKey, async (req, res) => {
+  try {
+    const { state, severity, limit } = req.query;
+
+    // Fetch all events using same logic as /api/events
+    const allResults = await Promise.all(
+      getAllStateKeys().map(stateKey => fetchStateData(stateKey))
+    );
+
+    const allEvents = [];
+    allResults.forEach(result => {
+      allEvents.push(...result.events);
+    });
+
+    // Add Ohio API events
+    try {
+      const ohioEvents = await fetchOhioEvents();
+      if (ohioEvents && ohioEvents.length > 0) {
+        allEvents.push(...ohioEvents);
+      }
+    } catch (error) {
+      console.error('Error fetching Ohio events:', error.message);
+    }
+
+    // Add Caltrans LCS events
+    try {
+      const caltransEvents = await fetchCaltransLCS();
+      if (caltransEvents && caltransEvents.length > 0) {
+        allEvents.push(...caltransEvents);
+      }
+    } catch (error) {
+      console.error('Error fetching Caltrans events:', error.message);
+    }
+
+    // Deduplicate
+    const seenIds = new Set();
+    const uniqueEvents = [];
+    allEvents.forEach(event => {
+      if (!seenIds.has(event.id)) {
+        seenIds.add(event.id);
+        uniqueEvents.push(event);
+      }
+    });
+
+    let filtered = uniqueEvents;
+
+    if (state) {
+      filtered = filtered.filter(e => e.state?.toLowerCase() === state.toLowerCase());
+    }
+
+    if (severity) {
+      filtered = filtered.filter(e => e.severity?.toLowerCase() === severity.toLowerCase());
+    }
+
+    if (limit) {
+      filtered = filtered.slice(0, parseInt(limit));
+    }
+
+    res.json({
+      success: true,
+      count: filtered.length,
+      events: filtered
+    });
+  } catch (error) {
+    console.error('Error fetching events for ChatGPT:', error);
+    res.status(500).json({ error: 'Failed to fetch events' });
+  }
+});
+
+// Get events by state (read-only for ChatGPT)
+app.get('/api/chatgpt/events/:state', requireAPIKey, async (req, res) => {
+  try {
+    const { state } = req.params;
+
+    // Fetch all events
+    const allResults = await Promise.all(
+      getAllStateKeys().map(stateKey => fetchStateData(stateKey))
+    );
+
+    const allEvents = [];
+    allResults.forEach(result => {
+      allEvents.push(...result.events);
+    });
+
+    // Add Ohio API events
+    try {
+      const ohioEvents = await fetchOhioEvents();
+      if (ohioEvents && ohioEvents.length > 0) {
+        allEvents.push(...ohioEvents);
+      }
+    } catch (error) {
+      // Silently skip
+    }
+
+    // Add Caltrans LCS events
+    try {
+      const caltransEvents = await fetchCaltransLCS();
+      if (caltransEvents && caltransEvents.length > 0) {
+        allEvents.push(...caltransEvents);
+      }
+    } catch (error) {
+      // Silently skip
+    }
+
+    const filtered = allEvents.filter(e => e.state?.toLowerCase() === state.toLowerCase());
+
+    res.json({
+      success: true,
+      state,
+      count: filtered.length,
+      events: filtered
+    });
+  } catch (error) {
+    console.error('Error fetching state events for ChatGPT:', error);
+    res.status(500).json({ error: 'Failed to fetch state events' });
+  }
+});
+
+// Get single event by ID
+app.get('/api/chatgpt/events/id/:eventId', requireAPIKey, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    // Fetch all events
+    const allResults = await Promise.all(
+      getAllStateKeys().map(stateKey => fetchStateData(stateKey))
+    );
+
+    const allEvents = [];
+    allResults.forEach(result => {
+      allEvents.push(...result.events);
+    });
+
+    // Add Ohio API events
+    try {
+      const ohioEvents = await fetchOhioEvents();
+      if (ohioEvents && ohioEvents.length > 0) {
+        allEvents.push(...ohioEvents);
+      }
+    } catch (error) {
+      // Silently skip
+    }
+
+    // Add Caltrans LCS events
+    try {
+      const caltransEvents = await fetchCaltransLCS();
+      if (caltransEvents && caltransEvents.length > 0) {
+        allEvents.push(...caltransEvents);
+      }
+    } catch (error) {
+      // Silently skip
+    }
+
+    const event = allEvents.find(e => e.id === eventId);
+
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Get comments for this event
+    const comments = await db.getEventComments(eventId);
+
+    res.json({
+      success: true,
+      event,
+      comments: comments || []
+    });
+  } catch (error) {
+    console.error('Error fetching event for ChatGPT:', error);
+    res.status(500).json({ error: 'Failed to fetch event' });
+  }
+});
+
+// Get parking facilities (read-only for ChatGPT)
+app.get('/api/chatgpt/parking/facilities', requireAPIKey, (req, res) => {
+  try {
+    const { state } = req.query;
+    const facilities = db.getParkingFacilities(state || null);
+
+    res.json({
+      success: true,
+      count: facilities.length,
+      facilities
+    });
+  } catch (error) {
+    console.error('Error fetching parking facilities for ChatGPT:', error);
+    res.status(500).json({ error: 'Failed to fetch parking facilities' });
+  }
+});
+
+// Get parking availability (read-only for ChatGPT)
+app.get('/api/chatgpt/parking/availability', requireAPIKey, (req, res) => {
+  try {
+    const { facilityId } = req.query;
+    const availability = db.getLatestParkingAvailability(facilityId || null);
+
+    res.json({
+      success: true,
+      availability
+    });
+  } catch (error) {
+    console.error('Error fetching parking availability for ChatGPT:', error);
+    res.status(500).json({ error: 'Failed to fetch parking availability' });
+  }
+});
+
+// Get parking history (read-only for ChatGPT)
+app.get('/api/chatgpt/parking/history/:facilityId', requireAPIKey, (req, res) => {
+  try {
+    const { facilityId } = req.params;
+    const { hours } = req.query;
+    const history = db.getParkingHistory(facilityId, parseInt(hours) || 24);
+
+    res.json({
+      success: true,
+      facilityId,
+      hours: parseInt(hours) || 24,
+      count: history.length,
+      history
+    });
+  } catch (error) {
+    console.error('Error fetching parking history for ChatGPT:', error);
+    res.status(500).json({ error: 'Failed to fetch parking history' });
+  }
+});
+
+// Get states list (read-only for ChatGPT)
+app.get('/api/chatgpt/states', requireAPIKey, async (req, res) => {
+  try {
+    const states = await db.getAllStates(false); // Don't include credentials
+
+    res.json({
+      success: true,
+      count: states.length,
+      states
+    });
+  } catch (error) {
+    console.error('Error fetching states for ChatGPT:', error);
+    res.status(500).json({ error: 'Failed to fetch states' });
+  }
+});
+
+// Get messages/communications (read-only for ChatGPT)
+app.get('/api/chatgpt/messages', requireAPIKey, async (req, res) => {
+  try {
+    const { state, limit } = req.query;
+
+    // Get all event comments
+    const comments = await db.getAllEventComments();
+
+    let filtered = comments;
+
+    if (state) {
+      filtered = filtered.filter(c => c.state_key?.toLowerCase() === state.toLowerCase());
+    }
+
+    if (limit) {
+      filtered = filtered.slice(0, parseInt(limit));
+    }
+
+    res.json({
+      success: true,
+      count: filtered.length,
+      messages: filtered
+    });
+  } catch (error) {
+    console.error('Error fetching messages for ChatGPT:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
+// Get event comments for a specific event (read-only for ChatGPT)
+app.get('/api/chatgpt/messages/event/:eventId', requireAPIKey, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const comments = await db.getEventComments(eventId);
+
+    res.json({
+      success: true,
+      eventId,
+      count: comments.length,
+      comments
+    });
+  } catch (error) {
+    console.error('Error fetching event comments for ChatGPT:', error);
+    res.status(500).json({ error: 'Failed to fetch event comments' });
+  }
+});
+
+// Get users list (limited info, read-only for ChatGPT)
+app.get('/api/chatgpt/users', requireAPIKey, async (req, res) => {
+  try {
+    const users = await db.getAllUsers();
+
+    // Strip sensitive information
+    const sanitizedUsers = users.map(u => ({
+      id: u.id,
+      username: u.username,
+      organization: u.organization,
+      stateKey: u.stateKey,
+      role: u.role,
+      active: u.active
+    }));
+
+    res.json({
+      success: true,
+      count: sanitizedUsers.length,
+      users: sanitizedUsers
+    });
+  } catch (error) {
+    console.error('Error fetching users for ChatGPT:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Get interchanges (read-only for ChatGPT)
+app.get('/api/chatgpt/interchanges', requireAPIKey, async (req, res) => {
+  try {
+    const interchanges = await db.getActiveInterchanges();
+
+    res.json({
+      success: true,
+      count: interchanges.length,
+      interchanges
+    });
+  } catch (error) {
+    console.error('Error fetching interchanges for ChatGPT:', error);
+    res.status(500).json({ error: 'Failed to fetch interchanges' });
+  }
+});
+
+// Get detour alerts (read-only for ChatGPT)
+app.get('/api/chatgpt/detour-alerts', requireAPIKey, async (req, res) => {
+  try {
+    const alerts = await db.getActiveDetourAlerts();
+
+    res.json({
+      success: true,
+      count: alerts.length,
+      alerts
+    });
+  } catch (error) {
+    console.error('Error fetching detour alerts for ChatGPT:', error);
+    res.status(500).json({ error: 'Failed to fetch detour alerts' });
+  }
+});
+
+// API documentation endpoint
+app.get('/api/chatgpt/docs', requireAPIKey, (req, res) => {
+  res.json({
+    success: true,
+    documentation: {
+      title: 'DOT Corridor Communicator - ChatGPT API',
+      version: '1.0.0',
+      authentication: 'Include X-API-Key header with your API key',
+      endpoints: [
+        {
+          method: 'GET',
+          path: '/api/chatgpt/events',
+          description: 'Get all traffic events',
+          queryParams: ['state', 'severity', 'limit']
+        },
+        {
+          method: 'GET',
+          path: '/api/chatgpt/events/:state',
+          description: 'Get events for a specific state'
+        },
+        {
+          method: 'GET',
+          path: '/api/chatgpt/events/id/:eventId',
+          description: 'Get a specific event with comments'
+        },
+        {
+          method: 'GET',
+          path: '/api/chatgpt/parking/facilities',
+          description: 'Get truck parking facilities',
+          queryParams: ['state']
+        },
+        {
+          method: 'GET',
+          path: '/api/chatgpt/parking/availability',
+          description: 'Get current parking availability',
+          queryParams: ['facilityId']
+        },
+        {
+          method: 'GET',
+          path: '/api/chatgpt/parking/history/:facilityId',
+          description: 'Get parking availability history',
+          queryParams: ['hours']
+        },
+        {
+          method: 'GET',
+          path: '/api/chatgpt/states',
+          description: 'Get list of all states in the system'
+        },
+        {
+          method: 'GET',
+          path: '/api/chatgpt/messages',
+          description: 'Get all event comments',
+          queryParams: ['state', 'limit']
+        },
+        {
+          method: 'GET',
+          path: '/api/chatgpt/messages/event/:eventId',
+          description: 'Get comments for a specific event'
+        },
+        {
+          method: 'GET',
+          path: '/api/chatgpt/users',
+          description: 'Get list of users (limited info)'
+        },
+        {
+          method: 'GET',
+          path: '/api/chatgpt/interchanges',
+          description: 'Get active interstate interchanges'
+        },
+        {
+          method: 'GET',
+          path: '/api/chatgpt/detour-alerts',
+          description: 'Get active detour alerts'
+        },
+        {
+          method: 'GET',
+          path: '/api/chatgpt/docs',
+          description: 'Get this API documentation'
+        }
+      ]
+    }
+  });
+});
+
+// ==================== End ChatGPT API Endpoints ====================
+
 // Scheduled TPIMS data fetch
 async function fetchTPIMSDataScheduled() {
   try {

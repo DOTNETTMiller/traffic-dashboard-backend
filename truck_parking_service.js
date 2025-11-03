@@ -17,10 +17,12 @@ class TruckParkingService {
     try {
       console.log(`📂 Loading parking patterns from database...`);
 
-      // Initialize database connection
+      // Use the shared database instance
       if (!this.db) {
-        this.db = new Database.constructor();
-        await this.db.init();
+        this.db = Database; // Use the singleton instance
+        if (Database.init) {
+          await Database.init();
+        }
       }
 
       // Load facilities
@@ -183,8 +185,9 @@ class TruckParkingService {
     const predictions = [];
     const alerts = [];
 
-    for (const [facilityId] of this.facilities) {
+    for (const [facilityId, facility] of this.facilities) {
       const result = this.predictAvailability(facilityId, targetTime);
+
       if (result.success) {
         predictions.push(result.prediction);
 
@@ -202,6 +205,26 @@ class TruckParkingService {
             timestamp: targetTime.toISOString()
           });
         }
+      } else {
+        // No historical pattern available - show facility with "unknown" status
+        predictions.push({
+          facilityId,
+          siteId: facility.siteId,
+          state: facility.state,
+          latitude: facility.latitude,
+          longitude: facility.longitude,
+          capacity: facility.avgCapacity || 0,
+          predictedAvailable: null,
+          predictedOccupied: null,
+          occupancyRate: null,
+          status: 'unknown',
+          confidence: 'none',
+          sampleCount: 0,
+          predictedFor: targetTime.toISOString(),
+          dayOfWeek: targetTime.getDay(),
+          hour: targetTime.getHours(),
+          note: 'No historical data available for this time'
+        });
       }
     }
 
