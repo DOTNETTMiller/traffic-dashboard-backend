@@ -22,6 +22,8 @@ async function migrateParkingData() {
         state TEXT NOT NULL,
         avg_capacity INTEGER NOT NULL,
         total_samples INTEGER NOT NULL,
+        latitude DOUBLE PRECISION DEFAULT 0,
+        longitude DOUBLE PRECISION DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -49,6 +51,8 @@ async function migrateParkingData() {
         state TEXT NOT NULL,
         avg_capacity INTEGER NOT NULL,
         total_samples INTEGER NOT NULL,
+        latitude REAL DEFAULT 0,
+        longitude REAL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -71,6 +75,26 @@ async function migrateParkingData() {
   }
 
   console.log('✅ Tables created successfully\n');
+
+  // Load coordinate data from GIS export
+  console.log('📍 Loading coordinate data from GIS export...');
+  const coordDataPath = path.join(__dirname, 'facilities_data.json');
+  let coordinateMap = new Map();
+  let gisDataMap = new Map(); // Full facility data from GIS
+
+  if (fs.existsSync(coordDataPath)) {
+    const coordData = JSON.parse(fs.readFileSync(coordDataPath, 'utf8'));
+    for (const facility of coordData) {
+      coordinateMap.set(facility.facility_id, {
+        latitude: facility.latitude || 0,
+        longitude: facility.longitude || 0
+      });
+      gisDataMap.set(facility.facility_id, facility);
+    }
+    console.log(`✅ Loaded coordinates for ${coordinateMap.size} facilities\n`);
+  } else {
+    console.log('⚠️  No coordinate data found (facilities_data.json), will use 0,0 defaults\n');
+  }
 
   // Load JSON data
   const jsonPath = path.join(__dirname, '../data/truck_parking_patterns.json');
@@ -127,34 +151,76 @@ async function migrateParkingData() {
   console.log('✅ Cleared\n');
 
   // Insert facilities
-  console.log('📝 Inserting facilities...');
+  console.log('📝 Inserting facilities with coordinates...');
   const facilityQuery = db.isPostgres ?
     `INSERT INTO parking_facilities
-     (facility_id, site_id, state, avg_capacity, total_samples)
-     VALUES ($1, $2, $3, $4, $5)
+     (facility_id, site_id, state, avg_capacity, total_samples, latitude, longitude)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (facility_id) DO UPDATE SET
        site_id = EXCLUDED.site_id,
        state = EXCLUDED.state,
        avg_capacity = EXCLUDED.avg_capacity,
-       total_samples = EXCLUDED.total_samples` :
+       total_samples = EXCLUDED.total_samples,
+       latitude = EXCLUDED.latitude,
+       longitude = EXCLUDED.longitude` :
     `INSERT OR REPLACE INTO parking_facilities
-     (facility_id, site_id, state, avg_capacity, total_samples)
-     VALUES (?, ?, ?, ?, ?)`;
+     (facility_id, site_id, state, avg_capacity, total_samples, latitude, longitude)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`;
 
   const facilityStmt = db.db.prepare(facilityQuery);
 
   let facilityCount = 0;
+  let coordMatchCount = 0;
   for (const facility of data.facilities || []) {
+    // Get coordinates from GIS data, default to 0,0
+    const coords = coordinateMap.get(facility.facilityId) || { latitude: 0, longitude: 0 };
+    if (coords.latitude !== 0 || coords.longitude !== 0) {
+      coordMatchCount++;
+    }
+
     await facilityStmt.run(
       facility.facilityId,
       facility.siteId,
       facility.state,
       facility.avgCapacity || facility.capacity || 0,
-      facility.totalSamples || 0
+      facility.totalSamples || 0,
+      coords.latitude,
+      coords.longitude
     );
     facilityCount++;
   }
-  console.log(`✅ Inserted ${facilityCount} facilities\n`);
+  console.log(`✅ Inserted ${facilityCount} facilities (${coordMatchCount} with coordinates)\n`);
+
+  // Add facilities from GIS data that don't have historical patterns
+  console.log('📍 Checking for facilities in GIS data without patterns...');
+  const patternFacilityIds = new Set((data.facilities || []).map(f => f.facilityId));
+  let additionalCount = 0;
+
+  for (const [facilityId, coords] of coordinateMap) {
+    if (!patternFacilityIds.has(facilityId) && (coords.latitude !== 0 || coords.longitude !== 0)) {
+      // Get the facility details from the GIS data map
+      const facilityData = gisDataMap.get(facilityId);
+
+      if (facilityData) {
+        await facilityStmt.run(
+          facilityData.facility_id,
+          facilityData.site_id,
+          facilityData.state,
+          facilityData.capacity || 0,
+          0, // no samples for facilities without patterns
+          coords.latitude,
+          coords.longitude
+        );
+        additionalCount++;
+      }
+    }
+  }
+
+  if (additionalCount > 0) {
+    console.log(`✅ Added ${additionalCount} additional facilities from GIS data\n`);
+  } else {
+    console.log('✅ All GIS facilities already have patterns\n');
+  }
 
   // Insert patterns
   console.log('📝 Inserting patterns...');
