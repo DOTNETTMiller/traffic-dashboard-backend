@@ -299,7 +299,8 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
         spiderfyOnMaxZoom={true}
         showCoverageOnHover={false}
         zoomToBoundsOnClick={true}
-        maxClusterRadius={50}
+        maxClusterRadius={15}
+        disableClusteringAtZoom={10}
       >
         {parkingData.map((facility) => {
         const lat = parseFloat(facility.latitude);
