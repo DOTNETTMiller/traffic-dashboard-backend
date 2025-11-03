@@ -2250,6 +2250,66 @@ app.get('/api/debug/coordinates', async (req, res) => {
   res.json(stats);
 });
 
+// Admin endpoint to import facilities from JSON file
+app.post('/api/admin/import-facilities', async (req, res) => {
+  try {
+    console.log('📥 Starting facility import...');
+
+    const fs = require('fs');
+    const path = require('path');
+
+    // Read facilities from JSON file
+    const facilitiesPath = path.join(__dirname, 'scripts', 'facilities_data.json');
+    const facilitiesData = JSON.parse(fs.readFileSync(facilitiesPath, 'utf8'));
+
+    console.log(`Found ${facilitiesData.length} facilities to import`);
+
+    // Delete existing facilities
+    await db.runAsync('DELETE FROM parking_facilities');
+    console.log('Cleared existing facilities');
+
+    // Import facilities
+    let imported = 0;
+    for (const f of facilitiesData) {
+      try {
+        await db.runAsync(
+          `INSERT INTO parking_facilities
+           (facility_id, site_id, state, capacity, latitude, longitude)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [f.facility_id, f.site_id, f.state, f.capacity || 0, f.latitude || 0, f.longitude || 0]
+        );
+        imported++;
+        if (imported % 50 === 0) {
+          console.log(`Imported ${imported}/${facilitiesData.length}`);
+        }
+      } catch (err) {
+        console.error(`Error importing ${f.facility_id}:`, err.message);
+      }
+    }
+
+    // Get counts by state
+    const stateCountsQuery = `
+      SELECT state, COUNT(*) as count
+      FROM parking_facilities
+      GROUP BY state
+      ORDER BY state
+    `;
+    const stateCounts = await db.allAsync(stateCountsQuery);
+
+    res.json({
+      success: true,
+      message: `Imported ${imported} facilities`,
+      imported,
+      total: facilitiesData.length,
+      byState: stateCounts
+    });
+
+  } catch (error) {
+    console.error('Error importing facilities:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Admin endpoint to apply coordinate offsets
 app.post('/api/admin/apply-coordinate-offsets', async (req, res) => {
   try {
