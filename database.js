@@ -282,6 +282,7 @@ class StateDatabase {
         facility_id TEXT NOT NULL,
         camera_view TEXT NOT NULL,
         observed_count INTEGER NOT NULL,
+        observed_total_capacity INTEGER,
         predicted_count INTEGER,
         predicted_occupancy_rate DOUBLE PRECISION,
         observer_notes TEXT,
@@ -330,6 +331,20 @@ class StateDatabase {
         console.log('🔄 Adding state_key column to users table...');
         this.db.exec('ALTER TABLE users ADD COLUMN state_key TEXT');
         console.log('✅ Added state_key column');
+      }
+
+      // Check if parking_ground_truth_observations table exists
+      const groundTruthTables = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='parking_ground_truth_observations'").all();
+      if (groundTruthTables.length > 0) {
+        // Check if observed_total_capacity column exists
+        const groundTruthColumns = this.db.prepare("PRAGMA table_info(parking_ground_truth_observations)").all();
+        const hasTotalCapacity = groundTruthColumns.some(col => col.name === 'observed_total_capacity');
+
+        if (!hasTotalCapacity) {
+          console.log('🔄 Adding observed_total_capacity column to parking_ground_truth_observations table...');
+          this.db.exec('ALTER TABLE parking_ground_truth_observations ADD COLUMN observed_total_capacity INTEGER');
+          console.log('✅ Added observed_total_capacity column');
+        }
       }
     } catch (error) {
       console.error('⚠️  Migration error (will retry on next startup):', error.message);
@@ -594,7 +609,13 @@ class StateDatabase {
       decrypted += decipher.final('utf8');
       return JSON.parse(decrypted);
     } catch (error) {
-      console.error('Decryption error:', error);
+      // Gracefully handle decryption errors (likely due to ENCRYPTION_KEY mismatch)
+      // Return null instead of crashing - credentials can be re-entered if needed
+      if (!process.env.ENCRYPTION_KEY) {
+        console.warn('⚠️  Decryption failed: ENCRYPTION_KEY not set in environment');
+      } else {
+        console.warn('⚠️  Decryption failed: credentials may have been encrypted with a different key');
+      }
       return null;
     }
   }

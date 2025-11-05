@@ -526,26 +526,32 @@ const getAllStateKeys = () => {
 
 // Function to load states from database and merge with API_CONFIG
 async function loadStatesFromDatabase() {
-  console.log('📦 Loading states from database...');
+  try {
+    console.log('📦 Loading states from database...');
 
-  const dbStates = await db.getAllStates(true); // Get all with credentials
+    const dbStates = await db.getAllStates(true); // Get all with credentials
 
-  dbStates.forEach(state => {
-    if (state.enabled) {
-      // Convert database format to API_CONFIG format
-      API_CONFIG[state.stateKey] = {
-        name: state.stateName,
-        eventsUrl: state.apiUrl,
-        format: state.format,
-        apiType: state.apiType,
-        ...(state.credentials || {})
-      };
+    dbStates.forEach(state => {
+      if (state.enabled) {
+        // Convert database format to API_CONFIG format
+        API_CONFIG[state.stateKey] = {
+          name: state.stateName,
+          eventsUrl: state.apiUrl,
+          format: state.format,
+          apiType: state.apiType,
+          ...(state.credentials || {})
+        };
 
-      console.log(`  ✅ Loaded ${state.stateName} from database`);
-    }
-  });
+        console.log(`  ✅ Loaded ${state.stateName} from database`);
+      }
+    });
 
-  console.log(`📊 Total states configured: ${Object.keys(API_CONFIG).length}`);
+    console.log(`📊 Total states configured: ${Object.keys(API_CONFIG).length}`);
+  } catch (error) {
+    console.error('⚠️  Error loading states from database:', error.message);
+    console.log('📊 Using default state configurations');
+    // Continue with existing API_CONFIG
+  }
 }
 
 // SAE J2735 ITIS Code Mapping
@@ -581,27 +587,33 @@ function getITISCode(eventType) {
 
 // Initialize database and run migration (async startup)
 async function initializeDatabase() {
-  // Initialize database (required for PostgreSQL)
-  await db.init();
+  try {
+    // Initialize database (required for PostgreSQL)
+    await db.init();
 
-  // Run migration on first startup (only runs once)
-  const existingStates = await db.getAllStates();
-  if (existingStates.length === 0) {
-    console.log('🔄 First startup detected - migrating existing states to database...');
-    db.migrateFromConfig(API_CONFIG);
-  }
+    // Run migration on first startup (only runs once)
+    const existingStates = await db.getAllStates();
+    if (existingStates.length === 0) {
+      console.log('🔄 First startup detected - migrating existing states to database...');
+      db.migrateFromConfig(API_CONFIG);
+    }
 
-  // Load any additional states from database
-  await loadStatesFromDatabase();
+    // Load any additional states from database
+    await loadStatesFromDatabase();
 
-  // Generate admin token if none exist
-  const tokenCheck = db.db.prepare('SELECT COUNT(*) as count FROM admin_tokens').get();
-  if (tokenCheck.count === 0) {
-    const initialToken = db.createAdminToken('Initial admin token');
-    console.log('\n🔑 ═══════════════════════════════════════════════════════════');
-    console.log('🔑 ADMIN TOKEN GENERATED (SAVE THIS SECURELY):');
-    console.log(`🔑 ${initialToken}`);
-    console.log('🔑 ═══════════════════════════════════════════════════════════\n');
+    // Generate admin token if none exist
+    const tokenCheck = db.db.prepare('SELECT COUNT(*) as count FROM admin_tokens').get();
+    if (tokenCheck.count === 0) {
+      const initialToken = db.createAdminToken('Initial admin token');
+      console.log('\n🔑 ═══════════════════════════════════════════════════════════');
+      console.log('🔑 ADMIN TOKEN GENERATED (SAVE THIS SECURELY):');
+      console.log(`🔑 ${initialToken}`);
+      console.log('🔑 ═══════════════════════════════════════════════════════════\n');
+    }
+  } catch (error) {
+    console.error('⚠️  Database initialization error:', error.message);
+    console.log('⚠️  Server will continue with limited functionality');
+    // Server will start but database features may be limited
   }
 }
 
@@ -7968,6 +7980,7 @@ app.post('/api/parking/ground-truth/observations', async (req, res) => {
       facilityId,
       cameraView,
       observedCount,
+      observedTotalCapacity = null,
       predictedCount = null,
       predictedOccupancyRate = null,
       observerNotes = null
@@ -7989,22 +8002,34 @@ app.post('/api/parking/ground-truth/observations', async (req, res) => {
       });
     }
 
+    // Validate observedTotalCapacity if provided
+    if (observedTotalCapacity !== null && (!Number.isInteger(observedTotalCapacity) || observedTotalCapacity < 0)) {
+      return res.status(400).json({
+        success: false,
+        error: 'observedTotalCapacity must be a non-negative integer'
+      });
+    }
+
     // Save to database
     const query = `INSERT INTO parking_ground_truth_observations
-       (facility_id, camera_view, observed_count, predicted_count, predicted_occupancy_rate, observer_notes)
-       VALUES (?, ?, ?, ?, ?, ?)`;
+       (facility_id, camera_view, observed_count, observed_total_capacity, predicted_count, predicted_occupancy_rate, observer_notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`;
 
     const stmt = db.db.prepare(query);
     const result = stmt.run(
       facilityId,
       cameraView,
       observedCount,
+      observedTotalCapacity,
       predictedCount,
       predictedOccupancyRate,
       observerNotes
     );
 
-    console.log(`📝 Ground-truth observation saved: ${facilityId} - ${observedCount} trucks in ${cameraView}`);
+    const logMsg = observedTotalCapacity !== null
+      ? `📝 Ground-truth observation saved: ${facilityId} - ${observedCount}/${observedTotalCapacity} occupied in ${cameraView}`
+      : `📝 Ground-truth observation saved: ${facilityId} - ${observedCount} trucks in ${cameraView}`;
+    console.log(logMsg);
 
     res.json({
       success: true,
@@ -8130,6 +8155,7 @@ app.post('/api/parking/ground-truth/ai-count', async (req, res) => {
     console.log(`🤖 AI counting trucks at ${facility.name} - ${cameraView}`);
 
     // Use OpenAI Vision API to count trucks
+    // Using empty space counting method for better accuracy
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
@@ -8138,7 +8164,27 @@ app.post('/api/parking/ground-truth/ai-count', async (req, res) => {
           content: [
             {
               type: 'text',
-              text: 'Count the number of semi-trucks or tractor-trailers visible in this parking lot image. Look for large commercial trucks with trailers. Return ONLY a single number representing the count. If you cannot see any trucks or the image quality is too poor to count, return 0.'
+              text: `You are analyzing a truck parking lot image. Your task is to count parking spaces and their occupancy.
+
+Instructions:
+1. Identify all truck parking spaces in the visible area (look for parking lines, marked stalls, or organized parking rows)
+2. Count the TOTAL number of truck parking spaces visible (both empty and occupied)
+3. Count how many spaces are OCCUPIED (have a semi-truck, tractor-trailer, or large commercial vehicle)
+4. Count how many spaces are EMPTY (vacant, no truck present - you can clearly see the pavement/ground)
+
+Focus on:
+- Large commercial vehicles (semi-trucks with trailers, tractor-trailers, big rigs)
+- Clearly marked or lined parking spaces designed for trucks
+- If you see parking lot markings/lines, use those to count spaces
+- Empty spaces are often easier to identify (clear pavement visible)
+- Ensure: occupied + empty = total
+
+Return your answer as a JSON object with this exact format:
+{"occupied": <number>, "total": <number>}
+
+For example: {"occupied": 15, "total": 25}
+
+If image quality is too poor or no parking lot is visible, return {"occupied": 0, "total": 0}`
             },
             {
               type: 'image_url',
@@ -8149,26 +8195,46 @@ app.post('/api/parking/ground-truth/ai-count', async (req, res) => {
           ]
         }
       ],
-      max_tokens: 50
+      max_tokens: 100
     });
 
     const aiResponse = response.choices[0].message.content.trim();
-    const count = parseInt(aiResponse);
 
-    if (isNaN(count)) {
-      console.error('AI returned non-numeric response:', aiResponse);
+    // Parse JSON response
+    let parsedResponse;
+    try {
+      parsedResponse = JSON.parse(aiResponse);
+    } catch (parseError) {
+      console.error('AI returned non-JSON response:', aiResponse);
       return res.status(500).json({
         success: false,
-        error: 'AI returned invalid response',
+        error: 'AI returned invalid JSON response',
         aiResponse
       });
     }
 
-    console.log(`✅ AI counted ${count} trucks`);
+    const occupiedCount = parseInt(parsedResponse.occupied);
+    const totalCapacity = parseInt(parsedResponse.total);
+
+    if (isNaN(occupiedCount) || isNaN(totalCapacity)) {
+      console.error('AI returned invalid numbers:', parsedResponse);
+      return res.status(500).json({
+        success: false,
+        error: 'AI returned invalid numbers',
+        aiResponse: parsedResponse
+      });
+    }
+
+    const availableCount = totalCapacity - occupiedCount;
+
+    console.log(`✅ AI counted ${occupiedCount} occupied trucks out of ${totalCapacity} total spaces (${availableCount} available)`);
 
     res.json({
       success: true,
-      count,
+      count: occupiedCount,
+      occupied: occupiedCount,
+      totalCapacity: totalCapacity,
+      available: availableCount,
       facilityId,
       cameraView,
       timestamp: new Date().toISOString()

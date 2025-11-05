@@ -42,3 +42,4 @@ states.db-journal
 
 # Large data files (not needed for deployment)
 TruckStopsExport/
+parking.db
