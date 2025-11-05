@@ -1936,16 +1936,16 @@ class StateDatabase {
     }
   }
 
-  getParkingFacilities(stateFilter = null) {
+  async getParkingFacilities(stateFilter = null) {
     try {
       const sql = stateFilter
         ? `SELECT * FROM truck_parking_facilities WHERE state = ? ORDER BY facility_name`
         : `SELECT * FROM truck_parking_facilities ORDER BY state, facility_name`;
 
       const stmt = this.db.prepare(sql);
-      const facilities = stateFilter ? stmt.all(stateFilter) : stmt.all();
+      const facilities = stateFilter ? await stmt.all(stateFilter) : await stmt.all();
 
-      return facilities.map(f => ({
+      return (Array.isArray(facilities) ? facilities : []).map(f => ({
         id: f.id,
         facilityId: f.facility_id,
         facilityName: f.facility_name,
