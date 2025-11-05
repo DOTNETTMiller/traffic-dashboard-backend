@@ -3,13 +3,16 @@
 
 const fs = require('fs');
 const path = require('path');
-const Database = require('../database.js');
+const db = require('../database.js');
 
 async function migrateParkingData() {
   console.log('\n🚛 Migrating Truck Parking Patterns to Database\n');
 
-  const db = new Database.constructor();
-  await db.init();
+  // Database singleton is already initialized by backend_proxy_server.js
+  // But ensure it's ready for standalone script execution
+  if (db.init && !db.initialized) {
+    await db.init();
+  }
 
   // Create tables for parking data
   console.log('📋 Creating database tables...');
