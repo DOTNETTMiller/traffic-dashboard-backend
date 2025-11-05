@@ -615,25 +615,18 @@ function computeStandardCompliance(events, spec, useRaw = false) {
 }
 
 function adjustGradeForCritical(baseGrade, criticalRatio) {
-  // More lenient grading - overall percentage should be primary factor
+  // Overall percentage is the primary factor - only downgrade for very poor critical coverage
   // Critical fields are already weighted heavily (60%) in the base score
-  // Only downgrade for significantly poor critical coverage
 
-  if (criticalRatio >= 0.70) return baseGrade; // No downgrade for good critical coverage (70%+)
+  // No downgrade unless critical coverage is below 50%
+  if (criticalRatio >= 0.50) return baseGrade;
 
-  if (criticalRatio >= 0.50) {
-    // 1 grade downgrade for moderate critical coverage (50-70%)
-    // But never drop C below D
-    if (baseGrade === 'A') return 'B';
-    if (baseGrade === 'B') return 'C';
-    if (baseGrade === 'C') return 'D';
-    return 'D'; // D is lowest for this tier
-  }
-
-  // Only 2 grade downgrade for very poor critical coverage (< 50%)
-  if (baseGrade === 'A') return 'C';
-  if (baseGrade === 'B') return 'D';
-  if (baseGrade === 'C') return 'F'; // C → F only if critical coverage < 50%
+  // Only downgrade by 1 grade for poor critical coverage (< 50%)
+  // Never downgrade C to worse than D, or D to worse than F
+  if (baseGrade === 'A') return 'B';
+  if (baseGrade === 'B') return 'C';
+  if (baseGrade === 'C') return 'D';
+  if (baseGrade === 'D') return 'F';
   return 'F';
 }
 
@@ -790,7 +783,6 @@ class ComplianceAnalyzer {
     const normalizedEval = computeStandardCompliance(events, spec, false);
     let normalizedPercentage = Math.round(normalizedEval.weightedScore * 100);
     let normalizedGrade = this.getLetterGrade(normalizedPercentage);
-    normalizedGrade = adjustGradeForCritical(normalizedGrade, normalizedEval.severityRatios.critical);
     const normalizedStatus = deriveStatus(normalizedPercentage, normalizedEval.severityRatios.critical, {
       compliant: 'Compliant',
       partial: 'Partially Compliant',
@@ -801,7 +793,6 @@ class ComplianceAnalyzer {
     const rawEval = computeStandardCompliance(events, spec, true);
     let rawPercentage = Math.round(rawEval.weightedScore * 100);
     let rawGrade = this.getLetterGrade(rawPercentage);
-    rawGrade = adjustGradeForCritical(rawGrade, rawEval.severityRatios.critical);
     const rawStatus = deriveStatus(rawPercentage, rawEval.severityRatios.critical, {
       compliant: 'Compliant',
       partial: 'Partially Compliant',
@@ -839,7 +830,6 @@ class ComplianceAnalyzer {
     const normalizedEval = computeStandardCompliance(events, spec, false);
     let normalizedPercentage = Math.round(normalizedEval.weightedScore * 100);
     let normalizedGrade = this.getLetterGrade(normalizedPercentage);
-    normalizedGrade = adjustGradeForCritical(normalizedGrade, normalizedEval.severityRatios.critical);
     const normalizedStatus = deriveStatus(normalizedPercentage, normalizedEval.severityRatios.critical, {
       compliant: 'V2X Ready',
       partial: 'Partial Support',
@@ -850,7 +840,6 @@ class ComplianceAnalyzer {
     const rawEval = computeStandardCompliance(events, spec, true);
     let rawPercentage = Math.round(rawEval.weightedScore * 100);
     let rawGrade = this.getLetterGrade(rawPercentage);
-    rawGrade = adjustGradeForCritical(rawGrade, rawEval.severityRatios.critical);
     const rawStatus = deriveStatus(rawPercentage, rawEval.severityRatios.critical, {
       compliant: 'V2X Ready',
       partial: 'Partial Support',
@@ -888,7 +877,6 @@ class ComplianceAnalyzer {
     const normalizedEval = computeStandardCompliance(events, spec, false);
     let normalizedPercentage = Math.round(normalizedEval.weightedScore * 100);
     let normalizedGrade = this.getLetterGrade(normalizedPercentage);
-    normalizedGrade = adjustGradeForCritical(normalizedGrade, normalizedEval.severityRatios.critical);
     const normalizedStatus = deriveStatus(normalizedPercentage, normalizedEval.severityRatios.critical, {
       compliant: 'C2C Ready',
       partial: 'Needs Enhancement',
@@ -899,7 +887,6 @@ class ComplianceAnalyzer {
     const rawEval = computeStandardCompliance(events, spec, true);
     let rawPercentage = Math.round(rawEval.weightedScore * 100);
     let rawGrade = this.getLetterGrade(rawPercentage);
-    rawGrade = adjustGradeForCritical(rawGrade, rawEval.severityRatios.critical);
     const rawStatus = deriveStatus(rawPercentage, rawEval.severityRatios.critical, {
       compliant: 'C2C Ready',
       partial: 'Needs Enhancement',

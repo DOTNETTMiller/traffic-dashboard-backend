@@ -6,6 +6,7 @@ import api from './services/api';
 import TrafficMap from './components/TrafficMap';
 import EventTable from './components/EventTable';
 import EventFilters from './components/EventFilters';
+import CorridorWarnings from './components/CorridorWarnings';
 import EventMessaging from './components/EventMessaging';
 import DataQualityReport from './components/DataQualityReport';
 import FeedAlignment from './components/FeedAlignment';
@@ -123,7 +124,9 @@ function App() {
       const response = await api.getActiveDetourAlerts(authToken);
       setDetourAlerts(response.alerts || []);
     } catch (err) {
-      console.error('Error loading detour alerts:', err);
+      // Silently fail - detour alerts are optional
+      // 403 errors are expected if endpoint requires special permissions
+      setDetourAlerts([]);
     }
   }, [authToken]);
 
@@ -218,9 +221,60 @@ function App() {
     return normalizedEvent.startsWith(normalizedFilter);
   };
 
+  // Deduplicate events that are very similar (likely duplicates from different feeds)
+  const deduplicateEvents = (events) => {
+    const deduped = [];
+    const seen = new Map();
+
+    for (const event of events) {
+      // Create a key based on location, type, and time proximity
+      const lat = event.latitude ? Math.round(event.latitude * 100) / 100 : 'no-lat';
+      const lng = event.longitude ? Math.round(event.longitude * 100) / 100 : 'no-lng';
+      const type = event.eventType || 'unknown';
+      const corridor = normalizeCorridorKey(event.corridor);
+
+      // Key combines location (rounded to ~1km), type, and corridor
+      const key = `${lat},${lng}|${type}|${corridor}`;
+
+      if (seen.has(key)) {
+        // Similar event exists - combine data
+        const existing = seen.get(key);
+
+        // Prefer higher severity
+        if (event.severity === 'high' && existing.severity !== 'high') {
+          existing.severity = 'high';
+        } else if (event.severity === 'medium' && existing.severity === 'low') {
+          existing.severity = 'medium';
+        }
+
+        // Combine state sources
+        if (event.state && !existing.states.includes(event.state)) {
+          existing.states.push(event.state);
+          existing.state = existing.states.join(', ');
+        }
+
+        // Use longer description
+        if (event.description && event.description.length > (existing.description || '').length) {
+          existing.description = event.description;
+        }
+      } else {
+        // New unique event
+        const dedupedEvent = {
+          ...event,
+          states: [event.state],
+          isDuplicate: false
+        };
+        deduped.push(dedupedEvent);
+        seen.set(key, dedupedEvent);
+      }
+    }
+
+    return deduped;
+  };
+
   // Filter events based on active filters
   const filteredEvents = useMemo(() => {
-    return events.filter(event => {
+    const filtered = events.filter(event => {
       // State filter
       if (filters.state && event.state !== filters.state) return false;
 
@@ -248,6 +302,9 @@ function App() {
 
       return true;
     });
+
+    // Deduplicate similar events
+    return deduplicateEvents(filtered);
   }, [events, filters]);
 
   const handleCommentAdded = (message) => {
@@ -295,11 +352,21 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className={`app ${view === 'groundTruth' ? 'ground-truth-view' : ''}`}>
       {/* Header */}
       <header className="header">
         <div className="header-content">
-          <h1 className="title">DOT Corridor Communicator</h1>
+          <h1 className="title">
+            DOT Corridor Communicator
+            <span style={{
+              fontSize: '10px',
+              fontWeight: '400',
+              marginLeft: '12px',
+              opacity: '0.8'
+            }}>
+              brought to you by Matt Miller, CPM
+            </span>
+          </h1>
           <div className="header-info">
             {currentUser && (
               <span className="user-info">
@@ -315,27 +382,27 @@ function App() {
             <span className="event-count">
               {filteredEvents.length} {filteredEvents.length === 1 ? 'event' : 'events'}
             </span>
-            <div className="tim-links" style={{ display: 'flex', gap: '8px', marginLeft: '12px' }}>
+            <div className="tim-links" style={{ display: 'flex', gap: '6px', marginLeft: '8px' }}>
               <a
                 href={`${config.apiUrl}/api/convert/tim`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="tim-link"
                 style={{
-                  padding: '6px 12px',
-                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  borderRadius: '3px',
                   border: '1px solid #3b82f6',
                   backgroundColor: '#3b82f6',
                   color: 'white',
                   textDecoration: 'none',
-                  fontSize: '13px',
+                  fontSize: '11px',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   display: 'inline-block'
                 }}
                 title="SAE J2735 Traveler Information Message feed for connected vehicles"
               >
-                📡 J2735 TIM Feed
+                📡 TIM
               </a>
               <a
                 href={`${config.apiUrl}/api/convert/tim-cv`}
@@ -343,50 +410,50 @@ function App() {
                 rel="noopener noreferrer"
                 className="tim-link"
                 style={{
-                  padding: '6px 12px',
-                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  borderRadius: '3px',
                   border: '1px solid #8b5cf6',
                   backgroundColor: '#8b5cf6',
                   color: 'white',
                   textDecoration: 'none',
-                  fontSize: '13px',
+                  fontSize: '11px',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   display: 'inline-block'
                 }}
                 title="SAE J2540 Commercial Vehicle TIM feed with truck-specific advisories"
               >
-                🚛 J2540 CV-TIM Feed
+                🚛 CV-TIM
               </a>
             </div>
             <button
               onClick={() => setView('profile')}
               className="profile-btn"
               style={{
-                padding: '6px 12px',
-                borderRadius: '4px',
+                padding: '4px 8px',
+                borderRadius: '3px',
                 border: '1px solid #6b7280',
                 backgroundColor: view === 'profile' ? '#3b82f6' : 'white',
                 color: view === 'profile' ? 'white' : '#374151',
                 cursor: 'pointer',
-                fontSize: '13px',
-                marginLeft: '10px'
+                fontSize: '11px',
+                marginLeft: '8px'
               }}
             >
-              My Profile
+              Profile
             </button>
             <button
               onClick={handleLogout}
               className="logout-btn"
               style={{
-                padding: '6px 12px',
-                borderRadius: '4px',
+                padding: '4px 8px',
+                borderRadius: '3px',
                 border: 'none',
                 backgroundColor: '#ef4444',
                 color: 'white',
                 cursor: 'pointer',
-                fontSize: '13px',
-                marginLeft: '10px'
+                fontSize: '11px',
+                marginLeft: '8px'
               }}
             >
               Logout
@@ -536,11 +603,28 @@ function App() {
       {/* Main Content */}
       <div className="main-content">
         {view !== 'report' && view !== 'alignment' && view !== 'admin' && view !== 'adminUsers' && view !== 'messages' && (
-          <EventFilters
-            events={events}
-            filters={filters}
-            onFilterChange={setFilters}
-          />
+          <>
+            <EventFilters
+              events={events}
+              filters={filters}
+              onFilterChange={setFilters}
+            />
+
+            {filters.corridor && (
+              <CorridorWarnings
+                corridor={filters.corridor}
+                onViewOnMap={(event) => {
+                  // Switch to map view if not already there
+                  if (view !== 'map') {
+                    setView('map');
+                  }
+                  // Set the selected event
+                  setSelectedEvent(event);
+                  // Note: Map will auto-pan to the event based on selectedEvent change
+                }}
+              />
+            )}
+          </>
         )}
 
         {error && view !== 'admin' && view !== 'adminUsers' && view !== 'messages' && view !== 'alignment' && (
@@ -558,7 +642,16 @@ function App() {
             onProfileUpdate={(updatedUser) => setCurrentUser(updatedUser)}
           />
         ) : view === 'groundTruth' ? (
-          <GroundTruthDashboard />
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            minHeight: 0,
+            WebkitOverflowScrolling: 'touch',
+            position: 'relative'
+          }}>
+            <GroundTruthDashboard authToken={authToken} currentUser={currentUser} />
+          </div>
         ) : view === 'admin' ? (
           <StateAdmin user={currentUser} authToken={authToken} />
         ) : view === 'adminUsers' ? (

@@ -1859,6 +1859,81 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ========================================
+// Traffic Impact Warning Endpoints
+// ========================================
+
+const TrafficImpactAnalyzer = require('./traffic_impact_analyzer.js');
+const impactAnalyzer = new TrafficImpactAnalyzer();
+
+// Get traffic warnings for all corridors
+app.get('/api/warnings', async (req, res) => {
+  try {
+    // Fetch all current events
+    const allResults = await Promise.all(
+      getAllStateKeys().map(stateKey => fetchStateData(stateKey))
+    );
+
+    const allEvents = [];
+    allResults.forEach(result => {
+      allEvents.push(...result.events);
+    });
+
+    // Analyze events and generate warnings
+    const warnings = impactAnalyzer.analyzeAllEvents(allEvents);
+    const stats = impactAnalyzer.getWarningStatistics(warnings);
+
+    res.json({
+      success: true,
+      warnings,
+      statistics: stats,
+      totalEvents: allEvents.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error generating traffic warnings:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate warnings'
+    });
+  }
+});
+
+// Get traffic warnings for a specific corridor
+app.get('/api/warnings/corridor/:corridorName', async (req, res) => {
+  try {
+    const corridorName = req.params.corridorName;
+
+    // Fetch all current events
+    const allResults = await Promise.all(
+      getAllStateKeys().map(stateKey => fetchStateData(stateKey))
+    );
+
+    const allEvents = [];
+    allResults.forEach(result => {
+      allEvents.push(...result.events);
+    });
+
+    // Get warnings for the specific corridor
+    const warnings = impactAnalyzer.getCorridorWarnings(allEvents, corridorName);
+    const stats = impactAnalyzer.getWarningStatistics(warnings);
+
+    res.json({
+      success: true,
+      corridor: corridorName,
+      warnings,
+      statistics: stats,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error generating corridor warnings:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate corridor warnings'
+    });
+  }
+});
+
 // Database diagnostic endpoint
 app.get('/api/db-status', (req, res) => {
   const path = require('path');
@@ -2348,6 +2423,77 @@ app.put('/api/users/notifications', requireUser, (req, res) => {
         notifyOnMessages,
         notifyOnHighSeverity
       }
+    });
+  } else {
+    res.status(500).json({ error: result.error });
+  }
+});
+
+// ==================== STATE SUBSCRIPTION ENDPOINTS ====================
+
+// Get user's state subscriptions
+app.get('/api/users/subscriptions', requireUser, (req, res) => {
+  try {
+    const subscriptions = db.getUserStateSubscriptions(req.user.id);
+    res.json({
+      success: true,
+      subscriptions
+    });
+  } catch (error) {
+    console.error('Error getting user subscriptions:', error);
+    res.status(500).json({ error: 'Failed to get subscriptions' });
+  }
+});
+
+// Set user's state subscriptions (replaces existing)
+app.put('/api/users/subscriptions', requireUser, (req, res) => {
+  const { stateKeys } = req.body;
+
+  if (!Array.isArray(stateKeys)) {
+    return res.status(400).json({ error: 'stateKeys must be an array' });
+  }
+
+  const result = db.setUserStateSubscriptions(req.user.id, stateKeys);
+
+  if (result.success) {
+    res.json({
+      success: true,
+      message: 'State subscriptions updated',
+      subscriptions: stateKeys
+    });
+  } else {
+    res.status(500).json({ error: result.error });
+  }
+});
+
+// Subscribe to a state
+app.post('/api/users/subscriptions/:stateKey', requireUser, (req, res) => {
+  const { stateKey } = req.params;
+
+  const result = db.subscribeUserToState(req.user.id, stateKey);
+
+  if (result.success) {
+    res.json({
+      success: true,
+      message: `Subscribed to ${stateKey}`,
+      stateKey
+    });
+  } else {
+    res.status(500).json({ error: result.error });
+  }
+});
+
+// Unsubscribe from a state
+app.delete('/api/users/subscriptions/:stateKey', requireUser, (req, res) => {
+  const { stateKey } = req.params;
+
+  const result = db.unsubscribeUserFromState(req.user.id, stateKey);
+
+  if (result.success) {
+    res.json({
+      success: true,
+      message: `Unsubscribed from ${stateKey}`,
+      stateKey
     });
   } else {
     res.status(500).json({ error: result.error });
@@ -6929,27 +7075,52 @@ const notifyDetourSubscribers = async (alertRecord, interchange, event) => {
     });
 
     // Also add as event comment so it shows in the event modal
-    db.addEventComment({
-      eventId: event.id,
-      stateKey: normalizedState,
-      stateName: 'DOT Corridor Communicator',
-      comment: alertRecord.message
-    });
+    // BUT - check if this exact message already exists in the last 24 hours to avoid spam
+    const recentComments = db.db.prepare(`
+      SELECT comment, created_at
+      FROM event_comments
+      WHERE event_id = ?
+        AND state_name = 'DOT Corridor Communicator'
+        AND comment = ?
+        AND created_at > datetime('now', '-24 hours')
+      LIMIT 1
+    `).get(event.id, alertRecord.message);
 
-    const recipients = db.getUsersForMessageNotification(normalizedState);
-    if (Array.isArray(recipients)) {
-      recipients.forEach(recipient => {
-        emailService.sendDetourAlertNotification(recipient.email, recipient.fullName || recipient.username, {
-          interchangeName: interchange.name,
-          eventCorridor: event.corridor,
-          interchangeCorridor: interchange.corridor,
-          eventDescription: event.description,
-          eventLocation: event.location,
-          severity: event.severity,
-          lanesAffected: event.lanesAffected,
-          message: alertRecord.message
-        }).catch(err => console.error('Email detour alert error:', err));
+    // Only add comment if it doesn't already exist recently
+    const isNewAlert = !recentComments;
+    if (isNewAlert) {
+      db.addEventComment({
+        eventId: event.id,
+        stateKey: normalizedState,
+        stateName: 'DOT Corridor Communicator',
+        comment: alertRecord.message
       });
+      console.log(`✅ Added new automated comment for event ${event.id}`);
+    } else {
+      console.log(`⏭️  Skipped duplicate automated comment for event ${event.id} (last posted ${recentComments.created_at})`);
+    }
+
+    // Only send email notifications for NEW alerts (not duplicates)
+    // This prevents email spam when the same alert is detected repeatedly
+    if (isNewAlert) {
+      const recipients = db.getUsersForMessageNotification(normalizedState);
+      if (Array.isArray(recipients)) {
+        console.log(`📧 Sending detour alert emails to ${recipients.length} recipients for ${interchange.name}`);
+        recipients.forEach(recipient => {
+          emailService.sendDetourAlertNotification(recipient.email, recipient.fullName || recipient.username, {
+            interchangeName: interchange.name,
+            eventCorridor: event.corridor,
+            interchangeCorridor: interchange.corridor,
+            eventDescription: event.description,
+            eventLocation: event.location,
+            severity: event.severity,
+            lanesAffected: event.lanesAffected,
+            message: alertRecord.message
+          }).catch(err => console.error('Email detour alert error:', err));
+        });
+      }
+    } else {
+      console.log(`📧 Skipped duplicate detour alert emails for event ${event.id}`);
     }
   });
 };
@@ -7819,17 +7990,12 @@ app.post('/api/parking/ground-truth/observations', async (req, res) => {
     }
 
     // Save to database
-    const query = db.isPostgres
-      ? `INSERT INTO parking_ground_truth_observations
-         (facility_id, camera_view, observed_count, predicted_count, predicted_occupancy_rate, observer_notes)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id, timestamp`
-      : `INSERT INTO parking_ground_truth_observations
-         (facility_id, camera_view, observed_count, predicted_count, predicted_occupancy_rate, observer_notes)
-         VALUES (?, ?, ?, ?, ?, ?)`;
+    const query = `INSERT INTO parking_ground_truth_observations
+       (facility_id, camera_view, observed_count, predicted_count, predicted_occupancy_rate, observer_notes)
+       VALUES (?, ?, ?, ?, ?, ?)`;
 
     const stmt = db.db.prepare(query);
-    const result = await stmt.run(
+    const result = stmt.run(
       facilityId,
       cameraView,
       observedCount,
@@ -7842,7 +8008,7 @@ app.post('/api/parking/ground-truth/observations', async (req, res) => {
 
     res.json({
       success: true,
-      observationId: db.isPostgres ? result.id : result.lastID,
+      observationId: result.lastID,
       timestamp: new Date().toISOString(),
       message: 'Observation saved successfully'
     });
@@ -7851,6 +8017,424 @@ app.post('/api/parking/ground-truth/observations', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to save observation'
+    });
+  }
+});
+
+// AI-powered truck counting using OpenAI Vision API
+app.post('/api/parking/ground-truth/ai-count', async (req, res) => {
+  try {
+    const { facilityId, cameraView } = req.body;
+
+    // Validate required fields
+    if (!facilityId || !cameraView) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: facilityId, cameraView'
+      });
+    }
+
+    // Check if OpenAI API key is configured
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(503).json({
+        success: false,
+        error: 'OpenAI API key not configured'
+      });
+    }
+
+    // Get the camera URL for this facility and view
+    // Camera-equipped facilities on Iowa I-80 and I-35
+    const cameraFacilities = {
+      'iowa-i80-rest-area-80': {
+        name: 'I-80 Rest Area Mile 80 (Iowa 80 Truckstop area)',
+        cameras: {
+          truckParking1: 'https://api.iowadot.gov/livetraffic/api/Image/camera/014902',
+          truckParking2: 'https://api.iowadot.gov/livetraffic/api/Image/camera/014901',
+          entrance: 'https://api.iowadot.gov/livetraffic/api/Image/camera/014903'
+        }
+      },
+      'iowa-i80-rest-area-110': {
+        name: 'I-80 Rest Area Mile 110',
+        cameras: {
+          center: 'https://api.iowadot.gov/livetraffic/api/Image/camera/015002',
+          entry: 'https://api.iowadot.gov/livetraffic/api/Image/camera/015001',
+          exit: 'https://api.iowadot.gov/livetraffic/api/Image/camera/015003'
+        }
+      },
+      'iowa-i80-rest-area-197': {
+        name: 'I-80 Rest Area Mile 197',
+        cameras: {
+          center: 'https://api.iowadot.gov/livetraffic/api/Image/camera/019702',
+          entry: 'https://api.iowadot.gov/livetraffic/api/Image/camera/019701',
+          exit: 'https://api.iowadot.gov/livetraffic/api/Image/camera/019703'
+        }
+      },
+      'iowa-i80-rest-area-225': {
+        name: 'I-80 Rest Area Mile 225',
+        cameras: {
+          center: 'https://api.iowadot.gov/livetraffic/api/Image/camera/022502',
+          entry: 'https://api.iowadot.gov/livetraffic/api/Image/camera/022501',
+          exit: 'https://api.iowadot.gov/livetraffic/api/Image/camera/022503'
+        }
+      },
+      'iowa-i80-rest-area-252': {
+        name: 'I-80 Rest Area Mile 252',
+        cameras: {
+          center: 'https://api.iowadot.gov/livetraffic/api/Image/camera/025202',
+          entry: 'https://api.iowadot.gov/livetraffic/api/Image/camera/025201',
+          exit: 'https://api.iowadot.gov/livetraffic/api/Image/camera/025203'
+        }
+      },
+      'iowa-i35-rest-area-111': {
+        name: 'I-35 Rest Area Mile 111',
+        cameras: {
+          center: 'https://api.iowadot.gov/livetraffic/api/Image/camera/011102',
+          entry: 'https://api.iowadot.gov/livetraffic/api/Image/camera/011101',
+          exit: 'https://api.iowadot.gov/livetraffic/api/Image/camera/011103'
+        }
+      },
+      'iowa-i35-rest-area-140': {
+        name: 'I-35 Rest Area Mile 140',
+        cameras: {
+          center: 'https://api.iowadot.gov/livetraffic/api/Image/camera/014002',
+          entry: 'https://api.iowadot.gov/livetraffic/api/Image/camera/014001',
+          exit: 'https://api.iowadot.gov/livetraffic/api/Image/camera/014003'
+        }
+      },
+      'iowa-i35-rest-area-178': {
+        name: 'I-35 Rest Area Mile 178',
+        cameras: {
+          center: 'https://api.iowadot.gov/livetraffic/api/Image/camera/017802',
+          entry: 'https://api.iowadot.gov/livetraffic/api/Image/camera/017801',
+          exit: 'https://api.iowadot.gov/livetraffic/api/Image/camera/017803'
+        }
+      }
+    };
+
+    const facility = cameraFacilities[facilityId];
+    if (!facility) {
+      return res.status(404).json({
+        success: false,
+        error: 'Facility not found'
+      });
+    }
+
+    const cameraUrl = facility.cameras[cameraView];
+    if (!cameraUrl) {
+      return res.status(404).json({
+        success: false,
+        error: 'Camera view not found'
+      });
+    }
+
+    console.log(`🤖 AI counting trucks at ${facility.name} - ${cameraView}`);
+
+    // Use OpenAI Vision API to count trucks
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Count the number of semi-trucks or tractor-trailers visible in this parking lot image. Look for large commercial trucks with trailers. Return ONLY a single number representing the count. If you cannot see any trucks or the image quality is too poor to count, return 0.'
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: cameraUrl
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 50
+    });
+
+    const aiResponse = response.choices[0].message.content.trim();
+    const count = parseInt(aiResponse);
+
+    if (isNaN(count)) {
+      console.error('AI returned non-numeric response:', aiResponse);
+      return res.status(500).json({
+        success: false,
+        error: 'AI returned invalid response',
+        aiResponse
+      });
+    }
+
+    console.log(`✅ AI counted ${count} trucks`);
+
+    res.json({
+      success: true,
+      count,
+      facilityId,
+      cameraView,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error getting AI truck count:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to get AI count'
+    });
+  }
+});
+
+// Get accuracy metrics from ground truth observations
+app.get('/api/parking/ground-truth/accuracy', async (req, res) => {
+  try {
+    // Get all ground truth observations with predictions
+    const observations = db.db.prepare(`
+      SELECT
+        id,
+        facility_id,
+        camera_view,
+        observed_count,
+        predicted_count,
+        predicted_occupancy_rate,
+        created_at,
+        observer_notes
+      FROM parking_ground_truth_observations
+      WHERE predicted_count IS NOT NULL
+      ORDER BY created_at DESC
+    `).all();
+
+    if (observations.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No ground truth observations with predictions yet',
+        totalObservations: 0,
+        metrics: null
+      });
+    }
+
+    // Calculate accuracy metrics
+    let sumAbsoluteError = 0;
+    let sumSquaredError = 0;
+    let sumPercentError = 0;
+    let validObservations = 0;
+
+    const facilityMetrics = {};
+    const recentObservations = observations.slice(0, 20);
+
+    observations.forEach(obs => {
+      const error = Math.abs(obs.predicted_count - obs.observed_count);
+      const squaredError = Math.pow(obs.predicted_count - obs.observed_count, 2);
+
+      // Calculate percent error (avoid divide by zero)
+      const percentError = obs.observed_count > 0
+        ? (error / obs.observed_count) * 100
+        : (obs.predicted_count > 0 ? 100 : 0);
+
+      sumAbsoluteError += error;
+      sumSquaredError += squaredError;
+      sumPercentError += percentError;
+      validObservations++;
+
+      // Track per-facility metrics
+      if (!facilityMetrics[obs.facility_id]) {
+        facilityMetrics[obs.facility_id] = {
+          facilityId: obs.facility_id,
+          count: 0,
+          sumError: 0,
+          sumSquaredError: 0,
+          sumPercentError: 0
+        };
+      }
+
+      facilityMetrics[obs.facility_id].count++;
+      facilityMetrics[obs.facility_id].sumError += error;
+      facilityMetrics[obs.facility_id].sumSquaredError += squaredError;
+      facilityMetrics[obs.facility_id].sumPercentError += percentError;
+    });
+
+    // Calculate overall metrics
+    const mae = sumAbsoluteError / validObservations; // Mean Absolute Error
+    const rmse = Math.sqrt(sumSquaredError / validObservations); // Root Mean Squared Error
+    const mape = sumPercentError / validObservations; // Mean Absolute Percentage Error
+
+    // Calculate per-facility metrics
+    const facilityStats = Object.values(facilityMetrics).map(fm => ({
+      facilityId: fm.facilityId,
+      observations: fm.count,
+      mae: fm.sumError / fm.count,
+      rmse: Math.sqrt(fm.sumSquaredError / fm.count),
+      mape: fm.sumPercentError / fm.count
+    })).sort((a, b) => b.observations - a.observations);
+
+    res.json({
+      success: true,
+      totalObservations: observations.length,
+      validPredictions: validObservations,
+      metrics: {
+        mae: parseFloat(mae.toFixed(2)),
+        rmse: parseFloat(rmse.toFixed(2)),
+        mape: parseFloat(mape.toFixed(2))
+      },
+      facilityStats: facilityStats.slice(0, 10), // Top 10 facilities
+      recentObservations: recentObservations.map(obs => ({
+        id: obs.id,
+        facilityId: obs.facility_id,
+        cameraView: obs.camera_view,
+        observed: obs.observed_count,
+        predicted: obs.predicted_count,
+        error: Math.abs(obs.predicted_count - obs.observed_count),
+        timestamp: obs.created_at
+      })),
+      lastUpdated: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error calculating accuracy metrics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to calculate accuracy metrics'
+    });
+  }
+});
+
+// Retrain model using ground truth observations
+app.post('/api/parking/ground-truth/retrain', async (req, res) => {
+  try {
+    // Check authentication
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+
+    const token = authHeader.substring(7);
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (err) {
+      return res.status(401).json({ success: false, error: 'Invalid token' });
+    }
+
+    // Check if user is admin
+    if (decoded.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Admin access required' });
+    }
+
+    const { minObservations = 3 } = req.body;
+
+    console.log('🔄 Starting model retraining with ground truth data...');
+
+    // Get all ground truth observations
+    const observations = db.db.prepare(`
+      SELECT
+        facility_id,
+        camera_view,
+        observed_count,
+        predicted_count,
+        predicted_occupancy_rate,
+        strftime('%H', created_at) as hour,
+        strftime('%w', created_at) as day_of_week,
+        created_at
+      FROM parking_ground_truth_observations
+      ORDER BY created_at DESC
+    `).all();
+
+    if (observations.length < minObservations) {
+      return res.json({
+        success: false,
+        message: `Not enough observations yet. Need at least ${minObservations}, have ${observations.length}`,
+        observationsNeeded: minObservations - observations.length
+      });
+    }
+
+    // Group observations by facility and hour
+    const facilityHourStats = {};
+
+    observations.forEach(obs => {
+      const key = `${obs.facility_id}|${obs.hour}`;
+
+      if (!facilityHourStats[key]) {
+        facilityHourStats[key] = {
+          facilityId: obs.facility_id,
+          hour: parseInt(obs.hour),
+          observations: [],
+          count: 0
+        };
+      }
+
+      facilityHourStats[key].observations.push({
+        observed: obs.observed_count,
+        timestamp: obs.created_at
+      });
+      facilityHourStats[key].count++;
+    });
+
+    // Update patterns in database with weighted averages
+    let updatedPatterns = 0;
+    let newPatterns = 0;
+
+    for (const [key, stats] of Object.entries(facilityHourStats)) {
+      if (stats.count < 2) continue; // Need at least 2 observations to update
+
+      // Calculate average observed occupancy for this hour
+      const avgObserved = stats.observations.reduce((sum, o) => sum + o.observed, 0) / stats.count;
+
+      // Get facility capacity to calculate occupancy rate
+      const facility = db.db.prepare(`
+        SELECT capacity FROM parking_facilities WHERE facility_id = ?
+      `).get(stats.facilityId);
+
+      if (!facility || !facility.capacity) continue;
+
+      const newOccupancyRate = Math.min(avgObserved / facility.capacity, 1.0);
+
+      // Check if pattern exists
+      const existingPattern = db.db.prepare(`
+        SELECT id, occupancy_rate FROM parking_patterns
+        WHERE facility_id = ? AND hour = ?
+      `).get(stats.facilityId, stats.hour);
+
+      if (existingPattern) {
+        // Update existing pattern with weighted average (70% old, 30% new observations)
+        const updatedRate = (existingPattern.occupancy_rate * 0.7) + (newOccupancyRate * 0.3);
+
+        db.db.prepare(`
+          UPDATE parking_patterns
+          SET occupancy_rate = ?,
+              sample_count = sample_count + ?,
+              last_updated = CURRENT_TIMESTAMP
+          WHERE facility_id = ? AND hour = ?
+        `).run(updatedRate, stats.count, stats.facilityId, stats.hour);
+
+        updatedPatterns++;
+      } else {
+        // Create new pattern
+        db.db.prepare(`
+          INSERT INTO parking_patterns (facility_id, hour, occupancy_rate, sample_count, last_updated)
+          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `).run(stats.facilityId, stats.hour, newOccupancyRate, stats.count);
+
+        newPatterns++;
+      }
+    }
+
+    // Reload patterns into memory
+    await loadParkingPatternsFromDatabase();
+
+    console.log(`✅ Model retrained: ${updatedPatterns} patterns updated, ${newPatterns} new patterns created`);
+
+    res.json({
+      success: true,
+      message: 'Model retrained successfully',
+      stats: {
+        totalObservations: observations.length,
+        patternsUpdated: updatedPatterns,
+        patternsCreated: newPatterns,
+        facilitiesAffected: new Set(observations.map(o => o.facility_id)).size
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error retraining model:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to retrain model'
     });
   }
 });

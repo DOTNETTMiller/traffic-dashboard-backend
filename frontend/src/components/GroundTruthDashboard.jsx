@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
+import ParkingAccuracyMetrics from './ParkingAccuracyMetrics';
 
-export default function GroundTruthDashboard() {
+export default function GroundTruthDashboard({ authToken, currentUser }) {
   const [facilities, setFacilities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -10,6 +11,7 @@ export default function GroundTruthDashboard() {
   const [lastUpdate, setLastUpdate] = useState(null);
   const [manualCounts, setManualCounts] = useState({}); // Track manual count per facility
   const [submitStatus, setSubmitStatus] = useState({}); // Track submission status per facility
+  const [aiCountLoading, setAiCountLoading] = useState({}); // Track AI counting status per facility
 
   const getAvailableCameraViews = (cameras) => {
     return Object.keys(cameras || {});
@@ -50,6 +52,8 @@ export default function GroundTruthDashboard() {
       const currentView = selectedViewByFacility[facility.facilityId];
       const pred = facility.prediction;
 
+      console.log(`Submitting observation: ${count} trucks at ${facility.facilityId} - ${currentView}`);
+
       const response = await api.post('/api/parking/ground-truth/observations', {
         facilityId: facility.facilityId,
         cameraView: currentView,
@@ -58,13 +62,18 @@ export default function GroundTruthDashboard() {
         predictedOccupancyRate: pred ? pred.occupancyRate : null
       });
 
+      console.log('Observation response:', response.data);
+
       if (response.data.success) {
         setSubmitStatus(prev => ({
           ...prev,
-          [facility.facilityId]: { type: 'success', message: 'Observation saved!' }
+          [facility.facilityId]: {
+            type: 'success',
+            message: `✅ Saved! Counted ${count} truck${count !== 1 ? 's' : ''} at ${new Date().toLocaleTimeString()}`
+          }
         }));
 
-        // Clear the input and success message after 3 seconds
+        // Clear the input and success message after 5 seconds
         setTimeout(() => {
           setManualCounts(prev => ({
             ...prev,
@@ -74,7 +83,7 @@ export default function GroundTruthDashboard() {
             ...prev,
             [facility.facilityId]: null
           }));
-        }, 3000);
+        }, 5000);
       } else {
         setSubmitStatus(prev => ({
           ...prev,
@@ -83,9 +92,82 @@ export default function GroundTruthDashboard() {
       }
     } catch (err) {
       console.error('Error submitting observation:', err);
+      const errorMsg = err.response?.data?.error || err.message || 'Failed to save observation';
       setSubmitStatus(prev => ({
         ...prev,
-        [facility.facilityId]: { type: 'error', message: 'Failed to save observation' }
+        [facility.facilityId]: { type: 'error', message: `❌ Error: ${errorMsg}` }
+      }));
+
+      // Keep error message visible longer
+      setTimeout(() => {
+        setSubmitStatus(prev => ({
+          ...prev,
+          [facility.facilityId]: null
+        }));
+      }, 8000);
+    }
+  };
+
+  const handleGetAiCount = async (facility) => {
+    const currentView = selectedViewByFacility[facility.facilityId];
+
+    // Set loading status
+    setAiCountLoading(prev => ({
+      ...prev,
+      [facility.facilityId]: true
+    }));
+
+    try {
+      const response = await api.post('/api/parking/ground-truth/ai-count', {
+        facilityId: facility.facilityId,
+        cameraView: currentView
+      });
+
+      if (response.data.success) {
+        // Populate the manual count field with AI result
+        setManualCounts(prev => ({
+          ...prev,
+          [facility.facilityId]: response.data.count
+        }));
+
+        // Show success message
+        setSubmitStatus(prev => ({
+          ...prev,
+          [facility.facilityId]: {
+            type: 'success',
+            message: `AI counted ${response.data.count} truck${response.data.count !== 1 ? 's' : ''}`
+          }
+        }));
+
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setSubmitStatus(prev => ({
+            ...prev,
+            [facility.facilityId]: null
+          }));
+        }, 3000);
+      } else {
+        setSubmitStatus(prev => ({
+          ...prev,
+          [facility.facilityId]: {
+            type: 'error',
+            message: response.data.error || 'Failed to get AI count'
+          }
+        }));
+      }
+    } catch (err) {
+      console.error('Error getting AI count:', err);
+      setSubmitStatus(prev => ({
+        ...prev,
+        [facility.facilityId]: {
+          type: 'error',
+          message: err.response?.data?.error || 'Failed to get AI count'
+        }
+      }));
+    } finally {
+      setAiCountLoading(prev => ({
+        ...prev,
+        [facility.facilityId]: false
       }));
     }
   };
@@ -96,12 +178,52 @@ export default function GroundTruthDashboard() {
       const response = await api.get('/api/parking/ground-truth');
 
       if (response.data.success) {
-        const facilities = response.data.facilities;
-        setFacilities(facilities);
+        const facilitiesData = response.data.facilities;
+
+        // Fetch 24-hour predictions for each facility
+        const facilitiesWithHourlyData = await Promise.all(
+          facilitiesData.map(async (facility) => {
+            const hourlyPredictions = [];
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+            // Get predictions for each hour of today (in parallel for speed)
+            const hourlyPromises = Array.from({ length: 24 }, (_, hour) => {
+              const targetTime = new Date(today);
+              targetTime.setHours(hour);
+
+              return api.get(`/api/parking/historical/predict/${facility.facilityId}?time=${targetTime.toISOString()}`)
+                .then(predResponse => {
+                  if (predResponse.data.success && predResponse.data.prediction) {
+                    const pred = predResponse.data.prediction;
+                    return {
+                      hour,
+                      occupancyRate: pred.occupancyRate,
+                      occupied: pred.predictedOccupied,
+                      available: pred.predictedAvailable,
+                      capacity: pred.capacity
+                    };
+                  }
+                  return { hour, occupancyRate: null };
+                })
+                .catch(() => ({ hour, occupancyRate: null }));
+            });
+
+            const hourlyResults = await Promise.all(hourlyPromises);
+            hourlyPredictions.push(...hourlyResults.sort((a, b) => a.hour - b.hour));
+
+            return {
+              ...facility,
+              hourlyPredictions
+            };
+          })
+        );
+
+        setFacilities(facilitiesWithHourlyData);
 
         // Initialize selected views for each facility (use first available camera)
         const initialViews = {};
-        facilities.forEach(facility => {
+        facilitiesWithHourlyData.forEach(facility => {
           const views = getAvailableCameraViews(facility.cameras);
           if (views.length > 0) {
             initialViews[facility.facilityId] = views[0];
@@ -164,8 +286,7 @@ export default function GroundTruthDashboard() {
       padding: '20px',
       maxWidth: '1400px',
       margin: '0 auto',
-      backgroundColor: '#f9fafb',
-      minHeight: '100vh'
+      backgroundColor: '#f9fafb'
     }}>
       {/* Header */}
       <div style={{
@@ -188,7 +309,7 @@ export default function GroundTruthDashboard() {
           color: '#6b7280',
           fontSize: '14px'
         }}>
-          Compare parking predictions against live camera feeds for validation
+          Compare parking predictions with live camera feeds • View hourly occupancy trends • Validate model accuracy
         </p>
 
         {/* Controls */}
@@ -244,6 +365,9 @@ export default function GroundTruthDashboard() {
           )}
         </div>
       </div>
+
+      {/* Accuracy Metrics */}
+      <ParkingAccuracyMetrics authToken={authToken} currentUser={currentUser} />
 
       {/* Error Message */}
       {error && (
@@ -523,15 +647,100 @@ export default function GroundTruthDashboard() {
                         </div>
                       </div>
 
-                      {/* Prediction Time */}
-                      <div style={{
-                        fontSize: '11px',
-                        color: '#9ca3af',
-                        borderTop: '1px solid #e5e7eb',
-                        paddingTop: '8px'
-                      }}>
-                        Predicted for: {new Date(pred.predictedFor).toLocaleString()}
-                      </div>
+                      {/* Hourly Busy Graph */}
+                      {facility.hourlyPredictions && facility.hourlyPredictions.length > 0 && (
+                        <div style={{
+                          borderTop: '1px solid #e5e7eb',
+                          paddingTop: '12px',
+                          marginTop: '12px'
+                        }}>
+                          <div style={{
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            color: '#374151',
+                            marginBottom: '8px'
+                          }}>
+                            Today's Predicted Busy Hours
+                          </div>
+
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'flex-end',
+                            gap: '2px',
+                            height: '60px',
+                            backgroundColor: 'white',
+                            padding: '8px',
+                            borderRadius: '4px'
+                          }}>
+                            {facility.hourlyPredictions.map(({ hour, occupancyRate }) => {
+                              const currentHour = new Date().getHours();
+                              const isCurrentHour = hour === currentHour;
+                              const height = occupancyRate !== null ? occupancyRate * 100 : 0;
+                              const color = occupancyRate === null ? '#e5e7eb' :
+                                occupancyRate > 0.8 ? '#ef4444' :
+                                occupancyRate > 0.5 ? '#f59e0b' : '#22c55e';
+
+                              return (
+                                <div
+                                  key={hour}
+                                  style={{
+                                    flex: 1,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: '2px'
+                                  }}
+                                  title={`${hour}:00 - ${Math.round(height)}% occupied`}
+                                >
+                                  <div
+                                    style={{
+                                      width: '100%',
+                                      height: `${Math.max(height, 5)}%`,
+                                      backgroundColor: color,
+                                      borderRadius: '2px 2px 0 0',
+                                      transition: 'all 0.3s ease',
+                                      opacity: isCurrentHour ? 1 : 0.7,
+                                      border: isCurrentHour ? '2px solid #3b82f6' : 'none'
+                                    }}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Hour labels */}
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            marginTop: '4px',
+                            fontSize: '9px',
+                            color: '#9ca3af'
+                          }}>
+                            <span>12am</span>
+                            <span>6am</span>
+                            <span>12pm</span>
+                            <span>6pm</span>
+                            <span>11pm</span>
+                          </div>
+
+                          <div style={{
+                            fontSize: '10px',
+                            color: '#6b7280',
+                            marginTop: '6px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            <div style={{
+                              width: '8px',
+                              height: '8px',
+                              backgroundColor: '#3b82f6',
+                              borderRadius: '50%'
+                            }} />
+                            <span>Current hour: {new Date().getHours()}:00</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div style={{
@@ -555,6 +764,46 @@ export default function GroundTruthDashboard() {
                     borderRadius: '6px',
                     border: '1px solid #3b82f6'
                   }}>
+                    {/* AI Count Button */}
+                    <button
+                      onClick={() => handleGetAiCount(facility)}
+                      disabled={aiCountLoading[facility.facilityId]}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '4px',
+                        border: 'none',
+                        backgroundColor: aiCountLoading[facility.facilityId] ? '#9ca3af' : '#8b5cf6',
+                        color: 'white',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        cursor: aiCountLoading[facility.facilityId] ? 'not-allowed' : 'pointer',
+                        marginBottom: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      {aiCountLoading[facility.facilityId] ? (
+                        <>
+                          <div style={{
+                            width: '14px',
+                            height: '14px',
+                            border: '2px solid rgba(255,255,255,0.3)',
+                            borderTopColor: 'white',
+                            borderRadius: '50%',
+                            animation: 'spin 1s linear infinite'
+                          }}></div>
+                          AI Counting...
+                        </>
+                      ) : (
+                        <>
+                          🤖 Get AI Count
+                        </>
+                      )}
+                    </button>
+
                     <label style={{
                       display: 'block',
                       fontSize: '12px',
@@ -654,10 +903,12 @@ export default function GroundTruthDashboard() {
           fontSize: '14px',
           lineHeight: '1.6'
         }}>
-          <li>View live camera feeds from Iowa DOT rest areas on I-80</li>
-          <li>Compare camera images with the model's parking predictions</li>
-          <li>Manually count visible trucks in the parking area using different camera angles</li>
-          <li>Enter your count in the validation field to track prediction accuracy</li>
+          <li>View live camera feeds from Iowa DOT rest areas on I-80 and I-35</li>
+          <li>Review the predicted busy hours graph showing occupancy trends throughout the day</li>
+          <li>Compare camera images with the model's current parking predictions</li>
+          <li>Click "Get AI Count" to use AI vision to automatically count trucks in the current camera view</li>
+          <li>Manually count visible trucks in the parking area using different camera angles, or adjust the AI count if needed</li>
+          <li>Enter your count in the validation field to track prediction accuracy over time</li>
           <li>Use this data to identify patterns where predictions are most/least accurate</li>
         </ol>
       </div>

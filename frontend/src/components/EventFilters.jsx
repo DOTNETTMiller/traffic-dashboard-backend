@@ -1,8 +1,9 @@
 import { useMemo, useState, useEffect } from 'react';
+import { theme } from '../styles/theme';
 
 export default function EventFilters({ events, filters, onFilterChange }) {
-  // Start collapsed on mobile, expanded on desktop
-  const [isExpanded, setIsExpanded] = useState(window.innerWidth > 768);
+  // Start collapsed by default to save space
+  const [isExpanded, setIsExpanded] = useState(false);
   // Extract unique values for filters
   const filterOptions = useMemo(() => {
     const states = [...new Set(events.map(e => e.state))].sort();
@@ -48,24 +49,38 @@ export default function EventFilters({ events, filters, onFilterChange }) {
 
   return (
     <div className="event-filters-container" style={{
-      padding: '16px',
-      backgroundColor: '#f3f4f6',
-      borderRadius: '8px',
-      marginBottom: '16px'
+      ...theme.glass.light,
+      padding: theme.spacing.md,
+      borderRadius: theme.borderRadius.lg,
+      marginBottom: theme.spacing.sm,
+      boxShadow: theme.shadows.md,
+      transition: theme.transitions.all
     }}>
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: isExpanded ? '16px' : '0',
-        cursor: 'pointer'
+        marginBottom: isExpanded ? theme.spacing.sm : '0',
+        cursor: 'pointer',
+        transition: theme.transitions.all
       }}
       onClick={() => setIsExpanded(!isExpanded)}
       >
-        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>
+        <h3 style={{
+          margin: 0,
+          fontSize: theme.fontSize.base,
+          fontWeight: theme.fontWeight.semibold,
+          color: theme.colors.gray[800]
+        }}>
           Filters {activeFilterCount > 0 && `(${activeFilterCount} active)`}
-          <span className="mobile-toggle-icon" style={{ marginLeft: '8px', fontSize: '12px' }}>
-            {isExpanded ? '▼' : '▶'}
+          <span style={{
+            marginLeft: theme.spacing.sm,
+            fontSize: theme.fontSize.xs,
+            transition: theme.transitions.base,
+            display: 'inline-block',
+            transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)'
+          }}>
+            ▼
           </span>
         </h3>
         {activeFilterCount > 0 && (
@@ -75,14 +90,19 @@ export default function EventFilters({ events, filters, onFilterChange }) {
               handleReset();
             }}
             style={{
-              padding: '4px 12px',
-              backgroundColor: '#ef4444',
-              color: 'white',
+              padding: `${theme.spacing.xs} ${theme.spacing.md}`,
+              backgroundColor: theme.colors.error.main,
+              color: theme.colors.white,
               border: 'none',
-              borderRadius: '4px',
+              borderRadius: theme.borderRadius.md,
               cursor: 'pointer',
-              fontSize: '12px'
+              fontSize: theme.fontSize.sm,
+              fontWeight: theme.fontWeight.medium,
+              transition: theme.transitions.all,
+              boxShadow: theme.shadows.sm
             }}
+            onMouseEnter={(e) => e.target.style.backgroundColor = theme.colors.error.dark}
+            onMouseLeave={(e) => e.target.style.backgroundColor = theme.colors.error.main}
           >
             Clear All
           </button>
@@ -92,8 +112,11 @@ export default function EventFilters({ events, filters, onFilterChange }) {
       <div className="filters-content" style={{
         display: isExpanded ? 'grid' : 'none',
         gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '12px',
-        transition: 'all 0.3s ease'
+        gap: theme.spacing.md,
+        transition: theme.transitions.slow,
+        opacity: isExpanded ? 1 : 0,
+        maxHeight: isExpanded ? '500px' : '0',
+        overflow: 'hidden'
       }}>
         {/* Search */}
         <div>
@@ -175,17 +198,23 @@ export default function EventFilters({ events, filters, onFilterChange }) {
 
 const labelStyle = {
   display: 'block',
-  marginBottom: '4px',
-  fontSize: '12px',
-  fontWeight: '500',
-  color: '#374151'
+  marginBottom: theme.spacing.xs,
+  fontSize: theme.fontSize.sm,
+  fontWeight: theme.fontWeight.medium,
+  color: theme.colors.gray[700]
 };
 
 const inputStyle = {
   width: '100%',
-  padding: '8px 12px',
-  border: '1px solid #d1d5db',
-  borderRadius: '4px',
-  fontSize: '14px',
-  backgroundColor: 'white'
+  padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+  border: `1px solid ${theme.colors.gray[300]}`,
+  borderRadius: theme.borderRadius.md,
+  fontSize: theme.fontSize.base,
+  backgroundColor: theme.colors.white,
+  transition: theme.transitions.base,
+  outline: 'none',
+  ':focus': {
+    borderColor: theme.colors.primary.main,
+    boxShadow: `0 0 0 3px ${theme.colors.primary.main}20`
+  }
 };
