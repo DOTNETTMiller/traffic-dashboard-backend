@@ -8264,7 +8264,7 @@ If image quality is too poor or no parking lot is visible, return {"occupied": 0
 app.get('/api/parking/ground-truth/accuracy', async (req, res) => {
   try {
     // Get all ground truth observations with predictions
-    const observations = db.db.prepare(`
+    const observations = await db.db.prepare(`
       SELECT
         id,
         facility_id,
@@ -8279,7 +8279,7 @@ app.get('/api/parking/ground-truth/accuracy', async (req, res) => {
       ORDER BY created_at DESC
     `).all();
 
-    if (observations.length === 0) {
+    if (!Array.isArray(observations) || observations.length === 0) {
       return res.json({
         success: true,
         message: 'No ground truth observations with predictions yet',
@@ -8399,7 +8399,7 @@ app.post('/api/parking/ground-truth/retrain', async (req, res) => {
     console.log('🔄 Starting model retraining with ground truth data...');
 
     // Get all ground truth observations
-    const observations = db.db.prepare(`
+    const observations = await db.db.prepare(`
       SELECT
         facility_id,
         camera_view,
@@ -8413,7 +8413,7 @@ app.post('/api/parking/ground-truth/retrain', async (req, res) => {
       ORDER BY created_at DESC
     `).all();
 
-    if (observations.length < minObservations) {
+    if (!Array.isArray(observations) || observations.length < minObservations) {
       return res.json({
         success: false,
         message: `Not enough observations yet. Need at least ${minObservations}, have ${observations.length}`,
@@ -8454,7 +8454,7 @@ app.post('/api/parking/ground-truth/retrain', async (req, res) => {
       const avgObserved = stats.observations.reduce((sum, o) => sum + o.observed, 0) / stats.count;
 
       // Get facility capacity to calculate occupancy rate
-      const facility = db.db.prepare(`
+      const facility = await db.db.prepare(`
         SELECT capacity FROM parking_facilities WHERE facility_id = ?
       `).get(stats.facilityId);
 
@@ -8463,7 +8463,7 @@ app.post('/api/parking/ground-truth/retrain', async (req, res) => {
       const newOccupancyRate = Math.min(avgObserved / facility.capacity, 1.0);
 
       // Check if pattern exists
-      const existingPattern = db.db.prepare(`
+      const existingPattern = await db.db.prepare(`
         SELECT id, occupancy_rate FROM parking_patterns
         WHERE facility_id = ? AND hour = ?
       `).get(stats.facilityId, stats.hour);
@@ -8472,7 +8472,7 @@ app.post('/api/parking/ground-truth/retrain', async (req, res) => {
         // Update existing pattern with weighted average (70% old, 30% new observations)
         const updatedRate = (existingPattern.occupancy_rate * 0.7) + (newOccupancyRate * 0.3);
 
-        db.db.prepare(`
+        await db.db.prepare(`
           UPDATE parking_patterns
           SET occupancy_rate = ?,
               sample_count = sample_count + ?,
@@ -8483,7 +8483,7 @@ app.post('/api/parking/ground-truth/retrain', async (req, res) => {
         updatedPatterns++;
       } else {
         // Create new pattern
-        db.db.prepare(`
+        await db.db.prepare(`
           INSERT INTO parking_patterns (facility_id, hour, occupancy_rate, sample_count, last_updated)
           VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
         `).run(stats.facilityId, stats.hour, newOccupancyRate, stats.count);
