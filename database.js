@@ -1938,26 +1938,22 @@ class StateDatabase {
 
   async getParkingFacilities(stateFilter = null) {
     try {
+      // Use parking_facilities table (populated by migration with historical patterns)
       const sql = stateFilter
-        ? `SELECT * FROM truck_parking_facilities WHERE state = ? ORDER BY facility_name`
-        : `SELECT * FROM truck_parking_facilities ORDER BY state, facility_name`;
+        ? `SELECT * FROM parking_facilities WHERE state = ? ORDER BY facility_id`
+        : `SELECT * FROM parking_facilities ORDER BY state, facility_id`;
 
       const stmt = this.db.prepare(sql);
       const facilities = stateFilter ? await stmt.all(stateFilter) : await stmt.all();
 
       return (Array.isArray(facilities) ? facilities : []).map(f => ({
-        id: f.id,
         facilityId: f.facility_id,
-        facilityName: f.facility_name,
+        siteId: f.site_id,
         state: f.state,
-        latitude: f.latitude,
-        longitude: f.longitude,
-        address: f.address,
-        totalSpaces: f.total_spaces,
-        truckSpaces: f.truck_spaces,
-        amenities: f.amenities,
-        facilityType: f.facility_type,
-        lastUpdated: f.last_updated,
+        capacity: f.avg_capacity || f.capacity || 0,
+        latitude: f.latitude || 0,
+        longitude: f.longitude || 0,
+        totalSamples: f.total_samples || 0,
         createdAt: f.created_at
       }));
     } catch (error) {
