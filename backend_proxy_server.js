@@ -7474,10 +7474,10 @@ const TPIMS_FEEDS = [
 ];
 
 // Get all parking facilities
-app.get('/api/parking/facilities', (req, res) => {
+app.get('/api/parking/facilities', async (req, res) => {
   try {
     const stateFilter = req.query.state || null;
-    const facilities = db.getParkingFacilities(stateFilter);
+    const facilities = await db.getParkingFacilities(stateFilter);
     res.json({ success: true, facilities });
   } catch (error) {
     console.error('Error fetching parking facilities:', error);
