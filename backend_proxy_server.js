@@ -8399,19 +8399,31 @@ app.post('/api/parking/ground-truth/retrain', async (req, res) => {
     console.log('🔄 Starting model retraining with ground truth data...');
 
     // Get all ground truth observations
-    const observations = await db.db.prepare(`
-      SELECT
-        facility_id,
-        camera_view,
-        observed_count,
-        predicted_count,
-        predicted_occupancy_rate,
-        strftime('%H', timestamp) as hour,
-        strftime('%w', timestamp) as day_of_week,
-        timestamp as created_at
-      FROM parking_ground_truth_observations
-      ORDER BY timestamp DESC
-    `).all();
+    const query = db.isPostgres
+      ? `SELECT
+          facility_id,
+          camera_view,
+          observed_count,
+          predicted_count,
+          predicted_occupancy_rate,
+          EXTRACT(HOUR FROM timestamp) as hour,
+          EXTRACT(DOW FROM timestamp) as day_of_week,
+          timestamp as created_at
+        FROM parking_ground_truth_observations
+        ORDER BY timestamp DESC`
+      : `SELECT
+          facility_id,
+          camera_view,
+          observed_count,
+          predicted_count,
+          predicted_occupancy_rate,
+          strftime('%H', timestamp) as hour,
+          strftime('%w', timestamp) as day_of_week,
+          timestamp as created_at
+        FROM parking_ground_truth_observations
+        ORDER BY timestamp DESC`;
+
+    const observations = await db.db.prepare(query).all();
 
     if (!Array.isArray(observations) || observations.length < minObservations) {
       return res.json({
