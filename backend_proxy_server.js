@@ -5647,6 +5647,17 @@ app.get('/api/compliance/guide/:state', async (req, res) => {
 app.get('/api/messages', async (req, res) => {
   try {
     const comments = await db.getAllEventComments();
+
+    // Ensure comments is an array
+    if (!Array.isArray(comments)) {
+      console.error('getAllEventComments returned non-array:', typeof comments, comments);
+      return res.json({
+        success: true,
+        count: 0,
+        messages: []
+      });
+    }
+
     const messages = comments.map(comment => ({
       id: comment.id,
       eventId: comment.event_id,
@@ -5662,6 +5673,7 @@ app.get('/api/messages', async (req, res) => {
       messages
     });
   } catch (error) {
+    console.error('Error in /api/messages:', error);
     res.status(500).json({
       success: false,
       error: error.message

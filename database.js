@@ -1456,7 +1456,7 @@ class StateDatabase {
         SELECT * FROM event_comments
         ORDER BY created_at DESC
       `).all();
-      return comments;
+      return Array.isArray(comments) ? comments : [];
     } catch (error) {
       console.error('Error getting all event comments:', error);
       return [];
