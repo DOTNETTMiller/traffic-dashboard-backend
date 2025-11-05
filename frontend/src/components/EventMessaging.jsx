@@ -106,6 +106,34 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
 
   const safeComments = Array.isArray(comments) ? comments : [];
 
+  // Group ALL duplicate messages (not just consecutive)
+  const groupedComments = Object.values(
+    safeComments.reduce((acc, comment) => {
+      // Create a unique key for each message content + sender combo
+      const key = `${comment.state_name}|${comment.comment}`;
+
+      if (acc[key]) {
+        // Add to existing group
+        acc[key].count++;
+        acc[key].timestamps.push(comment.created_at);
+        // Keep earliest and latest timestamps
+        acc[key].firstTimestamp = acc[key].firstTimestamp || comment.created_at;
+        acc[key].latestTimestamp = comment.created_at;
+      } else {
+        // Start new group
+        acc[key] = {
+          ...comment,
+          count: 1,
+          timestamps: [comment.created_at],
+          firstTimestamp: comment.created_at,
+          latestTimestamp: comment.created_at
+        };
+      }
+
+      return acc;
+    }, {})
+  ).sort((a, b) => new Date(b.latestTimestamp) - new Date(a.latestTimestamp)); // Sort by most recent
+
   if (!event) return null;
 
   return (
@@ -182,7 +210,7 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
           padding: '20px',
           backgroundColor: '#f9fafb'
         }}>
-          {safeComments.length === 0 ? (
+          {groupedComments.length === 0 ? (
             <div style={{
               textAlign: 'center',
               color: '#6b7280',
@@ -191,7 +219,7 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
               No comments yet. {isStateLoggedIn ? 'Start the conversation!' : 'Log in to add the first comment.'}
             </div>
           ) : (
-            safeComments.map((comment) => (
+            groupedComments.map((comment) => (
               <div
                 key={comment.id}
                 style={{
@@ -205,16 +233,38 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
                 <div style={{
                   display: 'flex',
                   justifyContent: 'space-between',
-                  marginBottom: '4px'
+                  alignItems: 'flex-start',
+                  marginBottom: '6px'
                 }}>
-                  <span style={{ fontWeight: '600', fontSize: '14px' }}>
-                    {comment.state_name}
-                  </span>
-                  <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                    {format(new Date(comment.created_at), 'MMM d, h:mm a')}
-                  </span>
+                  {/* Only show sender name if it's not "DOT Corridor Communicator" */}
+                  {comment.state_name !== 'DOT Corridor Communicator' && (
+                    <span style={{ fontWeight: '600', fontSize: '14px', color: '#374151' }}>
+                      {comment.state_name}
+                    </span>
+                  )}
+
+                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {comment.count > 1 && (
+                      <span style={{
+                        fontSize: '11px',
+                        backgroundColor: '#3b82f6',
+                        color: 'white',
+                        padding: '3px 8px',
+                        borderRadius: '12px',
+                        fontWeight: '600'
+                      }}>
+                        ×{comment.count}
+                      </span>
+                    )}
+                    <span style={{ fontSize: '12px', color: '#6b7280', whiteSpace: 'nowrap' }}>
+                      {comment.count > 1
+                        ? `${format(new Date(comment.firstTimestamp), 'MMM d')} - ${format(new Date(comment.latestTimestamp), 'MMM d')}`
+                        : format(new Date(comment.latestTimestamp), 'MMM d, h:mm a')
+                      }
+                    </span>
+                  </div>
                 </div>
-                <p style={{ margin: 0, fontSize: '14px', whiteSpace: 'pre-wrap' }}>
+                <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
                   {comment.comment}
                 </p>
               </div>

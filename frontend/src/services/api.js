@@ -75,7 +75,10 @@ class TrafficAPI {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching detour alerts:', error);
+      // Silently fail - 403 errors expected if user lacks permissions
+      if (error.response?.status !== 403) {
+        console.error('Error fetching detour alerts:', error);
+      }
       throw error;
     }
   }
@@ -172,6 +175,31 @@ class TrafficAPI {
       return response.data;
     } catch (error) {
       console.error('Error resolving feed submission:', error);
+      throw error;
+    }
+  }
+
+  async getGroundTruthAccuracy() {
+    try {
+      const response = await this.client.get('/api/parking/ground-truth/accuracy');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching ground truth accuracy:', error);
+      throw error;
+    }
+  }
+
+  async retrainParkingModel(authToken, minObservations = 3) {
+    try {
+      const response = await this.client.post('/api/parking/ground-truth/retrain',
+        { minObservations },
+        {
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error retraining parking model:', error);
       throw error;
     }
   }

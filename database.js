@@ -1710,13 +1710,15 @@ class StateDatabase {
   // Get users who should receive message notifications for a state
   async getUsersForMessageNotification(stateKey) {
     try {
+      // Get users subscribed to this state via subscriptions table
       const users = await this.db.prepare(`
-        SELECT id, username, email, full_name, organization, state_key
-        FROM users
-        WHERE state_key = ?
-          AND active = 1
-          AND notify_on_messages = 1
-          AND email IS NOT NULL
+        SELECT DISTINCT u.id, u.username, u.email, u.full_name, u.organization, u.state_key
+        FROM users u
+        INNER JOIN user_state_subscriptions s ON u.id = s.user_id
+        WHERE s.state_key = ?
+          AND u.active = 1
+          AND u.notify_on_messages = 1
+          AND u.email IS NOT NULL
       `).all(stateKey);
 
       return users.map(user => ({
@@ -1756,6 +1758,89 @@ class StateDatabase {
     } catch (error) {
       console.error('Error getting users for high-severity notification:', error);
       return [];
+    }
+  }
+
+  // ==================== STATE SUBSCRIPTION MANAGEMENT ====================
+
+  // Get all state subscriptions for a user
+  getUserStateSubscriptions(userId) {
+    try {
+      const subscriptions = this.db.prepare(`
+        SELECT state_key, created_at
+        FROM user_state_subscriptions
+        WHERE user_id = ?
+        ORDER BY state_key
+      `).all(userId);
+
+      return subscriptions.map(sub => ({
+        stateKey: sub.state_key,
+        createdAt: sub.created_at
+      }));
+    } catch (error) {
+      console.error('Error getting user state subscriptions:', error);
+      return [];
+    }
+  }
+
+  // Subscribe user to a state
+  subscribeUserToState(userId, stateKey) {
+    try {
+      const stmt = this.db.prepare(`
+        INSERT OR IGNORE INTO user_state_subscriptions (user_id, state_key)
+        VALUES (?, ?)
+      `);
+      stmt.run(userId, stateKey);
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error subscribing user to state:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Unsubscribe user from a state
+  unsubscribeUserFromState(userId, stateKey) {
+    try {
+      const stmt = this.db.prepare(`
+        DELETE FROM user_state_subscriptions
+        WHERE user_id = ? AND state_key = ?
+      `);
+      stmt.run(userId, stateKey);
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error unsubscribing user from state:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Set all state subscriptions for a user (replaces existing subscriptions)
+  setUserStateSubscriptions(userId, stateKeys) {
+    try {
+      // Start a transaction
+      const deleteStmt = this.db.prepare(`
+        DELETE FROM user_state_subscriptions
+        WHERE user_id = ?
+      `);
+
+      const insertStmt = this.db.prepare(`
+        INSERT INTO user_state_subscriptions (user_id, state_key)
+        VALUES (?, ?)
+      `);
+
+      // Clear existing subscriptions
+      deleteStmt.run(userId);
+
+      // Add new subscriptions
+      for (const stateKey of stateKeys) {
+        insertStmt.run(userId, stateKey);
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error setting user state subscriptions:', error);
+      return { success: false, error: error.message };
     }
   }
 

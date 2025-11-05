@@ -19,10 +19,16 @@ body {
 }
 
 .header {
-  background-color: #1e40af;
+  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
   color: white;
-  padding: 16px 24px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  padding: 8px 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 300;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
 }
 
 .header-content {
@@ -35,14 +41,14 @@ body {
 
 .title {
   margin: 0;
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 600;
 }
 
 .header-info {
   display: flex;
-  gap: 24px;
-  font-size: 14px;
+  gap: 12px;
+  font-size: 12px;
 }
 
 .last-update,
@@ -53,12 +59,19 @@ body {
 .controls {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 16px 24px;
+  padding: 8px 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: white;
+  background-color: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border-bottom: 1px solid #e5e7eb;
+  position: sticky;
+  top: 38px;
+  z-index: 200;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  transition: all 0.2s ease;
 }
 
 .view-toggle {
@@ -67,41 +80,46 @@ body {
   background-color: #f3f4f6;
   padding: 4px;
   border-radius: 6px;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
 }
 
 .toggle-btn {
-  padding: 8px 16px;
+  padding: 6px 12px;
   border: none;
   background-color: transparent;
   color: #374151;
   cursor: pointer;
   border-radius: 4px;
   font-weight: 500;
-  transition: all 0.2s;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  position: relative;
 }
 
 .toggle-btn:hover {
   background-color: #e5e7eb;
+  transform: translateY(-1px);
 }
 
 .toggle-btn.active {
   background-color: white;
   color: #1e40af;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transform: translateY(0);
 }
 
 .control-buttons {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   align-items: center;
 }
 
 .refresh-toggle {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .refresh-toggle input {
@@ -109,23 +127,33 @@ body {
 }
 
 .refresh-btn {
-  padding: 8px 16px;
+  padding: 6px 12px;
   background-color: #3b82f6;
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-weight: 500;
-  transition: background-color 0.2s;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3);
 }
 
 .refresh-btn:hover:not(:disabled) {
   background-color: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(59, 130, 246, 0.4);
+}
+
+.refresh-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(59, 130, 246, 0.3);
 }
 
 .refresh-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: not-allowed;
+  transform: none;
 }
 
 .main-content {
@@ -133,29 +161,52 @@ body {
   max-width: 1400px;
   width: 100%;
   margin: 0 auto;
-  padding: 20px 24px;
+  padding: 12px 16px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   min-height: 0; /* Important for flex children */
 }
 
+/* Allow scrolling for ground truth dashboard */
+.main-content:has(> div > div:first-child:contains("Ground-Truth")) {
+  overflow-y: auto;
+}
+
+/* Simpler approach - check if we're showing ground truth */
+.ground-truth-view .main-content {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 .view-container {
   flex: 1;
   background-color: white;
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
   overflow-y: auto;
   overflow-x: hidden;
+  transition: box-shadow 0.2s ease;
+}
+
+.view-container:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
 }
 
 .error-banner {
   padding: 12px 16px;
   background-color: #fee2e2;
   color: #991b1b;
-  border-radius: 6px;
+  border-radius: 8px;
+  border-left: 4px solid #dc2626;
   margin-bottom: 16px;
   font-size: 14px;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.15);
+  transition: all 0.2s ease;
+}
+
+.error-banner:hover {
+  box-shadow: 0 4px 6px rgba(220, 38, 38, 0.2);
 }
 
 /* Mobile hamburger menu button - also show on desktop when panel is closed */
@@ -269,6 +320,14 @@ body {
 
   .title {
     font-size: 18px;
+  }
+
+  /* Stack byline on mobile or hide if too small */
+  .title span {
+    display: block;
+    margin-left: 0 !important;
+    margin-top: 4px;
+    font-size: 9px !important;
   }
 
   .header-info {
@@ -446,9 +505,34 @@ body {
 
 /* Leaflet popup customization */
 .leaflet-popup-content-wrapper {
-  border-radius: 8px;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: popupFadeIn 0.2s ease;
 }
 
 .leaflet-popup-content {
   margin: 0;
+}
+
+.leaflet-popup-tip {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+}
+
+@keyframes popupFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Spinner animation for loading states */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }

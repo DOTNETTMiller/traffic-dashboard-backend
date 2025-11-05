@@ -13,6 +13,8 @@ export default function UserProfile({ user, authToken, onProfileUpdate }) {
     notifyOnHighSeverity: user?.notify_on_high_severity ?? user?.notifyOnHighSeverity ?? true
   });
   const [states, setStates] = useState([]);
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [loadingSubscriptions, setLoadingSubscriptions] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -38,6 +40,27 @@ export default function UserProfile({ user, authToken, onProfileUpdate }) {
     fetchStates();
   }, []);
 
+  // Load user's state subscriptions
+  useEffect(() => {
+    const fetchSubscriptions = async () => {
+      try {
+        const response = await axios.get(`${config.apiUrl}/api/users/subscriptions`, {
+          headers: {
+            Authorization: `Bearer ${authToken}`
+          }
+        });
+        if (response.data.success) {
+          setSubscriptions(response.data.subscriptions.map(sub => sub.stateKey));
+        }
+      } catch (error) {
+        console.error('Error fetching subscriptions:', error);
+      }
+    };
+    if (authToken) {
+      fetchSubscriptions();
+    }
+  }, [authToken]);
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData({
@@ -52,6 +75,38 @@ export default function UserProfile({ user, authToken, onProfileUpdate }) {
       ...passwordData,
       [name]: value
     });
+  };
+
+  const handleSubscriptionToggle = async (stateKey) => {
+    setLoadingSubscriptions(true);
+    setError('');
+
+    try {
+      const isSubscribed = subscriptions.includes(stateKey);
+      const newSubscriptions = isSubscribed
+        ? subscriptions.filter(s => s !== stateKey)
+        : [...subscriptions, stateKey];
+
+      const response = await axios.put(
+        `${config.apiUrl}/api/users/subscriptions`,
+        { stateKeys: newSubscriptions },
+        {
+          headers: {
+            Authorization: `Bearer ${authToken}`
+          }
+        }
+      );
+
+      if (response.data.success) {
+        setSubscriptions(newSubscriptions);
+        setSuccess(`${isSubscribed ? 'Unsubscribed from' : 'Subscribed to'} ${stateKey}`);
+        setTimeout(() => setSuccess(''), 2000);
+      }
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to update subscriptions');
+    } finally {
+      setLoadingSubscriptions(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -259,6 +314,63 @@ export default function UserProfile({ user, authToken, onProfileUpdate }) {
                 <span>Email notifications for high-severity events</span>
               </label>
             </div>
+          </div>
+
+          <div className="form-section">
+            <h3>State Subscriptions</h3>
+            <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
+              Select states to receive email notifications when messages are posted on events in those states.
+            </p>
+
+            {states.length === 0 ? (
+              <p>Loading states...</p>
+            ) : (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                gap: '8px',
+                maxHeight: '400px',
+                overflowY: 'auto',
+                padding: '8px',
+                border: '1px solid #e5e7eb',
+                borderRadius: '6px',
+                backgroundColor: '#f9fafb'
+              }}>
+                {states.map(state => (
+                  <div
+                    key={state.stateKey}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '8px',
+                      backgroundColor: 'white',
+                      borderRadius: '4px',
+                      border: '1px solid #e5e7eb',
+                      cursor: loadingSubscriptions ? 'wait' : 'pointer',
+                      opacity: loadingSubscriptions ? 0.6 : 1
+                    }}
+                    onClick={() => !loadingSubscriptions && handleSubscriptionToggle(state.stateKey)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={subscriptions.includes(state.stateKey)}
+                      onChange={() => {}}
+                      disabled={loadingSubscriptions}
+                      style={{ marginRight: '8px', cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '13px', userSelect: 'none' }}>
+                      {state.stateName}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {subscriptions.length > 0 && (
+              <p style={{ fontSize: '13px', color: '#10b981', marginTop: '12px', fontWeight: '500' }}>
+                ✓ Subscribed to {subscriptions.length} state{subscriptions.length !== 1 ? 's' : ''}
+              </p>
+            )}
           </div>
 
           <div className="form-actions">

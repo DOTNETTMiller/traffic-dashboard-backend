@@ -42,6 +42,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [observations, setObservations] = useState({}); // { facilityId: { availableSpaces: number, submitting: boolean } }
+  const [hourlyPredictions, setHourlyPredictions] = useState({}); // { facilityId: [ {hour, occupancyRate, ...}, ... ] }
 
   useEffect(() => {
     if (!showParking) {
@@ -118,6 +119,47 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
 
     return () => clearInterval(interval);
   }, [showParking, predictionHoursAhead]);
+
+  // Fetch 24-hour predictions for a facility when popup is opened
+  const fetchHourlyPredictions = async (facilityId) => {
+    if (hourlyPredictions[facilityId]) {
+      return; // Already fetched
+    }
+
+    try {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      const hourlyPromises = Array.from({ length: 24 }, (_, hour) => {
+        const targetTime = new Date(today);
+        targetTime.setHours(hour);
+
+        return api.get(`/api/parking/historical/predict/${facilityId}?time=${targetTime.toISOString()}`)
+          .then(response => {
+            if (response.data.success && response.data.prediction) {
+              const pred = response.data.prediction;
+              return {
+                hour,
+                occupancyRate: pred.occupancyRate,
+                occupied: pred.predictedOccupied,
+                available: pred.predictedAvailable,
+                capacity: pred.capacity
+              };
+            }
+            return { hour, occupancyRate: null };
+          })
+          .catch(() => ({ hour, occupancyRate: null }));
+      });
+
+      const results = await Promise.all(hourlyPromises);
+      setHourlyPredictions(prev => ({
+        ...prev,
+        [facilityId]: results.sort((a, b) => a.hour - b.hour)
+      }));
+    } catch (error) {
+      console.error('Error fetching hourly predictions:', error);
+    }
+  };
 
   const handleObservationSubmit = async (facilityId, availableSpaces) => {
     setObservations(prev => ({
@@ -346,6 +388,9 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
             key={facility.facilityId}
             position={[lat, lon]}
             icon={icon}
+            eventHandlers={{
+              popupopen: () => fetchHourlyPredictions(facility.facilityId)
+            }}
           >
             <Tooltip direction="top" offset={[0, -16]} opacity={0.9}>
               <div style={{ minWidth: '150px' }}>
@@ -419,6 +464,177 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                     </div>
                   )}
                 </div>
+
+                {/* Busy Hours Graph */}
+                {hourlyPredictions[facility.facilityId] && hourlyPredictions[facility.facilityId].length > 0 && (
+                  <div style={{
+                    margin: '12px 0',
+                    padding: '12px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '6px',
+                    border: '1px solid #e5e7eb'
+                  }}>
+                    <div style={{
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      📊 Today's Occupancy Pattern
+                    </div>
+
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'flex-end',
+                      gap: '3px',
+                      height: '100px',
+                      backgroundColor: '#f9fafb',
+                      padding: '8px',
+                      paddingLeft: '32px',
+                      borderRadius: '6px',
+                      marginBottom: '8px',
+                      position: 'relative'
+                    }}>
+                      {/* Y-axis labels */}
+                      <div style={{
+                        position: 'absolute',
+                        left: '2px',
+                        top: '8px',
+                        bottom: '8px',
+                        width: '28px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        fontSize: '8px',
+                        color: '#9ca3af',
+                        fontWeight: '500'
+                      }}>
+                        <span>100%</span>
+                        <span>50%</span>
+                        <span>0%</span>
+                      </div>
+
+                      {/* Grid lines */}
+                      <div style={{
+                        position: 'absolute',
+                        left: '32px',
+                        right: '8px',
+                        top: '8px',
+                        bottom: '8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between'
+                      }}>
+                        <div style={{ borderTop: '1px dashed #e5e7eb' }} />
+                        <div style={{ borderTop: '1px dashed #e5e7eb' }} />
+                      </div>
+
+                      {/* Bars */}
+                      {hourlyPredictions[facility.facilityId].map(({ hour, occupancyRate }) => {
+                        const currentHour = new Date().getHours();
+                        const isCurrentHour = hour === currentHour;
+                        const percentage = occupancyRate !== null ? occupancyRate * 100 : 0;
+                        const color = occupancyRate === null ? '#e5e7eb' :
+                          occupancyRate > 0.8 ? '#ef4444' :
+                          occupancyRate > 0.6 ? '#f59e0b' :
+                          occupancyRate > 0.3 ? '#fbbf24' : '#22c55e';
+
+                        return (
+                          <div
+                            key={hour}
+                            style={{
+                              flex: 1,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'flex-end',
+                              height: '100%',
+                              position: 'relative'
+                            }}
+                            title={`${hour}:00 - ${Math.round(percentage)}% occupied${occupancyRate === null ? ' (no data)' : ''}`}
+                          >
+                            <div
+                              style={{
+                                width: '100%',
+                                height: `${Math.max(percentage, 2)}%`,
+                                backgroundColor: color,
+                                borderRadius: '2px 2px 0 0',
+                                transition: 'all 0.2s ease',
+                                border: isCurrentHour ? '2px solid #3b82f6' : 'none',
+                                boxSizing: 'border-box',
+                                position: 'relative'
+                              }}
+                            >
+                              {isCurrentHour && percentage > 10 && (
+                                <div style={{
+                                  position: 'absolute',
+                                  top: '-16px',
+                                  left: '50%',
+                                  transform: 'translateX(-50%)',
+                                  fontSize: '9px',
+                                  fontWeight: '600',
+                                  color: '#3b82f6',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  {Math.round(percentage)}%
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: '9px',
+                      color: '#6b7280',
+                      marginBottom: '6px',
+                      paddingLeft: '32px'
+                    }}>
+                      <span>12am</span>
+                      <span>6am</span>
+                      <span>12pm</span>
+                      <span>6pm</span>
+                      <span>11pm</span>
+                    </div>
+
+                    <div style={{
+                      display: 'flex',
+                      gap: '12px',
+                      justifyContent: 'center',
+                      fontSize: '9px',
+                      color: '#6b7280',
+                      flexWrap: 'wrap'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <div style={{ width: '8px', height: '8px', backgroundColor: '#22c55e', borderRadius: '1px' }} />
+                        <span>Low (&lt;30%)</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <div style={{ width: '8px', height: '8px', backgroundColor: '#fbbf24', borderRadius: '1px' }} />
+                        <span>Med (30-60%)</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <div style={{ width: '8px', height: '8px', backgroundColor: '#f59e0b', borderRadius: '1px' }} />
+                        <span>High (60-80%)</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <div style={{ width: '8px', height: '8px', backgroundColor: '#ef4444', borderRadius: '1px' }} />
+                        <span>Full (&gt;80%)</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <div style={{ width: '2px', height: '8px', backgroundColor: '#3b82f6', borderRadius: '1px' }} />
+                        <span>Now ({new Date().getHours()}:00)</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {isPrediction && facility.sampleCount > 0 && (
                   <p style={{
                     margin: '8px 0',
