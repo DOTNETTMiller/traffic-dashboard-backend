@@ -9237,6 +9237,14 @@ function startServer() {
     await migrateParkingData();
   } catch (error) {
     console.error('⚠️  Parking migration error (continuing anyway):', error.message);
+    console.error('⚠️  Stack trace:', error.stack);
+    // Check if facilities were actually loaded
+    try {
+      const facilityCount = await db.db.prepare('SELECT COUNT(*) as count FROM parking_facilities').get();
+      console.log(`📊 Parking facilities in database after migration attempt: ${facilityCount?.count || 0}`);
+    } catch (countError) {
+      console.error('❌ Could not check parking facility count:', countError.message);
+    }
   }
 
   // Verify email configuration
