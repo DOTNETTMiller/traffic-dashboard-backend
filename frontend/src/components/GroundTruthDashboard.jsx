@@ -10,6 +10,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [manualCounts, setManualCounts] = useState({}); // Track manual count per facility
+  const [totalCapacityCounts, setTotalCapacityCounts] = useState({}); // Track total capacity per facility
   const [submitStatus, setSubmitStatus] = useState({}); // Track submission status per facility
   const [aiCountLoading, setAiCountLoading] = useState({}); // Track AI counting status per facility
 
@@ -23,12 +24,13 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
 
   const handleSubmitObservation = async (facility) => {
     const manualCount = manualCounts[facility.facilityId];
+    const totalCapacity = totalCapacityCounts[facility.facilityId];
 
     // Validate input
     if (manualCount === undefined || manualCount === '' || manualCount === null) {
       setSubmitStatus(prev => ({
         ...prev,
-        [facility.facilityId]: { type: 'error', message: 'Please enter a count' }
+        [facility.facilityId]: { type: 'error', message: 'Please enter an occupied count' }
       }));
       return;
     }
@@ -38,6 +40,16 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
       setSubmitStatus(prev => ({
         ...prev,
         [facility.facilityId]: { type: 'error', message: 'Please enter a valid number' }
+      }));
+      return;
+    }
+
+    // Validate total capacity if provided
+    const capacity = totalCapacity ? parseInt(totalCapacity) : null;
+    if (capacity !== null && (isNaN(capacity) || capacity < 0)) {
+      setSubmitStatus(prev => ({
+        ...prev,
+        [facility.facilityId]: { type: 'error', message: 'Please enter a valid total capacity' }
       }));
       return;
     }
@@ -52,12 +64,16 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
       const currentView = selectedViewByFacility[facility.facilityId];
       const pred = facility.prediction;
 
-      console.log(`Submitting observation: ${count} trucks at ${facility.facilityId} - ${currentView}`);
+      const logMsg = capacity !== null
+        ? `Submitting observation: ${count}/${capacity} occupied at ${facility.facilityId} - ${currentView}`
+        : `Submitting observation: ${count} trucks at ${facility.facilityId} - ${currentView}`;
+      console.log(logMsg);
 
       const response = await api.post('/api/parking/ground-truth/observations', {
         facilityId: facility.facilityId,
         cameraView: currentView,
         observedCount: count,
+        observedTotalCapacity: capacity,
         predictedCount: pred ? pred.occupied : null,
         predictedOccupancyRate: pred ? pred.occupancyRate : null
       });
@@ -65,17 +81,25 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
       console.log('Observation response:', response.data);
 
       if (response.data.success) {
+        const successMsg = capacity !== null
+          ? `✅ Saved! ${count} occupied / ${capacity - count} open (${capacity} total) at ${new Date().toLocaleTimeString()}`
+          : `✅ Saved! Counted ${count} truck${count !== 1 ? 's' : ''} at ${new Date().toLocaleTimeString()}`;
+
         setSubmitStatus(prev => ({
           ...prev,
           [facility.facilityId]: {
             type: 'success',
-            message: `✅ Saved! Counted ${count} truck${count !== 1 ? 's' : ''} at ${new Date().toLocaleTimeString()}`
+            message: successMsg
           }
         }));
 
         // Clear the input and success message after 5 seconds
         setTimeout(() => {
           setManualCounts(prev => ({
+            ...prev,
+            [facility.facilityId]: ''
+          }));
+          setTotalCapacityCounts(prev => ({
             ...prev,
             [facility.facilityId]: ''
           }));
@@ -124,28 +148,35 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
       });
 
       if (response.data.success) {
-        // Populate the manual count field with AI result
+        const { occupied, totalCapacity, available } = response.data;
+
+        // Populate both occupied and total capacity fields
         setManualCounts(prev => ({
           ...prev,
-          [facility.facilityId]: response.data.count
+          [facility.facilityId]: occupied
         }));
 
-        // Show success message
+        setTotalCapacityCounts(prev => ({
+          ...prev,
+          [facility.facilityId]: totalCapacity
+        }));
+
+        // Show success message with all metrics
         setSubmitStatus(prev => ({
           ...prev,
           [facility.facilityId]: {
             type: 'success',
-            message: `AI counted ${response.data.count} truck${response.data.count !== 1 ? 's' : ''}`
+            message: `AI found ${occupied} occupied / ${available} open spaces (${totalCapacity} total)`
           }
         }));
 
-        // Clear success message after 3 seconds
+        // Clear success message after 5 seconds
         setTimeout(() => {
           setSubmitStatus(prev => ({
             ...prev,
             [facility.facilityId]: null
           }));
-        }, 3000);
+        }, 5000);
       } else {
         setSubmitStatus(prev => ({
           ...prev,
@@ -811,16 +842,46 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                       color: '#1e40af',
                       marginBottom: '6px'
                     }}>
-                      Manual Count:
+                      Occupied Spaces:
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        max={pred ? pred.capacity : 100}
+                        placeholder="Occupied"
+                        value={manualCounts[facility.facilityId] || ''}
+                        onChange={(e) => setManualCounts(prev => ({
+                          ...prev,
+                          [facility.facilityId]: e.target.value
+                        }))}
+                        style={{
+                          flex: 1,
+                          padding: '8px',
+                          borderRadius: '4px',
+                          border: '1px solid #bfdbfe',
+                          fontSize: '13px'
+                        }}
+                      />
+                    </div>
+
+                    <label style={{
+                      display: 'block',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      color: '#1e40af',
+                      marginBottom: '6px'
+                    }}>
+                      Total Visible Spaces (optional):
                     </label>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <input
                         type="number"
                         min="0"
-                        max={pred ? pred.capacity : 100}
-                        placeholder="Count trucks"
-                        value={manualCounts[facility.facilityId] || ''}
-                        onChange={(e) => setManualCounts(prev => ({
+                        max={200}
+                        placeholder="Total capacity"
+                        value={totalCapacityCounts[facility.facilityId] || ''}
+                        onChange={(e) => setTotalCapacityCounts(prev => ({
                           ...prev,
                           [facility.facilityId]: e.target.value
                         }))}
@@ -870,7 +931,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                       color: '#6b7280',
                       fontStyle: 'italic'
                     }}>
-                      Enter number of occupied spaces you count in the camera
+                      Enter occupied and total visible spaces. AI button fills both fields automatically.
                     </p>
                   </div>
                 </div>
@@ -906,9 +967,9 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
           <li>View live camera feeds from Iowa DOT rest areas on I-80 and I-35</li>
           <li>Review the predicted busy hours graph showing occupancy trends throughout the day</li>
           <li>Compare camera images with the model's current parking predictions</li>
-          <li>Click "Get AI Count" to use AI vision to automatically count trucks in the current camera view</li>
-          <li>Manually count visible trucks in the parking area using different camera angles, or adjust the AI count if needed</li>
-          <li>Enter your count in the validation field to track prediction accuracy over time</li>
+          <li>Click "Get AI Count" to use AI vision to automatically count occupied spaces, total capacity, and available spaces</li>
+          <li>Manually count visible parking spaces (occupied and total) using different camera angles, or adjust the AI count if needed</li>
+          <li>Enter counts for occupied spaces (required) and total visible spaces (optional) - this helps track open stalls</li>
           <li>Use this data to identify patterns where predictions are most/least accurate</li>
         </ol>
       </div>
