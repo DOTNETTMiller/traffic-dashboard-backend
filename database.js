@@ -957,9 +957,9 @@ class StateDatabase {
     }
   }
 
-  getInbox(stateKey) {
+  async getInbox(stateKey) {
     try {
-      const messages = this.db.prepare(`
+      const messages = await this.db.prepare(`
         SELECT * FROM state_messages
         WHERE to_state = ? OR to_state = 'ALL'
         ORDER BY created_at DESC
@@ -971,9 +971,9 @@ class StateDatabase {
     }
   }
 
-  getSentMessages(stateKey) {
+  async getSentMessages(stateKey) {
     try {
-      const messages = this.db.prepare(`
+      const messages = await this.db.prepare(`
         SELECT * FROM state_messages
         WHERE from_state = ?
         ORDER BY created_at DESC
@@ -1463,9 +1463,9 @@ class StateDatabase {
     }
   }
 
-  getEventCommentsByState(stateKey) {
+  async getEventCommentsByState(stateKey) {
     try {
-      const comments = this.db.prepare(`
+      const comments = await this.db.prepare(`
         SELECT * FROM event_comments
         WHERE state_key = ?
         ORDER BY created_at DESC

@@ -5644,9 +5644,9 @@ app.get('/api/compliance/guide/:state', async (req, res) => {
 // ==================== MESSAGE ENDPOINTS ====================
 
 // Legacy message endpoints now proxy to event comments for backward compatibility
-app.get('/api/messages', (req, res) => {
+app.get('/api/messages', async (req, res) => {
   try {
-    const comments = db.getAllEventComments();
+    const comments = await db.getAllEventComments();
     const messages = comments.map(comment => ({
       id: comment.id,
       eventId: comment.event_id,
@@ -5669,10 +5669,10 @@ app.get('/api/messages', (req, res) => {
   }
 });
 
-app.get('/api/messages/event/:eventId', (req, res) => {
+app.get('/api/messages/event/:eventId', async (req, res) => {
   try {
     // Get comments from event_comments table
-    const comments = db.getEventComments(req.params.eventId);
+    const comments = await db.getEventComments(req.params.eventId);
     const commentMessages = comments.map(comment => ({
       id: comment.id,
       eventId: comment.event_id,
@@ -5683,7 +5683,7 @@ app.get('/api/messages/event/:eventId', (req, res) => {
     }));
 
     // Also get messages from state_messages table linked to this event
-    const stateMessages = db.db.prepare(`
+    const stateMessages = await db.db.prepare(`
       SELECT id, from_state, to_state, subject, message, created_at, event_id
       FROM state_messages
       WHERE event_id = ?
@@ -5832,8 +5832,8 @@ app.post('/api/states/messages', requireStateAuth, (req, res) => {
 });
 
 // Get inbox (messages to this state)
-app.get('/api/states/inbox', requireStateAuth, (req, res) => {
-  const messages = db.getInbox(req.stateKey);
+app.get('/api/states/inbox', requireStateAuth, async (req, res) => {
+  const messages = await db.getInbox(req.stateKey);
   const unreadCount = db.getUnreadCount(req.stateKey);
 
   res.json({
@@ -5846,11 +5846,11 @@ app.get('/api/states/inbox', requireStateAuth, (req, res) => {
 });
 
 // Get sent messages (from this state)
-app.get('/api/states/sent', requireStateAuth, (req, res) => {
-  const messages = db.getSentMessages(req.stateKey);
+app.get('/api/states/sent', requireStateAuth, async (req, res) => {
+  const messages = await db.getSentMessages(req.stateKey);
 
   // Also get event comments from this state
-  const comments = db.getEventCommentsByState(req.stateKey);
+  const comments = await db.getEventCommentsByState(req.stateKey);
 
   // Convert comments to message format
   const commentMessages = comments.map(comment => ({
