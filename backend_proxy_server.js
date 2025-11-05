@@ -8272,11 +8272,11 @@ app.get('/api/parking/ground-truth/accuracy', async (req, res) => {
         observed_count,
         predicted_count,
         predicted_occupancy_rate,
-        created_at,
+        timestamp as created_at,
         observer_notes
       FROM parking_ground_truth_observations
       WHERE predicted_count IS NOT NULL
-      ORDER BY created_at DESC
+      ORDER BY timestamp DESC
     `).all();
 
     if (!Array.isArray(observations) || observations.length === 0) {
@@ -8406,11 +8406,11 @@ app.post('/api/parking/ground-truth/retrain', async (req, res) => {
         observed_count,
         predicted_count,
         predicted_occupancy_rate,
-        strftime('%H', created_at) as hour,
-        strftime('%w', created_at) as day_of_week,
-        created_at
+        strftime('%H', timestamp) as hour,
+        strftime('%w', timestamp) as day_of_week,
+        timestamp as created_at
       FROM parking_ground_truth_observations
-      ORDER BY created_at DESC
+      ORDER BY timestamp DESC
     `).all();
 
     if (!Array.isArray(observations) || observations.length < minObservations) {
