@@ -8080,70 +8080,72 @@ app.post('/api/parking/ground-truth/ai-count', async (req, res) => {
     }
 
     // Get the camera URL for this facility and view
-    // Camera-equipped facilities on Iowa I-80 and I-35
+    // Match the facilities from the ground-truth endpoint
     const cameraFacilities = {
-      'iowa-i80-rest-area-80': {
-        name: 'I-80 Rest Area Mile 80 (Iowa 80 Truckstop area)',
+      'tpims-historical-ia00080is0030000wra300w00': {
+        name: 'I-80 EB MM 300 (Davenport)',
         cameras: {
-          truckParking1: 'https://api.iowadot.gov/livetraffic/api/Image/camera/014902',
-          truckParking2: 'https://api.iowadot.gov/livetraffic/api/Image/camera/014901',
-          entrance: 'https://api.iowadot.gov/livetraffic/api/Image/camera/014903'
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB300-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB300-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB300-01-EXIT.jpg'
         }
       },
-      'iowa-i80-rest-area-110': {
-        name: 'I-80 Rest Area Mile 110',
+      'tpims-historical-ia00080is0018000era180e00': {
+        name: 'I-80 EB MM 180 (Grinnell)',
         cameras: {
-          center: 'https://api.iowadot.gov/livetraffic/api/Image/camera/015002',
-          entry: 'https://api.iowadot.gov/livetraffic/api/Image/camera/015001',
-          exit: 'https://api.iowadot.gov/livetraffic/api/Image/camera/015003'
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB180-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB180-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB180-01-EXIT.jpg'
         }
       },
-      'iowa-i80-rest-area-197': {
-        name: 'I-80 Rest Area Mile 197',
+      'tpims-historical-ia00080is0014800wra148w00': {
+        name: 'I-80 EB MM 148 (Mitchellville)',
         cameras: {
-          center: 'https://api.iowadot.gov/livetraffic/api/Image/camera/019702',
-          entry: 'https://api.iowadot.gov/livetraffic/api/Image/camera/019701',
-          exit: 'https://api.iowadot.gov/livetraffic/api/Image/camera/019703'
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB148-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB148-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB148-01-EXIT.jpg'
         }
       },
-      'iowa-i80-rest-area-225': {
-        name: 'I-80 Rest Area Mile 225',
+      'tpims-historical-ia00080is0026800wra268w00': {
+        name: 'I-80 WB MM 268 (Wilton)',
         cameras: {
-          center: 'https://api.iowadot.gov/livetraffic/api/Image/camera/022502',
-          entry: 'https://api.iowadot.gov/livetraffic/api/Image/camera/022501',
-          exit: 'https://api.iowadot.gov/livetraffic/api/Image/camera/022503'
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB268-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB268-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB268-01-EXIT.jpg'
         }
       },
-      'iowa-i80-rest-area-252': {
-        name: 'I-80 Rest Area Mile 252',
+      'tpims-historical-ia00080is0018000wra180w00': {
+        name: 'I-80 WB MM 180 (Grinnell)',
         cameras: {
-          center: 'https://api.iowadot.gov/livetraffic/api/Image/camera/025202',
-          entry: 'https://api.iowadot.gov/livetraffic/api/Image/camera/025201',
-          exit: 'https://api.iowadot.gov/livetraffic/api/Image/camera/025203'
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB180-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB180-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB180-01-EXIT.jpg'
         }
       },
-      'iowa-i35-rest-area-111': {
-        name: 'I-35 Rest Area Mile 111',
+      'tpims-historical-ia00080is0001900wra19w000': {
+        name: 'I-80 WB MM 19 (Underwood)',
         cameras: {
-          center: 'https://api.iowadot.gov/livetraffic/api/Image/camera/011102',
-          entry: 'https://api.iowadot.gov/livetraffic/api/Image/camera/011101',
-          exit: 'https://api.iowadot.gov/livetraffic/api/Image/camera/011103'
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB19-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB19-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB19-01-EXIT.jpg'
         }
       },
-      'iowa-i35-rest-area-140': {
-        name: 'I-35 Rest Area Mile 140',
+      'tpims-historical-ia00035is0012000nra120n00': {
+        name: 'I-35 NB MM 120 (Story City)',
         cameras: {
-          center: 'https://api.iowadot.gov/livetraffic/api/Image/camera/014002',
-          entry: 'https://api.iowadot.gov/livetraffic/api/Image/camera/014001',
-          exit: 'https://api.iowadot.gov/livetraffic/api/Image/camera/014003'
+          truckParking1: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-TruckParking1.jpg',
+          truckParking2: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-TruckParking2.jpg',
+          entrance: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-Entrance.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-01-EXIT.jpg'
         }
       },
-      'iowa-i35-rest-area-178': {
-        name: 'I-35 Rest Area Mile 178',
+      'tpims-historical-ia00035is0012000sra120s00': {
+        name: 'I-35 SB MM 119 (Story City)',
         cameras: {
-          center: 'https://api.iowadot.gov/livetraffic/api/Image/camera/017802',
-          entry: 'https://api.iowadot.gov/livetraffic/api/Image/camera/017801',
-          exit: 'https://api.iowadot.gov/livetraffic/api/Image/camera/017803'
+          truckParking1: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-TruckParking1.jpg',
+          truckParking2: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-TruckParking2.jpg',
+          entrance: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-Entrance.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-01-EXIT.jpg'
         }
       }
     };
@@ -8152,7 +8154,7 @@ app.post('/api/parking/ground-truth/ai-count', async (req, res) => {
     if (!facility) {
       return res.status(404).json({
         success: false,
-        error: 'Facility not found'
+        error: `Facility not found: ${facilityId}`
       });
     }
 
@@ -8160,7 +8162,7 @@ app.post('/api/parking/ground-truth/ai-count', async (req, res) => {
     if (!cameraUrl) {
       return res.status(404).json({
         success: false,
-        error: 'Camera view not found'
+        error: `Camera view not found: ${cameraView}. Available views: ${Object.keys(facility.cameras).join(', ')}`
       });
     }
 
