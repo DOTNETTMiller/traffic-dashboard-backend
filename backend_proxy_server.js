@@ -7959,13 +7959,13 @@ app.get('/api/parking/ground-truth', async (req, res) => {
       return {
         ...facility,
         prediction: prediction.success ? {
-          available: prediction.predictedAvailable,
-          occupied: prediction.predictedOccupied,
-          capacity: prediction.capacity,
-          occupancyRate: prediction.occupancyRate,
-          confidence: prediction.confidence,
-          predictedFor: prediction.predictedFor
-        } : null,
+          available: prediction.prediction.predictedAvailable,
+          occupied: prediction.prediction.predictedOccupied,
+          capacity: prediction.prediction.capacity,
+          occupancyRate: prediction.prediction.occupancyRate,
+          confidence: prediction.prediction.confidence,
+          predictedFor: prediction.prediction.predictedFor
+        } : {},
         timestamp: new Date().toISOString()
       };
     });
