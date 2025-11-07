@@ -2444,9 +2444,9 @@ app.put('/api/users/notifications', requireUser, (req, res) => {
 // ==================== STATE SUBSCRIPTION ENDPOINTS ====================
 
 // Get user's state subscriptions
-app.get('/api/users/subscriptions', requireUser, (req, res) => {
+app.get('/api/users/subscriptions', requireUser, async (req, res) => {
   try {
-    const subscriptions = db.getUserStateSubscriptions(req.user.id);
+    const subscriptions = await db.getUserStateSubscriptions(req.user.id);
     res.json({
       success: true,
       subscriptions
@@ -2458,14 +2458,14 @@ app.get('/api/users/subscriptions', requireUser, (req, res) => {
 });
 
 // Set user's state subscriptions (replaces existing)
-app.put('/api/users/subscriptions', requireUser, (req, res) => {
+app.put('/api/users/subscriptions', requireUser, async (req, res) => {
   const { stateKeys } = req.body;
 
   if (!Array.isArray(stateKeys)) {
     return res.status(400).json({ error: 'stateKeys must be an array' });
   }
 
-  const result = db.setUserStateSubscriptions(req.user.id, stateKeys);
+  const result = await db.setUserStateSubscriptions(req.user.id, stateKeys);
 
   if (result.success) {
     res.json({
@@ -2479,10 +2479,10 @@ app.put('/api/users/subscriptions', requireUser, (req, res) => {
 });
 
 // Subscribe to a state
-app.post('/api/users/subscriptions/:stateKey', requireUser, (req, res) => {
+app.post('/api/users/subscriptions/:stateKey', requireUser, async (req, res) => {
   const { stateKey } = req.params;
 
-  const result = db.subscribeUserToState(req.user.id, stateKey);
+  const result = await db.subscribeUserToState(req.user.id, stateKey);
 
   if (result.success) {
     res.json({
@@ -2496,10 +2496,10 @@ app.post('/api/users/subscriptions/:stateKey', requireUser, (req, res) => {
 });
 
 // Unsubscribe from a state
-app.delete('/api/users/subscriptions/:stateKey', requireUser, (req, res) => {
+app.delete('/api/users/subscriptions/:stateKey', requireUser, async (req, res) => {
   const { stateKey } = req.params;
 
-  const result = db.unsubscribeUserFromState(req.user.id, stateKey);
+  const result = await db.unsubscribeUserFromState(req.user.id, stateKey);
 
   if (result.success) {
     res.json({
@@ -9182,6 +9182,39 @@ app.get('/api/chatgpt/docs', requireAPIKey, (req, res) => {
 });
 
 // ==================== End ChatGPT API Endpoints ====================
+
+// ==================== GLOBAL ERROR HANDLER ====================
+
+// Global error handler - catches any unhandled errors in async route handlers
+app.use((err, req, res, next) => {
+  console.error('🚨 Unhandled error:', err);
+  console.error('Error stack:', err.stack);
+  console.error('Request URL:', req.url);
+  console.error('Request method:', req.method);
+
+  // Don't send error details to client in production
+  const isDevelopment = process.env.NODE_ENV !== 'production';
+
+  res.status(err.status || 500).json({
+    error: isDevelopment ? err.message : 'Internal server error',
+    ...(isDevelopment && { stack: err.stack, details: err })
+  });
+});
+
+// Handle 404s
+app.use((req, res, next) => {
+  // Skip for SPA routes (non-API)
+  if (!req.path.startsWith('/api/')) {
+    return next();
+  }
+
+  res.status(404).json({
+    error: 'API endpoint not found',
+    path: req.path
+  });
+});
+
+// ==================== STATIC FILES & SPA ====================
 
 // Serve static frontend files
 app.use(express.static(FRONTEND_DIST_PATH));

@@ -80,11 +80,71 @@ class StateDatabase {
         await this.initSchemaAsync();
 
         console.log('✅ PostgreSQL database initialized');
+
+        // Run health checks
+        await this.healthCheck();
+      } else {
+        // Run health checks for SQLite
+        await this.healthCheck();
       }
       this.initialized = true;
     })();
 
     return this.initPromise;
+  }
+
+  // Health check: verify critical tables exist
+  async healthCheck() {
+    console.log('🏥 Running database health check...');
+    const requiredTables = [
+      'states',
+      'state_messages',
+      'users',
+      'truck_parking_facilities',
+      'parking_availability',
+      'user_state_subscriptions',
+      'schema_migrations'
+    ];
+
+    const missingTables = [];
+
+    for (const table of requiredTables) {
+      try {
+        if (this.isPostgres) {
+          const result = await this.db.prepare(`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables
+              WHERE table_name = ?
+            ) as exists
+          `).get(table);
+          if (!result || !result.exists) {
+            missingTables.push(table);
+          }
+        } else {
+          const result = await this.db.prepare(`
+            SELECT name FROM sqlite_master WHERE type='table' AND name=?
+          `).get(table);
+          if (!result) {
+            missingTables.push(table);
+          }
+        }
+      } catch (error) {
+        console.error(`❌ Error checking table ${table}:`, error.message);
+        missingTables.push(table);
+      }
+    }
+
+    if (missingTables.length > 0) {
+      console.warn('⚠️  Warning: Missing tables:', missingTables.join(', '));
+      console.warn('⚠️  Some features may not work correctly. Consider running migrations.');
+    } else {
+      console.log('✅ All critical tables present');
+    }
+
+    return {
+      healthy: missingTables.length === 0,
+      missingTables
+    };
   }
 
   // Async version of initSchema for PostgreSQL
@@ -288,6 +348,21 @@ class StateDatabase {
         observer_notes TEXT,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (facility_id) REFERENCES truck_parking_facilities(facility_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS user_state_subscriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        state_key TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, state_key),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        migration_name TEXT UNIQUE NOT NULL,
+        applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
       CREATE INDEX IF NOT EXISTS idx_parking_facility_id ON truck_parking_facilities(facility_id);
@@ -557,6 +632,21 @@ class StateDatabase {
         context_data TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS user_state_subscriptions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        state_key TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, state_key),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        id SERIAL PRIMARY KEY,
+        migration_name TEXT UNIQUE NOT NULL,
+        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
       CREATE INDEX IF NOT EXISTS idx_state_key ON states(state_key);
@@ -1785,14 +1875,20 @@ class StateDatabase {
   // ==================== STATE SUBSCRIPTION MANAGEMENT ====================
 
   // Get all state subscriptions for a user
-  getUserStateSubscriptions(userId) {
+  async getUserStateSubscriptions(userId) {
     try {
-      const subscriptions = this.db.prepare(`
+      const subscriptions = await this.db.prepare(`
         SELECT state_key, created_at
         FROM user_state_subscriptions
         WHERE user_id = ?
         ORDER BY state_key
       `).all(userId);
+
+      // Defensive check: ensure we got an array back
+      if (!subscriptions || !Array.isArray(subscriptions)) {
+        console.warn('getUserStateSubscriptions returned non-array result:', subscriptions);
+        return [];
+      }
 
       return subscriptions.map(sub => ({
         stateKey: sub.state_key,
@@ -1805,13 +1901,13 @@ class StateDatabase {
   }
 
   // Subscribe user to a state
-  subscribeUserToState(userId, stateKey) {
+  async subscribeUserToState(userId, stateKey) {
     try {
       const stmt = this.db.prepare(`
         INSERT OR IGNORE INTO user_state_subscriptions (user_id, state_key)
         VALUES (?, ?)
       `);
-      stmt.run(userId, stateKey);
+      await stmt.run(userId, stateKey);
 
       return { success: true };
     } catch (error) {
@@ -1821,13 +1917,13 @@ class StateDatabase {
   }
 
   // Unsubscribe user from a state
-  unsubscribeUserFromState(userId, stateKey) {
+  async unsubscribeUserFromState(userId, stateKey) {
     try {
       const stmt = this.db.prepare(`
         DELETE FROM user_state_subscriptions
         WHERE user_id = ? AND state_key = ?
       `);
-      stmt.run(userId, stateKey);
+      await stmt.run(userId, stateKey);
 
       return { success: true };
     } catch (error) {
@@ -1837,7 +1933,7 @@ class StateDatabase {
   }
 
   // Set all state subscriptions for a user (replaces existing subscriptions)
-  setUserStateSubscriptions(userId, stateKeys) {
+  async setUserStateSubscriptions(userId, stateKeys) {
     try {
       // Start a transaction
       const deleteStmt = this.db.prepare(`
@@ -1851,11 +1947,11 @@ class StateDatabase {
       `);
 
       // Clear existing subscriptions
-      deleteStmt.run(userId);
+      await deleteStmt.run(userId);
 
       // Add new subscriptions
       for (const stateKey of stateKeys) {
-        insertStmt.run(userId, stateKey);
+        await insertStmt.run(userId, stateKey);
       }
 
       return { success: true };
@@ -1864,6 +1960,57 @@ class StateDatabase {
       return { success: false, error: error.message };
     }
   }
+
+  // ==================== MIGRATION TRACKING ====================
+
+  // Check if a migration has been applied
+  async hasMigration(migrationName) {
+    try {
+      const result = await this.db.prepare(`
+        SELECT migration_name FROM schema_migrations WHERE migration_name = ?
+      `).get(migrationName);
+      return !!result;
+    } catch (error) {
+      // If table doesn't exist yet, migration hasn't been run
+      console.warn('Migration tracking table not ready:', error.message);
+      return false;
+    }
+  }
+
+  // Record a migration as applied
+  async recordMigration(migrationName) {
+    try {
+      await this.db.prepare(`
+        INSERT OR IGNORE INTO schema_migrations (migration_name) VALUES (?)
+      `).run(migrationName);
+      console.log(`✅ Recorded migration: ${migrationName}`);
+      return true;
+    } catch (error) {
+      console.error(`Failed to record migration ${migrationName}:`, error);
+      return false;
+    }
+  }
+
+  // Run a migration if it hasn't been applied yet
+  async runMigration(migrationName, migrationFn) {
+    try {
+      const hasRun = await this.hasMigration(migrationName);
+      if (hasRun) {
+        console.log(`⏭️  Skipping migration (already applied): ${migrationName}`);
+        return true;
+      }
+
+      console.log(`🔄 Running migration: ${migrationName}`);
+      await migrationFn();
+      await this.recordMigration(migrationName);
+      return true;
+    } catch (error) {
+      console.error(`❌ Migration failed: ${migrationName}`, error);
+      return false;
+    }
+  }
+
+  // ==================== USER PREFERENCES ====================
 
   // Update user notification preferences
   updateUserNotificationPreferences(userId, preferences) {
