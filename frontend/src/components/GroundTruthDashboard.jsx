@@ -13,6 +13,8 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
   const [totalCapacityCounts, setTotalCapacityCounts] = useState({}); // Track total capacity per facility
   const [submitStatus, setSubmitStatus] = useState({}); // Track submission status per facility
   const [aiCountLoading, setAiCountLoading] = useState({}); // Track AI counting status per facility
+  const [consensusLoading, setConsensusLoading] = useState({}); // Track consensus counting status per facility
+  const [consensusResults, setConsensusResults] = useState({}); // Store consensus results per facility
 
   const getAvailableCameraViews = (cameras) => {
     return Object.keys(cameras || {});
@@ -197,6 +199,83 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
       }));
     } finally {
       setAiCountLoading(prev => ({
+        ...prev,
+        [facility.facilityId]: false
+      }));
+    }
+  };
+
+  const handleGetConsensusCount = async (facility) => {
+    // Set loading status
+    setConsensusLoading(prev => ({
+      ...prev,
+      [facility.facilityId]: true
+    }));
+
+    try {
+      const response = await api.getAICountConsensus(facility.facilityId);
+
+      if (response.success) {
+        const { consensus, individualCameras, cameraCount } = response;
+
+        // Store the full consensus results for display
+        setConsensusResults(prev => ({
+          ...prev,
+          [facility.facilityId]: {
+            consensus,
+            individualCameras,
+            cameraCount,
+            timestamp: response.timestamp
+          }
+        }));
+
+        // Populate the manual count fields with consensus results
+        setManualCounts(prev => ({
+          ...prev,
+          [facility.facilityId]: consensus.occupied
+        }));
+
+        setTotalCapacityCounts(prev => ({
+          ...prev,
+          [facility.facilityId]: consensus.totalCapacity
+        }));
+
+        // Show success message
+        setSubmitStatus(prev => ({
+          ...prev,
+          [facility.facilityId]: {
+            type: 'success',
+            message: `Multi-camera consensus: ${consensus.occupied}/${consensus.totalCapacity} (${consensus.confidence} confidence, ${consensus.estimatedOverlapPercentage}% overlap detected)`
+          }
+        }));
+
+        // Clear success message after 8 seconds (longer for consensus)
+        setTimeout(() => {
+          setSubmitStatus(prev => ({
+            ...prev,
+            [facility.facilityId]: null
+          }));
+        }, 8000);
+      } else {
+        setSubmitStatus(prev => ({
+          ...prev,
+          [facility.facilityId]: {
+            type: 'error',
+            message: response.error || 'Failed to get consensus count'
+          }
+        }));
+      }
+    } catch (err) {
+      console.error('Error getting consensus count:', err);
+      setSubmitStatus(prev => ({
+        ...prev,
+        [facility.facilityId]: {
+          type: 'error',
+          message: err.response?.data?.error || 'Failed to get consensus count. Ensure OpenAI API key is configured.'
+        }
+      }));
+    } finally {
+      setConsensusLoading(prev => ({
         ...prev,
         [facility.facilityId]: false
       }));
@@ -809,7 +888,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                         fontSize: '13px',
                         fontWeight: '600',
                         cursor: aiCountLoading[facility.facilityId] ? 'not-allowed' : 'pointer',
-                        marginBottom: '12px',
+                        marginBottom: '8px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -834,6 +913,74 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                         </>
                       )}
                     </button>
+
+                    {/* Multi-Camera Consensus Button */}
+                    <button
+                      onClick={() => handleGetConsensusCount(facility)}
+                      disabled={consensusLoading[facility.facilityId]}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '4px',
+                        border: 'none',
+                        backgroundColor: consensusLoading[facility.facilityId] ? '#9ca3af' : '#10b981',
+                        color: 'white',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        cursor: consensusLoading[facility.facilityId] ? 'not-allowed' : 'pointer',
+                        marginBottom: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      {consensusLoading[facility.facilityId] ? (
+                        <>
+                          <div style={{
+                            width: '14px',
+                            height: '14px',
+                            border: '2px solid rgba(255,255,255,0.3)',
+                            borderTopColor: 'white',
+                            borderRadius: '50%',
+                            animation: 'spin 1s linear infinite'
+                          }}></div>
+                          Analyzing All Cameras...
+                        </>
+                      ) : (
+                        <>
+                          🎯 Multi-Camera Consensus ({Object.keys(facility.cameras || {}).length} views)
+                        </>
+                      )}
+                    </button>
+
+                    {/* Display consensus results if available */}
+                    {consensusResults[facility.facilityId] && (
+                      <div style={{
+                        marginBottom: '12px',
+                        padding: '10px',
+                        backgroundColor: '#ecfdf5',
+                        borderRadius: '4px',
+                        border: '1px solid #10b981',
+                        fontSize: '12px'
+                      }}>
+                        <div style={{ fontWeight: '600', color: '#047857', marginBottom: '6px' }}>
+                          Consensus Analysis ({consensusResults[facility.facilityId].cameraCount} cameras)
+                        </div>
+                        <div style={{ color: '#065f46', marginBottom: '4px' }}>
+                          <strong>Reasoning:</strong> {consensusResults[facility.facilityId].consensus.reasoning}
+                        </div>
+                        <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #a7f3d0' }}>
+                          <div style={{ fontWeight: '600', marginBottom: '4px', color: '#047857' }}>Individual Camera Counts:</div>
+                          {consensusResults[facility.facilityId].individualCameras.map((cam, idx) => (
+                            <div key={idx} style={{ marginBottom: '2px', color: '#065f46', fontSize: '11px' }}>
+                              • {cam.viewName}: {cam.occupied}/{cam.total} ({cam.confidence})
+                              {cam.viewDescription && ` - ${cam.viewDescription}`}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     <label style={{
                       display: 'block',

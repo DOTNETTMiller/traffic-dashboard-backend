@@ -7,6 +7,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { isNearBorder } from '../utils/borderProximity';
 import ParkingLayer from './ParkingLayer';
+import BoundingBoxSelector from './BoundingBoxSelector';
 
 // Component to center map on selected event
 function MapCenterController({ selectedEvent }) {
@@ -604,6 +605,9 @@ export default function TrafficMap({ events, messages = {}, detourAlerts = [], o
         ))}
 
         <ParkingLayer showParking={showParking} predictionHoursAhead={parkingPredictionHours} />
+
+        {/* Bounding Box Selector for exporting filtered TIM/CV-TIM data */}
+        <BoundingBoxSelector />
       </MapContainer>
     </div>
   );
