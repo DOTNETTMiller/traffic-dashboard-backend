@@ -511,6 +511,12 @@ const API_CONFIG = {
     format: 'json',
     corridor: 'I-80'
   },
+  illinois: {
+    name: 'Illinois',
+    eventsUrl: 'https://travelmidwest.com/lmiga/incidents.json?path=GATEWAY.IL',
+    format: 'json',
+    corridor: 'both'
+  },
   // pennsylvania: Pennsylvania Turnpike Commission - DISABLED: Requires API key (not username/password)
   // The API expects ?api_key=... but we don't have a Turnpike API key
   // Pennsylvania statewide data is provided by PennDOT RCRS via fetchPennDOTRCRS()
@@ -627,6 +633,144 @@ function filterEventsByBoundingBox(events, boundingBox) {
 
   console.log(`📍 Bounding box filter: ${filtered.length} of ${events.length} events within bounds (${minLatNum},${minLonNum}) to (${maxLatNum},${maxLonNum})`);
   return filtered;
+}
+
+// Calculate distance between two points using Haversine formula (returns km)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+// Check if event is near any low-clearance bridge and create warnings
+async function checkBridgeClearanceProximity(event, stateKey) {
+  try {
+    // Get event coordinates
+    const eventLat = event.latitude || (event.coordinates && event.coordinates[1]);
+    const eventLon = event.longitude || (event.coordinates && event.coordinates[0]);
+
+    if (!eventLat || !eventLon) {
+      return; // No coordinates available
+    }
+
+    // Get all active low-clearance bridges
+    const bridges = await db.getActiveBridges();
+
+    for (const bridge of bridges) {
+      const distance = calculateDistance(
+        eventLat, eventLon,
+        bridge.latitude, bridge.longitude
+      );
+
+      // Check if event is within watch radius
+      if (distance <= bridge.watch_radius_km) {
+        // Check if warning already exists for this event/bridge combination
+        const existingWarning = await db.getBridgeWarningByEventAndBridge(
+          event.id || event.guid,
+          bridge.id
+        );
+
+        if (!existingWarning) {
+          // Create bridge clearance warning
+          const warningData = {
+            bridge_id: bridge.id,
+            event_id: event.id || event.guid,
+            event_state: stateKey,
+            event_description: event.description || event.headline,
+            distance_km: distance,
+            message: `${bridge.warning_message}\n\nEvent nearby: ${event.description || event.headline} (${distance.toFixed(1)} km away)`
+          };
+
+          await db.createBridgeWarning(warningData);
+
+          console.log(`🌉 Bridge clearance warning created for ${bridge.bridge_name} (${bridge.clearance_feet}') - Event ${event.id} (${distance.toFixed(1)} km away)`);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error checking bridge clearance proximity:', error);
+  }
+}
+
+// Check if event is near any interstate interchange and create detour alerts
+async function checkInterchangeProximity(event, stateKey) {
+  try {
+    // Get event coordinates
+    const eventLat = event.latitude || (event.coordinates && event.coordinates[1]);
+    const eventLon = event.longitude || (event.coordinates && event.coordinates[0]);
+
+    if (!eventLat || !eventLon) {
+      return; // No coordinates available
+    }
+
+    // Get all active interchanges
+    const interchanges = await db.getActiveInterchanges();
+
+    for (const interchange of interchanges) {
+      const distance = calculateDistance(
+        eventLat, eventLon,
+        interchange.latitude, interchange.longitude
+      );
+
+      // Check if event is within watch radius
+      if (distance <= interchange.watch_radius_km) {
+        // Check if alert already exists for this event/interchange combination
+        const existingAlert = await db.getDetourAlertByEventAndInterchange(
+          event.id || event.guid,
+          interchange.id
+        );
+
+        if (!existingAlert) {
+          // Create detour alert
+          const alertData = {
+            interchange_id: interchange.id,
+            event_id: event.id || event.guid,
+            event_state: stateKey,
+            event_corridor: event.road || event.route || interchange.corridor,
+            event_location: event.location || event.description,
+            event_description: event.description || event.headline,
+            severity: event.severity || event.priority || 'medium',
+            lanes_affected: event.lanesAffected || event.lanes_blocked,
+            notified_states: interchange.notify_states,
+            message: `${interchange.detour_message}\n\nEvent: ${event.description || event.headline}\nDistance: ${distance.toFixed(1)} km from interchange`
+          };
+
+          const alertId = await db.createDetourAlert(alertData);
+
+          console.log(`🚨 Detour alert created for ${interchange.name} - Event ${event.id} (${distance.toFixed(1)} km away)`);
+
+          // Send notifications to affected states
+          const stateList = interchange.notify_states.split(',').map(s => s.trim());
+          for (const targetState of stateList) {
+            if (targetState !== stateKey) { // Don't notify the originating state
+              try {
+                await db.createStateMessage({
+                  fromState: stateKey,
+                  toState: targetState,
+                  subject: `⚠️ Detour Advisory: ${interchange.name}`,
+                  message: alertData.message,
+                  eventId: event.id || event.guid,
+                  priority: 'high',
+                  messageType: 'detour_advisory'
+                });
+                console.log(`   📧 Notified ${targetState} about detour alert`);
+              } catch (err) {
+                console.error(`   ❌ Failed to notify ${targetState}:`, err.message);
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error checking interchange proximity:', error);
+  }
 }
 
 // Note: generateVMSMessage function already exists later in the file at line ~1424
@@ -859,6 +1003,87 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
                 : null
             }));
           }
+        });
+      }
+
+      // Handle Illinois (TravelMidwest LMIGA format)
+      if (stateName === 'Illinois' && Array.isArray(rawData)) {
+        rawData.forEach(table => {
+          // Each table represents a highway corridor (e.g., "I-55 NB")
+          const tableName = table.tableName || '';
+          const reportRows = table.reportRows || [];
+
+          reportRows.forEach(item => {
+            // Extract route from tableName or fullLocation
+            const route = tableName.match(/I-\d+/)?.[0] ||
+                         item.fullLocation?.match(/I-\d+/)?.[0] ||
+                         'Unknown';
+
+            // Extract direction from tableName (NB, SB, EB, WB)
+            const directionMatch = tableName.match(/\b(NB|SB|EB|WB)\b/);
+            let direction = 'Both';
+            if (directionMatch) {
+              const dir = directionMatch[1];
+              direction = dir === 'NB' ? 'Northbound' :
+                         dir === 'SB' ? 'Southbound' :
+                         dir === 'EB' ? 'Eastbound' :
+                         dir === 'WB' ? 'Westbound' : 'Both';
+            }
+
+            const locationText = item.fullLocation || item.location || `${route} ${direction}`;
+
+            // Only include events on interstate highways
+            if (/I-?\d+/.test(route)) {
+              const startRaw = item.startTime || null;
+              const endRaw = item.estimatedEndTime || null;
+              const descriptionRaw = item.description || 'Traffic incident';
+              const lanesRaw = item.closureDetails || null;
+              const mileMarker = item.mileMarker || null;
+
+              // Determine event type from description
+              let eventType = 'Incident';
+              const descLower = descriptionRaw.toLowerCase();
+              if (descLower.includes('construction') || descLower.includes('work zone')) {
+                eventType = 'Construction';
+              } else if (descLower.includes('crash') || descLower.includes('accident')) {
+                eventType = 'Crash';
+              } else if (descLower.includes('weather') || descLower.includes('ice') || descLower.includes('snow')) {
+                eventType = 'Weather';
+              }
+
+              const normalizedEvent = {
+                id: `IL-${item.id || Math.random().toString(36).substr(2, 9)}`,
+                state: 'Illinois',
+                corridor: extractCorridor(route),
+                eventType: eventType,
+                description: descriptionRaw,
+                location: locationText + (mileMarker ? ` MM ${mileMarker}` : ''),
+                county: item.fullLocation?.split(',')[1]?.trim() || 'Unknown',
+                latitude: parseFloat(item.latitude) || 0,
+                longitude: parseFloat(item.longitude) || 0,
+                startTime: startRaw,
+                endTime: endRaw,
+                lanesAffected: lanesRaw || 'Check conditions',
+                severity: descLower.includes('blocked') || descLower.includes('closed') ? 'high' : 'medium',
+                direction: direction,
+                requiresCollaboration: false
+              };
+
+              normalized.push(attachRawFields(normalizedEvent, {
+                startTime: startRaw,
+                endTime: endRaw,
+                lanesAffected: lanesRaw,
+                severity: normalizedEvent.severity,
+                direction: direction,
+                description: descriptionRaw,
+                eventType: eventType,
+                corridor: extractCorridor(route),
+                coordinates: (normalizedEvent.longitude && normalizedEvent.latitude)
+                  ? [normalizedEvent.longitude, normalizedEvent.latitude]
+                  : null
+              }));
+            }
+          });
         });
       }
 
@@ -1697,7 +1922,21 @@ const fetchStateData = async (stateKey) => {
   } catch (error) {
     results.errors.push(`General error: ${error.message}`);
   }
-  
+
+  // Check all events for proximity to interstate interchanges and low-clearance bridges
+  if (results.events.length > 0) {
+    try {
+      await Promise.all(
+        results.events.map(async (event) => {
+          await checkInterchangeProximity(event, normalizedStateKey);
+          await checkBridgeClearanceProximity(event, normalizedStateKey);
+        })
+      );
+    } catch (error) {
+      console.error(`Error checking proximity for ${stateName}:`, error);
+    }
+  }
+
   return results;
 };
 
@@ -6843,6 +7082,11 @@ app.post('/api/admin/detour-alerts/:id/resolve', requireAdmin, (req, res) => {
 app.get('/api/detour-alerts/active', requireUser, async (req, res) => {
   const alerts = await db.getActiveDetourAlerts();
   res.json({ success: true, alerts });
+});
+
+app.get('/api/bridge-warnings/active', async (req, res) => {
+  const warnings = await db.getActiveBridgeWarnings();
+  res.json({ success: true, warnings });
 });
 
 // Test state API connection (admin only)
