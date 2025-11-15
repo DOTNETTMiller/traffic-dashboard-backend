@@ -583,6 +583,52 @@ function getITISCode(eventType) {
   return ITIS_CODES[normalizedType] || null;
 }
 
+// Filter events by bounding box (geographic coordinates)
+// Bounding box format: { minLat, maxLat, minLon, maxLon }
+function filterEventsByBoundingBox(events, boundingBox) {
+  if (!boundingBox || !boundingBox.minLat || !boundingBox.maxLat || !boundingBox.minLon || !boundingBox.maxLon) {
+    return events; // No bounding box specified, return all events
+  }
+
+  const { minLat, maxLat, minLon, maxLon } = boundingBox;
+
+  // Validate bounding box parameters
+  const minLatNum = parseFloat(minLat);
+  const maxLatNum = parseFloat(maxLat);
+  const minLonNum = parseFloat(minLon);
+  const maxLonNum = parseFloat(maxLon);
+
+  if (isNaN(minLatNum) || isNaN(maxLatNum) || isNaN(minLonNum) || isNaN(maxLonNum)) {
+    console.error('⚠️  Invalid bounding box parameters - must be valid numbers');
+    return events;
+  }
+
+  if (minLatNum > maxLatNum || minLonNum > maxLonNum) {
+    console.error('⚠️  Invalid bounding box - min values must be less than max values');
+    return events;
+  }
+
+  const filtered = events.filter(event => {
+    // Handle both coordinate formats: latitude/longitude fields or coordinates array
+    const latitude = event.latitude || (event.coordinates && event.coordinates[1]);
+    const longitude = event.longitude || (event.coordinates && event.coordinates[0]);
+
+    // Skip events without coordinates
+    if (latitude === undefined || longitude === undefined || latitude === null || longitude === null) {
+      return false;
+    }
+
+    // Check if coordinates are within bounding box
+    return latitude >= minLatNum &&
+           latitude <= maxLatNum &&
+           longitude >= minLonNum &&
+           longitude <= maxLonNum;
+  });
+
+  console.log(`📍 Bounding box filter: ${filtered.length} of ${events.length} events within bounds (${minLatNum},${minLonNum}) to (${maxLatNum},${maxLonNum})`);
+  return filtered;
+}
+
 // Note: generateVMSMessage function already exists later in the file at line ~1424
 
 // Initialize database and run migration (async startup)
@@ -3367,6 +3413,14 @@ event.eventType = typeMapping[event.eventType.toLowerCase()] || event.eventType;
 app.get('/api/convert/tim', async (req, res) => {
   console.log('Converting events to SAE J2735 TIM format (includes WZDx, Ohio OHGO, Caltrans LCS)...');
 
+  // Extract bounding box parameters from query string
+  const { minLat, maxLat, minLon, maxLon } = req.query;
+  const boundingBox = (minLat && maxLat && minLon && maxLon) ? { minLat, maxLat, minLon, maxLon } : null;
+
+  if (boundingBox) {
+    console.log(`📍 Bounding box filter requested: (${minLat},${minLon}) to (${maxLat},${maxLon})`);
+  }
+
   const allResults = await Promise.all(
     getAllStateKeys().map(stateKey => fetchStateData(stateKey))
   );
@@ -3416,8 +3470,11 @@ app.get('/api/convert/tim', async (req, res) => {
 
   console.log(`Total events for TIM conversion: ${uniqueEvents.length} (${allEvents.length} before dedup)`);
 
+  // Apply bounding box filter if provided
+  const filteredEvents = boundingBox ? filterEventsByBoundingBox(uniqueEvents, boundingBox) : uniqueEvents;
+
   // Convert to TIM-style messages
-  const timMessages = uniqueEvents.map(event => {
+  const timMessages = filteredEvents.map(event => {
     // Generate VMS-style message (Variable Message Sign text)
     const vmsMessage = generateVMSMessage(event);
 
@@ -3494,6 +3551,14 @@ app.get('/api/convert/tim', async (req, res) => {
 app.get('/api/convert/tim-cv', async (req, res) => {
   console.log('Converting events to SAE J2540 Commercial Vehicle TIM format...');
 
+  // Extract bounding box parameters from query string
+  const { minLat, maxLat, minLon, maxLon } = req.query;
+  const boundingBox = (minLat && maxLat && minLon && maxLon) ? { minLat, maxLat, minLon, maxLon } : null;
+
+  if (boundingBox) {
+    console.log(`📍 Bounding box filter requested: (${minLat},${minLon}) to (${maxLat},${maxLon})`);
+  }
+
   // Fetch all events (same as regular TIM)
   const allResults = await Promise.all(
     getAllStateKeys().map(stateKey => fetchStateData(stateKey))
@@ -3544,8 +3609,11 @@ app.get('/api/convert/tim-cv', async (req, res) => {
 
   console.log(`Total events for CV-TIM conversion: ${uniqueEvents.length} (${allEvents.length} before dedup)`);
 
+  // Apply bounding box filter if provided
+  const filteredEvents = boundingBox ? filterEventsByBoundingBox(uniqueEvents, boundingBox) : uniqueEvents;
+
   // Convert to Commercial Vehicle TIM messages (J2540)
-  const cvTimMessages = uniqueEvents.map(event => {
+  const cvTimMessages = filteredEvents.map(event => {
     const vmsMessage = generateVMSMessage(event);
     const startDateTime = event.startTime || event.startDate;
     const endDateTime = event.endTime || event.endDate;
@@ -8258,6 +8326,268 @@ If image quality is too poor or no parking lot is visible, return {"occupied": 0
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to get AI count'
+    });
+  }
+});
+
+// Multi-camera consensus AI counting with overlap detection
+app.post('/api/parking/ground-truth/ai-count-consensus', async (req, res) => {
+  try {
+    const { facilityId } = req.body;
+
+    // Validate required fields
+    if (!facilityId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required field: facilityId'
+      });
+    }
+
+    // Check if OpenAI API key is configured
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(503).json({
+        success: false,
+        error: 'OpenAI API key not configured'
+      });
+    }
+
+    // Get the camera URLs for this facility
+    const cameraFacilities = {
+      'tpims-historical-ia00080is0030000wra300w00': {
+        name: 'I-80 EB MM 300 (Davenport)',
+        cameras: {
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB300-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB300-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB300-01-EXIT.jpg'
+        }
+      },
+      'tpims-historical-ia00080is0018000era180e00': {
+        name: 'I-80 EB MM 180 (Grinnell)',
+        cameras: {
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB180-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB180-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB180-01-EXIT.jpg'
+        }
+      },
+      'tpims-historical-ia00080is0014800wra148w00': {
+        name: 'I-80 EB MM 148 (Mitchellville)',
+        cameras: {
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB148-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB148-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80EB148-01-EXIT.jpg'
+        }
+      },
+      'tpims-historical-ia00080is0026800wra268w00': {
+        name: 'I-80 WB MM 268 (Wilton)',
+        cameras: {
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB268-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB268-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB268-01-EXIT.jpg'
+        }
+      },
+      'tpims-historical-ia00080is0018000wra180w00': {
+        name: 'I-80 WB MM 180 (Grinnell)',
+        cameras: {
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB180-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB180-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB180-01-EXIT.jpg'
+        }
+      },
+      'tpims-historical-ia00080is0001900wra19w000': {
+        name: 'I-80 WB MM 19 (Underwood)',
+        cameras: {
+          center: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB19-01-CENTER.jpg',
+          entry: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB19-01-ENTRY.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA80WB19-01-EXIT.jpg'
+        }
+      },
+      'tpims-historical-ia00035is0012000nra120n00': {
+        name: 'I-35 NB MM 120 (Story City)',
+        cameras: {
+          truckParking1: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-TruckParking1.jpg',
+          truckParking2: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-TruckParking2.jpg',
+          entrance: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-Entrance.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-01-EXIT.jpg'
+        }
+      },
+      'tpims-historical-ia00035is0012000sra120s00': {
+        name: 'I-35 SB MM 119 (Story City)',
+        cameras: {
+          truckParking1: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-TruckParking1.jpg',
+          truckParking2: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-TruckParking2.jpg',
+          entrance: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-Entrance.jpg',
+          exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-01-EXIT.jpg'
+        }
+      }
+    };
+
+    const facility = cameraFacilities[facilityId];
+    if (!facility) {
+      return res.status(404).json({
+        success: false,
+        error: `Facility not found: ${facilityId}`
+      });
+    }
+
+    console.log(`🎯 Multi-camera consensus counting at ${facility.name}`);
+    console.log(`📹 Analyzing ${Object.keys(facility.cameras).length} camera views...`);
+
+    // Step 1: Analyze each camera view individually
+    const cameraAnalyses = [];
+
+    for (const [viewName, cameraUrl] of Object.entries(facility.cameras)) {
+      console.log(`  📸 Analyzing ${viewName} camera...`);
+
+      try {
+        const response = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: `You are analyzing one camera view of a truck parking lot. Your task is to count trucks and identify visible parking areas.
+
+Instructions:
+1. Count the TOTAL number of truck parking spaces visible in THIS camera view
+2. Count how many spaces are OCCUPIED (have a semi-truck, tractor-trailer, or large commercial vehicle)
+3. Describe what PART of the parking lot this camera shows (e.g., "main parking area", "entrance", "exit area", "left section", "right section")
+4. Note if you can see any trucks that might be PARTIALLY visible (could be seen from another angle too)
+
+Camera view name: ${viewName}
+
+Return your answer as a JSON object with this exact format:
+{
+  "occupied": <number>,
+  "total": <number>,
+  "viewDescription": "<brief description>",
+  "partialTrucksVisible": <number of trucks that might be visible from other cameras>,
+  "confidence": "<high|medium|low>"
+}
+
+For example: {"occupied": 8, "total": 12, "viewDescription": "main central parking area", "partialTrucksVisible": 2, "confidence": "high"}
+
+If image quality is too poor or no parking lot is visible, return {"occupied": 0, "total": 0, "viewDescription": "unclear", "partialTrucksVisible": 0, "confidence": "low"}`
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: cameraUrl
+                  }
+                }
+              ]
+            }
+          ],
+          max_tokens: 200
+        });
+
+        const aiResponse = response.choices[0].message.content.trim();
+        const parsedResponse = JSON.parse(aiResponse);
+
+        cameraAnalyses.push({
+          viewName,
+          url: cameraUrl,
+          occupied: parseInt(parsedResponse.occupied),
+          total: parseInt(parsedResponse.total),
+          viewDescription: parsedResponse.viewDescription,
+          partialTrucksVisible: parseInt(parsedResponse.partialTrucksVisible) || 0,
+          confidence: parsedResponse.confidence
+        });
+
+        console.log(`    ✅ ${viewName}: ${parsedResponse.occupied}/${parsedResponse.total} occupied (${parsedResponse.confidence} confidence)`);
+      } catch (error) {
+        console.error(`    ❌ Error analyzing ${viewName}:`, error.message);
+        cameraAnalyses.push({
+          viewName,
+          url: cameraUrl,
+          occupied: 0,
+          total: 0,
+          viewDescription: 'error',
+          partialTrucksVisible: 0,
+          confidence: 'low',
+          error: error.message
+        });
+      }
+    }
+
+    // Step 2: Use AI to synthesize the multi-camera analysis into a consensus estimate
+    console.log(`  🧠 Generating consensus estimate from ${cameraAnalyses.length} camera views...`);
+
+    const consensusResponse = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'user',
+          content: `You are an expert at analyzing multiple camera views of the same truck parking lot to create an accurate count.
+
+I have ${cameraAnalyses.length} different camera views of the same parking facility, each with their own truck counts. Your job is to create a CONSENSUS estimate that:
+1. Avoids double-counting trucks that appear in multiple views
+2. Identifies overlapping coverage areas
+3. Provides the most accurate total count
+4. Estimates the actual total parking capacity of the facility
+
+Camera Analysis Data:
+${JSON.stringify(cameraAnalyses, null, 2)}
+
+Analysis Instructions:
+1. Look for overlaps - cameras may show the same trucks from different angles
+2. Consider the viewDescription to understand what each camera covers
+3. Use partialTrucksVisible counts to estimate overlap
+4. High confidence views should be weighted more heavily
+5. The CENTER/main view typically has the most complete coverage
+6. ENTRY and EXIT views often overlap with CENTER
+7. For I-35 facilities: truckParking1 and truckParking2 usually show DIFFERENT sections
+
+Return your consensus estimate as a JSON object:
+{
+  "consensusOccupied": <best estimate of actual occupied trucks>,
+  "consensusTotalCapacity": <best estimate of total parking spaces>,
+  "confidence": "<high|medium|low>",
+  "reasoning": "<brief explanation of how you reconciled the counts>",
+  "estimatedOverlapPercentage": <percentage of double-counting detected, 0-100>
+}
+
+Example: {"consensusOccupied": 25, "consensusTotalCapacity": 40, "confidence": "high", "reasoning": "Center camera shows 20 trucks, entry shows 8 with 3 overlapping with center, exit shows 5 with 2 overlapping. Total unique trucks: 25.", "estimatedOverlapPercentage": 20}`
+        }
+      ],
+      max_tokens: 400
+    });
+
+    const consensusAI = consensusResponse.choices[0].message.content.trim();
+    const consensus = JSON.parse(consensusAI);
+
+    const consensusOccupied = parseInt(consensus.consensusOccupied);
+    const consensusTotal = parseInt(consensus.consensusTotalCapacity);
+    const consensusAvailable = consensusTotal - consensusOccupied;
+
+    console.log(`  ✅ Consensus: ${consensusOccupied}/${consensusTotal} occupied (${consensus.confidence} confidence)`);
+    console.log(`     ${consensus.reasoning}`);
+    console.log(`     Estimated overlap: ${consensus.estimatedOverlapPercentage}%`);
+
+    res.json({
+      success: true,
+      facilityId,
+      facilityName: facility.name,
+      consensus: {
+        occupied: consensusOccupied,
+        totalCapacity: consensusTotal,
+        available: consensusAvailable,
+        occupancyRate: consensusTotal > 0 ? consensusOccupied / consensusTotal : 0,
+        confidence: consensus.confidence,
+        reasoning: consensus.reasoning,
+        estimatedOverlapPercentage: consensus.estimatedOverlapPercentage
+      },
+      individualCameras: cameraAnalyses,
+      cameraCount: cameraAnalyses.length,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error in multi-camera consensus counting:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to generate consensus count'
     });
   }
 });

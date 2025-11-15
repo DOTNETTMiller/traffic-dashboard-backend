@@ -189,6 +189,19 @@ class TrafficAPI {
     }
   }
 
+  async getAICountConsensus(facilityId) {
+    try {
+      const response = await this.client.post('/api/parking/ground-truth/ai-count-consensus',
+        { facilityId },
+        { timeout: 120000 } // 2 minutes timeout for multi-camera analysis
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error getting AI consensus count:', error);
+      throw error;
+    }
+  }
+
   async retrainParkingModel(authToken, minObservations = 3) {
     try {
       const response = await this.client.post('/api/parking/ground-truth/retrain',

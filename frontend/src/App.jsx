@@ -572,26 +572,57 @@ function App() {
             🚛 Truck Parking
           </label>
           {showParking && (
-            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '13px' }}>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '13px', flexWrap: 'wrap' }}>
               <span style={{ color: '#6b7280', marginRight: '4px' }}>Predict:</span>
-              {[0, 1, 2, 3, 4].map(hours => (
+              {[
+                { hours: 0, label: 'Now', tooltip: 'Current availability' },
+                { hours: 1, label: '+1hr', tooltip: '1 hour ahead' },
+                { hours: 3, label: '+3hr', tooltip: '3 hours ahead' },
+                { hours: 6, label: '+6hr', tooltip: '6 hours ahead' },
+                { hours: 11, label: '+11hr', tooltip: 'Max HOS driving limit (11 hours)' },
+                { hours: 14, label: '+14hr', tooltip: 'Max HOS on-duty limit (14 hours)' }
+              ].map(({ hours, label, tooltip }) => (
                 <button
                   key={hours}
                   onClick={() => setParkingPredictionHours(hours)}
+                  title={tooltip}
                   style={{
                     padding: '4px 10px',
                     fontSize: '12px',
-                    border: '1px solid #d1d5db',
+                    border: `1px solid ${hours === 11 || hours === 14 ? '#f59e0b' : '#d1d5db'}`,
                     borderRadius: '4px',
                     backgroundColor: parkingPredictionHours === hours ? '#3b82f6' : 'white',
                     color: parkingPredictionHours === hours ? 'white' : '#374151',
                     cursor: 'pointer',
-                    fontWeight: parkingPredictionHours === hours ? '600' : '400'
+                    fontWeight: parkingPredictionHours === hours ? '600' : '400',
+                    position: 'relative'
                   }}
                 >
-                  {hours === 0 ? 'Now' : `+${hours}hr`}
+                  {label}
+                  {(hours === 11 || hours === 14) && (
+                    <span style={{
+                      position: 'absolute',
+                      top: '-6px',
+                      right: '-6px',
+                      backgroundColor: '#f59e0b',
+                      color: 'white',
+                      borderRadius: '50%',
+                      width: '14px',
+                      height: '14px',
+                      fontSize: '9px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: '700'
+                    }}>
+                      H
+                    </span>
+                  )}
                 </button>
               ))}
+              <span style={{ fontSize: '11px', color: '#9ca3af', marginLeft: '6px' }}>
+                (H = HOS limit)
+              </span>
             </div>
           )}
           <button onClick={refetch} className="refresh-btn" disabled={loading}>
