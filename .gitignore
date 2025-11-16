@@ -47,3 +47,9 @@ parking.db
 # Sensitive credential files
 LOGIN_CREDENTIALS.md
 RAILWAY_SETUP.md
+CHATGPT_QUICK_SETUP.md
+
+# Internal planning and correspondence
+DATABASE_INTEGRATION_PLAN.md
+DATA_GOVERNANCE_PLAN.md
+FHWA_RESPONSE.md
