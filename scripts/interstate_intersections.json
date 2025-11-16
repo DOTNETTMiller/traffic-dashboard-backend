@@ -1,0 +1,362 @@
+[
+  {
+    "name": "I-80 & I-680 (Omaha West, NE)",
+    "state_key": "nebraska",
+    "corridor": "I-80",
+    "latitude": 41.2565,
+    "longitude": -96.1769,
+    "watch_radius_km": 15,
+    "notify_states": "nebraska,iowa",
+    "detour_message": "Major I-80/I-680 interchange affected. Consider alternate routes via I-680 North/South or US-6."
+  },
+  {
+    "name": "I-80 & I-480 (Omaha, NE)",
+    "state_key": "nebraska",
+    "corridor": "I-80",
+    "latitude": 41.2167,
+    "longitude": -95.9375,
+    "watch_radius_km": 15,
+    "notify_states": "nebraska,iowa",
+    "detour_message": "I-80/I-480 interchange affected in Omaha. Alternate route: I-680 bypass available."
+  },
+  {
+    "name": "I-80 & I-29 (Council Bluffs, IA)",
+    "state_key": "iowa",
+    "corridor": "I-80",
+    "latitude": 41.2119,
+    "longitude": -95.8608,
+    "watch_radius_km": 20,
+    "notify_states": "iowa,nebraska",
+    "detour_message": "CRITICAL: I-80/I-29 junction affected. Major north-south/east-west interchange. Consider I-680 or US-6 alternates."
+  },
+  {
+    "name": "I-80 & I-35 (Des Moines, IA)",
+    "state_key": "iowa",
+    "corridor": "both",
+    "latitude": 41.6011,
+    "longitude": -93.6091,
+    "watch_radius_km": 25,
+    "notify_states": "iowa,nebraska,indiana,minnesota,kansas",
+    "detour_message": "CRITICAL: I-80/I-35 junction affected in Des Moines. Major hub for east-west and north-south traffic. Both corridors may be impacted."
+  },
+  {
+    "name": "I-80 & I-380 (Iowa City, IA)",
+    "state_key": "iowa",
+    "corridor": "I-80",
+    "latitude": 41.7369,
+    "longitude": -91.5811,
+    "watch_radius_km": 15,
+    "notify_states": "iowa,indiana",
+    "detour_message": "I-80/I-380 junction affected. Alternate: US-30 or US-6 parallel routes available."
+  },
+  {
+    "name": "I-80 & I-280 (Davenport, IA)",
+    "state_key": "iowa",
+    "corridor": "I-80",
+    "latitude": 41.5236,
+    "longitude": -90.5776,
+    "watch_radius_km": 15,
+    "notify_states": "iowa,indiana",
+    "detour_message": "I-80/I-280 junction affected at Quad Cities. I-280 bypass or I-74 alternate available."
+  },
+  {
+    "name": "I-80 & I-74 (Davenport/Moline, IA)",
+    "state_key": "iowa",
+    "corridor": "I-80",
+    "latitude": 41.5236,
+    "longitude": -90.5150,
+    "watch_radius_km": 20,
+    "notify_states": "iowa,indiana",
+    "detour_message": "I-80/I-74 junction affected at Quad Cities crossing. Major interchange - expect delays."
+  },
+  {
+    "name": "I-80 & I-94 (Portage, IN)",
+    "state_key": "indiana",
+    "corridor": "I-80",
+    "latitude": 41.5758,
+    "longitude": -87.1764,
+    "watch_radius_km": 20,
+    "notify_states": "indiana,ohio,iowa",
+    "detour_message": "CRITICAL: I-80/I-94 junction affected near Chicago. Major bottleneck - significant delays expected."
+  },
+  {
+    "name": "I-80 & I-65 (Gary/Merrillville, IN)",
+    "state_key": "indiana",
+    "corridor": "I-80",
+    "latitude": 41.4639,
+    "longitude": -87.3089,
+    "watch_radius_km": 25,
+    "notify_states": "indiana,ohio,iowa",
+    "detour_message": "CRITICAL: I-80/I-65 junction affected. Major north-south/east-west hub. Consider I-90 (toll) or US-20/US-30 alternates."
+  },
+  {
+    "name": "I-80 & I-69 (Angola/Fremont, IN)",
+    "state_key": "indiana",
+    "corridor": "I-80",
+    "latitude": 41.6333,
+    "longitude": -85.0000,
+    "watch_radius_km": 15,
+    "notify_states": "indiana,ohio",
+    "detour_message": "I-80/I-69 junction affected. Alternate routes: US-20 or Indiana Toll Road segments."
+  },
+  {
+    "name": "I-80 & I-75 (Toledo, OH)",
+    "state_key": "ohio",
+    "corridor": "I-80",
+    "latitude": 41.6639,
+    "longitude": -83.5569,
+    "watch_radius_km": 25,
+    "notify_states": "ohio,indiana,pennsylvania",
+    "detour_message": "CRITICAL: I-80/I-75 junction affected in Toledo. Major interchange for Detroit-bound traffic. I-280 bypass available."
+  },
+  {
+    "name": "I-80 & I-280 (Toledo, OH)",
+    "state_key": "ohio",
+    "corridor": "I-80",
+    "latitude": 41.6528,
+    "longitude": -83.4833,
+    "watch_radius_km": 15,
+    "notify_states": "ohio,indiana",
+    "detour_message": "I-80/I-280 junction affected. I-280 provides alternate route around Toledo."
+  },
+  {
+    "name": "I-80 & I-71 (Cleveland, OH)",
+    "state_key": "ohio",
+    "corridor": "I-80",
+    "latitude": 41.4833,
+    "longitude": -81.6944,
+    "watch_radius_km": 25,
+    "notify_states": "ohio,indiana,pennsylvania",
+    "detour_message": "CRITICAL: I-80/I-71 junction affected in Cleveland metro. Major hub - expect significant delays. I-90 (toll) alternate available."
+  },
+  {
+    "name": "I-80 & I-77 (Akron, OH)",
+    "state_key": "ohio",
+    "corridor": "I-80",
+    "latitude": 41.0806,
+    "longitude": -81.5192,
+    "watch_radius_km": 20,
+    "notify_states": "ohio,pennsylvania",
+    "detour_message": "CRITICAL: I-80/I-77 junction affected near Akron. I-76 alternate available via Turnpike."
+  },
+  {
+    "name": "I-80 & I-76 (Youngstown, OH)",
+    "state_key": "ohio",
+    "corridor": "I-80",
+    "latitude": 41.0350,
+    "longitude": -80.6478,
+    "watch_radius_km": 20,
+    "notify_states": "ohio,pennsylvania",
+    "detour_message": "CRITICAL: I-80/I-76 junction affected. Pennsylvania border crossing point. Expect delays entering PA."
+  },
+  {
+    "name": "I-80 & I-79 (Sharon/Mercer, PA)",
+    "state_key": "pennsylvania",
+    "corridor": "I-80",
+    "latitude": 41.2342,
+    "longitude": -80.3267,
+    "watch_radius_km": 25,
+    "notify_states": "pennsylvania,ohio,newjersey",
+    "detour_message": "CRITICAL: I-80/I-79 junction affected. Major north-south crossing in western PA. US-19/US-422 alternates available."
+  },
+  {
+    "name": "I-80 & I-99 (Bellefonte, PA)",
+    "state_key": "pennsylvania",
+    "corridor": "I-80",
+    "latitude": 40.9131,
+    "longitude": -77.7869,
+    "watch_radius_km": 15,
+    "notify_states": "pennsylvania,ohio,newjersey",
+    "detour_message": "I-80/I-99 junction affected in central PA. US-220 alternate available."
+  },
+  {
+    "name": "I-80 & I-81 (Bloomsburg, PA)",
+    "state_key": "pennsylvania",
+    "corridor": "I-80",
+    "latitude": 41.0053,
+    "longitude": -76.4555,
+    "watch_radius_km": 25,
+    "notify_states": "pennsylvania,ohio,newjersey",
+    "detour_message": "CRITICAL: I-80/I-81 junction affected. Major north-south crossing in northeast PA. Significant impact expected."
+  },
+  {
+    "name": "I-80 & I-476 (Pocono, PA)",
+    "state_key": "pennsylvania",
+    "corridor": "I-80",
+    "latitude": 41.0722,
+    "longitude": -75.7447,
+    "watch_radius_km": 20,
+    "notify_states": "pennsylvania,newjersey",
+    "detour_message": "I-80/I-476 junction affected. PA Turnpike Northeast Extension crossing. I-476 toll alternate available."
+  },
+  {
+    "name": "I-80 & I-380 (Scranton/Pocono, PA)",
+    "state_key": "pennsylvania",
+    "corridor": "I-80",
+    "latitude": 41.1628,
+    "longitude": -75.3419,
+    "watch_radius_km": 15,
+    "notify_states": "pennsylvania,newjersey",
+    "detour_message": "I-80/I-380 junction affected near Scranton. Approaching NJ border - expect ripple effects eastbound."
+  },
+  {
+    "name": "I-80 & I-287 (Parsippany, NJ)",
+    "state_key": "newjersey",
+    "corridor": "I-80",
+    "latitude": 40.8583,
+    "longitude": -74.4208,
+    "watch_radius_km": 25,
+    "notify_states": "newjersey,pennsylvania",
+    "detour_message": "CRITICAL: I-80/I-287 junction affected in northern NJ. Major interchange - I-287 provides NYC bypass."
+  },
+  {
+    "name": "I-80 & I-280 (Parsippany, NJ)",
+    "state_key": "newjersey",
+    "corridor": "I-80",
+    "latitude": 40.8542,
+    "longitude": -74.3569,
+    "watch_radius_km": 15,
+    "notify_states": "newjersey,pennsylvania",
+    "detour_message": "I-80/I-280 junction affected. I-280 provides alternate route to Newark area."
+  },
+  {
+    "name": "I-80 & I-95 (Teaneck/Ridgefield, NJ)",
+    "state_key": "newjersey",
+    "corridor": "I-80",
+    "latitude": 40.8631,
+    "longitude": -74.0264,
+    "watch_radius_km": 30,
+    "notify_states": "newjersey,pennsylvania",
+    "detour_message": "CRITICAL: I-80/I-95 junction affected near George Washington Bridge. Major terminus - severe delays expected. NY metro area access affected."
+  },
+  {
+    "name": "I-35 & I-90 (Albert Lea, MN)",
+    "state_key": "minnesota",
+    "corridor": "I-35",
+    "latitude": 43.6500,
+    "longitude": -93.3683,
+    "watch_radius_km": 20,
+    "notify_states": "minnesota,iowa,kansas",
+    "detour_message": "CRITICAL: I-35/I-90 junction affected at MN/IA border. Major east-west/north-south crossing."
+  },
+  {
+    "name": "I-35W & I-94 (Minneapolis, MN)",
+    "state_key": "minnesota",
+    "corridor": "I-35",
+    "latitude": 44.9778,
+    "longitude": -93.2650,
+    "watch_radius_km": 25,
+    "notify_states": "minnesota,iowa,kansas",
+    "detour_message": "CRITICAL: I-35W/I-94 junction affected in downtown Minneapolis. Major metro hub - significant delays expected."
+  },
+  {
+    "name": "I-35E & I-94 (St. Paul, MN)",
+    "state_key": "minnesota",
+    "corridor": "I-35",
+    "latitude": 44.9447,
+    "longitude": -93.0933,
+    "watch_radius_km": 25,
+    "notify_states": "minnesota,iowa,kansas",
+    "detour_message": "CRITICAL: I-35E/I-94 junction affected in downtown St. Paul. Major metro hub for Twin Cities traffic."
+  },
+  {
+    "name": "I-35 & I-435 (Kansas City North, KS)",
+    "state_key": "kansas",
+    "corridor": "I-35",
+    "latitude": 39.1714,
+    "longitude": -94.6008,
+    "watch_radius_km": 20,
+    "notify_states": "kansas,iowa,minnesota",
+    "detour_message": "I-35/I-435 junction affected. KC bypass route (I-435) available."
+  },
+  {
+    "name": "I-35 & I-635 (Kansas City, KS)",
+    "state_key": "kansas",
+    "corridor": "I-35",
+    "latitude": 39.0511,
+    "longitude": -94.8208,
+    "watch_radius_km": 15,
+    "notify_states": "kansas,iowa,minnesota",
+    "detour_message": "I-35/I-635 junction affected in KC metro. I-635 bypass available."
+  },
+  {
+    "name": "I-35 & I-70 (Kansas City, KS)",
+    "state_key": "kansas",
+    "corridor": "I-35",
+    "latitude": 39.1136,
+    "longitude": -94.6269,
+    "watch_radius_km": 25,
+    "notify_states": "kansas,iowa,minnesota",
+    "detour_message": "CRITICAL: I-35/I-70 junction affected in Kansas City. Major east-west/north-south hub for central US."
+  },
+  {
+    "name": "I-35 & Kansas Turnpike (Emporia, KS)",
+    "state_key": "kansas",
+    "corridor": "I-35",
+    "latitude": 38.4039,
+    "longitude": -96.1817,
+    "watch_radius_km": 15,
+    "notify_states": "kansas,iowa,minnesota",
+    "detour_message": "I-35/I-335 junction affected. Kansas Turnpike access point."
+  },
+  {
+    "name": "I-80 & I-15 (Salt Lake City, UT)",
+    "state_key": "utah",
+    "corridor": "I-80",
+    "latitude": 40.7608,
+    "longitude": -111.8910,
+    "watch_radius_km": 30,
+    "notify_states": "utah,nevada",
+    "detour_message": "CRITICAL: I-80/I-15 junction affected in Salt Lake City. Major regional hub - both corridors may be impacted."
+  },
+  {
+    "name": "I-80 & I-215 (Salt Lake City East, UT)",
+    "state_key": "utah",
+    "corridor": "I-80",
+    "latitude": 40.7500,
+    "longitude": -111.8167,
+    "watch_radius_km": 15,
+    "notify_states": "utah,nevada",
+    "detour_message": "I-80/I-215 junction affected. I-215 provides SLC bypass option."
+  },
+  {
+    "name": "I-80 & US-395 (Reno, NV)",
+    "state_key": "nevada",
+    "corridor": "I-80",
+    "latitude": 39.5296,
+    "longitude": -119.8138,
+    "watch_radius_km": 25,
+    "notify_states": "nevada,utah",
+    "detour_message": "I-80/US-395 junction affected in Reno. Major detour point for California/Oregon traffic."
+  },
+  {
+    "name": "I-80 & US-95 (Fernley, NV)",
+    "state_key": "nevada",
+    "corridor": "I-80",
+    "latitude": 39.6080,
+    "longitude": -119.1819,
+    "watch_radius_km": 15,
+    "notify_states": "nevada,utah",
+    "detour_message": "I-80/US-95 junction affected east of Reno. Alternate route to northern Nevada."
+  },
+  {
+    "name": "I-80 & I-235 (Des Moines West, IA)",
+    "state_key": "iowa",
+    "corridor": "I-80",
+    "latitude": 41.5869,
+    "longitude": -93.7280,
+    "watch_radius_km": 15,
+    "notify_states": "iowa,nebraska",
+    "detour_message": "I-80/I-235 junction affected. Des Moines bypass route via I-235 available."
+  },
+  {
+    "name": "I-35 & I-235 (Des Moines North, IA)",
+    "state_key": "iowa",
+    "corridor": "I-35",
+    "latitude": 41.6280,
+    "longitude": -93.6369,
+    "watch_radius_km": 15,
+    "notify_states": "iowa,minnesota,kansas",
+    "detour_message": "I-35/I-235 junction affected. Des Moines downtown access affected."
+  }
+]

@@ -245,12 +245,14 @@ class TruckParkingService {
       if (result.success) {
         predictions.push(result.prediction);
 
-        // Check for low parking availability (5 or fewer spaces)
-        if (result.prediction.predictedAvailable <= 5 && result.prediction.predictedAvailable >= 0) {
+        // Check for low parking availability (2 or fewer spaces)
+        if (result.prediction.predictedAvailable <= 2 && result.prediction.predictedAvailable >= 0) {
           alerts.push({
             facilityId: result.prediction.facilityId,
             facilityName: result.prediction.siteId,
             state: result.prediction.state,
+            latitude: facility.latitude,
+            longitude: facility.longitude,
             availableSpaces: result.prediction.predictedAvailable,
             severity: result.prediction.predictedAvailable === 0 ? 'critical' : 'warning',
             message: result.prediction.predictedAvailable === 0

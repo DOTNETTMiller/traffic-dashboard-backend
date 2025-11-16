@@ -7,6 +7,8 @@ import TrafficMap from './components/TrafficMap';
 import EventTable from './components/EventTable';
 import EventFilters from './components/EventFilters';
 import CorridorWarnings from './components/CorridorWarnings';
+import DetourAlerts from './components/DetourAlerts';
+import BridgeClearanceWarnings from './components/BridgeClearanceWarnings';
 import EventMessaging from './components/EventMessaging';
 import DataQualityReport from './components/DataQualityReport';
 import FeedAlignment from './components/FeedAlignment';
@@ -39,6 +41,7 @@ function App() {
   const [showParking, setShowParking] = useState(false);
   const [parkingPredictionHours, setParkingPredictionHours] = useState(0);
   const [parkingContext, setParkingContext] = useState(null);
+  const [showInterchanges, setShowInterchanges] = useState(true); // Show interchanges by default
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Mobile starts closed
   const [desktopMessagesOpen, setDesktopMessagesOpen] = useState(false);
@@ -571,6 +574,14 @@ function App() {
             />
             🚛 Truck Parking
           </label>
+          <label className="refresh-toggle">
+            <input
+              type="checkbox"
+              checked={showInterchanges}
+              onChange={(e) => setShowInterchanges(e.target.checked)}
+            />
+            🎯 Interstate Coordination Points
+          </label>
           {showParking && (
             <div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '13px', flexWrap: 'wrap' }}>
               <span style={{ color: '#6b7280', marginRight: '4px' }}>Predict:</span>
@@ -655,6 +666,31 @@ function App() {
                 }}
               />
             )}
+
+            {authToken && (
+              <DetourAlerts
+                authToken={authToken}
+                onViewOnMap={(event) => {
+                  // Switch to map view if not already there
+                  if (view !== 'map') {
+                    setView('map');
+                  }
+                  // Set the selected event
+                  setSelectedEvent(event);
+                }}
+              />
+            )}
+
+            <BridgeClearanceWarnings
+              onViewOnMap={(event) => {
+                // Switch to map view if not already there
+                if (view !== 'map') {
+                  setView('map');
+                }
+                // Set the selected event
+                setSelectedEvent(event);
+              }}
+            />
           </>
         )}
 
@@ -764,6 +800,7 @@ function App() {
                   selectedEvent={selectedEvent}
                   showParking={showParking}
                   parkingPredictionHours={parkingPredictionHours}
+                  showInterchanges={showInterchanges}
                 />
               </div>
             </div>

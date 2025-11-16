@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Marker, Popup, Tooltip } from 'react-leaflet';
+import { Marker, Popup, Tooltip, useMap } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import api from '../services/api';
@@ -37,12 +37,23 @@ const createParkingIcon = (availableSpaces, totalSpaces, isPrediction) => {
 };
 
 export default function ParkingLayer({ showParking = false, predictionHoursAhead = 0 }) {
+  const map = useMap();
   const [parkingData, setParkingData] = useState([]);
   const [parkingAlerts, setParkingAlerts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [observations, setObservations] = useState({}); // { facilityId: { availableSpaces: number, submitting: boolean } }
   const [hourlyPredictions, setHourlyPredictions] = useState({}); // { facilityId: [ {hour, occupancyRate, ...}, ... ] }
+
+  // Navigate to alert location on map
+  const handleAlertClick = (alert) => {
+    if (alert.latitude && alert.longitude) {
+      map.setView([alert.latitude, alert.longitude], 14, {
+        animate: true,
+        duration: 1
+      });
+    }
+  };
 
   useEffect(() => {
     if (!showParking) {
@@ -338,17 +349,29 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
             {parkingAlerts.map((alert, idx) => (
               <div
                 key={idx}
+                onClick={() => handleAlertClick(alert)}
                 style={{
                   padding: '10px',
                   marginBottom: '8px',
                   backgroundColor: alert.severity === 'critical' ? '#fee2e2' : '#fef3c7',
                   borderLeft: `4px solid ${alert.severity === 'critical' ? '#dc2626' : '#f59e0b'}`,
                   borderRadius: '4px',
-                  fontSize: '13px'
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateX(4px)';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateX(0)';
+                  e.currentTarget.style.boxShadow = 'none';
                 }}
               >
-                <div style={{ fontWeight: '600', marginBottom: '4px', color: '#1f2937' }}>
+                <div style={{ fontWeight: '600', marginBottom: '4px', color: '#1f2937', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {alert.message}
+                  <span style={{ fontSize: '10px', color: '#6b7280', fontWeight: '400' }}>📍 Click to view</span>
                 </div>
                 <div style={{ fontSize: '11px', color: '#6b7280' }}>
                   {alert.state} • {new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

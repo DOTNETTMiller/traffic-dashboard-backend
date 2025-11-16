@@ -7,6 +7,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { isNearBorder } from '../utils/borderProximity';
 import ParkingLayer from './ParkingLayer';
+import InterchangeLayer from './InterchangeLayer';
 import BoundingBoxSelector from './BoundingBoxSelector';
 
 // Component to center map on selected event
@@ -354,7 +355,7 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
   });
 };
 
-export default function TrafficMap({ events, messages = {}, detourAlerts = [], onEventSelect, selectedEvent = null, showParking = false, parkingPredictionHours = 0 }) {
+export default function TrafficMap({ events, messages = {}, detourAlerts = [], onEventSelect, selectedEvent = null, showParking = false, parkingPredictionHours = 0, showInterchanges = false }) {
   // Filter out events without valid coordinates
   const validEvents = events.filter(e => {
     const lat = parseFloat(e.latitude);
@@ -605,6 +606,7 @@ export default function TrafficMap({ events, messages = {}, detourAlerts = [], o
         ))}
 
         <ParkingLayer showParking={showParking} predictionHoursAhead={parkingPredictionHours} />
+        <InterchangeLayer showInterchanges={showInterchanges} />
 
         {/* Bounding Box Selector for exporting filtered TIM/CV-TIM data */}
         <BoundingBoxSelector />

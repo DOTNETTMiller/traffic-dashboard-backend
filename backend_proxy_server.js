@@ -1439,6 +1439,97 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
           }
         });
       }
+      // Handle CHP (California Highway Patrol) XML feeds
+      else if (rawData.State) {
+        console.log(`${stateName}: Processing CHP XML feed`);
+
+        // Navigate through the CHP XML structure
+        const dispatchCenters = rawData.State.DispatchCenter || [];
+        const centerArray = Array.isArray(dispatchCenters) ? dispatchCenters : [dispatchCenters];
+
+        let totalLogs = 0;
+        centerArray.forEach(center => {
+          const divisions = center.DispatchCenterDivision || [];
+          const divArray = Array.isArray(divisions) ? divisions : [divisions];
+
+          divArray.forEach(division => {
+            const logs = division.Log || [];
+            const logArray = Array.isArray(logs) ? logs : [logs];
+
+            logArray.forEach(log => {
+              totalLogs++;
+
+              // Extract fields from CHP log
+              const logId = log.$ && log.$.ID ? log.$.ID : 'unknown';
+              const logType = log.LogType || 'Unknown';
+              const locationRaw = log.Location || 'Unknown location';
+              const area = log.Area || 'Unknown';
+              const logTime = log.LogTime || new Date().toISOString();
+
+              // Parse LATLON (format: "37940064:121298258" - microdegrees)
+              const latlon = log.LATLON || '';
+              let lat = 0;
+              let lng = 0;
+              if (latlon && latlon.includes(':')) {
+                const [latStr, lngStr] = latlon.split(':');
+                lat = parseFloat(latStr) / 1000000 || 0;
+                lng = parseFloat(lngStr) / 1000000 || 0;
+              }
+
+              // Extract incident details
+              let description = logType;
+              if (log.LogDetails && log.LogDetails.details) {
+                const details = Array.isArray(log.LogDetails.details)
+                  ? log.LogDetails.details
+                  : [log.LogDetails.details];
+                const detailTexts = details
+                  .map(d => d.IncidentDetail)
+                  .filter(text => text)
+                  .join('; ');
+                if (detailTexts) {
+                  description = `${logType} - ${detailTexts}`;
+                }
+              }
+
+              // Only include events on interstate highways
+              if (isInterstateRoute(locationRaw)) {
+                const corridor = extractCorridor(locationRaw);
+
+                const normalizedEvent = {
+                  id: `CHP-${logId}`,
+                  state: stateName,
+                  corridor: corridor,
+                  eventType: logType,
+                  description: description,
+                  location: locationRaw,
+                  county: area,
+                  latitude: lat,
+                  longitude: lng,
+                  startTime: logTime,
+                  endTime: null,
+                  lanesAffected: 'Check conditions',
+                  severity: determineSeverityFromText(description, logType),
+                  direction: extractDirection(description, logType, corridor, lat, lng),
+                  requiresCollaboration: false
+                };
+
+                normalized.push(attachRawFields(normalizedEvent, {
+                  startTime: logTime,
+                  endTime: null,
+                  lanesAffected: 'Check conditions',
+                  severity: determineSeverityFromText(description, logType),
+                  direction: extractDirection(description, logType, corridor, lat, lng),
+                  description: description,
+                  corridor,
+                  coordinates: (lat && lng) ? [lng, lat] : null
+                }));
+              }
+            });
+          });
+        });
+
+        console.log(`${stateName}: Processed ${totalLogs} CHP logs, ${normalized.length} on interstate routes`);
+      }
     }
   } catch (error) {
     console.error(`Error normalizing ${stateName} data:`, error.message);
@@ -1935,6 +2026,33 @@ const fetchStateData = async (stateKey) => {
     } catch (error) {
       console.error(`Error checking proximity for ${stateName}:`, error);
     }
+  }
+
+  // Track data quality metrics for this feed
+  try {
+    // Calculate quality scores for all events
+    const qualityScores = results.events.map(event =>
+      dataQualityTracker.assessEventQuality(event)
+    );
+
+    // Compute average quality score
+    const avgQuality = qualityScores.length > 0
+      ? qualityScores.reduce((sum, score) => sum + score, 0) / qualityScores.length
+      : 0;
+
+    // Determine success (1 if we got events and no critical errors, 0 otherwise)
+    const successCount = results.events.length > 0 && results.errors.length === 0 ? 1 : 0;
+
+    // Update feed metrics
+    dataQualityTracker.updateFeedMetrics(
+      normalizedStateKey,
+      results.events.length,
+      successCount,
+      avgQuality,
+      new Date()
+    );
+  } catch (error) {
+    console.error(`Error tracking quality metrics for ${stateName}:`, error);
   }
 
   return results;
@@ -6380,7 +6498,9 @@ app.get('/api/states/list', async (req, res) => {
     success: true,
     states: states.map(s => ({
       stateKey: s.stateKey,
-      stateName: s.stateName
+      stateName: s.stateName,
+      format: s.format,
+      apiType: s.apiType
     }))
   });
 });
@@ -6996,6 +7116,12 @@ app.get('/api/admin/states', async (req, res) => {
 });
 
 // Interchange management (admin)
+// Public endpoint to get all active interchanges for map display
+app.get('/api/interchanges', (req, res) => {
+  const interchanges = db.getInterchanges().filter(i => i.active);
+  res.json({ success: true, interchanges });
+});
+
 app.get('/api/admin/interchanges', requireAdmin, (req, res) => {
   const interchanges = db.getInterchanges();
   res.json({ success: true, interchanges });
@@ -7346,13 +7472,15 @@ const CORRIDOR_STATES = {
 
 // Get states that should be notified based on corridor relevance
 const getRelevantStates = (eventCorridor, interchangeState, notifyStates) => {
-  const relevantStates = new Set([interchangeState.toLowerCase()]);
+  const relevantStates = new Set(interchangeState ? [interchangeState.toLowerCase()] : []);
 
   // Extract the main corridor (e.g., "I-80" from "I-80 / I-90")
   const corridorMatch = eventCorridor?.match(/I-\d+/);
   if (!corridorMatch) {
     // If no interstate corridor, only notify the interchange's state and explicitly listed states
-    notifyStates.forEach(state => relevantStates.add(state.toLowerCase()));
+    notifyStates.forEach(state => {
+      if (state) relevantStates.add(state.toLowerCase());
+    });
     return Array.from(relevantStates);
   }
 
@@ -7361,6 +7489,7 @@ const getRelevantStates = (eventCorridor, interchangeState, notifyStates) => {
 
   // Only add notify states if they're on the affected corridor
   notifyStates.forEach(state => {
+    if (!state) return;
     const normalizedState = state.toLowerCase();
     if (statesOnCorridor.includes(normalizedState)) {
       relevantStates.add(normalizedState);
@@ -7373,7 +7502,12 @@ const getRelevantStates = (eventCorridor, interchangeState, notifyStates) => {
 };
 
 const notifyDetourSubscribers = async (alertRecord, interchange, event) => {
-  const notifyStates = interchange.notifyStates || [];
+  // notifyStates is a comma-separated string from DB, need to parse it into an array
+  const notifyStates = interchange.notifyStates
+    ? (typeof interchange.notifyStates === 'string'
+        ? interchange.notifyStates.split(',').map(s => s.trim())
+        : interchange.notifyStates)
+    : [];
   const relevantStates = getRelevantStates(event.corridor, interchange.stateKey, notifyStates);
 
   console.log(`📨 Notifying ${relevantStates.length} relevant state(s) for ${event.corridor}: ${relevantStates.join(', ')}`);
@@ -7535,8 +7669,16 @@ const evaluateDetourAlerts = async () => {
       }
 
       const message = buildDetourMessage(interchange, event);
-      const notifyStates = new Set([interchange.stateKey.toLowerCase()]);
-      (interchange.notifyStates || []).forEach(state => notifyStates.add(state.toLowerCase()));
+      const notifyStates = new Set(interchange.stateKey ? [interchange.stateKey.toLowerCase()] : []);
+      // notifyStates is a comma-separated string from DB, need to split it
+      const notifyStatesArray = interchange.notifyStates
+        ? (typeof interchange.notifyStates === 'string'
+            ? interchange.notifyStates.split(',').map(s => s.trim())
+            : interchange.notifyStates)
+        : [];
+      notifyStatesArray.forEach(state => {
+        if (state) notifyStates.add(state.toLowerCase());
+      });
 
       const createResult = db.createDetourAlert({
         interchangeId: interchange.id,
@@ -8526,10 +8668,11 @@ If image quality is too poor or no parking lot is visible, return {"occupied": 0
 
     const aiResponse = response.choices[0].message.content.trim();
 
-    // Parse JSON response
+    // Parse JSON response (extract JSON from response)
     let parsedResponse;
     try {
-      parsedResponse = JSON.parse(aiResponse);
+      const cleanedResponse = extractJSON(aiResponse);
+      parsedResponse = JSON.parse(cleanedResponse);
     } catch (parseError) {
       console.error('AI returned non-JSON response:', aiResponse);
       return res.status(500).json({
@@ -8573,6 +8716,27 @@ If image quality is too poor or no parking lot is visible, return {"occupied": 0
     });
   }
 });
+
+// Helper function to extract JSON from AI responses
+function extractJSON(text) {
+  // Try to find JSON within the text
+  // Handle cases like: "Here is the JSON: {...}" or "```json {...} ```"
+
+  // First, try to extract from code blocks
+  const codeBlockMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+  if (codeBlockMatch) {
+    return codeBlockMatch[1].trim();
+  }
+
+  // Try to find JSON object by looking for balanced braces
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    return jsonMatch[0].trim();
+  }
+
+  // If no JSON found, return original text trimmed
+  return text.trim();
+}
 
 // Multi-camera consensus AI counting with overlap detection
 app.post('/api/parking/ground-truth/ai-count-consensus', async (req, res) => {
@@ -8727,7 +8891,8 @@ If image quality is too poor or no parking lot is visible, return {"occupied": 0
         });
 
         const aiResponse = response.choices[0].message.content.trim();
-        const parsedResponse = JSON.parse(aiResponse);
+        const cleanedResponse = extractJSON(aiResponse);
+        const parsedResponse = JSON.parse(cleanedResponse);
 
         cameraAnalyses.push({
           viewName,
@@ -8799,7 +8964,8 @@ Example: {"consensusOccupied": 25, "consensusTotalCapacity": 40, "confidence": "
     });
 
     const consensusAI = consensusResponse.choices[0].message.content.trim();
-    const consensus = JSON.parse(consensusAI);
+    const cleanedConsensus = extractJSON(consensusAI);
+    const consensus = JSON.parse(cleanedConsensus);
 
     const consensusOccupied = parseInt(consensus.consensusOccupied);
     const consensusTotal = parseInt(consensus.consensusTotalCapacity);

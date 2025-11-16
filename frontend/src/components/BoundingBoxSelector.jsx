@@ -10,6 +10,7 @@ function BoundingBoxSelector() {
   const [currentPoint, setCurrentPoint] = useState(null);
   const [boundingBox, setBoundingBox] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isPanelVisible, setIsPanelVisible] = useState(true);
 
   const map = useMapEvents({
     mousedown: (e) => {
@@ -75,6 +76,15 @@ function BoundingBoxSelector() {
     setCurrentPoint(null);
   };
 
+  const handleClosePanel = () => {
+    setIsPanelVisible(false);
+    // Clean up any active drawing
+    if (isDrawing) {
+      handleCancelDrawing();
+    }
+    handleClearBox();
+  };
+
   const handleExport = async (endpoint) => {
     if (!boundingBox) return;
 
@@ -130,20 +140,46 @@ function BoundingBoxSelector() {
       )}
 
       {/* Control Panel */}
-      <div style={{
-        position: 'absolute',
-        top: '80px',
-        right: '10px',
-        zIndex: 1000,
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-        padding: '12px',
-        minWidth: '280px'
-      }}>
-        <div style={{ marginBottom: '12px', fontWeight: '600', fontSize: '14px', color: '#1f2937' }}>
-          Bounding Box Export
-        </div>
+      {isPanelVisible && (
+        <div style={{
+          position: 'absolute',
+          top: '80px',
+          right: '10px',
+          zIndex: 1000,
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          padding: '12px',
+          minWidth: '280px'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '12px'
+          }}>
+            <div style={{ fontWeight: '600', fontSize: '14px', color: '#1f2937' }}>
+              Bounding Box Export
+            </div>
+            <button
+              onClick={handleClosePanel}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                color: '#6b7280',
+                borderRadius: '4px'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+              title="Close panel"
+            >
+              <X size={18} />
+            </button>
+          </div>
 
         {!boundingBox && !isDrawing && (
           <button
@@ -294,7 +330,39 @@ function BoundingBoxSelector() {
             </div>
           </div>
         )}
-      </div>
+        </div>
+      )}
+
+      {/* Reopen button when panel is closed */}
+      {!isPanelVisible && (
+        <button
+          onClick={() => setIsPanelVisible(true)}
+          style={{
+            position: 'absolute',
+            top: '80px',
+            right: '10px',
+            zIndex: 1000,
+            backgroundColor: '#3b82f6',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '10px 14px',
+            cursor: 'pointer',
+            fontSize: '13px',
+            fontWeight: '500',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3b82f6'}
+          title="Open Bounding Box Tool"
+        >
+          <Square size={16} />
+          Bounding Box
+        </button>
+      )}
     </>
   );
 }
