@@ -29,6 +29,14 @@ export const theme = {
       dark: '#2563eb',
       darker: '#1d4ed8'
     },
+    // Gradients
+    gradients: {
+      primary: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      blue: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+      success: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+      warning: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+      error: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+    },
     // Success
     success: {
       light: '#86efac',
