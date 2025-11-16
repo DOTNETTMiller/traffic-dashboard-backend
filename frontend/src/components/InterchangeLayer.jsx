@@ -94,14 +94,9 @@ export default function InterchangeLayer({ showInterchanges = false }) {
             position={[lat, lon]}
             icon={icon}
           >
-            <Tooltip direction="top" offset={[0, -14]} opacity={0.95}>
-              <div style={{ minWidth: '180px', fontSize: '12px' }}>
-                <strong style={{ display: 'block', marginBottom: '4px', color: '#3b82f6' }}>
-                  🎯 {interchange.name}
-                </strong>
-                <div style={{ fontSize: '11px', color: '#6b7280' }}>
-                  Interstate Coordination Point
-                </div>
+            <Tooltip direction="top" offset={[0, -14]} opacity={0.95} permanent={true}>
+              <div style={{ fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                {interchange.name}
               </div>
             </Tooltip>
             <Popup maxWidth={350}>

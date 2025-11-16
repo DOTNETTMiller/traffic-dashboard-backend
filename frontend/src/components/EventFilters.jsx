@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { theme } from '../styles/theme';
+import AdvancedSearch from './AdvancedSearch';
 
 export default function EventFilters({ events, filters, onFilterChange }) {
   // Start collapsed by default to save space
@@ -118,15 +119,13 @@ export default function EventFilters({ events, filters, onFilterChange }) {
         maxHeight: isExpanded ? '500px' : '0',
         overflow: 'hidden'
       }}>
-        {/* Search */}
-        <div>
+        {/* Advanced Search */}
+        <div style={{ gridColumn: '1 / -1' }}>
           <label style={labelStyle}>Search</label>
-          <input
-            type="text"
-            value={filters.search || ''}
-            onChange={(e) => handleChange('search', e.target.value)}
-            placeholder="Search location, description..."
-            style={inputStyle}
+          <AdvancedSearch
+            events={events}
+            onSearch={(searchTerm) => handleChange('search', searchTerm)}
+            placeholder="Search locations, corridors, states..."
           />
         </div>
 

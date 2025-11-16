@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { isNearBorder } from '../utils/borderProximity';
+import { theme } from '../styles/theme';
+import EnhancedEventCard from './EnhancedEventCard';
 
 const normalizeSeverity = (severity) => {
   if (!severity) return 'medium';
@@ -14,6 +16,7 @@ const normalizeSeverity = (severity) => {
 export default function EventTable({ events, messages = {}, onEventSelect }) {
   const [sortField, setSortField] = useState('startTime');
   const [sortDirection, setSortDirection] = useState('desc');
+  const [viewMode, setViewMode] = useState('cards'); // 'table' or 'cards'
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -67,8 +70,82 @@ export default function EventTable({ events, messages = {}, onEventSelect }) {
   };
 
   return (
-    <div style={{ height: '100%', overflow: 'auto', backgroundColor: 'white' }}>
-      <table style={{
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'white' }}>
+      {/* View Toggle Header */}
+      <div style={{
+        padding: theme.spacing.md,
+        borderBottom: `2px solid ${theme.colors.border}`,
+        background: theme.colors.glassDark,
+        backdropFilter: 'blur(20px)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <div style={{
+          fontSize: '18px',
+          fontWeight: '700',
+          color: theme.colors.text
+        }}>
+          Events ({sortedEvents.length})
+        </div>
+        <div style={{ display: 'flex', gap: theme.spacing.xs }}>
+          <button
+            onClick={() => setViewMode('cards')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: viewMode === 'cards' ? `2px solid ${theme.colors.accentBlue}` : `1px solid ${theme.colors.border}`,
+              background: viewMode === 'cards' ? `${theme.colors.accentBlue}20` : 'white',
+              color: viewMode === 'cards' ? theme.colors.accentBlue : theme.colors.text,
+              fontSize: '13px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: `all ${theme.transitions.fast}`
+            }}
+          >
+            🎴 Cards
+          </button>
+          <button
+            onClick={() => setViewMode('table')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: viewMode === 'table' ? `2px solid ${theme.colors.accentBlue}` : `1px solid ${theme.colors.border}`,
+              background: viewMode === 'table' ? `${theme.colors.accentBlue}20` : 'white',
+              color: viewMode === 'table' ? theme.colors.accentBlue : theme.colors.text,
+              fontSize: '13px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: `all ${theme.transitions.fast}`
+            }}
+          >
+            📊 Table
+          </button>
+        </div>
+      </div>
+
+      {/* Content Area */}
+      <div style={{ flex: 1, overflow: 'auto', padding: viewMode === 'cards' ? theme.spacing.md : 0 }}>
+        {viewMode === 'cards' ? (
+          // Card Grid View
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(500px, 1fr))',
+            gap: theme.spacing.md
+          }}>
+            {sortedEvents.map(event => (
+              <EnhancedEventCard
+                key={event.id}
+                event={event}
+                messages={messages[event.id] || []}
+                onViewOnMap={onEventSelect}
+                onAddComment={onEventSelect}
+              />
+            ))}
+          </div>
+        ) : (
+          // Traditional Table View
+          <table style={{
         width: '100%',
         borderCollapse: 'collapse',
         fontSize: '14px'
@@ -230,15 +307,19 @@ export default function EventTable({ events, messages = {}, onEventSelect }) {
           })}
         </tbody>
       </table>
-      {events.length === 0 && (
-        <div style={{
-          padding: '40px',
-          textAlign: 'center',
-          color: '#6b7280'
-        }}>
-          No events found
-        </div>
-      )}
+        )}
+
+        {/* No Events Message */}
+        {sortedEvents.length === 0 && (
+          <div style={{
+            padding: '40px',
+            textAlign: 'center',
+            color: '#6b7280'
+          }}>
+            No events found
+          </div>
+        )}
+      </div>
     </div>
   );
 }

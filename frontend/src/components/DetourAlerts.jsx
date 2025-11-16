@@ -6,7 +6,7 @@ export default function DetourAlerts({ authToken, onViewOnMap }) {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false); // Start collapsed by default
 
   useEffect(() => {
     if (authToken) {
@@ -141,8 +141,8 @@ export default function DetourAlerts({ authToken, onViewOnMap }) {
       padding: theme.spacing.lg,
       boxShadow: theme.shadows.xl,
       color: theme.colors.text,
-      maxHeight: '500px',
-      overflow: 'auto',
+      maxHeight: isExpanded ? '400px' : 'auto',
+      overflow: isExpanded ? 'auto' : 'visible',
       transition: `all ${theme.transitions.medium}`
     }}>
       {/* Header */}

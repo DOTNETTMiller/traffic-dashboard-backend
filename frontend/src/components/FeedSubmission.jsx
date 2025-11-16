@@ -87,7 +87,9 @@ export default function FeedSubmission({ authToken, user }) {
         padding: theme.spacing.lg,
         boxShadow: theme.shadows.xl,
         marginBottom: theme.spacing.xl,
-        transition: `all ${theme.transitions.medium}`
+        transition: `all ${theme.transitions.medium}`,
+        maxHeight: '500px',
+        overflow: 'auto'
       }}>
         <h3 style={{
           margin: 0,

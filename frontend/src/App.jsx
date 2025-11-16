@@ -13,6 +13,15 @@ import EventMessaging from './components/EventMessaging';
 import DataQualityReport from './components/DataQualityReport';
 import FeedAlignment from './components/FeedAlignment';
 import MessagesPanel from './components/MessagesPanel';
+import LiveStatistics from './components/LiveStatistics';
+import CommandPalette from './components/CommandPalette';
+import QuickActionToolbar from './components/QuickActionToolbar';
+import ActivityTimeline from './components/ActivityTimeline';
+import DarkModeToggle from './components/DarkModeToggle';
+import ExportMenu from './components/ExportMenu';
+import ToastContainer, { showToast } from './components/ToastContainer';
+import DashboardWidgets from './components/DashboardWidgets';
+import CorridorBriefing from './components/CorridorBriefing';
 import StateAdmin from './components/StateAdmin';
 import StateMessaging from './components/StateMessaging';
 import UserLogin from './components/UserLogin';
@@ -49,6 +58,26 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authToken, setAuthToken] = useState(null);
   const [detourAlerts, setDetourAlerts] = useState([]);
+  const [statsExpanded, setStatsExpanded] = useState(true);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    return saved ? JSON.parse(saved) : false;
+  });
+  const [heatMapActive, setHeatMapActive] = useState(false);
+  const [heatMapMode, setHeatMapMode] = useState('density');
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showCorridorBriefing, setShowCorridorBriefing] = useState(false);
+
+  // Apply dark mode class to document root
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark-mode');
+    } else {
+      document.documentElement.classList.remove('dark-mode');
+    }
+    localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
+  }, [isDarkMode]);
 
   // Fetch parking data when parking view is active
   useEffect(() => {
@@ -147,6 +176,20 @@ function App() {
       if (intervalId) clearInterval(intervalId);
     };
   }, [authToken, loadDetourAlerts]);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Cmd/Ctrl + K - Open command palette
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Load messages from backend on mount
   useEffect(() => {
@@ -333,11 +376,103 @@ function App() {
 
   const eventMessages = selectedEvent ? (messages[selectedEvent.id] || []) : [];
 
+  // Handle command execution from command palette
+  const handleExecuteCommand = useCallback((command) => {
+    switch (command.type) {
+      case 'navigate':
+        setView(command.view);
+        break;
+
+      case 'toggle':
+        if (command.feature === 'autoRefresh') {
+          setAutoRefresh(command.value);
+          showToast(`Auto-refresh ${command.value ? 'enabled' : 'disabled'}`, 'info');
+        } else if (command.feature === 'showParking') {
+          setShowParking(command.value);
+          showToast(`Truck parking ${command.value ? 'shown' : 'hidden'}`, 'info');
+        } else if (command.feature === 'showInterchanges') {
+          setShowInterchanges(command.value);
+          showToast(`Coordination points ${command.value ? 'shown' : 'hidden'}`, 'info');
+        }
+        break;
+
+      case 'action':
+        if (command.action === 'refresh') {
+          refetch();
+          showToast('Refreshing data...', 'info');
+        } else if (command.action === 'clearFilters') {
+          setFilters({
+            state: '',
+            corridor: '',
+            eventType: '',
+            severity: '',
+            search: ''
+          });
+          showToast('All filters cleared', 'success');
+        } else if (command.action === 'toggleStats') {
+          setStatsExpanded(!statsExpanded);
+          showToast(`Statistics ${!statsExpanded ? 'shown' : 'hidden'}`, 'info');
+        } else if (command.action === 'export') {
+          setShowExportMenu(true);
+        } else if (command.action === 'openBriefing') {
+          setShowCorridorBriefing(true);
+          showToast('Opening corridor briefing...', 'info');
+        }
+        break;
+
+      case 'filter':
+        setFilters(prev => ({
+          ...prev,
+          [command.filter]: command.value
+        }));
+        break;
+
+      default:
+        console.warn('Unknown command type:', command.type);
+    }
+  }, [refetch, statsExpanded]);
+
+  // Quick action handlers
+  const handleFilterSeverity = useCallback((severity) => {
+    setFilters(prev => ({
+      ...prev,
+      severity: prev.severity === severity ? '' : severity
+    }));
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setFilters({
+      state: '',
+      corridor: '',
+      eventType: '',
+      severity: '',
+      search: ''
+    });
+    showToast('All filters cleared', 'success');
+  }, []);
+
+  const handleToggleParking = useCallback(() => {
+    setShowParking(prev => {
+      const newValue = !prev;
+      showToast(`Truck parking ${newValue ? 'shown' : 'hidden'}`, 'info');
+      return newValue;
+    });
+  }, []);
+
+  const handleToggleInterchanges = useCallback(() => {
+    setShowInterchanges(prev => {
+      const newValue = !prev;
+      showToast(`Coordination points ${newValue ? 'shown' : 'hidden'}`, 'info');
+      return newValue;
+    });
+  }, []);
+
   // Handle successful login
   const handleLoginSuccess = (user, token) => {
     setCurrentUser(user);
     setAuthToken(token);
     setIsAuthenticated(true);
+    showToast(`Welcome back, ${user.username}!`, 'success');
   };
 
   // Handle logout
@@ -347,6 +482,7 @@ function App() {
     setCurrentUser(null);
     setAuthToken(null);
     setIsAuthenticated(false);
+    showToast('Logged out successfully', 'success');
   };
 
   // Show login screen if not authenticated
@@ -429,6 +565,12 @@ function App() {
                 🚛 CV-TIM
               </a>
             </div>
+            <div style={{ marginLeft: '12px' }}>
+              <DarkModeToggle
+                isDarkMode={isDarkMode}
+                onToggle={() => setIsDarkMode(!isDarkMode)}
+              />
+            </div>
             <button
               onClick={() => setView('profile')}
               className="profile-btn"
@@ -481,6 +623,18 @@ function App() {
             Table View
           </button>
           <button
+            className={`toggle-btn ${view === 'timeline' ? 'active' : ''}`}
+            onClick={() => setView('timeline')}
+          >
+            Timeline View
+          </button>
+          <button
+            className={`toggle-btn ${view === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setView('dashboard')}
+          >
+            Dashboard
+          </button>
+          <button
             className={`toggle-btn ${view === 'report' ? 'active' : ''}`}
             onClick={() => setView('report')}
           >
@@ -503,6 +657,16 @@ function App() {
             onClick={() => setView('docs')}
           >
             📚 Documentation
+          </button>
+          <button
+            className="toggle-btn"
+            onClick={() => setShowCorridorBriefing(true)}
+            style={{
+              backgroundColor: '#10b981',
+              color: 'white'
+            }}
+          >
+            📋 Corridor Briefing
           </button>
           {authToken && (
             <button
@@ -598,15 +762,40 @@ function App() {
                   onClick={() => setParkingPredictionHours(hours)}
                   title={tooltip}
                   style={{
-                    padding: '4px 10px',
+                    padding: '6px 12px',
                     fontSize: '12px',
-                    border: `1px solid ${hours === 11 || hours === 14 ? '#f59e0b' : '#d1d5db'}`,
-                    borderRadius: '4px',
-                    backgroundColor: parkingPredictionHours === hours ? '#3b82f6' : 'white',
+                    border: `2px solid ${
+                      parkingPredictionHours === hours
+                        ? (hours === 11 || hours === 14 ? '#f59e0b' : '#3b82f6')
+                        : (hours === 11 || hours === 14 ? '#fcd34d' : '#e5e7eb')
+                    }`,
+                    borderRadius: '8px',
+                    backgroundColor: parkingPredictionHours === hours
+                      ? (hours === 11 || hours === 14 ? '#f59e0b' : '#3b82f6')
+                      : 'white',
                     color: parkingPredictionHours === hours ? 'white' : '#374151',
                     cursor: 'pointer',
-                    fontWeight: parkingPredictionHours === hours ? '600' : '400',
-                    position: 'relative'
+                    fontWeight: parkingPredictionHours === hours ? '700' : '500',
+                    position: 'relative',
+                    transition: 'all 0.2s ease',
+                    boxShadow: parkingPredictionHours === hours
+                      ? '0 2px 6px rgba(0,0,0,0.15)'
+                      : '0 1px 2px rgba(0,0,0,0.05)',
+                    transform: parkingPredictionHours === hours ? 'translateY(-1px)' : 'translateY(0)'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (parkingPredictionHours !== hours) {
+                      e.currentTarget.style.borderColor = hours === 11 || hours === 14 ? '#f59e0b' : '#3b82f6';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (parkingPredictionHours !== hours) {
+                      e.currentTarget.style.borderColor = hours === 11 || hours === 14 ? '#fcd34d' : '#e5e7eb';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
+                    }
                   }}
                 >
                   {label}
@@ -771,6 +960,13 @@ function App() {
             }}>
               <div className={`messages-panel-mobile ${mobileMenuOpen ? 'open' : ''} ${desktopMessagesOpen ? '' : 'closed'}`}>
                 <div className="messages-panel-content">
+                <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <LiveStatistics
+                    events={filteredEvents}
+                    isExpanded={statsExpanded}
+                    onToggle={() => setStatsExpanded(!statsExpanded)}
+                  />
+                </div>
                 <MessagesPanel
                   events={filteredEvents}
                   messages={messages}
@@ -791,7 +987,7 @@ function App() {
                 />
                 </div>
               </div>
-              <div style={{ flex: 1, height: '100%', overflow: 'hidden' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <TrafficMap
                   events={filteredEvents}
                   messages={messages}
@@ -801,9 +997,29 @@ function App() {
                   showParking={showParking}
                   parkingPredictionHours={parkingPredictionHours}
                   showInterchanges={showInterchanges}
+                  heatMapActive={heatMapActive}
+                  heatMapMode={heatMapMode}
+                  onHeatMapToggle={setHeatMapActive}
+                  onHeatMapModeChange={setHeatMapMode}
                 />
               </div>
             </div>
+
+            {/* Quick Action Toolbar */}
+            <QuickActionToolbar
+              onRefresh={refetch}
+              onClearFilters={handleClearFilters}
+              onToggleParking={handleToggleParking}
+              onToggleInterchanges={handleToggleInterchanges}
+              onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+              onFilterSeverity={handleFilterSeverity}
+              onExport={() => setShowExportMenu(true)}
+              autoRefresh={autoRefresh}
+              showParking={showParking}
+              showInterchanges={showInterchanges}
+              currentSeverityFilter={filters.severity}
+              eventCount={filteredEvents.length}
+            />
           </>
         ) : (
           <div className="view-container">
@@ -812,6 +1028,15 @@ function App() {
                 events={filteredEvents}
                 messages={messages}
                 onEventSelect={setSelectedEvent}
+              />
+            ) : view === 'timeline' ? (
+              <ActivityTimeline
+                events={filteredEvents}
+                messages={messages}
+              />
+            ) : view === 'dashboard' ? (
+              <DashboardWidgets
+                events={filteredEvents}
               />
             ) : view === 'report' ? (
               <DataQualityReport />
@@ -850,6 +1075,39 @@ function App() {
               }
             } : null
           }
+        />
+      )}
+
+      {/* Command Palette */}
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onExecuteCommand={handleExecuteCommand}
+        currentView={view}
+        currentFilters={filters}
+        autoRefresh={autoRefresh}
+        showParking={showParking}
+        showInterchanges={showInterchanges}
+      />
+
+      {/* Toast Notifications */}
+      <ToastContainer />
+
+      {/* Export Menu */}
+      {showExportMenu && (
+        <ExportMenu
+          events={filteredEvents}
+          messages={messages}
+          onClose={() => setShowExportMenu(false)}
+        />
+      )}
+
+      {/* Corridor Briefing */}
+      {showCorridorBriefing && (
+        <CorridorBriefing
+          events={filteredEvents}
+          detourAlerts={detourAlerts}
+          onClose={() => setShowCorridorBriefing(false)}
         />
       )}
     </div>
