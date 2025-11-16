@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, CircleMarker, Polyline } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
@@ -9,6 +9,9 @@ import { isNearBorder } from '../utils/borderProximity';
 import ParkingLayer from './ParkingLayer';
 import InterchangeLayer from './InterchangeLayer';
 import BoundingBoxSelector from './BoundingBoxSelector';
+import HeatMapControl from './HeatMapControl';
+import HeatMapLayer from './HeatMapLayer';
+import MiniMapControl from './MiniMapControl';
 
 // Component to center map on selected event
 function MapCenterController({ selectedEvent }) {
@@ -27,6 +30,17 @@ function MapCenterController({ selectedEvent }) {
       }
     }
   }, [selectedEvent, map]);
+
+  return null;
+}
+
+// Component to capture map reference
+function MapRefCapturer({ mapRef }) {
+  const map = useMap();
+
+  useEffect(() => {
+    mapRef.current = map;
+  }, [map, mapRef]);
 
   return null;
 }
@@ -355,7 +369,31 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
   });
 };
 
-export default function TrafficMap({ events, messages = {}, detourAlerts = [], onEventSelect, selectedEvent = null, showParking = false, parkingPredictionHours = 0, showInterchanges = false }) {
+export default function TrafficMap({
+  events,
+  messages = {},
+  detourAlerts = [],
+  onEventSelect,
+  selectedEvent = null,
+  showParking = false,
+  parkingPredictionHours = 0,
+  showInterchanges = false,
+  heatMapActive = false,
+  heatMapMode = 'density',
+  onHeatMapToggle,
+  onHeatMapModeChange
+}) {
+  const mapRef = useRef(null);
+  const [showMiniMap, setShowMiniMap] = useState(() => {
+    const saved = localStorage.getItem('showMiniMap');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  // Save mini-map visibility to localStorage
+  useEffect(() => {
+    localStorage.setItem('showMiniMap', JSON.stringify(showMiniMap));
+  }, [showMiniMap]);
+
   // Filter out events without valid coordinates
   const validEvents = events.filter(e => {
     const lat = parseFloat(e.latitude);
@@ -401,6 +439,9 @@ export default function TrafficMap({ events, messages = {}, detourAlerts = [], o
       >
         {/* Map center controller */}
         <MapCenterController selectedEvent={selectedEvent} />
+
+        {/* Capture map reference */}
+        <MapRefCapturer mapRef={mapRef} />
 
         {/* CartoDB Voyager - shows highways prominently with clear labels */}
         <TileLayer
@@ -608,9 +649,31 @@ export default function TrafficMap({ events, messages = {}, detourAlerts = [], o
         <ParkingLayer showParking={showParking} predictionHoursAhead={parkingPredictionHours} />
         <InterchangeLayer showInterchanges={showInterchanges} />
 
+        {/* Heat Map Visualization */}
+        <HeatMapLayer
+          events={validEvents}
+          mode={heatMapMode}
+          isVisible={heatMapActive}
+        />
+
         {/* Bounding Box Selector for exporting filtered TIM/CV-TIM data */}
         <BoundingBoxSelector />
       </MapContainer>
+
+      {/* Heat Map Control Panel */}
+      <HeatMapControl
+        isActive={heatMapActive}
+        mode={heatMapMode}
+        onToggle={onHeatMapToggle}
+        onModeChange={onHeatMapModeChange}
+      />
+
+      {/* Mini Map Navigation Control */}
+      <MiniMapControl
+        parentMapRef={mapRef}
+        isVisible={showMiniMap}
+        onToggle={() => setShowMiniMap(!showMiniMap)}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 // Unified Design System for DOT Corridor Communicator
 
-export const theme = {
+// Base theme tokens (mode-agnostic)
+const baseTheme = {
   // Spacing scale (4px base unit)
   spacing: {
     xs: '4px',
@@ -194,5 +195,55 @@ export const styles = {
     }
   }
 };
+
+// Light mode specific colors
+const lightModeColors = {
+  text: '#1f2937',
+  textSecondary: '#6b7280',
+  background: '#ffffff',
+  backgroundSecondary: '#f9fafb',
+  surface: '#ffffff',
+  border: '#e5e7eb',
+  glassLight: 'rgba(255, 255, 255, 0.85)',
+  glassDark: 'rgba(249, 250, 251, 0.9)',
+  accentBlue: '#3b82f6',
+  accentPurple: '#8b5cf6'
+};
+
+// Dark mode specific colors
+const darkModeColors = {
+  text: '#f9fafb',
+  textSecondary: '#9ca3af',
+  background: '#111827',
+  backgroundSecondary: '#1f2937',
+  surface: '#1f2937',
+  border: '#374151',
+  glassLight: 'rgba(31, 41, 55, 0.85)',
+  glassDark: 'rgba(17, 24, 39, 0.95)',
+  accentBlue: '#60a5fa',
+  accentPurple: '#a78bfa'
+};
+
+// Get theme based on mode
+export const getTheme = (isDarkMode = false) => ({
+  ...baseTheme,
+  colors: {
+    ...baseTheme.colors,
+    ...(isDarkMode ? darkModeColors : lightModeColors)
+  },
+  shadows: isDarkMode ? {
+    none: 'none',
+    sm: '0 1px 2px 0 rgba(0, 0, 0, 0.3)',
+    base: '0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.4)',
+    md: '0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4)',
+    lg: '0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4)',
+    xl: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+    '2xl': '0 25px 50px -12px rgba(0, 0, 0, 0.6)',
+    inner: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.3)'
+  } : baseTheme.shadows
+});
+
+// Default export is light mode theme for backward compatibility
+export const theme = getTheme(false);
 
 export default theme;

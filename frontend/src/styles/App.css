@@ -536,3 +536,92 @@ body {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* ===== DARK MODE STYLES ===== */
+.dark-mode {
+  color-scheme: dark;
+}
+
+.dark-mode body {
+  background-color: #111827;
+  color: #f9fafb;
+}
+
+.dark-mode .app {
+  background-color: #111827;
+}
+
+.dark-mode .header {
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+  border-bottom: 1px solid #374151;
+}
+
+.dark-mode .controls {
+  background-color: #1f2937;
+  border-bottom: 1px solid #374151;
+}
+
+.dark-mode .toggle-btn {
+  background-color: #374151;
+  color: #f9fafb;
+  border-color: #4b5563;
+}
+
+.dark-mode .toggle-btn:hover {
+  background-color: #4b5563;
+}
+
+.dark-mode .toggle-btn.active {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.dark-mode .view-container {
+  background-color: #1f2937;
+}
+
+.dark-mode .content {
+  background-color: #111827;
+}
+
+.dark-mode input,
+.dark-mode select,
+.dark-mode textarea {
+  background-color: #374151;
+  color: #f9fafb;
+  border-color: #4b5563;
+}
+
+.dark-mode input::placeholder {
+  color: #9ca3af;
+}
+
+.dark-mode .messages-panel-mobile {
+  background-color: #1f2937;
+  border-right-color: #374151;
+}
+
+.dark-mode .mobile-menu-btn {
+  background-color: #3b82f6;
+}
+
+.dark-mode .mobile-messages-overlay {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+/* Dark mode for tables */
+.dark-mode table {
+  background-color: #1f2937;
+}
+
+.dark-mode thead {
+  background-color: #374151 !important;
+}
+
+.dark-mode tr {
+  border-bottom-color: #374151;
+}
+
+.dark-mode tr:hover {
+  background-color: #374151;
+}

@@ -76,23 +76,40 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
         if (response.data && response.data.success) {
           // Transform the prediction data to match the expected format
           console.log('Received parking predictions:', response.data.predictions.length);
-          const transformedData = response.data.predictions.map(pred => ({
-            facilityId: pred.facilityId,
-            facilityName: pred.friendlyName || pred.siteId || pred.facilityId,
-            state: pred.state,
-            latitude: pred.latitude || 0,
-            longitude: pred.longitude || 0,
-            availableSpaces: pred.predictedAvailable !== null ? pred.predictedAvailable : 0,
-            occupiedSpaces: pred.predictedOccupied !== null ? pred.predictedOccupied : 0,
-            truckSpaces: pred.capacity || 0,
-            isPrediction: true,
-            predictionConfidence: pred.confidence === 'high' ? 0.9 : pred.confidence === 'medium' ? 0.7 : pred.confidence === 'none' ? 0 : 0.5,
-            timestamp: pred.predictedFor,
-            occupancyRate: pred.occupancyRate,
-            status: pred.status,
-            cameras: pred.cameras || null,
-            note: pred.note
-          }));
+          const transformedData = response.data.predictions.map(pred => {
+            // Parse cameras field if it's a JSON string
+            let cameras = null;
+            if (pred.cameras) {
+              if (typeof pred.cameras === 'string') {
+                try {
+                  cameras = JSON.parse(pred.cameras);
+                } catch (e) {
+                  console.warn(`Failed to parse cameras JSON for ${pred.facilityId}:`, e);
+                  cameras = null;
+                }
+              } else if (typeof pred.cameras === 'object') {
+                cameras = pred.cameras;
+              }
+            }
+
+            return {
+              facilityId: pred.facilityId,
+              facilityName: pred.friendlyName || pred.siteId || pred.facilityId,
+              state: pred.state,
+              latitude: pred.latitude || 0,
+              longitude: pred.longitude || 0,
+              availableSpaces: pred.predictedAvailable !== null ? pred.predictedAvailable : 0,
+              occupiedSpaces: pred.predictedOccupied !== null ? pred.predictedOccupied : 0,
+              truckSpaces: pred.capacity || 0,
+              isPrediction: true,
+              predictionConfidence: pred.confidence === 'high' ? 0.9 : pred.confidence === 'medium' ? 0.7 : pred.confidence === 'none' ? 0 : 0.5,
+              timestamp: pred.predictedFor,
+              occupancyRate: pred.occupancyRate,
+              status: pred.status,
+              cameras: cameras,
+              note: pred.note
+            };
+          });
 
           setParkingData(transformedData);
 
@@ -675,7 +692,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                 )}
 
                 {/* Camera Feeds */}
-                {facility.cameras && (
+                {facility.cameras && typeof facility.cameras === 'object' && !Array.isArray(facility.cameras) && Object.keys(facility.cameras).length > 0 && (
                   <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e7eb' }}>
                     <div style={{ fontWeight: '600', marginBottom: '8px', fontSize: '13px', color: '#374151' }}>
                       📷 Live Camera Feeds
@@ -746,7 +763,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                 )}
 
                 {/* Ground-Truth Observation Form */}
-                {facility.cameras && (
+                {facility.cameras && typeof facility.cameras === 'object' && !Array.isArray(facility.cameras) && Object.keys(facility.cameras).length > 0 && (
                   <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e7eb' }}>
                     <div style={{ fontWeight: '600', marginBottom: '6px', fontSize: '13px', color: '#374151' }}>
                       👁️ Submit Ground-Truth Observation
