@@ -154,48 +154,6 @@ const baseTheme = {
   }
 };
 
-// Helper functions for common style patterns
-export const styles = {
-  // Card with glassmorphism
-  glassCard: (level = 'light') => ({
-    ...theme.glass[level],
-    borderRadius: theme.borderRadius.lg,
-    boxShadow: theme.shadows.lg,
-    padding: theme.spacing.lg,
-    transition: theme.transitions.all
-  }),
-
-  // Standard card
-  card: {
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.lg,
-    boxShadow: theme.shadows.base,
-    padding: theme.spacing.lg,
-    transition: theme.transitions.all
-  },
-
-  // Button base
-  button: {
-    padding: `${theme.spacing.sm} ${theme.spacing.lg}`,
-    borderRadius: theme.borderRadius.md,
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.medium,
-    border: 'none',
-    cursor: 'pointer',
-    transition: theme.transitions.all,
-    outline: 'none'
-  },
-
-  // Hover lift effect
-  hoverLift: {
-    transition: theme.transitions.all,
-    ':hover': {
-      transform: 'translateY(-2px)',
-      boxShadow: theme.shadows.lg
-    }
-  }
-};
-
 // Light mode specific colors
 const lightModeColors = {
   text: '#1f2937',
