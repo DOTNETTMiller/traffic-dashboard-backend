@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../services/api';
+import { theme } from '../styles/theme';
 
 const initialForm = {
   feedName: '',
@@ -18,6 +19,26 @@ export default function FeedSubmission({ authToken, user }) {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const [integratedFeeds, setIntegratedFeeds] = useState([]);
+  const [loadingFeeds, setLoadingFeeds] = useState(true);
+  const [showFeeds, setShowFeeds] = useState(false);
+
+  useEffect(() => {
+    fetchIntegratedFeeds();
+  }, []);
+
+  const fetchIntegratedFeeds = async () => {
+    try {
+      const response = await api.get('/api/states/list');
+      if (response.data.success) {
+        setIntegratedFeeds(response.data.states);
+      }
+    } catch (err) {
+      console.error('Error fetching integrated feeds:', err);
+    } finally {
+      setLoadingFeeds(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -51,11 +72,379 @@ export default function FeedSubmission({ authToken, user }) {
   }
 
   return (
-    <div style={{ padding: '24px', maxWidth: '720px', margin: '0 auto' }}>
+    <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>
       <h2 style={{ marginBottom: '16px' }}>Submit a Data Feed</h2>
       <p style={{ marginBottom: '20px', color: '#475569' }}>
         Provide details about your traffic data feed. Our team will review and, if approved, integrate it into the dashboard outputs.
       </p>
+
+      {/* Architecture Diagram */}
+      <div style={{
+        background: theme.colors.glassDark,
+        backdropFilter: 'blur(20px)',
+        border: `1px solid ${theme.colors.border}`,
+        borderRadius: '16px',
+        padding: theme.spacing.lg,
+        boxShadow: theme.shadows.xl,
+        marginBottom: theme.spacing.xl,
+        transition: `all ${theme.transitions.medium}`
+      }}>
+        <h3 style={{
+          margin: 0,
+          marginBottom: theme.spacing.md,
+          fontSize: '18px',
+          fontWeight: '700',
+          background: theme.colors.gradients.primary,
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
+          textAlign: 'center'
+        }}>
+          How the DOT Corridor Communicator Works
+        </h3>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: theme.spacing.md,
+          marginTop: theme.spacing.lg
+        }}>
+          {/* Step 1: Data Sources */}
+          <div style={{
+            background: theme.colors.glassLight,
+            borderRadius: '12px',
+            padding: theme.spacing.md,
+            border: `2px solid ${theme.colors.accentBlue}40`,
+            position: 'relative'
+          }}>
+            <div style={{
+              fontSize: '32px',
+              marginBottom: '8px',
+              textAlign: 'center'
+            }}>📡</div>
+            <div style={{
+              fontWeight: '700',
+              fontSize: '14px',
+              color: theme.colors.accentBlue,
+              marginBottom: '8px',
+              textAlign: 'center'
+            }}>
+              1. Data Sources
+            </div>
+            <div style={{ fontSize: '12px', color: theme.colors.textSecondary }}>
+              • 46 Data Feeds<br/>
+              • WZDx v4.x (GeoJSON)<br/>
+              • FEU-G XML (TMDD)<br/>
+              • CHP Incidents (XML)<br/>
+              • Real-time updates
+            </div>
+          </div>
+
+          {/* Step 2: Interstate Filter */}
+          <div style={{
+            background: theme.colors.glassLight,
+            borderRadius: '12px',
+            padding: theme.spacing.md,
+            border: `2px solid ${theme.colors.accentPurple}40`,
+            position: 'relative'
+          }}>
+            <div style={{
+              fontSize: '32px',
+              marginBottom: '8px',
+              textAlign: 'center'
+            }}>🛣️</div>
+            <div style={{
+              fontWeight: '700',
+              fontSize: '14px',
+              color: theme.colors.accentPurple,
+              marginBottom: '8px',
+              textAlign: 'center'
+            }}>
+              2. Interstate Filter
+            </div>
+            <div style={{ fontSize: '12px', color: theme.colors.textSecondary }}>
+              • Focus on I-XX routes<br/>
+              • Exclude state/US routes<br/>
+              • Cross-state coordination<br/>
+              • Federal highway system
+            </div>
+          </div>
+
+          {/* Step 3: Normalization */}
+          <div style={{
+            background: theme.colors.glassLight,
+            borderRadius: '12px',
+            padding: theme.spacing.md,
+            border: `2px solid ${theme.colors.success}40`,
+            position: 'relative'
+          }}>
+            <div style={{
+              fontSize: '32px',
+              marginBottom: '8px',
+              textAlign: 'center'
+            }}>⚙️</div>
+            <div style={{
+              fontWeight: '700',
+              fontSize: '14px',
+              color: theme.colors.success,
+              marginBottom: '8px',
+              textAlign: 'center'
+            }}>
+              3. Normalization
+            </div>
+            <div style={{ fontSize: '12px', color: theme.colors.textSecondary }}>
+              • Unified event format<br/>
+              • Geocoding & validation<br/>
+              • Corridor extraction<br/>
+              • Severity classification
+            </div>
+          </div>
+
+          {/* Step 4: Outputs */}
+          <div style={{
+            background: theme.colors.glassLight,
+            borderRadius: '12px',
+            padding: theme.spacing.md,
+            border: `2px solid ${theme.colors.warning}40`,
+            position: 'relative'
+          }}>
+            <div style={{
+              fontSize: '32px',
+              marginBottom: '8px',
+              textAlign: 'center'
+            }}>📤</div>
+            <div style={{
+              fontWeight: '700',
+              fontSize: '14px',
+              color: theme.colors.warning,
+              marginBottom: '8px',
+              textAlign: 'center'
+            }}>
+              4. Outputs
+            </div>
+            <div style={{ fontSize: '12px', color: theme.colors.textSecondary }}>
+              • TIM (SAE J2735)<br/>
+              • CV-TIM (SAE J2540)<br/>
+              • Detour alerts<br/>
+              • DOT messaging
+            </div>
+          </div>
+        </div>
+
+        {/* Additional Features */}
+        <div style={{
+          marginTop: theme.spacing.lg,
+          padding: theme.spacing.md,
+          background: `${theme.colors.accentBlue}10`,
+          borderRadius: '12px',
+          border: `1px solid ${theme.colors.accentBlue}30`
+        }}>
+          <div style={{
+            fontWeight: '700',
+            fontSize: '13px',
+            color: theme.colors.accentBlue,
+            marginBottom: '8px'
+          }}>
+            Key Features
+          </div>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: '12px',
+            fontSize: '12px',
+            color: theme.colors.text
+          }}>
+            <div>✅ 117 Interstate Interchanges</div>
+            <div>✅ 15km Watch Radius Alerts</div>
+            <div>✅ AI-Powered Ground Truth</div>
+            <div>✅ V2X Message Export</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Integrated Feeds Section */}
+      <div style={{
+        background: theme.colors.glassDark,
+        backdropFilter: 'blur(20px)',
+        border: `1px solid ${theme.colors.border}`,
+        borderRadius: '16px',
+        padding: theme.spacing.lg,
+        boxShadow: theme.shadows.xl,
+        marginBottom: theme.spacing.xl,
+        transition: `all ${theme.transitions.medium}`
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: theme.spacing.md,
+          paddingBottom: theme.spacing.sm,
+          borderBottom: `1px solid ${theme.colors.border}`
+        }}>
+          <h3 style={{
+            margin: 0,
+            fontSize: '18px',
+            fontWeight: '700',
+            background: theme.colors.gradients.primary,
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text'
+          }}>
+            Currently Integrated Feeds
+          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.md }}>
+            <span style={{
+              background: theme.colors.success,
+              color: 'white',
+              padding: '4px 10px',
+              borderRadius: '12px',
+              fontSize: '12px',
+              fontWeight: '700'
+            }}>
+              {integratedFeeds.length} Active
+            </span>
+            <button
+              onClick={() => setShowFeeds(!showFeeds)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: theme.colors.accentBlue,
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '600',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                transition: `all ${theme.transitions.fast}`
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = `${theme.colors.accentBlue}10`}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              {showFeeds ? 'Hide' : 'Show All'}
+            </button>
+          </div>
+        </div>
+
+        {loadingFeeds ? (
+          <div style={{ textAlign: 'center', padding: '20px', color: theme.colors.textSecondary }}>
+            Loading integrated feeds...
+          </div>
+        ) : showFeeds ? (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+            gap: theme.spacing.md,
+            marginTop: theme.spacing.md
+          }}>
+            {integratedFeeds.map((feed) => (
+              <div
+                key={feed.stateKey}
+                style={{
+                  background: theme.colors.glassLight,
+                  borderRadius: '12px',
+                  padding: theme.spacing.md,
+                  border: `1px solid ${theme.colors.border}`,
+                  transition: `all ${theme.transitions.fast}`
+                }}
+              >
+                <div style={{
+                  fontWeight: '700',
+                  fontSize: '14px',
+                  color: theme.colors.text,
+                  marginBottom: '8px'
+                }}>
+                  {feed.stateName}
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  gap: '6px',
+                  flexWrap: 'wrap',
+                  marginBottom: '10px'
+                }}>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    backgroundColor: `${theme.colors.accentBlue}15`,
+                    color: theme.colors.accentBlue,
+                    border: `1px solid ${theme.colors.accentBlue}60`
+                  }}>
+                    {feed.format?.toUpperCase() || 'N/A'}
+                  </span>
+                  {feed.apiType && (
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      backgroundColor: `${theme.colors.accentPurple}15`,
+                      color: theme.colors.accentPurple,
+                      border: `1px solid ${theme.colors.accentPurple}60`
+                    }}>
+                      {feed.apiType}
+                    </span>
+                  )}
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    backgroundColor: feed.enabled ? `${theme.colors.success}15` : `${theme.colors.textSecondary}15`,
+                    color: feed.enabled ? theme.colors.success : theme.colors.textSecondary,
+                    border: `1px solid ${feed.enabled ? theme.colors.success : theme.colors.textSecondary}60`
+                  }}>
+                    {feed.enabled ? 'Active' : 'Disabled'}
+                  </span>
+                </div>
+
+                {feed.apiUrl && (
+                  <div style={{
+                    fontSize: '11px',
+                    color: theme.colors.textSecondary,
+                    marginTop: '6px',
+                    padding: '6px 8px',
+                    background: `${theme.colors.border}40`,
+                    borderRadius: '6px',
+                    wordBreak: 'break-all',
+                    fontFamily: 'monospace'
+                  }}>
+                    <div style={{ fontWeight: '600', marginBottom: '2px', color: theme.colors.text }}>Feed URL:</div>
+                    <a
+                      href={feed.apiUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: theme.colors.accentBlue,
+                        textDecoration: 'none'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                      onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'}
+                    >
+                      {feed.apiUrl.length > 60 ? feed.apiUrl.substring(0, 60) + '...' : feed.apiUrl}
+                    </a>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{
+            textAlign: 'center',
+            padding: '12px',
+            color: theme.colors.textSecondary,
+            fontSize: '14px'
+          }}>
+            Click "Show All" to view {integratedFeeds.length} integrated feeds
+          </div>
+        )}
+      </div>
 
       {error && (
         <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '6px', backgroundColor: '#fee2e2', color: '#991b1b' }}>

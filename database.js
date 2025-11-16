@@ -239,6 +239,39 @@ class StateDatabase {
         FOREIGN KEY (interchange_id) REFERENCES interchanges(id)
       );
 
+      CREATE TABLE IF NOT EXISTS bridge_clearances (
+        id SERIAL PRIMARY KEY,
+        bridge_name TEXT NOT NULL,
+        route TEXT NOT NULL,
+        state_key TEXT NOT NULL,
+        latitude DOUBLE PRECISION NOT NULL,
+        longitude DOUBLE PRECISION NOT NULL,
+        clearance_feet DOUBLE PRECISION NOT NULL,
+        clearance_meters DOUBLE PRECISION NOT NULL,
+        direction TEXT,
+        restriction_type TEXT DEFAULT 'vertical',
+        watch_radius_km DOUBLE PRECISION DEFAULT 10,
+        warning_message TEXT,
+        active BOOLEAN DEFAULT TRUE,
+        last_verified TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS bridge_clearance_warnings (
+        id SERIAL PRIMARY KEY,
+        bridge_id INTEGER NOT NULL,
+        event_id TEXT NOT NULL,
+        event_state TEXT,
+        event_description TEXT,
+        distance_km DOUBLE PRECISION,
+        message TEXT,
+        status TEXT DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        resolved_at TIMESTAMP,
+        FOREIGN KEY (bridge_id) REFERENCES bridge_clearances(id)
+      );
+
       CREATE TABLE IF NOT EXISTS feed_submissions (
         id SERIAL PRIMARY KEY,
         submitted_by INTEGER,
@@ -519,6 +552,39 @@ class StateDatabase {
         resolved_at DATETIME,
         resolution_note TEXT,
         FOREIGN KEY (interchange_id) REFERENCES interchanges(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS bridge_clearances (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bridge_name TEXT NOT NULL,
+        route TEXT NOT NULL,
+        state_key TEXT NOT NULL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        clearance_feet REAL NOT NULL,
+        clearance_meters REAL NOT NULL,
+        direction TEXT,
+        restriction_type TEXT DEFAULT 'vertical',
+        watch_radius_km REAL DEFAULT 10,
+        warning_message TEXT,
+        active BOOLEAN DEFAULT 1,
+        last_verified DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS bridge_clearance_warnings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bridge_id INTEGER NOT NULL,
+        event_id TEXT NOT NULL,
+        event_state TEXT,
+        event_description TEXT,
+        distance_km REAL,
+        message TEXT,
+        status TEXT DEFAULT 'active',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        resolved_at DATETIME,
+        FOREIGN KEY (bridge_id) REFERENCES bridge_clearances(id)
       );
 
       CREATE TABLE IF NOT EXISTS feed_submissions (
@@ -2451,6 +2517,237 @@ class StateDatabase {
     } catch (error) {
       console.error('Error clearing chat history:', error);
       return { success: false, error: error.message };
+    }
+  }
+
+  // Interstate Interchange and Detour Alert Methods
+  async getActiveInterchanges() {
+    try {
+      if (this.isPostgres) {
+        const result = await this.db.query(
+          'SELECT * FROM interchanges WHERE active = true ORDER BY state_key, name'
+        );
+        return result.rows;
+      } else {
+        return this.db.prepare('SELECT * FROM interchanges WHERE active = 1 ORDER BY state_key, name').all();
+      }
+    } catch (error) {
+      console.error('Error getting active interchanges:', error);
+      return [];
+    }
+  }
+
+  async getDetourAlertByEventAndInterchange(eventId, interchangeId) {
+    try {
+      if (this.isPostgres) {
+        const result = await this.db.query(
+          'SELECT * FROM detour_alerts WHERE event_id = $1 AND interchange_id = $2 AND status = $3',
+          [eventId, interchangeId, 'active']
+        );
+        return result.rows[0];
+      } else {
+        return this.db.prepare(
+          'SELECT * FROM detour_alerts WHERE event_id = ? AND interchange_id = ? AND status = ?'
+        ).get(eventId, interchangeId, 'active');
+      }
+    } catch (error) {
+      console.error('Error getting detour alert:', error);
+      return null;
+    }
+  }
+
+  async createDetourAlert(data) {
+    try {
+      if (this.isPostgres) {
+        const result = await this.db.query(`
+          INSERT INTO detour_alerts
+          (interchange_id, event_id, event_state, event_corridor, event_location,
+           event_description, severity, lanes_affected, notified_states, message)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          RETURNING id
+        `, [
+          data.interchange_id,
+          data.event_id,
+          data.event_state,
+          data.event_corridor,
+          data.event_location,
+          data.event_description,
+          data.severity,
+          data.lanes_affected,
+          data.notified_states,
+          data.message
+        ]);
+        return result.rows[0].id;
+      } else {
+        const stmt = this.db.prepare(`
+          INSERT INTO detour_alerts
+          (interchange_id, event_id, event_state, event_corridor, event_location,
+           event_description, severity, lanes_affected, notified_states, message)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        const result = stmt.run(
+          data.interchange_id,
+          data.event_id,
+          data.event_state,
+          data.event_corridor,
+          data.event_location,
+          data.event_description,
+          data.severity,
+          data.lanes_affected,
+          data.notified_states,
+          data.message
+        );
+        return result.lastInsertRowid;
+      }
+    } catch (error) {
+      console.error('Error creating detour alert:', error);
+      throw error;
+    }
+  }
+
+  async getActiveDetourAlerts() {
+    try {
+      if (this.isPostgres) {
+        const result = await this.db.query(`
+          SELECT da.*, i.name as interchange_name, i.latitude, i.longitude
+          FROM detour_alerts da
+          JOIN interchanges i ON da.interchange_id = i.id
+          WHERE da.status = 'active'
+          ORDER BY da.created_at DESC
+        `);
+        return result.rows;
+      } else {
+        return this.db.prepare(`
+          SELECT da.*, i.name as interchange_name, i.latitude, i.longitude
+          FROM detour_alerts da
+          JOIN interchanges i ON da.interchange_id = i.id
+          WHERE da.status = 'active'
+          ORDER BY da.created_at DESC
+        `).all();
+      }
+    } catch (error) {
+      console.error('Error getting active detour alerts:', error);
+      return [];
+    }
+  }
+
+  async resolveDetourAlert(alertId, note) {
+    try {
+      if (this.isPostgres) {
+        await this.db.query(
+          'UPDATE detour_alerts SET status = $1, resolved_at = CURRENT_TIMESTAMP, resolution_note = $2 WHERE id = $3',
+          ['resolved', note, alertId]
+        );
+      } else {
+        this.db.prepare(
+          'UPDATE detour_alerts SET status = ?, resolved_at = CURRENT_TIMESTAMP, resolution_note = ? WHERE id = ?'
+        ).run('resolved', note, alertId);
+      }
+      return { success: true };
+    } catch (error) {
+      console.error('Error resolving detour alert:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Bridge Clearance Methods
+  async getActiveBridges() {
+    try {
+      if (this.isPostgres) {
+        const result = await this.db.query(
+          'SELECT * FROM bridge_clearances WHERE active = true ORDER BY clearance_feet ASC'
+        );
+        return result.rows;
+      } else {
+        return this.db.prepare('SELECT * FROM bridge_clearances WHERE active = 1 ORDER BY clearance_feet ASC').all();
+      }
+    } catch (error) {
+      console.error('Error getting active bridges:', error);
+      return [];
+    }
+  }
+
+  async getBridgeWarningByEventAndBridge(eventId, bridgeId) {
+    try {
+      if (this.isPostgres) {
+        const result = await this.db.query(
+          'SELECT * FROM bridge_clearance_warnings WHERE event_id = $1 AND bridge_id = $2 AND status = $3',
+          [eventId, bridgeId, 'active']
+        );
+        return result.rows[0];
+      } else {
+        return this.db.prepare(
+          'SELECT * FROM bridge_clearance_warnings WHERE event_id = ? AND bridge_id = ? AND status = ?'
+        ).get(eventId, bridgeId, 'active');
+      }
+    } catch (error) {
+      console.error('Error getting bridge warning:', error);
+      return null;
+    }
+  }
+
+  async createBridgeWarning(data) {
+    try {
+      if (this.isPostgres) {
+        const result = await this.db.query(`
+          INSERT INTO bridge_clearance_warnings
+          (bridge_id, event_id, event_state, event_description, distance_km, message)
+          VALUES ($1, $2, $3, $4, $5, $6)
+          RETURNING id
+        `, [
+          data.bridge_id,
+          data.event_id,
+          data.event_state,
+          data.event_description,
+          data.distance_km,
+          data.message
+        ]);
+        return result.rows[0].id;
+      } else {
+        const stmt = this.db.prepare(`
+          INSERT INTO bridge_clearance_warnings
+          (bridge_id, event_id, event_state, event_description, distance_km, message)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `);
+        const result = stmt.run(
+          data.bridge_id,
+          data.event_id,
+          data.event_state,
+          data.event_description,
+          data.distance_km,
+          data.message
+        );
+        return result.lastInsertRowid;
+      }
+    } catch (error) {
+      console.error('Error creating bridge warning:', error);
+      throw error;
+    }
+  }
+
+  async getActiveBridgeWarnings() {
+    try {
+      if (this.isPostgres) {
+        const result = await this.db.query(`
+          SELECT bw.*, b.bridge_name, b.route, b.clearance_feet, b.latitude, b.longitude
+          FROM bridge_clearance_warnings bw
+          JOIN bridge_clearances b ON bw.bridge_id = b.id
+          WHERE bw.status = 'active'
+          ORDER BY b.clearance_feet ASC, bw.created_at DESC
+        `);
+        return result.rows;
+      } else {
+        return this.db.prepare(`
+          SELECT bw.*, b.bridge_name, b.route, b.clearance_feet, b.latitude, b.longitude
+          FROM bridge_clearance_warnings bw
+          JOIN bridge_clearances b ON bw.bridge_id = b.id
+          WHERE bw.status = 'active'
+          ORDER BY b.clearance_feet ASC, bw.created_at DESC
+        `).all();
+      }
+    } catch (error) {
+      console.error('Error getting active bridge warnings:', error);
+      return [];
     }
   }
 

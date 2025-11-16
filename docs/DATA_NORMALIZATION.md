@@ -2,40 +2,110 @@
 
 ## Overview
 
-The DOT Corridor Communicator aggregates traffic event data from **46 different sources** across multiple data formats and normalizes them into a unified structure. This document explains how data from various states and sources is normalized to provide consistent, actionable traffic information.
+The DOT Corridor Communicator aggregates traffic event data from **46 different sources** across multiple data formats and normalizes them into a unified structure focused on **interstate highway corridors**. This document explains how data from various states and sources is normalized to provide consistent, actionable traffic information.
 
 ## Data Sources
 
 ### 1. WZDx (Work Zone Data Exchange) Feeds
-**Count**: 44 state DOT feeds
+**Count**: 45 state DOT feeds (including Ohio OHGO WZDx API)
 **Format**: GeoJSON with WZDx v4.x specification
 **Update Frequency**: Varies by state (5-60 minutes)
+**Filtering**: Interstate highways only
 
-**Example States**:
-- Iowa DOT: 1,350+ features
-- Florida DOT: 4,637 features
-- North Carolina DOT: 960 features
-- Maryland DOT: 196 features
-- And 40 more states...
+**Example States with Interstate Events:**
+- Iowa DOT: 303 interstate events (from 849 total features)
+- Florida DOT: 304 interstate events (from 5,061 total features)
+- Wisconsin DOT: 364 interstate events (from 883 total features)
+- Massachusetts DOT: 274 interstate events (from 1,048 total features)
+- North Carolina DOT: 177 interstate events (from 798 total features)
+- Ohio OHGO: 11 interstate events (from 410 total features)
+- Maryland DOT: 25 interstate events (from 56 total features)
+- And 10+ more states with interstate coverage
 
-### 2. Ohio OHGO Public API
-**Format**: JSON REST API
-**Endpoints**:
-- `/api/v1/construction` - 634 work zones (500 active)
-- `/api/v1/incidents` - Real-time crashes and road work
-- `/api/v1/truck-parking` - TPIMS parking availability
+**Note on State Route Feeds:**
+Some states like Hawaii, Delaware, Washington, and Austin TX provide WZDx feeds but currently show 0 events because:
+- **Hawaii**: Has no interstate highways (only H-1, H-2, H-3 state routes)
+- **Delaware/Washington/Austin**: Their feeds currently contain only state routes or local roads, no active interstate work zones
 
-**Authentication**: Bearer token (API key required)
+### 2. California Highway Patrol (CHP) Incident Feed
+**Format**: XML
+**Update Frequency**: Real-time (continuously updated)
+**Coverage**: All California incidents including I-5, I-10, I-15, I-80, I-405, I-580
+**Authentication**: None required (public feed)
 
-### 3. California Caltrans LCS (Lane Control System)
-**Format**: JSON per-district feeds
-**Districts**: 12 Caltrans districts
-**Update Frequency**: 5 minutes
-**Total Closures**: 11,984 (839 currently active)
+This feed provides real-time incident data from CHP dispatch centers across California including:
+- Traffic collisions
+- Traffic hazards
+- Road closures
+- Disabled vehicles
+- Other highway incidents
 
-**URL Pattern**: `https://cwwp2.dot.ca.gov/data/d{N}/lcs/lcsStatusD{N}.json`
+### 3. California 511 / Caltrans (Disabled - Requires API Key)
+**Status**: Currently disabled
+**Format**: WZDx (GeoJSON)
+**Authentication**: Requires 511.org API key
+
+To enable:
+1. Obtain API key from https://511.org/developers
+2. Update feed URL with valid API key
+3. Enable feed in database
 
 ## Normalization Process
+
+### Step 0: Interstate Highway Filtering
+
+**Critical**: The DOT Corridor Communicator focuses exclusively on **interstate highway corridors** to support cross-state DOT coordination and V2X communication.
+
+#### Filtering Strategy
+
+All WZDx events are filtered to include **only interstate highways**:
+
+```javascript
+const isInterstateRoute = (locationText) => {
+  if (!locationText) return false;
+
+  // Match patterns like "I-80", "I 80", "Interstate 80", etc.
+  const interstatePattern = /\b(I-?\d{1,3}|Interstate\s+\d{1,3})\b/i;
+
+  // Exclude state routes like "US 30", "SR 520", "TX 71", "H-1"
+  const stateRoutePattern = /\b(US|SR|KS|NE|IA|IN|MN|UT|NV|OH|NJ|TX|H)-?\s*\d+\b/i;
+
+  // Must match interstate pattern and NOT match state route pattern
+  return interstatePattern.test(locationText) && !stateRoutePattern.test(locationText);
+};
+```
+
+#### What's Included
+- ✅ Interstate highways: `I-80`, `I-95`, `I 70`, `Interstate 75`
+- ✅ All standard interstate naming conventions
+
+#### What's Excluded
+- ❌ US highways: `US-1`, `US 30`, `US Highway 50`
+- ❌ State routes: `SR-520`, `TX-71`, `KS-156`, `H-1`
+- ❌ Local roads and city streets
+
+#### Impact by State
+
+**States with Interstate Events:**
+- Florida DOT: 304 interstate events
+- Iowa DOT: 303 interstate events
+- Wisconsin DOT: 364 interstate events
+- Massachusetts DOT: 274 interstate events
+- Ohio DOT: 11 interstate events
+- And 10+ more states with interstate coverage
+
+**States with 0 Events (No Interstate Work Zones):**
+- Hawaii DOT: 53 total features (all on H-1, H-2, H-3 state routes - Hawaii has **no interstate highways**)
+- Delaware DOT: 8 total features (currently no interstate work zones)
+- Washington State DOT: 557 total features (primarily state routes in feed)
+- Texas (Austin area): 2,083 total features (city feed focuses on local roads)
+
+#### Rationale
+
+1. **Federal Highway System Focus**: Interstate highways are federally funded and require cross-state coordination
+2. **V2X Standardization**: Connected vehicle systems prioritize interstate corridors for deployment
+3. **DOT Collaboration**: Interstate events often affect multiple states and require coordination
+4. **Data Quality**: Reduces noise from local events not relevant to corridor management
 
 ### Step 1: Field Name Mapping
 
