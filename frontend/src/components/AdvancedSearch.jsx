@@ -191,7 +191,11 @@ export default function AdvancedSearch({ events, onSearch, placeholder = "Search
             setIsOpen(true);
             setSelectedIndex(0);
           }}
-          onFocus={() => setIsOpen(true)}
+          onFocus={(e) => {
+            setIsOpen(true);
+            e.currentTarget.style.borderColor = theme.colors.accentBlue;
+            e.currentTarget.style.boxShadow = `0 0 0 3px ${theme.colors.accentBlue}20`;
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !isOpen) {
               handleSearch();
@@ -208,10 +212,6 @@ export default function AdvancedSearch({ events, onSearch, placeholder = "Search
             transition: `all ${theme.transitions.fast}`,
             backgroundColor: 'white',
             boxShadow: isOpen ? theme.shadows.md : theme.shadows.sm
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = theme.colors.accentBlue;
-            e.currentTarget.style.boxShadow = `0 0 0 3px ${theme.colors.accentBlue}20`;
           }}
           onBlur={(e) => {
             setTimeout(() => {
