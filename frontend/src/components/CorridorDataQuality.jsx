@@ -126,12 +126,48 @@ export default function CorridorDataQuality() {
   return (
     <div style={{ padding: '20px' }}>
       <div style={{ marginBottom: '24px' }}>
-        <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px', color: '#1f2937' }}>
-          Data Quality Grading System
-        </h2>
-        <p style={{ color: '#6b7280', fontSize: '14px' }}>
-          MDODE-aligned quality assessment for corridor data services
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+          <div>
+            <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px', color: '#1f2937' }}>
+              Data Quality Grading System
+            </h2>
+            <p style={{ color: '#6b7280', fontSize: '14px' }}>
+              MDODE-aligned quality assessment for corridor data services
+            </p>
+          </div>
+          <a
+            href="https://github.com/DOTNETTMiller/traffic-dashboard-backend/blob/main/docs/TETC_MDODE_Grading_SOP.md"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              padding: '10px 16px',
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: '600',
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 2px 4px rgba(59, 130, 246, 0.3)',
+              transition: 'all 0.2s',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.backgroundColor = '#2563eb';
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.4)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.backgroundColor = '#3b82f6';
+              e.currentTarget.style.boxShadow = '0 2px 4px rgba(59, 130, 246, 0.3)';
+            }}
+          >
+            <span>📋</span>
+            <span>View TETC Grading SOP</span>
+          </a>
+        </div>
       </div>
 
       {/* Summary Cards */}
