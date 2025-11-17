@@ -604,6 +604,65 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                       }}
                     />
                   </div>
+
+                  {/* All Camera Views Thumbnails */}
+                  {availableViews.length > 1 && (
+                    <div style={{
+                      marginTop: '12px',
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
+                      gap: '8px'
+                    }}>
+                      {availableViews.map(view => (
+                        <div
+                          key={view}
+                          onClick={() => setSelectedViewByFacility(prev => ({
+                            ...prev,
+                            [facility.facilityId]: view
+                          }))}
+                          style={{
+                            cursor: 'pointer',
+                            border: view === currentView ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+                            borderRadius: '4px',
+                            overflow: 'hidden',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (view !== currentView) e.currentTarget.style.borderColor = '#3b82f6';
+                          }}
+                          onMouseLeave={(e) => {
+                            if (view !== currentView) e.currentTarget.style.borderColor = '#e5e7eb';
+                          }}
+                        >
+                          <img
+                            src={facility.cameras[view]}
+                            alt={`${formatViewName(view)}`}
+                            style={{
+                              width: '100%',
+                              height: '60px',
+                              objectFit: 'cover',
+                              display: 'block'
+                            }}
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="100"%3E%3Crect fill="%23f3f4f6" width="200" height="100"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%236b7280" font-size="10"%3EUnavailable%3C/text%3E%3C/svg%3E';
+                            }}
+                          />
+                          <div style={{
+                            padding: '4px',
+                            backgroundColor: view === currentView ? '#3b82f6' : '#f9fafb',
+                            color: view === currentView ? 'white' : '#374151',
+                            fontSize: '9px',
+                            textAlign: 'center',
+                            fontWeight: view === currentView ? '600' : '500'
+                          }}>
+                            {formatViewName(view).replace(/Truck Parking/g, 'TP')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <p style={{
                     margin: '8px 0 0 0',
                     fontSize: '11px',
