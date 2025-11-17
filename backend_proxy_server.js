@@ -7906,6 +7906,198 @@ app.get('/api/quality/anomalies', (req, res) => {
 });
 
 // ========================================
+// Data Quality Grading System (MDODE-aligned)
+// ========================================
+
+// Get all corridors with quality scores
+app.get('/api/data-quality/corridors', async (req, res) => {
+  try {
+    const corridors = await db.allAsync(
+      `SELECT DISTINCT corridor_id, corridor_name
+       FROM corridor_service_quality_latest
+       ORDER BY corridor_name`
+    );
+
+    res.json({
+      success: true,
+      corridors
+    });
+  } catch (error) {
+    console.error('Error fetching corridors:', error);
+    res.status(500).json({ error: 'Failed to fetch corridors' });
+  }
+});
+
+// Get quality scores for a specific corridor (all services)
+app.get('/api/data-quality/corridor/:corridorId', async (req, res) => {
+  try {
+    const { corridorId } = req.params;
+    const { minGrade, serviceType } = req.query;
+
+    let sql = `SELECT * FROM corridor_service_quality_latest WHERE corridor_id = ?`;
+    const params = [corridorId];
+
+    if (serviceType) {
+      sql += ` AND service_type_id = ?`;
+      params.push(serviceType);
+    }
+
+    if (minGrade) {
+      const gradeOrder = ['F', 'D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+'];
+      const minIndex = gradeOrder.indexOf(minGrade);
+      if (minIndex >= 0) {
+        const acceptableGrades = gradeOrder.slice(minIndex);
+        sql += ` AND letter_grade IN (${acceptableGrades.map(() => '?').join(',')})`;
+        params.push(...acceptableGrades);
+      }
+    }
+
+    sql += ` ORDER BY dqi DESC`;
+
+    const services = await db.allAsync(sql, params);
+
+    if (services.length === 0) {
+      return res.status(404).json({ error: 'Corridor not found or no services match criteria' });
+    }
+
+    res.json({
+      success: true,
+      corridor: {
+        id: corridorId,
+        name: services[0].corridor_name
+      },
+      services,
+      summary: {
+        totalServices: services.length,
+        avgDQI: services.reduce((sum, s) => sum + s.dqi, 0) / services.length,
+        gradeDistribution: services.reduce((acc, s) => {
+          acc[s.letter_grade] = (acc[s.letter_grade] || 0) + 1;
+          return acc;
+        }, {})
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching corridor quality:', error);
+    res.status(500).json({ error: 'Failed to fetch corridor quality data' });
+  }
+});
+
+// Get detailed quality breakdown for specific corridor/service
+app.get('/api/data-quality/corridor/:corridorId/service/:serviceTypeId', async (req, res) => {
+  try {
+    const { corridorId, serviceTypeId } = req.params;
+
+    // Get the latest quality score
+    const service = await db.getAsync(
+      `SELECT * FROM corridor_service_quality_latest
+       WHERE corridor_id = ? AND service_type_id = ?`,
+      [corridorId, serviceTypeId]
+    );
+
+    if (!service) {
+      return res.status(404).json({ error: 'Service not found for this corridor' });
+    }
+
+    // Get all validation runs for this feed
+    const validationRuns = await db.allAsync(
+      `SELECT vr.*, qs.dqi, qs.letter_grade, qs.acc_score, qs.cov_score,
+              qs.tim_score, qs.std_score, qs.gov_score
+       FROM validation_runs vr
+       JOIN quality_scores qs ON vr.id = qs.validation_run_id
+       WHERE vr.data_feed_id = ?
+       ORDER BY vr.period_end DESC
+       LIMIT 10`,
+      [service.data_feed_id]
+    );
+
+    // Get detailed metrics for the latest validation run
+    const metrics = await db.allAsync(
+      `SELECT vr.id as validation_run_id, mv.*
+       FROM validation_runs vr
+       JOIN data_feeds df ON vr.data_feed_id = df.id
+       JOIN metric_values mv ON vr.id = mv.validation_run_id
+       WHERE df.corridor_id = ? AND df.service_type_id = ?
+       ORDER BY vr.period_end DESC
+       LIMIT 20`,
+      [corridorId, serviceTypeId]
+    );
+
+    res.json({
+      success: true,
+      service,
+      validationHistory: validationRuns,
+      metrics
+    });
+  } catch (error) {
+    console.error('Error fetching service quality details:', error);
+    res.status(500).json({ error: 'Failed to fetch service quality details' });
+  }
+});
+
+// Get all service types
+app.get('/api/data-quality/service-types', async (req, res) => {
+  try {
+    const serviceTypes = await db.allAsync(
+      `SELECT * FROM service_types ORDER BY category, display_name`
+    );
+
+    res.json({
+      success: true,
+      serviceTypes
+    });
+  } catch (error) {
+    console.error('Error fetching service types:', error);
+    res.status(500).json({ error: 'Failed to fetch service types' });
+  }
+});
+
+// Get quality summary across all corridors
+app.get('/api/data-quality/summary', async (req, res) => {
+  try {
+    const allScores = await db.allAsync(
+      `SELECT corridor_id, corridor_name, service_type_id, service_display_name,
+              category, dqi, letter_grade
+       FROM corridor_service_quality_latest
+       ORDER BY dqi DESC`
+    );
+
+    const summary = {
+      totalScores: allScores.length,
+      avgDQI: allScores.reduce((sum, s) => sum + s.dqi, 0) / allScores.length,
+      gradeDistribution: allScores.reduce((acc, s) => {
+        acc[s.letter_grade] = (acc[s.letter_grade] || 0) + 1;
+        return acc;
+      }, {}),
+      categoryBreakdown: allScores.reduce((acc, s) => {
+        if (!acc[s.category]) {
+          acc[s.category] = { count: 0, avgDQI: 0, scores: [] };
+        }
+        acc[s.category].count++;
+        acc[s.category].scores.push(s.dqi);
+        return acc;
+      }, {}),
+      topPerformers: allScores.slice(0, 10),
+      needsImprovement: allScores.filter(s => s.dqi < 70).slice(0, 10)
+    };
+
+    // Calculate category averages
+    Object.keys(summary.categoryBreakdown).forEach(cat => {
+      const scores = summary.categoryBreakdown[cat].scores;
+      summary.categoryBreakdown[cat].avgDQI = scores.reduce((a, b) => a + b, 0) / scores.length;
+      delete summary.categoryBreakdown[cat].scores;
+    });
+
+    res.json({
+      success: true,
+      summary
+    });
+  } catch (error) {
+    console.error('Error fetching quality summary:', error);
+    res.status(500).json({ error: 'Failed to fetch quality summary' });
+  }
+});
+
+// ========================================
 // Truck Parking API Endpoints
 // ========================================
 
