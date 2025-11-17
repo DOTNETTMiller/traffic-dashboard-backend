@@ -381,7 +381,8 @@ export default function TrafficMap({
   heatMapActive = false,
   heatMapMode = 'density',
   onHeatMapToggle,
-  onHeatMapModeChange
+  onHeatMapModeChange,
+  isDarkMode = false
 }) {
   const mapRef = useRef(null);
   const [showMiniMap, setShowMiniMap] = useState(() => {
@@ -443,10 +444,13 @@ export default function TrafficMap({
         {/* Capture map reference */}
         <MapRefCapturer mapRef={mapRef} />
 
-        {/* CartoDB Voyager - shows highways prominently with clear labels */}
+        {/* CartoDB - shows highways prominently with clear labels */}
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          url={isDarkMode
+            ? "https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png"
+            : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          }
           subdomains="abcd"
           maxZoom={20}
         />

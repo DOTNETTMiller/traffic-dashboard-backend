@@ -60,6 +60,7 @@ function App() {
   const [detourAlerts, setDetourAlerts] = useState([]);
   const [statsExpanded, setStatsExpanded] = useState(true);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [adminDropdownOpen, setAdminDropdownOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : false;
@@ -678,43 +679,154 @@ function App() {
           )}
 
           {currentUser?.role === 'admin' && (
-            <>
+            <div style={{ position: 'relative' }}>
               <button
-                className={`toggle-btn ${view === 'groundTruth' ? 'active' : ''}`}
-                onClick={() => setView('groundTruth')}
-                style={{ backgroundColor: view === 'groundTruth' ? '#10b981' : '#6c757d' }}
+                className={`toggle-btn ${['groundTruth', 'admin', 'adminUsers', 'adminInterchanges', 'adminFeeds'].includes(view) ? 'active' : ''}`}
+                onClick={() => setAdminDropdownOpen(!adminDropdownOpen)}
+                style={{
+                  backgroundColor: ['groundTruth', 'admin', 'adminUsers', 'adminInterchanges', 'adminFeeds'].includes(view) ? '#dc3545' : '#6c757d',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
               >
-                Ground Truth
+                Admin
+                <span style={{
+                  transform: adminDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s ease',
+                  fontSize: '10px'
+                }}>
+                  ▼
+                </span>
               </button>
-              <button
-                className={`toggle-btn ${view === 'admin' ? 'active' : ''}`}
-                onClick={() => setView('admin')}
-                style={{ backgroundColor: view === 'admin' ? '#dc3545' : '#6c757d' }}
-              >
-                Admin (States)
-              </button>
-              <button
-                className={`toggle-btn ${view === 'adminUsers' ? 'active' : ''}`}
-                onClick={() => setView('adminUsers')}
-                style={{ backgroundColor: view === 'adminUsers' ? '#dc3545' : '#6c757d' }}
-              >
-                Admin (Users)
-              </button>
-              <button
-                className={`toggle-btn ${view === 'adminInterchanges' ? 'active' : ''}`}
-                onClick={() => setView('adminInterchanges')}
-                style={{ backgroundColor: view === 'adminInterchanges' ? '#dc3545' : '#6c757d' }}
-              >
-                Admin (Detours)
-              </button>
-              <button
-                className={`toggle-btn ${view === 'adminFeeds' ? 'active' : ''}`}
-                onClick={() => setView('adminFeeds')}
-                style={{ backgroundColor: view === 'adminFeeds' ? '#dc3545' : '#6c757d' }}
-              >
-                Admin (Feeds)
-              </button>
-            </>
+
+              {adminDropdownOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  marginTop: '4px',
+                  background: 'white',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  zIndex: 1000,
+                  minWidth: '180px',
+                  overflow: 'hidden',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <button
+                    onClick={() => {
+                      setView('groundTruth');
+                      setAdminDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'groundTruth' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'groundTruth' ? '600' : '400',
+                      color: view === 'groundTruth' ? '#10b981' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'groundTruth' ? '#f3f4f6' : 'white'}
+                  >
+                    Ground Truth
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView('admin');
+                      setAdminDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'admin' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'admin' ? '600' : '400',
+                      color: view === 'admin' ? '#dc3545' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'admin' ? '#f3f4f6' : 'white'}
+                  >
+                    States
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView('adminUsers');
+                      setAdminDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'adminUsers' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'adminUsers' ? '600' : '400',
+                      color: view === 'adminUsers' ? '#dc3545' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'adminUsers' ? '#f3f4f6' : 'white'}
+                  >
+                    Users
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView('adminInterchanges');
+                      setAdminDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'adminInterchanges' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'adminInterchanges' ? '600' : '400',
+                      color: view === 'adminInterchanges' ? '#dc3545' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'adminInterchanges' ? '#f3f4f6' : 'white'}
+                  >
+                    Detours
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView('adminFeeds');
+                      setAdminDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'adminFeeds' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'adminFeeds' ? '600' : '400',
+                      color: view === 'adminFeeds' ? '#dc3545' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'adminFeeds' ? '#f3f4f6' : 'white'}
+                  >
+                    Feeds
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -1001,6 +1113,7 @@ function App() {
                   heatMapMode={heatMapMode}
                   onHeatMapToggle={setHeatMapActive}
                   onHeatMapModeChange={setHeatMapMode}
+                  isDarkMode={isDarkMode}
                 />
               </div>
             </div>
