@@ -182,6 +182,7 @@ export default function ChatWidget({ user, context, isDarkMode }) {
           {/* Messages */}
           <div style={{
             flex: 1,
+            minHeight: 0,
             overflowY: 'auto',
             padding: '16px',
             backgroundColor: isDarkMode ? '#111827' : '#f9fafb',
