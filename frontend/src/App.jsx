@@ -1159,6 +1159,7 @@ function App() {
       {isAuthenticated && currentUser && (
         <ChatWidget
           user={currentUser}
+          isDarkMode={isDarkMode}
           context={
             parkingContext ? parkingContext :
             view === 'report' ? {
@@ -1276,6 +1277,7 @@ function App() {
               {authToken && (
                 <DetourAlerts
                   authToken={authToken}
+                  isDarkMode={isDarkMode}
                   onViewOnMap={(event) => {
                     setShowAlertsModal(false);
                     if (view !== 'map') {
@@ -1287,6 +1289,7 @@ function App() {
               )}
 
               <BridgeClearanceWarnings
+                isDarkMode={isDarkMode}
                 onViewOnMap={(event) => {
                   setShowAlertsModal(false);
                   if (view !== 'map') {

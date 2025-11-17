@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { theme } from '../styles/theme';
 
-export default function BridgeClearanceWarnings({ onViewOnMap }) {
+export default function BridgeClearanceWarnings({ onViewOnMap, isDarkMode }) {
   const [warnings, setWarnings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -129,10 +129,10 @@ export default function BridgeClearanceWarnings({ onViewOnMap }) {
         marginBottom: '16px'
       }}>
         <div>
-          <h2 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: '600', color: '#111827' }}>
+          <h2 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: '600', color: isDarkMode ? '#f9fafb' : '#111827' }}>
             🌉 Low Bridge Clearances
           </h2>
-          <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>
+          <p style={{ margin: 0, color: isDarkMode ? '#d1d5db' : '#6b7280', fontSize: '14px' }}>
             {warnings.length === 0 ? 'No bridge clearance warnings' : `${warnings.length} active warning${warnings.length !== 1 ? 's' : ''}`}
           </p>
         </div>
@@ -204,14 +204,14 @@ export default function BridgeClearanceWarnings({ onViewOnMap }) {
                   <div style={{
                     fontWeight: '600',
                     fontSize: '14px',
-                    color: '#111827',
+                    color: isDarkMode ? '#f9fafb' : '#111827',
                     marginBottom: '4px'
                   }}>
                     {warning.bridge_name}
                   </div>
                   <div style={{
                     fontSize: '12px',
-                    color: '#6b7280'
+                    color: isDarkMode ? '#d1d5db' : '#6b7280'
                   }}>
                     {warning.route} • {warning.distance_km?.toFixed(1)} km from event • {formatDate(warning.created_at)}
                   </div>
@@ -222,7 +222,7 @@ export default function BridgeClearanceWarnings({ onViewOnMap }) {
               {/* Event Description */}
               <div style={{
                 fontSize: '13px',
-                color: '#374151',
+                color: isDarkMode ? '#e5e7eb' : '#374151',
                 marginBottom: '8px',
                 lineHeight: '1.5',
                 fontStyle: 'italic'
@@ -233,11 +233,11 @@ export default function BridgeClearanceWarnings({ onViewOnMap }) {
               {/* Warning Message */}
               <div style={{
                 padding: '8px',
-                backgroundColor: '#f9fafb',
+                backgroundColor: isDarkMode ? '#374151' : '#f9fafb',
                 borderRadius: '4px',
                 fontSize: '13px',
                 lineHeight: '1.5',
-                color: '#374151'
+                color: isDarkMode ? '#f3f4f6' : '#374151'
               }}>
                 {warning.message}
               </div>
@@ -246,7 +246,7 @@ export default function BridgeClearanceWarnings({ onViewOnMap }) {
               <div style={{
                 marginTop: '8px',
                 fontSize: '12px',
-                color: '#6b7280',
+                color: isDarkMode ? '#d1d5db' : '#6b7280',
                 fontWeight: '500'
               }}>
                 🌉 Clearance: {Math.floor(warning.clearance_feet)}' {Math.round((warning.clearance_feet - Math.floor(warning.clearance_feet)) * 12)}" ({warning.clearance_feet.toFixed(2)} ft / {(warning.clearance_feet * 0.3048).toFixed(2)} m)

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { theme } from '../styles/theme';
 
-export default function DetourAlerts({ authToken, onViewOnMap }) {
+export default function DetourAlerts({ authToken, onViewOnMap, isDarkMode }) {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -149,10 +149,10 @@ export default function DetourAlerts({ authToken, onViewOnMap }) {
         marginBottom: '16px'
       }}>
         <div>
-          <h2 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: '600', color: '#111827' }}>
+          <h2 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: '600', color: isDarkMode ? '#f9fafb' : '#111827' }}>
             🚗 Interstate Detour Alerts
           </h2>
-          <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>
+          <p style={{ margin: 0, color: isDarkMode ? '#d1d5db' : '#6b7280', fontSize: '14px' }}>
             {alerts.length === 0 ? 'No active detour alerts' : `${alerts.length} active alert${alerts.length !== 1 ? 's' : ''}`}
           </p>
         </div>
@@ -224,14 +224,14 @@ export default function DetourAlerts({ authToken, onViewOnMap }) {
                   <div style={{
                     fontWeight: '600',
                     fontSize: '14px',
-                    color: '#111827',
+                    color: isDarkMode ? '#f9fafb' : '#111827',
                     marginBottom: '4px'
                   }}>
                     {alert.interchange_name}
                   </div>
                   <div style={{
                     fontSize: '12px',
-                    color: '#6b7280'
+                    color: isDarkMode ? '#d1d5db' : '#6b7280'
                   }}>
                     {alert.event_corridor} • {formatDate(alert.created_at)}
                   </div>
@@ -242,7 +242,7 @@ export default function DetourAlerts({ authToken, onViewOnMap }) {
               {/* Event Description */}
               <div style={{
                 fontSize: '13px',
-                color: '#374151',
+                color: isDarkMode ? '#e5e7eb' : '#374151',
                 marginBottom: '8px',
                 lineHeight: '1.5'
               }}>
@@ -252,11 +252,11 @@ export default function DetourAlerts({ authToken, onViewOnMap }) {
               {/* Detour Message */}
               <div style={{
                 padding: '8px',
-                backgroundColor: '#f9fafb',
+                backgroundColor: isDarkMode ? '#374151' : '#f9fafb',
                 borderRadius: '4px',
                 fontSize: '13px',
                 lineHeight: '1.5',
-                color: '#374151'
+                color: isDarkMode ? '#f3f4f6' : '#374151'
               }}>
                 {alert.message}
               </div>
@@ -266,7 +266,7 @@ export default function DetourAlerts({ authToken, onViewOnMap }) {
                 <div style={{
                   marginTop: '8px',
                   fontSize: '12px',
-                  color: '#6b7280',
+                  color: isDarkMode ? '#d1d5db' : '#6b7280',
                   fontWeight: '500'
                 }}>
                   🚧 Lanes affected: {alert.lanes_affected}

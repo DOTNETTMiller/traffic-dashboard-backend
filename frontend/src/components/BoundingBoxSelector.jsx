@@ -4,7 +4,7 @@ import { Download, Square, X } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-function BoundingBoxSelector() {
+function BoundingBoxSelector({ isDarkMode }) {
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPoint, setStartPoint] = useState(null);
   const [currentPoint, setCurrentPoint] = useState(null);
@@ -143,10 +143,10 @@ function BoundingBoxSelector() {
       {isPanelVisible && (
         <div style={{
           position: 'absolute',
-          top: '80px',
+          top: '10px',
           right: '10px',
           zIndex: 1000,
-          backgroundColor: 'white',
+          backgroundColor: isDarkMode ? '#1f2937' : 'white',
           borderRadius: '8px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
           padding: '12px',
@@ -158,7 +158,7 @@ function BoundingBoxSelector() {
             alignItems: 'center',
             marginBottom: '12px'
           }}>
-            <div style={{ fontWeight: '600', fontSize: '14px', color: '#1f2937' }}>
+            <div style={{ fontWeight: '600', fontSize: '14px', color: isDarkMode ? '#f9fafb' : '#1f2937' }}>
               Bounding Box Export
             </div>
             <button
@@ -170,10 +170,10 @@ function BoundingBoxSelector() {
                 padding: '4px',
                 display: 'flex',
                 alignItems: 'center',
-                color: '#6b7280',
+                color: isDarkMode ? '#d1d5db' : '#6b7280',
                 borderRadius: '4px'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDarkMode ? '#374151' : '#f3f4f6'}
               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               title="Close panel"
             >
@@ -339,7 +339,7 @@ function BoundingBoxSelector() {
           onClick={() => setIsPanelVisible(true)}
           style={{
             position: 'absolute',
-            top: '80px',
+            top: '10px',
             right: '10px',
             zIndex: 1000,
             backgroundColor: '#3b82f6',

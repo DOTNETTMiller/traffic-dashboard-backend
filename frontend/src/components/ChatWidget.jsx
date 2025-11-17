@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { config } from '../config';
 
-export default function ChatWidget({ user, context }) {
+export default function ChatWidget({ user, context, isDarkMode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -121,13 +121,13 @@ export default function ChatWidget({ user, context }) {
         <div style={{
           width: '400px',
           height: '600px',
-          backgroundColor: 'white',
+          backgroundColor: isDarkMode ? '#1f2937' : 'white',
           borderRadius: '12px',
           boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
           display: 'flex',
           flexDirection: 'column',
           marginBottom: '12px',
-          border: '1px solid #e5e7eb'
+          border: `1px solid ${isDarkMode ? '#374151' : '#e5e7eb'}`
         }}>
           {/* Header */}
           <div style={{
@@ -184,7 +184,7 @@ export default function ChatWidget({ user, context }) {
             flex: 1,
             overflowY: 'auto',
             padding: '16px',
-            backgroundColor: '#f9fafb',
+            backgroundColor: isDarkMode ? '#111827' : '#f9fafb',
             display: 'flex',
             flexDirection: 'column',
             gap: '12px'
@@ -218,8 +218,8 @@ export default function ChatWidget({ user, context }) {
                   maxWidth: '80%',
                   padding: '10px 14px',
                   borderRadius: '12px',
-                  backgroundColor: msg.role === 'user' ? '#3b82f6' : 'white',
-                  color: msg.role === 'user' ? 'white' : '#1f2937',
+                  backgroundColor: msg.role === 'user' ? '#3b82f6' : (isDarkMode ? '#374151' : 'white'),
+                  color: msg.role === 'user' ? 'white' : (isDarkMode ? '#f9fafb' : '#1f2937'),
                   fontSize: '14px',
                   lineHeight: '1.5',
                   boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
@@ -239,7 +239,7 @@ export default function ChatWidget({ user, context }) {
                 <div style={{
                   padding: '10px 14px',
                   borderRadius: '12px',
-                  backgroundColor: 'white',
+                  backgroundColor: isDarkMode ? '#374151' : 'white',
                   boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
                   display: 'flex',
                   gap: '6px',
@@ -289,8 +289,8 @@ export default function ChatWidget({ user, context }) {
           {/* Input */}
           <form onSubmit={sendMessage} style={{
             padding: '16px',
-            borderTop: '1px solid #e5e7eb',
-            backgroundColor: 'white',
+            borderTop: `1px solid ${isDarkMode ? '#374151' : '#e5e7eb'}`,
+            backgroundColor: isDarkMode ? '#1f2937' : 'white',
             borderBottomLeftRadius: '12px',
             borderBottomRightRadius: '12px'
           }}>
@@ -304,14 +304,16 @@ export default function ChatWidget({ user, context }) {
                 style={{
                   flex: 1,
                   padding: '10px 12px',
-                  border: '1px solid #d1d5db',
+                  border: `1px solid ${isDarkMode ? '#4b5563' : '#d1d5db'}`,
                   borderRadius: '8px',
                   fontSize: '14px',
                   outline: 'none',
-                  transition: 'border-color 0.2s'
+                  transition: 'border-color 0.2s',
+                  backgroundColor: isDarkMode ? '#374151' : 'white',
+                  color: isDarkMode ? '#f9fafb' : '#1f2937'
                 }}
                 onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
-                onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                onBlur={(e) => e.target.style.borderColor = isDarkMode ? '#4b5563' : '#d1d5db'}
               />
               <button
                 type="submit"
