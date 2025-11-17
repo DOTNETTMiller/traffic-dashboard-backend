@@ -33,6 +33,7 @@ import DocumentationViewer from './components/DocumentationViewer';
 import ChatWidget from './components/ChatWidget';
 import UserProfile from './components/UserProfile';
 import GroundTruthDashboard from './components/GroundTruthDashboard';
+import CorridorDataQuality from './components/CorridorDataQuality';
 import './styles/App.css';
 
 function App() {
@@ -643,6 +644,12 @@ function App() {
             Data Quality Report
           </button>
           <button
+            className={`toggle-btn ${view === 'tetcGrading' ? 'active' : ''}`}
+            onClick={() => setView('tetcGrading')}
+          >
+            TETC Data Grading
+          </button>
+          <button
             className={`toggle-btn ${view === 'alignment' ? 'active' : ''}`}
             onClick={() => setView('alignment')}
           >
@@ -1139,6 +1146,8 @@ function App() {
               />
             ) : view === 'report' ? (
               <DataQualityReport />
+            ) : view === 'tetcGrading' ? (
+              <CorridorDataQuality />
             ) : null}
           </div>
         )}
