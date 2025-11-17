@@ -44,6 +44,8 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
   const [error, setError] = useState(null);
   const [observations, setObservations] = useState({}); // { facilityId: { availableSpaces: number, submitting: boolean } }
   const [hourlyPredictions, setHourlyPredictions] = useState({}); // { facilityId: [ {hour, occupancyRate, ...}, ... ] }
+  const [selectedCameras, setSelectedCameras] = useState([]); // [{ facilityName, view, url }, ...]
+  const [isCameraViewerOpen, setIsCameraViewerOpen] = useState(false);
 
   // Navigate to alert location on map
   const handleAlertClick = (alert) => {
@@ -53,6 +55,22 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
         duration: 1
       });
     }
+  };
+
+  // Add camera to multi-camera viewer
+  const handleAddCamera = (facilityName, view, url) => {
+    const cameraId = `${facilityName}-${view}`;
+    // Check if camera is already added
+    if (selectedCameras.find(cam => `${cam.facilityName}-${cam.view}` === cameraId)) {
+      return; // Already added
+    }
+    setSelectedCameras(prev => [...prev, { facilityName, view, url }]);
+    setIsCameraViewerOpen(true);
+  };
+
+  // Remove camera from multi-camera viewer
+  const handleRemoveCamera = (facilityName, view) => {
+    setSelectedCameras(prev => prev.filter(cam => !(cam.facilityName === facilityName && cam.view === view)));
   };
 
   useEffect(() => {
@@ -698,66 +716,90 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                       📷 Live Camera Feeds
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px' }}>
-                      {Object.entries(facility.cameras).map(([view, url]) => (
-                        <a
-                          key={view}
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            display: 'block',
-                            textDecoration: 'none',
-                            borderRadius: '4px',
-                            overflow: 'hidden',
-                            border: '2px solid #e5e7eb',
-                            transition: 'all 0.2s'
-                          }}
-                          onMouseOver={(e) => {
-                            e.currentTarget.style.borderColor = '#3b82f6';
-                            e.currentTarget.style.boxShadow = '0 2px 8px rgba(59, 130, 246, 0.3)';
-                          }}
-                          onMouseOut={(e) => {
-                            e.currentTarget.style.borderColor = '#e5e7eb';
-                            e.currentTarget.style.boxShadow = 'none';
-                          }}
-                        >
-                          <img
-                            src={url}
-                            alt={`${view} camera view`}
+                      {Object.entries(facility.cameras).map(([view, url]) => {
+                        const isSelected = selectedCameras.find(cam => cam.facilityName === facility.facilityName && cam.view === view);
+                        return (
+                          <button
+                            key={view}
+                            onClick={() => handleAddCamera(facility.facilityName, view, url)}
                             style={{
-                              width: '100%',
+                              display: 'block',
+                              padding: 0,
+                              background: 'none',
+                              border: `2px solid ${isSelected ? '#3b82f6' : '#e5e7eb'}`,
+                              borderRadius: '4px',
+                              overflow: 'hidden',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              position: 'relative'
+                            }}
+                            onMouseOver={(e) => {
+                              e.currentTarget.style.borderColor = '#3b82f6';
+                              e.currentTarget.style.boxShadow = '0 2px 8px rgba(59, 130, 246, 0.3)';
+                            }}
+                            onMouseOut={(e) => {
+                              e.currentTarget.style.borderColor = isSelected ? '#3b82f6' : '#e5e7eb';
+                              e.currentTarget.style.boxShadow = 'none';
+                            }}
+                          >
+                            {isSelected && (
+                              <div style={{
+                                position: 'absolute',
+                                top: '4px',
+                                right: '4px',
+                                backgroundColor: '#3b82f6',
+                                color: 'white',
+                                borderRadius: '50%',
+                                width: '20px',
+                                height: '20px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '12px',
+                                fontWeight: 'bold',
+                                zIndex: 10
+                              }}>
+                                ✓
+                              </div>
+                            )}
+                            <img
+                              src={url}
+                              alt={`${view} camera view`}
+                              style={{
+                                width: '100%',
+                                height: '80px',
+                                objectFit: 'cover',
+                                display: 'block'
+                              }}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.nextSibling.style.display = 'flex';
+                              }}
+                            />
+                            <div style={{
+                              display: 'none',
                               height: '80px',
-                              objectFit: 'cover',
-                              display: 'block'
-                            }}
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                              e.target.nextSibling.style.display = 'flex';
-                            }}
-                          />
-                          <div style={{
-                            display: 'none',
-                            height: '80px',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: '#f3f4f6',
-                            color: '#6b7280',
-                            fontSize: '11px'
-                          }}>
-                            Image unavailable
-                          </div>
-                          <div style={{
-                            padding: '4px',
-                            backgroundColor: '#f9fafb',
-                            fontSize: '10px',
-                            color: '#374151',
-                            textAlign: 'center',
-                            fontWeight: '500'
-                          }}>
-                            {view.replace(/([A-Z])/g, ' $1').trim()}
-                          </div>
-                        </a>
-                      ))}
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              backgroundColor: '#f3f4f6',
+                              color: '#6b7280',
+                              fontSize: '11px'
+                            }}>
+                              Image unavailable
+                            </div>
+                            <div style={{
+                              padding: '4px',
+                              backgroundColor: '#f9fafb',
+                              fontSize: '10px',
+                              color: '#374151',
+                              textAlign: 'center',
+                              fontWeight: '500'
+                            }}>
+                              {view.replace(/([A-Z])/g, ' $1').trim()}
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -865,6 +907,243 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
         );
       })}
       </MarkerClusterGroup>
+
+      {/* Multi-Camera Viewer Panel */}
+      {isCameraViewerOpen && selectedCameras.length > 0 && (
+        <div style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          backgroundColor: 'white',
+          borderRadius: '12px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+          maxWidth: '90vw',
+          maxHeight: '70vh',
+          overflow: 'auto',
+          zIndex: 1000,
+          border: '1px solid #e5e7eb'
+        }}>
+          {/* Header */}
+          <div style={{
+            position: 'sticky',
+            top: 0,
+            padding: '16px',
+            backgroundColor: '#3b82f6',
+            color: 'white',
+            borderTopLeftRadius: '12px',
+            borderTopRightRadius: '12px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            zIndex: 10
+          }}>
+            <div>
+              <div style={{ fontWeight: '700', fontSize: '16px' }}>
+                Camera Viewer
+              </div>
+              <div style={{ fontSize: '12px', opacity: 0.9 }}>
+                {selectedCameras.length} camera{selectedCameras.length !== 1 ? 's' : ''} selected
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setSelectedCameras([])}
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  border: 'none',
+                  color: 'white',
+                  padding: '6px 12px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: '500'
+                }}
+                title="Clear all cameras"
+              >
+                Clear All
+              </button>
+              <button
+                onClick={() => setIsCameraViewerOpen(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  border: 'none',
+                  color: 'white',
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '18px',
+                  lineHeight: '1'
+                }}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+
+          {/* Camera Grid */}
+          <div style={{
+            padding: '16px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: '16px'
+          }}>
+            {selectedCameras.map((camera, index) => (
+              <div
+                key={`${camera.facilityName}-${camera.view}`}
+                style={{
+                  backgroundColor: '#f9fafb',
+                  borderRadius: '8px',
+                  overflow: 'hidden',
+                  border: '1px solid #e5e7eb'
+                }}
+              >
+                {/* Camera Image */}
+                <div style={{ position: 'relative' }}>
+                  <img
+                    src={camera.url}
+                    alt={`${camera.facilityName} - ${camera.view}`}
+                    style={{
+                      width: '100%',
+                      height: '200px',
+                      objectFit: 'cover',
+                      display: 'block'
+                    }}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                  <div style={{
+                    display: 'none',
+                    height: '200px',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: '#f3f4f6',
+                    color: '#6b7280',
+                    fontSize: '14px'
+                  }}>
+                    Camera feed unavailable
+                  </div>
+                  {/* Remove button */}
+                  <button
+                    onClick={() => handleRemoveCamera(camera.facilityName, camera.view)}
+                    style={{
+                      position: 'absolute',
+                      top: '8px',
+                      right: '8px',
+                      backgroundColor: 'rgba(239, 68, 68, 0.9)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '32px',
+                      height: '32px',
+                      cursor: 'pointer',
+                      fontSize: '18px',
+                      fontWeight: 'bold',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 1)';
+                      e.currentTarget.style.transform = 'scale(1.1)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.9)';
+                      e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                    title="Remove camera"
+                  >
+                    ×
+                  </button>
+                </div>
+                {/* Camera Info */}
+                <div style={{
+                  padding: '12px',
+                  backgroundColor: 'white'
+                }}>
+                  <div style={{
+                    fontWeight: '600',
+                    fontSize: '14px',
+                    color: '#111827',
+                    marginBottom: '4px'
+                  }}>
+                    {camera.facilityName}
+                  </div>
+                  <div style={{
+                    fontSize: '12px',
+                    color: '#6b7280'
+                  }}>
+                    {camera.view.replace(/([A-Z])/g, ' $1').trim()}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Reopen button when viewer is minimized */}
+      {!isCameraViewerOpen && selectedCameras.length > 0 && (
+        <div style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          zIndex: 1000
+        }}>
+          <button
+            onClick={() => setIsCameraViewerOpen(true)}
+            style={{
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '50%',
+              width: '60px',
+              height: '60px',
+              cursor: 'pointer',
+              fontSize: '24px',
+              boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.2s',
+              position: 'relative'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.backgroundColor = '#2563eb';
+              e.currentTarget.style.transform = 'scale(1.05)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.backgroundColor = '#3b82f6';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+            title={`View ${selectedCameras.length} camera${selectedCameras.length !== 1 ? 's' : ''}`}
+          >
+            <div style={{ fontSize: '24px' }}>📷</div>
+            <div style={{
+              position: 'absolute',
+              top: '-4px',
+              right: '-4px',
+              backgroundColor: '#ef4444',
+              color: 'white',
+              borderRadius: '50%',
+              width: '24px',
+              height: '24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              border: '2px solid white'
+            }}>
+              {selectedCameras.length}
+            </div>
+          </button>
+        </div>
+      )}
     </>
   );
 }
