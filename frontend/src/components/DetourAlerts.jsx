@@ -134,186 +134,147 @@ export default function DetourAlerts({ authToken, onViewOnMap }) {
 
   return (
     <div style={{
-      background: theme.colors.glassDark,
-      backdropFilter: 'blur(20px)',
-      border: `1px solid ${theme.colors.border}`,
-      borderRadius: '16px',
-      padding: theme.spacing.lg,
-      boxShadow: theme.shadows.xl,
-      color: theme.colors.text,
-      maxHeight: isExpanded ? '400px' : 'auto',
-      overflow: isExpanded ? 'auto' : 'visible',
+      backgroundColor: 'white',
+      borderRadius: '8px',
+      padding: '24px',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+      marginBottom: '24px',
       transition: `all ${theme.transitions.medium}`
     }}>
       {/* Header */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: theme.spacing.md,
-        paddingBottom: theme.spacing.sm,
-        borderBottom: `1px solid ${theme.colors.border}`
+        alignItems: 'flex-start',
+        marginBottom: '16px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.md }}>
-          <h3 style={{
-            margin: 0,
-            fontSize: '18px',
-            fontWeight: '700',
-            background: theme.colors.gradients.primary,
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text'
-          }}>
-            Interstate Detour Alerts
-          </h3>
-          {alerts.length > 0 && (
-            <span style={{
-              background: theme.colors.accentBlue,
-              color: 'white',
-              padding: '4px 10px',
-              borderRadius: '12px',
-              fontSize: '12px',
-              fontWeight: '700'
-            }}>
-              {alerts.length}
-            </span>
-          )}
+        <div>
+          <h2 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: '600', color: '#111827' }}>
+            🚗 Interstate Detour Alerts
+          </h2>
+          <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>
+            {alerts.length === 0 ? 'No active detour alerts' : `${alerts.length} active alert${alerts.length !== 1 ? 's' : ''}`}
+          </p>
         </div>
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: theme.colors.accentBlue,
-            cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: '600',
-            padding: '4px 8px',
-            borderRadius: '6px',
-            transition: `all ${theme.transitions.fast}`,
-            ':hover': {
-              background: `${theme.colors.accentBlue}10`
-            }
-          }}
-        >
-          {isExpanded ? 'Collapse' : 'Expand'}
-        </button>
+        {alerts.length > 0 && (
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => e.target.style.backgroundColor = '#2563eb'}
+            onMouseOut={(e) => e.target.style.backgroundColor = '#3b82f6'}
+          >
+            {isExpanded ? 'Collapse' : 'Expand'}
+          </button>
+        )}
       </div>
 
       {error && (
         <div style={{
-          padding: theme.spacing.md,
-          background: `${theme.colors.error}10`,
-          borderRadius: '12px',
-          color: theme.colors.error,
+          padding: '12px 16px',
+          backgroundColor: '#fee2e2',
+          borderRadius: '6px',
+          color: '#991b1b',
           fontSize: '14px',
-          marginBottom: theme.spacing.md
+          marginBottom: '16px',
+          borderLeft: '4px solid #ef4444'
         }}>
           {error}
         </div>
       )}
 
-      {isExpanded && (
-        <>
-          {alerts.length === 0 ? (
-            <div style={{
-              textAlign: 'center',
-              padding: '40px 20px',
-              color: theme.colors.textSecondary,
-              fontSize: '14px'
-            }}>
-              <div style={{ fontSize: '48px', marginBottom: theme.spacing.md }}>✅</div>
-              <div style={{ fontWeight: '600', marginBottom: '4px' }}>No Active Detour Alerts</div>
-              <div style={{ fontSize: '13px' }}>All interstate interchanges are clear</div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.md }}>
-              {alerts.map((alert) => (
-                <div
-                  key={alert.id}
-                  style={{
-                    background: theme.colors.glassLight,
-                    borderRadius: '12px',
-                    padding: theme.spacing.md,
-                    border: `1px solid ${getSeverityColor(alert.severity)}40`,
-                    transition: `all ${theme.transitions.fast}`,
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => handleViewOnMap(alert)}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = theme.shadows.lg;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  {/* Alert Header */}
+      {isExpanded && alerts.length > 0 && (
+        <div style={{
+          maxHeight: '400px',
+          overflowY: 'auto',
+          border: '1px solid #e5e7eb',
+          borderRadius: '6px'
+        }}>
+          {alerts.map((alert, index) => (
+            <div
+              key={alert.id}
+              style={{
+                padding: '16px',
+                borderBottom: index < alerts.length - 1 ? '1px solid #f3f4f6' : 'none',
+                backgroundColor: index % 2 === 0 ? 'white' : '#f9fafb',
+                cursor: 'pointer',
+                transition: 'background-color 0.15s'
+              }}
+              onClick={() => handleViewOnMap(alert)}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = index % 2 === 0 ? 'white' : '#f9fafb'}
+            >
+              {/* Alert Header */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                marginBottom: '8px'
+              }}>
+                <div style={{ flex: 1 }}>
                   <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
-                    marginBottom: theme.spacing.sm
+                    fontWeight: '600',
+                    fontSize: '14px',
+                    color: '#111827',
+                    marginBottom: '4px'
                   }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{
-                        fontWeight: '700',
-                        fontSize: '15px',
-                        color: theme.colors.text,
-                        marginBottom: '4px'
-                      }}>
-                        {alert.interchange_name}
-                      </div>
-                      <div style={{
-                        fontSize: '12px',
-                        color: theme.colors.textSecondary
-                      }}>
-                        {alert.event_corridor} • {formatDate(alert.created_at)}
-                      </div>
-                    </div>
-                    {getSeverityBadge(alert.severity)}
+                    {alert.interchange_name}
                   </div>
-
-                  {/* Event Description */}
                   <div style={{
-                    fontSize: '13px',
-                    color: theme.colors.textSecondary,
-                    marginBottom: theme.spacing.sm,
-                    lineHeight: '1.5'
+                    fontSize: '12px',
+                    color: '#6b7280'
                   }}>
-                    {alert.event_description || alert.event_location}
+                    {alert.event_corridor} • {formatDate(alert.created_at)}
                   </div>
-
-                  {/* Detour Message */}
-                  <div style={{
-                    background: `${getSeverityColor(alert.severity)}10`,
-                    borderRadius: '8px',
-                    padding: theme.spacing.sm,
-                    fontSize: '13px',
-                    lineHeight: '1.6',
-                    borderLeft: `3px solid ${getSeverityColor(alert.severity)}`,
-                    color: theme.colors.text
-                  }}>
-                    {alert.message}
-                  </div>
-
-                  {/* Lanes Affected (if available) */}
-                  {alert.lanes_affected && (
-                    <div style={{
-                      marginTop: theme.spacing.sm,
-                      fontSize: '12px',
-                      color: theme.colors.textSecondary,
-                      fontWeight: '600'
-                    }}>
-                      🚧 Lanes affected: {alert.lanes_affected}
-                    </div>
-                  )}
                 </div>
-              ))}
+                {getSeverityBadge(alert.severity)}
+              </div>
+
+              {/* Event Description */}
+              <div style={{
+                fontSize: '13px',
+                color: '#374151',
+                marginBottom: '8px',
+                lineHeight: '1.5'
+              }}>
+                {alert.event_description || alert.event_location}
+              </div>
+
+              {/* Detour Message */}
+              <div style={{
+                padding: '8px',
+                backgroundColor: '#f9fafb',
+                borderRadius: '4px',
+                fontSize: '13px',
+                lineHeight: '1.5',
+                color: '#374151'
+              }}>
+                {alert.message}
+              </div>
+
+              {/* Lanes Affected (if available) */}
+              {alert.lanes_affected && (
+                <div style={{
+                  marginTop: '8px',
+                  fontSize: '12px',
+                  color: '#6b7280',
+                  fontWeight: '500'
+                }}>
+                  🚧 Lanes affected: {alert.lanes_affected}
+                </div>
+              )}
             </div>
-          )}
-        </>
+          ))}
+        </div>
       )}
     </div>
   );

@@ -223,8 +223,8 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
               <div
                 key={comment.id}
                 style={{
-                  marginBottom: '16px',
-                  padding: '12px',
+                  marginBottom: '20px',
+                  padding: '14px',
                   backgroundColor: comment.state_key === stateKey ? '#dbeafe' : 'white',
                   borderRadius: '8px',
                   boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
@@ -233,17 +233,21 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
                 <div style={{
                   display: 'flex',
                   justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                  marginBottom: '6px'
+                  alignItems: 'center',
+                  marginBottom: '8px',
+                  gap: '12px'
                 }}>
                   {/* Only show sender name if it's not "DOT Corridor Communicator" */}
-                  {comment.state_name !== 'DOT Corridor Communicator' && (
-                    <span style={{ fontWeight: '600', fontSize: '14px', color: '#374151' }}>
-                      {comment.state_name}
-                    </span>
-                  )}
+                  <span style={{
+                    fontWeight: '600',
+                    fontSize: '14px',
+                    color: '#374151',
+                    flexShrink: 0
+                  }}>
+                    {comment.state_name !== 'DOT Corridor Communicator' ? comment.state_name : ''}
+                  </span>
 
-                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
                     {comment.count > 1 && (
                       <span style={{
                         fontSize: '11px',
@@ -251,12 +255,13 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
                         color: 'white',
                         padding: '3px 8px',
                         borderRadius: '12px',
-                        fontWeight: '600'
+                        fontWeight: '600',
+                        flexShrink: 0
                       }}>
                         ×{comment.count}
                       </span>
                     )}
-                    <span style={{ fontSize: '12px', color: '#6b7280', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: '12px', color: '#6b7280', whiteSpace: 'nowrap', flexShrink: 0 }}>
                       {comment.count > 1
                         ? `${format(new Date(comment.firstTimestamp), 'MMM d')} - ${format(new Date(comment.latestTimestamp), 'MMM d')}`
                         : format(new Date(comment.latestTimestamp), 'MMM d, h:mm a')
@@ -264,7 +269,7 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
                     </span>
                   </div>
                 </div>
-                <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
+                <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.6', whiteSpace: 'pre-wrap', clear: 'both' }}>
                   {comment.comment}
                 </p>
               </div>

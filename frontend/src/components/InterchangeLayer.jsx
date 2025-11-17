@@ -1,30 +1,65 @@
 import { useState, useEffect } from 'react';
-import { Marker, Popup, Tooltip, CircleMarker } from 'react-leaflet';
+import { Marker, Popup, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
 import api from '../services/api';
 import { theme } from '../styles/theme';
 
-// Custom interchange icon - looks like a control tower / coordination point
-const createInterchangeIcon = () => {
-  const iconSvg = `
-    <svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg">
-      <!-- Diamond shape for interchange -->
-      <g transform="translate(14,14) rotate(45)">
-        <rect x="-10" y="-10" width="20" height="20" fill="#3b82f6" stroke="white" stroke-width="2.5" rx="2"/>
-      </g>
-      <!-- Crosshair in center -->
-      <circle cx="14" cy="14" r="3" fill="white"/>
-      <line x1="14" y1="7" x2="14" y2="21" stroke="white" stroke-width="1.5"/>
-      <line x1="7" y1="14" x2="21" y2="14" stroke="white" stroke-width="1.5"/>
-    </svg>
+// Custom interchange icon with permanent label - looks like a control tower / coordination point
+const createInterchangeIcon = (name) => {
+  const html = `
+    <div style="position: relative; width: 36px; height: 60px;">
+      <!-- Label above marker -->
+      <div style="
+        position: absolute;
+        top: -28px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        white-space: nowrap;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        border: 2px solid white;
+        pointer-events: none;
+      ">
+        🎯 ${name}
+      </div>
+
+      <!-- Control tower icon -->
+      <svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg" style="position: absolute; top: 0; left: 0;">
+        <!-- Glow effect -->
+        <defs>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+            <feMerge>
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+
+        <!-- Diamond shape for interchange -->
+        <g transform="translate(18,18) rotate(45)" filter="url(#glow)">
+          <rect x="-12" y="-12" width="24" height="24" fill="#3b82f6" stroke="white" stroke-width="3" rx="2"/>
+        </g>
+
+        <!-- Crosshair in center -->
+        <circle cx="18" cy="18" r="4" fill="white" stroke="#3b82f6" stroke-width="1"/>
+        <line x1="18" y1="9" x2="18" y2="27" stroke="white" stroke-width="2"/>
+        <line x1="9" y1="18" x2="27" y2="18" stroke="white" stroke-width="2"/>
+      </svg>
+    </div>
   `;
 
   return L.divIcon({
-    html: iconSvg,
-    className: 'interchange-marker',
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    popupAnchor: [0, -14]
+    html: html,
+    className: 'interchange-marker-with-label',
+    iconSize: [36, 60],
+    iconAnchor: [18, 48],
+    popupAnchor: [0, -50]
   });
 };
 
@@ -81,7 +116,7 @@ export default function InterchangeLayer({ showInterchanges = false }) {
           return null;
         }
 
-        const icon = createInterchangeIcon();
+        const icon = createInterchangeIcon(interchange.name);
 
         // Parse notify states (notifyStates field from API)
         const affectedStates = interchange.notifyStates
@@ -94,11 +129,6 @@ export default function InterchangeLayer({ showInterchanges = false }) {
             position={[lat, lon]}
             icon={icon}
           >
-            <Tooltip direction="top" offset={[0, -14]} opacity={0.95} permanent={true}>
-              <div style={{ fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>
-                {interchange.name}
-              </div>
-            </Tooltip>
             <Popup maxWidth={350}>
               <div style={{ padding: '8px' }}>
                 <h3 style={{
