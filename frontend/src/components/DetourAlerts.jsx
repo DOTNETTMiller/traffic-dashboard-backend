@@ -6,7 +6,7 @@ export default function DetourAlerts({ authToken, onViewOnMap }) {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [isExpanded, setIsExpanded] = useState(false); // Start collapsed by default
+  const [isExpanded, setIsExpanded] = useState(true); // Start expanded by default
 
   useEffect(() => {
     if (authToken) {
