@@ -1180,50 +1180,35 @@ class ComplianceAnalyzer {
     return scores;
   }
 
-  // Analyze C2C compliance
+  // Analyze C2C compliance (uses TMDD/ngTMDD validation)
   analyzeC2CCompliance(events) {
-    let score = 0;
-    const recommendations = [];
-
-    // Check critical C2C fields
-    const hasIds = events.filter(e => e.id).length / events.length;
-    const hasCoords = events.filter(e => e.coordinates && e.coordinates.length === 2).length / events.length;
-    const hasTimestamps = events.filter(e => e.startDate).length / events.length;
-    const hasLocation = events.filter(e => e.location).length / events.length;
-
-    score += hasIds * 25;
-    score += hasCoords * 25;
-    score += hasTimestamps * 25;
-    score += hasLocation * 25;
-
-    if (hasIds < 0.9) {
-      recommendations.push({
-        field: 'Event ID',
-        importance: 'CRITICAL',
-        issue: `Only ${Math.round(hasIds * 100)}% of events have unique IDs`,
-        solution: 'Add unique identifiers to all events for C2C tracking'
-      });
-    }
-
-    if (hasCoords < 0.9) {
-      recommendations.push({
-        field: 'Geographic Coordinates',
-        importance: 'CRITICAL',
-        issue: `Only ${Math.round(hasCoords * 100)}% of events have coordinates`,
-        solution: 'Include latitude/longitude for all events'
-      });
-    }
-
-    const finalScore = Math.round(score);
+    // C2C-MVT validates ngTMDD conformance, so use the TMDD analyzer
+    const tmddAnalysis = this.analyzeTMDDCompliance(events);
 
     return {
-      score: finalScore,
-      grade: finalScore >= 80 ? 'PASS' : 'FAIL',
-      message: finalScore >= 80 ?
-        'Data meets C2C requirements for inter-agency communication' :
-        `Score of ${finalScore}/100 - Improvements needed for C2C readiness`,
-      validationTool: 'C2C-MVT Analysis',
-      recommendations: recommendations
+      score: tmddAnalysis.percentage,
+      grade: tmddAnalysis.grade,
+      status: tmddAnalysis.status,
+      message: tmddAnalysis.status === 'C2C Ready'
+        ? 'Data meets ngTMDD requirements for C2C communication (validated using C2C-MVT criteria)'
+        : `C2C-MVT Compliance: ${tmddAnalysis.status} - ${tmddAnalysis.percentage}% conformance to ngTMDD standard`,
+      validationTool: 'ngTMDD/C2C-MVT Validation (10 required fields)',
+      severityBreakdown: tmddAnalysis.severityBreakdown,
+      fieldCoverage: tmddAnalysis.fieldCoverage,
+      violations: tmddAnalysis.violations,
+      recommendations: tmddAnalysis.violations.slice(0, 5).map(v => ({
+        field: v.field,
+        importance: v.severity.toUpperCase(),
+        issue: v.message,
+        solution: `Provide ${v.description} (${v.specField})`,
+        sampleValue: v.sampleValue
+      })),
+      // Include enhanced scores showing potential with normalization
+      enhanced: {
+        score: tmddAnalysis.enhanced.percentage,
+        grade: tmddAnalysis.enhanced.grade,
+        message: `With data normalization/inference: ${tmddAnalysis.enhanced.percentage}%`
+      }
     };
   }
 
