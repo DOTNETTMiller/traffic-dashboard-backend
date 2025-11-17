@@ -6559,7 +6559,7 @@ When a user asks about their compliance:
 
 Be concise, technical, and helpful. Focus on practical solutions.`;
 
-app.post('/api/chat', requireUser, async (req, res) => {
+app.post('/api/chat', async (req, res) => {
   const { message, context } = req.body;
 
   if (!message) {
@@ -6574,8 +6574,20 @@ app.post('/api/chat', requireUser, async (req, res) => {
   }
 
   try {
-    const userId = req.user?.id;
-    const stateKey = req.user?.stateKey;
+    // Try to get user info from auth header if provided (optional)
+    let userId = null;
+    let stateKey = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        userId = decoded.id;
+        stateKey = decoded.stateKey;
+      } catch (err) {
+        // Token invalid/expired, but that's okay - continue without user context
+      }
+    }
 
     // Get conversation history
     const history = db.getChatHistory(userId, stateKey, 20);
@@ -6691,11 +6703,23 @@ app.post('/api/chat', requireUser, async (req, res) => {
 });
 
 // Get chat history for current user
-app.get('/api/chat/history', requireUser, (req, res) => {
-  const userId = req.user?.id;
-  const stateKey = req.user?.stateKey;
-  const limit = parseInt(req.query.limit) || 50;
+app.get('/api/chat/history', (req, res) => {
+  // Try to get user info from auth header if provided (optional)
+  let userId = null;
+  let stateKey = null;
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      userId = decoded.id;
+      stateKey = decoded.stateKey;
+    } catch (err) {
+      // Token invalid/expired, but that's okay - continue without user context
+    }
+  }
 
+  const limit = parseInt(req.query.limit) || 50;
   const history = db.getChatHistory(userId, stateKey, limit);
 
   res.json({
@@ -6706,10 +6730,21 @@ app.get('/api/chat/history', requireUser, (req, res) => {
 });
 
 // Clear chat history for current user
-app.delete('/api/chat/history', requireUser, (req, res) => {
-  const userId = req.user?.id;
-  const result = db.clearChatHistory(userId);
+app.delete('/api/chat/history', (req, res) => {
+  // Try to get user info from auth header if provided (optional)
+  let userId = null;
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      userId = decoded.id;
+    } catch (err) {
+      // Token invalid/expired, but that's okay - continue without user context
+    }
+  }
 
+  const result = db.clearChatHistory(userId);
   res.json(result);
 });
 
