@@ -661,7 +661,7 @@ export default function TrafficMap({
         />
 
         {/* Bounding Box Selector for exporting filtered TIM/CV-TIM data */}
-        <BoundingBoxSelector />
+        <BoundingBoxSelector isDarkMode={isDarkMode} />
       </MapContainer>
 
       {/* Heat Map Control Panel */}
