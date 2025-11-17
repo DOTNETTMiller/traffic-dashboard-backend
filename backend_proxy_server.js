@@ -1941,9 +1941,13 @@ const fetchStateData = async (stateKey) => {
       if (config.eventsUrl) {
         try {
           const response = await axios.get(config.eventsUrl, {
-            headers,
+            headers: {
+              ...headers,
+              'Accept-Encoding': 'gzip, deflate'
+            },
             params,
-            timeout: 10000
+            timeout: 10000,
+            decompress: true // Explicitly enable gzip decompression
           });
           const normalized = normalizeEventData(response.data, config.name, config.format, 'events');
           results.events.push(...normalized);
@@ -1951,13 +1955,17 @@ const fetchStateData = async (stateKey) => {
           results.errors.push(`Events: ${error.message}`);
         }
       }
-      
+
       // Fetch incidents if available (Ohio)
       if (config.incidentsUrl) {
         try {
-          const response = await axios.get(config.incidentsUrl, { 
-            headers,
-            timeout: 10000 
+          const response = await axios.get(config.incidentsUrl, {
+            headers: {
+              ...headers,
+              'Accept-Encoding': 'gzip, deflate'
+            },
+            timeout: 10000,
+            decompress: true // Explicitly enable gzip decompression
           });
           const normalized = normalizeEventData(response.data, config.name, 'json', 'incidents');
           results.events.push(...normalized);
@@ -1965,11 +1973,17 @@ const fetchStateData = async (stateKey) => {
           results.errors.push(`Incidents: ${error.message}`);
         }
       }
-      
+
       // Fetch WZDX if available
       if (config.wzdxUrl) {
         try {
-          const response = await axios.get(config.wzdxUrl, { timeout: 10000 });
+          const response = await axios.get(config.wzdxUrl, {
+            headers: {
+              'Accept-Encoding': 'gzip, deflate'
+            },
+            timeout: 10000,
+            decompress: true // Explicitly enable gzip decompression
+          });
           const normalized = normalizeEventData(response.data, config.name, 'json', 'wzdx');
           results.events.push(...normalized);
         } catch (error) {
@@ -1979,15 +1993,21 @@ const fetchStateData = async (stateKey) => {
     } 
     else if (config.format === 'xml') {
       // Fetch XML data with authentication if needed
-      const axiosConfig = { timeout: 10000 };
-      
+      const axiosConfig = {
+        timeout: 10000,
+        decompress: true, // Explicitly enable gzip decompression
+        headers: {
+          'Accept-Encoding': 'gzip, deflate'
+        }
+      };
+
       if (config.username && config.password) {
         axiosConfig.auth = {
           username: config.username,
           password: config.password
         };
       }
-      
+
       if (config.eventsUrl) {
         try {
           const response = await axios.get(config.eventsUrl, axiosConfig);
@@ -1998,7 +2018,7 @@ const fetchStateData = async (stateKey) => {
           results.errors.push(`Events: ${error.message}`);
         }
       }
-      
+
       if (config.wzdxUrl) {
         try {
           const response = await axios.get(config.wzdxUrl, axiosConfig);
