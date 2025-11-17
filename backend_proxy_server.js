@@ -6964,37 +6964,42 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
 });
 
 // Create user
-app.post('/api/admin/users', requireAdmin, (req, res) => {
-  const { email, password, fullName, organization, stateKey, role } = req.body;
+app.post('/api/admin/users', requireAdmin, async (req, res) => {
+  try {
+    const { email, password, fullName, organization, stateKey, role } = req.body;
 
-  if (!email) {
-    return res.status(400).json({ error: 'Email is required' });
-  }
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
 
-  let userPassword = password;
-  if (!userPassword) {
-    userPassword = generateTemporaryPassword();
-  }
+    let userPassword = password;
+    if (!userPassword) {
+      userPassword = generateTemporaryPassword();
+    }
 
-  const result = db.createUser({
-    username: email,  // Use email as username
-    email,
-    password: userPassword,
-    fullName,
-    organization,
-    stateKey,
-    role: role || 'user'
-  });
-
-  if (result.success) {
-    const createdUser = db.getUserById(result.userId);
-    res.status(201).json({
-      success: true,
-      user: createdUser,
-      temporaryPassword: password ? null : userPassword
+    const result = await db.createUser({
+      username: email,  // Use email as username
+      email,
+      password: userPassword,
+      fullName,
+      organization,
+      stateKey,
+      role: role || 'user'
     });
-  } else {
-    res.status(400).json({ error: result.error || 'Failed to create user' });
+
+    if (result.success) {
+      const createdUser = await db.getUserById(result.userId);
+      res.status(201).json({
+        success: true,
+        user: createdUser,
+        temporaryPassword: password ? null : userPassword
+      });
+    } else {
+      res.status(400).json({ error: result.error || 'Failed to create user' });
+    }
+  } catch (error) {
+    console.error('Error creating user:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
