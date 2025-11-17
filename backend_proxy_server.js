@@ -8137,8 +8137,18 @@ app.post('/api/data-quality/migrate', async (req, res) => {
   try {
     const fs = require('fs');
     const path = require('path');
+    const { Client } = require('pg');
 
     console.log('🔧 Starting TETC Data Quality migrations...');
+
+    // Use PostgreSQL client for production
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+    console.log('✅ Connected to PostgreSQL database');
 
     // Step 1: Apply schema migration
     console.log('📋 Applying schema migration...');
@@ -8146,7 +8156,7 @@ app.post('/api/data-quality/migrate', async (req, res) => {
       path.join(__dirname, 'migrations/add_data_quality_schema_pg.sql'),
       'utf8'
     );
-    await db.execAsync(schemaSQL);
+    await client.query(schemaSQL);
     console.log('✅ Schema migration applied');
 
     // Step 2: Apply TETC data migration
@@ -8155,25 +8165,26 @@ app.post('/api/data-quality/migrate', async (req, res) => {
       path.join(__dirname, 'migrations/tetc_data_quality_pg.sql'),
       'utf8'
     );
-    await db.execAsync(tetcSQL);
+    await client.query(tetcSQL);
     console.log('✅ TETC data migration applied');
 
     // Step 3: Verify data
     console.log('🔍 Verifying data...');
-    const corridorCount = await db.getAsync('SELECT COUNT(*) as count FROM corridors');
-    const feedCount = await db.getAsync('SELECT COUNT(*) as count FROM data_feeds');
-    const scoreCount = await db.getAsync('SELECT COUNT(*) as count FROM quality_scores');
+    const corridorCount = await client.query('SELECT COUNT(*) as count FROM corridors');
+    const feedCount = await client.query('SELECT COUNT(*) as count FROM data_feeds');
+    const scoreCount = await client.query('SELECT COUNT(*) as count FROM quality_scores');
 
     const result = {
       success: true,
       message: 'TETC Data Quality migrations completed successfully!',
       summary: {
-        corridors: corridorCount.count,
-        data_feeds: feedCount.count,
-        quality_scores: scoreCount.count
+        corridors: parseInt(corridorCount.rows[0].count),
+        data_feeds: parseInt(feedCount.rows[0].count),
+        quality_scores: parseInt(scoreCount.rows[0].count)
       }
     };
 
+    await client.end();
     console.log('✅ Migration complete:', result.summary);
     res.json(result);
   } catch (error) {
