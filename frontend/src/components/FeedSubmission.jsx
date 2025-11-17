@@ -21,7 +21,7 @@ export default function FeedSubmission({ authToken, user }) {
   const [error, setError] = useState('');
   const [integratedFeeds, setIntegratedFeeds] = useState([]);
   const [loadingFeeds, setLoadingFeeds] = useState(true);
-  const [showFeeds, setShowFeeds] = useState(false);
+  const [showFeeds, setShowFeeds] = useState(true);
 
   useEffect(() => {
     fetchIntegratedFeeds();
