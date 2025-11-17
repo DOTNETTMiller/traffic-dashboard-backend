@@ -72,7 +72,7 @@ export default function FeedSubmission({ authToken, user }) {
   }
 
   return (
-    <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>
+    <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto', height: '100%', overflowY: 'auto' }}>
       <h2 style={{ marginBottom: '16px' }}>Submit a Data Feed</h2>
       <p style={{ marginBottom: '20px', color: '#475569' }}>
         Provide details about your traffic data feed. Our team will review and, if approved, integrate it into the dashboard outputs.

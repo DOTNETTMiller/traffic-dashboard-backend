@@ -213,7 +213,7 @@ body {
 .mobile-menu-btn {
   display: none;
   position: fixed;
-  bottom: 20px;
+  bottom: 90px;
   left: 20px;
   z-index: 999;
   width: 56px;
@@ -378,7 +378,7 @@ body {
   .mobile-menu-btn {
     display: flex;
     position: fixed;
-    bottom: 20px;
+    bottom: 90px;
     left: 20px;
     z-index: 999;
     width: 56px;

@@ -112,8 +112,8 @@ export default function ChatWidget({ user, context }) {
   return (
     <div style={{
       position: 'fixed',
-      bottom: '80px',
-      right: '20px',
+      bottom: '20px',
+      left: '20px',
       zIndex: 1000
     }}>
       {/* Chat Widget */}
