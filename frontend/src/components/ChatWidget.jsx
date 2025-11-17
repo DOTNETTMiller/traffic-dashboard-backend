@@ -112,7 +112,7 @@ export default function ChatWidget({ user, context }) {
   return (
     <div style={{
       position: 'fixed',
-      bottom: '20px',
+      bottom: '80px',
       right: '20px',
       zIndex: 1000
     }}>
@@ -335,7 +335,7 @@ export default function ChatWidget({ user, context }) {
         </div>
       )}
 
-      {/* Toggle Button */}
+      {/* Toggle Button - Robot Icon */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
@@ -347,7 +347,7 @@ export default function ChatWidget({ user, context }) {
           border: 'none',
           boxShadow: '0 4px 12px rgba(59,130,246,0.4)',
           cursor: 'pointer',
-          fontSize: '24px',
+          fontSize: '28px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -362,8 +362,9 @@ export default function ChatWidget({ user, context }) {
           e.currentTarget.style.backgroundColor = '#3b82f6';
           e.currentTarget.style.transform = 'scale(1)';
         }}
+        title="AI Assistant"
       >
-        {isOpen ? '✕' : '💬'}
+        {isOpen ? '✕' : '🤖'}
       </button>
 
       <style>{`

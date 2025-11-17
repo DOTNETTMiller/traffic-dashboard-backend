@@ -61,6 +61,7 @@ function App() {
   const [statsExpanded, setStatsExpanded] = useState(true);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [adminDropdownOpen, setAdminDropdownOpen] = useState(false);
+  const [showAlertsModal, setShowAlertsModal] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : false;
@@ -669,6 +670,16 @@ function App() {
           >
             📋 Corridor Briefing
           </button>
+          <button
+            className="toggle-btn"
+            onClick={() => setShowAlertsModal(true)}
+            style={{
+              backgroundColor: '#f59e0b',
+              color: 'white'
+            }}
+          >
+            🚨 Detour & Bridge Alerts
+          </button>
           {authToken && (
             <button
               className={`toggle-btn ${view === 'feedSubmission' ? 'active' : ''}`}
@@ -967,31 +978,6 @@ function App() {
                 }}
               />
             )}
-
-            {authToken && (
-              <DetourAlerts
-                authToken={authToken}
-                onViewOnMap={(event) => {
-                  // Switch to map view if not already there
-                  if (view !== 'map') {
-                    setView('map');
-                  }
-                  // Set the selected event
-                  setSelectedEvent(event);
-                }}
-              />
-            )}
-
-            <BridgeClearanceWarnings
-              onViewOnMap={(event) => {
-                // Switch to map view if not already there
-                if (view !== 'map') {
-                  setView('map');
-                }
-                // Set the selected event
-                setSelectedEvent(event);
-              }}
-            />
           </>
         )}
 
@@ -1222,6 +1208,96 @@ function App() {
           detourAlerts={detourAlerts}
           onClose={() => setShowCorridorBriefing(false)}
         />
+      )}
+
+      {/* Alerts Modal */}
+      {showAlertsModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000,
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '900px',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)',
+            overflow: 'hidden'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '20px',
+              borderBottom: '1px solid #e5e7eb',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: '#f9fafb'
+            }}>
+              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600', color: '#111827' }}>
+                🚨 Detour & Bridge Alerts
+              </h2>
+              <button
+                onClick={() => setShowAlertsModal(false)}
+                style={{
+                  padding: '8px 16px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  cursor: 'pointer',
+                  fontSize: '24px',
+                  color: '#6b7280',
+                  borderRadius: '4px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#e5e7eb'}
+                onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '20px'
+            }}>
+              {authToken && (
+                <DetourAlerts
+                  authToken={authToken}
+                  onViewOnMap={(event) => {
+                    setShowAlertsModal(false);
+                    if (view !== 'map') {
+                      setView('map');
+                    }
+                    setSelectedEvent(event);
+                  }}
+                />
+              )}
+
+              <BridgeClearanceWarnings
+                onViewOnMap={(event) => {
+                  setShowAlertsModal(false);
+                  if (view !== 'map') {
+                    setView('map');
+                  }
+                  setSelectedEvent(event);
+                }}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
