@@ -8197,6 +8197,80 @@ app.post('/api/data-quality/migrate', async (req, res) => {
   }
 });
 
+// Run Users table migration for PostgreSQL
+app.post('/api/admin/migrate-users', async (req, res) => {
+  try {
+    const { Client } = require('pg');
+
+    console.log('🔧 Starting users table migration...');
+
+    // Use PostgreSQL client for production
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+    console.log('✅ Connected to PostgreSQL database');
+
+    // Create users table
+    console.log('📋 Creating users table...');
+    const usersTableSQL = `
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        full_name TEXT,
+        organization TEXT,
+        state_key TEXT,
+        role TEXT DEFAULT 'user',
+        active BOOLEAN DEFAULT TRUE,
+        notify_on_messages BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS admin_tokens (
+        id SERIAL PRIMARY KEY,
+        token TEXT UNIQUE NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_used TIMESTAMP,
+        active BOOLEAN DEFAULT TRUE
+      );
+    `;
+
+    await client.query(usersTableSQL);
+    console.log('✅ Users table created');
+
+    // Verify tables exist
+    console.log('🔍 Verifying tables...');
+    const userCount = await client.query('SELECT COUNT(*) as count FROM users');
+    const tokenCount = await client.query('SELECT COUNT(*) as count FROM admin_tokens');
+
+    const result = {
+      success: true,
+      message: 'Users table migration completed successfully!',
+      summary: {
+        users: parseInt(userCount.rows[0].count),
+        admin_tokens: parseInt(tokenCount.rows[0].count)
+      }
+    };
+
+    await client.end();
+    console.log('✅ Migration complete:', result.summary);
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Migration failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: 'Check server logs for full error details'
+    });
+  }
+});
+
 // ========================================
 // Truck Parking API Endpoints
 // ========================================
