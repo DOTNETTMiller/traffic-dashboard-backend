@@ -2752,12 +2752,18 @@ app.post('/api/users/request-password-reset', async (req, res) => {
 
   if (result.success) {
     // Send email with temporary password
-    emailService.sendEmail(
+    const emailResult = await emailService.sendEmail(
       user.email,
       'Password Reset - DOT Corridor Communicator',
       `Your temporary password is: ${tempPassword}\n\nPlease log in and change your password immediately.`
     );
 
+    if (!emailResult.success) {
+      console.error('❌ Failed to send password reset email:', emailResult.error);
+      return res.status(500).json({ error: 'Failed to send password reset email. Please contact support.' });
+    }
+
+    console.log(`✅ Password reset email sent to ${user.email}`);
     res.json({
       success: true,
       message: 'If an account with that email exists, a password reset link has been sent.'
