@@ -18,6 +18,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
     "axios": "^1.6.0",
     "better-sqlite3": "^12.4.1",
     "compression": "^1.7.4",

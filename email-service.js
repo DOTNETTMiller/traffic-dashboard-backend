@@ -1,36 +1,26 @@
-const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 
-// Email configuration
-// NOTE: For production, use environment variables for sensitive data
-const EMAIL_CONFIG = {
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: process.env.SMTP_PORT || 587,
-  secure: false, // true for 465, false for other ports
-  auth: {
-    user: process.env.EMAIL_USER || 'your-email@gmail.com',
-    pass: process.env.EMAIL_PASSWORD || 'your-app-password'
-  }
-};
-
-// Create reusable transporter
-let transporter = null;
-
-function getTransporter() {
-  if (!transporter) {
-    transporter = nodemailer.createTransport(EMAIL_CONFIG);
-  }
-  return transporter;
+// Configure SendGrid with API key from environment variables
+if (process.env.SENDGRID_API_KEY) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  console.log('✅ SendGrid configured with API key');
+} else {
+  console.warn('⚠️  SENDGRID_API_KEY not set - emails will not be sent');
 }
+
+// Default sender email
+const FROM_EMAIL = process.env.EMAIL_USER || 'DOT.Corridor.Communicator@gmail.com';
 
 /**
  * Send email notification for new message on event
  */
 async function sendMessageNotification(recipientEmail, recipientName, event, message) {
-  const transport = getTransporter();
-
-  const mailOptions = {
-    from: `"DOT Corridor Communicator" <${EMAIL_CONFIG.auth.user}>`,
+  const msg = {
     to: recipientEmail,
+    from: {
+      email: FROM_EMAIL,
+      name: 'DOT Corridor Communicator'
+    },
     subject: `New Message: ${event.eventType} on ${event.corridor} in ${event.state}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -74,11 +64,11 @@ async function sendMessageNotification(recipientEmail, recipientName, event, mes
   };
 
   try {
-    const info = await transport.sendMail(mailOptions);
-    console.log('✅ Message notification sent:', info.messageId);
-    return { success: true, messageId: info.messageId };
+    const response = await sgMail.send(msg);
+    console.log('✅ Message notification sent:', response[0].statusCode);
+    return { success: true, messageId: response[0].headers['x-message-id'] };
   } catch (error) {
-    console.error('❌ Error sending message notification:', error);
+    console.error('❌ Error sending message notification:', error.response?.body || error.message);
     return { success: false, error: error.message };
   }
 }
@@ -87,11 +77,12 @@ async function sendMessageNotification(recipientEmail, recipientName, event, mes
  * Send email notification for high-severity event
  */
 async function sendHighSeverityEventNotification(recipientEmail, recipientName, event) {
-  const transport = getTransporter();
-
-  const mailOptions = {
-    from: `"DOT Corridor Communicator" <${EMAIL_CONFIG.auth.user}>`,
+  const msg = {
     to: recipientEmail,
+    from: {
+      email: FROM_EMAIL,
+      name: 'DOT Corridor Communicator'
+    },
     subject: `⚠️ HIGH SEVERITY: ${event.eventType} on ${event.corridor} in ${event.state}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -144,21 +135,22 @@ async function sendHighSeverityEventNotification(recipientEmail, recipientName, 
   };
 
   try {
-    const info = await transport.sendMail(mailOptions);
-    console.log('✅ High-severity event notification sent:', info.messageId);
-    return { success: true, messageId: info.messageId };
+    const response = await sgMail.send(msg);
+    console.log('✅ High-severity event notification sent:', response[0].statusCode);
+    return { success: true, messageId: response[0].headers['x-message-id'] };
   } catch (error) {
-    console.error('❌ Error sending high-severity notification:', error);
+    console.error('❌ Error sending high-severity notification:', error.response?.body || error.message);
     return { success: false, error: error.message };
   }
 }
 
 async function sendDetourAlertNotification(recipientEmail, recipientName, alert) {
-  const transport = getTransporter();
-
-  const mailOptions = {
-    from: `"DOT Corridor Communicator" <${EMAIL_CONFIG.auth.user}>`,
+  const msg = {
     to: recipientEmail,
+    from: {
+      email: FROM_EMAIL,
+      name: 'DOT Corridor Communicator'
+    },
     subject: `🚗 Detour Advisory: ${alert.interchangeName} (${alert.eventCorridor || alert.interchangeCorridor})`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto;">
@@ -191,7 +183,7 @@ async function sendDetourAlertNotification(recipientEmail, recipientName, alert)
           </p>
 
           <p style="font-size: 12px; color: #64748b; margin-top: 24px;">
-            You’re receiving this advisory because your state is subscribed to detour alerts for ${alert.interchangeName}.
+            You're receiving this advisory because your state is subscribed to detour alerts for ${alert.interchangeName}.
           </p>
         </div>
       </div>
@@ -199,11 +191,11 @@ async function sendDetourAlertNotification(recipientEmail, recipientName, alert)
   };
 
   try {
-    const info = await transport.sendMail(mailOptions);
-    console.log('✅ Detour alert notification sent:', info.messageId);
-    return { success: true, messageId: info.messageId };
+    const response = await sgMail.send(msg);
+    console.log('✅ Detour alert notification sent:', response[0].statusCode);
+    return { success: true, messageId: response[0].headers['x-message-id'] };
   } catch (error) {
-    console.error('❌ Error sending detour alert notification:', error);
+    console.error('❌ Error sending detour alert notification:', error.response?.body || error.message);
     return { success: false, error: error.message };
   }
 }
@@ -224,32 +216,32 @@ function getSeverityColor(severity) {
  * Generic email sender
  */
 async function sendEmail(to, subject, text, html) {
-  // If email is not configured, just log and return success
-  // This prevents the password reset from failing
-  if (!process.env.EMAIL_USER || process.env.EMAIL_USER === 'your-email@gmail.com') {
-    console.log('⚠️  Email not configured, would have sent:');
+  // If SendGrid is not configured, just log and return error
+  if (!process.env.SENDGRID_API_KEY) {
+    console.log('⚠️  SendGrid not configured, would have sent:');
     console.log(`   To: ${to}`);
     console.log(`   Subject: ${subject}`);
     console.log(`   Body: ${text}`);
-    return { success: true, messageId: 'no-email-configured' };
+    return { success: false, error: 'SendGrid not configured' };
   }
 
-  const transport = getTransporter();
-
-  const mailOptions = {
-    from: `"DOT Corridor Communicator" <${EMAIL_CONFIG.auth.user}>`,
+  const msg = {
     to,
+    from: {
+      email: FROM_EMAIL,
+      name: 'DOT Corridor Communicator'
+    },
     subject,
     text,
     html: html || text
   };
 
   try {
-    const info = await transport.sendMail(mailOptions);
-    console.log('✅ Email sent:', info.messageId);
-    return { success: true, messageId: info.messageId };
+    const response = await sgMail.send(msg);
+    console.log('✅ Email sent:', response[0].statusCode);
+    return { success: true, messageId: response[0].headers['x-message-id'] };
   } catch (error) {
-    console.error('❌ Error sending email:', error);
+    console.error('❌ Error sending email:', error.response?.body || error.message);
     return { success: false, error: error.message };
   }
 }
@@ -258,19 +250,17 @@ async function sendEmail(to, subject, text, html) {
  * Verify email configuration
  */
 async function verifyEmailConfig() {
-  try {
-    const transport = getTransporter();
-    await transport.verify();
-    console.log('✅ Email server is ready to send messages');
-    return true;
-  } catch (error) {
-    console.error('❌ Email server verification failed:', error.message);
+  if (!process.env.SENDGRID_API_KEY) {
+    console.error('❌ SendGrid API key not configured');
     console.log('💡 To enable email notifications:');
-    console.log('   1. Set up SMTP credentials (Gmail, SendGrid, etc.)');
-    console.log('   2. Set environment variables: SMTP_HOST, EMAIL_USER, EMAIL_PASSWORD');
-    console.log('   3. For Gmail: Use an App Password (not your regular password)');
+    console.log('   1. Sign up at https://sendgrid.com');
+    console.log('   2. Create an API key with Mail Send permissions');
+    console.log('   3. Set environment variable: SENDGRID_API_KEY');
     return false;
   }
+
+  console.log('✅ SendGrid is configured and ready');
+  return true;
 }
 
 /**
@@ -285,11 +275,12 @@ async function sendDailyDigest(recipientEmail, recipientName, notifications) {
     return { success: true, messageId: 'no-notifications' };
   }
 
-  const transport = getTransporter();
-
-  const mailOptions = {
-    from: `"DOT Corridor Communicator" <${EMAIL_CONFIG.auth.user}>`,
+  const msg = {
     to: recipientEmail,
+    from: {
+      email: FROM_EMAIL,
+      name: 'DOT Corridor Communicator'
+    },
     subject: `Daily Digest: ${totalCount} Update${totalCount > 1 ? 's' : ''} from DOT Corridor Communicator`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -360,11 +351,11 @@ async function sendDailyDigest(recipientEmail, recipientName, notifications) {
   };
 
   try {
-    const info = await transport.sendMail(mailOptions);
-    console.log('✅ Daily digest sent:', info.messageId);
-    return { success: true, messageId: info.messageId };
+    const response = await sgMail.send(msg);
+    console.log('✅ Daily digest sent:', response[0].statusCode);
+    return { success: true, messageId: response[0].headers['x-message-id'] };
   } catch (error) {
-    console.error('❌ Error sending daily digest:', error);
+    console.error('❌ Error sending daily digest:', error.response?.body || error.message);
     return { success: false, error: error.message };
   }
 }
