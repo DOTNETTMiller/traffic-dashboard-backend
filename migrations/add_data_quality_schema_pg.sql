@@ -87,12 +87,25 @@ CREATE TABLE IF NOT EXISTS quality_scores (
     FOREIGN KEY (validation_run_id) REFERENCES validation_runs(id)
 );
 
+-- User votes on quality scores
+CREATE TABLE IF NOT EXISTS quality_votes (
+    id SERIAL PRIMARY KEY,
+    data_feed_id TEXT NOT NULL,
+    vote_type TEXT NOT NULL CHECK (vote_type IN ('up', 'down')),
+    user_id TEXT,
+    ip_address TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (data_feed_id) REFERENCES data_feeds(id)
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_data_feeds_corridor ON data_feeds(corridor_id);
 CREATE INDEX IF NOT EXISTS idx_data_feeds_service ON data_feeds(service_type_id);
 CREATE INDEX IF NOT EXISTS idx_validation_runs_feed ON validation_runs(data_feed_id);
 CREATE INDEX IF NOT EXISTS idx_metric_values_run ON metric_values(validation_run_id);
 CREATE INDEX IF NOT EXISTS idx_quality_scores_run ON quality_scores(validation_run_id);
+CREATE INDEX IF NOT EXISTS idx_quality_votes_feed ON quality_votes(data_feed_id);
+CREATE INDEX IF NOT EXISTS idx_quality_votes_user ON quality_votes(user_id);
 
 -- View for latest quality score per corridor/service (for dashboard)
 CREATE OR REPLACE VIEW corridor_service_quality_latest AS

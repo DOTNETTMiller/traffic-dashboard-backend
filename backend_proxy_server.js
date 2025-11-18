@@ -8321,6 +8321,149 @@ app.get('/api/data-quality/summary', async (req, res) => {
   }
 });
 
+// Submit a vote for a data feed quality score
+app.post('/api/data-quality/vote', async (req, res) => {
+  const { Client } = require('pg');
+  const { feedId, voteType } = req.body;
+
+  // Validation
+  if (!feedId || !voteType) {
+    return res.status(400).json({
+      success: false,
+      error: 'feedId and voteType are required'
+    });
+  }
+
+  if (voteType !== 'up' && voteType !== 'down') {
+    return res.status(400).json({
+      success: false,
+      error: 'voteType must be "up" or "down"'
+    });
+  }
+
+  try {
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    // Get IP address for basic duplicate prevention
+    const ipAddress = req.ip || req.connection.remoteAddress;
+
+    // Check if this IP has already voted for this feed in the last 24 hours
+    const existingVoteQuery = `
+      SELECT id, vote_type FROM quality_votes
+      WHERE data_feed_id = $1
+        AND ip_address = $2
+        AND created_at > NOW() - INTERVAL '24 hours'
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+
+    const existingVote = await client.query(existingVoteQuery, [feedId, ipAddress]);
+
+    if (existingVote.rows.length > 0) {
+      // User has voted recently - update or remove vote
+      const existingVoteType = existingVote.rows[0].vote_type;
+      const existingVoteId = existingVote.rows[0].id;
+
+      if (existingVoteType === voteType) {
+        // Same vote type - remove the vote (toggle off)
+        await client.query('DELETE FROM quality_votes WHERE id = $1', [existingVoteId]);
+        await client.end();
+
+        return res.json({
+          success: true,
+          action: 'removed',
+          message: 'Vote removed'
+        });
+      } else {
+        // Different vote type - update the vote
+        await client.query(
+          'UPDATE quality_votes SET vote_type = $1, created_at = NOW() WHERE id = $2',
+          [voteType, existingVoteId]
+        );
+        await client.end();
+
+        return res.json({
+          success: true,
+          action: 'updated',
+          message: 'Vote updated'
+        });
+      }
+    } else {
+      // No recent vote - insert new vote
+      await client.query(
+        'INSERT INTO quality_votes (data_feed_id, vote_type, ip_address) VALUES ($1, $2, $3)',
+        [feedId, voteType, ipAddress]
+      );
+      await client.end();
+
+      return res.json({
+        success: true,
+        action: 'added',
+        message: 'Vote recorded'
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error recording vote:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get vote counts for all feeds
+app.get('/api/data-quality/votes', async (req, res) => {
+  const { Client } = require('pg');
+
+  try {
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    const query = `
+      SELECT
+        data_feed_id,
+        COUNT(CASE WHEN vote_type = 'up' THEN 1 END) as upvotes,
+        COUNT(CASE WHEN vote_type = 'down' THEN 1 END) as downvotes,
+        COUNT(*) as total_votes
+      FROM quality_votes
+      GROUP BY data_feed_id
+    `;
+
+    const result = await client.query(query);
+    await client.end();
+
+    // Convert to object keyed by feed_id for easier lookup
+    const votesByFeed = {};
+    result.rows.forEach(row => {
+      votesByFeed[row.data_feed_id] = {
+        upvotes: parseInt(row.upvotes),
+        downvotes: parseInt(row.downvotes),
+        total: parseInt(row.total_votes)
+      };
+    });
+
+    res.json({
+      success: true,
+      votes: votesByFeed
+    });
+  } catch (error) {
+    console.error('❌ Error fetching votes:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Run Users table migration for PostgreSQL
 app.post('/api/admin/migrate-users', async (req, res) => {
   try {

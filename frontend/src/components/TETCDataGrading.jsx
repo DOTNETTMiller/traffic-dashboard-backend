@@ -6,9 +6,12 @@ export default function TETCDataGrading() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedService, setSelectedService] = useState('all');
+  const [votes, setVotes] = useState({});
+  const [voteCounts, setVoteCounts] = useState({});
 
   useEffect(() => {
     fetchQualityData();
+    fetchVoteCounts();
   }, []);
 
   const fetchQualityData = async () => {
@@ -23,6 +26,53 @@ export default function TETCDataGrading() {
       setError(error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchVoteCounts = async () => {
+    try {
+      const response = await fetch(`${config.apiUrl}/api/data-quality/votes`);
+      if (!response.ok) throw new Error('Failed to fetch vote counts');
+      const data = await response.json();
+      if (data.success) {
+        setVoteCounts(data.votes);
+      }
+    } catch (error) {
+      console.error('Error fetching vote counts:', error);
+    }
+  };
+
+  const handleVote = async (feedId, voteType) => {
+    // Optimistically update UI
+    const previousVote = votes[feedId];
+    setVotes(prev => ({
+      ...prev,
+      [feedId]: prev[feedId] === voteType ? null : voteType
+    }));
+
+    try {
+      const response = await fetch(`${config.apiUrl}/api/data-quality/vote`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ feedId, voteType })
+      });
+
+      if (!response.ok) throw new Error('Failed to submit vote');
+
+      const data = await response.json();
+      console.log('Vote response:', data);
+
+      // Refresh vote counts to get updated totals
+      await fetchVoteCounts();
+    } catch (error) {
+      console.error('Error submitting vote:', error);
+      // Revert optimistic update on error
+      setVotes(prev => ({
+        ...prev,
+        [feedId]: previousVote
+      }));
     }
   };
 
@@ -96,12 +146,40 @@ export default function TETCDataGrading() {
           marginBottom: '20px',
           boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
         }}>
-          <h1 style={{ margin: '0 0 8px 0', fontSize: '28px', fontWeight: 'bold', color: '#111827' }}>
-            TETC Data Quality Grading System
-          </h1>
-          <p style={{ margin: '0', color: '#6b7280', fontSize: '14px' }}>
-            Evaluating data quality across TETC corridors using MDODE-aligned scoring framework
-          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+            <div style={{ flex: 1 }}>
+              <h1 style={{ margin: '0 0 8px 0', fontSize: '28px', fontWeight: 'bold', color: '#111827' }}>
+                TETC Data Quality Grading System
+              </h1>
+              <p style={{ margin: '0', color: '#6b7280', fontSize: '14px' }}>
+                Evaluating data quality across TETC corridors using MDODE-aligned scoring framework
+              </p>
+            </div>
+            <a
+              href="https://tetcoalition.org/data-marketplace/validation"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                padding: '10px 20px',
+                backgroundColor: '#3b82f6',
+                color: 'white',
+                textDecoration: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'background-color 0.2s',
+                whiteSpace: 'nowrap',
+                marginLeft: '16px'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3b82f6'}
+            >
+              📚 TETC Validation Docs →
+            </a>
+          </div>
         </div>
 
         {/* Service Type Filter */}
@@ -343,6 +421,103 @@ export default function TETCDataGrading() {
                   Validation Period: {new Date(feed.period_start).toLocaleDateString()} - {new Date(feed.period_end).toLocaleDateString()}
                 </div>
               )}
+
+              {/* Voting Section */}
+              <div style={{
+                marginTop: '16px',
+                paddingTop: '16px',
+                borderTop: '1px solid #e5e7eb'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '8px'
+                }}>
+                  <div style={{ fontSize: '12px', fontWeight: '600', color: '#6b7280' }}>
+                    Is this score accurate?
+                  </div>
+                  {voteCounts[feed.data_feed_id] && voteCounts[feed.data_feed_id].total > 0 && (
+                    <div style={{ fontSize: '11px', color: '#9ca3af' }}>
+                      {voteCounts[feed.data_feed_id].total} vote{voteCounts[feed.data_feed_id].total !== 1 ? 's' : ''}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    onClick={() => handleVote(feed.data_feed_id, 'up')}
+                    style={{
+                      flex: 1,
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      border: votes[feed.data_feed_id] === 'up' ? '2px solid #10b981' : '1px solid #d1d5db',
+                      backgroundColor: votes[feed.data_feed_id] === 'up' ? '#ecfdf5' : 'white',
+                      color: votes[feed.data_feed_id] === 'up' ? '#065f46' : '#6b7280',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (votes[feed.data_feed_id] !== 'up') {
+                        e.currentTarget.style.backgroundColor = '#f9fafb';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (votes[feed.data_feed_id] !== 'up') {
+                        e.currentTarget.style.backgroundColor = 'white';
+                      }
+                    }}
+                  >
+                    👍 Yes
+                    {voteCounts[feed.data_feed_id] && voteCounts[feed.data_feed_id].upvotes > 0 && (
+                      <span style={{ marginLeft: '4px', fontSize: '11px' }}>
+                        ({voteCounts[feed.data_feed_id].upvotes})
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleVote(feed.data_feed_id, 'down')}
+                    style={{
+                      flex: 1,
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      border: votes[feed.data_feed_id] === 'down' ? '2px solid #ef4444' : '1px solid #d1d5db',
+                      backgroundColor: votes[feed.data_feed_id] === 'down' ? '#fef2f2' : 'white',
+                      color: votes[feed.data_feed_id] === 'down' ? '#991b1b' : '#6b7280',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (votes[feed.data_feed_id] !== 'down') {
+                        e.currentTarget.style.backgroundColor = '#f9fafb';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (votes[feed.data_feed_id] !== 'down') {
+                        e.currentTarget.style.backgroundColor = 'white';
+                      }
+                    }}
+                  >
+                    👎 No
+                    {voteCounts[feed.data_feed_id] && voteCounts[feed.data_feed_id].downvotes > 0 && (
+                      <span style={{ marginLeft: '4px', fontSize: '11px' }}>
+                        ({voteCounts[feed.data_feed_id].downvotes})
+                      </span>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           ))}
         </div>
@@ -526,6 +701,33 @@ export default function TETCDataGrading() {
                 Data management practices, documentation quality, and institutional support for data quality.
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* How to Score Your Data */}
+        <div style={{
+          marginBottom: '24px',
+          padding: '16px',
+          backgroundColor: '#eff6ff',
+          borderRadius: '8px',
+          border: '2px solid #3b82f6'
+        }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: '#1e40af' }}>
+            ✍️ How to Score Your Data
+          </div>
+          <p style={{ fontSize: '12px', lineHeight: '1.6', color: '#1e40af', margin: '0 0 12px 0' }}>
+            Each dimension is scored 0-100 based on these criteria:
+          </p>
+          <div style={{ fontSize: '11px', lineHeight: '1.6', color: '#1e3a8a' }}>
+            <strong>ACCURACY:</strong> Compare against ground truth. 95%+ match = 90-100, 85-94% = 80-89, 75-84% = 70-79
+            <br /><br />
+            <strong>COVERAGE:</strong> % of corridor/time covered. 90%+ = 90-100, 75-89% = 80-89, 60-74% = 70-79
+            <br /><br />
+            <strong>TIMELINESS:</strong> Update frequency. Real-time (< 1 min) = 90-100, < 5 min = 80-89, < 15 min = 70-79
+            <br /><br />
+            <strong>STANDARDS:</strong> WZDx/J2735/TMDD compliance. Full compliance = 90-100, Most fields = 80-89, Some fields = 70-79
+            <br /><br />
+            <strong>GOVERNANCE:</strong> Documentation, SLAs, support. Excellent = 90-100, Good = 80-89, Fair = 70-79
           </div>
         </div>
 
