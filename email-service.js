@@ -12,6 +12,40 @@ if (process.env.SENDGRID_API_KEY) {
 const FROM_EMAIL = process.env.EMAIL_USER || 'DOT.Corridor.Communicator@gmail.com';
 
 /**
+ * Generic email sending function
+ * @param {string} to - Recipient email address
+ * @param {string} subject - Email subject
+ * @param {string} text - Plain text body
+ * @param {string} html - Optional HTML body
+ */
+async function sendEmail(to, subject, text, html = null) {
+  if (!process.env.SENDGRID_API_KEY) {
+    console.warn('⚠️  SendGrid not configured - email not sent');
+    return { success: false, error: 'SendGrid not configured' };
+  }
+
+  const msg = {
+    to,
+    from: {
+      email: FROM_EMAIL,
+      name: 'DOT Corridor Communicator'
+    },
+    subject,
+    text,
+    ...(html && { html })
+  };
+
+  try {
+    const response = await sgMail.send(msg);
+    console.log(`✅ Email sent: ${response[0].statusCode}`);
+    return { success: true, messageId: response[0].headers['x-message-id'] };
+  } catch (error) {
+    console.error('❌ Error sending email:', error.response?.body || error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Send email notification for new message on event
  */
 async function sendMessageNotification(recipientEmail, recipientName, event, message) {
