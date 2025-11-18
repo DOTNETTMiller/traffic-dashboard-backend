@@ -6532,6 +6532,79 @@ app.get('/api/states/list', async (req, res) => {
   });
 });
 
+// Admin endpoint to populate states in database
+app.post('/api/admin/populate-states', async (req, res) => {
+  try {
+    const states = [
+      { stateKey: 'ia', stateName: 'Iowa DOT' },
+      { stateKey: 'co', stateName: 'Colorado DOT' },
+      { stateKey: 'fl', stateName: 'Florida DOT' },
+      { stateKey: 'ky', stateName: 'Kentucky Transportation Cabinet' },
+      { stateKey: 'mn', stateName: 'Minnesota DOT' },
+      { stateKey: 'ma', stateName: 'Massachusetts DOT' },
+      { stateKey: 'wa', stateName: 'Washington DOT' },
+      { stateKey: 'il', stateName: 'Illinois DOT' },
+      { stateKey: 'pa', stateName: 'Pennsylvania DOT' },
+      { stateKey: 'wi', stateName: 'Wisconsin DOT' },
+      { stateKey: 'oh', stateName: 'Ohio DOT' },
+      { stateKey: 'ca', stateName: 'California DOT' },
+      { stateKey: 'tx', stateName: 'Texas DOT' },
+      { stateKey: 'ny', stateName: 'New York DOT' },
+      { stateKey: 'nc', stateName: 'North Carolina DOT' },
+      { stateKey: 'va', stateName: 'Virginia DOT' },
+      { stateKey: 'ga', stateName: 'Georgia DOT' },
+      { stateKey: 'mi', stateName: 'Michigan DOT' },
+      { stateKey: 'la', stateName: 'Louisiana DOT' },
+      { stateKey: 'nm', stateName: 'New Mexico DOT' },
+      { stateKey: 'de', stateName: 'Delaware DOT' },
+      { stateKey: 'hi', stateName: 'Hawaii DOT' },
+      { stateKey: 'id', stateName: 'Idaho DOT' },
+      { stateKey: 'fhwa', stateName: 'FHWA' }
+    ];
+
+    let added = 0;
+    let skipped = 0;
+
+    for (const state of states) {
+      const query = `
+        INSERT INTO state_feeds (stateKey, stateName, format, apiType)
+        VALUES (?, ?, 'json', 'WZDx')
+        ON CONFLICT (stateKey) DO NOTHING
+      `;
+
+      const result = await db.run(query, [state.stateKey, state.stateName]);
+
+      if (result && result.changes > 0) {
+        console.log(`✅ Added: ${state.stateName} (${state.stateKey})`);
+        added++;
+      } else {
+        console.log(`⏭️  Skipped (exists): ${state.stateName} (${state.stateKey})`);
+        skipped++;
+      }
+    }
+
+    console.log(`\n📊 State population summary:`);
+    console.log(`   ✅ Added: ${added}`);
+    console.log(`   ⏭️  Skipped: ${skipped}`);
+    console.log(`   📝 Total: ${states.length}`);
+
+    res.json({
+      success: true,
+      added,
+      skipped,
+      total: states.length,
+      message: `Successfully populated states: ${added} added, ${skipped} already existed`
+    });
+
+  } catch (error) {
+    console.error('❌ Error populating states:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // ==================== AI CHAT ASSISTANT ====================
 
 // System prompt with WZDx, TMDD, SAE J2735 expertise
