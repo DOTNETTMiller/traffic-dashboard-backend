@@ -34,6 +34,7 @@ import ChatWidget from './components/ChatWidget';
 import UserProfile from './components/UserProfile';
 import GroundTruthDashboard from './components/GroundTruthDashboard';
 import CorridorDataQuality from './components/CorridorDataQuality';
+import TETCDataGrading from './components/TETCDataGrading';
 import './styles/App.css';
 
 function App() {
@@ -1147,7 +1148,7 @@ function App() {
             ) : view === 'report' ? (
               <DataQualityReport />
             ) : view === 'tetcGrading' ? (
-              <CorridorDataQuality />
+              <TETCDataGrading />
             ) : null}
           </div>
         )}
