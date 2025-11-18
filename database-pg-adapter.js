@@ -135,6 +135,12 @@ class PostgreSQLAdapter {
     };
   }
 
+  // Direct query method (for parameterized queries with $1, $2, etc.)
+  async query(sql, params = []) {
+    await this.init();
+    return await this.pool.query(sql, params);
+  }
+
   // Close the connection
   async close() {
     await this.pool.end();
