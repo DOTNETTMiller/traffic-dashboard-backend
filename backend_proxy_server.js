@@ -255,7 +255,7 @@ app.use((req, res, next) => {
 });
 
 // Admin authentication middleware - accepts legacy tokens or user JWT with admin role
-const requireAdmin = (req, res, next) => {
+const requireAdmin = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Missing or invalid authorization header' });
@@ -264,7 +264,8 @@ const requireAdmin = (req, res, next) => {
   const token = authHeader.substring(7);
 
   // Legacy admin tokens
-  if (db.verifyAdminToken(token)) {
+  const isValidAdminToken = await db.verifyAdminToken(token);
+  if (isValidAdminToken) {
     req.adminAuthType = 'token';
     return next();
   }
@@ -7074,9 +7075,9 @@ app.delete('/api/admin/users/:userId', requireAdmin, (req, res) => {
 // ==================== ADMIN STATE MANAGEMENT ENDPOINTS ====================
 
 // Generate admin token (one-time setup or regenerate)
-app.post('/api/admin/generate-token', (req, res) => {
+app.post('/api/admin/generate-token', async (req, res) => {
   const { description } = req.body;
-  const token = db.createAdminToken(description || 'Admin access token');
+  const token = await db.createAdminToken(description || 'Admin access token');
 
   if (token) {
     res.json({
