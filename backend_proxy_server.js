@@ -6534,6 +6534,8 @@ app.get('/api/states/list', async (req, res) => {
 
 // Admin endpoint to populate states in database
 app.post('/api/admin/populate-states', async (req, res) => {
+  const { Client } = require('pg');
+
   try {
     const states = [
       { stateKey: 'ia', stateName: 'Iowa DOT' },
@@ -6562,19 +6564,27 @@ app.post('/api/admin/populate-states', async (req, res) => {
       { stateKey: 'fhwa', stateName: 'FHWA' }
     ];
 
+    // Connect to PostgreSQL
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
     let added = 0;
     let skipped = 0;
 
     for (const state of states) {
       const query = `
         INSERT INTO state_feeds (stateKey, stateName, format, apiType)
-        VALUES (?, ?, 'json', 'WZDx')
+        VALUES ($1, $2, 'json', 'WZDx')
         ON CONFLICT (stateKey) DO NOTHING
       `;
 
-      const result = await db.run(query, [state.stateKey, state.stateName]);
+      const result = await client.query(query, [state.stateKey, state.stateName]);
 
-      if (result && result.changes > 0) {
+      if (result && result.rowCount > 0) {
         console.log(`✅ Added: ${state.stateName} (${state.stateKey})`);
         added++;
       } else {
@@ -6582,6 +6592,8 @@ app.post('/api/admin/populate-states', async (req, res) => {
         skipped++;
       }
     }
+
+    await client.end();
 
     console.log(`\n📊 State population summary:`);
     console.log(`   ✅ Added: ${added}`);
