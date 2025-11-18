@@ -2424,7 +2424,7 @@ app.get('/api/db-status', (req, res) => {
 // ==================== USER AUTHENTICATION ENDPOINTS ====================
 
 // User registration
-app.post('/api/users/register', (req, res) => {
+app.post('/api/users/register', async (req, res) => {
   const { username, email, password, fullName, organization, stateKey } = req.body;
 
   if (!username || !email || !password) {
@@ -2438,21 +2438,21 @@ app.post('/api/users/register', (req, res) => {
   }
 
   // Check if user already exists
-  const existingUser = db.getUserByUsername(username);
+  const existingUser = await db.getUserByUsername(username);
   if (existingUser) {
     return res.status(409).json({ error: 'Username already exists' });
   }
 
   // Validate state key if provided
   if (stateKey) {
-    const state = db.getState(stateKey);
+    const state = await db.getState(stateKey);
     if (!state) {
       return res.status(400).json({ error: 'Invalid state key' });
     }
   }
 
   // Create user
-  const result = db.createUser({
+  const result = await db.createUser({
     username,
     email,
     password,
