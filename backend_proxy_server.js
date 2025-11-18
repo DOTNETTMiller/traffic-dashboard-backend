@@ -8183,52 +8183,6 @@ app.get('/api/data-quality/service-types', async (req, res) => {
   }
 });
 
-// Get quality summary across all corridors
-app.get('/api/data-quality/summary', async (req, res) => {
-  try {
-    const allScores = await db.allAsync(
-      `SELECT corridor_id, corridor_name, service_type_id, service_display_name,
-              category, dqi, letter_grade
-       FROM corridor_service_quality_latest
-       ORDER BY dqi DESC`
-    );
-
-    const summary = {
-      totalScores: allScores.length,
-      avgDQI: allScores.reduce((sum, s) => sum + s.dqi, 0) / allScores.length,
-      gradeDistribution: allScores.reduce((acc, s) => {
-        acc[s.letter_grade] = (acc[s.letter_grade] || 0) + 1;
-        return acc;
-      }, {}),
-      categoryBreakdown: allScores.reduce((acc, s) => {
-        if (!acc[s.category]) {
-          acc[s.category] = { count: 0, avgDQI: 0, scores: [] };
-        }
-        acc[s.category].count++;
-        acc[s.category].scores.push(s.dqi);
-        return acc;
-      }, {}),
-      topPerformers: allScores.slice(0, 10),
-      needsImprovement: allScores.filter(s => s.dqi < 70).slice(0, 10)
-    };
-
-    // Calculate category averages
-    Object.keys(summary.categoryBreakdown).forEach(cat => {
-      const scores = summary.categoryBreakdown[cat].scores;
-      summary.categoryBreakdown[cat].avgDQI = scores.reduce((a, b) => a + b, 0) / scores.length;
-      delete summary.categoryBreakdown[cat].scores;
-    });
-
-    res.json({
-      success: true,
-      summary
-    });
-  } catch (error) {
-    console.error('Error fetching quality summary:', error);
-    res.status(500).json({ error: 'Failed to fetch quality summary' });
-  }
-});
-
 // Run TETC Data Quality migrations (one-time setup)
 app.post('/api/data-quality/migrate', async (req, res) => {
   try {
@@ -8292,6 +8246,7 @@ app.post('/api/data-quality/migrate', async (req, res) => {
       details: 'Check server logs for full error details'
     });
   }
+});
 
 // Get TETC Data Quality summary for dashboard
 app.get('/api/data-quality/summary', async (req, res) => {
@@ -8364,7 +8319,6 @@ app.get('/api/data-quality/summary', async (req, res) => {
       error: error.message
     });
   }
-});
 });
 
 // Run Users table migration for PostgreSQL
