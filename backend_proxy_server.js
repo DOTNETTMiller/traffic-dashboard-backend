@@ -8464,6 +8464,79 @@ app.get('/api/data-quality/votes', async (req, res) => {
   }
 });
 
+// Generate AI corridor summary using OpenAI
+app.post('/api/corridor/generate-summary', async (req, res) => {
+  try {
+    const { corridor, events, detours } = req.body;
+
+    if (!corridor || !events) {
+      return res.status(400).json({
+        success: false,
+        error: 'corridor and events are required'
+      });
+    }
+
+    // Check if OpenAI API key is configured
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        error: 'OpenAI API key not configured'
+      });
+    }
+
+    const OpenAI = require('openai');
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
+
+    // Prepare event summary for the prompt
+    const eventSummary = events.map((event, idx) => {
+      const severity = event.severity || event.severityLevel || 'medium';
+      return `${idx + 1}. ${event.eventType || 'Event'} - ${event.description || 'No description'} (Severity: ${severity}, Location: ${event.location || 'Unknown'})`;
+    }).join('\n');
+
+    const detourSummary = detours && detours.length > 0
+      ? `\n\nActive Detours:\n${detours.map((d, idx) => `${idx + 1}. ${d.recommended_route || d.description || 'Detour active'}`).join('\n')}`
+      : '';
+
+    // Generate summary using OpenAI
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a traffic operations expert providing concise corridor briefings for DOT personnel. Summarize the current situation in 2-3 sentences, highlighting key concerns and overall conditions. Be direct and professional.'
+        },
+        {
+          role: 'user',
+          content: `Corridor: ${corridor}\n\nCurrent Events (${events.length} total):\n${eventSummary}${detourSummary}\n\nProvide a brief summary of what travelers should expect on this corridor.`
+        }
+      ],
+      max_tokens: 200,
+      temperature: 0.7
+    });
+
+    const summary = completion.choices[0]?.message?.content || 'Unable to generate summary';
+
+    console.log(`✅ Generated corridor summary for ${corridor}`);
+
+    res.json({
+      success: true,
+      summary: summary,
+      corridor: corridor,
+      event_count: events.length,
+      detour_count: detours?.length || 0
+    });
+
+  } catch (error) {
+    console.error('❌ Error generating corridor summary:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Run Users table migration for PostgreSQL
 app.post('/api/admin/migrate-users', async (req, res) => {
   try {
