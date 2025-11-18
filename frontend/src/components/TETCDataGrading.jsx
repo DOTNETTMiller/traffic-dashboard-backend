@@ -156,7 +156,7 @@ export default function TETCDataGrading() {
               </p>
             </div>
             <a
-              href="https://tetcoalition.org/data-marketplace/validation"
+              href="https://tetcoalition.org/tdm/"
               target="_blank"
               rel="noopener noreferrer"
               style={{
