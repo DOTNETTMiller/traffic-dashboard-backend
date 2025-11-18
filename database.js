@@ -969,14 +969,21 @@ class StateDatabase {
   }
 
   // Admin token management
-  createAdminToken(description = 'Admin token') {
+  async createAdminToken(description = 'Admin token') {
     const token = crypto.randomBytes(32).toString('hex');
     try {
-      const stmt = this.db.prepare(`
-        INSERT INTO admin_tokens (token, description)
-        VALUES (?, ?)
-      `);
-      stmt.run(token, description);
+      if (this.isPostgres) {
+        await this.db.query(`
+          INSERT INTO admin_tokens (token, description)
+          VALUES ($1, $2)
+        `, [token, description]);
+      } else {
+        const stmt = this.db.prepare(`
+          INSERT INTO admin_tokens (token, description)
+          VALUES (?, ?)
+        `);
+        stmt.run(token, description);
+      }
       console.log(`✅ Created admin token: ${description}`);
       return token;
     } catch (error) {
@@ -985,12 +992,21 @@ class StateDatabase {
     }
   }
 
-  verifyAdminToken(token) {
+  async verifyAdminToken(token) {
     try {
-      const result = this.db.prepare(`
-        SELECT * FROM admin_tokens
-        WHERE token = ? AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
-      `).get(token);
+      let result;
+      if (this.isPostgres) {
+        const queryResult = await this.db.query(`
+          SELECT * FROM admin_tokens
+          WHERE token = $1 AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+        `, [token]);
+        result = queryResult.rows[0];
+      } else {
+        result = this.db.prepare(`
+          SELECT * FROM admin_tokens
+          WHERE token = ? AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+        `).get(token);
+      }
       return !!result;
     } catch (error) {
       console.error('Error verifying admin token:', error);
