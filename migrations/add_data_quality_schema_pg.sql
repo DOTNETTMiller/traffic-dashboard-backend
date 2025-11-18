@@ -21,6 +21,19 @@ CREATE TABLE IF NOT EXISTS service_types (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Populate service types
+INSERT INTO service_types (id, display_name, category, mdode_category, description) VALUES
+('probe_travel_time', 'Probe Travel Time', 'Traffic', 'Mobility', 'Travel time and speed data from probe vehicles'),
+('od_personal', 'Origin-Destination (Personal)', 'Traffic', 'Mobility', 'Personal vehicle trip patterns and destinations'),
+('od_freight', 'Origin-Destination (Freight)', 'Freight', 'Freight', 'Freight truck trip patterns and destinations'),
+('volume', 'Traffic Volume', 'Traffic', 'Mobility', 'Traffic count and volume data'),
+('work_zone', 'Work Zones', 'Work Zones', 'Work Zone', 'Construction and maintenance work zone information'),
+('incident', 'Incidents', 'Events', 'Safety', 'Crash and incident event data'),
+('road_weather', 'Road Weather', 'Weather', 'Weather', 'Road weather and environmental conditions'),
+('truck_parking', 'Truck Parking', 'Freight', 'Freight', 'Truck parking availability and occupancy'),
+('cv_telemetry', 'Connected Vehicle Telemetry', 'CV', 'CV/AV', 'Connected vehicle telemetry and BSM data')
+ON CONFLICT (id) DO NOTHING;
+
 -- Data feeds per corridor/service
 CREATE TABLE IF NOT EXISTS data_feeds (
     id TEXT PRIMARY KEY,
