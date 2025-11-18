@@ -1,0 +1,549 @@
+import { useState, useEffect } from 'react';
+import { config } from '../config';
+
+export default function TETCDataGrading() {
+  const [qualityData, setQualityData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedService, setSelectedService] = useState('all');
+
+  useEffect(() => {
+    fetchQualityData();
+  }, []);
+
+  const fetchQualityData = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${config.apiUrl}/api/data-quality/summary`);
+      if (!response.ok) throw new Error('Failed to fetch quality data');
+      const data = await response.json();
+      setQualityData(data);
+    } catch (error) {
+      console.error('Error fetching TETC quality data:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getGradeColor = (grade) => {
+    const colors = {
+      'A': '#10b981',
+      'B': '#3b82f6',
+      'C': '#f59e0b',
+      'D': '#ef4444',
+      'F': '#991b1b'
+    };
+    return colors[grade] || '#6b7280';
+  };
+
+  if (loading) {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center' }}>
+        <div>Loading TETC Data Quality Grading...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center', color: '#ef4444' }}>
+        Error loading data: {error}
+      </div>
+    );
+  }
+
+  if (!qualityData || qualityData.feeds.length === 0) {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+        No TETC quality data available. Run migrations to populate sample data.
+      </div>
+    );
+  }
+
+  // Group feeds by service type
+  const feedsByService = qualityData.feeds.reduce((acc, feed) => {
+    if (!acc[feed.service_display_name]) {
+      acc[feed.service_display_name] = [];
+    }
+    acc[feed.service_display_name].push(feed);
+    return acc;
+  }, {});
+
+  const serviceTypes = ['all', ...Object.keys(feedsByService)];
+  const filteredFeeds = selectedService === 'all'
+    ? qualityData.feeds
+    : feedsByService[selectedService] || [];
+
+  return (
+    <div style={{
+      display: 'flex',
+      height: '100vh',
+      backgroundColor: '#f9fafb',
+      overflow: 'hidden'
+    }}>
+      {/* Main Content Area */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: '20px'
+      }}>
+        {/* Header */}
+        <div style={{
+          backgroundColor: 'white',
+          padding: '24px',
+          borderRadius: '12px',
+          marginBottom: '20px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+        }}>
+          <h1 style={{ margin: '0 0 8px 0', fontSize: '28px', fontWeight: 'bold', color: '#111827' }}>
+            TETC Data Quality Grading System
+          </h1>
+          <p style={{ margin: '0', color: '#6b7280', fontSize: '14px' }}>
+            Evaluating data quality across TETC corridors using MDODE-aligned scoring framework
+          </p>
+        </div>
+
+        {/* Service Type Filter */}
+        <div style={{
+          backgroundColor: 'white',
+          padding: '16px',
+          borderRadius: '8px',
+          marginBottom: '20px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+        }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: '#374151' }}>
+            Filter by Service Type:
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {serviceTypes.map((service) => (
+              <button
+                key={service}
+                onClick={() => setSelectedService(service)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: selectedService === service ? '2px solid #3b82f6' : '1px solid #d1d5db',
+                  backgroundColor: selectedService === service ? '#eff6ff' : 'white',
+                  color: selectedService === service ? '#1e40af' : '#6b7280',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedService !== service) {
+                    e.currentTarget.style.borderColor = '#9ca3af';
+                    e.currentTarget.style.backgroundColor = '#f9fafb';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (selectedService !== service) {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.backgroundColor = 'white';
+                  }
+                }}
+              >
+                {service === 'all' ? 'All Services' : service} ({service === 'all' ? qualityData.feeds.length : feedsByService[service].length})
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Quality Scores Grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))',
+          gap: '20px'
+        }}>
+          {filteredFeeds.map((feed) => (
+            <div
+              key={feed.data_feed_id}
+              style={{
+                backgroundColor: 'white',
+                borderRadius: '12px',
+                padding: '20px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                border: `2px solid ${getGradeColor(feed.letter_grade)}`,
+                transition: 'all 0.3s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.15)';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
+            >
+              {/* Header with Grade */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#111827', marginBottom: '4px' }}>
+                    {feed.corridor_name}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px' }}>
+                    {feed.service_display_name} • {feed.provider_name}
+                  </div>
+                  {feed.methodology_ref && (
+                    <a
+                      href={feed.methodology_ref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: '11px',
+                        color: '#3b82f6',
+                        textDecoration: 'none',
+                        display: 'inline-block'
+                      }}
+                    >
+                      📄 View Methodology →
+                    </a>
+                  )}
+                </div>
+                <div style={{
+                  width: '70px',
+                  height: '70px',
+                  borderRadius: '12px',
+                  backgroundColor: getGradeColor(feed.letter_grade),
+                  color: 'white',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  flexShrink: 0
+                }}>
+                  <div style={{ fontSize: '36px', fontWeight: 'bold', lineHeight: 1 }}>
+                    {feed.letter_grade}
+                  </div>
+                  <div style={{ fontSize: '11px', fontWeight: '600', marginTop: '4px' }}>
+                    {Math.round(feed.dqi)}
+                  </div>
+                </div>
+              </div>
+
+              {/* DQI Score */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '6px', fontWeight: '600' }}>
+                  Data Quality Index (DQI)
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{
+                    flex: 1,
+                    height: '8px',
+                    backgroundColor: '#e5e7eb',
+                    borderRadius: '4px',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${feed.dqi}%`,
+                      backgroundColor: getGradeColor(feed.letter_grade),
+                      transition: 'width 0.3s ease'
+                    }} />
+                  </div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: getGradeColor(feed.letter_grade), minWidth: '50px', textAlign: 'right' }}>
+                    {Math.round(feed.dqi)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Quality Dimensions */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '12px',
+                marginBottom: '12px'
+              }}>
+                <div style={{
+                  padding: '10px',
+                  backgroundColor: '#f0fdf4',
+                  borderRadius: '6px',
+                  border: '1px solid #86efac'
+                }}>
+                  <div style={{ fontSize: '10px', color: '#166534', marginBottom: '4px', fontWeight: '600' }}>
+                    ACCURACY
+                  </div>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#15803d' }}>
+                    {Math.round(feed.acc_score || 0)}
+                  </div>
+                </div>
+                <div style={{
+                  padding: '10px',
+                  backgroundColor: '#eff6ff',
+                  borderRadius: '6px',
+                  border: '1px solid #93c5fd'
+                }}>
+                  <div style={{ fontSize: '10px', color: '#1e40af', marginBottom: '4px', fontWeight: '600' }}>
+                    COVERAGE
+                  </div>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e3a8a' }}>
+                    {Math.round(feed.cov_score || 0)}
+                  </div>
+                </div>
+                <div style={{
+                  padding: '10px',
+                  backgroundColor: '#fef3c7',
+                  borderRadius: '6px',
+                  border: '1px solid #fde68a'
+                }}>
+                  <div style={{ fontSize: '10px', color: '#92400e', marginBottom: '4px', fontWeight: '600' }}>
+                    TIMELINESS
+                  </div>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#b45309' }}>
+                    {Math.round(feed.tim_score || 0)}
+                  </div>
+                </div>
+                <div style={{
+                  padding: '10px',
+                  backgroundColor: '#f5f3ff',
+                  borderRadius: '6px',
+                  border: '1px solid #c4b5fd'
+                }}>
+                  <div style={{ fontSize: '10px', color: '#5b21b6', marginBottom: '4px', fontWeight: '600' }}>
+                    STANDARDS
+                  </div>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#6b21a8' }}>
+                    {Math.round(feed.std_score || 0)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Governance Score */}
+              {feed.gov_score !== null && feed.gov_score !== undefined && (
+                <div style={{
+                  padding: '10px',
+                  backgroundColor: '#fdf2f8',
+                  borderRadius: '6px',
+                  border: '1px solid #fbcfe8',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <div style={{ fontSize: '10px', color: '#9f1239', fontWeight: '600' }}>
+                    GOVERNANCE
+                  </div>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#be123c' }}>
+                    {Math.round(feed.gov_score)}
+                  </div>
+                </div>
+              )}
+
+              {/* Validation Period */}
+              {feed.period_start && feed.period_end && (
+                <div style={{
+                  marginTop: '12px',
+                  padding: '8px',
+                  backgroundColor: '#f9fafb',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  color: '#6b7280'
+                }}>
+                  Validation Period: {new Date(feed.period_start).toLocaleDateString()} - {new Date(feed.period_end).toLocaleDateString()}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {filteredFeeds.length === 0 && (
+          <div style={{
+            backgroundColor: 'white',
+            padding: '40px',
+            borderRadius: '12px',
+            textAlign: 'center',
+            color: '#6b7280'
+          }}>
+            No data feeds found for the selected service type.
+          </div>
+        )}
+      </div>
+
+      {/* Right Sidebar - Scoring Directions */}
+      <div style={{
+        width: '350px',
+        backgroundColor: 'white',
+        borderLeft: '1px solid #e5e7eb',
+        overflowY: 'auto',
+        padding: '24px',
+        boxShadow: '-2px 0 8px rgba(0,0,0,0.05)'
+      }}>
+        <h2 style={{ margin: '0 0 16px 0', fontSize: '20px', fontWeight: 'bold', color: '#111827' }}>
+          📊 Scoring Guide
+        </h2>
+
+        {/* DQI Explanation */}
+        <div style={{
+          marginBottom: '24px',
+          padding: '16px',
+          backgroundColor: '#f9fafb',
+          borderRadius: '8px',
+          border: '1px solid #e5e7eb'
+        }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#374151' }}>
+            Data Quality Index (DQI)
+          </div>
+          <p style={{ fontSize: '13px', lineHeight: '1.6', color: '#6b7280', margin: '0 0 12px 0' }}>
+            The DQI is a composite score (0-100) that aggregates multiple quality dimensions. Higher scores indicate better overall data quality.
+          </p>
+        </div>
+
+        {/* Grade Scale */}
+        <div style={{
+          marginBottom: '24px',
+          padding: '16px',
+          backgroundColor: '#f9fafb',
+          borderRadius: '8px',
+          border: '1px solid #e5e7eb'
+        }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: '#374151' }}>
+            Letter Grade Scale
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {[
+              { grade: 'A', min: 90, color: '#10b981', label: 'Excellent' },
+              { grade: 'B', min: 80, color: '#3b82f6', label: 'Good' },
+              { grade: 'C', min: 70, color: '#f59e0b', label: 'Fair' },
+              { grade: 'D', min: 60, color: '#ef4444', label: 'Poor' },
+              { grade: 'F', min: 0, color: '#991b1b', label: 'Failing' }
+            ].map(({ grade, min, color, label }) => (
+              <div
+                key={grade}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '8px 10px',
+                  backgroundColor: 'white',
+                  borderRadius: '6px',
+                  border: `2px solid ${color}`
+                }}
+              >
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '6px',
+                  backgroundColor: color,
+                  color: 'white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  flexShrink: 0
+                }}>
+                  {grade}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '12px', fontWeight: '600', color: '#374151' }}>
+                    {label}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                    {min}+ points
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Quality Dimensions */}
+        <div style={{
+          marginBottom: '24px'
+        }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: '#374151' }}>
+            Quality Dimensions
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{
+              padding: '12px',
+              backgroundColor: '#f0fdf4',
+              borderRadius: '6px',
+              border: '1px solid #86efac'
+            }}>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#166534', marginBottom: '4px' }}>
+                ✓ ACCURACY (ACC)
+              </div>
+              <p style={{ fontSize: '11px', lineHeight: '1.5', color: '#166534', margin: '0' }}>
+                How precise and correct the data values are. Compares against ground truth or reference data.
+              </p>
+            </div>
+
+            <div style={{
+              padding: '12px',
+              backgroundColor: '#eff6ff',
+              borderRadius: '6px',
+              border: '1px solid #93c5fd'
+            }}>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#1e40af', marginBottom: '4px' }}>
+                📍 COVERAGE (COV)
+              </div>
+              <p style={{ fontSize: '11px', lineHeight: '1.5', color: '#1e40af', margin: '0' }}>
+                Completeness of data across the corridor. Measures geographic and temporal coverage.
+              </p>
+            </div>
+
+            <div style={{
+              padding: '12px',
+              backgroundColor: '#fef3c7',
+              borderRadius: '6px',
+              border: '1px solid #fde68a'
+            }}>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#92400e', marginBottom: '4px' }}>
+                ⏱️ TIMELINESS (TIM)
+              </div>
+              <p style={{ fontSize: '11px', lineHeight: '1.5', color: '#92400e', margin: '0' }}>
+                How current and frequently updated the data is. Evaluates update latency and freshness.
+              </p>
+            </div>
+
+            <div style={{
+              padding: '12px',
+              backgroundColor: '#f5f3ff',
+              borderRadius: '6px',
+              border: '1px solid #c4b5fd'
+            }}>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#5b21b6', marginBottom: '4px' }}>
+                📋 STANDARDS (STD)
+              </div>
+              <p style={{ fontSize: '11px', lineHeight: '1.5', color: '#5b21b6', margin: '0' }}>
+                Compliance with data standards (WZDx, SAE J2735, TMDD). Measures adherence to specifications.
+              </p>
+            </div>
+
+            <div style={{
+              padding: '12px',
+              backgroundColor: '#fdf2f8',
+              borderRadius: '6px',
+              border: '1px solid #fbcfe8'
+            }}>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#9f1239', marginBottom: '4px' }}>
+                🏛️ GOVERNANCE (GOV)
+              </div>
+              <p style={{ fontSize: '11px', lineHeight: '1.5', color: '#9f1239', margin: '0' }}>
+                Data management practices, documentation quality, and institutional support for data quality.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* MDODE Alignment */}
+        <div style={{
+          padding: '16px',
+          backgroundColor: '#ecfdf5',
+          borderRadius: '8px',
+          border: '1px solid #10b981'
+        }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#065f46' }}>
+            📚 MDODE Alignment
+          </div>
+          <p style={{ fontSize: '12px', lineHeight: '1.6', color: '#065f46', margin: '0' }}>
+            This scoring framework aligns with the USDOT Multimodal Data Operations & Data Exchange (MDODE) principles for evaluating transportation data quality.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
