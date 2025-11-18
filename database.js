@@ -1678,13 +1678,24 @@ class StateDatabase {
     const { username, email, password, fullName = null, organization = null, stateKey = null, role = 'user' } = userData;
     try {
       const passwordHash = this.hashPassword(password);
-      const stmt = this.db.prepare(`
-        INSERT INTO users (username, email, password_hash, full_name, organization, state_key, role)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `);
-      const result = await stmt.run(username, email, passwordHash, fullName, organization, stateKey, role);
-      console.log(`✅ Created user: ${username} (${email}) - ${stateKey || 'no state affiliation'}`);
-      return { success: true, userId: result.lastInsertRowid };
+
+      if (this.isPostgres) {
+        const result = await this.db.query(`
+          INSERT INTO users (username, email, password_hash, full_name, organization, state_key, role)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          RETURNING id
+        `, [username, email, passwordHash, fullName, organization, stateKey, role]);
+        console.log(`✅ Created user: ${username} (${email}) - ${stateKey || 'no state affiliation'}`);
+        return { success: true, userId: result.rows[0].id };
+      } else {
+        const stmt = this.db.prepare(`
+          INSERT INTO users (username, email, password_hash, full_name, organization, state_key, role)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        const result = await stmt.run(username, email, passwordHash, fullName, organization, stateKey, role);
+        console.log(`✅ Created user: ${username} (${email}) - ${stateKey || 'no state affiliation'}`);
+        return { success: true, userId: result.lastInsertRowid };
+      }
     } catch (error) {
       console.error('Error creating user:', error);
       return { success: false, error: error.message };
@@ -1694,15 +1705,31 @@ class StateDatabase {
   async verifyUserPassword(username, password) {
     try {
       const passwordHash = this.hashPassword(password);
-      const user = await this.db.prepare(`
-        SELECT * FROM users WHERE username = ? AND password_hash = ? AND active = true
-      `).get(username, passwordHash);
+      let user;
+
+      if (this.isPostgres) {
+        const result = await this.db.query(`
+          SELECT * FROM users WHERE username = $1 AND password_hash = $2 AND active = true
+        `, [username, passwordHash]);
+        user = result.rows[0];
+      } else {
+        user = await this.db.prepare(`
+          SELECT * FROM users WHERE username = ? AND password_hash = ? AND active = true
+        `).get(username, passwordHash);
+      }
 
       if (user) {
         // Update last login
-        await this.db.prepare(`
-          UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?
-        `).run(user.id);
+        if (this.isPostgres) {
+          await this.db.query(`
+            UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1
+          `, [user.id]);
+        } else {
+          await this.db.prepare(`
+            UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?
+          `).run(user.id);
+        }
+
         return {
           id: user.id,
           username: user.username,
@@ -1836,12 +1863,23 @@ class StateDatabase {
 
   async getUserById(userId) {
     try {
-      const user = await this.db.prepare(`
-        SELECT id, username, email, full_name, organization, role, active, state_key,
-               notify_on_messages, notify_on_high_severity, created_at, last_login
-        FROM users
-        WHERE id = ?
-      `).get(userId);
+      let user;
+      if (this.isPostgres) {
+        const result = await this.db.query(`
+          SELECT id, username, email, full_name, organization, role, active, state_key,
+                 notify_on_messages, notify_on_high_severity, created_at, last_login
+          FROM users
+          WHERE id = $1
+        `, [userId]);
+        user = result.rows[0];
+      } else {
+        user = await this.db.prepare(`
+          SELECT id, username, email, full_name, organization, role, active, state_key,
+                 notify_on_messages, notify_on_high_severity, created_at, last_login
+          FROM users
+          WHERE id = ?
+        `).get(userId);
+      }
 
       if (!user) {
         return null;
@@ -1854,10 +1892,10 @@ class StateDatabase {
         fullName: user.full_name,
         organization: user.organization,
         role: user.role,
-        active: user.active === 1,
+        active: this.isPostgres ? user.active : (user.active === 1),
         stateKey: user.state_key,
-        notifyOnMessages: user.notify_on_messages === 1,
-        notifyOnHighSeverity: user.notify_on_high_severity === 1,
+        notifyOnMessages: this.isPostgres ? user.notify_on_messages : (user.notify_on_messages === 1),
+        notifyOnHighSeverity: this.isPostgres ? user.notify_on_high_severity : (user.notify_on_high_severity === 1),
         createdAt: user.created_at,
         lastLogin: user.last_login
       };
