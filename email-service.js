@@ -273,10 +273,107 @@ async function verifyEmailConfig() {
   }
 }
 
+/**
+ * Send daily digest email with all notifications from the past 24 hours
+ */
+async function sendDailyDigest(recipientEmail, recipientName, notifications) {
+  const { messages, highSeverityEvents, detourAlerts } = notifications;
+  const totalCount = (messages?.length || 0) + (highSeverityEvents?.length || 0) + (detourAlerts?.length || 0);
+
+  // Don't send empty digests
+  if (totalCount === 0) {
+    return { success: true, messageId: 'no-notifications' };
+  }
+
+  const transport = getTransporter();
+
+  const mailOptions = {
+    from: `"DOT Corridor Communicator" <${EMAIL_CONFIG.auth.user}>`,
+    to: recipientEmail,
+    subject: `Daily Digest: ${totalCount} Update${totalCount > 1 ? 's' : ''} from DOT Corridor Communicator`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+          <h2 style="margin: 0;">📬 Your Daily Digest</h2>
+          <p style="margin: 8px 0 0 0; opacity: 0.9;">${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        </div>
+
+        <div style="background-color: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+          <p>Hello ${recipientName},</p>
+          <p>Here's your summary of activity from the past 24 hours:</p>
+
+          ${highSeverityEvents && highSeverityEvents.length > 0 ? `
+          <div style="background-color: #fee2e2; padding: 15px; border-radius: 6px; border-left: 4px solid #dc2626; margin: 20px 0;">
+            <h3 style="margin: 0 0 12px 0; color: #991b1b;">🚨 High Severity Events (${highSeverityEvents.length})</h3>
+            ${highSeverityEvents.slice(0, 5).map(event => `
+              <div style="background-color: white; padding: 12px; border-radius: 4px; margin: 8px 0;">
+                <p style="margin: 0; font-weight: 600; color: #1f2937;">${event.eventDetails?.eventType || 'Traffic Event'} - ${event.eventDetails?.state}</p>
+                <p style="margin: 4px 0 0 0; color: #6b7280; font-size: 14px;">${event.eventDetails?.location || 'Unknown location'}</p>
+              </div>
+            `).join('')}
+            ${highSeverityEvents.length > 5 ? `<p style="margin: 8px 0 0 0; font-size: 14px; color: #6b7280;">+ ${highSeverityEvents.length - 5} more</p>` : ''}
+          </div>
+          ` : ''}
+
+          ${detourAlerts && detourAlerts.length > 0 ? `
+          <div style="background-color: #dbeafe; padding: 15px; border-radius: 6px; border-left: 4px solid #2563eb; margin: 20px 0;">
+            <h3 style="margin: 0 0 12px 0; color: #1e40af;">🚗 Detour Alerts (${detourAlerts.length})</h3>
+            ${detourAlerts.slice(0, 5).map(alert => `
+              <div style="background-color: white; padding: 12px; border-radius: 4px; margin: 8px 0;">
+                <p style="margin: 0; font-weight: 600; color: #1f2937;">${alert.alertDetails?.interchangeName || 'Interchange'}</p>
+                <p style="margin: 4px 0 0 0; color: #6b7280; font-size: 14px;">${alert.alertDetails?.message || 'Congestion detected'}</p>
+              </div>
+            `).join('')}
+            ${detourAlerts.length > 5 ? `<p style="margin: 8px 0 0 0; font-size: 14px; color: #6b7280;">+ ${detourAlerts.length - 5} more</p>` : ''}
+          </div>
+          ` : ''}
+
+          ${messages && messages.length > 0 ? `
+          <div style="background-color: #f0f9ff; padding: 15px; border-radius: 6px; border-left: 4px solid #3b82f6; margin: 20px 0;">
+            <h3 style="margin: 0 0 12px 0; color: #1e40af;">💬 Messages (${messages.length})</h3>
+            ${messages.slice(0, 5).map(msg => `
+              <div style="background-color: white; padding: 12px; border-radius: 4px; margin: 8px 0;">
+                <p style="margin: 0; font-weight: 600; color: #1f2937;">${msg.eventDetails?.eventType || 'Event'} - ${msg.eventDetails?.state}</p>
+                <p style="margin: 4px 0; color: #6b7280; font-size: 14px;">${msg.messageDetails?.message || 'New message'}</p>
+                <p style="margin: 4px 0 0 0; font-size: 12px; color: #9ca3af;">From: ${msg.messageDetails?.sender || 'Unknown'}</p>
+              </div>
+            `).join('')}
+            ${messages.length > 5 ? `<p style="margin: 8px 0 0 0; font-size: 14px; color: #6b7280;">+ ${messages.length - 5} more</p>` : ''}
+          </div>
+          ` : ''}
+
+          <p style="margin-top: 24px;">
+            <a href="http://localhost:5173" style="display: inline-block; background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">
+              View Dashboard →
+            </a>
+          </p>
+
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+
+          <p style="font-size: 12px; color: #6b7280;">
+            You're receiving this daily digest because you have notifications enabled.
+            <a href="http://localhost:5173" style="color: #3b82f6;">Update your notification preferences</a>
+          </p>
+        </div>
+      </div>
+    `
+  };
+
+  try {
+    const info = await transport.sendMail(mailOptions);
+    console.log('✅ Daily digest sent:', info.messageId);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('❌ Error sending daily digest:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   sendEmail,
   sendMessageNotification,
   sendHighSeverityEventNotification,
   sendDetourAlertNotification,
+  sendDailyDigest,
   verifyEmailConfig
 };
