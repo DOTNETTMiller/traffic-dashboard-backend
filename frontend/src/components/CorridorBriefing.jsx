@@ -1,10 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { theme } from '../styles/theme';
 import { format } from 'date-fns';
+import { config } from '../config';
 
 export default function CorridorBriefing({ events, detourAlerts, onClose }) {
   const [selectedCorridor, setSelectedCorridor] = useState('');
   const [selectedDirection, setSelectedDirection] = useState('all');
+  const [aiSummary, setAiSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState(null);
 
   // Extract unique corridors from events
   const corridors = useMemo(() => {
@@ -107,6 +111,49 @@ export default function CorridorBriefing({ events, detourAlerts, onClose }) {
       advisoryColor
     };
   }, [corridorEvents]);
+
+  // Fetch AI summary when corridor changes
+  useEffect(() => {
+    const fetchSummary = async () => {
+      if (!selectedCorridor || corridorEvents.length === 0) {
+        setAiSummary(null);
+        return;
+      }
+
+      setSummaryLoading(true);
+      setSummaryError(null);
+
+      try {
+        const response = await fetch(`${config.apiUrl}/api/corridor/generate-summary`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            corridor: selectedCorridor,
+            events: corridorEvents,
+            detours: corridorDetours
+          })
+        });
+
+        if (!response.ok) throw new Error('Failed to generate summary');
+
+        const data = await response.json();
+        if (data.success) {
+          setAiSummary(data.summary);
+        } else {
+          throw new Error(data.error || 'Unknown error');
+        }
+      } catch (error) {
+        console.error('Error fetching AI summary:', error);
+        setSummaryError(error.message);
+      } finally {
+        setSummaryLoading(false);
+      }
+    };
+
+    fetchSummary();
+  }, [selectedCorridor, corridorEvents, corridorDetours]);
 
   const handlePrint = () => {
     window.print();
@@ -471,6 +518,86 @@ export default function CorridorBriefing({ events, detourAlerts, onClose }) {
                   </div>
                 </div>
               </div>
+
+              {/* AI Summary Section */}
+              {(aiSummary || summaryLoading || summaryError) && (
+                <div style={{ marginBottom: theme.spacing.lg }}>
+                  <div style={{
+                    background: `linear-gradient(135deg, ${theme.colors.accentPurple}15, ${theme.colors.accentBlue}15)`,
+                    borderRadius: '12px',
+                    padding: theme.spacing.lg,
+                    border: `2px solid ${theme.colors.accentBlue}40`,
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      position: 'absolute',
+                      top: -20,
+                      right: -20,
+                      fontSize: '120px',
+                      opacity: 0.05
+                    }}>
+                      🤖
+                    </div>
+                    <div style={{
+                      position: 'relative',
+                      zIndex: 1
+                    }}>
+                      <h4 style={{
+                        fontSize: '16px',
+                        fontWeight: '700',
+                        color: theme.colors.text,
+                        marginBottom: theme.spacing.sm,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: theme.spacing.sm
+                      }}>
+                        🤖 AI Corridor Summary
+                      </h4>
+                      {summaryLoading ? (
+                        <div style={{
+                          fontSize: '14px',
+                          color: theme.colors.textSecondary,
+                          fontStyle: 'italic',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}>
+                          <span style={{
+                            width: '16px',
+                            height: '16px',
+                            border: `3px solid ${theme.colors.accentBlue}40`,
+                            borderTop: `3px solid ${theme.colors.accentBlue}`,
+                            borderRadius: '50%',
+                            display: 'inline-block',
+                            animation: 'spin 1s linear infinite'
+                          }} />
+                          Generating AI summary...
+                        </div>
+                      ) : summaryError ? (
+                        <div style={{
+                          fontSize: '14px',
+                          color: theme.colors.error.main,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}>
+                          ⚠️ Unable to generate summary: {summaryError}
+                        </div>
+                      ) : (
+                        <div style={{
+                          fontSize: '15px',
+                          lineHeight: '1.7',
+                          color: theme.colors.text,
+                          fontWeight: '500'
+                        }}>
+                          {aiSummary}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Detour Alerts Section */}
               {corridorDetours.length > 0 && (
