@@ -2724,14 +2724,14 @@ app.post('/api/users/change-password', requireUser, async (req, res) => {
 });
 
 // Request password reset (sends email with reset token)
-app.post('/api/users/request-password-reset', (req, res) => {
+app.post('/api/users/request-password-reset', async (req, res) => {
   const { email } = req.body;
 
   if (!email) {
     return res.status(400).json({ error: 'Email is required' });
   }
 
-  const user = db.getUserByUsername(email);
+  const user = await db.getUserByUsername(email);
   if (!user) {
     // Don't reveal whether the email exists for security
     return res.json({
@@ -2748,7 +2748,7 @@ app.post('/api/users/request-password-reset', (req, res) => {
   // Store reset token in database (you'll need to add this functionality to database.js)
   // For now, we'll just send an email with a temporary password
   const tempPassword = crypto.randomBytes(8).toString('hex');
-  const result = db.updateUser(user.id, { password: tempPassword });
+  const result = await db.updateUser(user.id, { password: tempPassword });
 
   if (result.success) {
     // Send email with temporary password
@@ -2809,7 +2809,7 @@ app.post('/api/temp-reset-password', async (req, res) => {
       return res.status(400).json({ error: 'Email and newPassword required' });
     }
 
-    const user = db.getUserByUsername(email);
+    const user = await db.getUserByUsername(email);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
