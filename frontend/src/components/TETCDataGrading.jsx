@@ -260,22 +260,42 @@ export default function TETCDataGrading() {
                   <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#111827', marginBottom: '4px' }}>
                     {feed.corridor_name}
                   </div>
-                  <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '4px' }}>
                     {feed.service_display_name} • {feed.provider_name}
                   </div>
+                  {feed.run_name && (
+                    <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '6px', fontStyle: 'italic' }}>
+                      {feed.run_name}
+                    </div>
+                  )}
                   {feed.methodology_ref && (
                     <a
                       href={feed.methodology_ref}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{
-                        fontSize: '11px',
+                        fontSize: '12px',
                         color: '#3b82f6',
                         textDecoration: 'none',
-                        display: 'inline-block'
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontWeight: '600',
+                        padding: '4px 8px',
+                        backgroundColor: '#eff6ff',
+                        borderRadius: '4px',
+                        border: '1px solid #bfdbfe'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#dbeafe';
+                        e.currentTarget.style.borderColor = '#93c5fd';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#eff6ff';
+                        e.currentTarget.style.borderColor = '#bfdbfe';
                       }}
                     >
-                      📄 View Methodology →
+                      📊 View Validation Report
                     </a>
                   )}
                 </div>
@@ -419,6 +439,33 @@ export default function TETCDataGrading() {
                   color: '#6b7280'
                 }}>
                   Validation Period: {new Date(feed.period_start).toLocaleDateString()} - {new Date(feed.period_end).toLocaleDateString()}
+                </div>
+              )}
+
+              {/* Source Citation */}
+              {feed.methodology_ref && (
+                <div style={{
+                  marginTop: '12px',
+                  paddingTop: '12px',
+                  borderTop: '1px solid #e5e7eb',
+                  fontSize: '10px',
+                  color: '#9ca3af',
+                  lineHeight: '1.5'
+                }}>
+                  <strong>Source:</strong> {feed.run_name || 'TETC Data Quality Validation'}.{' '}
+                  {feed.provider_name && `${feed.provider_name}. `}
+                  {feed.period_start && `Validated ${new Date(feed.period_start).toLocaleDateString()} - ${new Date(feed.period_end).toLocaleDateString()}. `}
+                  <a
+                    href={feed.methodology_ref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: '#3b82f6',
+                      textDecoration: 'underline'
+                    }}
+                  >
+                    {feed.methodology_ref}
+                  </a>
                 </div>
               )}
 
