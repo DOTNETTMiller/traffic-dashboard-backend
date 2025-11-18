@@ -3,7 +3,7 @@
 
 -- Insert TETC member state corridors
 INSERT INTO corridors (id, name, description) VALUES
-ON CONFLICT (id) DO NOTHING-- I-95 Corridor (Major TETC corridor)
+-- I-95 Corridor (Major TETC corridor)
 ('I95_CORRIDOR', 'I-95 Eastern Corridor', 'I-95 through TETC member states (ME to FL)'),
 ('I95_ME', 'I-95 Maine', 'Interstate 95 through Maine'),
 ('I95_NH', 'I-95 New Hampshire', 'Interstate 95 through New Hampshire'),
@@ -35,11 +35,12 @@ ON CONFLICT (id) DO NOTHING-- I-95 Corridor (Major TETC corridor)
 -- Iowa corridors (existing TETC member)
 ('I80_IA', 'I-80 Iowa Segment', 'Interstate 80 corridor through Iowa'),
 ('I35_IA', 'I-35 Iowa Segment', 'Interstate 35 corridor through Iowa'),
-('I29_IA', 'I-29 Iowa Segment', 'Interstate 29 corridor through Iowa');
+('I29_IA', 'I-29 Iowa Segment', 'Interstate 29 corridor through Iowa')
+ON CONFLICT (id) DO NOTHING;
 
 -- TETC Data Marketplace feeds
 INSERT INTO data_feeds (id, corridor_id, service_type_id, provider_name, source_system, is_active) VALUES
-ON CONFLICT (id) DO NOTHING-- I-95 Corridor TETC Data Marketplace feeds
+-- I-95 Corridor TETC Data Marketplace feeds
 ('I95_CORR_probe_inrix', 'I95_CORRIDOR', 'probe_travel_time', 'INRIX', 'TETC Data Marketplace', true),
 ('I95_CORR_probe_here', 'I95_CORRIDOR', 'probe_travel_time', 'HERE', 'TETC Data Marketplace', true),
 ('I95_CORR_od_personal_replica', 'I95_CORRIDOR', 'od_personal', 'Replica', 'TETC Data Marketplace', true),
@@ -89,11 +90,12 @@ ON CONFLICT (id) DO NOTHING-- I-95 Corridor TETC Data Marketplace feeds
 ('I80_IA_incident_cad', 'I80_IA', 'incident', 'Iowa DOT', 'CAD System', true),
 ('I80_IA_road_wx_rwis', 'I80_IA', 'road_weather', 'Iowa DOT', 'RWIS + MDODE', true),
 ('I80_IA_truck_parking_tpims', 'I80_IA', 'truck_parking', 'Iowa DOT', 'TPIMS', true),
-('I80_IA_cv_pilot', 'I80_IA', 'cv_telemetry', 'Iowa DOT', 'CV Pilot', true);
+('I80_IA_cv_pilot', 'I80_IA', 'cv_telemetry', 'Iowa DOT', 'CV Pilot', true)
+ON CONFLICT (id) DO NOTHING;
 
 -- Validation runs (TETC 2025 Q1)
 INSERT INTO validation_runs (id, data_feed_id, run_name, period_start, period_end, methodology_ref) VALUES
-ON CONFLICT (id) DO NOTHING-- I-95 Corridor validations
+-- I-95 Corridor validations
 ('vr_i95_corr_probe_inrix_2025q1', 'I95_CORR_probe_inrix', 'TETC I-95 INRIX Validation 2025Q1', '2025-01-01', '2025-03-31', 'https://tetcoalition.org/data-marketplace/validation/2025Q1_I95_INRIX.pdf'),
 ('vr_i95_corr_probe_here_2025q1', 'I95_CORR_probe_here', 'TETC I-95 HERE Validation 2025Q1', '2025-01-01', '2025-03-31', 'https://tetcoalition.org/data-marketplace/validation/2025Q1_I95_HERE.pdf'),
 ('vr_i95_corr_od_personal_replica_2025q1', 'I95_CORR_od_personal_replica', 'TETC I-95 Replica OD Validation 2025Q1', '2025-01-01', '2025-03-31', 'https://tetcoalition.org/data-marketplace/validation/2025Q1_I95_Replica.pdf'),
@@ -143,7 +145,8 @@ ON CONFLICT (id) DO NOTHING-- I-95 Corridor validations
 ('vr_incident_2025q1', 'I80_IA_incident_cad', 'Incident Feed Validation 2025Q1', '2025-01-01', '2025-03-31', NULL),
 ('vr_road_wx_2025q1', 'I80_IA_road_wx_rwis', 'Road Weather Validation 2025Q1', '2025-01-01', '2025-03-31', NULL),
 ('vr_truck_parking_2025q1', 'I80_IA_truck_parking_tpims', 'Truck Parking Validation 2025Q1', '2025-01-01', '2025-03-31', NULL),
-('vr_cv_2025q1', 'I80_IA_cv_pilot', 'CV Telemetry Validation 2025Q1', '2025-01-01', '2025-03-31', NULL);
+('vr_cv_2025q1', 'I80_IA_cv_pilot', 'CV Telemetry Validation 2025Q1', '2025-01-01', '2025-03-31', NULL)
+ON CONFLICT (id) DO NOTHING;
 
 -- Quality scores (realistic TETC Data Marketplace performance)
 -- I-95 Corridor TETC Data Marketplace feeds
