@@ -8292,6 +8292,79 @@ app.post('/api/data-quality/migrate', async (req, res) => {
       details: 'Check server logs for full error details'
     });
   }
+
+// Get TETC Data Quality summary for dashboard
+app.get('/api/data-quality/summary', async (req, res) => {
+  const { Client } = require('pg');
+
+  try {
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    // Query to get all quality scores with corridor and service details
+    const query = `
+      SELECT
+        c.id as corridor_id,
+        c.name as corridor_name,
+        c.description as corridor_description,
+        st.id as service_type_id,
+        st.display_name as service_display_name,
+        st.category as service_category,
+        df.id as data_feed_id,
+        df.provider_name,
+        df.source_system,
+        vr.id as validation_run_id,
+        vr.run_name,
+        vr.period_start,
+        vr.period_end,
+        vr.methodology_ref,
+        qs.acc_score,
+        qs.cov_score,
+        qs.tim_score,
+        qs.std_score,
+        qs.gov_score,
+        qs.dqi,
+        qs.letter_grade,
+        qs.created_at as last_updated
+      FROM corridors c
+      JOIN data_feeds df ON c.id = df.corridor_id
+      JOIN service_types st ON df.service_type_id = st.id
+      JOIN validation_runs vr ON df.id = vr.data_feed_id
+      JOIN quality_scores qs ON vr.id = qs.validation_run_id
+      WHERE df.is_active = true
+      ORDER BY qs.dqi DESC, c.name, st.display_name
+    `;
+
+    const result = await client.query(query);
+    await client.end();
+
+    res.json({
+      success: true,
+      feeds: result.rows,
+      summary: {
+        total_feeds: result.rows.length,
+        avg_dqi: result.rows.reduce((sum, row) => sum + parseFloat(row.dqi || 0), 0) / result.rows.length || 0,
+        grade_distribution: {
+          A: result.rows.filter(r => r.letter_grade === 'A').length,
+          B: result.rows.filter(r => r.letter_grade === 'B').length,
+          C: result.rows.filter(r => r.letter_grade === 'C').length,
+          D: result.rows.filter(r => r.letter_grade === 'D').length,
+          F: result.rows.filter(r => r.letter_grade === 'F').length
+        }
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching quality data:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 });
 
 // Run Users table migration for PostgreSQL
