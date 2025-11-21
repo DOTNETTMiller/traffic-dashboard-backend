@@ -6520,18 +6520,50 @@ app.get('/api/events/comments/all', async (req, res) => {
 
 // Get list of states available for messaging
 app.get('/api/states/list', async (req, res) => {
-  const states = await db.getAllStates(false); // No credentials
+  // Build list from API_CONFIG
+  const states = [];
+
+  // Add all configured states from API_CONFIG
+  for (const [stateKey, config] of Object.entries(API_CONFIG)) {
+    states.push({
+      stateKey: stateKey.toLowerCase(),
+      stateName: config.name,
+      format: config.format || 'xml',
+      apiType: config.apiType || 'TMDD/CARS',
+      enabled: true,
+      apiUrl: config.eventsUrl || config.wzdxUrl || 'Multiple Sources'
+    });
+  }
+
+  // Add Pennsylvania (PennDOT RCRS)
+  states.push({
+    stateKey: 'pa',
+    stateName: 'Pennsylvania DOT (RCRS)',
+    format: 'json',
+    apiType: 'RCRS',
+    enabled: true,
+    apiUrl: 'https://rcrs.transportation.org/api/v2/pa/incidents'
+  });
+
+  // Add California (Caltrans LCS)
+  states.push({
+    stateKey: 'ca',
+    stateName: 'California DOT (Caltrans LCS)',
+    format: 'json',
+    apiType: 'Caltrans LCS',
+    enabled: true,
+    apiUrl: 'Multiple District APIs (1-12)'
+  });
+
+  // Add Ohio OHGO API (already in API_CONFIG but has both constructions and incidents)
+  // No need to add separately - it's already in API_CONFIG
+
+  // Sort by state name
+  states.sort((a, b) => a.stateName.localeCompare(b.stateName));
 
   res.json({
     success: true,
-    states: states.map(s => ({
-      stateKey: s.stateKey,
-      stateName: s.stateName,
-      format: s.format,
-      apiType: s.apiType,
-      enabled: s.enabled,
-      apiUrl: s.apiUrl
-    }))
+    states
   });
 });
 
