@@ -1290,9 +1290,27 @@ function App() {
         )}
 
         {view === 'feedSubmission' ? (
-          <FeedSubmission authToken={authToken} user={currentUser} />
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            minHeight: 0,
+            WebkitOverflowScrolling: 'touch',
+            position: 'relative'
+          }}>
+            <FeedSubmission authToken={authToken} user={currentUser} />
+          </div>
         ) : view === 'grants' ? (
-          <GrantApplications user={currentUser} authToken={authToken} />
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            minHeight: 0,
+            WebkitOverflowScrolling: 'touch',
+            position: 'relative'
+          }}>
+            <GrantApplications user={currentUser} authToken={authToken} />
+          </div>
         ) : view === 'profile' ? (
           <UserProfile
             user={currentUser}
