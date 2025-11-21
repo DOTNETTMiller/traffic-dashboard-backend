@@ -678,7 +678,7 @@ function App() {
                 background: 'white',
                 borderRadius: '8px',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                zIndex: 1000,
+                zIndex: 10000,
                 minWidth: '200px',
                 overflow: 'hidden',
                 border: '1px solid #e5e7eb'
@@ -806,7 +806,7 @@ function App() {
                 background: 'white',
                 borderRadius: '8px',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                zIndex: 1000,
+                zIndex: 10000,
                 minWidth: '200px',
                 overflow: 'hidden',
                 border: '1px solid #e5e7eb'
@@ -913,7 +913,7 @@ function App() {
                   background: 'white',
                   borderRadius: '8px',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  zIndex: 1000,
+                  zIndex: 10000,
                   minWidth: '200px',
                   overflow: 'hidden',
                   border: '1px solid #e5e7eb'
@@ -1006,7 +1006,7 @@ function App() {
                   background: 'white',
                   borderRadius: '8px',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  zIndex: 1000,
+                  zIndex: 10000,
                   minWidth: '180px',
                   overflow: 'hidden',
                   border: '1px solid #e5e7eb'
