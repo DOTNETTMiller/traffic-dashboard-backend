@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import theme from './theme';
+import { theme } from '../styles/theme';
 
 export default function GrantApplications({ user }) {
   const [applications, setApplications] = useState([]);
