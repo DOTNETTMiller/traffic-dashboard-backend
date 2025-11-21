@@ -9414,6 +9414,300 @@ app.get('/api/its-equipment/summary', async (req, res) => {
   }
 });
 
+// ========================================
+// WEB FEATURE SERVICE (WFS) CONNECTIONS
+// ========================================
+
+const WFSClient = require('./utils/wfs-client');
+const crypto = require('crypto');
+
+// Test WFS connection
+app.post('/api/wfs/test', async (req, res) => {
+  try {
+    const { wfsUrl, version, typeName } = req.body;
+
+    if (!wfsUrl) {
+      return res.status(400).json({ success: false, error: 'wfsUrl required' });
+    }
+
+    const client = new WFSClient(wfsUrl, { version: version || '2.0.0' });
+    const testResult = await client.testConnection();
+
+    res.json(testResult);
+
+  } catch (error) {
+    console.error('❌ WFS test error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Add WFS connection
+app.post('/api/wfs/connections', async (req, res) => {
+  try {
+    const {
+      stateKey,
+      connectionName,
+      wfsUrl,
+      wfsVersion,
+      typeName,
+      syncEnabled,
+      syncInterval,
+      cqlFilter,
+      bbox,
+      maxFeatures,
+      createdBy
+    } = req.body;
+
+    if (!stateKey || !connectionName || !wfsUrl || !typeName) {
+      return res.status(400).json({
+        success: false,
+        error: 'stateKey, connectionName, wfsUrl, and typeName are required'
+      });
+    }
+
+    const id = `wfs-${crypto.randomBytes(8).toString('hex')}`;
+    const nextSync = new Date(Date.now() + (syncInterval || 3600) * 1000).toISOString();
+
+    db.db.prepare(`
+      INSERT INTO wfs_connections (
+        id, state_key, connection_name, wfs_url, wfs_version, type_name,
+        sync_enabled, sync_interval, next_sync,
+        cql_filter, bbox, max_features, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      stateKey,
+      connectionName,
+      wfsUrl,
+      wfsVersion || '2.0.0',
+      typeName,
+      syncEnabled !== false ? 1 : 0,
+      syncInterval || 3600,
+      nextSync,
+      cqlFilter || null,
+      bbox || null,
+      maxFeatures || 1000,
+      createdBy || 'system'
+    );
+
+    console.log(`✅ Created WFS connection: ${connectionName}`);
+
+    res.json({
+      success: true,
+      connectionId: id,
+      message: 'WFS connection created'
+    });
+
+  } catch (error) {
+    console.error('❌ WFS connection creation error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get WFS connections
+app.get('/api/wfs/connections', async (req, res) => {
+  try {
+    const { stateKey } = req.query;
+
+    let query = 'SELECT * FROM wfs_connections WHERE 1=1';
+    const params = [];
+
+    if (stateKey) {
+      query += ' AND state_key = ?';
+      params.push(stateKey);
+    }
+
+    query += ' ORDER BY state_key, connection_name';
+
+    const connections = db.db.prepare(query).all(...params);
+
+    res.json({
+      success: true,
+      connections
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching WFS connections:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Trigger manual WFS sync
+app.post('/api/wfs/sync/:connectionId', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+
+    const connection = db.db.prepare('SELECT * FROM wfs_connections WHERE id = ?').get(connectionId);
+
+    if (!connection) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+
+    console.log(`🔄 Manual WFS sync triggered: ${connection.connection_name}`);
+
+    const startTime = Date.now();
+    const client = new WFSClient(connection.wfs_url, {
+      version: connection.wfs_version,
+      maxFeatures: connection.max_features
+    });
+
+    const converter = new ARCITSConverter();
+    const syncResult = await client.syncToInventory(connection.type_name, connection.state_key, converter);
+
+    const duration = Date.now() - startTime;
+
+    // Save sync result to equipment table
+    let imported = 0;
+    let failed = 0;
+
+    if (syncResult.success && syncResult.records) {
+      const insertStmt = db.db.prepare(`
+        INSERT OR REPLACE INTO its_equipment (
+          id, state_key, equipment_type, equipment_subtype,
+          latitude, longitude, elevation, location_description, route, milepost,
+          manufacturer, model, serial_number, installation_date, status,
+          arc_its_id, arc_its_category, arc_its_function, arc_its_interface,
+          rsu_id, rsu_mode, communication_range, supported_protocols,
+          dms_type, camera_type, sensor_type,
+          data_source, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const equipment of syncResult.records) {
+        try {
+          insertStmt.run(
+            equipment.id,
+            equipment.stateKey,
+            equipment.equipmentType,
+            equipment.equipmentSubtype,
+            equipment.latitude,
+            equipment.longitude,
+            equipment.elevation,
+            equipment.locationDescription,
+            equipment.route,
+            equipment.milepost,
+            equipment.manufacturer,
+            equipment.model,
+            equipment.serialNumber,
+            equipment.installationDate,
+            equipment.status,
+            equipment.arcItsId,
+            equipment.arcItsCategory,
+            equipment.arcItsFunction,
+            equipment.arcItsInterface,
+            equipment.rsuId,
+            equipment.rsuMode,
+            equipment.communicationRange,
+            equipment.supportedProtocols,
+            equipment.dmsType,
+            equipment.cameraType,
+            equipment.sensorType,
+            `WFS: ${connection.connection_name}`,
+            'Synced from WFS'
+          );
+          imported++;
+        } catch (err) {
+          console.error(`Error importing equipment:`, err.message);
+          failed++;
+        }
+      }
+    }
+
+    // Log sync history
+    const historyId = `sync-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+    db.db.prepare(`
+      INSERT INTO wfs_sync_history (
+        id, connection_id, features_fetched, features_imported, features_failed,
+        duration_ms, status, error_message
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      historyId,
+      connectionId,
+      syncResult.total || 0,
+      imported,
+      failed,
+      duration,
+      syncResult.success ? 'success' : 'failed',
+      syncResult.error || null
+    );
+
+    // Update connection
+    const now = new Date().toISOString();
+    const nextSync = new Date(Date.now() + connection.sync_interval * 1000).toISOString();
+
+    db.db.prepare(`
+      UPDATE wfs_connections
+      SET last_sync = ?,
+          next_sync = ?,
+          total_features_synced = total_features_synced + ?,
+          last_error = ?,
+          status = ?,
+          updated_at = ?
+      WHERE id = ?
+    `).run(
+      now,
+      nextSync,
+      imported,
+      syncResult.error || null,
+      syncResult.success ? 'active' : 'error',
+      now,
+      connectionId
+    );
+
+    console.log(`✅ WFS sync completed: ${imported} imported, ${failed} failed (${duration}ms)`);
+
+    res.json({
+      success: true,
+      imported,
+      failed,
+      total: syncResult.total,
+      duration
+    });
+
+  } catch (error) {
+    console.error('❌ WFS sync error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Delete WFS connection
+app.delete('/api/wfs/connections/:connectionId', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+
+    db.db.prepare('DELETE FROM wfs_connections WHERE id = ?').run(connectionId);
+
+    console.log(`✅ Deleted WFS connection: ${connectionId}`);
+
+    res.json({ success: true, message: 'Connection deleted' });
+
+  } catch (error) {
+    console.error('❌ Delete error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get WFS sync history
+app.get('/api/wfs/sync-history/:connectionId', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const { limit = 50 } = req.query;
+
+    const history = db.db.prepare(`
+      SELECT * FROM wfs_sync_history
+      WHERE connection_id = ?
+      ORDER BY sync_date DESC
+      LIMIT ?
+    `).all(connectionId, parseInt(limit));
+
+    res.json({ success: true, history });
+
+  } catch (error) {
+    console.error('❌ History error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Run Users table migration for PostgreSQL
 app.post('/api/admin/migrate-users', async (req, res) => {
   try {
