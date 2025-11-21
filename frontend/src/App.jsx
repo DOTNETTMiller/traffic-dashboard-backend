@@ -55,8 +55,8 @@ function App() {
   const [parkingPredictionHours, setParkingPredictionHours] = useState(0);
   const [parkingContext, setParkingContext] = useState(null);
   const [showInterchanges, setShowInterchanges] = useState(true); // Show interchanges by default
-  const [showBridgeClearances, setShowBridgeClearances] = useState(false);
-  const [showCorridorRegulations, setShowCorridorRegulations] = useState(false);
+  const [showBridgeClearances, setShowBridgeClearances] = useState(true); // Show bridge clearances by default
+  const [showCorridorRegulations, setShowCorridorRegulations] = useState(true); // Show corridor regulations by default
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Mobile starts closed
   const [desktopMessagesOpen, setDesktopMessagesOpen] = useState(false);
