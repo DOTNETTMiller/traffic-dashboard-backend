@@ -36,6 +36,7 @@ import GroundTruthDashboard from './components/GroundTruthDashboard';
 import CorridorDataQuality from './components/CorridorDataQuality';
 import TETCDataGrading from './components/TETCDataGrading';
 import VendorDQIComparison from './components/VendorDQIComparison';
+import GrantApplications from './components/GrantApplications';
 import './styles/App.css';
 
 function App() {
@@ -706,6 +707,18 @@ function App() {
             </button>
           )}
 
+          {authToken && (
+            <button
+              className={`toggle-btn ${view === 'grants' ? 'active' : ''}`}
+              onClick={() => setView('grants')}
+              style={{
+                backgroundColor: view === 'grants' ? '#059669' : undefined
+              }}
+            >
+              💰 Grant Applications
+            </button>
+          )}
+
           {currentUser?.role === 'admin' && (
             <div style={{ position: 'relative' }}>
               <button
@@ -1022,6 +1035,8 @@ function App() {
 
         {view === 'feedSubmission' ? (
           <FeedSubmission authToken={authToken} user={currentUser} />
+        ) : view === 'grants' ? (
+          <GrantApplications user={currentUser} authToken={authToken} />
         ) : view === 'profile' ? (
           <UserProfile
             user={currentUser}

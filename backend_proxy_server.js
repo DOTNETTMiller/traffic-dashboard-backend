@@ -9708,6 +9708,605 @@ app.get('/api/wfs/sync-history/:connectionId', async (req, res) => {
   }
 });
 
+// ============================================================================
+// GRANT APPLICATIONS ENDPOINTS
+// ============================================================================
+
+/**
+ * Create new grant application
+ */
+app.post('/api/grants/applications', async (req, res) => {
+  try {
+    const {
+      stateKey,
+      grantProgram,
+      grantYear,
+      applicationTitle,
+      projectDescription,
+      requestedAmount,
+      matchingFunds,
+      totalProjectCost,
+      primaryCorridor,
+      affectedRoutes,
+      geographicScope,
+      createdBy
+    } = req.body;
+
+    // Validation
+    if (!stateKey || !grantProgram || !grantYear || !applicationTitle) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: stateKey, grantProgram, grantYear, applicationTitle'
+      });
+    }
+
+    const applicationId = `grant-${stateKey.toLowerCase()}-${grantProgram.toLowerCase()}-${Date.now()}`;
+
+    const result = db.prepare(`
+      INSERT INTO grant_applications (
+        id, state_key, grant_program, grant_year, application_title,
+        project_description, requested_amount, matching_funds, total_project_cost,
+        primary_corridor, affected_routes, geographic_scope, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      applicationId,
+      stateKey,
+      grantProgram,
+      grantYear,
+      applicationTitle,
+      projectDescription || null,
+      requestedAmount || null,
+      matchingFunds || null,
+      totalProjectCost || null,
+      primaryCorridor || null,
+      affectedRoutes ? JSON.stringify(affectedRoutes) : null,
+      geographicScope || 'state',
+      createdBy || null
+    );
+
+    console.log(`✅ Created grant application: ${applicationId}`);
+
+    res.json({
+      success: true,
+      applicationId,
+      message: 'Grant application created successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Create grant application error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * List grant applications
+ */
+app.get('/api/grants/applications', async (req, res) => {
+  try {
+    const { stateKey, grantProgram, status, year } = req.query;
+
+    let query = 'SELECT * FROM v_grant_applications_summary WHERE 1=1';
+    const params = [];
+
+    if (stateKey) {
+      query += ' AND state_key = ?';
+      params.push(stateKey);
+    }
+
+    if (grantProgram) {
+      query += ' AND grant_program = ?';
+      params.push(grantProgram);
+    }
+
+    if (status) {
+      query += ' AND status = ?';
+      params.push(status);
+    }
+
+    if (year) {
+      query += ' AND grant_year = ?';
+      params.push(parseInt(year));
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    const applications = db.prepare(query).all(...params);
+
+    // Parse JSON fields
+    applications.forEach(app => {
+      if (app.affected_routes) {
+        app.affected_routes = JSON.parse(app.affected_routes);
+      }
+    });
+
+    res.json({
+      success: true,
+      applications,
+      count: applications.length
+    });
+
+  } catch (error) {
+    console.error('❌ List grant applications error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Get specific grant application with full details
+ */
+app.get('/api/grants/applications/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const application = db.prepare(`
+      SELECT * FROM grant_applications WHERE id = ?
+    `).get(id);
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        error: 'Application not found'
+      });
+    }
+
+    // Parse JSON fields
+    if (application.affected_routes) {
+      application.affected_routes = JSON.parse(application.affected_routes);
+    }
+
+    // Get metrics
+    const metrics = db.prepare(`
+      SELECT * FROM grant_metrics WHERE application_id = ?
+    `).get(id);
+
+    // Get supporting data
+    const supportingData = db.prepare(`
+      SELECT * FROM grant_supporting_data WHERE application_id = ?
+      ORDER BY created_at DESC
+    `).all(id);
+
+    supportingData.forEach(data => {
+      if (data.summary_stats) {
+        data.summary_stats = JSON.parse(data.summary_stats);
+      }
+    });
+
+    // Get justifications
+    const justifications = db.prepare(`
+      SELECT * FROM grant_justifications
+      WHERE application_id = ?
+      ORDER BY priority ASC
+    `).all(id);
+
+    justifications.forEach(j => {
+      if (j.supporting_data_ids) {
+        j.supporting_data_ids = JSON.parse(j.supporting_data_ids);
+      }
+    });
+
+    // Get data packages
+    const packages = db.prepare(`
+      SELECT * FROM grant_data_packages
+      WHERE application_id = ?
+      ORDER BY generated_at DESC
+    `).all(id);
+
+    res.json({
+      success: true,
+      application,
+      metrics,
+      supportingData,
+      justifications,
+      packages
+    });
+
+  } catch (error) {
+    console.error('❌ Get grant application error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Update grant application
+ */
+app.put('/api/grants/applications/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    // Check if application exists
+    const existing = db.prepare('SELECT id FROM grant_applications WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        error: 'Application not found'
+      });
+    }
+
+    // Build update query dynamically
+    const allowedFields = [
+      'application_title', 'project_description', 'requested_amount',
+      'matching_funds', 'total_project_cost', 'primary_corridor',
+      'affected_routes', 'geographic_scope', 'status', 'submission_date',
+      'award_date', 'award_amount'
+    ];
+
+    const updateFields = [];
+    const updateValues = [];
+
+    for (const field of allowedFields) {
+      if (updates[field] !== undefined) {
+        updateFields.push(`${field} = ?`);
+
+        // Handle JSON fields
+        if (field === 'affected_routes' && Array.isArray(updates[field])) {
+          updateValues.push(JSON.stringify(updates[field]));
+        } else {
+          updateValues.push(updates[field]);
+        }
+      }
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid fields to update'
+      });
+    }
+
+    // Add updated_at
+    updateFields.push('updated_at = datetime(\'now\')');
+    updateValues.push(id);
+
+    const query = `
+      UPDATE grant_applications
+      SET ${updateFields.join(', ')}
+      WHERE id = ?
+    `;
+
+    db.prepare(query).run(...updateValues);
+
+    console.log(`✅ Updated grant application: ${id}`);
+
+    res.json({
+      success: true,
+      message: 'Application updated successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Update grant application error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Delete grant application
+ */
+app.delete('/api/grants/applications/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const result = db.prepare('DELETE FROM grant_applications WHERE id = ?').run(id);
+
+    if (result.changes === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Application not found'
+      });
+    }
+
+    console.log(`✅ Deleted grant application: ${id}`);
+
+    res.json({
+      success: true,
+      message: 'Application deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Delete grant application error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Upload proposal document for grant application
+ */
+app.post('/api/grants/applications/:id/proposal', upload.single('proposal'), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No file uploaded'
+      });
+    }
+
+    // Check if application exists
+    const application = db.prepare('SELECT id FROM grant_applications WHERE id = ?').get(id);
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        error: 'Application not found'
+      });
+    }
+
+    // Update application with proposal info
+    db.prepare(`
+      UPDATE grant_applications
+      SET proposal_document_path = ?,
+          proposal_document_name = ?,
+          proposal_uploaded_at = datetime('now'),
+          updated_at = datetime('now')
+      WHERE id = ?
+    `).run(req.file.path, req.file.originalname, id);
+
+    console.log(`✅ Uploaded proposal for application: ${id}`);
+
+    res.json({
+      success: true,
+      message: 'Proposal uploaded successfully',
+      filename: req.file.originalname,
+      size: req.file.size
+    });
+
+  } catch (error) {
+    console.error('❌ Upload proposal error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Generate metrics automatically from existing system data
+ */
+app.post('/api/grants/applications/:id/generate-metrics', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get application details
+    const application = db.prepare(`
+      SELECT * FROM grant_applications WHERE id = ?
+    `).get(id);
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        error: 'Application not found'
+      });
+    }
+
+    console.log(`📊 Generating metrics for grant application: ${id}`);
+
+    // Calculate safety metrics from incident data
+    const safetyMetrics = db.prepare(`
+      SELECT
+        COUNT(*) as total_incidents,
+        SUM(CASE WHEN severity IN ('major', 'critical') THEN 1 ELSE 0 END) as high_severity,
+        SUM(CASE WHEN type = 'crash' AND details LIKE '%fatal%' THEN 1 ELSE 0 END) as fatalities
+      FROM incident_history
+      WHERE state = ?
+        AND datetime(timestamp) >= datetime('now', '-1 year')
+    `).get(application.state_key);
+
+    // Calculate traffic metrics
+    const trafficMetrics = db.prepare(`
+      SELECT
+        AVG(CAST(volume AS INTEGER)) as avg_daily_traffic,
+        AVG(CAST(truck_percentage AS REAL)) as truck_percentage
+      FROM traffic_volume
+      WHERE state_key = ?
+    `).get(application.state_key);
+
+    // Count ITS equipment deployed
+    const equipmentMetrics = db.prepare(`
+      SELECT
+        SUM(CASE WHEN equipment_type = 'camera' THEN 1 ELSE 0 END) as cameras,
+        SUM(CASE WHEN equipment_type = 'dms' THEN 1 ELSE 0 END) as dms,
+        SUM(CASE WHEN equipment_type = 'rsu' THEN 1 ELSE 0 END) as rsu,
+        SUM(CASE WHEN equipment_type = 'sensor' THEN 1 ELSE 0 END) as sensors
+      FROM its_equipment
+      WHERE state_key = ?
+        AND status = 'operational'
+    `).get(application.state_key);
+
+    // Count V2X coverage gaps
+    const v2xGaps = db.prepare(`
+      SELECT COUNT(*) as gap_count
+      FROM v2x_deployment_gaps
+      WHERE state_key = ?
+        AND status = 'identified'
+    `).get(application.state_key);
+
+    // Get data quality score from TETC
+    const dqiScore = db.prepare(`
+      SELECT AVG(overall_score) as avg_dqi
+      FROM vendor_dqi_scores
+      WHERE vendor = (SELECT vendor FROM states WHERE state_key = ?)
+        AND validated = TRUE
+    `).get(application.state_key);
+
+    // Insert or update metrics
+    const metricsId = `metrics-${id}-${Date.now()}`;
+
+    db.prepare(`
+      INSERT OR REPLACE INTO grant_metrics (
+        id, application_id,
+        total_incidents, high_severity_incidents, fatalities,
+        average_daily_traffic, truck_percentage,
+        v2x_coverage_gaps,
+        cameras_deployed, dms_deployed, rsu_deployed, sensors_deployed,
+        data_quality_score,
+        calculation_notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      metricsId,
+      id,
+      safetyMetrics?.total_incidents || 0,
+      safetyMetrics?.high_severity || 0,
+      safetyMetrics?.fatalities || 0,
+      trafficMetrics?.avg_daily_traffic || 0,
+      trafficMetrics?.truck_percentage || 0,
+      v2xGaps?.gap_count || 0,
+      equipmentMetrics?.cameras || 0,
+      equipmentMetrics?.dms || 0,
+      equipmentMetrics?.rsu || 0,
+      equipmentMetrics?.sensors || 0,
+      dqiScore?.avg_dqi || null,
+      'Auto-calculated from system data: incidents (1 year), traffic, ITS equipment, V2X gaps, TETC DQI scores'
+    );
+
+    console.log(`✅ Generated metrics for application: ${id}`);
+
+    res.json({
+      success: true,
+      message: 'Metrics calculated successfully',
+      metrics: {
+        safety: safetyMetrics,
+        traffic: trafficMetrics,
+        equipment: equipmentMetrics,
+        v2x_gaps: v2xGaps?.gap_count || 0,
+        dqi_score: dqiScore?.avg_dqi || null
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Generate metrics error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Attach supporting data to grant application
+ */
+app.post('/api/grants/applications/:id/supporting-data', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      dataType,
+      dataSource,
+      dateRangeStart,
+      dateRangeEnd,
+      corridorFilter,
+      severityFilter,
+      summaryStats
+    } = req.body;
+
+    // Validation
+    if (!dataType || !dataSource) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: dataType, dataSource'
+      });
+    }
+
+    // Check if application exists
+    const application = db.prepare('SELECT id FROM grant_applications WHERE id = ?').get(id);
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        error: 'Application not found'
+      });
+    }
+
+    const dataId = `data-${id}-${dataType}-${Date.now()}`;
+
+    db.prepare(`
+      INSERT INTO grant_supporting_data (
+        id, application_id, data_type, data_source,
+        date_range_start, date_range_end, corridor_filter, severity_filter,
+        summary_stats
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      dataId,
+      id,
+      dataType,
+      dataSource,
+      dateRangeStart || null,
+      dateRangeEnd || null,
+      corridorFilter || null,
+      severityFilter || null,
+      summaryStats ? JSON.stringify(summaryStats) : null
+    );
+
+    console.log(`✅ Attached supporting data to application: ${id}`);
+
+    res.json({
+      success: true,
+      dataId,
+      message: 'Supporting data attached successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Attach supporting data error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Get available grant templates
+ */
+app.get('/api/grants/templates', async (req, res) => {
+  try {
+    const { grantProgram } = req.query;
+
+    let query = 'SELECT * FROM grant_templates WHERE template_active = TRUE';
+    const params = [];
+
+    if (grantProgram) {
+      query += ' AND grant_program = ?';
+      params.push(grantProgram);
+    }
+
+    query += ' ORDER BY grant_program, template_name';
+
+    const templates = db.prepare(query).all(...params);
+
+    // Parse JSON fields
+    templates.forEach(template => {
+      if (template.required_sections) {
+        template.required_sections = JSON.parse(template.required_sections);
+      }
+      if (template.data_requirements) {
+        template.data_requirements = JSON.parse(template.data_requirements);
+      }
+      if (template.scoring_criteria) {
+        template.scoring_criteria = JSON.parse(template.scoring_criteria);
+      }
+    });
+
+    res.json({
+      success: true,
+      templates,
+      count: templates.length
+    });
+
+  } catch (error) {
+    console.error('❌ Get templates error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Get grant success rates summary
+ */
+app.get('/api/grants/success-rates', async (req, res) => {
+  try {
+    const successRates = db.prepare(`
+      SELECT * FROM v_grant_success_rates
+      ORDER BY grant_year DESC, grant_program
+    `).all();
+
+    res.json({
+      success: true,
+      successRates
+    });
+
+  } catch (error) {
+    console.error('❌ Get success rates error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Run Users table migration for PostgreSQL
 app.post('/api/admin/migrate-users', async (req, res) => {
   try {
