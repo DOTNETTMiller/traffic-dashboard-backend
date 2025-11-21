@@ -67,6 +67,9 @@ function App() {
   const [statsExpanded, setStatsExpanded] = useState(true);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [adminDropdownOpen, setAdminDropdownOpen] = useState(false);
+  const [dataQualityDropdownOpen, setDataQualityDropdownOpen] = useState(false);
+  const [communicationsDropdownOpen, setCommunicationsDropdownOpen] = useState(false);
+  const [stateToolsDropdownOpen, setStateToolsDropdownOpen] = useState(false);
   const [showAlertsModal, setShowAlertsModal] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
@@ -618,106 +621,359 @@ function App() {
       {/* Controls */}
       <div className="controls">
         <div className="view-toggle">
+          {/* Core Views */}
           <button
             className={`toggle-btn ${view === 'map' ? 'active' : ''}`}
             onClick={() => setView('map')}
           >
-            Map View
+            🗺️ Map
           </button>
           <button
             className={`toggle-btn ${view === 'table' ? 'active' : ''}`}
             onClick={() => setView('table')}
           >
-            Table View
+            📋 Table
           </button>
           <button
             className={`toggle-btn ${view === 'timeline' ? 'active' : ''}`}
             onClick={() => setView('timeline')}
           >
-            Timeline View
+            ⏱️ Timeline
           </button>
           <button
             className={`toggle-btn ${view === 'dashboard' ? 'active' : ''}`}
             onClick={() => setView('dashboard')}
           >
-            Dashboard
+            📊 Dashboard
           </button>
-          <button
-            className={`toggle-btn ${view === 'report' ? 'active' : ''}`}
-            onClick={() => setView('report')}
-          >
-            Data Quality Report
-          </button>
-          <button
-            className={`toggle-btn ${view === 'tetcGrading' ? 'active' : ''}`}
-            onClick={() => setView('tetcGrading')}
-          >
-            TETC Data Grading
-          </button>
-          <button
-            className={`toggle-btn ${view === 'vendorComparison' ? 'active' : ''}`}
-            onClick={() => setView('vendorComparison')}
-          >
-            Vendor Comparison
-          </button>
-          <button
-            className={`toggle-btn ${view === 'alignment' ? 'active' : ''}`}
-            onClick={() => setView('alignment')}
-          >
-            Feed Alignment
-          </button>
-          <button
-            className={`toggle-btn ${view === 'messages' ? 'active' : ''}`}
-            onClick={() => setView('messages')}
-          >
-            Messages
-          </button>
+
+          {/* Data Quality Dropdown */}
+          <div style={{ position: 'relative' }}>
+            <button
+              className={`toggle-btn ${['report', 'tetcGrading', 'vendorComparison', 'alignment'].includes(view) ? 'active' : ''}`}
+              onClick={() => setDataQualityDropdownOpen(!dataQualityDropdownOpen)}
+              style={{
+                backgroundColor: ['report', 'tetcGrading', 'vendorComparison', 'alignment'].includes(view) ? '#3b82f6' : undefined,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              📈 Data Quality
+              <span style={{
+                transform: dataQualityDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s ease',
+                fontSize: '10px'
+              }}>
+                ▼
+              </span>
+            </button>
+
+            {dataQualityDropdownOpen && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                marginTop: '4px',
+                background: 'white',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                zIndex: 1000,
+                minWidth: '200px',
+                overflow: 'hidden',
+                border: '1px solid #e5e7eb'
+              }}>
+                <button
+                  onClick={() => {
+                    setView('report');
+                    setDataQualityDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'report' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'report' ? '600' : '400',
+                    color: view === 'report' ? '#3b82f6' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'report' ? '#f3f4f6' : 'white'}
+                >
+                  📊 Quality Report
+                </button>
+                <button
+                  onClick={() => {
+                    setView('tetcGrading');
+                    setDataQualityDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'tetcGrading' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'tetcGrading' ? '600' : '400',
+                    color: view === 'tetcGrading' ? '#3b82f6' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'tetcGrading' ? '#f3f4f6' : 'white'}
+                >
+                  ⭐ TETC Grading
+                </button>
+                <button
+                  onClick={() => {
+                    setView('vendorComparison');
+                    setDataQualityDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'vendorComparison' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'vendorComparison' ? '600' : '400',
+                    color: view === 'vendorComparison' ? '#3b82f6' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'vendorComparison' ? '#f3f4f6' : 'white'}
+                >
+                  🔄 Vendor Comparison
+                </button>
+                <button
+                  onClick={() => {
+                    setView('alignment');
+                    setDataQualityDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'alignment' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'alignment' ? '600' : '400',
+                    color: view === 'alignment' ? '#3b82f6' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'alignment' ? '#f3f4f6' : 'white'}
+                >
+                  🔗 Feed Alignment
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Communications Dropdown */}
+          <div style={{ position: 'relative' }}>
+            <button
+              className={`toggle-btn ${view === 'messages' ? 'active' : ''}`}
+              onClick={() => setCommunicationsDropdownOpen(!communicationsDropdownOpen)}
+              style={{
+                backgroundColor: view === 'messages' ? '#10b981' : undefined,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              💬 Communications
+              <span style={{
+                transform: communicationsDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s ease',
+                fontSize: '10px'
+              }}>
+                ▼
+              </span>
+            </button>
+
+            {communicationsDropdownOpen && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                marginTop: '4px',
+                background: 'white',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                zIndex: 1000,
+                minWidth: '200px',
+                overflow: 'hidden',
+                border: '1px solid #e5e7eb'
+              }}>
+                <button
+                  onClick={() => {
+                    setView('messages');
+                    setCommunicationsDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'messages' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'messages' ? '600' : '400',
+                    color: view === 'messages' ? '#10b981' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'messages' ? '#f3f4f6' : 'white'}
+                >
+                  💬 Messages
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCorridorBriefing(true);
+                    setCommunicationsDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '400',
+                    color: '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                >
+                  📋 Corridor Briefing
+                </button>
+                <button
+                  onClick={() => {
+                    setShowAlertsModal(true);
+                    setCommunicationsDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '400',
+                    color: '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                >
+                  🚨 Detour & Bridge Alerts
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* State Tools Dropdown (for authenticated users) */}
+          {authToken && (
+            <div style={{ position: 'relative' }}>
+              <button
+                className={`toggle-btn ${['feedSubmission', 'grants'].includes(view) ? 'active' : ''}`}
+                onClick={() => setStateToolsDropdownOpen(!stateToolsDropdownOpen)}
+                style={{
+                  backgroundColor: ['feedSubmission', 'grants'].includes(view) ? '#059669' : undefined,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                🏛️ State Tools
+                <span style={{
+                  transform: stateToolsDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s ease',
+                  fontSize: '10px'
+                }}>
+                  ▼
+                </span>
+              </button>
+
+              {stateToolsDropdownOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  marginTop: '4px',
+                  background: 'white',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  zIndex: 1000,
+                  minWidth: '200px',
+                  overflow: 'hidden',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <button
+                    onClick={() => {
+                      setView('feedSubmission');
+                      setStateToolsDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'feedSubmission' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'feedSubmission' ? '600' : '400',
+                      color: view === 'feedSubmission' ? '#059669' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'feedSubmission' ? '#f3f4f6' : 'white'}
+                  >
+                    📡 Submit Feed
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView('grants');
+                      setStateToolsDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'grants' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'grants' ? '600' : '400',
+                      color: view === 'grants' ? '#059669' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'grants' ? '#f3f4f6' : 'white'}
+                  >
+                    💰 Grant Applications
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Documentation */}
           <button
             className={`toggle-btn ${view === 'docs' ? 'active' : ''}`}
             onClick={() => setView('docs')}
           >
-            📚 Documentation
+            📚 Docs
           </button>
-          <button
-            className="toggle-btn"
-            onClick={() => setShowCorridorBriefing(true)}
-            style={{
-              backgroundColor: '#10b981',
-              color: 'white'
-            }}
-          >
-            📋 Corridor Briefing
-          </button>
-          <button
-            className="toggle-btn"
-            onClick={() => setShowAlertsModal(true)}
-            style={{
-              backgroundColor: '#f59e0b',
-              color: 'white'
-            }}
-          >
-            🚨 Detour & Bridge Alerts
-          </button>
-          {authToken && (
-            <button
-              className={`toggle-btn ${view === 'feedSubmission' ? 'active' : ''}`}
-              onClick={() => setView('feedSubmission')}
-            >
-              Submit Feed
-            </button>
-          )}
-
-          {authToken && (
-            <button
-              className={`toggle-btn ${view === 'grants' ? 'active' : ''}`}
-              onClick={() => setView('grants')}
-              style={{
-                backgroundColor: view === 'grants' ? '#059669' : undefined
-              }}
-            >
-              💰 Grant Applications
-            </button>
-          )}
 
           {currentUser?.role === 'admin' && (
             <div style={{ position: 'relative' }}>
