@@ -779,10 +779,10 @@ function App() {
           {/* Communications Dropdown */}
           <div style={{ position: 'relative' }}>
             <button
-              className={`toggle-btn ${view === 'messages' ? 'active' : ''}`}
+              className={`toggle-btn ${['messages', 'adminInterchanges'].includes(view) ? 'active' : ''}`}
               onClick={() => setCommunicationsDropdownOpen(!communicationsDropdownOpen)}
               style={{
-                backgroundColor: view === 'messages' ? '#10b981' : undefined,
+                backgroundColor: ['messages', 'adminInterchanges'].includes(view) ? '#10b981' : undefined,
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px'
@@ -878,6 +878,57 @@ function App() {
                 >
                   🚨 Detour & Bridge Alerts
                 </button>
+
+                {/* Divider */}
+                <div style={{ height: '1px', background: '#e5e7eb', margin: '4px 0' }}></div>
+
+                {/* Interstate Coordination Points Toggle */}
+                <div style={{ padding: '10px 16px' }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    color: '#374151'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={showInterchanges}
+                      onChange={(e) => setShowInterchanges(e.target.checked)}
+                      style={{ marginRight: '8px' }}
+                    />
+                    🎯 Interstate Coordination Points
+                  </label>
+                </div>
+
+                {/* Admin: Manage Detours */}
+                {currentUser?.role === 'admin' && (
+                  <>
+                    <div style={{ height: '1px', background: '#e5e7eb', margin: '4px 0' }}></div>
+                    <button
+                      onClick={() => {
+                        setView('adminInterchanges');
+                        setCommunicationsDropdownOpen(false);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '10px 16px',
+                        border: 'none',
+                        background: view === 'adminInterchanges' ? '#f3f4f6' : 'white',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: view === 'adminInterchanges' ? '600' : '400',
+                        color: view === 'adminInterchanges' ? '#dc3545' : '#374151',
+                        transition: 'background 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = view === 'adminInterchanges' ? '#f3f4f6' : 'white'}
+                    >
+                      ⚙️ Manage Detours (Admin)
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -1130,10 +1181,10 @@ function App() {
           {currentUser?.role === 'admin' && (
             <div style={{ position: 'relative' }}>
               <button
-                className={`toggle-btn ${['admin', 'adminUsers', 'adminInterchanges', 'adminFeeds'].includes(view) ? 'active' : ''}`}
+                className={`toggle-btn ${['admin', 'adminUsers', 'adminFeeds'].includes(view) ? 'active' : ''}`}
                 onClick={() => setAdminDropdownOpen(!adminDropdownOpen)}
                 style={{
-                  backgroundColor: ['admin', 'adminUsers', 'adminInterchanges', 'adminFeeds'].includes(view) ? '#dc3545' : '#6c757d',
+                  backgroundColor: ['admin', 'adminUsers', 'adminFeeds'].includes(view) ? '#dc3545' : '#6c757d',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px'
@@ -1206,28 +1257,6 @@ function App() {
                     onMouseLeave={(e) => e.currentTarget.style.background = view === 'adminUsers' ? '#f3f4f6' : 'white'}
                   >
                     Users
-                  </button>
-                  <button
-                    onClick={() => {
-                      setView('adminInterchanges');
-                      setAdminDropdownOpen(false);
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '10px 16px',
-                      border: 'none',
-                      background: view === 'adminInterchanges' ? '#f3f4f6' : 'white',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: view === 'adminInterchanges' ? '600' : '400',
-                      color: view === 'adminInterchanges' ? '#dc3545' : '#374151',
-                      transition: 'background 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'adminInterchanges' ? '#f3f4f6' : 'white'}
-                  >
-                    Detours
                   </button>
                   <button
                     onClick={() => {
