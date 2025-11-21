@@ -70,6 +70,7 @@ function App() {
   const [dataQualityDropdownOpen, setDataQualityDropdownOpen] = useState(false);
   const [communicationsDropdownOpen, setCommunicationsDropdownOpen] = useState(false);
   const [stateToolsDropdownOpen, setStateToolsDropdownOpen] = useState(false);
+  const [commercialFreightDropdownOpen, setCommercialFreightDropdownOpen] = useState(false);
   const [showAlertsModal, setShowAlertsModal] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
@@ -967,6 +968,157 @@ function App() {
             </div>
           )}
 
+          {/* Commercial Freight */}
+          <div style={{ position: 'relative' }}>
+            <button
+              className={`toggle-btn ${view === 'groundTruth' || showParking || showBridgeClearances || showCorridorRegulations ? 'active' : ''}`}
+              onClick={() => setCommercialFreightDropdownOpen(!commercialFreightDropdownOpen)}
+              style={{
+                backgroundColor: view === 'groundTruth' ? '#10b981' : '#6c757d',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              🚛 Commercial Freight
+              <span style={{
+                transform: commercialFreightDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s ease',
+                fontSize: '10px'
+              }}>
+                ▼
+              </span>
+            </button>
+
+            {commercialFreightDropdownOpen && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                marginTop: '4px',
+                background: 'white',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                zIndex: 10000,
+                minWidth: '240px',
+                overflow: 'hidden',
+                border: '1px solid #e5e7eb'
+              }}>
+                {/* Ground Truth */}
+                <button
+                  onClick={() => {
+                    setView('groundTruth');
+                    setCommercialFreightDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'groundTruth' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'groundTruth' ? '600' : '400',
+                    color: view === 'groundTruth' ? '#10b981' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'groundTruth' ? '#f3f4f6' : 'white'}
+                >
+                  🎯 Ground Truth
+                </button>
+
+                {/* Divider */}
+                <div style={{ height: '1px', background: '#e5e7eb', margin: '4px 0' }}></div>
+
+                {/* Truck Parking Toggle */}
+                <div style={{ padding: '10px 16px' }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    color: '#374151'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={showParking}
+                      onChange={(e) => {
+                        setShowParking(e.target.checked);
+                        if (!e.target.checked) setParkingPredictionHours(0);
+                      }}
+                      style={{ marginRight: '8px' }}
+                    />
+                    🚛 Truck Parking
+                  </label>
+                  {showParking && (
+                    <div style={{ marginTop: '8px', marginLeft: '24px', fontSize: '12px' }}>
+                      <div style={{ color: '#6b7280', marginBottom: '4px' }}>Predict:</div>
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                        {[0, 1, 2, 3, 6, 12, 24].map(hours => (
+                          <button
+                            key={hours}
+                            onClick={() => setParkingPredictionHours(hours)}
+                            style={{
+                              padding: '4px 8px',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '4px',
+                              background: parkingPredictionHours === hours ? '#3b82f6' : 'white',
+                              color: parkingPredictionHours === hours ? 'white' : '#374151',
+                              cursor: 'pointer',
+                              fontSize: '11px',
+                              fontWeight: parkingPredictionHours === hours ? '600' : '400'
+                            }}
+                          >
+                            {hours === 0 ? 'Now' : `${hours}h`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Bridge Clearances Toggle */}
+                <div style={{ padding: '10px 16px' }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    color: '#374151'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={showBridgeClearances}
+                      onChange={(e) => setShowBridgeClearances(e.target.checked)}
+                      style={{ marginRight: '8px' }}
+                    />
+                    🌉 Bridge Clearances
+                  </label>
+                </div>
+
+                {/* OS/OW Regulations Toggle */}
+                <div style={{ padding: '10px 16px' }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    color: '#374151'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={showCorridorRegulations}
+                      onChange={(e) => setShowCorridorRegulations(e.target.checked)}
+                      style={{ marginRight: '8px' }}
+                    />
+                    🛣️ I-35 OS/OW Regulations
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Documentation */}
           <button
             className={`toggle-btn ${view === 'docs' ? 'active' : ''}`}
@@ -978,10 +1130,10 @@ function App() {
           {currentUser?.role === 'admin' && (
             <div style={{ position: 'relative' }}>
               <button
-                className={`toggle-btn ${['groundTruth', 'admin', 'adminUsers', 'adminInterchanges', 'adminFeeds'].includes(view) ? 'active' : ''}`}
+                className={`toggle-btn ${['admin', 'adminUsers', 'adminInterchanges', 'adminFeeds'].includes(view) ? 'active' : ''}`}
                 onClick={() => setAdminDropdownOpen(!adminDropdownOpen)}
                 style={{
-                  backgroundColor: ['groundTruth', 'admin', 'adminUsers', 'adminInterchanges', 'adminFeeds'].includes(view) ? '#dc3545' : '#6c757d',
+                  backgroundColor: ['admin', 'adminUsers', 'adminInterchanges', 'adminFeeds'].includes(view) ? '#dc3545' : '#6c757d',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px'
@@ -1011,28 +1163,6 @@ function App() {
                   overflow: 'hidden',
                   border: '1px solid #e5e7eb'
                 }}>
-                  <button
-                    onClick={() => {
-                      setView('groundTruth');
-                      setAdminDropdownOpen(false);
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '10px 16px',
-                      border: 'none',
-                      background: view === 'groundTruth' ? '#f3f4f6' : 'white',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: view === 'groundTruth' ? '600' : '400',
-                      color: view === 'groundTruth' ? '#10b981' : '#374151',
-                      transition: 'background 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'groundTruth' ? '#f3f4f6' : 'white'}
-                  >
-                    Ground Truth
-                  </button>
                   <button
                     onClick={() => {
                       setView('admin');
@@ -1139,117 +1269,11 @@ function App() {
           <label className="refresh-toggle">
             <input
               type="checkbox"
-              checked={showParking}
-              onChange={(e) => {
-                setShowParking(e.target.checked);
-                if (!e.target.checked) setParkingPredictionHours(0);
-              }}
-            />
-            🚛 Truck Parking
-          </label>
-          <label className="refresh-toggle">
-            <input
-              type="checkbox"
               checked={showInterchanges}
               onChange={(e) => setShowInterchanges(e.target.checked)}
             />
             🎯 Interstate Coordination Points
           </label>
-          <label className="refresh-toggle">
-            <input
-              type="checkbox"
-              checked={showBridgeClearances}
-              onChange={(e) => setShowBridgeClearances(e.target.checked)}
-            />
-            🌉 Bridge Clearances
-          </label>
-          <label className="refresh-toggle">
-            <input
-              type="checkbox"
-              checked={showCorridorRegulations}
-              onChange={(e) => setShowCorridorRegulations(e.target.checked)}
-            />
-            🛣️ I-35 OS/OW Regulations
-          </label>
-          {showParking && (
-            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '13px', flexWrap: 'wrap' }}>
-              <span style={{ color: '#6b7280', marginRight: '4px' }}>Predict:</span>
-              {[
-                { hours: 0, label: 'Now', tooltip: 'Current availability' },
-                { hours: 1, label: '+1hr', tooltip: '1 hour ahead' },
-                { hours: 3, label: '+3hr', tooltip: '3 hours ahead' },
-                { hours: 6, label: '+6hr', tooltip: '6 hours ahead' },
-                { hours: 11, label: '+11hr', tooltip: 'Max HOS driving limit (11 hours)' },
-                { hours: 14, label: '+14hr', tooltip: 'Max HOS on-duty limit (14 hours)' }
-              ].map(({ hours, label, tooltip }) => (
-                <button
-                  key={hours}
-                  onClick={() => setParkingPredictionHours(hours)}
-                  title={tooltip}
-                  style={{
-                    padding: '6px 12px',
-                    fontSize: '12px',
-                    border: `2px solid ${
-                      parkingPredictionHours === hours
-                        ? (hours === 11 || hours === 14 ? '#f59e0b' : '#3b82f6')
-                        : (hours === 11 || hours === 14 ? '#fcd34d' : '#e5e7eb')
-                    }`,
-                    borderRadius: '8px',
-                    backgroundColor: parkingPredictionHours === hours
-                      ? (hours === 11 || hours === 14 ? '#f59e0b' : '#3b82f6')
-                      : 'white',
-                    color: parkingPredictionHours === hours ? 'white' : '#374151',
-                    cursor: 'pointer',
-                    fontWeight: parkingPredictionHours === hours ? '700' : '500',
-                    position: 'relative',
-                    transition: 'all 0.2s ease',
-                    boxShadow: parkingPredictionHours === hours
-                      ? '0 2px 6px rgba(0,0,0,0.15)'
-                      : '0 1px 2px rgba(0,0,0,0.05)',
-                    transform: parkingPredictionHours === hours ? 'translateY(-1px)' : 'translateY(0)'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (parkingPredictionHours !== hours) {
-                      e.currentTarget.style.borderColor = hours === 11 || hours === 14 ? '#f59e0b' : '#3b82f6';
-                      e.currentTarget.style.transform = 'translateY(-1px)';
-                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (parkingPredictionHours !== hours) {
-                      e.currentTarget.style.borderColor = hours === 11 || hours === 14 ? '#fcd34d' : '#e5e7eb';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
-                    }
-                  }}
-                >
-                  {label}
-                  {(hours === 11 || hours === 14) && (
-                    <span style={{
-                      position: 'absolute',
-                      top: '-6px',
-                      right: '-6px',
-                      backgroundColor: '#f59e0b',
-                      color: 'white',
-                      borderRadius: '50%',
-                      width: '14px',
-                      height: '14px',
-                      fontSize: '9px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: '700'
-                    }}>
-                      H
-                    </span>
-                  )}
-                </button>
-              ))}
-              <span style={{ fontSize: '11px', color: '#9ca3af', marginLeft: '6px' }}>
-                (H = HOS limit)
-              </span>
-            </div>
-          )}
           <button onClick={refetch} className="refresh-btn" disabled={loading}>
             {loading ? 'Loading...' : 'Refresh Now'}
           </button>
