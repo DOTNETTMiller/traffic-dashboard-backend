@@ -8928,6 +8928,102 @@ app.get('/api/vendors/votes', async (req, res) => {
   }
 });
 
+// Fix TETC validation report URLs (admin only)
+app.post('/api/admin/fix-tetc-urls', async (req, res) => {
+  try {
+    console.log('🔧 Fixing TETC validation report URLs...');
+
+    const updates = [
+      {
+        id: 'vr_probe_tt_2025q1',
+        url: 'https://tetcoalition.org/data-marketplace/validation/TETC_TT_2025Q1.pdf'
+      },
+      {
+        id: 'vr_od_personal_2025q1',
+        url: 'https://tetcoalition.org/data-marketplace/validation/OD_Personal_2025Q1.pdf'
+      },
+      {
+        id: 'vr_od_freight_2025q1',
+        url: 'https://tetcoalition.org/data-marketplace/validation/OD_Freight_2025Q1.pdf'
+      },
+      {
+        id: 'vr_i95_corr_probe_inrix_2025q1',
+        url: 'https://tetcoalition.org/data-marketplace/validation/2025Q1_I95_INRIX.pdf'
+      },
+      {
+        id: 'vr_i95_corr_probe_here_2025q1',
+        url: 'https://tetcoalition.org/data-marketplace/validation/2025Q1_I95_HERE.pdf'
+      },
+      {
+        id: 'vr_i95_corr_od_personal_replica_2025q1',
+        url: 'https://tetcoalition.org/data-marketplace/validation/2025Q1_I95_Replica.pdf'
+      },
+      {
+        id: 'vr_i95_corr_od_personal_streetlight_2025q1',
+        url: 'https://tetcoalition.org/data-marketplace/validation/2025Q1_I95_StreetLight.pdf'
+      },
+      {
+        id: 'vr_i95_corr_od_freight_atri_2025q1',
+        url: 'https://tetcoalition.org/data-marketplace/validation/2025Q1_I95_ATRI.pdf'
+      }
+    ];
+
+    const results = [];
+
+    if (USE_POSTGRES) {
+      // PostgreSQL version
+      for (const update of updates) {
+        const result = await pgPool.query(
+          'UPDATE validation_runs SET methodology_ref = $1 WHERE id = $2 RETURNING id, run_name',
+          [update.url, update.id]
+        );
+
+        if (result.rowCount > 0) {
+          results.push({ id: update.id, status: 'updated', name: result.rows[0].run_name });
+          console.log(`✅ Updated ${result.rows[0].run_name}`);
+        } else {
+          results.push({ id: update.id, status: 'not_found' });
+          console.log(`⚠️  Record not found: ${update.id}`);
+        }
+      }
+    } else {
+      // SQLite version
+      const trafficDb = new Database(TRAFFIC_DB_PATH);
+
+      for (const update of updates) {
+        const stmt = trafficDb.prepare('UPDATE validation_runs SET methodology_ref = ? WHERE id = ?');
+        const result = stmt.run(update.url, update.id);
+
+        if (result.changes > 0) {
+          const row = trafficDb.prepare('SELECT run_name FROM validation_runs WHERE id = ?').get(update.id);
+          results.push({ id: update.id, status: 'updated', name: row.run_name });
+          console.log(`✅ Updated ${row.run_name}`);
+        } else {
+          results.push({ id: update.id, status: 'not_found' });
+          console.log(`⚠️  Record not found: ${update.id}`);
+        }
+      }
+
+      trafficDb.close();
+    }
+
+    console.log('✨ TETC URL fix complete!');
+
+    res.json({
+      success: true,
+      message: 'TETC validation report URLs updated',
+      results
+    });
+
+  } catch (error) {
+    console.error('❌ Error fixing TETC URLs:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Generate AI corridor summary using OpenAI
 app.post('/api/corridor/generate-summary', async (req, res) => {
   try {
