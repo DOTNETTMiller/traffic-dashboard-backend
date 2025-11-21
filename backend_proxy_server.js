@@ -8962,6 +8962,8 @@ app.get('/api/vendors/votes', async (req, res) => {
 
 // Fix TETC validation report URLs (admin only)
 app.post('/api/admin/fix-tetc-urls', async (req, res) => {
+  const { Client } = require('pg');
+
   try {
     console.log('🔧 Fixing TETC validation report URLs...');
 
@@ -9002,10 +9004,17 @@ app.post('/api/admin/fix-tetc-urls', async (req, res) => {
 
     const results = [];
 
-    if (USE_POSTGRES) {
-      // PostgreSQL version
+    if (process.env.DATABASE_URL) {
+      // PostgreSQL version (production)
+      const client = new Client({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+      });
+
+      await client.connect();
+
       for (const update of updates) {
-        const result = await pgPool.query(
+        const result = await client.query(
           'UPDATE validation_runs SET methodology_ref = $1 WHERE id = $2 RETURNING id, run_name',
           [update.url, update.id]
         );
@@ -9018,8 +9027,10 @@ app.post('/api/admin/fix-tetc-urls', async (req, res) => {
           console.log(`⚠️  Record not found: ${update.id}`);
         }
       }
+
+      await client.end();
     } else {
-      // SQLite version
+      // SQLite version (local development)
       const trafficDb = new Database(TRAFFIC_DB_PATH);
 
       for (const update of updates) {
