@@ -23,6 +23,12 @@ export default function FeedSubmission({ authToken, user }) {
   const [loadingFeeds, setLoadingFeeds] = useState(true);
   const [showFeeds, setShowFeeds] = useState(true);
 
+  // ITS Equipment Upload state
+  const [gisFile, setGisFile] = useState(null);
+  const [uploadingGIS, setUploadingGIS] = useState(false);
+  const [gisSuccess, setGisSuccess] = useState('');
+  const [gisError, setGisError] = useState('');
+
   useEffect(() => {
     fetchIntegratedFeeds();
   }, []);
@@ -59,6 +65,62 @@ export default function FeedSubmission({ authToken, user }) {
       setError(err.response?.data?.error || 'Failed to submit feed');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleGISFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const allowedExtensions = ['.shp', '.zip', '.kml', '.kmz', '.geojson', '.json', '.csv'];
+      const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+      if (allowedExtensions.includes(ext)) {
+        setGisFile(file);
+        setGisError('');
+      } else {
+        setGisError(`Unsupported file type. Supported: ${allowedExtensions.join(', ')}`);
+        setGisFile(null);
+      }
+    }
+  };
+
+  const handleGISUpload = async () => {
+    if (!gisFile) {
+      setGisError('Please select a GIS file to upload');
+      return;
+    }
+
+    if (!user?.stateKey) {
+      setGisError('State key required. Please ensure you are logged in.');
+      return;
+    }
+
+    setUploadingGIS(true);
+    setGisSuccess('');
+    setGisError('');
+
+    try {
+      const formData = new FormData();
+      formData.append('gisFile', gisFile);
+      formData.append('stateKey', user.stateKey);
+      formData.append('uploadedBy', user.email || user.username);
+
+      const response = await api.post('/api/its-equipment/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+
+      if (response.data.success) {
+        setGisSuccess(`Successfully imported ${response.data.imported} equipment records! ${response.data.failed > 0 ? `(${response.data.failed} failed)` : ''}`);
+        setGisFile(null);
+        // Reset file input
+        document.getElementById('gis-file-input').value = '';
+      }
+    } catch (err) {
+      setGisError(err.response?.data?.error || 'Failed to upload GIS file');
+    } finally {
+      setUploadingGIS(false);
     }
   };
 
@@ -447,6 +509,179 @@ export default function FeedSubmission({ authToken, user }) {
           </div>
         )}
       </div>
+
+      {/* ITS Equipment GIS Upload Section */}
+      <div style={{
+        background: theme.colors.glassDark,
+        backdropFilter: 'blur(20px)',
+        border: `1px solid ${theme.colors.border}`,
+        borderRadius: '16px',
+        padding: theme.spacing.lg,
+        boxShadow: theme.shadows.xl,
+        marginBottom: theme.spacing.xl,
+        transition: `all ${theme.transitions.medium}`
+      }}>
+        <h3 style={{
+          margin: 0,
+          marginBottom: theme.spacing.md,
+          fontSize: '18px',
+          fontWeight: '700',
+          background: theme.colors.gradients.primary,
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text'
+        }}>
+          Upload ITS Equipment Inventory (GIS)
+        </h3>
+
+        <div style={{
+          marginBottom: theme.spacing.md,
+          fontSize: '13px',
+          color: theme.colors.textSecondary,
+          lineHeight: '1.6'
+        }}>
+          Upload your state's ITS equipment inventory (cameras, DMS, RSUs, sensors) as GIS files.
+          Files will be automatically converted to ARC-ITS compliant format for V2X deployment planning.
+        </div>
+
+        <div style={{
+          background: theme.colors.glassLight,
+          borderRadius: '12px',
+          padding: theme.spacing.md,
+          marginBottom: theme.spacing.md,
+          border: `1px solid ${theme.colors.border}`
+        }}>
+          <div style={{ fontWeight: '600', fontSize: '12px', marginBottom: '8px', color: theme.colors.text }}>
+            Supported Formats:
+          </div>
+          <div style={{
+            display: 'flex',
+            gap: '8px',
+            flexWrap: 'wrap',
+            fontSize: '11px'
+          }}>
+            {['Shapefile (.shp/.zip)', 'KML/KMZ', 'GeoJSON', 'CSV (with lat/lon)'].map(format => (
+              <span key={format} style={{
+                background: `${theme.colors.accentBlue}15`,
+                color: theme.colors.accentBlue,
+                padding: '4px 10px',
+                borderRadius: '6px',
+                border: `1px solid ${theme.colors.accentBlue}30`,
+                fontWeight: '600'
+              }}>
+                {format}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div style={{
+          display: 'flex',
+          gap: theme.spacing.md,
+          alignItems: 'flex-end'
+        }}>
+          <div style={{ flex: 1 }}>
+            <label style={{
+              display: 'block',
+              fontSize: '12px',
+              fontWeight: 600,
+              color: theme.colors.text,
+              marginBottom: '6px'
+            }}>
+              Select GIS File
+            </label>
+            <input
+              id="gis-file-input"
+              type="file"
+              accept=".shp,.zip,.kml,.kmz,.geojson,.json,.csv"
+              onChange={handleGISFileSelect}
+              disabled={uploadingGIS}
+              style={{
+                width: '100%',
+                padding: '8px',
+                borderRadius: '6px',
+                border: `1px solid ${theme.colors.border}`,
+                backgroundColor: theme.colors.glassLight,
+                color: theme.colors.text,
+                fontSize: '13px',
+                cursor: uploadingGIS ? 'not-allowed' : 'pointer'
+              }}
+            />
+            {gisFile && (
+              <div style={{
+                marginTop: '6px',
+                fontSize: '11px',
+                color: theme.colors.success,
+                fontWeight: '600'
+              }}>
+                Selected: {gisFile.name} ({(gisFile.size / 1024).toFixed(1)} KB)
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={handleGISUpload}
+            disabled={!gisFile || uploadingGIS}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: !gisFile || uploadingGIS ? theme.colors.textSecondary : theme.colors.accentPurple,
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: 600,
+              fontSize: '13px',
+              cursor: !gisFile || uploadingGIS ? 'not-allowed' : 'pointer',
+              transition: `all ${theme.transitions.fast}`,
+              boxShadow: theme.shadows.sm,
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {uploadingGIS ? 'Uploading...' : 'Upload Equipment'}
+          </button>
+        </div>
+
+        {gisSuccess && (
+          <div style={{
+            marginTop: theme.spacing.md,
+            padding: theme.spacing.sm,
+            borderRadius: '8px',
+            backgroundColor: `${theme.colors.success}15`,
+            border: `1px solid ${theme.colors.success}40`,
+            color: theme.colors.success,
+            fontSize: '12px',
+            fontWeight: '600'
+          }}>
+            ✅ {gisSuccess}
+          </div>
+        )}
+
+        {gisError && (
+          <div style={{
+            marginTop: theme.spacing.md,
+            padding: theme.spacing.sm,
+            borderRadius: '8px',
+            backgroundColor: '#fee2e240',
+            border: '1px solid #fee2e260',
+            color: '#991b1b',
+            fontSize: '12px',
+            fontWeight: '600'
+          }}>
+            ❌ {gisError}
+          </div>
+        )}
+      </div>
+
+      <h3 style={{
+        fontSize: '18px',
+        fontWeight: '700',
+        marginBottom: theme.spacing.md,
+        background: theme.colors.gradients.primary,
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text'
+      }}>
+        Submit Traffic Data Feed
+      </h3>
 
       {error && (
         <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '6px', backgroundColor: '#fee2e2', color: '#991b1b' }}>

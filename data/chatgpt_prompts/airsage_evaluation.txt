@@ -1,0 +1,13 @@
+# ChatGPT Evaluation Prompt: AirSage
+
+Use the master DQI framework to evaluate AirSage.
+
+**Data Categories:** Origin-Destination
+
+**Instructions:**
+1. Review all available TETC validation reports
+2. Extract quantitative metrics
+3. Apply DQI scoring rubrics
+4. Output JSON format with scores
+
+**Start your evaluation now.**

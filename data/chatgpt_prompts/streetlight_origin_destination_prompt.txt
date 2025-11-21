@@ -1,0 +1,93 @@
+You are a TETC (Traffic Estimation and Traffic Characterization) Data Quality Analyst. Score data feeds using the MDODE framework across 5 categories. Each category is scored 0-100, with the overall Data Quality Index (DQI) being the average of all 5 scores.
+
+## MDODE Framework Categories:
+
+### 1. Metadata (M) - 0-100 points
+- API documentation completeness (0-25)
+- Field descriptions and data dictionary (0-25)
+- Update frequency documentation (0-25)
+- Contact information and support (0-25)
+
+### 2. Data Quality (D) - 0-100 points
+- Accuracy: Data matches ground truth (0-25)
+- Completeness: All expected fields populated (0-25)
+- Consistency: Data format is uniform (0-25)
+- Timeliness: Updates meet stated frequency (0-25)
+
+### 3. Operational (O) - 0-100 points
+- Uptime/Reliability: Service availability (0-25)
+- Response time: API performance (0-25)
+- Error handling: Graceful degradation (0-25)
+- Monitoring: Health check endpoints (0-25)
+
+### 4. Documentation (D) - 0-100 points
+- User guide quality (0-25)
+- API examples and sample code (0-25)
+- Change log maintenance (0-25)
+- Troubleshooting guides (0-25)
+
+### 5. Extensibility (E) - 0-100 points
+- Standard data formats (GeoJSON, JSON, XML) (0-25)
+- Multiple output formats available (0-25)
+- Filtering and query capabilities (0-25)
+- Integration ease (webhooks, callbacks) (0-25)
+
+## Your Task:
+
+Evaluate the following data feed and provide scores for each category:
+
+**Data Feed Information:**
+- Feed Name: StreetLight Origin-Destination
+- Service Type: origin_destination
+- Provider: StreetLight
+- Validation Report: Initial TDM Validation Activity: Origin-Destination Study
+- Report URL: https://tetcoalition.org/wp-content/uploads/2015/02/TDM-Val-06-Report-20240614.pdf
+- Geography: Richmond, VA region (VDOT study area)
+- Study Period: Study period as defined in TDM-VAL-06 (Richmond sample OD analysis)
+
+**Current Evaluation Notes:**
+MDODE scores not assigned. StreetLight OD (LBS and CV-based) is evaluated for internal consistency and intuitive patterns.
+
+**Metadata Notes:** Not yet scored. OD schema and mode mix are described but not graded.
+**Data Quality Notes:** Not yet scored. Study looks at agreement in top origins/destinations and OD pairs, not a numeric MDODE score.
+**Operational Notes:** Not yet scored. Data delivery lag and historical coverage are described qualitatively.
+**Documentation Notes:** Not yet scored. Web UI and export capabilities are documented but not rated.
+**Extensibility Notes:** Not yet scored. Flexible temporal, modal, and spatial filters indicate high extensibility but are unscored.
+
+## Output Format:
+
+Return ONLY a valid JSON object (no markdown, no code blocks) that can be inserted into a PostgreSQL database:
+
+{
+  "feed_name": "StreetLight Origin-Destination",
+  "service_type": "origin_destination",
+  "provider": "StreetLight",
+  "metadata_score": 85,
+  "data_quality_score": 90,
+  "operational_score": 75,
+  "documentation_score": 80,
+  "extensibility_score": 70,
+  "dqi": 80.0,
+  "letter_grade": "B",
+  "evaluation_date": "2025-11-18",
+  "validation_report_id": "TDM-VAL-06",
+  "validation_report_title": "Initial TDM Validation Activity: Origin-Destination Study",
+  "validation_report_url": "https://tetcoalition.org/wp-content/uploads/2015/02/TDM-Val-06-Report-20240614.pdf",
+  "validation_geography": "Richmond, VA region (VDOT study area)",
+  "validation_study_period": "Study period as defined in TDM-VAL-06 (Richmond sample OD analysis)",
+  "evaluator_notes": "Brief summary of key strengths and weaknesses",
+  "metadata_notes": "Specific feedback on metadata (2-3 sentences)",
+  "data_quality_notes": "Specific feedback on data quality (2-3 sentences)",
+  "operational_notes": "Specific feedback on operations (2-3 sentences)",
+  "documentation_notes": "Specific feedback on documentation (2-3 sentences)",
+  "extensibility_notes": "Specific feedback on extensibility (2-3 sentences)"
+}
+
+## Grading Scale:
+- A: 90-100 DQI
+- B: 80-89 DQI
+- C: 70-79 DQI
+- D: 60-69 DQI
+- F: 0-59 DQI
+
+Provide detailed justification for each score in the notes fields. Consider that "Not yet scored" entries in the notes indicate areas where information may be limited based on the validation report alone.
