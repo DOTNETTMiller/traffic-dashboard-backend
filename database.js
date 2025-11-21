@@ -272,6 +272,34 @@ class StateDatabase {
         FOREIGN KEY (bridge_id) REFERENCES bridge_clearances(id)
       );
 
+      CREATE TABLE IF NOT EXISTS corridor_regulations (
+        id SERIAL PRIMARY KEY,
+        corridor TEXT NOT NULL,
+        state_key TEXT NOT NULL,
+        state_name TEXT NOT NULL,
+        state_code TEXT NOT NULL,
+        bounds_start_lat DOUBLE PRECISION,
+        bounds_start_lng DOUBLE PRECISION,
+        bounds_end_lat DOUBLE PRECISION,
+        bounds_end_lng DOUBLE PRECISION,
+        legal_single_axle INTEGER,
+        legal_tandem_axle INTEGER,
+        legal_tridem_axle INTEGER,
+        legal_gvw INTEGER,
+        permitted_single_axle INTEGER,
+        permitted_tandem_axle INTEGER,
+        permitted_tridem_axle INTEGER,
+        max_length_ft DOUBLE PRECISION,
+        max_width_ft DOUBLE PRECISION,
+        max_height_ft DOUBLE PRECISION,
+        permit_cost_data TEXT,
+        requirements TEXT,
+        color TEXT,
+        active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS feed_submissions (
         id SERIAL PRIMARY KEY,
         submitted_by INTEGER,
@@ -585,6 +613,34 @@ class StateDatabase {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         resolved_at DATETIME,
         FOREIGN KEY (bridge_id) REFERENCES bridge_clearances(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS corridor_regulations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        corridor TEXT NOT NULL,
+        state_key TEXT NOT NULL,
+        state_name TEXT NOT NULL,
+        state_code TEXT NOT NULL,
+        bounds_start_lat REAL,
+        bounds_start_lng REAL,
+        bounds_end_lat REAL,
+        bounds_end_lng REAL,
+        legal_single_axle INTEGER,
+        legal_tandem_axle INTEGER,
+        legal_tridem_axle INTEGER,
+        legal_gvw INTEGER,
+        permitted_single_axle INTEGER,
+        permitted_tandem_axle INTEGER,
+        permitted_tridem_axle INTEGER,
+        max_length_ft REAL,
+        max_width_ft REAL,
+        max_height_ft REAL,
+        permit_cost_data TEXT,
+        requirements TEXT,
+        color TEXT,
+        active BOOLEAN DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
       CREATE TABLE IF NOT EXISTS feed_submissions (
@@ -2801,6 +2857,57 @@ class StateDatabase {
       }
     } catch (error) {
       console.error('Error getting active bridge warnings:', error);
+      return [];
+    }
+  }
+
+  async getAllBridgeClearances() {
+    try {
+      if (this.isPostgres) {
+        const result = await this.db.query(`
+          SELECT * FROM bridge_clearances
+          WHERE active = true
+          ORDER BY clearance_feet ASC
+        `);
+        return result.rows;
+      } else {
+        return this.db.prepare(`
+          SELECT * FROM bridge_clearances
+          WHERE active = 1
+          ORDER BY clearance_feet ASC
+        `).all();
+      }
+    } catch (error) {
+      console.error('Error getting bridge clearances:', error);
+      return [];
+    }
+  }
+
+  async getCorridorRegulations(corridor = null) {
+    try {
+      let query, result;
+
+      if (this.isPostgres) {
+        if (corridor) {
+          query = `SELECT * FROM corridor_regulations WHERE corridor = $1 AND active = true ORDER BY state_name ASC`;
+          result = await this.db.query(query, [corridor]);
+        } else {
+          query = `SELECT * FROM corridor_regulations WHERE active = true ORDER BY corridor ASC, state_name ASC`;
+          result = await this.db.query(query);
+        }
+        return result.rows;
+      } else {
+        if (corridor) {
+          query = `SELECT * FROM corridor_regulations WHERE corridor = ? AND active = 1 ORDER BY state_name ASC`;
+          result = this.db.prepare(query).all(corridor);
+        } else {
+          query = `SELECT * FROM corridor_regulations WHERE active = 1 ORDER BY corridor ASC, state_name ASC`;
+          result = this.db.prepare(query).all();
+        }
+        return result;
+      }
+    } catch (error) {
+      console.error('Error getting corridor regulations:', error);
       return [];
     }
   }

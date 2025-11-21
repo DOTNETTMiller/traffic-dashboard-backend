@@ -1,0 +1,237 @@
+[
+  {
+    "corridor": "I-35",
+    "state_key": "texas",
+    "state_name": "Texas",
+    "state_code": "TX",
+    "bounds": {
+      "start_lat": 27.5098,
+      "start_lng": -99.5075,
+      "end_lat": 33.9137,
+      "end_lng": -96.6776
+    },
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 25000,
+      "tandem_axle": 46000,
+      "tridem_axle": 60000
+    },
+    "max_dimensions": {
+      "length_ft": 125,
+      "width_ft": 20,
+      "height_ft": 18
+    },
+    "permit_costs": {
+      "annual_permit": 4000,
+      "county_fees": "Additional fees apply",
+      "notes": "Plus county fees"
+    },
+    "color": "#dc2626",
+    "requirements": [
+      "Pilot/escort certifications required at size thresholds",
+      "Operating hours tied to daylight",
+      "Signage requirements: flags, banners, warning lights"
+    ]
+  },
+  {
+    "corridor": "I-35",
+    "state_key": "oklahoma",
+    "state_name": "Oklahoma",
+    "state_code": "OK",
+    "bounds": {
+      "start_lat": 33.9137,
+      "start_lng": -97.4833,
+      "end_lat": 37.0000,
+      "end_lng": -97.0700
+    },
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 48000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 25000,
+      "tandem_axle": 46000,
+      "tridem_axle": 60000
+    },
+    "max_dimensions": {
+      "length_ft": 110,
+      "width_ft": 16,
+      "height_ft": 15
+    },
+    "permit_costs": {
+      "oversize_annual": 10,
+      "overweight_annual": 60,
+      "notes": "Lowest in corridor"
+    },
+    "color": "#f97316",
+    "requirements": [
+      "Holiday restrictions apply",
+      "Pilot/escort certifications required",
+      "Signage requirements vary by size"
+    ]
+  },
+  {
+    "corridor": "I-35",
+    "state_key": "kansas",
+    "state_name": "Kansas",
+    "state_code": "KS",
+    "bounds": {
+      "start_lat": 37.0000,
+      "start_lng": -97.0700,
+      "end_lat": 39.0997,
+      "end_lng": -94.8817
+    },
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 25000,
+      "tandem_axle": 46000,
+      "tridem_axle": 54000
+    },
+    "max_dimensions": {
+      "length_ft": 110,
+      "width_ft": 16,
+      "height_ft": 14.5
+    },
+    "permit_costs": {
+      "single_trip": 30,
+      "annual_permit": 300,
+      "notes": "Varies by size and route"
+    },
+    "color": "#fbbf24",
+    "requirements": [
+      "Pilot/escort required for wide loads",
+      "Weekend/holiday restrictions on some routes",
+      "Special provisions for agricultural equipment"
+    ]
+  },
+  {
+    "corridor": "I-35",
+    "state_key": "missouri",
+    "state_name": "Missouri",
+    "state_code": "MO",
+    "bounds": {
+      "start_lat": 36.4967,
+      "start_lng": -94.6178,
+      "end_lat": 40.5853,
+      "end_lng": -93.7725
+    },
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 24000,
+      "tandem_axle": 44000,
+      "tridem_axle": 54000
+    },
+    "max_dimensions": {
+      "length_ft": 110,
+      "width_ft": 16,
+      "height_ft": 14
+    },
+    "permit_costs": {
+      "single_trip": 25,
+      "annual_permit": 400,
+      "notes": "Additional fees for heavy loads"
+    },
+    "color": "#10b981",
+    "requirements": [
+      "Travel restricted during peak hours in metro areas",
+      "Escort required over 12' wide",
+      "Notice required for superloads"
+    ]
+  },
+  {
+    "corridor": "I-35",
+    "state_key": "iowa",
+    "state_name": "Iowa",
+    "state_code": "IA",
+    "bounds": {
+      "start_lat": 40.5853,
+      "start_lng": -93.7725,
+      "end_lat": 43.0731,
+      "end_lng": -93.4958
+    },
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 22400,
+      "tandem_axle": 40000,
+      "tridem_axle": 52000
+    },
+    "max_dimensions": {
+      "length_ft": 100,
+      "width_ft": 16,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "single_trip": 15,
+      "annual_permit": 300,
+      "notes": "Seasonal weight restrictions apply"
+    },
+    "color": "#3b82f6",
+    "requirements": [
+      "Seasonal weight restrictions (spring thaw)",
+      "Escort requirements vary by size",
+      "Holiday/weekend travel restrictions"
+    ]
+  },
+  {
+    "corridor": "I-35",
+    "state_key": "minnesota",
+    "state_name": "Minnesota",
+    "state_code": "MN",
+    "bounds": {
+      "start_lat": 43.5000,
+      "start_lng": -93.2500,
+      "end_lat": 46.7867,
+      "end_lng": -92.1005
+    },
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 43000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 22000,
+      "tandem_axle": 40000,
+      "tridem_axle": 54000
+    },
+    "max_dimensions": {
+      "length_ft": 100,
+      "width_ft": 18,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "single_trip": 50,
+      "annual_permit": 500,
+      "notes": "Super-load corridor designation"
+    },
+    "color": "#8b5cf6",
+    "requirements": [
+      "I-35 listed as super-load corridor",
+      "Twin Trailer network designation",
+      "Severe winter weight restrictions",
+      "Special permits for metro area travel"
+    ]
+  }
+]

@@ -8,6 +8,8 @@ import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { isNearBorder } from '../utils/borderProximity';
 import ParkingLayer from './ParkingLayer';
 import InterchangeLayer from './InterchangeLayer';
+import BridgeClearanceLayer from './BridgeClearanceLayer';
+import OSWRegulationsLayer from './OSWRegulationsLayer';
 import BoundingBoxSelector from './BoundingBoxSelector';
 import HeatMapControl from './HeatMapControl';
 import HeatMapLayer from './HeatMapLayer';
@@ -378,6 +380,8 @@ export default function TrafficMap({
   showParking = false,
   parkingPredictionHours = 0,
   showInterchanges = false,
+  showBridgeClearances = false,
+  showCorridorRegulations = false,
   heatMapActive = false,
   heatMapMode = 'density',
   onHeatMapToggle,
@@ -652,6 +656,21 @@ export default function TrafficMap({
 
         <ParkingLayer showParking={showParking} predictionHoursAhead={parkingPredictionHours} />
         <InterchangeLayer showInterchanges={showInterchanges} />
+
+        {/* Bridge Clearance Layer */}
+        {showBridgeClearances && (
+          <BridgeClearanceLayer
+            onBridgeClick={(bridge) => {
+              // You can add custom bridge click handler if needed
+              console.log('Bridge clicked:', bridge);
+            }}
+          />
+        )}
+
+        {/* Corridor Regulations Layer */}
+        {showCorridorRegulations && (
+          <OSWRegulationsLayer corridor="I-35" />
+        )}
 
         {/* Heat Map Visualization */}
         <HeatMapLayer

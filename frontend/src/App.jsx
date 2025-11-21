@@ -53,6 +53,8 @@ function App() {
   const [parkingPredictionHours, setParkingPredictionHours] = useState(0);
   const [parkingContext, setParkingContext] = useState(null);
   const [showInterchanges, setShowInterchanges] = useState(true); // Show interchanges by default
+  const [showBridgeClearances, setShowBridgeClearances] = useState(false);
+  const [showCorridorRegulations, setShowCorridorRegulations] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Mobile starts closed
   const [desktopMessagesOpen, setDesktopMessagesOpen] = useState(false);
@@ -877,6 +879,22 @@ function App() {
             />
             🎯 Interstate Coordination Points
           </label>
+          <label className="refresh-toggle">
+            <input
+              type="checkbox"
+              checked={showBridgeClearances}
+              onChange={(e) => setShowBridgeClearances(e.target.checked)}
+            />
+            🌉 Bridge Clearances
+          </label>
+          <label className="refresh-toggle">
+            <input
+              type="checkbox"
+              checked={showCorridorRegulations}
+              onChange={(e) => setShowCorridorRegulations(e.target.checked)}
+            />
+            🛣️ I-35 OS/OW Regulations
+          </label>
           {showParking && (
             <div style={{ display: 'flex', gap: '4px', alignItems: 'center', fontSize: '13px', flexWrap: 'wrap' }}>
               <span style={{ color: '#6b7280', marginRight: '4px' }}>Predict:</span>
@@ -1103,6 +1121,8 @@ function App() {
                   showParking={showParking}
                   parkingPredictionHours={parkingPredictionHours}
                   showInterchanges={showInterchanges}
+                  showBridgeClearances={showBridgeClearances}
+                  showCorridorRegulations={showCorridorRegulations}
                   heatMapActive={heatMapActive}
                   heatMapMode={heatMapMode}
                   onHeatMapToggle={setHeatMapActive}
@@ -1172,6 +1192,15 @@ function App() {
           isDarkMode={isDarkMode}
           context={
             parkingContext ? parkingContext :
+            filters.corridor ? {
+              type: 'corridor',
+              data: {
+                corridor: filters.corridor,
+                events: filteredEvents.filter(e =>
+                  e.corridor && e.corridor.toLowerCase().includes(filters.corridor.toLowerCase())
+                )
+              }
+            } :
             view === 'report' ? {
               type: 'compliance',
               data: {
