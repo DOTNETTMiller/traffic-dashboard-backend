@@ -1295,14 +1295,6 @@ function App() {
             />
             Auto-refresh
           </label>
-          <label className="refresh-toggle">
-            <input
-              type="checkbox"
-              checked={showInterchanges}
-              onChange={(e) => setShowInterchanges(e.target.checked)}
-            />
-            🎯 Interstate Coordination Points
-          </label>
           <button onClick={refetch} className="refresh-btn" disabled={loading}>
             {loading ? 'Loading...' : 'Refresh Now'}
           </button>
