@@ -750,20 +750,21 @@ async function checkInterchangeProximity(event, stateKey) {
           const stateList = interchange.notify_states.split(',').map(s => s.trim());
           for (const targetState of stateList) {
             if (targetState !== stateKey) { // Don't notify the originating state
-              try {
-                await db.createStateMessage({
-                  fromState: stateKey,
-                  toState: targetState,
-                  subject: `⚠️ Detour Advisory: ${interchange.name}`,
-                  message: alertData.message,
-                  eventId: event.id || event.guid,
-                  priority: 'high',
-                  messageType: 'detour_advisory'
-                });
-                console.log(`   📧 Notified ${targetState} about detour alert`);
-              } catch (err) {
-                console.error(`   ❌ Failed to notify ${targetState}:`, err.message);
-              }
+              // TODO: Re-enable state messaging when db.createStateMessage is implemented
+              // try {
+              //   await db.createStateMessage({
+              //     fromState: stateKey,
+              //     toState: targetState,
+              //     subject: `⚠️ Detour Advisory: ${interchange.name}`,
+              //     message: alertData.message,
+              //     eventId: event.id || event.guid,
+              //     priority: 'high',
+              //     messageType: 'detour_advisory'
+              //   });
+              //   console.log(`   📧 Notified ${targetState} about detour alert`);
+              // } catch (err) {
+              //   console.error(`   ❌ Failed to notify ${targetState}:`, err.message);
+              // }
             }
           }
         }
