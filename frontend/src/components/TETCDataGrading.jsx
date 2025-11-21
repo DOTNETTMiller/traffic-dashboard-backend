@@ -770,7 +770,7 @@ export default function TETCDataGrading() {
             <br /><br />
             <strong>COVERAGE:</strong> % of corridor/time covered. 90%+ = 90-100, 75-89% = 80-89, 60-74% = 70-79
             <br /><br />
-            <strong>TIMELINESS:</strong> Update frequency. Real-time (< 1 min) = 90-100, < 5 min = 80-89, < 15 min = 70-79
+            <strong>TIMELINESS:</strong> Update frequency. Real-time (&lt; 1 min) = 90-100, &lt; 5 min = 80-89, &lt; 15 min = 70-79
             <br /><br />
             <strong>STANDARDS:</strong> WZDx/J2735/TMDD compliance. Full compliance = 90-100, Most fields = 80-89, Some fields = 70-79
             <br /><br />

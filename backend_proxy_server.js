@@ -6527,7 +6527,9 @@ app.get('/api/states/list', async (req, res) => {
       stateKey: s.stateKey,
       stateName: s.stateName,
       format: s.format,
-      apiType: s.apiType
+      apiType: s.apiType,
+      enabled: s.enabled,
+      apiUrl: s.apiUrl
     }))
   });
 });
@@ -6750,6 +6752,75 @@ app.post('/api/chat', async (req, res) => {
               .forEach(p => {
                 contextInfo += `- ${p.siteId} (${p.state}): ${p.predictedAvailable} spaces, ${Math.round(p.occupancyRate * 100)}% occupancy, ${p.confidence} confidence\n`;
               });
+          }
+        }
+      } else if (context.type === 'corridor' && context.data) {
+        contextInfo = `\n\nCURRENT CONTEXT: User is viewing corridor ${context.data.corridor}\n`;
+
+        // Get bridge clearances for this corridor
+        const bridges = await db.getAllBridgeClearances();
+        const corridorBridges = bridges.filter(b =>
+          b.route && b.route.toLowerCase().includes(context.data.corridor.toLowerCase())
+        );
+
+        if (corridorBridges.length > 0) {
+          contextInfo += `\nBRIDGE CLEARANCES (${corridorBridges.length} total):\n`;
+          const critical = corridorBridges.filter(b => b.clearance_feet < 13.67);
+          const warning = corridorBridges.filter(b => b.clearance_feet >= 13.67 && b.clearance_feet < 14.0);
+
+          if (critical.length > 0) {
+            contextInfo += `\nCRITICAL CLEARANCES (< 13'8"):\n`;
+            critical.forEach(b => {
+              const feet = Math.floor(b.clearance_feet);
+              const inches = Math.round((b.clearance_feet - feet) * 12);
+              contextInfo += `- ${b.bridge_name} (${b.route}): ${feet}'${inches}" clearance - ${b.direction || 'Both directions'}\n`;
+            });
+          }
+
+          if (warning.length > 0) {
+            contextInfo += `\nWARNING CLEARANCES (< 14'0"):\n`;
+            warning.forEach(b => {
+              const feet = Math.floor(b.clearance_feet);
+              const inches = Math.round((b.clearance_feet - feet) * 12);
+              contextInfo += `- ${b.bridge_name} (${b.route}): ${feet}'${inches}" clearance - ${b.direction || 'Both directions'}\n`;
+            });
+          }
+        }
+
+        // Get corridor regulations
+        const regulations = await db.getCorridorRegulations(context.data.corridor);
+        if (regulations.length > 0) {
+          contextInfo += `\n${context.data.corridor} CORRIDOR REGULATIONS (${regulations.length} states):\n`;
+          regulations.forEach(reg => {
+            contextInfo += `\n${reg.state_name} (${reg.state_code}):\n`;
+            contextInfo += `- Max Dimensions: ${reg.max_length_ft}' L × ${reg.max_width_ft}' W × ${reg.max_height_ft}' H\n`;
+            contextInfo += `- Permitted Weights: Single ${reg.permitted_single_axle/1000}k | Tandem ${reg.permitted_tandem_axle/1000}k | Tridem ${reg.permitted_tridem_axle/1000}k lbs\n`;
+
+            try {
+              const costs = JSON.parse(reg.permit_cost_data);
+              const costSummary = Object.entries(costs)
+                .filter(([k, v]) => typeof v === 'number')
+                .map(([k, v]) => `$${v}`)
+                .join(', ');
+              if (costSummary) {
+                contextInfo += `- Permit Costs: ${costSummary}\n`;
+              }
+            } catch (e) {}
+          });
+        }
+
+        // Events summary if provided
+        if (context.data.events && context.data.events.length > 0) {
+          const events = context.data.events;
+          const highSeverity = events.filter(e => e.severity === 'high' || e.severity === 'major');
+          const closures = events.filter(e => e.eventType === 'Closure');
+
+          contextInfo += `\nCURRENT TRAFFIC EVENTS (${events.length} total):\n`;
+          if (highSeverity.length > 0) {
+            contextInfo += `- High Severity: ${highSeverity.length}\n`;
+          }
+          if (closures.length > 0) {
+            contextInfo += `- Road Closures: ${closures.length}\n`;
           }
         }
       }
@@ -7366,6 +7437,144 @@ app.get('/api/bridge-warnings/active', async (req, res) => {
   const warnings = await db.getActiveBridgeWarnings();
   res.json({ success: true, warnings });
 });
+
+app.get('/api/bridges/all', async (req, res) => {
+  const bridges = await db.getAllBridgeClearances();
+  res.json({ success: true, bridges });
+});
+
+app.get('/api/corridor-regulations', async (req, res) => {
+  const { corridor } = req.query;
+  const regulations = await db.getCorridorRegulations(corridor);
+  res.json({ success: true, regulations });
+});
+
+// Corridor briefing summary endpoint
+app.get('/api/corridor-briefing/:corridor', async (req, res) => {
+  const { corridor } = req.params;
+
+  try {
+    // Get all relevant data for the corridor
+    const bridges = await db.getAllBridgeClearances();
+    const regulations = await db.getCorridorRegulations(corridor);
+
+    // Filter bridges for this corridor
+    const corridorBridges = bridges.filter(b =>
+      b.route && b.route.toLowerCase().includes(corridor.toLowerCase())
+    );
+
+    // Categorize bridges
+    const critical = corridorBridges.filter(b => b.clearance_feet < 13.67);
+    const warning = corridorBridges.filter(b => b.clearance_feet >= 13.67 && b.clearance_feet < 14.0);
+    const caution = corridorBridges.filter(b => b.clearance_feet >= 14.0 && b.clearance_feet < 14.5);
+
+    // Build briefing summary
+    const summary = {
+      corridor,
+      bridges: {
+        total: corridorBridges.length,
+        critical: critical.map(b => ({
+          name: b.bridge_name,
+          route: b.route,
+          clearance: b.clearance_feet,
+          direction: b.direction,
+          location: `${b.latitude},${b.longitude}`
+        })),
+        warning: warning.map(b => ({
+          name: b.bridge_name,
+          route: b.route,
+          clearance: b.clearance_feet,
+          direction: b.direction
+        })),
+        caution: caution.map(b => ({
+          name: b.bridge_name,
+          route: b.route,
+          clearance: b.clearance_feet,
+          direction: b.direction
+        }))
+      },
+      regulations: regulations.map(reg => ({
+        state: reg.state_name,
+        stateCode: reg.state_code,
+        maxDimensions: {
+          length: reg.max_length_ft,
+          width: reg.max_width_ft,
+          height: reg.max_height_ft
+        },
+        permittedWeights: {
+          singleAxle: reg.permitted_single_axle,
+          tandemAxle: reg.permitted_tandem_axle,
+          tridemAxle: reg.permitted_tridem_axle
+        },
+        permitCosts: JSON.parse(reg.permit_cost_data || '{}'),
+        requirements: JSON.parse(reg.requirements || '[]')
+      })),
+      driverExpectations: generateDriverExpectations(corridor, corridorBridges, regulations)
+    };
+
+    res.json({ success: true, summary });
+  } catch (error) {
+    console.error('Error generating corridor briefing:', error);
+    res.status(500).json({ error: 'Failed to generate corridor briefing' });
+  }
+});
+
+// Helper function to generate driver expectations
+function generateDriverExpectations(corridor, bridges, regulations) {
+  const expectations = [];
+
+  // Bridge clearance expectations
+  const critical = bridges.filter(b => b.clearance_feet < 13.67);
+  if (critical.length > 0) {
+    expectations.push({
+      category: 'CRITICAL ALERT',
+      severity: 'high',
+      message: `${critical.length} bridge(s) with clearances under 13'8". Oversized loads require alternate routes.`,
+      details: critical.map(b => `${b.bridge_name} at ${b.clearance_feet.toFixed(2)}'`)
+    });
+  }
+
+  // Height restrictions by state
+  if (regulations.length > 0) {
+    const mostRestrictive = regulations.reduce((min, reg) =>
+      reg.max_height_ft < min.max_height_ft ? reg : min
+    );
+
+    expectations.push({
+      category: 'Height Restrictions',
+      severity: 'medium',
+      message: `Most restrictive state: ${mostRestrictive.state_name} at ${mostRestrictive.max_height_ft}' max height`,
+      details: regulations.map(r => `${r.state_name}: ${r.max_height_ft}' H × ${r.max_width_ft}' W × ${r.max_length_ft}' L`)
+    });
+
+    // Permit cost variation
+    const permitCosts = regulations.map(r => {
+      try {
+        const costs = JSON.parse(r.permit_cost_data);
+        const total = Object.values(costs).reduce((sum, val) =>
+          typeof val === 'number' ? sum + val : sum, 0
+        );
+        return { state: r.state_name, total };
+      } catch {
+        return { state: r.state_name, total: 0 };
+      }
+    }).filter(c => c.total > 0);
+
+    if (permitCosts.length > 0) {
+      const cheapest = permitCosts.reduce((min, c) => c.total < min.total ? c : min);
+      const mostExpensive = permitCosts.reduce((max, c) => c.total > max.total ? c : max);
+
+      expectations.push({
+        category: 'Permit Costs',
+        severity: 'low',
+        message: `Varies from $${cheapest.total} (${cheapest.state}) to $${mostExpensive.total} (${mostExpensive.state})`,
+        details: permitCosts.map(c => `${c.state}: $${c.total}`)
+      });
+    }
+  }
+
+  return expectations;
+}
 
 // Test state API connection (admin only)
 app.get('/api/admin/test-state/:stateKey', requireAdmin, async (req, res) => {
@@ -8464,6 +8673,260 @@ app.get('/api/data-quality/votes', async (req, res) => {
   }
 });
 
+// ==========================================
+// TETC VENDOR DQI SCORING ENDPOINTS
+// ==========================================
+
+// Get all TETC vendor quality scores
+app.get('/api/vendors/quality-scores', async (req, res) => {
+  const Database = require('better-sqlite3');
+  const path = require('path');
+
+  try {
+    const DB_PATH = path.join(__dirname, 'traffic_data.db');
+    const trafficDb = new Database(DB_PATH, { readonly: true });
+
+    const vendors = trafficDb.prepare(`
+      SELECT
+        vendor_id,
+        vendor_name,
+        vendor_type,
+        data_categories,
+        website_url,
+        tetc_profile_url,
+        evaluation_id,
+        evaluation_name,
+        evaluation_date,
+        methodology_ref,
+        dqi,
+        letter_grade,
+        acc_score,
+        cov_score,
+        tim_score,
+        std_score,
+        gov_score,
+        last_scored
+      FROM vendor_quality_latest
+      ORDER BY dqi DESC
+    `).all();
+
+    // Parse JSON data_categories
+    const vendorsWithParsedCategories = vendors.map(v => ({
+      ...v,
+      data_categories: JSON.parse(v.data_categories || '[]')
+    }));
+
+    const summary = {
+      total_vendors: vendors.length,
+      avg_dqi: vendors.reduce((sum, v) => sum + parseFloat(v.dqi || 0), 0) / vendors.length || 0,
+      grade_distribution: {
+        A: vendors.filter(v => v.letter_grade === 'A').length,
+        B: vendors.filter(v => v.letter_grade === 'B').length,
+        C: vendors.filter(v => v.letter_grade === 'C').length,
+        D: vendors.filter(v => v.letter_grade === 'D').length,
+        F: vendors.filter(v => v.letter_grade === 'F').length
+      }
+    };
+
+    trafficDb.close();
+
+    res.json({
+      success: true,
+      vendors: vendorsWithParsedCategories,
+      summary
+    });
+  } catch (error) {
+    console.error('❌ Error fetching vendor quality scores:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get quality score for a specific vendor
+app.get('/api/vendors/:vendorId/quality-score', async (req, res) => {
+  const Database = require('better-sqlite3');
+  const path = require('path');
+  const { vendorId } = req.params;
+
+  try {
+    const DB_PATH = path.join(__dirname, 'traffic_data.db');
+    const trafficDb = new Database(DB_PATH, { readonly: true });
+
+    const vendor = trafficDb.prepare(`
+      SELECT
+        vendor_id,
+        vendor_name,
+        vendor_type,
+        data_categories,
+        website_url,
+        tetc_profile_url,
+        evaluation_id,
+        evaluation_name,
+        evaluation_date,
+        methodology_ref,
+        dqi,
+        letter_grade,
+        acc_score,
+        cov_score,
+        tim_score,
+        std_score,
+        gov_score,
+        last_scored
+      FROM vendor_quality_latest
+      WHERE vendor_id = ?
+    `).get(vendorId);
+
+    trafficDb.close();
+
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        error: 'Vendor not found'
+      });
+    }
+
+    // Parse JSON data_categories
+    vendor.data_categories = JSON.parse(vendor.data_categories || '[]');
+
+    res.json({
+      success: true,
+      vendor
+    });
+  } catch (error) {
+    console.error('❌ Error fetching vendor quality score:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get vendor capabilities (data categories they support)
+app.get('/api/vendors/:vendorId/capabilities', async (req, res) => {
+  const Database = require('better-sqlite3');
+  const path = require('path');
+  const { vendorId } = req.params;
+
+  try {
+    const DB_PATH = path.join(__dirname, 'traffic_data.db');
+    const trafficDb = new Database(DB_PATH, { readonly: true });
+
+    const capabilities = trafficDb.prepare(`
+      SELECT
+        data_category,
+        has_capability,
+        notes
+      FROM vendor_capabilities
+      WHERE vendor_id = ? AND has_capability = 1
+    `).all(vendorId);
+
+    trafficDb.close();
+
+    res.json({
+      success: true,
+      capabilities
+    });
+  } catch (error) {
+    console.error('❌ Error fetching vendor capabilities:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Submit a vote for a vendor quality score
+app.post('/api/vendors/vote', async (req, res) => {
+  const Database = require('better-sqlite3');
+  const path = require('path');
+  const { evaluationId, voteType } = req.body;
+
+  // Validation
+  if (!evaluationId || !voteType) {
+    return res.status(400).json({
+      success: false,
+      error: 'evaluationId and voteType are required'
+    });
+  }
+
+  if (voteType !== 'up' && voteType !== 'down') {
+    return res.status(400).json({
+      success: false,
+      error: 'voteType must be "up" or "down"'
+    });
+  }
+
+  try {
+    const DB_PATH = path.join(__dirname, 'traffic_data.db');
+    const trafficDb = new Database(DB_PATH);
+
+    // Insert vote
+    trafficDb.prepare(`
+      INSERT INTO vendor_score_votes (evaluation_id, vote_type)
+      VALUES (?, ?)
+    `).run(evaluationId, voteType);
+
+    trafficDb.close();
+
+    res.json({
+      success: true,
+      message: 'Vote recorded successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error recording vendor vote:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get vote counts for all vendor evaluations
+app.get('/api/vendors/votes', async (req, res) => {
+  const Database = require('better-sqlite3');
+  const path = require('path');
+
+  try {
+    const DB_PATH = path.join(__dirname, 'traffic_data.db');
+    const trafficDb = new Database(DB_PATH, { readonly: true });
+
+    const votes = trafficDb.prepare(`
+      SELECT
+        evaluation_id,
+        COUNT(CASE WHEN vote_type = 'up' THEN 1 END) as upvotes,
+        COUNT(CASE WHEN vote_type = 'down' THEN 1 END) as downvotes,
+        COUNT(*) as total_votes
+      FROM vendor_score_votes
+      GROUP BY evaluation_id
+    `).all();
+
+    trafficDb.close();
+
+    // Convert to object keyed by evaluation_id for easier lookup
+    const votesByEvaluation = {};
+    votes.forEach(row => {
+      votesByEvaluation[row.evaluation_id] = {
+        upvotes: row.upvotes,
+        downvotes: row.downvotes,
+        total: row.total_votes
+      };
+    });
+
+    res.json({
+      success: true,
+      votes: votesByEvaluation
+    });
+  } catch (error) {
+    console.error('❌ Error fetching vendor votes:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Generate AI corridor summary using OpenAI
 app.post('/api/corridor/generate-summary', async (req, res) => {
   try {
@@ -8489,6 +8952,15 @@ app.post('/api/corridor/generate-summary', async (req, res) => {
       apiKey: process.env.OPENAI_API_KEY
     });
 
+    // Get bridge clearances for this corridor
+    const bridges = await db.getAllBridgeClearances();
+    const corridorBridges = bridges.filter(b =>
+      b.route && b.route.toLowerCase().includes(corridor.toLowerCase())
+    );
+
+    // Get corridor regulations
+    const regulations = await db.getCorridorRegulations(corridor);
+
     // Prepare event summary for the prompt
     const eventSummary = events.map((event, idx) => {
       const severity = event.severity || event.severityLevel || 'medium';
@@ -8499,33 +8971,87 @@ app.post('/api/corridor/generate-summary', async (req, res) => {
       ? `\n\nActive Detours:\n${detours.map((d, idx) => `${idx + 1}. ${d.recommended_route || d.description || 'Detour active'}`).join('\n')}`
       : '';
 
+    // Prepare bridge clearance summary
+    let bridgeSummary = '';
+    if (corridorBridges.length > 0) {
+      const critical = corridorBridges.filter(b => b.clearance_feet < 13.67);
+      const warning = corridorBridges.filter(b => b.clearance_feet >= 13.67 && b.clearance_feet < 14.0);
+
+      if (critical.length > 0 || warning.length > 0) {
+        bridgeSummary = '\n\nBridge Clearances:';
+        if (critical.length > 0) {
+          bridgeSummary += `\n⚠️ CRITICAL (< 13'8"): ${critical.map(b => {
+            const feet = Math.floor(b.clearance_feet);
+            const inches = Math.round((b.clearance_feet - feet) * 12);
+            return `${b.bridge_name} (${feet}'${inches}")`;
+          }).join(', ')}`;
+        }
+        if (warning.length > 0) {
+          bridgeSummary += `\n⚠️ WARNING (< 14'0"): ${warning.map(b => {
+            const feet = Math.floor(b.clearance_feet);
+            const inches = Math.round((b.clearance_feet - feet) * 12);
+            return `${b.bridge_name} (${feet}'${inches}")`;
+          }).join(', ')}`;
+        }
+      }
+    }
+
+    // Prepare regulations summary
+    let regulationsSummary = '';
+    if (regulations.length > 0) {
+      regulationsSummary = `\n\n${corridor} Corridor Regulations (${regulations.length} states):`;
+      regulations.forEach(reg => {
+        regulationsSummary += `\n- ${reg.state_name}: ${reg.max_height_ft}' H × ${reg.max_width_ft}' W × ${reg.max_length_ft}' L`;
+      });
+
+      // Find most restrictive height
+      const mostRestrictive = regulations.reduce((min, reg) =>
+        reg.max_height_ft < min.max_height_ft ? reg : min
+      );
+      regulationsSummary += `\n(Most restrictive: ${mostRestrictive.state_name} at ${mostRestrictive.max_height_ft}' height)`;
+    }
+
     // Generate summary using OpenAI
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: 'You are a traffic operations expert providing concise corridor briefings for DOT personnel. Summarize the current situation in 2-3 sentences, highlighting key concerns and overall conditions. Be direct and professional.'
+          content: 'You are a traffic operations expert providing concise corridor briefings for commercial vehicle drivers and DOT personnel. Focus on critical safety information, bridge clearances, regulations, and current conditions. Be direct, professional, and actionable. Structure your response in clear sections.'
         },
         {
           role: 'user',
-          content: `Corridor: ${corridor}\n\nCurrent Events (${events.length} total):\n${eventSummary}${detourSummary}\n\nProvide a brief summary of what travelers should expect on this corridor.`
+          content: `Corridor: ${corridor}
+
+Current Events (${events.length} total):
+${eventSummary}${detourSummary}${bridgeSummary}${regulationsSummary}
+
+Provide a comprehensive briefing covering:
+1. Critical safety alerts (bridge clearances, closures)
+2. Current traffic conditions and severity
+3. Regulatory highlights (most restrictive states)
+4. What drivers should expect
+
+Keep it concise but actionable.`
         }
       ],
-      max_tokens: 200,
+      max_tokens: 400,
       temperature: 0.7
     });
 
     const summary = completion.choices[0]?.message?.content || 'Unable to generate summary';
 
-    console.log(`✅ Generated corridor summary for ${corridor}`);
+    console.log(`✅ Generated corridor summary for ${corridor} (${events.length} events, ${corridorBridges.length} bridges, ${regulations.length} states)`);
 
     res.json({
       success: true,
       summary: summary,
       corridor: corridor,
       event_count: events.length,
-      detour_count: detours?.length || 0
+      detour_count: detours?.length || 0,
+      bridge_count: corridorBridges.length,
+      critical_bridges: corridorBridges.filter(b => b.clearance_feet < 13.67).length,
+      states_count: regulations.length
     });
 
   } catch (error) {

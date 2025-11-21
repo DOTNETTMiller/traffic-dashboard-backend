@@ -26,6 +26,58 @@ export default function ChatWidget({ user, context, isDarkMode }) {
     }
   }, [isOpen]);
 
+  // Auto-trigger corridor briefing when corridor context changes
+  useEffect(() => {
+    if (context && context.type === 'corridor' && context.data.corridor && isOpen) {
+      // Check if we've already sent a briefing for this corridor
+      const lastMessage = messages[messages.length - 1];
+      const corridorName = context.data.corridor;
+
+      // Only trigger if the last message wasn't about this corridor
+      if (!lastMessage || !lastMessage.message.includes(corridorName)) {
+        triggerCorridorBriefing(corridorName);
+      }
+    }
+  }, [context, isOpen]);
+
+  const triggerCorridorBriefing = async (corridor) => {
+    const briefingPrompt = `Please provide a brief corridor summary for ${corridor} including bridge clearances, regulations, and what drivers should expect.`;
+
+    setIsLoading(true);
+
+    // Add auto-generated prompt to UI
+    const userMsg = {
+      role: 'user',
+      message: briefingPrompt,
+      createdAt: new Date().toISOString(),
+      isAuto: true
+    };
+    setMessages(prev => [...prev, userMsg]);
+
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await axios.post(
+        `${config.apiUrl}/api/chat`,
+        { message: briefingPrompt, context },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        const assistantMsg = {
+          role: 'assistant',
+          message: response.data.message,
+          createdAt: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, assistantMsg]);
+      }
+    } catch (err) {
+      console.error('Error getting corridor briefing:', err);
+      setMessages(prev => prev.filter(m => m !== userMsg));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const loadHistory = async () => {
     try {
       const token = localStorage.getItem('authToken');
@@ -142,7 +194,12 @@ export default function ChatWidget({ user, context, isDarkMode }) {
           }}>
             <div>
               <div style={{ fontWeight: '700', fontSize: '16px' }}>DOT Assistant</div>
-              <div style={{ fontSize: '12px', opacity: 0.9 }}>WZDx, TMDD, SAE J2735 Expert</div>
+              <div style={{ fontSize: '12px', opacity: 0.9 }}>
+                {context && context.type === 'corridor'
+                  ? `📍 ${context.data.corridor} Corridor Expert`
+                  : 'WZDx, TMDD, SAE J2735 Expert'
+                }
+              </div>
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
@@ -201,8 +258,11 @@ export default function ChatWidget({ user, context, isDarkMode }) {
                 <div style={{ fontWeight: '600', marginBottom: '4px' }}>
                   Hi! I'm your DOT Assistant
                 </div>
-                <div style={{ fontSize: '13px' }}>
+                <div style={{ fontSize: '13px', marginBottom: '8px' }}>
                   Ask me about compliance scores, standards, or feed issues
+                </div>
+                <div style={{ fontSize: '12px', color: '#9ca3af', fontStyle: 'italic' }}>
+                  💡 Tip: Select a corridor filter (like I-35) to get an auto-generated briefing!
                 </div>
               </div>
             )}
@@ -212,9 +272,22 @@ export default function ChatWidget({ user, context, isDarkMode }) {
                 key={idx}
                 style={{
                   display: 'flex',
-                  justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start'
+                  flexDirection: 'column',
+                  alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                  gap: '4px'
                 }}
               >
+                {msg.isAuto && (
+                  <div style={{
+                    fontSize: '11px',
+                    color: '#9ca3af',
+                    fontStyle: 'italic',
+                    paddingLeft: msg.role === 'user' ? '0' : '4px',
+                    paddingRight: msg.role === 'user' ? '4px' : '0'
+                  }}>
+                    🤖 Auto-generated corridor briefing
+                  </div>
+                )}
                 <div style={{
                   maxWidth: '80%',
                   padding: '10px 14px',
