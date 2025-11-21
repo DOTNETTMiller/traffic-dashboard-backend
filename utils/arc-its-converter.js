@@ -92,14 +92,14 @@ class ARCITSConverter {
     const arcItsId = this.generateARCITSId(equipment);
     const category = this.getARCITSCategory(equipment.equipmentType);
     const functions = this.getARCITSFunctions(equipment);
-    const interface = this.getARCITSInterface(equipment.equipmentType);
+    const interfaceType = this.getARCITSInterface(equipment.equipmentType);
 
     return {
       ...equipment,
       arcItsId,
       arcItsCategory: category,
       arcItsFunction: functions.join(', '),
-      arcItsInterface: interface,
+      arcItsInterface: interfaceType,
       // Add V2X specific fields for RSUs
       ...(equipment.equipmentType === 'rsu' ? this.enhanceRSUData(equipment) : {}),
       // Add standardized metadata
