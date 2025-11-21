@@ -9063,6 +9063,357 @@ Keep it concise but actionable.`
   }
 });
 
+// ========================================
+// ITS EQUIPMENT INVENTORY & V2X DEPLOYMENT
+// ========================================
+
+const multer = require('multer');
+const GISParser = require('./utils/gis-parser');
+const ARCITSConverter = require('./utils/arc-its-converter');
+
+// Configure multer for file uploads
+const upload = multer({
+  dest: path.join(__dirname, 'uploads/gis'),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedExtensions = ['.shp', '.zip', '.kml', '.kmz', '.geojson', '.json', '.csv'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedExtensions.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Unsupported file type: ${ext}. Supported: ${allowedExtensions.join(', ')}`));
+    }
+  }
+});
+
+// Upload GIS file with ITS equipment inventory
+app.post('/api/its-equipment/upload', upload.single('gisFile'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No file uploaded' });
+    }
+
+    const { stateKey, uploadedBy } = req.body;
+    if (!stateKey) {
+      return res.status(400).json({ success: false, error: 'stateKey required' });
+    }
+
+    console.log(`📤 Processing GIS upload: ${req.file.originalname} (${req.file.size} bytes)`);
+
+    // Parse GIS file
+    const parser = new GISParser();
+    const parseResult = await parser.parseFile(req.file.path, stateKey);
+
+    if (!parseResult.success) {
+      return res.status(400).json({
+        success: false,
+        error: 'Failed to parse GIS file',
+        errors: parseResult.errors
+      });
+    }
+
+    // Convert to ARC-ITS compliant format
+    const converter = new ARCITSConverter();
+    const arcItsEquipment = converter.convertBatch(parseResult.records);
+
+    // Save to database
+    const insertStmt = db.db.prepare(`
+      INSERT INTO its_equipment (
+        id, state_key, equipment_type, equipment_subtype,
+        latitude, longitude, elevation, location_description, route, milepost,
+        manufacturer, model, serial_number, installation_date, status,
+        arc_its_id, arc_its_category, arc_its_function, arc_its_interface,
+        rsu_id, rsu_mode, communication_range, supported_protocols,
+        dms_type, display_technology, message_capacity,
+        camera_type, resolution, field_of_view, stream_url,
+        sensor_type, measurement_types,
+        data_source, uploaded_by, notes
+      ) VALUES (
+        ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?,
+        ?, ?, ?, ?,
+        ?, ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?, ?,
+        ?, ?,
+        ?, ?, ?
+      )
+    `);
+
+    let imported = 0;
+    let failed = 0;
+
+    for (const equipment of arcItsEquipment) {
+      try {
+        insertStmt.run(
+          equipment.id,
+          equipment.stateKey,
+          equipment.equipmentType,
+          equipment.equipmentSubtype,
+          equipment.latitude,
+          equipment.longitude,
+          equipment.elevation,
+          equipment.locationDescription,
+          equipment.route,
+          equipment.milepost,
+          equipment.manufacturer,
+          equipment.model,
+          equipment.serialNumber,
+          equipment.installationDate,
+          equipment.status,
+          equipment.arcItsId,
+          equipment.arcItsCategory,
+          equipment.arcItsFunction,
+          equipment.arcItsInterface,
+          equipment.rsuId,
+          equipment.rsuMode,
+          equipment.communicationRange,
+          equipment.supportedProtocols,
+          equipment.dmsType,
+          equipment.displayTechnology,
+          equipment.messageCapacity,
+          equipment.cameraType,
+          equipment.resolution,
+          equipment.fieldOfView,
+          equipment.streamUrl,
+          equipment.sensorType,
+          equipment.measurementTypes,
+          req.file.originalname,
+          uploadedBy || 'system',
+          null
+        );
+        imported++;
+      } catch (err) {
+        console.error(`Error importing equipment ${equipment.id}:`, err.message);
+        failed++;
+      }
+    }
+
+    // Log upload history
+    const historyId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    db.db.prepare(`
+      INSERT INTO gis_upload_history (
+        id, state_key, file_name, file_type, file_size,
+        records_total, records_imported, records_failed,
+        uploaded_by, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      historyId,
+      stateKey,
+      req.file.originalname,
+      parseResult.fileType,
+      req.file.size,
+      parseResult.records.length,
+      imported,
+      failed,
+      uploadedBy || 'system',
+      'completed'
+    );
+
+    // Clean up uploaded file
+    fs.unlinkSync(req.file.path);
+
+    console.log(`✅ Imported ${imported} equipment records (${failed} failed)`);
+
+    res.json({
+      success: true,
+      imported,
+      failed,
+      total: parseResult.records.length,
+      historyId
+    });
+
+  } catch (error) {
+    console.error('❌ GIS upload error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get ITS equipment inventory
+app.get('/api/its-equipment', async (req, res) => {
+  try {
+    const { stateKey, equipmentType, status } = req.query;
+
+    let query = 'SELECT * FROM its_equipment WHERE 1=1';
+    const params = [];
+
+    if (stateKey) {
+      query += ' AND state_key = ?';
+      params.push(stateKey);
+    }
+
+    if (equipmentType) {
+      query += ' AND equipment_type = ?';
+      params.push(equipmentType);
+    }
+
+    if (status) {
+      query += ' AND status = ?';
+      params.push(status);
+    }
+
+    query += ' ORDER BY state_key, equipment_type';
+
+    const equipment = db.db.prepare(query).all(...params);
+
+    res.json({
+      success: true,
+      equipment,
+      total: equipment.length
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching equipment:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Export ARC-ITS compliant inventory
+app.get('/api/its-equipment/export', async (req, res) => {
+  try {
+    const { stateKey, format = 'json' } = req.query;
+
+    let query = 'SELECT * FROM its_equipment WHERE arc_its_id IS NOT NULL';
+    const params = [];
+
+    if (stateKey) {
+      query += ' AND state_key = ?';
+      params.push(stateKey);
+    }
+
+    const equipment = db.db.prepare(query).all(...params);
+
+    const converter = new ARCITSConverter();
+
+    if (format === 'xml') {
+      const xml = converter.generateARCITSXML(equipment);
+      res.set('Content-Type', 'application/xml');
+      res.set('Content-Disposition', `attachment; filename="arc-its-inventory-${stateKey || 'all'}.xml"`);
+      res.send(xml);
+    } else {
+      const json = converter.generateARCITSJSON(equipment);
+      res.set('Content-Type', 'application/json');
+      res.set('Content-Disposition', `attachment; filename="arc-its-inventory-${stateKey || 'all'}.json"`);
+      res.json(json);
+    }
+
+  } catch (error) {
+    console.error('❌ Export error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// V2X Deployment Analysis
+app.get('/api/its-equipment/v2x-analysis', async (req, res) => {
+  try {
+    const { stateKey } = req.query;
+
+    // Get RSU deployment
+    let rsuQuery = 'SELECT * FROM v_v2x_rsu_deployment WHERE 1=1';
+    const params = [];
+
+    if (stateKey) {
+      rsuQuery += ' AND state_key = ?';
+      params.push(stateKey);
+    }
+
+    const rsus = db.db.prepare(rsuQuery).all(...params);
+
+    // Calculate coverage statistics
+    const totalRSUs = rsus.length;
+    const activeRSUs = rsus.filter(r => r.status === 'active').length;
+    const averageRange = rsus.reduce((sum, r) => sum + (r.communication_range || 300), 0) / totalRSUs || 0;
+
+    // Get deployment gaps (simplified - would need more complex analysis in production)
+    const gaps = db.db.prepare(`
+      SELECT * FROM v2x_deployment_gaps
+      WHERE state_key = ?
+      ORDER BY priority
+    `).all(stateKey || '%');
+
+    // Calculate protocol support
+    const protocolStats = {};
+    rsus.forEach(rsu => {
+      try {
+        const protocols = JSON.parse(rsu.supported_protocols || '[]');
+        protocols.forEach(protocol => {
+          protocolStats[protocol] = (protocolStats[protocol] || 0) + 1;
+        });
+      } catch (e) {}
+    });
+
+    res.json({
+      success: true,
+      analysis: {
+        deployment: {
+          totalRSUs,
+          activeRSUs,
+          inactiveRSUs: totalRSUs - activeRSUs,
+          averageRange: Math.round(averageRange),
+          protocolSupport: protocolStats
+        },
+        coverage: {
+          estimated: `${(totalRSUs * averageRange * Math.PI / 1000000).toFixed(2)} km²`,
+          gaps: gaps.length,
+          criticalGaps: gaps.filter(g => g.priority === 'critical').length
+        },
+        recommendations: this.generateV2XRecommendations(rsus, gaps)
+      },
+      rsus,
+      gaps
+    });
+
+  } catch (error) {
+    console.error('❌ V2X analysis error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Helper: Generate V2X recommendations
+function generateV2XRecommendations(rsus, gaps) {
+  const recommendations = [];
+
+  if (rsus.length === 0) {
+    recommendations.push({
+      priority: 'high',
+      category: 'deployment',
+      message: 'No RSUs deployed. Consider initial V2X infrastructure deployment.'
+    });
+  }
+
+  const inactiveCount = rsus.filter(r => r.status !== 'active').length;
+  if (inactiveCount > 0) {
+    recommendations.push({
+      priority: 'medium',
+      category: 'maintenance',
+      message: `${inactiveCount} RSUs are inactive. Schedule maintenance or replacement.`
+    });
+  }
+
+  const criticalGaps = gaps.filter(g => g.priority === 'critical');
+  if (criticalGaps.length > 0) {
+    recommendations.push({
+      priority: 'critical',
+      category: 'coverage',
+      message: `${criticalGaps.length} critical coverage gaps identified. Priority deployment recommended.`
+    });
+  }
+
+  return recommendations;
+}
+
+// Equipment summary by state
+app.get('/api/its-equipment/summary', async (req, res) => {
+  try {
+    const summary = db.db.prepare('SELECT * FROM v_equipment_summary_by_state').all();
+    res.json({ success: true, summary });
+  } catch (error) {
+    console.error('❌ Summary error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Run Users table migration for PostgreSQL
 app.post('/api/admin/migrate-users', async (req, res) => {
   try {

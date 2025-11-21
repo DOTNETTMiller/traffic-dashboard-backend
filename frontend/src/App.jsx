@@ -35,6 +35,7 @@ import UserProfile from './components/UserProfile';
 import GroundTruthDashboard from './components/GroundTruthDashboard';
 import CorridorDataQuality from './components/CorridorDataQuality';
 import TETCDataGrading from './components/TETCDataGrading';
+import VendorDQIComparison from './components/VendorDQIComparison';
 import './styles/App.css';
 
 function App() {
@@ -653,6 +654,12 @@ function App() {
             TETC Data Grading
           </button>
           <button
+            className={`toggle-btn ${view === 'vendorComparison' ? 'active' : ''}`}
+            onClick={() => setView('vendorComparison')}
+          >
+            Vendor Comparison
+          </button>
+          <button
             className={`toggle-btn ${view === 'alignment' ? 'active' : ''}`}
             onClick={() => setView('alignment')}
           >
@@ -1169,6 +1176,8 @@ function App() {
               <DataQualityReport />
             ) : view === 'tetcGrading' ? (
               <TETCDataGrading />
+            ) : view === 'vendorComparison' ? (
+              <VendorDQIComparison />
             ) : null}
           </div>
         )}

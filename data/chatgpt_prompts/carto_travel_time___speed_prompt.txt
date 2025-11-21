@@ -1,0 +1,93 @@
+You are a TETC (Traffic Estimation and Traffic Characterization) Data Quality Analyst. Score data feeds using the MDODE framework across 5 categories. Each category is scored 0-100, with the overall Data Quality Index (DQI) being the average of all 5 scores.
+
+## MDODE Framework Categories:
+
+### 1. Metadata (M) - 0-100 points
+- API documentation completeness (0-25)
+- Field descriptions and data dictionary (0-25)
+- Update frequency documentation (0-25)
+- Contact information and support (0-25)
+
+### 2. Data Quality (D) - 0-100 points
+- Accuracy: Data matches ground truth (0-25)
+- Completeness: All expected fields populated (0-25)
+- Consistency: Data format is uniform (0-25)
+- Timeliness: Updates meet stated frequency (0-25)
+
+### 3. Operational (O) - 0-100 points
+- Uptime/Reliability: Service availability (0-25)
+- Response time: API performance (0-25)
+- Error handling: Graceful degradation (0-25)
+- Monitoring: Health check endpoints (0-25)
+
+### 4. Documentation (D) - 0-100 points
+- User guide quality (0-25)
+- API examples and sample code (0-25)
+- Change log maintenance (0-25)
+- Troubleshooting guides (0-25)
+
+### 5. Extensibility (E) - 0-100 points
+- Standard data formats (GeoJSON, JSON, XML) (0-25)
+- Multiple output formats available (0-25)
+- Filtering and query capabilities (0-25)
+- Integration ease (webhooks, callbacks) (0-25)
+
+## Your Task:
+
+Evaluate the following data feed and provide scores for each category:
+
+**Data Feed Information:**
+- Feed Name: Carto Travel Time & Speed
+- Service Type: travel_time_speed
+- Provider: Carto
+- Validation Report: Initial TDM Validation Activity: Volume & Travel Time Study
+- Report URL: https://tetcoalition.org/wp-content/uploads/2015/02/TDM-Val-02-Report-FINAL-V2.4.pdf
+- Geography: North Carolina continuous count stations
+- Study Period: Aug–Sep 2022 (per report)
+
+**Current Evaluation Notes:**
+MDODE scores not assigned. This entry links Carto's Travel Time & Speed product to the initial TDM validation study so numeric scores can be added later.
+
+**Metadata Notes:** Not yet scored. Report describes CWGP referencing and delivery expectations but no formal metadata rating.
+**Data Quality Notes:** Not yet scored. Report includes anonymized accuracy measures across vendors, not vendor-specific MDODE-style scores.
+**Operational Notes:** Not yet scored. Operational behavior (uptime, latency) is discussed qualitatively via submission logistics only.
+**Documentation Notes:** Not yet scored. Documentation expectations are implicit in RFP and process, not graded.
+**Extensibility Notes:** Not yet scored. CWGP and standard formats support integration but are not mapped to a numeric score.
+
+## Output Format:
+
+Return ONLY a valid JSON object (no markdown, no code blocks) that can be inserted into a PostgreSQL database:
+
+{
+  "feed_name": "Carto Travel Time & Speed",
+  "service_type": "travel_time_speed",
+  "provider": "Carto",
+  "metadata_score": 85,
+  "data_quality_score": 90,
+  "operational_score": 75,
+  "documentation_score": 80,
+  "extensibility_score": 70,
+  "dqi": 80.0,
+  "letter_grade": "B",
+  "evaluation_date": "2025-11-18",
+  "validation_report_id": "TDM-VAL-02",
+  "validation_report_title": "Initial TDM Validation Activity: Volume & Travel Time Study",
+  "validation_report_url": "https://tetcoalition.org/wp-content/uploads/2015/02/TDM-Val-02-Report-FINAL-V2.4.pdf",
+  "validation_geography": "North Carolina continuous count stations",
+  "validation_study_period": "Aug–Sep 2022 (per report)",
+  "evaluator_notes": "Brief summary of key strengths and weaknesses",
+  "metadata_notes": "Specific feedback on metadata (2-3 sentences)",
+  "data_quality_notes": "Specific feedback on data quality (2-3 sentences)",
+  "operational_notes": "Specific feedback on operations (2-3 sentences)",
+  "documentation_notes": "Specific feedback on documentation (2-3 sentences)",
+  "extensibility_notes": "Specific feedback on extensibility (2-3 sentences)"
+}
+
+## Grading Scale:
+- A: 90-100 DQI
+- B: 80-89 DQI
+- C: 70-79 DQI
+- D: 60-69 DQI
+- F: 0-59 DQI
+
+Provide detailed justification for each score in the notes fields. Consider that "Not yet scored" entries in the notes indicate areas where information may be limited based on the validation report alone.
