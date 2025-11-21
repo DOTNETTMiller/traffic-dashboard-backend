@@ -232,7 +232,7 @@ setTimeout(() => migrateUsersToEmailUsernames(), 1000);
 
 // Enable CORS for your frontend
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Increased for AI corridor summaries with large event datasets
 
 // Ensure Express trusts upstream proxies (Railway, etc.) for HTTPS detection
 app.set('trust proxy', 1);
