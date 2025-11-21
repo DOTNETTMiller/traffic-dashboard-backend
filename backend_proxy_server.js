@@ -9157,26 +9157,22 @@ app.post('/api/corridor/generate-summary', async (req, res) => {
       messages: [
         {
           role: 'system',
-          content: 'You are a traffic operations expert providing concise corridor briefings for commercial vehicle drivers and DOT personnel. Focus on critical safety information, bridge clearances, regulations, and current conditions. Be direct, professional, and actionable. Structure your response in clear sections.'
+          content: 'You are a traffic operations expert providing real-time corridor conditions reports. Write 4-5 clear, specific sentences describing what is actually happening on the corridor right now - mention specific locations, mileposts, exits, event types, and expected impacts. Be conversational but professional. Do NOT give generic safety advice - focus on the actual events and conditions from the data provided.'
         },
         {
           role: 'user',
-          content: `Corridor: ${corridor}
+          content: `Write a 4-5 sentence travel briefing for ${corridor} describing current conditions. Be SPECIFIC about locations and what's happening:
 
 Current Events (${events.length} total):
 ${eventSummary}${detourSummary}${bridgeSummary}${regulationsSummary}
 
-Provide a comprehensive briefing covering:
-1. Critical safety alerts (bridge clearances, closures)
-2. Current traffic conditions and severity
-3. Regulatory highlights (most restrictive states)
-4. What drivers should expect
+Example good briefing: "On I-64 eastbound near mile marker 45, construction crews are working with lane restrictions causing 15-minute delays through the area. A crash at Exit 78 has closed the right lane, with emergency crews on scene. The westbound direction is clear except for a disabled vehicle near Exit 92. Bridge clearances are critical at the Big Sandy River Bridge (13'2") - oversized loads should use the alternate route via US-60."
 
-Keep it concise but actionable.`
+Write a similar specific briefing for ${corridor} based on the actual events listed above. Include locations, event types, and impacts.`
         }
       ],
-      max_tokens: 400,
-      temperature: 0.7
+      max_tokens: 250,
+      temperature: 0.6
     });
 
     const summary = completion.choices[0]?.message?.content || 'Unable to generate summary';
