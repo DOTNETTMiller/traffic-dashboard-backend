@@ -9419,7 +9419,6 @@ app.get('/api/its-equipment/summary', async (req, res) => {
 // ========================================
 
 const WFSClient = require('./utils/wfs-client');
-const crypto = require('crypto');
 
 // Test WFS connection
 app.post('/api/wfs/test', async (req, res) => {
