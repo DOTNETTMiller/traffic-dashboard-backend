@@ -1025,7 +1025,6 @@ function App() {
               className={`toggle-btn ${view === 'groundTruth' || showParking || showBridgeClearances || showCorridorRegulations ? 'active' : ''}`}
               onClick={() => setCommercialFreightDropdownOpen(!commercialFreightDropdownOpen)}
               style={{
-                backgroundColor: view === 'groundTruth' ? '#10b981' : '#6c757d',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px'
@@ -1184,7 +1183,6 @@ function App() {
                 className={`toggle-btn ${['admin', 'adminUsers', 'adminFeeds'].includes(view) ? 'active' : ''}`}
                 onClick={() => setAdminDropdownOpen(!adminDropdownOpen)}
                 style={{
-                  backgroundColor: ['admin', 'adminUsers', 'adminFeeds'].includes(view) ? '#dc3545' : '#6c757d',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px'

@@ -10378,6 +10378,149 @@ app.post('/api/grants/applications/:id/supporting-data', async (req, res) => {
 });
 
 /**
+ * Attach ITS Equipment Inventory to grant application
+ */
+app.post('/api/grants/applications/:id/attach-its-equipment', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get application details
+    const application = db.prepare(`
+      SELECT * FROM grant_applications WHERE id = ?
+    `).get(id);
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        error: 'Application not found'
+      });
+    }
+
+    console.log(`📦 Attaching ITS equipment inventory to grant application: ${id}`);
+
+    // Get ITS equipment for the state
+    const equipment = db.prepare(`
+      SELECT * FROM its_equipment
+      WHERE state_key = ?
+        AND status = 'operational'
+      ORDER BY equipment_type, location_description
+    `).all(application.state_key);
+
+    // Generate summary stats
+    const summary = {
+      total_equipment: equipment.length,
+      by_type: {
+        camera: equipment.filter(e => e.equipment_type === 'camera').length,
+        dms: equipment.filter(e => e.equipment_type === 'dms').length,
+        rsu: equipment.filter(e => e.equipment_type === 'rsu').length,
+        sensor: equipment.filter(e => e.equipment_type === 'sensor').length
+      },
+      arc_its_compliant: equipment.filter(e => e.arc_its_id).length,
+      v2x_enabled: equipment.filter(e => e.equipment_type === 'rsu').length,
+      total_value_estimate: equipment.length * 50000 // Rough estimate for grant justification
+    };
+
+    // Attach as supporting data
+    const dataId = `data-its-${id}-${Date.now()}`;
+
+    db.prepare(`
+      INSERT INTO grant_supporting_data (
+        id, application_id,
+        data_type, data_source,
+        date_range_start, date_range_end,
+        record_count,
+        summary_stats
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      dataId,
+      id,
+      'ITS Equipment Inventory',
+      'ARC-ITS Compliant Inventory',
+      null,
+      null,
+      equipment.length,
+      JSON.stringify(summary)
+    );
+
+    console.log(`✅ Attached ${equipment.length} ITS equipment records to application: ${id}`);
+
+    res.json({
+      success: true,
+      dataId,
+      message: 'ITS equipment inventory attached successfully',
+      summary
+    });
+
+  } catch (error) {
+    console.error('❌ Attach ITS equipment error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Get ITS equipment summary for grant application
+ */
+app.get('/api/grants/applications/:id/its-equipment', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get application details
+    const application = db.prepare(`
+      SELECT * FROM grant_applications WHERE id = ?
+    `).get(id);
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        error: 'Application not found'
+      });
+    }
+
+    // Get ITS equipment for the state
+    const equipment = db.prepare(`
+      SELECT *,
+        CASE
+          WHEN equipment_type = 'camera' THEN '📹'
+          WHEN equipment_type = 'dms' THEN '🚏'
+          WHEN equipment_type = 'rsu' THEN '📡'
+          WHEN equipment_type = 'sensor' THEN '🌡️'
+          ELSE '🔧'
+        END as icon
+      FROM its_equipment
+      WHERE state_key = ?
+        AND status = 'operational'
+      ORDER BY equipment_type, location_description
+    `).all(application.state_key);
+
+    // Generate statistics
+    const stats = {
+      total: equipment.length,
+      by_type: {
+        camera: equipment.filter(e => e.equipment_type === 'camera').length,
+        dms: equipment.filter(e => e.equipment_type === 'dms').length,
+        rsu: equipment.filter(e => e.equipment_type === 'rsu').length,
+        sensor: equipment.filter(e => e.equipment_type === 'sensor').length
+      },
+      arc_its_compliant: equipment.filter(e => e.arc_its_id).length,
+      v2x_enabled: equipment.filter(e => e.equipment_type === 'rsu').length,
+      compliance_rate: equipment.length > 0
+        ? ((equipment.filter(e => e.arc_its_id).length / equipment.length) * 100).toFixed(1)
+        : 0
+    };
+
+    res.json({
+      success: true,
+      equipment,
+      stats
+    });
+
+  } catch (error) {
+    console.error('❌ Get ITS equipment error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * Get available grant templates
  */
 app.get('/api/grants/templates', async (req, res) => {
