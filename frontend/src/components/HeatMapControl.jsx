@@ -28,9 +28,9 @@ export default function HeatMapControl({ onToggle, onModeChange, isActive, mode 
   return (
     <div style={{
       position: 'absolute',
-      top: '80px',
-      right: '16px',
-      zIndex: 500
+      bottom: '90px',
+      left: '24px',
+      zIndex: 1000
     }}>
       {/* Toggle Button */}
       <button
@@ -45,7 +45,7 @@ export default function HeatMapControl({ onToggle, onModeChange, isActive, mode 
         style={{
           width: '48px',
           height: '48px',
-          borderRadius: '12px',
+          borderRadius: '50%',
           border: `2px solid ${isActive ? theme.colors.accentBlue : theme.colors.border}`,
           background: isActive
             ? `${theme.colors.accentBlue}20`
@@ -61,7 +61,7 @@ export default function HeatMapControl({ onToggle, onModeChange, isActive, mode 
           marginBottom: theme.spacing.sm
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'scale(1.05)';
+          e.currentTarget.style.transform = 'scale(1.1)';
           e.currentTarget.style.boxShadow = theme.shadows.xl;
         }}
         onMouseLeave={(e) => {
@@ -70,12 +70,15 @@ export default function HeatMapControl({ onToggle, onModeChange, isActive, mode 
         }}
         title="Heat Map Visualization"
       >
-        🗺️
+        🔥
       </button>
 
       {/* Expanded Panel */}
       {isExpanded && (
         <div style={{
+          position: 'absolute',
+          bottom: '60px',
+          left: '0',
           background: theme.colors.glassDark,
           backdropFilter: 'blur(20px)',
           border: `1px solid ${theme.colors.border}`,
@@ -83,7 +86,7 @@ export default function HeatMapControl({ onToggle, onModeChange, isActive, mode 
           boxShadow: theme.shadows.xl,
           padding: theme.spacing.md,
           minWidth: '280px',
-          animation: 'slideIn 0.2s ease-out'
+          animation: 'slideUp 0.2s ease-out'
         }}>
           {/* Header */}
           <div style={{
@@ -276,14 +279,14 @@ export default function HeatMapControl({ onToggle, onModeChange, isActive, mode 
       )}
 
       <style>{`
-        @keyframes slideIn {
+        @keyframes slideUp {
           from {
             opacity: 0;
-            transform: translateX(20px);
+            transform: translateY(20px);
           }
           to {
             opacity: 1;
-            transform: translateX(0);
+            transform: translateY(0);
           }
         }
       `}</style>
