@@ -8016,6 +8016,12 @@ const evaluateDetourAlerts = async () => {
     const now = Date.now();
 
     interchanges.forEach(interchange => {
+      // Skip interchanges without an ID
+      if (!interchange.id) {
+        console.warn(`⚠️  Skipping interchange without ID: ${interchange.name}`);
+        return;
+      }
+
       const radius = interchange.watchRadiusKm || 15;
 
       const candidates = allEvents.filter(event => {
