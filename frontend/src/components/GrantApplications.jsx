@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import React from 'react';
 import api from '../services/api';
 
 export default function GrantApplications({ user }) {
@@ -838,6 +839,47 @@ function CreateApplicationForm({ theme, styles, templates, selectedTemplate, han
 // Application Details Component
 function ApplicationDetails({ theme, styles, selectedApp, getStatusConfig, handleGenerateMetrics, proposalFile, setProposalFile, handleProposalUpload, uploadingProposal, darkMode }) {
   const statusConfig = getStatusConfig(selectedApp.application.status);
+  const [itsEquipment, setItsEquipment] = React.useState(null);
+  const [itsStats, setItsStats] = React.useState(null);
+  const [loadingITS, setLoadingITS] = React.useState(false);
+  const [attachingITS, setAttachingITS] = React.useState(false);
+
+  // Fetch ITS equipment on mount
+  React.useEffect(() => {
+    fetchITSEquipment();
+  }, [selectedApp.application.id]);
+
+  const fetchITSEquipment = async () => {
+    try {
+      setLoadingITS(true);
+      const response = await api.get(`/api/grants/applications/${selectedApp.application.id}/its-equipment`);
+      if (response.data.success) {
+        setItsEquipment(response.data.equipment);
+        setItsStats(response.data.stats);
+      }
+    } catch (error) {
+      console.error('Error fetching ITS equipment:', error);
+    } finally {
+      setLoadingITS(false);
+    }
+  };
+
+  const handleAttachITSEquipment = async () => {
+    try {
+      setAttachingITS(true);
+      const response = await api.post(`/api/grants/applications/${selectedApp.application.id}/attach-its-equipment`);
+      if (response.data.success) {
+        alert(`✅ Successfully attached ${response.data.summary.total_equipment} ITS equipment records!`);
+        // Refresh the application details to show the new supporting data
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Error attaching ITS equipment:', error);
+      alert('Failed to attach ITS equipment');
+    } finally {
+      setAttachingITS(false);
+    }
+  };
 
   return (
     <div style={{ display: 'grid', gap: '20px', animation: 'fadeIn 0.5s ease' }}>
@@ -1042,6 +1084,207 @@ function ApplicationDetails({ theme, styles, selectedApp, getStatusConfig, handl
             color: theme.textSecondary,
           }}>
             <strong>Data Sources:</strong> {selectedApp.metrics.calculation_notes}
+          </div>
+        )}
+      </div>
+
+      {/* ITS Equipment Inventory */}
+      <div style={styles.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: theme.text }}>
+            🚦 ARC-ITS Equipment Inventory
+          </h3>
+          <button
+            onClick={handleAttachITSEquipment}
+            disabled={attachingITS || !itsStats || itsStats.total === 0}
+            style={{
+              padding: '10px 18px',
+              background: theme.primary,
+              color: 'white',
+              border: 'none',
+              borderRadius: '10px',
+              fontSize: '13px',
+              fontWeight: '600',
+              cursor: attachingITS || !itsStats || itsStats.total === 0 ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s ease',
+              opacity: attachingITS || !itsStats || itsStats.total === 0 ? 0.5 : 1,
+            }}
+            onMouseOver={(e) => {
+              if (!attachingITS && itsStats && itsStats.total > 0) {
+                e.currentTarget.style.transform = 'scale(1.05)';
+              }
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+          >
+            {attachingITS ? '⏳ Attaching...' : '📎 Attach to Grant'}
+          </button>
+        </div>
+
+        {loadingITS ? (
+          <div style={{
+            padding: '40px',
+            textAlign: 'center',
+            color: theme.textSecondary,
+            fontSize: '14px',
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '12px', animation: 'pulse 2s ease-in-out infinite' }}>🚦</div>
+            <div>Loading ITS equipment inventory...</div>
+          </div>
+        ) : itsStats && itsStats.total > 0 ? (
+          <>
+            {/* Statistics Overview */}
+            <div className="metrics-grid" style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+              gap: '16px',
+              marginBottom: '20px',
+            }}>
+              <div style={{
+                padding: '16px',
+                background: theme.bgTertiary,
+                borderRadius: '12px',
+                textAlign: 'center',
+              }}>
+                <div style={{ fontSize: '24px', marginBottom: '8px' }}>🔧</div>
+                <div style={{ fontSize: '24px', fontWeight: '800', color: theme.primary, marginBottom: '4px' }}>
+                  {itsStats.total}
+                </div>
+                <div style={{ fontSize: '11px', color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Total Equipment
+                </div>
+              </div>
+
+              <div style={{
+                padding: '16px',
+                background: theme.bgTertiary,
+                borderRadius: '12px',
+                textAlign: 'center',
+              }}>
+                <div style={{ fontSize: '24px', marginBottom: '8px' }}>📹</div>
+                <div style={{ fontSize: '24px', fontWeight: '800', color: theme.text, marginBottom: '4px' }}>
+                  {itsStats.by_type.camera}
+                </div>
+                <div style={{ fontSize: '11px', color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Cameras
+                </div>
+              </div>
+
+              <div style={{
+                padding: '16px',
+                background: theme.bgTertiary,
+                borderRadius: '12px',
+                textAlign: 'center',
+              }}>
+                <div style={{ fontSize: '24px', marginBottom: '8px' }}>🚏</div>
+                <div style={{ fontSize: '24px', fontWeight: '800', color: theme.text, marginBottom: '4px' }}>
+                  {itsStats.by_type.dms}
+                </div>
+                <div style={{ fontSize: '11px', color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  DMS Signs
+                </div>
+              </div>
+
+              <div style={{
+                padding: '16px',
+                background: theme.bgTertiary,
+                borderRadius: '12px',
+                textAlign: 'center',
+              }}>
+                <div style={{ fontSize: '24px', marginBottom: '8px' }}>📡</div>
+                <div style={{ fontSize: '24px', fontWeight: '800', color: theme.text, marginBottom: '4px' }}>
+                  {itsStats.by_type.rsu}
+                </div>
+                <div style={{ fontSize: '11px', color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  V2X RSU
+                </div>
+              </div>
+
+              <div style={{
+                padding: '16px',
+                background: theme.bgTertiary,
+                borderRadius: '12px',
+                textAlign: 'center',
+              }}>
+                <div style={{ fontSize: '24px', marginBottom: '8px' }}>✓</div>
+                <div style={{ fontSize: '24px', fontWeight: '800', color: theme.success, marginBottom: '4px' }}>
+                  {itsStats.compliance_rate}%
+                </div>
+                <div style={{ fontSize: '11px', color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  ARC-ITS Compliant
+                </div>
+              </div>
+            </div>
+
+            {/* Equipment List (first 5 items) */}
+            {itsEquipment && itsEquipment.length > 0 && (
+              <div style={{
+                marginTop: '16px',
+                padding: '16px',
+                background: theme.bgTertiary,
+                borderRadius: '12px',
+              }}>
+                <div style={{ fontSize: '13px', fontWeight: '600', color: theme.textSecondary, marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Equipment Sample ({Math.min(5, itsEquipment.length)} of {itsEquipment.length})
+                </div>
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  {itsEquipment.slice(0, 5).map((eq, idx) => (
+                    <div key={idx} style={{
+                      padding: '10px 12px',
+                      background: theme.bgSecondary,
+                      borderRadius: '8px',
+                      border: `1px solid ${theme.border}`,
+                      fontSize: '13px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                    }}>
+                      <span style={{ fontSize: '18px' }}>{eq.icon}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: '600', color: theme.text, marginBottom: '2px' }}>
+                          {eq.location_description || 'Unknown Location'}
+                        </div>
+                        <div style={{ fontSize: '11px', color: theme.textMuted }}>
+                          {eq.equipment_type.toUpperCase()} {eq.arc_its_id ? `• ARC-ITS: ${eq.arc_its_id}` : ''}
+                        </div>
+                      </div>
+                      {eq.arc_its_id && (
+                        <span style={{
+                          padding: '4px 8px',
+                          background: theme.success,
+                          color: 'white',
+                          borderRadius: '6px',
+                          fontSize: '10px',
+                          fontWeight: '700',
+                        }}>
+                          ✓ COMPLIANT
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {itsEquipment.length > 5 && (
+                  <div style={{ marginTop: '12px', fontSize: '12px', color: theme.textMuted, textAlign: 'center' }}>
+                    + {itsEquipment.length - 5} more equipment items available
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{
+            padding: '40px',
+            textAlign: 'center',
+            color: theme.textSecondary,
+            fontSize: '14px',
+            background: theme.bgTertiary,
+            borderRadius: '12px',
+            border: `2px dashed ${theme.border}`,
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '12px', opacity: 0.5 }}>🚦</div>
+            <div style={{ fontWeight: '600', marginBottom: '8px' }}>No ITS Equipment Found</div>
+            <div style={{ fontSize: '13px' }}>Upload equipment inventory to enable ARC-ITS compliant data packages</div>
           </div>
         )}
       </div>
