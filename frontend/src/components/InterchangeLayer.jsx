@@ -119,9 +119,9 @@ export default function InterchangeLayer({ showInterchanges = false }) {
         const icon = createInterchangeIcon(interchange.name);
 
         // Parse notify states (notifyStates field from API)
-        const affectedStates = interchange.notifyStates
-          ? interchange.notifyStates.split(',').map(s => s.trim().toUpperCase())
-          : [];
+        const affectedStates = Array.isArray(interchange.notifyStates)
+          ? interchange.notifyStates.map(s => s.toUpperCase())
+          : (interchange.notifyStates ? interchange.notifyStates.split(',').map(s => s.trim().toUpperCase()) : []);
 
         return (
           <Marker
