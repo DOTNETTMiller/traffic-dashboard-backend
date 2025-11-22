@@ -54,6 +54,7 @@ function App() {
   const [showParking, setShowParking] = useState(false);
   const [parkingPredictionHours, setParkingPredictionHours] = useState(0);
   const [parkingContext, setParkingContext] = useState(null);
+  const [showITSEquipment, setShowITSEquipment] = useState(false);
   const [showInterchanges, setShowInterchanges] = useState(true); // Show interchanges by default
   const [showBridgeClearances, setShowBridgeClearances] = useState(true); // Show bridge clearances by default
   const [showCorridorRegulations, setShowCorridorRegulations] = useState(true); // Show corridor regulations by default
@@ -1165,6 +1166,25 @@ function App() {
                     🛣️ I-35 OS/OW Regulations
                   </label>
                 </div>
+
+                {/* ITS Equipment Toggle */}
+                <div style={{ padding: '10px 16px' }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    color: '#374151'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={showITSEquipment}
+                      onChange={(e) => setShowITSEquipment(e.target.checked)}
+                      style={{ marginRight: '8px' }}
+                    />
+                    📡 ITS Equipment (ARC-ITS)
+                  </label>
+                </div>
               </div>
             )}
           </div>
@@ -1462,6 +1482,7 @@ function App() {
                   showInterchanges={showInterchanges}
                   showBridgeClearances={showBridgeClearances}
                   showCorridorRegulations={showCorridorRegulations}
+                  showITSEquipment={showITSEquipment}
                   heatMapActive={heatMapActive}
                   heatMapMode={heatMapMode}
                   onHeatMapToggle={setHeatMapActive}

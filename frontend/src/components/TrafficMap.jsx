@@ -10,6 +10,7 @@ import ParkingLayer from './ParkingLayer';
 import InterchangeLayer from './InterchangeLayer';
 import BridgeClearanceLayer from './BridgeClearanceLayer';
 import OSWRegulationsLayer from './OSWRegulationsLayer';
+import ITSEquipmentLayer from './ITSEquipmentLayer';
 import BoundingBoxSelector from './BoundingBoxSelector';
 import HeatMapControl from './HeatMapControl';
 import HeatMapLayer from './HeatMapLayer';
@@ -382,6 +383,7 @@ export default function TrafficMap({
   showInterchanges = false,
   showBridgeClearances = false,
   showCorridorRegulations = false,
+  showITSEquipment = false,
   heatMapActive = false,
   heatMapMode = 'density',
   onHeatMapToggle,
@@ -670,6 +672,11 @@ export default function TrafficMap({
         {/* Corridor Regulations Layer */}
         {showCorridorRegulations && (
           <OSWRegulationsLayer corridor="I-35" />
+        )}
+
+        {/* ITS Equipment Layer */}
+        {showITSEquipment && (
+          <ITSEquipmentLayer />
         )}
 
         {/* Heat Map Visualization */}
