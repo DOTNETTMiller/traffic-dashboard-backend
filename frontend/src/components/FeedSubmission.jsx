@@ -89,7 +89,10 @@ export default function FeedSubmission({ authToken, user }) {
       return;
     }
 
-    if (!user?.stateKey) {
+    // Admin users can upload without a state key
+    const isAdmin = user?.role === 'admin' || user?.email === 'matthew.miller@iowadot.us';
+
+    if (!user?.stateKey && !isAdmin) {
       setGisError('State key required. Please ensure you are logged in.');
       return;
     }
@@ -101,7 +104,8 @@ export default function FeedSubmission({ authToken, user }) {
     try {
       const formData = new FormData();
       formData.append('gisFile', gisFile);
-      formData.append('stateKey', user.stateKey);
+      // For admin users without a state key, send 'multi-state' as the state key
+      formData.append('stateKey', user.stateKey || 'multi-state');
       formData.append('uploadedBy', user.email || user.username);
 
       const response = await api.post('/api/its-equipment/upload', formData, {
