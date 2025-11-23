@@ -7,6 +7,7 @@
 
 const fs = require('fs').promises;
 const path = require('path');
+const { execSync } = require('child_process');
 const shapefile = require('shapefile');
 const tj = require('@tmcw/togeojson');
 const Papa = require('papaparse');
@@ -15,7 +16,7 @@ const { DOMParser } = require('@xmldom/xmldom');
 
 class GISParser {
   constructor() {
-    this.supportedFormats = ['shp', 'zip', 'kml', 'kmz', 'geojson', 'json', 'csv'];
+    this.supportedFormats = ['shp', 'zip', 'kml', 'kmz', 'geojson', 'json', 'csv', 'gdb'];
   }
 
   /**
@@ -30,10 +31,13 @@ class GISParser {
 
     console.log(`📂 Parsing ${ext.toUpperCase()} file: ${fileName}`);
 
+    // Check if it's a .gdb.zip file (geodatabase)
+    const isGdbZip = fileName.toLowerCase().includes('.gdb.zip');
+
     let result = {
       success: false,
       fileName,
-      fileType: ext,
+      fileType: isGdbZip ? 'gdb' : ext,
       stateKey,
       records: [],
       errors: [],
@@ -41,24 +45,28 @@ class GISParser {
     };
 
     try {
-      switch (ext) {
-        case 'shp':
-        case 'zip':
-          result = await this.parseShapefile(filePath, stateKey, result);
-          break;
-        case 'kml':
-        case 'kmz':
-          result = await this.parseKML(filePath, stateKey, result);
-          break;
-        case 'geojson':
-        case 'json':
-          result = await this.parseGeoJSON(filePath, stateKey, result);
-          break;
-        case 'csv':
-          result = await this.parseCSV(filePath, stateKey, result);
-          break;
-        default:
-          throw new Error(`Unsupported file format: ${ext}`);
+      if (isGdbZip) {
+        result = await this.parseGeodatabase(filePath, stateKey, result);
+      } else {
+        switch (ext) {
+          case 'shp':
+          case 'zip':
+            result = await this.parseShapefile(filePath, stateKey, result);
+            break;
+          case 'kml':
+          case 'kmz':
+            result = await this.parseKML(filePath, stateKey, result);
+            break;
+          case 'geojson':
+          case 'json':
+            result = await this.parseGeoJSON(filePath, stateKey, result);
+            break;
+          case 'csv':
+            result = await this.parseCSV(filePath, stateKey, result);
+            break;
+          default:
+            throw new Error(`Unsupported file format: ${ext}`);
+        }
       }
 
       result.success = result.records.length > 0;
@@ -108,6 +116,121 @@ class GISParser {
 
     } catch (error) {
       throw new Error(`Shapefile parse error: ${error.message}`);
+    }
+
+    return result;
+  }
+
+  /**
+   * Parse File Geodatabase (.gdb.zip)
+   */
+  async parseGeodatabase(filePath, stateKey, result) {
+    try {
+      console.log(`🗄️  Processing File Geodatabase...`);
+
+      // Extract .gdb folder from zip
+      const data = await fs.readFile(filePath);
+      const zip = await JSZip.loadAsync(data);
+
+      // Find .gdb directory in zip
+      const gdbFolderName = Object.keys(zip.files).find(name =>
+        name.includes('.gdb/') || name.includes('.gdb\\')
+      );
+
+      if (!gdbFolderName) {
+        throw new Error('No .gdb folder found in zip file');
+      }
+
+      // Extract the base .gdb folder name
+      const gdbName = gdbFolderName.split(/[\/\\]/)[0];
+      console.log(`   Found geodatabase: ${gdbName}`);
+
+      // Create temp directory for extraction
+      const tempDir = path.join(__dirname, '../temp');
+      await fs.mkdir(tempDir, { recursive: true });
+      const extractPath = path.join(tempDir, gdbName);
+
+      // Extract all .gdb files
+      const gdbFiles = Object.keys(zip.files).filter(name =>
+        name.startsWith(gdbName + '/') || name.startsWith(gdbName + '\\')
+      );
+
+      console.log(`   Extracting ${gdbFiles.length} files...`);
+
+      for (const fileName of gdbFiles) {
+        const file = zip.files[fileName];
+        if (!file.dir) {
+          const filePath = path.join(tempDir, fileName.replace(/\\/g, '/'));
+          await fs.mkdir(path.dirname(filePath), { recursive: true });
+          const content = await file.async('nodebuffer');
+          await fs.writeFile(filePath, content);
+        }
+      }
+
+      // Check if ogr2ogr is available
+      let hasGdal = false;
+      try {
+        execSync('which ogr2ogr', { stdio: 'ignore' });
+        hasGdal = true;
+      } catch (e) {
+        console.log('   ⚠️  ogr2ogr not found, checking for GDAL...');
+      }
+
+      if (!hasGdal) {
+        // Try alternative GDAL locations
+        try {
+          execSync('gdal-config --version', { stdio: 'ignore' });
+          hasGdal = true;
+        } catch (e) {
+          throw new Error('GDAL/ogr2ogr not installed. Please install GDAL to process .gdb files.');
+        }
+      }
+
+      // Convert .gdb to GeoJSON using ogr2ogr
+      const outputPath = path.join(tempDir, `${gdbName}_output.geojson`);
+      console.log(`   Converting to GeoJSON...`);
+
+      try {
+        execSync(
+          `ogr2ogr -f GeoJSON "${outputPath}" "${extractPath}"`,
+          { stdio: 'pipe' }
+        );
+      } catch (error) {
+        throw new Error(`ogr2ogr conversion failed: ${error.message}`);
+      }
+
+      // Parse the resulting GeoJSON
+      console.log(`   Parsing converted GeoJSON...`);
+      const geojsonContent = await fs.readFile(outputPath, 'utf8');
+      const geojson = JSON.parse(geojsonContent);
+
+      if (geojson.type === 'FeatureCollection' && geojson.features) {
+        geojson.features.forEach(feature => {
+          const record = this.convertFeatureToEquipment(feature, stateKey);
+          if (record) {
+            result.records.push(record);
+          }
+        });
+      } else if (geojson.type === 'Feature') {
+        const record = this.convertFeatureToEquipment(geojson, stateKey);
+        if (record) {
+          result.records.push(record);
+        }
+      }
+
+      result.metadata.source = 'File Geodatabase';
+      result.metadata.gdbName = gdbName;
+
+      // Cleanup temp files
+      try {
+        await fs.rm(extractPath, { recursive: true, force: true });
+        await fs.unlink(outputPath);
+      } catch (e) {
+        console.warn('   ⚠️  Cleanup warning:', e.message);
+      }
+
+    } catch (error) {
+      throw new Error(`Geodatabase parse error: ${error.message}`);
     }
 
     return result;
