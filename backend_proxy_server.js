@@ -7476,6 +7476,247 @@ app.get('/api/bridges/all', async (req, res) => {
   res.json({ success: true, bridges });
 });
 
+// ============ PROJECTS & BIWEEKLY REPORTS API ============
+
+// Get all projects
+app.get('/api/projects', async (req, res) => {
+  try {
+    const { status } = req.query;
+    let query = 'SELECT * FROM projects';
+    const params = [];
+
+    if (status) {
+      query += ' WHERE status = ?';
+      params.push(status);
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    const projects = db.db.prepare(query).all(...params);
+    res.json({ success: true, projects });
+  } catch (error) {
+    console.error('Error fetching projects:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get single project
+app.get('/api/projects/:id', async (req, res) => {
+  try {
+    const project = db.db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
+    if (!project) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    res.json({ success: true, project });
+  } catch (error) {
+    console.error('Error fetching project:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Create new project
+app.post('/api/projects', async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      latitude,
+      longitude,
+      location_name,
+      status = 'active',
+      priority = 'medium',
+      start_date,
+      end_date,
+      created_by
+    } = req.body;
+
+    if (!title || !latitude || !longitude) {
+      return res.status(400).json({
+        success: false,
+        error: 'Title, latitude, and longitude are required'
+      });
+    }
+
+    const result = db.db.prepare(`
+      INSERT INTO projects (
+        title, description, latitude, longitude, location_name,
+        status, priority, start_date, end_date, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      title, description, latitude, longitude, location_name,
+      status, priority, start_date, end_date, created_by
+    );
+
+    const project = db.db.prepare('SELECT * FROM projects WHERE id = ?').get(result.lastInsertRowid);
+    res.json({ success: true, project });
+  } catch (error) {
+    console.error('Error creating project:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Update project
+app.put('/api/projects/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      title,
+      description,
+      latitude,
+      longitude,
+      location_name,
+      status,
+      priority,
+      start_date,
+      end_date
+    } = req.body;
+
+    const updates = [];
+    const values = [];
+
+    if (title !== undefined) { updates.push('title = ?'); values.push(title); }
+    if (description !== undefined) { updates.push('description = ?'); values.push(description); }
+    if (latitude !== undefined) { updates.push('latitude = ?'); values.push(latitude); }
+    if (longitude !== undefined) { updates.push('longitude = ?'); values.push(longitude); }
+    if (location_name !== undefined) { updates.push('location_name = ?'); values.push(location_name); }
+    if (status !== undefined) { updates.push('status = ?'); values.push(status); }
+    if (priority !== undefined) { updates.push('priority = ?'); values.push(priority); }
+    if (start_date !== undefined) { updates.push('start_date = ?'); values.push(start_date); }
+    if (end_date !== undefined) { updates.push('end_date = ?'); values.push(end_date); }
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(id);
+
+    db.db.prepare(`UPDATE projects SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+
+    const project = db.db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+    res.json({ success: true, project });
+  } catch (error) {
+    console.error('Error updating project:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Delete project
+app.delete('/api/projects/:id', async (req, res) => {
+  try {
+    db.db.prepare('DELETE FROM projects WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting project:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get all biweekly reports
+app.get('/api/biweekly-reports', async (req, res) => {
+  try {
+    const { project_id } = req.query;
+    let query = 'SELECT * FROM biweekly_reports';
+    const params = [];
+
+    if (project_id) {
+      query += ' WHERE project_id = ?';
+      params.push(project_id);
+    }
+
+    query += ' ORDER BY report_date DESC';
+
+    const reports = db.db.prepare(query).all(...params);
+    res.json({ success: true, reports });
+  } catch (error) {
+    console.error('Error fetching biweekly reports:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Create new biweekly report
+app.post('/api/biweekly-reports', async (req, res) => {
+  try {
+    const {
+      project_id,
+      title,
+      content,
+      report_date,
+      latitude,
+      longitude,
+      location_name,
+      created_by
+    } = req.body;
+
+    if (!title || !report_date) {
+      return res.status(400).json({
+        success: false,
+        error: 'Title and report_date are required'
+      });
+    }
+
+    const result = db.db.prepare(`
+      INSERT INTO biweekly_reports (
+        project_id, title, content, report_date,
+        latitude, longitude, location_name, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      project_id || null, title, content, report_date,
+      latitude || null, longitude || null, location_name, created_by
+    );
+
+    const report = db.db.prepare('SELECT * FROM biweekly_reports WHERE id = ?').get(result.lastInsertRowid);
+    res.json({ success: true, report });
+  } catch (error) {
+    console.error('Error creating biweekly report:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Update biweekly report
+app.put('/api/biweekly-reports/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      project_id,
+      title,
+      content,
+      report_date,
+      latitude,
+      longitude,
+      location_name
+    } = req.body;
+
+    const updates = [];
+    const values = [];
+
+    if (project_id !== undefined) { updates.push('project_id = ?'); values.push(project_id); }
+    if (title !== undefined) { updates.push('title = ?'); values.push(title); }
+    if (content !== undefined) { updates.push('content = ?'); values.push(content); }
+    if (report_date !== undefined) { updates.push('report_date = ?'); values.push(report_date); }
+    if (latitude !== undefined) { updates.push('latitude = ?'); values.push(latitude); }
+    if (longitude !== undefined) { updates.push('longitude = ?'); values.push(longitude); }
+    if (location_name !== undefined) { updates.push('location_name = ?'); values.push(location_name); }
+
+    values.push(id);
+
+    db.db.prepare(`UPDATE biweekly_reports SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+
+    const report = db.db.prepare('SELECT * FROM biweekly_reports WHERE id = ?').get(id);
+    res.json({ success: true, report });
+  } catch (error) {
+    console.error('Error updating biweekly report:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Delete biweekly report
+app.delete('/api/biweekly-reports/:id', async (req, res) => {
+  try {
+    db.db.prepare('DELETE FROM biweekly_reports WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting biweekly report:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/corridor-regulations', async (req, res) => {
   const { corridor } = req.query;
   const regulations = await db.getCorridorRegulations(corridor);
