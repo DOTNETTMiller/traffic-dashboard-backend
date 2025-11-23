@@ -23,11 +23,13 @@ class GISParser {
    * Parse GIS file and extract ITS equipment records
    * @param {string} filePath - Path to uploaded file
    * @param {string} stateKey - State identifier
+   * @param {string} originalName - Original filename (optional, for multer uploads)
    * @returns {Promise<Object>} Parsed equipment records and metadata
    */
-  async parseFile(filePath, stateKey) {
-    const ext = path.extname(filePath).toLowerCase().replace('.', '');
-    const fileName = path.basename(filePath);
+  async parseFile(filePath, stateKey, originalName = null) {
+    // Use original filename if provided (for multer uploads), otherwise use the file path
+    const fileName = originalName || path.basename(filePath);
+    const ext = path.extname(fileName).toLowerCase().replace('.', '');
 
     console.log(`📂 Parsing ${ext.toUpperCase()} file: ${fileName}`);
 

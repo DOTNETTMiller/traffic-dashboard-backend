@@ -9254,7 +9254,7 @@ app.post('/api/its-equipment/upload', upload.single('gisFile'), async (req, res)
 
     // Parse GIS file
     const parser = new GISParser();
-    const parseResult = await parser.parseFile(req.file.path, stateKey);
+    const parseResult = await parser.parseFile(req.file.path, stateKey, req.file.originalname);
 
     if (!parseResult.success) {
       return res.status(400).json({
