@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["...", "gdal"]
+nixPkgs = ["gdal"]
 
 [phases.install]
 cmds = ["npm ci"]
