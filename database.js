@@ -420,6 +420,36 @@ class StateDatabase {
         FOREIGN KEY (user_id) REFERENCES users(id)
       );
 
+      CREATE TABLE IF NOT EXISTS projects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        description TEXT,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        location_name TEXT,
+        status TEXT DEFAULT 'active',
+        priority TEXT DEFAULT 'medium',
+        start_date DATE,
+        end_date DATE,
+        created_by TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS biweekly_reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER,
+        title TEXT NOT NULL,
+        content TEXT,
+        report_date DATE NOT NULL,
+        latitude REAL,
+        longitude REAL,
+        location_name TEXT,
+        created_by TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+      );
+
       CREATE TABLE IF NOT EXISTS schema_migrations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         migration_name TEXT UNIQUE NOT NULL,
@@ -433,6 +463,10 @@ class StateDatabase {
       CREATE INDEX IF NOT EXISTS idx_occupancy_patterns_facility ON parking_occupancy_patterns(facility_id);
       CREATE INDEX IF NOT EXISTS idx_occupancy_patterns_time ON parking_occupancy_patterns(day_of_week, hour_of_day);
       CREATE INDEX IF NOT EXISTS idx_prediction_accuracy_facility ON parking_prediction_accuracy(facility_id);
+      CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
+      CREATE INDEX IF NOT EXISTS idx_projects_created_at ON projects(created_at);
+      CREATE INDEX IF NOT EXISTS idx_biweekly_reports_project_id ON biweekly_reports(project_id);
+      CREATE INDEX IF NOT EXISTS idx_biweekly_reports_report_date ON biweekly_reports(report_date);
     `);
   }
 
