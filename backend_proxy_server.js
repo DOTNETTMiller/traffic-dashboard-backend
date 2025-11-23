@@ -8080,25 +8080,29 @@ const evaluateDetourAlerts = async () => {
         if (state) notifyStates.add(state.toLowerCase());
       });
 
-      const createResult = db.createDetourAlert({
-        interchangeId: interchange.id,
-        eventId: event.id,
-        eventState: (event.state || '').toLowerCase(),
-        eventCorridor: event.corridor || null,
-        eventLocation: event.location || '',
-        eventDescription: event.description || '',
-        severity: event.severity || null,
-        lanesAffected: event.lanesAffected || null,
-        notifiedStates: Array.from(notifyStates),
-        message
-      });
-
-      if (createResult.success) {
-        console.log(`🚨 Detour alert created for ${interchange.name} (event ${event.id})`);
-        notifyDetourSubscribers({
-          id: createResult.id,
+      try {
+        const createResult = db.createDetourAlert({
+          interchangeId: interchange.id,
+          eventId: event.id,
+          eventState: (event.state || '').toLowerCase(),
+          eventCorridor: event.corridor || null,
+          eventLocation: event.location || '',
+          eventDescription: event.description || '',
+          severity: event.severity || null,
+          lanesAffected: event.lanesAffected || null,
+          notifiedStates: Array.from(notifyStates),
           message
-        }, interchange, event);
+        });
+
+        if (createResult.success) {
+          console.log(`🚨 Detour alert created for ${interchange.name} - Event ${event.id}`);
+          notifyDetourSubscribers({
+            id: createResult.id,
+            message
+          }, interchange, event);
+        }
+      } catch (error) {
+        console.error(`⚠️  Error creating detour alert for ${interchange.name}: ${error.message}`);
       }
     });
 
@@ -9163,18 +9167,18 @@ app.post('/api/corridor/generate-summary', async (req, res) => {
       messages: [
         {
           role: 'system',
-          content: 'You are a traffic operations expert providing real-time corridor conditions reports. Write 4-5 clear, specific sentences describing what is actually happening on the corridor right now - mention specific locations, mileposts, exits, event types, and expected impacts. Be conversational but professional. Do NOT give generic safety advice - focus on the actual events and conditions from the data provided.'
+          content: 'You are a traffic operations expert providing real-time corridor conditions reports. Write 4-5 clear, specific sentences describing what is actually happening on the corridor right now - mention specific locations, mileposts, exits, event types, expected impacts, and approximate delays where relevant. CRITICAL: Always include the state name when mentioning mileposts or mile markers since they reset at state borders (e.g., "Kentucky mile marker 45" not just "mile marker 45"). When events likely cause delays, estimate reasonable delay times based on the severity and type (e.g., "15-minute delays", "expect 30+ minute delays", "minor slowdowns"). Be conversational but professional. Do NOT give generic safety advice - focus on the actual events and conditions from the data provided.'
         },
         {
           role: 'user',
-          content: `Write a 4-5 sentence travel briefing for ${corridor} describing current conditions. Be SPECIFIC about locations and what's happening:
+          content: `Write a 4-5 sentence travel briefing for ${corridor} describing current conditions. Be SPECIFIC about locations and what's happening. IMPORTANT: Always specify the state when mentioning mileposts since mile markers reset at state borders.
 
 Current Events (${events.length} total):
 ${eventSummary}${detourSummary}${bridgeSummary}${regulationsSummary}
 
-Example good briefing: "On I-64 eastbound near mile marker 45, construction crews are working with lane restrictions causing 15-minute delays through the area. A crash at Exit 78 has closed the right lane, with emergency crews on scene. The westbound direction is clear except for a disabled vehicle near Exit 92. Bridge clearances are critical at the Big Sandy River Bridge (13'2") - oversized loads should use the alternate route via US-60."
+Example good briefing: "On I-64 eastbound near Kentucky mile marker 45, construction crews are working with lane restrictions causing 15-minute delays through the area. A crash at West Virginia Exit 78 has closed the right lane, with emergency crews on scene expecting 30+ minute delays. The westbound direction in Kentucky is clear except for a disabled vehicle near Exit 92 causing minor slowdowns. Bridge clearances are critical at the Big Sandy River Bridge in Kentucky (13'2") - oversized loads should use the alternate route via US-60."
 
-Write a similar specific briefing for ${corridor} based on the actual events listed above. Include locations, event types, and impacts.`
+Write a similar specific briefing for ${corridor} based on the actual events listed above. Always include state names with mileposts and locations. Include approximate delay estimates for incidents and construction.`
         }
       ],
       max_tokens: 250,
@@ -12865,8 +12869,14 @@ function startServer() {
     }
   }
 
-  evaluateDetourAlerts();
-  setInterval(evaluateDetourAlerts, 5 * 60 * 1000);
+  evaluateDetourAlerts().catch(error => {
+    console.error('❌ Error in evaluateDetourAlerts:', error);
+  });
+  setInterval(() => {
+    evaluateDetourAlerts().catch(error => {
+      console.error('❌ Error in evaluateDetourAlerts:', error);
+    });
+  }, 5 * 60 * 1000);
 
   console.log(`\nPress Ctrl+C to stop the server\n`);
   });
