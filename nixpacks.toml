@@ -1,8 +1,0 @@
-[phases.setup]
-nixPkgs = ["gdal"]
-
-[phases.install]
-cmds = ["npm ci"]
-
-[start]
-cmd = "node backend_proxy_server.js"
