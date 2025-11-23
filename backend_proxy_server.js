@@ -9235,16 +9235,22 @@ const upload = multer({
 // Upload GIS file with ITS equipment inventory
 app.post('/api/its-equipment/upload', upload.single('gisFile'), async (req, res) => {
   try {
+    console.log('📤 ITS Equipment upload request received');
+    console.log('   File:', req.file ? `${req.file.originalname} (${req.file.size} bytes)` : 'NO FILE');
+    console.log('   Body:', req.body);
+
     if (!req.file) {
+      console.log('❌ Upload rejected: No file uploaded');
       return res.status(400).json({ success: false, error: 'No file uploaded' });
     }
 
     const { stateKey, uploadedBy } = req.body;
     if (!stateKey) {
+      console.log('❌ Upload rejected: stateKey required');
       return res.status(400).json({ success: false, error: 'stateKey required' });
     }
 
-    console.log(`📤 Processing GIS upload: ${req.file.originalname} (${req.file.size} bytes)`);
+    console.log(`📤 Processing GIS upload: ${req.file.originalname} (${req.file.size} bytes) for state: ${stateKey}`);
 
     // Parse GIS file
     const parser = new GISParser();
