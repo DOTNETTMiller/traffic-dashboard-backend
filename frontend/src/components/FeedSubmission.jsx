@@ -71,9 +71,11 @@ export default function FeedSubmission({ authToken, user }) {
   const handleGISFileSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const allowedExtensions = ['.shp', '.zip', '.kml', '.kmz', '.geojson', '.json', '.csv'];
+      const allowedExtensions = ['.shp', '.zip', '.kml', '.kmz', '.geojson', '.json', '.csv', '.gdb'];
       const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-      if (allowedExtensions.includes(ext)) {
+      // Special handling for .gdb.zip files
+      const isGdbZip = file.name.toLowerCase().endsWith('.gdb.zip');
+      if (allowedExtensions.includes(ext) || isGdbZip) {
         setGisFile(file);
         setGisError('');
       } else {
@@ -564,7 +566,7 @@ export default function FeedSubmission({ authToken, user }) {
             flexWrap: 'wrap',
             fontSize: '11px'
           }}>
-            {['Shapefile (.shp/.zip)', 'KML/KMZ', 'GeoJSON', 'CSV (with lat/lon)'].map(format => (
+            {['Shapefile (.shp/.zip)', 'File Geodatabase (.gdb.zip)', 'KML/KMZ', 'GeoJSON', 'CSV (with lat/lon)'].map(format => (
               <span key={format} style={{
                 background: `${theme.colors.accentBlue}15`,
                 color: theme.colors.accentBlue,
@@ -597,7 +599,7 @@ export default function FeedSubmission({ authToken, user }) {
             <input
               id="gis-file-input"
               type="file"
-              accept=".shp,.zip,.kml,.kmz,.geojson,.json,.csv"
+              accept=".shp,.zip,.kml,.kmz,.geojson,.json,.csv,.gdb"
               onChange={handleGISFileSelect}
               disabled={uploadingGIS}
               style={{
