@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { theme } from '../styles/theme';
 import { format } from 'date-fns';
 import { config } from '../config';
@@ -9,6 +9,7 @@ export default function CorridorBriefing({ events, detourAlerts, onClose }) {
   const [aiSummary, setAiSummary] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState(null);
+  const generatedForCorridor = useRef(null);
 
   // Extract unique corridors from events
   const corridors = useMemo(() => {
@@ -112,14 +113,21 @@ export default function CorridorBriefing({ events, detourAlerts, onClose }) {
     };
   }, [corridorEvents]);
 
-  // Fetch AI summary when corridor changes
+  // Fetch AI summary when corridor changes (only once per corridor)
   useEffect(() => {
     const fetchSummary = async () => {
       if (!selectedCorridor || corridorEvents.length === 0) {
         setAiSummary(null);
+        generatedForCorridor.current = null;
         return;
       }
 
+      // Only generate once per corridor selection
+      if (generatedForCorridor.current === selectedCorridor) {
+        return;
+      }
+
+      generatedForCorridor.current = selectedCorridor;
       setSummaryLoading(true);
       setSummaryError(null);
 
@@ -147,6 +155,7 @@ export default function CorridorBriefing({ events, detourAlerts, onClose }) {
       } catch (error) {
         console.error('Error fetching AI summary:', error);
         setSummaryError(error.message);
+        generatedForCorridor.current = null; // Allow retry on error
       } finally {
         setSummaryLoading(false);
       }
