@@ -384,6 +384,7 @@ export default function TrafficMap({
   showBridgeClearances = false,
   showCorridorRegulations = false,
   showITSEquipment = false,
+  itsEquipmentRoute = null,
   heatMapActive = false,
   heatMapMode = 'density',
   onHeatMapToggle,
@@ -450,12 +451,12 @@ export default function TrafficMap({
         {/* Capture map reference */}
         <MapRefCapturer mapRef={mapRef} />
 
-        {/* CartoDB - shows highways prominently with clear labels */}
+        {/* ESRI World Street Map - excellent highway visibility */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          attribution='Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
           url={isDarkMode
             ? "https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png"
-            : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            : "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
           }
           subdomains="abcd"
           maxZoom={20}
@@ -676,7 +677,7 @@ export default function TrafficMap({
 
         {/* ITS Equipment Layer */}
         {showITSEquipment && (
-          <ITSEquipmentLayer />
+          <ITSEquipmentLayer route={itsEquipmentRoute} />
         )}
 
         {/* Heat Map Visualization */}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Marker, Popup } from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import api from '../services/api';
 
@@ -58,7 +59,7 @@ const createEquipmentIcon = (type) => {
   });
 };
 
-export default function ITSEquipmentLayer({ visible = true, stateKey = null, equipmentType = null }) {
+export default function ITSEquipmentLayer({ visible = true, stateKey = null, equipmentType = null, route = null }) {
   const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -66,7 +67,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
     if (visible) {
       fetchEquipment();
     }
-  }, [visible, stateKey, equipmentType]);
+  }, [visible, stateKey, equipmentType, route]);
 
   const fetchEquipment = async () => {
     try {
@@ -74,11 +75,13 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
       const params = {};
       if (stateKey) params.stateKey = stateKey;
       if (equipmentType) params.equipmentType = equipmentType;
+      if (route) params.route = route;
 
       const response = await api.get('/api/its-equipment', { params });
 
       if (response.data.success) {
         setEquipment(response.data.equipment);
+        console.log(`📡 Loaded ${response.data.equipment.length} ITS equipment items${route ? ` for route ${route}` : ''}`);
       }
     } catch (error) {
       console.error('Error fetching ITS equipment:', error);
@@ -90,7 +93,34 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
   if (!visible || loading) return null;
 
   return (
-    <>
+    <MarkerClusterGroup
+      chunkedLoading
+      maxClusterRadius={50}
+      spiderfyOnMaxZoom={true}
+      showCoverageOnHover={false}
+      zoomToBoundsOnClick={true}
+      iconCreateFunction={(cluster) => {
+        const count = cluster.getChildCount();
+        return L.divIcon({
+          html: `<div style="
+            background-color: #8b5cf6;
+            color: white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          ">${count}</div>`,
+          className: 'its-equipment-cluster-icon',
+          iconSize: L.point(40, 40, true),
+        });
+      }}
+    >
       {equipment.map((item) => {
         if (!item.latitude || !item.longitude) return null;
 
@@ -279,7 +309,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
           </Marker>
         );
       })}
-    </>
+    </MarkerClusterGroup>
   );
 }
 
