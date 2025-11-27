@@ -9628,7 +9628,7 @@ app.post('/api/its-equipment/upload', upload.single('gisFile'), async (req, res)
 // Get ITS equipment inventory
 app.get('/api/its-equipment', async (req, res) => {
   try {
-    const { stateKey, equipmentType, status } = req.query;
+    const { stateKey, equipmentType, status, route } = req.query;
 
     let query = 'SELECT * FROM its_equipment WHERE 1=1';
     const params = [];
@@ -9646,6 +9646,11 @@ app.get('/api/its-equipment', async (req, res) => {
     if (status) {
       query += ' AND status = ?';
       params.push(status);
+    }
+
+    if (route) {
+      query += ' AND route = ?';
+      params.push(route);
     }
 
     query += ' ORDER BY state_key, equipment_type';
@@ -10258,6 +10263,33 @@ app.get('/api/its-equipment/summary', async (req, res) => {
     res.json({ success: true, summary });
   } catch (error) {
     console.error('❌ Summary error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get available routes for filtering
+app.get('/api/its-equipment/routes', async (req, res) => {
+  try {
+    const { stateKey } = req.query;
+
+    let query = 'SELECT DISTINCT route FROM its_equipment WHERE route IS NOT NULL';
+    const params = [];
+
+    if (stateKey) {
+      query += ' AND state_key = ?';
+      params.push(stateKey);
+    }
+
+    query += ' ORDER BY route';
+
+    const routes = db.db.prepare(query).all(...params);
+
+    res.json({
+      success: true,
+      routes: routes.map(r => r.route)
+    });
+  } catch (error) {
+    console.error('❌ Routes error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

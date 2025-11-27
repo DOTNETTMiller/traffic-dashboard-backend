@@ -55,6 +55,8 @@ function App() {
   const [parkingPredictionHours, setParkingPredictionHours] = useState(0);
   const [parkingContext, setParkingContext] = useState(null);
   const [showITSEquipment, setShowITSEquipment] = useState(false);
+  const [itsEquipmentRoute, setItsEquipmentRoute] = useState(''); // Route filter for ITS equipment
+  const [availableRoutes, setAvailableRoutes] = useState([]);
   const [showInterchanges, setShowInterchanges] = useState(false); // Hidden by default - toggle to show
   const [showBridgeClearances, setShowBridgeClearances] = useState(false); // Hidden by default - toggle to show
   const [showCorridorRegulations, setShowCorridorRegulations] = useState(false); // Hidden by default - toggle to show
@@ -189,6 +191,26 @@ function App() {
       if (intervalId) clearInterval(intervalId);
     };
   }, [authToken, loadDetourAlerts]);
+
+  // Fetch available routes for ITS equipment filtering
+  useEffect(() => {
+    const fetchRoutes = async () => {
+      if (!authToken || !currentUser?.stateKey) return;
+
+      try {
+        const response = await axios.get(`${config.apiUrl}/api/its-equipment/routes`, {
+          params: { stateKey: currentUser.stateKey }
+        });
+        if (response.data.success) {
+          setAvailableRoutes(response.data.routes);
+        }
+      } catch (error) {
+        console.error('Error fetching routes:', error);
+      }
+    };
+
+    fetchRoutes();
+  }, [authToken, currentUser]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -917,11 +939,42 @@ function App() {
                     <input
                       type="checkbox"
                       checked={showITSEquipment}
-                      onChange={(e) => setShowITSEquipment(e.target.checked)}
+                      onChange={(e) => {
+                        setShowITSEquipment(e.target.checked);
+                        if (!e.target.checked) setItsEquipmentRoute(''); // Clear route when hiding
+                      }}
                       style={{ marginRight: '8px' }}
                     />
                     📡 ITS Equipment (ARC-ITS)
                   </label>
+
+                  {/* Route Dropdown - only show when ITS Equipment is active */}
+                  {showITSEquipment && availableRoutes.length > 0 && (
+                    <div style={{ marginTop: '8px', marginLeft: '24px' }}>
+                      <select
+                        value={itsEquipmentRoute}
+                        onChange={(e) => setItsEquipmentRoute(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '6px',
+                          fontSize: '12px',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="">Select Route (recommended)</option>
+                        {availableRoutes.map(route => (
+                          <option key={route} value={route}>{route}</option>
+                        ))}
+                      </select>
+                      {!itsEquipmentRoute && (
+                        <div style={{ fontSize: '10px', color: '#f59e0b', marginTop: '4px' }}>
+                          ⚠️ Selecting a route improves performance
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Admin: Manage Detours */}
@@ -1487,6 +1540,7 @@ function App() {
                   showBridgeClearances={showBridgeClearances}
                   showCorridorRegulations={showCorridorRegulations}
                   showITSEquipment={showITSEquipment}
+                  itsEquipmentRoute={itsEquipmentRoute}
                   heatMapActive={heatMapActive}
                   heatMapMode={heatMapMode}
                   onHeatMapToggle={setHeatMapActive}
