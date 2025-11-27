@@ -22,8 +22,8 @@ export default function ITSEquipmentExport({ user }) {
           setAvailableRoutes(routesResponse.data.routes);
         }
 
-        // Fetch states
-        const statesResponse = await api.get('/api/states/list');
+        // Fetch states with ITS equipment
+        const statesResponse = await api.get('/api/its-equipment/states');
         if (statesResponse.data.success) {
           setAvailableStates(statesResponse.data.states);
         }
