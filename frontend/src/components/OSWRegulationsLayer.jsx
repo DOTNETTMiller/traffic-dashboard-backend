@@ -1,23 +1,28 @@
 import { useEffect, useState } from 'react';
-import { Polyline, Popup, Marker } from 'react-leaflet';
+import { Popup, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import api from '../services/api';
 
-// Create state label marker icon
-const createStateLabelIcon = (stateName, color) => {
+// Create state regulation marker icon
+const createStateRegulationIcon = (stateName, color) => {
   const svg = `
-    <svg width="60" height="24" viewBox="0 0 60 24" xmlns="http://www.w3.org/2000/svg">
-      <rect x="0" y="0" width="60" height="24" fill="${color}" stroke="white" stroke-width="2" rx="4"/>
-      <text x="30" y="16" text-anchor="middle" font-size="11" font-weight="bold" fill="white">${stateName}</text>
+    <svg width="70" height="30" viewBox="0 0 70 30" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="shadow">
+          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3"/>
+        </filter>
+      </defs>
+      <rect x="2" y="2" width="66" height="26" fill="${color}" stroke="white" stroke-width="2.5" rx="6" filter="url(#shadow)"/>
+      <text x="35" y="19" text-anchor="middle" font-size="12" font-weight="bold" fill="white">🛣️ ${stateName}</text>
     </svg>
   `;
 
   return L.divIcon({
     html: svg,
-    className: 'state-regulation-label',
-    iconSize: [60, 24],
-    iconAnchor: [30, 12],
-    popupAnchor: [0, -12]
+    className: 'state-regulation-marker',
+    iconSize: [70, 30],
+    iconAnchor: [35, 15],
+    popupAnchor: [0, -15]
   });
 };
 
@@ -74,32 +79,20 @@ export default function OSWRegulationsLayer({ corridor = 'I-35' }) {
   return (
     <>
       {regulations.map((reg) => {
-        // Create polyline positions for the state corridor segment
-        const positions = [
-          [reg.bounds_start_lat, reg.bounds_start_lng],
-          [reg.bounds_end_lat, reg.bounds_end_lng]
-        ];
-
-        // Calculate midpoint for state label
-        const midLat = (reg.bounds_start_lat + reg.bounds_end_lat) / 2;
-        const midLng = (reg.bounds_start_lng + reg.bounds_end_lng) / 2;
+        // Calculate center point for state marker
+        const centerLat = (reg.bounds_start_lat + reg.bounds_end_lat) / 2;
+        const centerLng = (reg.bounds_start_lng + reg.bounds_end_lng) / 2;
 
         const requirements = parseRequirements(reg.requirements);
         const permitCosts = parsePermitCosts(reg.permit_cost_data);
 
         return (
-          <div key={reg.id}>
-            {/* Corridor segment line */}
-            <Polyline
-              positions={positions}
-              pathOptions={{
-                color: reg.color || '#3b82f6',
-                weight: 8,
-                opacity: 0.6,
-                lineCap: 'round'
-              }}
-            >
-              <Popup>
+          <Marker
+            key={reg.id}
+            position={[centerLat, centerLng]}
+            icon={createStateRegulationIcon(reg.state_code, reg.color || '#3b82f6')}
+          >
+            <Popup>
                 <div style={{ minWidth: '320px', padding: '8px' }}>
                   {/* Header */}
                   <div style={{
@@ -308,14 +301,7 @@ export default function OSWRegulationsLayer({ corridor = 'I-35' }) {
                   )}
                 </div>
               </Popup>
-            </Polyline>
-
-            {/* State label marker */}
-            <Marker
-              position={[midLat, midLng]}
-              icon={createStateLabelIcon(reg.state_code, reg.color || '#3b82f6')}
-            />
-          </div>
+            </Marker>
         );
       })}
     </>

@@ -4,32 +4,12 @@ import L from 'leaflet';
 import api from '../services/api';
 import { theme } from '../styles/theme';
 
-// Custom interchange icon with permanent label - looks like a control tower / coordination point
+// Custom interchange icon - marker only, no label
 const createInterchangeIcon = (name) => {
   const html = `
-    <div style="position: relative; width: 36px; height: 60px;">
-      <!-- Label above marker -->
-      <div style="
-        position: absolute;
-        top: -28px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-        color: white;
-        padding: 4px 10px;
-        border-radius: 6px;
-        font-size: 11px;
-        font-weight: 700;
-        white-space: nowrap;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        border: 2px solid white;
-        pointer-events: none;
-      ">
-        🎯 ${name}
-      </div>
-
+    <div style="position: relative; width: 36px; height: 36px;">
       <!-- Control tower icon -->
-      <svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg" style="position: absolute; top: 0; left: 0;">
+      <svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
         <!-- Glow effect -->
         <defs>
           <filter id="glow">
@@ -43,11 +23,11 @@ const createInterchangeIcon = (name) => {
 
         <!-- Diamond shape for interchange -->
         <g transform="translate(18,18) rotate(45)" filter="url(#glow)">
-          <rect x="-12" y="-12" width="24" height="24" fill="#3b82f6" stroke="white" stroke-width="3" rx="2"/>
+          <rect x="-12" y="-12" width="24" height="24" fill="#6b7280" stroke="white" stroke-width="3" rx="2"/>
         </g>
 
         <!-- Crosshair in center -->
-        <circle cx="18" cy="18" r="4" fill="white" stroke="#3b82f6" stroke-width="1"/>
+        <circle cx="18" cy="18" r="4" fill="white" stroke="#6b7280" stroke-width="1"/>
         <line x1="18" y1="9" x2="18" y2="27" stroke="white" stroke-width="2"/>
         <line x1="9" y1="18" x2="27" y2="18" stroke="white" stroke-width="2"/>
       </svg>
@@ -56,10 +36,10 @@ const createInterchangeIcon = (name) => {
 
   return L.divIcon({
     html: html,
-    className: 'interchange-marker-with-label',
-    iconSize: [36, 60],
-    iconAnchor: [18, 48],
-    popupAnchor: [0, -50]
+    className: 'interchange-marker-no-label',
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+    popupAnchor: [0, -18]
   });
 };
 
@@ -139,7 +119,7 @@ export default function InterchangeLayer({ showInterchanges = false }) {
                   alignItems: 'center',
                   gap: '8px',
                   paddingBottom: '8px',
-                  borderBottom: `2px solid ${theme.colors.accentBlue}`
+                  borderBottom: `2px solid #6b7280`
                 }}>
                   🎯 {interchange.name}
                 </h3>
@@ -147,9 +127,9 @@ export default function InterchangeLayer({ showInterchanges = false }) {
                 <div style={{
                   marginBottom: '12px',
                   padding: '10px',
-                  background: `${theme.colors.accentBlue}10`,
+                  background: `#f3f4f6`,
                   borderRadius: '8px',
-                  borderLeft: `3px solid ${theme.colors.accentBlue}`
+                  borderLeft: `3px solid #6b7280`
                 }}>
                   <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '4px' }}>
                     INTERSTATE COORDINATION POINT
