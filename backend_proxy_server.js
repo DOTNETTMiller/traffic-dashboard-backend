@@ -2036,46 +2036,48 @@ const fetchStateData = async (stateKey) => {
     results.errors.push(`General error: ${error.message}`);
   }
 
+  // DISABLED FOR PERFORMANCE: These checks create thousands of alerts and slow down the system
   // Check all events for proximity to interstate interchanges and low-clearance bridges
-  if (results.events.length > 0) {
-    try {
-      await Promise.all(
-        results.events.map(async (event) => {
-          await checkInterchangeProximity(event, normalizedStateKey);
-          await checkBridgeClearanceProximity(event, normalizedStateKey);
-        })
-      );
-    } catch (error) {
-      console.error(`Error checking proximity for ${stateName}:`, error);
-    }
-  }
+  // if (results.events.length > 0) {
+  //   try {
+  //     await Promise.all(
+  //       results.events.map(async (event) => {
+  //         await checkInterchangeProximity(event, normalizedStateKey);
+  //         await checkBridgeClearanceProximity(event, normalizedStateKey);
+  //       })
+  //     );
+  //   } catch (error) {
+  //     console.error(`Error checking proximity for ${stateName}:`, error);
+  //   }
+  // }
 
+  // DISABLED FOR PERFORMANCE: Quality tracking for 2000+ events causes significant slowdown
   // Track data quality metrics for this feed
-  try {
-    // Calculate quality scores for all events
-    const qualityScores = results.events.map(event =>
-      dataQualityTracker.assessEventQuality(event)
-    );
-
-    // Compute average quality score
-    const avgQuality = qualityScores.length > 0
-      ? qualityScores.reduce((sum, score) => sum + score, 0) / qualityScores.length
-      : 0;
-
-    // Determine success (1 if we got events and no critical errors, 0 otherwise)
-    const successCount = results.events.length > 0 && results.errors.length === 0 ? 1 : 0;
-
-    // Update feed metrics
-    dataQualityTracker.updateFeedMetrics(
-      normalizedStateKey,
-      results.events.length,
-      successCount,
-      avgQuality,
-      new Date()
-    );
-  } catch (error) {
-    console.error(`Error tracking quality metrics for ${stateName}:`, error);
-  }
+  // try {
+  //   // Calculate quality scores for all events
+  //   const qualityScores = results.events.map(event =>
+  //     dataQualityTracker.assessEventQuality(event)
+  //   );
+  //
+  //   // Compute average quality score
+  //   const avgQuality = qualityScores.length > 0
+  //     ? qualityScores.reduce((sum, score) => sum + score, 0) / qualityScores.length
+  //     : 0;
+  //
+  //   // Determine success (1 if we got events and no critical errors, 0 otherwise)
+  //   const successCount = results.events.length > 0 && results.errors.length === 0 ? 1 : 0;
+  //
+  //   // Update feed metrics
+  //   dataQualityTracker.updateFeedMetrics(
+  //     normalizedStateKey,
+  //     results.events.length,
+  //     successCount,
+  //     avgQuality,
+  //     new Date()
+  //   );
+  // } catch (error) {
+  //   console.error(`Error tracking quality metrics for ${stateName}:`, error);
+  // }
 
   return results;
 };
@@ -9509,9 +9511,9 @@ app.post('/api/its-equipment/upload', upload.single('gisFile'), async (req, res)
     const converter = new ARCITSConverter();
     const arcItsEquipment = converter.convertBatch(parseResult.records);
 
-    // Save to database
+    // Save to database (use INSERT OR REPLACE to handle duplicates)
     const insertStmt = db.db.prepare(`
-      INSERT INTO its_equipment (
+      INSERT OR REPLACE INTO its_equipment (
         id, state_key, equipment_type, equipment_subtype,
         latitude, longitude, elevation, location_description, route, milepost,
         manufacturer, model, serial_number, installation_date, status,
@@ -9675,7 +9677,66 @@ app.get('/api/its-equipment/export', async (req, res) => {
       params.push(stateKey);
     }
 
-    const equipment = db.db.prepare(query).all(...params);
+    const dbRecords = db.db.prepare(query).all(...params);
+
+    // Map snake_case database fields to camelCase for ARC-ITS converter
+    const equipment = dbRecords.map(record => ({
+      // ARC-ITS Compliance Fields
+      arcItsId: record.arc_its_id,
+      arcItsCategory: record.arc_its_category,
+      arcItsFunction: record.arc_its_function,
+      arcItsInterface: record.arc_its_interface,
+
+      // Core Fields
+      id: record.id,
+      stateKey: record.state_key,
+      equipmentType: record.equipment_type,
+      equipmentSubtype: record.equipment_subtype,
+
+      // Location
+      latitude: record.latitude,
+      longitude: record.longitude,
+      elevation: record.elevation,
+      locationDescription: record.location_description,
+      route: record.route,
+      milepost: record.milepost,
+
+      // Equipment Details
+      manufacturer: record.manufacturer,
+      model: record.model,
+      serialNumber: record.serial_number,
+      installationDate: record.installation_date,
+      status: record.status,
+
+      // V2X/RSU Specific
+      rsuId: record.rsu_id,
+      rsuMode: record.rsu_mode,
+      communicationRange: record.communication_range,
+      supportedProtocols: record.supported_protocols,
+
+      // DMS Specific
+      dmsType: record.dms_type,
+      displayTechnology: record.display_technology,
+      messageCapacity: record.message_capacity,
+
+      // Camera Specific
+      cameraType: record.camera_type,
+      resolution: record.resolution,
+      fieldOfView: record.field_of_view,
+      streamUrl: record.stream_url,
+
+      // Sensor Specific
+      sensorType: record.sensor_type,
+      measurementTypes: record.measurement_types,
+
+      // Metadata
+      dataSource: record.data_source,
+      uploadDate: record.upload_date,
+      uploadedBy: record.uploaded_by,
+      notes: record.notes,
+      createdAt: record.created_at,
+      updatedAt: record.updated_at
+    }));
 
     const converter = new ARCITSConverter();
 
@@ -9759,6 +9820,232 @@ app.get('/api/its-equipment/v2x-analysis', async (req, res) => {
 
   } catch (error) {
     console.error('❌ V2X analysis error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ITS Equipment Compliance Gap Report (CSV Export)
+app.get('/api/its-equipment/compliance-report', async (req, res) => {
+  try {
+    const { stateKey } = req.query;
+
+    // Get upload history
+    let uploadQuery = 'SELECT * FROM gis_upload_history WHERE 1=1';
+    const uploadParams = [];
+    if (stateKey) {
+      uploadQuery += ' AND state_key = ?';
+      uploadParams.push(stateKey);
+    }
+    uploadQuery += ' ORDER BY upload_date DESC LIMIT 1';
+    const latestUpload = db.db.prepare(uploadQuery).get(...uploadParams);
+
+    // Get equipment summary
+    let summaryQuery = `
+      SELECT
+        equipment_type,
+        COUNT(*) as count,
+        SUM(CASE WHEN arc_its_id IS NOT NULL THEN 1 ELSE 0 END) as arc_compliant,
+        SUM(CASE WHEN manufacturer IS NULL THEN 1 ELSE 0 END) as missing_manufacturer,
+        SUM(CASE WHEN model IS NULL THEN 1 ELSE 0 END) as missing_model,
+        SUM(CASE WHEN installation_date IS NULL THEN 1 ELSE 0 END) as missing_install_date
+      FROM its_equipment
+      WHERE 1=1
+    `;
+    const summaryParams = [];
+    if (stateKey) {
+      summaryQuery += ' AND state_key = ?';
+      summaryParams.push(stateKey);
+    }
+    summaryQuery += ' GROUP BY equipment_type';
+
+    const summary = db.db.prepare(summaryQuery).all(...summaryParams);
+
+    // Build CSV
+    let csv = 'ITS Equipment Compliance Gap Report\\n\\n';
+
+    // Add metadata
+    csv += 'State,' + (stateKey || 'All States') + '\\n';
+    csv += 'Report Generated,' + new Date().toISOString() + '\\n\\n';
+
+    // Add upload statistics
+    if (latestUpload) {
+      csv += 'IMPORT STATISTICS\\n';
+      csv += 'File Name,' + latestUpload.file_name + '\\n';
+      csv += 'Upload Date,' + latestUpload.upload_date + '\\n';
+      csv += 'Total Records in File,' + latestUpload.records_total + '\\n';
+      csv += 'Successfully Processed,' + latestUpload.records_imported + '\\n';
+      csv += 'Failed (Invalid Geometry),' + latestUpload.records_failed + '\\n';
+
+      const stored = summary.reduce((sum, row) => sum + row.count, 0);
+      const duplicates = latestUpload.records_imported - stored;
+      csv += 'Unique Records Stored,' + stored + '\\n';
+      csv += 'Duplicates Prevented,' + duplicates + '\\n\\n';
+    }
+
+    // Add equipment breakdown
+    csv += 'EQUIPMENT TYPE BREAKDOWN\\n';
+    csv += 'Type,Total,ARC-ITS Compliant,Missing Manufacturer,Missing Model,Missing Install Date\\n';
+
+    summary.forEach(row => {
+      csv += `${row.equipment_type},${row.count},${row.arc_compliant},${row.missing_manufacturer},${row.missing_model},${row.missing_install_date}\\n`;
+    });
+
+    csv += '\\n';
+
+    // Add totals
+    const totals = summary.reduce((acc, row) => ({
+      count: acc.count + row.count,
+      arc_compliant: acc.arc_compliant + row.arc_compliant,
+      missing_manufacturer: acc.missing_manufacturer + row.missing_manufacturer,
+      missing_model: acc.missing_model + row.missing_model,
+      missing_install_date: acc.missing_install_date + row.missing_install_date
+    }), { count: 0, arc_compliant: 0, missing_manufacturer: 0, missing_model: 0, missing_install_date: 0 });
+
+    csv += `TOTAL,${totals.count},${totals.arc_compliant},${totals.missing_manufacturer},${totals.missing_model},${totals.missing_install_date}\\n`;
+
+    // Send as downloadable CSV
+    res.set('Content-Type', 'text/csv');
+    res.set('Content-Disposition', `attachment; filename="its-compliance-gap-report-${stateKey || 'all'}-${Date.now()}.csv"`);
+    res.send(csv);
+
+  } catch (error) {
+    console.error('❌ Compliance report error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// AI-Assisted Grant Narrative Generation
+app.post('/api/grants/generate-narrative', async (req, res) => {
+  try {
+    const { stateKey, grantType, projectTitle, corridorDescription } = req.body;
+
+    // Check for OpenAI API key
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    if (!OPENAI_API_KEY) {
+      return res.status(503).json({
+        success: false,
+        error: 'OpenAI API key not configured. Set OPENAI_API_KEY environment variable.'
+      });
+    }
+
+    console.log(`🤖 Generating AI grant narrative for ${stateKey} - ${grantType}...`);
+
+    // 1. Get ITS equipment compliance data
+    const equipmentSummary = db.db.prepare(`
+      SELECT
+        equipment_type,
+        COUNT(*) as count,
+        SUM(CASE WHEN arc_its_id IS NOT NULL THEN 1 ELSE 0 END) as arc_compliant
+      FROM its_equipment
+      WHERE state_key = ?
+      GROUP BY equipment_type
+    `).all(stateKey);
+
+    // 2. Get latest upload stats
+    const uploadStats = db.db.prepare(`
+      SELECT * FROM gis_upload_history
+      WHERE state_key = ?
+      ORDER BY upload_date DESC LIMIT 1
+    `).get(stateKey);
+
+    // 3. Get incident statistics (last 12 months)
+    const incidentStats = db.db.prepare(`
+      SELECT
+        COUNT(*) as total_incidents,
+        COUNT(CASE WHEN description LIKE '%weather%' OR description LIKE '%snow%' OR description LIKE '%ice%' THEN 1 END) as weather_related,
+        COUNT(CASE WHEN description LIKE '%crash%' OR description LIKE '%accident%' THEN 1 END) as crashes
+      FROM events
+      WHERE state_key = ?
+      AND created >= datetime('now', '-12 months')
+    `).get(stateKey);
+
+    // 4. Build data summary for AI
+    const dataSummary = {
+      state: stateKey.toUpperCase(),
+      grantType,
+      projectTitle,
+      corridorDescription,
+      itsInventory: {
+        total: equipmentSummary.reduce((sum, e) => sum + e.count, 0),
+        breakdown: equipmentSummary,
+        arcCompliant: equipmentSummary.reduce((sum, e) => sum + e.arc_compliant, 0),
+        gaps: uploadStats ? {
+          recordsInFile: uploadStats.records_total,
+          failed: uploadStats.records_failed,
+          duplicates: uploadStats.records_imported - equipmentSummary.reduce((sum, e) => sum + e.count, 0)
+        } : null
+      },
+      incidents: incidentStats || { total_incidents: 0, weather_related: 0, crashes: 0 }
+    };
+
+    // 5. Call OpenAI API
+    const prompt = `You are an expert transportation grant writer. Generate a compelling 2-3 paragraph project justification for a ${grantType} grant application.
+
+PROJECT DETAILS:
+- State: ${dataSummary.state}
+- Project Title: ${projectTitle}
+- Corridor/Area: ${corridorDescription}
+
+CURRENT ITS INFRASTRUCTURE:
+- Total ITS Equipment: ${dataSummary.itsInventory.total} devices
+${equipmentSummary.map(e => `  - ${e.equipment_type}: ${e.count} devices`).join('\\n')}
+- ARC-IT Compliant: ${dataSummary.itsInventory.arcCompliant} of ${dataSummary.itsInventory.total}
+
+DATA QUALITY GAPS:
+${dataSummary.itsInventory.gaps ? `- ${dataSummary.itsInventory.gaps.failed} records failed import (invalid geometry)
+- ${dataSummary.itsInventory.gaps.duplicates} duplicate records identified
+- Missing manufacturer/model data on equipment` : '- Limited historical data available'}
+
+SAFETY & OPERATIONS:
+- Total incidents (last 12 months): ${dataSummary.incidents.total_incidents}
+- Weather-related incidents: ${dataSummary.incidents.weather_related}
+- Crashes: ${dataSummary.incidents.crashes}
+
+Write a data-driven project justification that:
+1. Highlights the current infrastructure baseline
+2. Identifies coverage gaps using the data
+3. Explains how the project addresses safety/operational needs
+4. Emphasizes the value of achieving ARC-IT compliance for V2X deployment
+5. Includes specific statistics to support the need
+
+Keep it professional, concise, and compelling. Focus on quantifiable benefits and ROI.`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4',
+        messages: [
+          { role: 'system', content: 'You are an expert transportation grant writer specializing in ITS and V2X infrastructure projects.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 1500
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`OpenAI API error: ${error.error?.message || response.statusText}`);
+    }
+
+    const aiResponse = await response.json();
+    const narrative = aiResponse.choices[0].message.content;
+
+    console.log(`✅ Generated ${narrative.length} character narrative`);
+
+    res.json({
+      success: true,
+      narrative,
+      dataSummary,
+      usage: aiResponse.usage
+    });
+
+  } catch (error) {
+    console.error('❌ AI narrative generation error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -10776,6 +11063,293 @@ app.get('/api/grants/applications/:id/its-equipment', async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+/**
+ * Generate grant writing assistance using ChatGPT API
+ * Takes application data and ITS inventory to generate ideas and content
+ */
+app.post('/api/grants/generate-content', async (req, res) => {
+  try {
+    const {
+      applicationId,
+      stateKey,
+      grantProgram,
+      projectDescription,
+      contentType, // 'ideas', 'draft', 'executive_summary', 'technical_approach'
+      customPrompt
+    } = req.body;
+
+    console.log(`🤖 Generating grant content: ${contentType} for ${grantProgram}`);
+
+    // Get ITS equipment inventory for context
+    let itsInventory = null;
+    if (stateKey) {
+      const equipment = db.prepare(`
+        SELECT
+          equipment_type,
+          COUNT(*) as count,
+          GROUP_CONCAT(DISTINCT corridor) as corridors
+        FROM its_equipment
+        WHERE state_key = ? AND status = 'operational'
+        GROUP BY equipment_type
+      `).all(stateKey);
+
+      const totalEquipment = db.prepare(`
+        SELECT COUNT(*) as total FROM its_equipment WHERE state_key = ? AND status = 'operational'
+      `).get(stateKey);
+
+      const arcItsCompliant = db.prepare(`
+        SELECT COUNT(*) as count FROM its_equipment
+        WHERE state_key = ? AND arc_its_id IS NOT NULL
+      `).get(stateKey);
+
+      itsInventory = {
+        total: totalEquipment.total,
+        arc_its_compliant: arcItsCompliant.count,
+        by_type: equipment,
+        compliance_rate: ((arcItsCompliant.count / totalEquipment.total) * 100).toFixed(1)
+      };
+    }
+
+    // Build the prompt based on content type
+    let systemPrompt = `You are an expert grant writer specializing in USDOT federal transportation grants.
+You have deep knowledge of ARC-IT 10.0, ITS architecture, NTCIP standards, and federal grant requirements.
+Provide professional, detailed, and technically accurate grant content.`;
+
+    let userPrompt = '';
+
+    switch (contentType) {
+      case 'ideas':
+        userPrompt = `Generate 5-7 compelling project ideas for a ${grantProgram} grant application for a state DOT.
+
+Context:
+- Grant Program: ${grantProgram}
+- State: ${stateKey || 'Multi-state'}
+- Current ITS Inventory: ${itsInventory ? `${itsInventory.total} devices (${itsInventory.compliance_rate}% ARC-IT compliant)` : 'Not provided'}
+${projectDescription ? `- Existing Project Description: ${projectDescription}` : ''}
+
+For each idea, provide:
+1. Project Title
+2. Brief Description (2-3 sentences)
+3. Key Benefits
+4. Estimated Cost Range
+5. ARC-ITS Relevance
+
+Format as a structured list.`;
+        break;
+
+      case 'executive_summary':
+        userPrompt = `Write a compelling Executive Summary for a ${grantProgram} grant application.
+
+Project Description: ${projectDescription || 'ITS deployment and modernization project'}
+
+Context:
+- Grant Program: ${grantProgram}
+- State: ${stateKey || 'Multi-state partnership'}
+- ITS Inventory: ${itsInventory ? `${itsInventory.total} operational devices` : 'Expanding ITS infrastructure'}
+
+The summary should:
+- Be 1-2 paragraphs
+- Highlight project impact and benefits
+- Emphasize innovation and technology
+- Include quantifiable outcomes
+- Align with federal priorities (safety, mobility, sustainability)`;
+        break;
+
+      case 'technical_approach':
+        userPrompt = `Write a detailed Technical Approach section for a ${grantProgram} grant application.
+
+Project Description: ${projectDescription || 'ITS deployment and modernization'}
+
+Current Infrastructure:
+${itsInventory ? `- Total ITS Devices: ${itsInventory.total}
+- ARC-IT Compliance: ${itsInventory.compliance_rate}%
+- Equipment Types: ${itsInventory.by_type.map(t => `${t.equipment_type} (${t.count})`).join(', ')}` : '- Building new ITS infrastructure'}
+
+Include:
+1. System Architecture (reference ARC-IT 10.0)
+2. Technology Standards (NTCIP, SAE J2735, IEEE 1609)
+3. Integration Approach
+4. Data Management Strategy
+5. Interoperability Requirements
+6. Deployment Timeline`;
+        break;
+
+      case 'draft':
+      default:
+        userPrompt = customPrompt || `Provide grant writing assistance for a ${grantProgram} application focused on: ${projectDescription || 'ITS technology deployment'}`;
+        break;
+    }
+
+    // NOTE: OpenAI API key would need to be configured in environment variables
+    // For now, we'll return a structured response indicating the feature requires API key configuration
+
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+
+    if (!openaiApiKey) {
+      // Return helpful structured response without actual OpenAI call
+      res.json({
+        success: true,
+        content: generateFallbackContent(contentType, grantProgram, itsInventory, projectDescription),
+        note: 'AI content generation requires OpenAI API key configuration (OPENAI_API_KEY environment variable)',
+        itsInventory
+      });
+      return;
+    }
+
+    // If API key is configured, make the OpenAI API call
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openaiApiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error?.message || 'OpenAI API error');
+    }
+
+    res.json({
+      success: true,
+      content: data.choices[0].message.content,
+      itsInventory,
+      usage: data.usage
+    });
+
+  } catch (error) {
+    console.error('❌ Generate content error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      fallback: 'Consider using the Federal Grant Resources page for program-specific guidance'
+    });
+  }
+});
+
+// Fallback content generator (used when OpenAI API key is not configured)
+function generateFallbackContent(contentType, grantProgram, itsInventory, projectDescription) {
+  const templates = {
+    ideas: `📋 PROJECT IDEAS FOR ${grantProgram.toUpperCase()} GRANT APPLICATION
+
+${itsInventory ? `Current Infrastructure: ${itsInventory.total} ITS devices (${itsInventory.compliance_rate}% ARC-IT compliant)\n` : ''}
+1. **Connected Vehicle Infrastructure Expansion**
+   - Deploy RSUs and V2I technology along critical corridors
+   - Enable safety applications (FCW, EEBL, IMA)
+   - Estimated Cost: $3M - $8M
+   - HIGH ARC-ITS relevance
+
+2. **Advanced Traffic Management System Integration**
+   - Upgrade existing DMS and camera systems to ARC-IT 10.0 standards
+   - Implement centralized ATMS with AI/ML analytics
+   - Estimated Cost: $2M - $5M
+   - VERY HIGH ARC-ITS relevance
+
+3. **Multi-State Corridor Coordination Platform**
+   - Real-time data sharing across state boundaries
+   - Coordinated incident response and traveler information
+   - Estimated Cost: $4M - $10M
+   - HIGH ARC-ITS relevance
+
+4. **Weather-Responsive Traffic Management**
+   - Deploy Environmental Sensor Stations (ESS)
+   - Integrate with DMS for real-time warnings
+   - Estimated Cost: $1.5M - $4M
+   - MEDIUM-HIGH ARC-ITS relevance
+
+5. **Commercial Vehicle Electronic Screening**
+   - Modernize weigh station technology
+   - PrePass/bypass systems for compliant carriers
+   - Estimated Cost: $2M - $6M
+   - HIGH ARC-ITS relevance (for FMCSA IT-D)
+
+🔗 Next Steps:
+- Review Federal Grant Resources page for specific program requirements
+- Export ARC-ITS compliant equipment inventory
+- Develop detailed benefit-cost analysis
+
+💡 Note: Configure OPENAI_API_KEY environment variable for AI-powered content generation`,
+
+    executive_summary: `EXECUTIVE SUMMARY
+
+${projectDescription || '[Your state/region]'} proposes a comprehensive intelligent transportation systems deployment that will significantly enhance safety, mobility, and efficiency across [X] miles of critical corridors. This project directly supports federal priorities for connected and automated transportation while leveraging proven technologies to deliver immediate benefits.
+
+The proposed system will ${itsInventory ? `expand our current ${itsInventory.total}-device ITS network` : 'deploy state-of-the-art ITS infrastructure'}, incorporating ARC-IT 10.0 compliant equipment, connected vehicle technology, and advanced data analytics. By integrating real-time traffic management, incident detection, and traveler information systems, we will reduce congestion by an estimated 15-20%, decrease crash rates by 25%, and provide measurable benefits to freight efficiency and emergency response times.
+
+This investment aligns with ${grantProgram} objectives and represents a collaborative approach to modernizing transportation infrastructure, with applications extending beyond state boundaries through standardized data sharing and interoperability protocols.
+
+💡 Note: Configure OPENAI_API_KEY environment variable for AI-powered, customized content`,
+
+    technical_approach: `TECHNICAL APPROACH
+
+**System Architecture**
+The proposed system follows ARC-IT 10.0 architecture standards, ensuring interoperability and future expandability. Our deployment will integrate with existing infrastructure ${itsInventory ? `(${itsInventory.total} devices across ${itsInventory.by_type.length} equipment types)` : ''} while establishing a scalable platform for advanced applications.
+
+**Technology Standards**
+All equipment will comply with:
+- NTCIP 1203 (Dynamic Message Signs)
+- NTCIP 1204/1218 (Environmental Sensor Stations)
+- NTCIP 1205 (CCTV/Video)
+- SAE J2735 (DSRC Message Sets for V2X)
+- IEEE 1609 (WAVE Standards)
+
+**Integration Approach**
+Phase 1: Infrastructure assessment and ARC-ITS inventory update
+Phase 2: Core system deployment (field equipment, communications)
+Phase 3: Central system integration and data platform development
+Phase 4: Advanced applications and regional coordination
+
+**Data Management**
+All data will be managed through a centralized platform with:
+- Real-time data collection and processing
+- Cloud-based storage and analytics
+- Open data standards for third-party access
+- Privacy and security controls per federal requirements
+
+**Interoperability**
+The system will support:
+- Multi-state data exchange using TMDD/C2C-RI
+- Integration with existing ATMS platforms
+- API access for partner agencies and private sector
+- Standards-based connected vehicle messages
+
+💡 Note: Configure OPENAI_API_KEY for AI-powered, detailed technical content`,
+
+    draft: `GRANT WRITING ASSISTANCE
+
+Project Focus: ${projectDescription || 'ITS Technology Deployment'}
+Grant Program: ${grantProgram}
+
+KEY STRENGTHS TO HIGHLIGHT:
+✓ ARC-IT 10.0 compliant infrastructure ${itsInventory ? `(${itsInventory.compliance_rate}% current compliance)` : ''}
+✓ Multi-state coordination capabilities
+✓ Standards-based interoperability
+✓ Measurable safety and mobility outcomes
+✓ Alignment with federal transportation priorities
+
+RECOMMENDED SECTIONS:
+1. Project Need (emphasize safety data, congestion metrics)
+2. Technical Approach (reference ARC-IT architecture)
+3. Benefits Analysis (quantify outcomes)
+4. Project Readiness (demonstrate capability)
+5. Partnerships (show collaboration)
+
+💡 Configure OPENAI_API_KEY environment variable for AI-generated grant content tailored to your specific project`
+  };
+
+  return templates[contentType] || templates.draft;
+}
 
 /**
  * Get available grant templates
@@ -13116,14 +13690,15 @@ function startServer() {
     }
   }
 
-  evaluateDetourAlerts().catch(error => {
-    console.error('❌ Error in evaluateDetourAlerts:', error);
-  });
-  setInterval(() => {
-    evaluateDetourAlerts().catch(error => {
-      console.error('❌ Error in evaluateDetourAlerts:', error);
-    });
-  }, 5 * 60 * 1000);
+  // DISABLED FOR PERFORMANCE: Detour alerts cause database errors and significant slowdown
+  // evaluateDetourAlerts().catch(error => {
+  //   console.error('❌ Error in evaluateDetourAlerts:', error);
+  // });
+  // setInterval(() => {
+  //   evaluateDetourAlerts().catch(error => {
+  //     console.error('❌ Error in evaluateDetourAlerts:', error);
+  //   });
+  // }, 5 * 60 * 1000);
 
   console.log(`\nPress Ctrl+C to stop the server\n`);
   });

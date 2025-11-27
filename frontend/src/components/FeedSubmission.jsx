@@ -405,9 +405,9 @@ export default function FeedSubmission({ authToken, user }) {
             gap: theme.spacing.md,
             marginTop: theme.spacing.md
           }}>
-            {integratedFeeds.map((feed) => (
+            {integratedFeeds.map((feed, index) => (
               <div
-                key={feed.stateKey}
+                key={`${feed.stateKey}-${index}`}
                 style={{
                   background: theme.colors.glassLight,
                   borderRadius: '12px',
@@ -647,18 +647,112 @@ export default function FeedSubmission({ authToken, user }) {
         </div>
 
         {gisSuccess && (
-          <div style={{
-            marginTop: theme.spacing.md,
-            padding: theme.spacing.sm,
-            borderRadius: '8px',
-            backgroundColor: `${theme.colors.success}15`,
-            border: `1px solid ${theme.colors.success}40`,
-            color: theme.colors.success,
-            fontSize: '12px',
-            fontWeight: '600'
-          }}>
-            ✅ {gisSuccess}
-          </div>
+          <>
+            <div style={{
+              marginTop: theme.spacing.md,
+              padding: theme.spacing.sm,
+              borderRadius: '8px',
+              backgroundColor: `${theme.colors.success}15`,
+              border: `1px solid ${theme.colors.success}40`,
+              color: theme.colors.success,
+              fontSize: '12px',
+              fontWeight: '600'
+            }}>
+              ✅ {gisSuccess}
+            </div>
+
+            {/* ARC-ITS Export Download Buttons */}
+            <div style={{
+              marginTop: theme.spacing.md,
+              padding: theme.spacing.md,
+              borderRadius: '8px',
+              backgroundColor: theme.colors.glassLight,
+              border: `1px solid ${theme.colors.border}`
+            }}>
+              <div style={{
+                fontSize: '12px',
+                fontWeight: '600',
+                color: theme.colors.text,
+                marginBottom: '8px'
+              }}>
+                📥 Download ARC-ITS Compliant Data for Grant Applications:
+              </div>
+              <div style={{
+                display: 'flex',
+                gap: '8px',
+                flexWrap: 'wrap'
+              }}>
+                <a
+                  href={`/api/its-equipment/export?stateKey=${user?.stateKey || 'multi-state'}&format=xml`}
+                  download
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: theme.colors.accentBlue,
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontWeight: '600',
+                    fontSize: '12px',
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                    transition: `all ${theme.transitions.fast}`,
+                    boxShadow: theme.shadows.sm,
+                    display: 'inline-block'
+                  }}
+                >
+                  📄 Download XML
+                </a>
+                <a
+                  href={`/api/its-equipment/export?stateKey=${user?.stateKey || 'multi-state'}&format=json`}
+                  download
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: theme.colors.accentPurple,
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontWeight: '600',
+                    fontSize: '12px',
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                    transition: `all ${theme.transitions.fast}`,
+                    boxShadow: theme.shadows.sm,
+                    display: 'inline-block'
+                  }}
+                >
+                  📊 Download JSON
+                </a>
+                <a
+                  href={`/api/its-equipment/compliance-report?stateKey=${user?.stateKey || 'multi-state'}`}
+                  download
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: theme.colors.accentGreen,
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontWeight: '600',
+                    fontSize: '12px',
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                    transition: `all ${theme.transitions.fast}`,
+                    boxShadow: theme.shadows.sm,
+                    display: 'inline-block'
+                  }}
+                >
+                  📋 Compliance Gap Report
+                </a>
+              </div>
+              <div style={{
+                marginTop: '8px',
+                fontSize: '10px',
+                color: theme.colors.textSecondary,
+                lineHeight: '1.4'
+              }}>
+                ARC-IT 10.0 compliant export for federal grant applications (SMART, RAISE, ATCMTD). Gap report shows import statistics, equipment breakdown, and data quality issues.
+              </div>
+            </div>
+          </>
         )}
 
         {gisError && (

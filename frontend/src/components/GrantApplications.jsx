@@ -844,6 +844,16 @@ function ApplicationDetails({ theme, styles, selectedApp, getStatusConfig, handl
   const [loadingITS, setLoadingITS] = React.useState(false);
   const [attachingITS, setAttachingITS] = React.useState(false);
 
+  // AI Grant Narrative state
+  const [aiNarrativeForm, setAiNarrativeForm] = React.useState({
+    grantType: selectedApp.application.grant_program || '',
+    projectTitle: selectedApp.application.application_title || '',
+    corridorDescription: selectedApp.application.primary_corridor || ''
+  });
+  const [generatingNarrative, setGeneratingNarrative] = React.useState(false);
+  const [generatedNarrative, setGeneratedNarrative] = React.useState(null);
+  const [narrativeError, setNarrativeError] = React.useState('');
+
   // Fetch ITS equipment on mount
   React.useEffect(() => {
     fetchITSEquipment();
@@ -878,6 +888,38 @@ function ApplicationDetails({ theme, styles, selectedApp, getStatusConfig, handl
       alert('Failed to attach ITS equipment');
     } finally {
       setAttachingITS(false);
+    }
+  };
+
+  const handleGenerateAINarrative = async () => {
+    try {
+      setGeneratingNarrative(true);
+      setNarrativeError('');
+
+      const response = await api.post('/api/grants/generate-narrative', {
+        stateKey: selectedApp.application.state_key,
+        grantType: aiNarrativeForm.grantType,
+        projectTitle: aiNarrativeForm.projectTitle,
+        corridorDescription: aiNarrativeForm.corridorDescription
+      });
+
+      if (response.data.success) {
+        setGeneratedNarrative(response.data);
+      } else {
+        setNarrativeError(response.data.error || 'Failed to generate narrative');
+      }
+    } catch (error) {
+      console.error('Error generating AI narrative:', error);
+      setNarrativeError(error.response?.data?.error || 'Failed to generate narrative. Please ensure OpenAI API key is configured.');
+    } finally {
+      setGeneratingNarrative(false);
+    }
+  };
+
+  const handleCopyNarrative = () => {
+    if (generatedNarrative?.narrative) {
+      navigator.clipboard.writeText(generatedNarrative.narrative);
+      alert('✅ Narrative copied to clipboard!');
     }
   };
 
@@ -1008,6 +1050,167 @@ function ApplicationDetails({ theme, styles, selectedApp, getStatusConfig, handl
             >
               {uploadingProposal ? '⏳ Uploading...' : '📤 Upload Proposal'}
             </button>
+          </div>
+        )}
+      </div>
+
+      {/* AI Grant Narrative Generation */}
+      <div style={styles.card}>
+        <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '700', color: theme.text }}>
+          🤖 AI-Powered Grant Narrative
+        </h3>
+        <div style={{ fontSize: '14px', color: theme.textSecondary, marginBottom: '20px' }}>
+          Generate compelling, data-driven project justifications using AI analysis of your traffic data, ITS inventory, and incident history.
+        </div>
+
+        {/* Form Fields */}
+        <div style={{ display: 'grid', gap: '16px', marginBottom: '20px' }}>
+          <div>
+            <label style={styles.label}>Grant Type / Program</label>
+            <input
+              type="text"
+              value={aiNarrativeForm.grantType}
+              onChange={e => setAiNarrativeForm({ ...aiNarrativeForm, grantType: e.target.value })}
+              placeholder="e.g., SMART, Pooled Fund, RAISE, ATCMTD"
+              style={styles.input}
+            />
+          </div>
+
+          <div>
+            <label style={styles.label}>Project Title</label>
+            <input
+              type="text"
+              value={aiNarrativeForm.projectTitle}
+              onChange={e => setAiNarrativeForm({ ...aiNarrativeForm, projectTitle: e.target.value })}
+              placeholder="Brief, descriptive project title"
+              style={styles.input}
+            />
+          </div>
+
+          <div>
+            <label style={styles.label}>Corridor / Area Description</label>
+            <textarea
+              value={aiNarrativeForm.corridorDescription}
+              onChange={e => setAiNarrativeForm({ ...aiNarrativeForm, corridorDescription: e.target.value })}
+              rows={3}
+              placeholder="Describe the corridor or geographic area this project will serve..."
+              style={{
+                ...styles.input,
+                fontFamily: 'inherit',
+                resize: 'vertical',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Generate Button */}
+        <button
+          onClick={handleGenerateAINarrative}
+          disabled={generatingNarrative || !aiNarrativeForm.grantType || !aiNarrativeForm.projectTitle}
+          style={{
+            ...styles.button,
+            opacity: generatingNarrative || !aiNarrativeForm.grantType || !aiNarrativeForm.projectTitle ? 0.5 : 1,
+            cursor: generatingNarrative || !aiNarrativeForm.grantType || !aiNarrativeForm.projectTitle ? 'not-allowed' : 'pointer',
+            marginBottom: '20px',
+          }}
+        >
+          {generatingNarrative ? '⏳ Generating with AI...' : '✨ Generate Narrative'}
+        </button>
+
+        {/* Error Display */}
+        {narrativeError && (
+          <div style={{
+            padding: '16px',
+            background: darkMode ? '#7f1d1d' : '#fee2e2',
+            border: `2px solid ${theme.error}`,
+            borderRadius: '12px',
+            marginBottom: '20px',
+            color: darkMode ? '#fca5a5' : '#991b1b',
+            fontSize: '14px',
+          }}>
+            <strong>Error:</strong> {narrativeError}
+          </div>
+        )}
+
+        {/* Generated Narrative Display */}
+        {generatedNarrative && (
+          <div style={{
+            padding: '24px',
+            background: theme.bgTertiary,
+            borderRadius: '12px',
+            border: `2px solid ${theme.primary}`,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: theme.text }}>
+                Generated Project Justification
+              </h4>
+              <button
+                onClick={handleCopyNarrative}
+                style={{
+                  padding: '8px 16px',
+                  background: theme.primary,
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+              >
+                📋 Copy to Clipboard
+              </button>
+            </div>
+
+            <div style={{
+              padding: '20px',
+              background: theme.bgSecondary,
+              borderRadius: '10px',
+              fontSize: '15px',
+              lineHeight: '1.8',
+              color: theme.text,
+              whiteSpace: 'pre-wrap',
+              marginBottom: '16px',
+            }}>
+              {generatedNarrative.narrative}
+            </div>
+
+            {/* Data Summary */}
+            {generatedNarrative.dataSummary && (
+              <div style={{
+                padding: '16px',
+                background: theme.bgSecondary,
+                borderRadius: '10px',
+                fontSize: '13px',
+                color: theme.textSecondary,
+              }}>
+                <div style={{ fontWeight: '700', marginBottom: '12px', color: theme.text }}>
+                  📊 Data Used in Narrative:
+                </div>
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  <div>Total ITS Equipment: <strong>{generatedNarrative.dataSummary.total_equipment}</strong></div>
+                  <div>Total Incidents (12mo): <strong>{generatedNarrative.dataSummary.total_incidents}</strong></div>
+                  {generatedNarrative.dataSummary.equipment_breakdown && (
+                    <div style={{ marginTop: '8px' }}>
+                      Equipment: {Object.entries(generatedNarrative.dataSummary.equipment_breakdown)
+                        .map(([type, count]) => `${type}: ${count}`)
+                        .join(', ')}
+                    </div>
+                  )}
+                </div>
+                {generatedNarrative.usage && (
+                  <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: `1px solid ${theme.border}`, fontSize: '11px', color: theme.textMuted }}>
+                    AI Tokens: {generatedNarrative.usage.total_tokens} (prompt: {generatedNarrative.usage.prompt_tokens}, completion: {generatedNarrative.usage.completion_tokens})
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

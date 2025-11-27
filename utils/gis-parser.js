@@ -188,37 +188,105 @@ class GISParser {
         }
       }
 
+      // Get list of layers in the geodatabase
+      console.log(`   Discovering layers...`);
+      let layers = [];
+      try {
+        const ogrInfoOutput = execSync(
+          `ogrinfo "${extractPath}"`,
+          { encoding: 'utf8' }
+        );
+        // Parse layer names from "Layer: <name> (<geometry type>)" format
+        // Extract just the layer name, strip the geometry type in parentheses
+        const layerPattern = /^Layer: (.+?) \(/gm;
+        const layerMatches = ogrInfoOutput.match(layerPattern);
+        if (layerMatches) {
+          layers = layerMatches.map(match => {
+            // Extract "Layer Name" from "Layer: Layer Name ("
+            return match.replace(/^Layer: /, '').replace(/ \($/, '').trim();
+          });
+        }
+        console.log(`   Found ${layers.length} layer(s): ${layers.join(', ')}`);
+      } catch (error) {
+        console.warn(`   ⚠️  Could not list layers: ${error.message}`);
+      }
+
       // Convert .gdb to GeoJSON using ogr2ogr
+      // If we found specific layers, convert each one
+      // Otherwise, try converting everything with -skipfailures
       const outputPath = path.join(tempDir, `${gdbName}_output.geojson`);
       console.log(`   Converting to GeoJSON...`);
 
+      // Convert each layer separately and tag with layer name
+      const layerGeojsons = [];
+
       try {
-        execSync(
-          `ogr2ogr -f GeoJSON "${outputPath}" "${extractPath}"`,
-          { stdio: 'pipe' }
-        );
+        if (layers.length > 0) {
+          for (const layerName of layers) {
+            try {
+              const layerOutputPath = path.join(tempDir, `${gdbName}_${layerName.replace(/[^a-zA-Z0-9]/g, '_')}.geojson`);
+              execSync(
+                `ogr2ogr -f GeoJSON -t_srs EPSG:4326 "${layerOutputPath}" "${extractPath}" "${layerName}"`,
+                { stdio: 'pipe' }
+              );
+
+              // Read and tag with layer name
+              const layerContent = await fs.readFile(layerOutputPath, 'utf8');
+              const layerGeojson = JSON.parse(layerContent);
+
+              // Add layer name to each feature's properties
+              if (layerGeojson.type === 'FeatureCollection' && layerGeojson.features) {
+                layerGeojson.features.forEach(feature => {
+                  if (feature.properties) {
+                    feature.properties._layer_name = layerName;
+                  }
+                });
+              }
+
+              layerGeojsons.push(layerGeojson);
+
+              // Cleanup individual layer file
+              await fs.unlink(layerOutputPath).catch(() => {});
+            } catch (err) {
+              console.warn(`   ⚠️  Failed to convert layer '${layerName}': ${err.message}`);
+            }
+          }
+        } else {
+          // Fallback: try converting with -skipfailures
+          execSync(
+            `ogr2ogr -f GeoJSON -t_srs EPSG:4326 -skipfailures "${outputPath}" "${extractPath}"`,
+            { stdio: 'pipe' }
+          );
+
+          const content = await fs.readFile(outputPath, 'utf8');
+          layerGeojsons.push(JSON.parse(content));
+        }
       } catch (error) {
         throw new Error(`ogr2ogr conversion failed: ${error.message}`);
       }
 
-      // Parse the resulting GeoJSON
+      // Parse all layer GeoJSONs
       console.log(`   Parsing converted GeoJSON...`);
-      const geojsonContent = await fs.readFile(outputPath, 'utf8');
-      const geojson = JSON.parse(geojsonContent);
 
-      if (geojson.type === 'FeatureCollection' && geojson.features) {
-        geojson.features.forEach(feature => {
-          const record = this.convertFeatureToEquipment(feature, stateKey);
+      for (const geojson of layerGeojsons) {
+        if (geojson.type === 'FeatureCollection' && geojson.features) {
+          geojson.features.forEach(feature => {
+            // Pass layer information to help with equipment type detection
+            const record = this.convertFeatureToEquipment(feature, stateKey, { layers });
+            if (record) {
+              result.records.push(record);
+            }
+          });
+        } else if (geojson.type === 'Feature') {
+          const record = this.convertFeatureToEquipment(geojson, stateKey, { layers });
           if (record) {
             result.records.push(record);
           }
-        });
-      } else if (geojson.type === 'Feature') {
-        const record = this.convertFeatureToEquipment(geojson, stateKey);
-        if (record) {
-          result.records.push(record);
         }
       }
+
+      console.log(`   ✅ Extracted ${result.records.length} equipment records from ${layers.length || 'unknown'} layer(s)`);
+      result.metadata.layers = layers;
 
       result.metadata.source = 'File Geodatabase';
       result.metadata.gdbName = gdbName;
@@ -226,7 +294,6 @@ class GISParser {
       // Cleanup temp files
       try {
         await fs.rm(extractPath, { recursive: true, force: true });
-        await fs.unlink(outputPath);
       } catch (e) {
         console.warn('   ⚠️  Cleanup warning:', e.message);
       }
@@ -424,43 +491,50 @@ class GISParser {
   /**
    * Convert GeoJSON feature to equipment record
    */
-  convertFeatureToEquipment(feature, stateKey) {
+  convertFeatureToEquipment(feature, stateKey, metadata = {}) {
     if (!feature.geometry || !feature.geometry.coordinates) {
       return null;
     }
 
-    // Extract coordinates (handle Point geometry)
+    // Extract coordinates (handle Point and LineString geometry)
     let lon, lat, elevation;
     if (feature.geometry.type === 'Point') {
       [lon, lat, elevation] = feature.geometry.coordinates;
+    } else if (feature.geometry.type === 'LineString' || feature.geometry.type === 'MultiLineString') {
+      // For fiber/wireless lines, use the midpoint or first coordinate
+      const coords = feature.geometry.type === 'LineString'
+        ? feature.geometry.coordinates
+        : feature.geometry.coordinates[0];
+      const midIdx = Math.floor(coords.length / 2);
+      [lon, lat, elevation] = coords[midIdx];
     } else {
-      // For non-point geometries, use centroid or first coordinate
-      console.warn('Non-point geometry detected, using first coordinate');
+      // For other geometries, use first coordinate
+      console.warn('Non-point/line geometry detected, using first coordinate');
       [lon, lat, elevation] = feature.geometry.coordinates[0];
     }
 
     const props = feature.properties || {};
 
     // Generate unique ID
-    const id = props.id || props.ID || props.equipment_id ||
+    const id = props.id || props.ID || props.equipment_id || props.OBJECTID ||
                `eq-${stateKey}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     return {
       id,
       stateKey,
-      equipmentType: this.detectEquipmentType(props),
+      equipmentType: this.detectEquipmentType(props, feature.geometry.type, metadata.layers),
       equipmentSubtype: props.subtype || props.equipment_subtype || null,
       latitude: lat,
       longitude: lon,
       elevation: elevation || props.elevation || null,
-      locationDescription: props.location || props.description || props.name || null,
-      route: props.route || props.highway || props.road || null,
-      milepost: props.milepost || props.mile_post || props.mp || null,
+      locationDescription: props.location || props.description || props.name || props.NAME || null,
+      route: props.route || props.highway || props.road || props.route_designator || null,
+      milepost: props.milepost || props.mile_post || props.mp || props.measure || null,
       manufacturer: props.manufacturer || props.make || null,
       model: props.model || null,
       serialNumber: props.serial_number || props.serial || null,
-      installationDate: props.install_date || props.installation_date || null,
-      status: props.status || 'active',
+      installationDate: props.install_date || props.installation_date || props.CreationDate || null,
+      status: props.status || props.STATUS || 'active',
       // RSU specific
       rsuId: props.rsu_id || props.rsu_identifier || null,
       communicationRange: props.comm_range || props.range || null,
@@ -469,11 +543,11 @@ class GISParser {
       dmsType: props.dms_type || null,
       messageCapacity: props.message_capacity || props.msg_capacity || null,
       // Camera specific
-      cameraType: props.camera_type || null,
+      cameraType: props.camera_type || props.type || null,
       resolution: props.resolution || null,
       streamUrl: props.stream_url || props.video_url || null,
       // Sensor specific
-      sensorType: props.sensor_type || null,
+      sensorType: props.sensor_type || props.detector_type || null,
       measurementTypes: props.measurements || props.measurement_types || null,
       // Raw properties for additional attributes
       rawProperties: props
@@ -517,9 +591,38 @@ class GISParser {
   }
 
   /**
-   * Detect equipment type from properties
+   * Detect equipment type from properties, geometry type, and layer name
    */
-  detectEquipmentType(props) {
+  detectEquipmentType(props, geometryType = 'Point', layers = []) {
+    // First check if there's a layer name hint in the raw properties
+    const layerName = (props._layer_name || props.layer || '').toLowerCase();
+
+    // Check geometry type - LineString/MultiLineString are typically fiber/wireless
+    if (geometryType === 'LineString' || geometryType === 'MultiLineString') {
+      if (layerName.includes('wireless') || layerName.includes('fiber')) {
+        return 'fiber';
+      }
+      return 'fiber'; // Default for line geometries
+    }
+
+    // Check layer name patterns first (most reliable)
+    if (layerName.includes('camera') || layerName.includes('traffic_camera')) {
+      return 'camera';
+    }
+    if (layerName.includes('dms') || layerName.includes('sign') || layerName.includes('message')) {
+      return 'dms';
+    }
+    if (layerName.includes('sensor') || layerName.includes('detector')) {
+      return 'sensor';
+    }
+    if (layerName.includes('rwis') || layerName.includes('weather')) {
+      return 'sensor';
+    }
+    if (layerName.includes('rsu') || layerName.includes('v2x')) {
+      return 'rsu';
+    }
+
+    // Then check properties
     const type = (props.type || props.equipment_type || props.category || '').toLowerCase();
 
     // Map common variations to standard types
