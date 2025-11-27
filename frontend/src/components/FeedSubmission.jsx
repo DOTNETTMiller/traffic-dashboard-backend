@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { theme } from '../styles/theme';
+import ITSEquipmentExport from './ITSEquipmentExport';
 
 const initialForm = {
   feedName: '',
@@ -806,6 +807,9 @@ export default function FeedSubmission({ authToken, user }) {
           </div>
         )}
       </div>
+
+      {/* ITS Equipment Export - Always Visible */}
+      <ITSEquipmentExport user={user} />
 
       <h3 style={{
         fontSize: '18px',
