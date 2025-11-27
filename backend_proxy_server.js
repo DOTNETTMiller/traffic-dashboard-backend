@@ -9914,7 +9914,132 @@ app.get('/api/its-equipment/compliance-report', async (req, res) => {
   }
 });
 
-// AI-Assisted Grant Narrative Generation
+// RAD-IT Export (Regional Architecture Development for ITS)
+app.get('/api/its-equipment/export/radit', async (req, res) => {
+  try {
+    const { stateKey } = req.query;
+
+    let query = 'SELECT * FROM its_equipment WHERE arc_its_id IS NOT NULL';
+    const params = [];
+
+    if (stateKey) {
+      query += ' AND state_key = ?';
+      params.push(stateKey);
+    }
+
+    const equipment = db.db.prepare(query).all(...params);
+
+    // RAD-IT XML format (compatible with RAD-IT tool import)
+    const raditXML = `<?xml version="1.0" encoding="UTF-8"?>
+<RegionalArchitecture xmlns="http://www.iteris.com/radit/schema" version="10.0">
+  <Metadata>
+    <Name>${stateKey ? stateKey.toUpperCase() : 'Multi-State'} ITS Regional Architecture</Name>
+    <Description>ITS equipment inventory for ${stateKey ? stateKey.toUpperCase() : 'pooled fund states'} - ARC-IT 10.0 compliant</Description>
+    <Version>1.0</Version>
+    <LastModified>${new Date().toISOString()}</LastModified>
+    <Organization>${stateKey ? `${stateKey.toUpperCase()} DOT` : 'Pooled Fund Partnership'}</Organization>
+  </Metadata>
+
+  <Inventory>
+${equipment.map(eq => `    <Element>
+      <ElementID>${eq.arc_its_id || eq.id}</ElementID>
+      <ElementName>${eq.location_description || `${eq.equipment_type} ${eq.id}`}</ElementName>
+      <ElementType>Field Equipment</ElementType>
+      <ARCITCategory>${eq.arc_its_category || getARCITCategoryForType(eq.equipment_type)}</ARCITCategory>
+      <ARCITFunction>${eq.arc_its_function || getARCITFunctionForType(eq.equipment_type)}</ARCITFunction>
+      <Interface>${eq.arc_its_interface || 'NTCIP 1201/1203'}</Interface>
+      <Location>
+        <Latitude>${eq.latitude}</Latitude>
+        <Longitude>${eq.longitude}</Longitude>
+        ${eq.route ? `<Route>${eq.route}</Route>` : ''}
+        ${eq.milepost ? `<Milepost>${eq.milepost}</Milepost>` : ''}
+      </Location>
+      <Status>${eq.status || 'active'}</Status>
+      ${eq.manufacturer ? `<Manufacturer>${escapeXML(eq.manufacturer)}</Manufacturer>` : ''}
+      ${eq.model ? `<Model>${escapeXML(eq.model)}</Model>` : ''}
+      ${eq.installation_date ? `<InstallationDate>${eq.installation_date}</InstallationDate>` : ''}
+      <ServicePackages>
+        ${getServicePackagesForType(eq.equipment_type).map(sp => `<ServicePackage>${sp}</ServicePackage>`).join('\n        ')}
+      </ServicePackages>
+    </Element>`).join('\n')}
+  </Inventory>
+
+  <Interfaces>
+    <!-- Center-to-Field Interfaces -->
+    <Interface>
+      <InterfaceID>TMC-to-FieldEquipment</InterfaceID>
+      <Source>Traffic Management Center</Source>
+      <Destination>Field Equipment</Destination>
+      <InformationFlows>
+        <Flow>equipment_control</Flow>
+        <Flow>equipment_status</Flow>
+        <Flow>incident_information</Flow>
+      </InformationFlows>
+      <Standards>
+        <Standard>NTCIP 1201 (Global Object Definitions)</Standard>
+        <Standard>NTCIP 1203 (Object Definitions for DMS)</Standard>
+        <Standard>NTCIP 1204 (Object Definitions for ESS)</Standard>
+        <Standard>IEEE 1512 (Incident Management)</Standard>
+      </Standards>
+    </Interface>
+  </Interfaces>
+</RegionalArchitecture>`;
+
+    res.set('Content-Type', 'application/xml');
+    res.set('Content-Disposition', `attachment; filename="radit-inventory-${stateKey || 'pooled-fund'}.xml"`);
+    res.send(raditXML);
+
+  } catch (error) {
+    console.error('❌ RAD-IT export error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Helper functions for RAD-IT mapping
+function getARCITCategoryForType(equipmentType) {
+  const mapping = {
+    'camera': 'Field Equipment > Roadway Equipment > Roadway CCTV',
+    'dms': 'Field Equipment > Roadway Equipment > Dynamic Message Sign',
+    'rsu': 'Field Equipment > Roadside Equipment > Roadside Equipment',
+    'sensor': 'Field Equipment > Roadway Equipment > Environmental Sensor Station',
+    'fiber': 'Communications'
+  };
+  return mapping[equipmentType?.toLowerCase()] || 'Field Equipment';
+}
+
+function getARCITFunctionForType(equipmentType) {
+  const mapping = {
+    'camera': 'traffic_monitoring, incident_detection',
+    'dms': 'traveler_information, traffic_control',
+    'rsu': 'vehicle_communication, safety_warning',
+    'sensor': 'environmental_monitoring, traffic_detection',
+    'fiber': 'data_transmission'
+  };
+  return mapping[equipmentType?.toLowerCase()] || 'monitoring';
+}
+
+function getServicePackagesForType(equipmentType) {
+  const mapping = {
+    'camera': ['TM01: Infrastructure-Based Traffic Surveillance', 'TM08: Traffic Incident Management System'],
+    'dms': ['TI01: Broadcast Traveler Information', 'TM03: Traffic Signal Control'],
+    'rsu': ['VS02: V2V Safety', 'VS03: V2I Safety'],
+    'sensor': ['MC01: Maintenance and Construction Vehicle and Equipment Tracking', 'WX01: Weather Data Collection'],
+    'fiber': []
+  };
+  return mapping[equipmentType?.toLowerCase()] || [];
+}
+
+function escapeXML(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+// AI-Assisted Grant Narrative Generation (Enhanced with Pooled Fund Support)
 app.post('/api/grants/generate-narrative', async (req, res) => {
   try {
     const { stateKey, grantType, projectTitle, corridorDescription } = req.body;
@@ -9930,16 +10055,47 @@ app.post('/api/grants/generate-narrative', async (req, res) => {
 
     console.log(`🤖 Generating AI grant narrative for ${stateKey} - ${grantType}...`);
 
-    // 1. Get ITS equipment compliance data
-    const equipmentSummary = db.db.prepare(`
-      SELECT
-        equipment_type,
-        COUNT(*) as count,
-        SUM(CASE WHEN arc_its_id IS NOT NULL THEN 1 ELSE 0 END) as arc_compliant
-      FROM its_equipment
-      WHERE state_key = ?
-      GROUP BY equipment_type
-    `).all(stateKey);
+    // Define pooled fund states (I-80 Corridor Coalition example)
+    const pooledFundStates = ['NV', 'UT', 'WY', 'NE', 'IA'];
+    const isPooledFund = pooledFundStates.includes(stateKey.toUpperCase());
+
+    // 1. Get ITS equipment compliance data (single state or pooled fund)
+    let equipmentSummary;
+    let pooledStatesData = null;
+
+    if (isPooledFund) {
+      // Get data for all pooled fund states
+      equipmentSummary = db.db.prepare(`
+        SELECT
+          equipment_type,
+          COUNT(*) as count,
+          SUM(CASE WHEN arc_its_id IS NOT NULL THEN 1 ELSE 0 END) as arc_compliant
+        FROM its_equipment
+        WHERE state_key IN (${pooledFundStates.map(() => '?').join(',')})
+        GROUP BY equipment_type
+      `).all(...pooledFundStates);
+
+      // Get per-state breakdown
+      pooledStatesData = db.db.prepare(`
+        SELECT
+          state_key,
+          COUNT(*) as total_equipment,
+          SUM(CASE WHEN arc_its_id IS NOT NULL THEN 1 ELSE 0 END) as arc_compliant
+        FROM its_equipment
+        WHERE state_key IN (${pooledFundStates.map(() => '?').join(',')})
+        GROUP BY state_key
+      `).all(...pooledFundStates);
+    } else {
+      equipmentSummary = db.db.prepare(`
+        SELECT
+          equipment_type,
+          COUNT(*) as count,
+          SUM(CASE WHEN arc_its_id IS NOT NULL THEN 1 ELSE 0 END) as arc_compliant
+        FROM its_equipment
+        WHERE state_key = ?
+        GROUP BY equipment_type
+      `).all(stateKey);
+    }
 
     // 2. Get latest upload stats
     const uploadStats = db.db.prepare(`
@@ -9979,17 +10135,28 @@ app.post('/api/grants/generate-narrative', async (req, res) => {
     };
 
     // 5. Call OpenAI API
+    const pooledFundContext = isPooledFund ? `
+
+MULTI-STATE COORDINATION (POOLED FUND):
+This application represents a collaborative effort among ${pooledFundStates.join(', ')} as part of a regional transportation pooled fund.
+${pooledStatesData ? `
+State Inventory Breakdown:
+${pooledStatesData.map(s => `  - ${s.state_key}: ${s.total_equipment} devices (${s.arc_compliant} ARC-IT compliant)`).join('\\n')}
+` : ''}
+The coordinated regional architecture ensures seamless V2X interoperability across state boundaries, critical for interstate commerce and traveler safety.` : '';
+
     const prompt = `You are an expert transportation grant writer. Generate a compelling 2-3 paragraph project justification for a ${grantType} grant application.
 
 PROJECT DETAILS:
-- State: ${dataSummary.state}
+- ${isPooledFund ? 'Pooled Fund Partnership' : 'State'}: ${dataSummary.state}${isPooledFund ? ` (Lead State for ${pooledFundStates.join(', ')} Coalition)` : ''}
 - Project Title: ${projectTitle}
-- Corridor/Area: ${corridorDescription}
+- Corridor/Area: ${corridorDescription}${pooledFundContext}
 
 CURRENT ITS INFRASTRUCTURE:
-- Total ITS Equipment: ${dataSummary.itsInventory.total} devices
+- Total ITS Equipment: ${dataSummary.itsInventory.total} devices${isPooledFund ? ' (regional total)' : ''}
 ${equipmentSummary.map(e => `  - ${e.equipment_type}: ${e.count} devices`).join('\\n')}
-- ARC-IT Compliant: ${dataSummary.itsInventory.arcCompliant} of ${dataSummary.itsInventory.total}
+- ARC-IT 10.0 Compliant: ${dataSummary.itsInventory.arcCompliant} of ${dataSummary.itsInventory.total}
+- RAD-IT Regional Architecture: Documented and aligned with ARC-IT standards
 
 DATA QUALITY GAPS:
 ${dataSummary.itsInventory.gaps ? `- ${dataSummary.itsInventory.gaps.failed} records failed import (invalid geometry)
@@ -9997,18 +10164,19 @@ ${dataSummary.itsInventory.gaps ? `- ${dataSummary.itsInventory.gaps.failed} rec
 - Missing manufacturer/model data on equipment` : '- Limited historical data available'}
 
 SAFETY & OPERATIONS:
-- Total incidents (last 12 months): ${dataSummary.incidents.total_incidents}
+- Total incidents (last 12 months): ${dataSummary.incidents.total_incidents}${isPooledFund ? ' (regional)' : ''}
 - Weather-related incidents: ${dataSummary.incidents.weather_related}
 - Crashes: ${dataSummary.incidents.crashes}
 
 Write a data-driven project justification that:
-1. Highlights the current infrastructure baseline
-2. Identifies coverage gaps using the data
+1. Highlights the current infrastructure baseline and ARC-IT/RAD-IT compliance
+2. ${isPooledFund ? 'Emphasizes the multi-state regional coordination and continuous coverage across state boundaries' : 'Identifies coverage gaps using the data'}
 3. Explains how the project addresses safety/operational needs
-4. Emphasizes the value of achieving ARC-IT compliance for V2X deployment
-5. Includes specific statistics to support the need
+4. Emphasizes the value of achieving full ARC-IT compliance for V2X deployment and regional interoperability
+5. ${isPooledFund ? 'Highlights the cost-effectiveness of pooled fund collaboration and shared resources' : 'Includes specific statistics to support the need'}
+6. References RAD-IT regional architecture alignment as evidence of planning maturity
 
-Keep it professional, concise, and compelling. Focus on quantifiable benefits and ROI.`;
+Keep it professional, concise, and compelling. Focus on quantifiable benefits, ROI, and federal priorities (safety, mobility, interoperability).`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',

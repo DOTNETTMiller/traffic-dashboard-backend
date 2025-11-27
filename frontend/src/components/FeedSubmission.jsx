@@ -742,14 +742,50 @@ export default function FeedSubmission({ authToken, user }) {
                 >
                   📋 Compliance Gap Report
                 </a>
+                <a
+                  href={`/api/its-equipment/export/radit?stateKey=${user?.stateKey || 'multi-state'}`}
+                  download
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: theme.colors.accent,
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontWeight: '600',
+                    fontSize: '12px',
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                    transition: `all ${theme.transitions.fast}`,
+                    boxShadow: theme.shadows.sm,
+                    display: 'inline-block'
+                  }}
+                >
+                  🏛️ RAD-IT Export
+                </a>
               </div>
               <div style={{
-                marginTop: '8px',
-                fontSize: '10px',
+                marginTop: '12px',
+                fontSize: '11px',
                 color: theme.colors.textSecondary,
-                lineHeight: '1.4'
+                lineHeight: '1.6',
+                backgroundColor: theme.colors.bgSecondary,
+                padding: '12px',
+                borderRadius: '6px',
+                border: `1px solid ${theme.colors.border}`
               }}>
-                ARC-IT 10.0 compliant export for federal grant applications (SMART, RAISE, ATCMTD). Gap report shows import statistics, equipment breakdown, and data quality issues.
+                <div style={{ fontWeight: '700', marginBottom: '6px' }}>
+                  📚 Standards Compliance:
+                </div>
+                <div style={{ paddingLeft: '12px' }}>
+                  • <strong>ARC-IT 10.0</strong>: Architecture Reference for Cooperative and Intelligent Transportation<br/>
+                  • <strong>RAD-IT</strong>: Regional Architecture Development tool-compatible export<br/>
+                  • <strong>Federal Grants</strong>: SMART, RAISE, ATCMTD, Pooled Fund applications<br/>
+                  • <strong>Multi-State</strong>: Supports regional architectures across state boundaries
+                </div>
+                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: `1px solid ${theme.colors.border}`, fontSize: '10px' }}>
+                  <strong>RAD-IT Resources:</strong> <a href="https://www.arc-it.net/" target="_blank" rel="noopener" style={{ color: theme.colors.primary }}>ARC-IT Website</a> |
+                  <a href="https://www.fhwa.dot.gov/planning/processes/tools/radit/" target="_blank" rel="noopener" style={{ color: theme.colors.primary, marginLeft: '6px' }}>FHWA RAD-IT Guide</a>
+                </div>
               </div>
             </div>
           </>
