@@ -213,7 +213,7 @@ export default function ITSEquipmentExport({ user }) {
             display: 'inline-block'
           }}
         >
-          📄 Download XML
+          📄 ARC-ITS XML (Compliant Data)
         </a>
         <a
           href={`/api/its-equipment/export?${buildExportParams('json')}`}
@@ -233,7 +233,7 @@ export default function ITSEquipmentExport({ user }) {
             display: 'inline-block'
           }}
         >
-          📊 Download JSON
+          📊 ARC-ITS JSON (Compliant Data)
         </a>
         <a
           href={`/api/its-equipment/compliance-report?${buildExportParams()}`}
@@ -253,7 +253,7 @@ export default function ITSEquipmentExport({ user }) {
             display: 'inline-block'
           }}
         >
-          📋 Compliance Gap Report
+          📋 Gap Report (Items to Fix)
         </a>
         <a
           href={`/api/its-equipment/export/radit?${buildExportParams(null, true)}`}

@@ -9908,6 +9908,52 @@ app.get('/api/its-equipment/compliance-report', async (req, res) => {
 
     csv += `TOTAL,${totals.count},${totals.arc_compliant},${totals.missing_manufacturer},${totals.missing_model},${totals.missing_install_date}\\n`;
 
+    // Get detailed list of non-compliant items
+    let detailQuery = `
+      SELECT
+        id,
+        equipment_type,
+        route,
+        milepost,
+        location_description,
+        arc_its_id,
+        manufacturer,
+        model,
+        installation_date
+      FROM its_equipment
+      WHERE 1=1
+    `;
+    const detailParams = [];
+    if (stateKey) {
+      detailQuery += ' AND state_key = ?';
+      detailParams.push(stateKey);
+    }
+    detailQuery += ' ORDER BY equipment_type, route, milepost';
+
+    const allEquipment = db.db.prepare(detailQuery).all(...detailParams);
+
+    // Filter to items with missing data
+    const nonCompliant = allEquipment.filter(eq =>
+      !eq.arc_its_id || !eq.manufacturer || !eq.model || !eq.installation_date
+    );
+
+    if (nonCompliant.length > 0) {
+      csv += '\\n\\nDETAILED LIST OF ITEMS TO FIX\\n';
+      csv += 'Equipment ID,Type,Route,Milepost,Location,Missing ARC-ITS ID,Missing Manufacturer,Missing Model,Missing Install Date,Issues Summary\\n';
+
+      nonCompliant.forEach(eq => {
+        const issues = [];
+        if (!eq.arc_its_id) issues.push('ARC-ITS ID');
+        if (!eq.manufacturer) issues.push('Manufacturer');
+        if (!eq.model) issues.push('Model');
+        if (!eq.installation_date) issues.push('Install Date');
+
+        csv += `${eq.id},${eq.equipment_type},${eq.route || 'N/A'},${eq.milepost || 'N/A'},"${eq.location_description || 'N/A'}",${!eq.arc_its_id ? 'YES' : 'NO'},${!eq.manufacturer ? 'YES' : 'NO'},${!eq.model ? 'YES' : 'NO'},${!eq.installation_date ? 'YES' : 'NO'},"${issues.join(', ')}"\\n`;
+      });
+
+      csv += `\\nTOTAL ITEMS REQUIRING FIXES: ${nonCompliant.length}\\n`;
+    }
+
     // Send as downloadable CSV
     res.set('Content-Type', 'text/csv');
     res.set('Content-Disposition', `attachment; filename="its-compliance-gap-report-${stateKey || 'all'}-${Date.now()}.csv"`);
