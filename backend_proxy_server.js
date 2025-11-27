@@ -10689,7 +10689,7 @@ app.post('/api/grants/applications', async (req, res) => {
 
     const applicationId = `grant-${stateKey.toLowerCase()}-${grantProgram.toLowerCase()}-${Date.now()}`;
 
-    const result = db.prepare(`
+    const result = db.db.prepare(`
       INSERT INTO grant_applications (
         id, state_key, grant_program, grant_year, application_title,
         project_description, requested_amount, matching_funds, total_project_cost,
@@ -10757,7 +10757,7 @@ app.get('/api/grants/applications', async (req, res) => {
 
     query += ' ORDER BY created_at DESC';
 
-    const applications = db.prepare(query).all(...params);
+    const applications = db.db.prepare(query).all(...params);
 
     // Parse JSON fields
     applications.forEach(app => {
@@ -10785,7 +10785,7 @@ app.get('/api/grants/applications/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const application = db.prepare(`
+    const application = db.db.prepare(`
       SELECT * FROM grant_applications WHERE id = ?
     `).get(id);
 
@@ -10802,12 +10802,12 @@ app.get('/api/grants/applications/:id', async (req, res) => {
     }
 
     // Get metrics
-    const metrics = db.prepare(`
+    const metrics = db.db.prepare(`
       SELECT * FROM grant_metrics WHERE application_id = ?
     `).get(id);
 
     // Get supporting data
-    const supportingData = db.prepare(`
+    const supportingData = db.db.prepare(`
       SELECT * FROM grant_supporting_data WHERE application_id = ?
       ORDER BY created_at DESC
     `).all(id);
@@ -10819,7 +10819,7 @@ app.get('/api/grants/applications/:id', async (req, res) => {
     });
 
     // Get justifications
-    const justifications = db.prepare(`
+    const justifications = db.db.prepare(`
       SELECT * FROM grant_justifications
       WHERE application_id = ?
       ORDER BY priority ASC
@@ -10832,7 +10832,7 @@ app.get('/api/grants/applications/:id', async (req, res) => {
     });
 
     // Get data packages
-    const packages = db.prepare(`
+    const packages = db.db.prepare(`
       SELECT * FROM grant_data_packages
       WHERE application_id = ?
       ORDER BY generated_at DESC
@@ -10862,7 +10862,7 @@ app.put('/api/grants/applications/:id', async (req, res) => {
     const updates = req.body;
 
     // Check if application exists
-    const existing = db.prepare('SELECT id FROM grant_applications WHERE id = ?').get(id);
+    const existing = db.db.prepare('SELECT id FROM grant_applications WHERE id = ?').get(id);
     if (!existing) {
       return res.status(404).json({
         success: false,
@@ -10933,7 +10933,7 @@ app.delete('/api/grants/applications/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = db.prepare('DELETE FROM grant_applications WHERE id = ?').run(id);
+    const result = db.db.prepare('DELETE FROM grant_applications WHERE id = ?').run(id);
 
     if (result.changes === 0) {
       return res.status(404).json({
@@ -11011,7 +11011,7 @@ app.post('/api/grants/applications/:id/generate-metrics', async (req, res) => {
     const { id } = req.params;
 
     // Get application details
-    const application = db.prepare(`
+    const application = db.db.prepare(`
       SELECT * FROM grant_applications WHERE id = ?
     `).get(id);
 
@@ -11025,7 +11025,7 @@ app.post('/api/grants/applications/:id/generate-metrics', async (req, res) => {
     console.log(`📊 Generating metrics for grant application: ${id}`);
 
     // Calculate safety metrics from incident data
-    const safetyMetrics = db.prepare(`
+    const safetyMetrics = db.db.prepare(`
       SELECT
         COUNT(*) as total_incidents,
         SUM(CASE WHEN severity IN ('major', 'critical') THEN 1 ELSE 0 END) as high_severity,
@@ -11036,7 +11036,7 @@ app.post('/api/grants/applications/:id/generate-metrics', async (req, res) => {
     `).get(application.state_key);
 
     // Calculate traffic metrics
-    const trafficMetrics = db.prepare(`
+    const trafficMetrics = db.db.prepare(`
       SELECT
         AVG(CAST(volume AS INTEGER)) as avg_daily_traffic,
         AVG(CAST(truck_percentage AS REAL)) as truck_percentage
@@ -11045,7 +11045,7 @@ app.post('/api/grants/applications/:id/generate-metrics', async (req, res) => {
     `).get(application.state_key);
 
     // Count ITS equipment deployed
-    const equipmentMetrics = db.prepare(`
+    const equipmentMetrics = db.db.prepare(`
       SELECT
         SUM(CASE WHEN equipment_type = 'camera' THEN 1 ELSE 0 END) as cameras,
         SUM(CASE WHEN equipment_type = 'dms' THEN 1 ELSE 0 END) as dms,
@@ -11057,7 +11057,7 @@ app.post('/api/grants/applications/:id/generate-metrics', async (req, res) => {
     `).get(application.state_key);
 
     // Count V2X coverage gaps
-    const v2xGaps = db.prepare(`
+    const v2xGaps = db.db.prepare(`
       SELECT COUNT(*) as gap_count
       FROM v2x_deployment_gaps
       WHERE state_key = ?
@@ -11065,7 +11065,7 @@ app.post('/api/grants/applications/:id/generate-metrics', async (req, res) => {
     `).get(application.state_key);
 
     // Get data quality score from TETC
-    const dqiScore = db.prepare(`
+    const dqiScore = db.db.prepare(`
       SELECT AVG(overall_score) as avg_dqi
       FROM vendor_dqi_scores
       WHERE vendor = (SELECT vendor FROM states WHERE state_key = ?)
@@ -11197,7 +11197,7 @@ app.post('/api/grants/applications/:id/attach-its-equipment', async (req, res) =
     const { id } = req.params;
 
     // Get application details
-    const application = db.prepare(`
+    const application = db.db.prepare(`
       SELECT * FROM grant_applications WHERE id = ?
     `).get(id);
 
@@ -11211,7 +11211,7 @@ app.post('/api/grants/applications/:id/attach-its-equipment', async (req, res) =
     console.log(`📦 Attaching ITS equipment inventory to grant application: ${id}`);
 
     // Get ITS equipment for the state
-    const equipment = db.prepare(`
+    const equipment = db.db.prepare(`
       SELECT * FROM its_equipment
       WHERE state_key = ?
         AND status = 'operational'
@@ -11277,7 +11277,7 @@ app.get('/api/grants/applications/:id/its-equipment', async (req, res) => {
     const { id } = req.params;
 
     // Get application details
-    const application = db.prepare(`
+    const application = db.db.prepare(`
       SELECT * FROM grant_applications WHERE id = ?
     `).get(id);
 
@@ -11289,7 +11289,7 @@ app.get('/api/grants/applications/:id/its-equipment', async (req, res) => {
     }
 
     // Get ITS equipment for the state
-    const equipment = db.prepare(`
+    const equipment = db.db.prepare(`
       SELECT *,
         CASE
           WHEN equipment_type = 'camera' THEN '📹'
@@ -11352,7 +11352,7 @@ app.post('/api/grants/generate-content', async (req, res) => {
     // Get ITS equipment inventory for context
     let itsInventory = null;
     if (stateKey) {
-      const equipment = db.prepare(`
+      const equipment = db.db.prepare(`
         SELECT
           equipment_type,
           COUNT(*) as count,
@@ -11362,11 +11362,11 @@ app.post('/api/grants/generate-content', async (req, res) => {
         GROUP BY equipment_type
       `).all(stateKey);
 
-      const totalEquipment = db.prepare(`
+      const totalEquipment = db.db.prepare(`
         SELECT COUNT(*) as total FROM its_equipment WHERE state_key = ? AND status = 'operational'
       `).get(stateKey);
 
-      const arcItsCompliant = db.prepare(`
+      const arcItsCompliant = db.db.prepare(`
         SELECT COUNT(*) as count FROM its_equipment
         WHERE state_key = ? AND arc_its_id IS NOT NULL
       `).get(stateKey);
@@ -11636,7 +11636,7 @@ app.get('/api/grants/templates', async (req, res) => {
 
     query += ' ORDER BY grant_program, template_name';
 
-    const templates = db.prepare(query).all(...params);
+    const templates = db.db.prepare(query).all(...params);
 
     // Parse JSON fields
     templates.forEach(template => {
@@ -11668,7 +11668,7 @@ app.get('/api/grants/templates', async (req, res) => {
  */
 app.get('/api/grants/success-rates', async (req, res) => {
   try {
-    const successRates = db.prepare(`
+    const successRates = db.db.prepare(`
       SELECT * FROM v_grant_success_rates
       ORDER BY grant_year DESC, grant_program
     `).all();

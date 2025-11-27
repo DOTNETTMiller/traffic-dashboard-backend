@@ -590,7 +590,7 @@ export default function TrafficMap({
           );
 
           return (
-            <>
+            <div key={`event-${event.id}`}>
               {/* Render polyline for linear features (work zones, closures along road segments) */}
               {hasGeometry && (
                 <Polyline
@@ -628,7 +628,7 @@ export default function TrafficMap({
                   {popupContent}
                 </Popup>
               </Marker>
-            </>
+            </div>
           );
           })}
           </MarkerClusterGroup>
