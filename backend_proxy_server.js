@@ -10294,6 +10294,28 @@ app.get('/api/its-equipment/routes', async (req, res) => {
   }
 });
 
+// Get states that have ITS equipment
+app.get('/api/its-equipment/states', async (req, res) => {
+  try {
+    const query = `
+      SELECT DISTINCT e.state_key, s.state_name
+      FROM its_equipment e
+      LEFT JOIN states s ON e.state_key = s.state_key
+      ORDER BY e.state_key
+    `;
+
+    const states = db.db.prepare(query).all();
+
+    res.json({
+      success: true,
+      states: states
+    });
+  } catch (error) {
+    console.error('❌ States with equipment error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ========================================
 // WEB FEATURE SERVICE (WFS) CONNECTIONS
 // ========================================
