@@ -11235,13 +11235,23 @@ app.get('/api/its-equipment/routes', async (req, res) => {
     const params = [];
 
     if (stateKey) {
-      query += ' AND state_key = ?';
+      if (db.isPostgres) {
+        query += ' AND state_key = $1';
+      } else {
+        query += ' AND state_key = ?';
+      }
       params.push(stateKey);
     }
 
     query += ' ORDER BY route';
 
-    const routes = db.db.prepare(query).all(...params);
+    let routes;
+    if (db.isPostgres) {
+      const result = await db.db.query(query, params);
+      routes = result.rows || [];
+    } else {
+      routes = db.db.prepare(query).all(...params);
+    }
 
     res.json({
       success: true,
@@ -11263,7 +11273,13 @@ app.get('/api/its-equipment/states', async (req, res) => {
       ORDER BY e.state_key
     `;
 
-    const states = db.db.prepare(query).all();
+    let states;
+    if (db.isPostgres) {
+      const result = await db.db.query(query);
+      states = result.rows || [];
+    } else {
+      states = db.db.prepare(query).all();
+    }
 
     res.json({
       success: true,
