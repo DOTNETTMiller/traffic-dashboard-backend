@@ -8422,12 +8422,23 @@ app.get('/api/nasco-corridor-summary', async (req, res) => {
       `).all();
     }
 
+    // Parse JSON fields for each state
+    nascoStates.forEach(state => {
+      if (state.nasco_corridor_routes && typeof state.nasco_corridor_routes === 'string') {
+        try {
+          state.nasco_corridor_routes = JSON.parse(state.nasco_corridor_routes);
+        } catch (e) {
+          state.nasco_corridor_routes = [];
+        }
+      }
+    });
+
     const summary = {
       totalStates: nascoStates.length,
       states: nascoStates.map(s => ({
         stateKey: s.state_key,
         stateName: s.state_name,
-        routes: s.nasco_corridor_routes ? JSON.parse(s.nasco_corridor_routes) : [],
+        routes: s.nasco_corridor_routes || [],
         dataComplete: s.data_completeness_pct === 100.0
       })),
       tradeRoute: 'Mexico → Texas → Oklahoma → Kansas → Nebraska → Iowa → Minnesota → Canada'
