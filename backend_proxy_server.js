@@ -11286,27 +11286,51 @@ app.post('/api/grants/applications', async (req, res) => {
 
     const applicationId = `grant-${stateKey.toLowerCase()}-${grantProgram.toLowerCase()}-${Date.now()}`;
 
-    const result = db.db.prepare(`
-      INSERT INTO grant_applications (
-        id, state_key, grant_program, grant_year, application_title,
-        project_description, requested_amount, matching_funds, total_project_cost,
-        primary_corridor, affected_routes, geographic_scope, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      applicationId,
-      stateKey,
-      grantProgram,
-      grantYear,
-      applicationTitle,
-      projectDescription || null,
-      requestedAmount || null,
-      matchingFunds || null,
-      totalProjectCost || null,
-      primaryCorridor || null,
-      affectedRoutes ? JSON.stringify(affectedRoutes) : null,
-      geographicScope || 'state',
-      createdBy || null
-    );
+    if (db.isPostgres) {
+      await db.db.query(`
+        INSERT INTO grant_applications (
+          id, state_key, grant_program, grant_year, application_title,
+          project_description, requested_amount, matching_funds, total_project_cost,
+          primary_corridor, affected_routes, geographic_scope, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `, [
+        applicationId,
+        stateKey,
+        grantProgram,
+        grantYear,
+        applicationTitle,
+        projectDescription || null,
+        requestedAmount || null,
+        matchingFunds || null,
+        totalProjectCost || null,
+        primaryCorridor || null,
+        affectedRoutes ? JSON.stringify(affectedRoutes) : null,
+        geographicScope || 'state',
+        createdBy || null
+      ]);
+    } else {
+      db.db.prepare(`
+        INSERT INTO grant_applications (
+          id, state_key, grant_program, grant_year, application_title,
+          project_description, requested_amount, matching_funds, total_project_cost,
+          primary_corridor, affected_routes, geographic_scope, created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        applicationId,
+        stateKey,
+        grantProgram,
+        grantYear,
+        applicationTitle,
+        projectDescription || null,
+        requestedAmount || null,
+        matchingFunds || null,
+        totalProjectCost || null,
+        primaryCorridor || null,
+        affectedRoutes ? JSON.stringify(affectedRoutes) : null,
+        geographicScope || 'state',
+        createdBy || null
+      );
+    }
 
     console.log(`✅ Created grant application: ${applicationId}`);
 
@@ -11396,9 +11420,13 @@ app.get('/api/grants/applications/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const application = db.db.prepare(`
-      SELECT * FROM grant_applications WHERE id = ?
-    `).get(id);
+    let application;
+    if (db.isPostgres) {
+      const result = await db.db.query('SELECT * FROM grant_applications WHERE id = $1', [id]);
+      application = result.rows[0];
+    } else {
+      application = db.db.prepare('SELECT * FROM grant_applications WHERE id = ?').get(id);
+    }
 
     if (!application) {
       return res.status(404).json({
@@ -11408,46 +11436,57 @@ app.get('/api/grants/applications/:id', async (req, res) => {
     }
 
     // Parse JSON fields
-    if (application.affected_routes) {
+    if (application.affected_routes && typeof application.affected_routes === 'string') {
       application.affected_routes = JSON.parse(application.affected_routes);
     }
 
     // Get metrics
-    const metrics = db.db.prepare(`
-      SELECT * FROM grant_metrics WHERE application_id = ?
-    `).get(id);
+    let metrics;
+    if (db.isPostgres) {
+      const result = await db.db.query('SELECT * FROM grant_metrics WHERE application_id = $1', [id]);
+      metrics = result.rows[0];
+    } else {
+      metrics = db.db.prepare('SELECT * FROM grant_metrics WHERE application_id = ?').get(id);
+    }
 
     // Get supporting data
-    const supportingData = db.db.prepare(`
-      SELECT * FROM grant_supporting_data WHERE application_id = ?
-      ORDER BY created_at DESC
-    `).all(id);
+    let supportingData;
+    if (db.isPostgres) {
+      const result = await db.db.query('SELECT * FROM grant_supporting_data WHERE application_id = $1 ORDER BY created_at DESC', [id]);
+      supportingData = result.rows || [];
+    } else {
+      supportingData = db.db.prepare('SELECT * FROM grant_supporting_data WHERE application_id = ? ORDER BY created_at DESC').all(id);
+    }
 
     supportingData.forEach(data => {
-      if (data.summary_stats) {
+      if (data.summary_stats && typeof data.summary_stats === 'string') {
         data.summary_stats = JSON.parse(data.summary_stats);
       }
     });
 
     // Get justifications
-    const justifications = db.db.prepare(`
-      SELECT * FROM grant_justifications
-      WHERE application_id = ?
-      ORDER BY priority ASC
-    `).all(id);
+    let justifications;
+    if (db.isPostgres) {
+      const result = await db.db.query('SELECT * FROM grant_justifications WHERE application_id = $1 ORDER BY priority ASC', [id]);
+      justifications = result.rows || [];
+    } else {
+      justifications = db.db.prepare('SELECT * FROM grant_justifications WHERE application_id = ? ORDER BY priority ASC').all(id);
+    }
 
     justifications.forEach(j => {
-      if (j.supporting_data_ids) {
+      if (j.supporting_data_ids && typeof j.supporting_data_ids === 'string') {
         j.supporting_data_ids = JSON.parse(j.supporting_data_ids);
       }
     });
 
     // Get data packages
-    const packages = db.db.prepare(`
-      SELECT * FROM grant_data_packages
-      WHERE application_id = ?
-      ORDER BY generated_at DESC
-    `).all(id);
+    let packages;
+    if (db.isPostgres) {
+      const result = await db.db.query('SELECT * FROM grant_data_packages WHERE application_id = $1 ORDER BY generated_at DESC', [id]);
+      packages = result.rows || [];
+    } else {
+      packages = db.db.prepare('SELECT * FROM grant_data_packages WHERE application_id = ? ORDER BY generated_at DESC').all(id);
+    }
 
     res.json({
       success: true,
@@ -11473,7 +11512,14 @@ app.put('/api/grants/applications/:id', async (req, res) => {
     const updates = req.body;
 
     // Check if application exists
-    const existing = db.db.prepare('SELECT id FROM grant_applications WHERE id = ?').get(id);
+    let existing;
+    if (db.isPostgres) {
+      const result = await db.db.query('SELECT id FROM grant_applications WHERE id = $1', [id]);
+      existing = result.rows[0];
+    } else {
+      existing = db.db.prepare('SELECT id FROM grant_applications WHERE id = ?').get(id);
+    }
+
     if (!existing) {
       return res.status(404).json({
         success: false,
@@ -11494,7 +11540,11 @@ app.put('/api/grants/applications/:id', async (req, res) => {
 
     for (const field of allowedFields) {
       if (updates[field] !== undefined) {
-        updateFields.push(`${field} = ?`);
+        if (db.isPostgres) {
+          updateFields.push(`${field} = $${updateValues.length + 1}`);
+        } else {
+          updateFields.push(`${field} = ?`);
+        }
 
         // Handle JSON fields
         if (field === 'affected_routes' && Array.isArray(updates[field])) {
@@ -11513,16 +11563,25 @@ app.put('/api/grants/applications/:id', async (req, res) => {
     }
 
     // Add updated_at
-    updateFields.push('updated_at = datetime(\'now\')');
-    updateValues.push(id);
-
-    const query = `
-      UPDATE grant_applications
-      SET ${updateFields.join(', ')}
-      WHERE id = ?
-    `;
-
-    db.prepare(query).run(...updateValues);
+    if (db.isPostgres) {
+      updateFields.push('updated_at = CURRENT_TIMESTAMP');
+      updateValues.push(id);
+      const query = `
+        UPDATE grant_applications
+        SET ${updateFields.join(', ')}
+        WHERE id = $${updateValues.length}
+      `;
+      await db.db.query(query, updateValues);
+    } else {
+      updateFields.push('updated_at = datetime(\'now\')');
+      updateValues.push(id);
+      const query = `
+        UPDATE grant_applications
+        SET ${updateFields.join(', ')}
+        WHERE id = ?
+      `;
+      db.db.prepare(query).run(...updateValues);
+    }
 
     console.log(`✅ Updated grant application: ${id}`);
 
@@ -11544,13 +11603,23 @@ app.delete('/api/grants/applications/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = db.db.prepare('DELETE FROM grant_applications WHERE id = ?').run(id);
-
-    if (result.changes === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Application not found'
-      });
+    let result;
+    if (db.isPostgres) {
+      result = await db.db.query('DELETE FROM grant_applications WHERE id = $1', [id]);
+      if (result.rowCount === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'Application not found'
+        });
+      }
+    } else {
+      result = db.db.prepare('DELETE FROM grant_applications WHERE id = ?').run(id);
+      if (result.changes === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'Application not found'
+        });
+      }
     }
 
     console.log(`✅ Deleted grant application: ${id}`);
@@ -11758,7 +11827,14 @@ app.post('/api/grants/applications/:id/supporting-data', async (req, res) => {
     }
 
     // Check if application exists
-    const application = db.prepare('SELECT id FROM grant_applications WHERE id = ?').get(id);
+    let application;
+    if (db.isPostgres) {
+      const result = await db.db.query('SELECT id FROM grant_applications WHERE id = $1', [id]);
+      application = result.rows[0];
+    } else {
+      application = db.db.prepare('SELECT id FROM grant_applications WHERE id = ?').get(id);
+    }
+
     if (!application) {
       return res.status(404).json({
         success: false,
@@ -11768,23 +11844,43 @@ app.post('/api/grants/applications/:id/supporting-data', async (req, res) => {
 
     const dataId = `data-${id}-${dataType}-${Date.now()}`;
 
-    db.prepare(`
-      INSERT INTO grant_supporting_data (
-        id, application_id, data_type, data_source,
-        date_range_start, date_range_end, corridor_filter, severity_filter,
-        summary_stats
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      dataId,
-      id,
-      dataType,
-      dataSource,
-      dateRangeStart || null,
-      dateRangeEnd || null,
-      corridorFilter || null,
-      severityFilter || null,
-      summaryStats ? JSON.stringify(summaryStats) : null
-    );
+    if (db.isPostgres) {
+      await db.db.query(`
+        INSERT INTO grant_supporting_data (
+          id, application_id, data_type, data_source,
+          date_range_start, date_range_end, corridor_filter, severity_filter,
+          summary_stats
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `, [
+        dataId,
+        id,
+        dataType,
+        dataSource,
+        dateRangeStart || null,
+        dateRangeEnd || null,
+        corridorFilter || null,
+        severityFilter || null,
+        summaryStats ? JSON.stringify(summaryStats) : null
+      ]);
+    } else {
+      db.db.prepare(`
+        INSERT INTO grant_supporting_data (
+          id, application_id, data_type, data_source,
+          date_range_start, date_range_end, corridor_filter, severity_filter,
+          summary_stats
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        dataId,
+        id,
+        dataType,
+        dataSource,
+        dateRangeStart || null,
+        dateRangeEnd || null,
+        corridorFilter || null,
+        severityFilter || null,
+        summaryStats ? JSON.stringify(summaryStats) : null
+      );
+    }
 
     console.log(`✅ Attached supporting data to application: ${id}`);
 
@@ -11808,9 +11904,13 @@ app.post('/api/grants/applications/:id/attach-its-equipment', async (req, res) =
     const { id } = req.params;
 
     // Get application details
-    const application = db.db.prepare(`
-      SELECT * FROM grant_applications WHERE id = ?
-    `).get(id);
+    let application;
+    if (db.isPostgres) {
+      const result = await db.db.query('SELECT * FROM grant_applications WHERE id = $1', [id]);
+      application = result.rows[0];
+    } else {
+      application = db.db.prepare('SELECT * FROM grant_applications WHERE id = ?').get(id);
+    }
 
     if (!application) {
       return res.status(404).json({
@@ -11822,12 +11922,23 @@ app.post('/api/grants/applications/:id/attach-its-equipment', async (req, res) =
     console.log(`📦 Attaching ITS equipment inventory to grant application: ${id}`);
 
     // Get ITS equipment for the state
-    const equipment = db.db.prepare(`
-      SELECT * FROM its_equipment
-      WHERE state_key = ?
-        AND status = 'operational'
-      ORDER BY equipment_type, location_description
-    `).all(application.state_key);
+    let equipment;
+    if (db.isPostgres) {
+      const result = await db.db.query(`
+        SELECT * FROM its_equipment
+        WHERE state_key = $1
+          AND status = 'operational'
+        ORDER BY equipment_type, location_description
+      `, [application.state_key]);
+      equipment = result.rows || [];
+    } else {
+      equipment = db.db.prepare(`
+        SELECT * FROM its_equipment
+        WHERE state_key = ?
+          AND status = 'operational'
+        ORDER BY equipment_type, location_description
+      `).all(application.state_key);
+    }
 
     // Generate summary stats
     const summary = {
@@ -11846,24 +11957,45 @@ app.post('/api/grants/applications/:id/attach-its-equipment', async (req, res) =
     // Attach as supporting data
     const dataId = `data-its-${id}-${Date.now()}`;
 
-    db.prepare(`
-      INSERT INTO grant_supporting_data (
-        id, application_id,
-        data_type, data_source,
-        date_range_start, date_range_end,
-        record_count,
-        summary_stats
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      dataId,
-      id,
-      'ITS Equipment Inventory',
-      'ARC-ITS Compliant Inventory',
-      null,
-      null,
-      equipment.length,
-      JSON.stringify(summary)
-    );
+    if (db.isPostgres) {
+      await db.db.query(`
+        INSERT INTO grant_supporting_data (
+          id, application_id,
+          data_type, data_source,
+          date_range_start, date_range_end,
+          record_count,
+          summary_stats
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `, [
+        dataId,
+        id,
+        'ITS Equipment Inventory',
+        'ARC-ITS Compliant Inventory',
+        null,
+        null,
+        equipment.length,
+        JSON.stringify(summary)
+      ]);
+    } else {
+      db.db.prepare(`
+        INSERT INTO grant_supporting_data (
+          id, application_id,
+          data_type, data_source,
+          date_range_start, date_range_end,
+          record_count,
+          summary_stats
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        dataId,
+        id,
+        'ITS Equipment Inventory',
+        'ARC-ITS Compliant Inventory',
+        null,
+        null,
+        equipment.length,
+        JSON.stringify(summary)
+      );
+    }
 
     console.log(`✅ Attached ${equipment.length} ITS equipment records to application: ${id}`);
 
@@ -11888,9 +12020,13 @@ app.get('/api/grants/applications/:id/its-equipment', async (req, res) => {
     const { id } = req.params;
 
     // Get application details
-    const application = db.db.prepare(`
-      SELECT * FROM grant_applications WHERE id = ?
-    `).get(id);
+    let application;
+    if (db.isPostgres) {
+      const result = await db.db.query('SELECT * FROM grant_applications WHERE id = $1', [id]);
+      application = result.rows[0];
+    } else {
+      application = db.db.prepare('SELECT * FROM grant_applications WHERE id = ?').get(id);
+    }
 
     if (!application) {
       return res.status(404).json({
@@ -11900,20 +12036,39 @@ app.get('/api/grants/applications/:id/its-equipment', async (req, res) => {
     }
 
     // Get ITS equipment for the state
-    const equipment = db.db.prepare(`
-      SELECT *,
-        CASE
-          WHEN equipment_type = 'camera' THEN '📹'
-          WHEN equipment_type = 'dms' THEN '🚏'
-          WHEN equipment_type = 'rsu' THEN '📡'
-          WHEN equipment_type = 'sensor' THEN '🌡️'
-          ELSE '🔧'
-        END as icon
-      FROM its_equipment
-      WHERE state_key = ?
-        AND status = 'operational'
-      ORDER BY equipment_type, location_description
-    `).all(application.state_key);
+    let equipment;
+    if (db.isPostgres) {
+      const result = await db.db.query(`
+        SELECT *,
+          CASE
+            WHEN equipment_type = 'camera' THEN '📹'
+            WHEN equipment_type = 'dms' THEN '🚏'
+            WHEN equipment_type = 'rsu' THEN '📡'
+            WHEN equipment_type = 'sensor' THEN '🌡️'
+            ELSE '🔧'
+          END as icon
+        FROM its_equipment
+        WHERE state_key = $1
+          AND status = 'operational'
+        ORDER BY equipment_type, location_description
+      `, [application.state_key]);
+      equipment = result.rows || [];
+    } else {
+      equipment = db.db.prepare(`
+        SELECT *,
+          CASE
+            WHEN equipment_type = 'camera' THEN '📹'
+            WHEN equipment_type = 'dms' THEN '🚏'
+            WHEN equipment_type = 'rsu' THEN '📡'
+            WHEN equipment_type = 'sensor' THEN '🌡️'
+            ELSE '🔧'
+          END as icon
+        FROM its_equipment
+        WHERE state_key = ?
+          AND status = 'operational'
+        ORDER BY equipment_type, location_description
+      `).all(application.state_key);
+    }
 
     // Generate statistics
     const stats = {
@@ -12293,10 +12448,19 @@ app.get('/api/grants/templates', async (req, res) => {
  */
 app.get('/api/grants/success-rates', async (req, res) => {
   try {
-    const successRates = db.db.prepare(`
-      SELECT * FROM v_grant_success_rates
-      ORDER BY grant_year DESC, grant_program
-    `).all();
+    let successRates;
+    if (db.isPostgres) {
+      const result = await db.db.query(`
+        SELECT * FROM v_grant_success_rates
+        ORDER BY grant_year DESC, grant_program
+      `);
+      successRates = result.rows || [];
+    } else {
+      successRates = db.db.prepare(`
+        SELECT * FROM v_grant_success_rates
+        ORDER BY grant_year DESC, grant_program
+      `).all();
+    }
 
     res.json({
       success: true,
