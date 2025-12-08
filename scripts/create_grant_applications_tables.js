@@ -10,7 +10,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-const DB_PATH = path.join(__dirname, '..', 'traffic_data.db');
+const DB_PATH = path.join(__dirname, '..', 'states.db');
 const db = new Database(DB_PATH);
 
 console.log('💰 Creating Grant Applications Tables...\n');

@@ -777,6 +777,208 @@ async function checkInterchangeProximity(event, stateKey) {
 
 // Note: generateVMSMessage function already exists later in the file at line ~1424
 
+// Helper function to ensure grant tables exist
+function ensureGrantTables() {
+  try {
+    // Check if grant_applications table exists
+    const tableCheck = db.db.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE type='table' AND name='grant_applications'
+    `).get();
+
+    if (!tableCheck) {
+      console.log('💰 Creating grant applications tables...');
+
+      // Create grant_applications table
+      db.db.exec(`
+        CREATE TABLE IF NOT EXISTS grant_applications (
+          id TEXT PRIMARY KEY,
+          state_key TEXT NOT NULL,
+          grant_program TEXT NOT NULL,
+          grant_year INTEGER NOT NULL,
+          application_title TEXT NOT NULL,
+          project_description TEXT,
+          requested_amount REAL,
+          matching_funds REAL,
+          total_project_cost REAL,
+          primary_corridor TEXT,
+          affected_routes TEXT,
+          geographic_scope TEXT,
+          status TEXT DEFAULT 'draft',
+          submission_date TEXT,
+          award_date TEXT,
+          award_amount REAL,
+          proposal_document_path TEXT,
+          proposal_document_name TEXT,
+          proposal_uploaded_at TEXT,
+          created_by TEXT,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now')),
+          FOREIGN KEY (state_key) REFERENCES states(state_key)
+        );
+
+        CREATE TABLE IF NOT EXISTS grant_supporting_data (
+          id TEXT PRIMARY KEY,
+          application_id TEXT NOT NULL,
+          data_type TEXT NOT NULL,
+          data_source TEXT NOT NULL,
+          date_range_start TEXT,
+          date_range_end TEXT,
+          corridor_filter TEXT,
+          severity_filter TEXT,
+          summary_stats TEXT,
+          exported BOOLEAN DEFAULT FALSE,
+          export_format TEXT,
+          export_path TEXT,
+          included_in_package BOOLEAN DEFAULT TRUE,
+          created_at TEXT DEFAULT (datetime('now')),
+          FOREIGN KEY (application_id) REFERENCES grant_applications(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS grant_justifications (
+          id TEXT PRIMARY KEY,
+          application_id TEXT NOT NULL,
+          justification_category TEXT NOT NULL,
+          justification_text TEXT NOT NULL,
+          supporting_data_ids TEXT,
+          priority INTEGER,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now')),
+          FOREIGN KEY (application_id) REFERENCES grant_applications(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS grant_metrics (
+          id TEXT PRIMARY KEY,
+          application_id TEXT NOT NULL,
+          total_incidents INTEGER,
+          high_severity_incidents INTEGER,
+          fatalities INTEGER,
+          injuries INTEGER,
+          crash_rate REAL,
+          average_daily_traffic INTEGER,
+          truck_percentage REAL,
+          congestion_hours_per_day REAL,
+          v2x_coverage_gaps INTEGER,
+          missing_its_equipment INTEGER,
+          bridge_clearance_issues INTEGER,
+          truck_parking_shortage INTEGER,
+          estimated_delay_cost_annual REAL,
+          freight_volume_annual REAL,
+          economic_corridor_value REAL,
+          cameras_deployed INTEGER,
+          dms_deployed INTEGER,
+          rsu_deployed INTEGER,
+          sensors_deployed INTEGER,
+          data_quality_score REAL,
+          calculation_date TEXT DEFAULT (datetime('now')),
+          calculation_notes TEXT,
+          FOREIGN KEY (application_id) REFERENCES grant_applications(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS grant_templates (
+          id TEXT PRIMARY KEY,
+          template_name TEXT NOT NULL,
+          grant_program TEXT NOT NULL,
+          required_sections TEXT,
+          data_requirements TEXT,
+          scoring_criteria TEXT,
+          template_active BOOLEAN DEFAULT TRUE,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS grant_data_packages (
+          id TEXT PRIMARY KEY,
+          application_id TEXT NOT NULL,
+          package_name TEXT NOT NULL,
+          package_description TEXT,
+          included_data_types TEXT,
+          export_format TEXT DEFAULT 'zip',
+          package_file_path TEXT,
+          generated_at TEXT DEFAULT (datetime('now')),
+          FOREIGN KEY (application_id) REFERENCES grant_applications(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_grants_state ON grant_applications(state_key);
+        CREATE INDEX IF NOT EXISTS idx_grants_program ON grant_applications(grant_program);
+        CREATE INDEX IF NOT EXISTS idx_grants_status ON grant_applications(status);
+        CREATE INDEX IF NOT EXISTS idx_grants_year ON grant_applications(grant_year);
+
+        CREATE VIEW IF NOT EXISTS v_grant_applications_summary AS
+        SELECT
+          ga.id,
+          ga.state_key,
+          ga.grant_program,
+          ga.grant_year,
+          ga.application_title,
+          ga.requested_amount,
+          ga.status,
+          gm.total_incidents,
+          gm.high_severity_incidents,
+          gm.v2x_coverage_gaps,
+          gm.data_quality_score,
+          (SELECT COUNT(*) FROM grant_supporting_data WHERE application_id = ga.id) as attached_datasets,
+          ga.created_at,
+          ga.updated_at
+        FROM grant_applications ga
+        LEFT JOIN grant_metrics gm ON ga.id = gm.application_id
+        ORDER BY ga.created_at DESC;
+
+        CREATE VIEW IF NOT EXISTS v_grant_success_rates AS
+        SELECT
+          grant_program,
+          grant_year,
+          COUNT(*) as total_applications,
+          SUM(CASE WHEN status = 'awarded' THEN 1 ELSE 0 END) as awarded_count,
+          SUM(CASE WHEN status = 'denied' THEN 1 ELSE 0 END) as denied_count,
+          CAST(SUM(CASE WHEN status = 'awarded' THEN 1 ELSE 0 END) AS REAL) / COUNT(*) * 100 as success_rate,
+          SUM(CASE WHEN status = 'awarded' THEN award_amount ELSE 0 END) as total_awarded_amount
+        FROM grant_applications
+        GROUP BY grant_program, grant_year;
+      `);
+
+      // Insert default templates
+      const templates = [
+        {
+          id: 'template-raise-2025',
+          name: 'RAISE Grant 2025',
+          program: 'RAISE',
+          sections: JSON.stringify(['Safety', 'State of Good Repair', 'Economic Competitiveness', 'Environmental Sustainability', 'Quality of Life', 'Innovation', 'Partnership']),
+          requirements: JSON.stringify({safety: ['incident', 'safety'], economic: ['traffic', 'freight', 'delay_cost'], infrastructure: ['equipment', 'v2x_gaps'], innovation: ['data_quality', 'v2x']}),
+          criteria: JSON.stringify({safety: 20, state_of_good_repair: 15, economic: 20, environmental: 15, quality_of_life: 10, innovation: 10, partnership: 10})
+        },
+        {
+          id: 'template-infra-2025',
+          name: 'INFRA Grant 2025',
+          program: 'INFRA',
+          sections: JSON.stringify(['Project Description', 'Project Location', 'Grant Funds and Sources', 'Selection Criteria']),
+          requirements: JSON.stringify({economic: ['freight', 'traffic', 'delay_cost'], safety: ['incident', 'crash_rate'], innovation: ['its_equipment', 'v2x']}),
+          criteria: JSON.stringify({support_economic_vitality: 25, leveraging_federal_funding: 20, innovation: 15, partnership: 15, performance_accountability: 25})
+        },
+        {
+          id: 'template-protect-2025',
+          name: 'PROTECT Grant 2025',
+          program: 'PROTECT',
+          sections: JSON.stringify(['Project Description', 'Resilience Improvement', 'Vulnerability Assessment', 'Cost-Benefit']),
+          requirements: JSON.stringify({vulnerability: ['incident', 'bridge', 'safety'], resilience: ['equipment', 'monitoring'], economic: ['traffic', 'freight']}),
+          criteria: JSON.stringify({resilience_improvement: 30, vulnerable_populations: 20, cost_effectiveness: 25, innovation: 15, partnership: 10})
+        }
+      ];
+
+      templates.forEach(t => {
+        db.db.prepare(`
+          INSERT OR IGNORE INTO grant_templates (id, template_name, grant_program, required_sections, data_requirements, scoring_criteria)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(t.id, t.name, t.program, t.sections, t.requirements, t.criteria);
+      });
+
+      console.log('✅ Grant tables and default templates created');
+    }
+  } catch (error) {
+    console.warn('⚠️  Could not create grant tables:', error.message);
+  }
+}
+
 // Initialize database and run migration (async startup)
 async function initializeDatabase() {
   try {
@@ -792,6 +994,9 @@ async function initializeDatabase() {
 
     // Load any additional states from database
     await loadStatesFromDatabase();
+
+    // Ensure grant tables exist
+    ensureGrantTables();
 
     // Generate admin token if none exist
     const tokenCheck = db.db.prepare('SELECT COUNT(*) as count FROM admin_tokens').get();
@@ -7852,6 +8057,392 @@ function generateDriverExpectations(corridor, bridges, regulations) {
   return expectations;
 }
 
+// ============================================================================
+// STATE OS/OW REGULATIONS API
+// ============================================================================
+
+/**
+ * Get all state OS/OW regulations
+ */
+app.get('/api/state-osow-regulations', async (req, res) => {
+  try {
+    const { nascoOnly } = req.query;
+
+    let query = 'SELECT * FROM state_osow_regulations';
+    const params = [];
+
+    if (nascoOnly === 'true') {
+      query += ' WHERE is_nasco_state = 1';
+    }
+
+    query += ' ORDER BY state_name';
+
+    const regulations = db.db.prepare(query).all(...params);
+
+    // Parse JSON fields
+    regulations.forEach(reg => {
+      if (reg.holiday_restrictions) {
+        try {
+          reg.holiday_restrictions = JSON.parse(reg.holiday_restrictions);
+        } catch (e) {
+          reg.holiday_restrictions = [];
+        }
+      }
+      if (reg.permit_cost_data) {
+        try {
+          reg.permit_cost_data = JSON.parse(reg.permit_cost_data);
+        } catch (e) {
+          reg.permit_cost_data = {};
+        }
+      }
+      if (reg.nasco_corridor_routes) {
+        try {
+          reg.nasco_corridor_routes = JSON.parse(reg.nasco_corridor_routes);
+        } catch (e) {
+          reg.nasco_corridor_routes = [];
+        }
+      }
+    });
+
+    res.json({
+      success: true,
+      regulations,
+      count: regulations.length
+    });
+  } catch (error) {
+    console.error('❌ Get state OS/OW regulations error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Get specific state OS/OW regulation
+ */
+app.get('/api/state-osow-regulations/:stateKey', async (req, res) => {
+  try {
+    const { stateKey } = req.params;
+
+    const regulation = db.db.prepare(`
+      SELECT * FROM state_osow_regulations WHERE state_key = ?
+    `).get(stateKey.toLowerCase());
+
+    if (!regulation) {
+      return res.status(404).json({
+        success: false,
+        error: `No regulations found for state: ${stateKey}`
+      });
+    }
+
+    // Parse JSON fields
+    if (regulation.holiday_restrictions) {
+      try {
+        regulation.holiday_restrictions = JSON.parse(regulation.holiday_restrictions);
+      } catch (e) {
+        regulation.holiday_restrictions = [];
+      }
+    }
+    if (regulation.permit_cost_data) {
+      try {
+        regulation.permit_cost_data = JSON.parse(regulation.permit_cost_data);
+      } catch (e) {
+        regulation.permit_cost_data = {};
+      }
+    }
+    if (regulation.nasco_corridor_routes) {
+      try {
+        regulation.nasco_corridor_routes = JSON.parse(regulation.nasco_corridor_routes);
+      } catch (e) {
+        regulation.nasco_corridor_routes = [];
+      }
+    }
+
+    res.json({
+      success: true,
+      regulation
+    });
+  } catch (error) {
+    console.error('❌ Get state OS/OW regulation error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Update state OS/OW regulation
+ */
+app.put('/api/state-osow-regulations/:stateKey', async (req, res) => {
+  try {
+    const { stateKey } = req.params;
+    const updates = req.body;
+
+    // Build update query dynamically
+    const allowedFields = [
+      'max_length_ft', 'max_width_ft', 'max_height_ft',
+      'legal_gvw', 'permitted_single_axle', 'permitted_tandem_axle',
+      'permitted_tridem_axle', 'permitted_max_gvw',
+      'weekend_travel_allowed', 'night_travel_allowed', 'holiday_restrictions',
+      'permit_required_width_ft', 'permit_required_height_ft',
+      'permit_required_length_ft', 'permit_required_weight_lbs',
+      'permit_cost_data', 'escort_required_width_ft', 'escort_required_height_ft',
+      'escort_required_length_ft', 'front_escort', 'rear_escort', 'both_escorts',
+      'permit_office_phone', 'permit_office_email', 'permit_portal_url',
+      'regulation_url', 'notes'
+    ];
+
+    const fields = [];
+    const values = [];
+
+    Object.keys(updates).forEach(key => {
+      if (allowedFields.includes(key)) {
+        fields.push(`${key} = ?`);
+        // Stringify JSON fields
+        if (['holiday_restrictions', 'permit_cost_data', 'nasco_corridor_routes'].includes(key)) {
+          values.push(typeof updates[key] === 'string' ? updates[key] : JSON.stringify(updates[key]));
+        } else {
+          values.push(updates[key]);
+        }
+      }
+    });
+
+    if (fields.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid fields to update'
+      });
+    }
+
+    // Calculate data completeness
+    const totalFields = 30; // Approximate number of important fields
+    const filledFields = Object.keys(updates).filter(k => updates[k] !== null && updates[k] !== '').length;
+    const completeness = Math.round((filledFields / totalFields) * 100);
+
+    fields.push('data_completeness_pct = ?');
+    values.push(completeness);
+
+    fields.push('last_verified_date = ?');
+    values.push(new Date().toISOString().split('T')[0]);
+
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+
+    values.push(stateKey.toLowerCase());
+
+    const query = `
+      UPDATE state_osow_regulations
+      SET ${fields.join(', ')}
+      WHERE state_key = ?
+    `;
+
+    const result = db.db.prepare(query).run(...values);
+
+    if (result.changes === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `State ${stateKey} not found`
+      });
+    }
+
+    // Fetch updated record
+    const updated = db.db.prepare(`
+      SELECT * FROM state_osow_regulations WHERE state_key = ?
+    `).get(stateKey.toLowerCase());
+
+    res.json({
+      success: true,
+      regulation: updated,
+      message: `Updated OS/OW regulations for ${stateKey.toUpperCase()}`
+    });
+  } catch (error) {
+    console.error('❌ Update state OS/OW regulation error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Get NASCO corridor summary
+ */
+app.get('/api/nasco-corridor-summary', async (req, res) => {
+  try {
+    const nascoStates = db.db.prepare(`
+      SELECT * FROM state_osow_regulations
+      WHERE is_nasco_state = 1
+      ORDER BY id
+    `).all();
+
+    const summary = {
+      totalStates: nascoStates.length,
+      states: nascoStates.map(s => ({
+        stateKey: s.state_key,
+        stateName: s.state_name,
+        routes: s.nasco_corridor_routes ? JSON.parse(s.nasco_corridor_routes) : [],
+        dataComplete: s.data_completeness_pct === 100.0
+      })),
+      tradeRoute: 'Mexico → Texas → Oklahoma → Kansas → Nebraska → Iowa → Minnesota → Canada'
+    };
+
+    res.json({
+      success: true,
+      summary
+    });
+  } catch (error) {
+    console.error('❌ Get NASCO corridor summary error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * AI-powered analysis of NASCO corridor regulations for harmonization
+ */
+app.post('/api/nasco-corridor-ai-analysis', async (req, res) => {
+  try {
+    // Check if OpenAI API key is configured
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(503).json({
+        success: false,
+        error: 'AI analysis requires OpenAI API key configuration'
+      });
+    }
+
+    // Fetch all NASCO corridor state regulations
+    const nascoStates = db.db.prepare(`
+      SELECT * FROM state_osow_regulations
+      WHERE is_nasco_state = 1
+      ORDER BY id
+    `).all();
+
+    if (nascoStates.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No NASCO corridor states found'
+      });
+    }
+
+    // Parse JSON fields for each state
+    nascoStates.forEach(state => {
+      if (state.holiday_restrictions) {
+        try {
+          state.holiday_restrictions = JSON.parse(state.holiday_restrictions);
+        } catch (e) {
+          state.holiday_restrictions = [];
+        }
+      }
+      if (state.permit_cost_data) {
+        try {
+          state.permit_cost_data = JSON.parse(state.permit_cost_data);
+        } catch (e) {
+          state.permit_cost_data = {};
+        }
+      }
+      if (state.nasco_corridor_routes) {
+        try {
+          state.nasco_corridor_routes = JSON.parse(state.nasco_corridor_routes);
+        } catch (e) {
+          state.nasco_corridor_routes = [];
+        }
+      }
+    });
+
+    // Prepare data summary for AI analysis
+    const regulationsSummary = nascoStates.map(s => ({
+      state: s.state_name,
+      stateKey: s.state_key,
+      dimensions: {
+        maxLength: s.max_length_ft,
+        maxWidth: s.max_width_ft,
+        maxHeight: s.max_height_ft
+      },
+      weights: {
+        legalGVW: s.legal_gvw,
+        permittedMaxGVW: s.permitted_max_gvw,
+        singleAxle: s.permitted_single_axle,
+        tandemAxle: s.permitted_tandem_axle
+      },
+      travelRestrictions: {
+        weekendAllowed: s.weekend_travel_allowed === 1,
+        nightAllowed: s.night_travel_allowed === 1,
+        holidays: s.holiday_restrictions || []
+      },
+      escorts: {
+        widthThreshold: s.escort_required_width_ft,
+        heightThreshold: s.escort_required_height_ft,
+        lengthThreshold: s.escort_required_length_ft
+      },
+      permits: {
+        costs: s.permit_cost_data,
+        office: {
+          phone: s.permit_office_phone,
+          email: s.permit_office_email,
+          portal: s.permit_portal_url
+        }
+      },
+      nascoRoutes: s.nasco_corridor_routes || []
+    }));
+
+    console.log('🤖 Requesting AI analysis for NASCO corridor regulations...');
+
+    // Call OpenAI API for analysis
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4-turbo-preview',
+      messages: [
+        {
+          role: 'system',
+          content: `You are an expert transportation policy analyst specializing in oversize/overweight (OS/OW) vehicle regulations and interstate freight corridor harmonization. Your task is to analyze regulations across the NASCO (North American SuperCorridor Coalition) corridor states and provide actionable recommendations for regulatory consistency to improve cross-border freight movement efficiency.
+
+The NASCO corridor runs from Mexico through Texas, Oklahoma, Kansas, Nebraska, Iowa, and Minnesota to Canada. Inconsistent regulations across these states create operational inefficiencies, increased costs, and safety concerns for freight carriers.
+
+Provide your analysis in the following structure:
+1. **Executive Summary**: Brief overview of key findings (2-3 sentences)
+2. **Critical Inconsistencies**: Identify the most significant regulatory differences that impact freight operations
+3. **Harmonization Opportunities**: Specific areas where alignment would provide the greatest benefit
+4. **Legislative Recommendations**: Concrete suggestions for model legislation or interstate agreements
+5. **Economic Impact**: Estimated benefits of harmonization (efficiency gains, cost savings, safety improvements)
+6. **Implementation Strategy**: Phased approach for states to adopt consistent regulations
+
+Focus on practical, politically feasible recommendations that balance safety, economic efficiency, and state autonomy.`
+        },
+        {
+          role: 'user',
+          content: `Please analyze the following oversize/overweight regulations from the NASCO corridor states and provide recommendations for harmonization and consistency:
+
+${JSON.stringify(regulationsSummary, null, 2)}
+
+Analyze these regulations and provide:
+1. A comparison of the most critical differences (dimensions, weights, travel restrictions, escort requirements)
+2. Specific recommendations for harmonizing regulations across the corridor
+3. Model legislation language or interstate agreement provisions
+4. Priority areas for immediate action vs. long-term goals
+5. Potential economic and safety benefits of harmonization
+
+Format your response as a comprehensive policy analysis document.`
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 3000
+    });
+
+    const analysis = completion.choices[0].message.content;
+
+    console.log('✅ AI analysis completed');
+
+    res.json({
+      success: true,
+      analysis,
+      statesAnalyzed: nascoStates.map(s => ({
+        key: s.state_key,
+        name: s.state_name
+      })),
+      timestamp: new Date().toISOString(),
+      model: 'gpt-4-turbo-preview'
+    });
+
+  } catch (error) {
+    console.error('❌ NASCO corridor AI analysis error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: error.response?.data || null
+    });
+  }
+});
+
 // Test state API connection (admin only)
 app.get('/api/admin/test-state/:stateKey', requireAdmin, async (req, res) => {
   const { stateKey } = req.params;
@@ -10759,10 +11350,14 @@ app.get('/api/grants/applications', async (req, res) => {
 
     const applications = db.db.prepare(query).all(...params);
 
-    // Parse JSON fields
+    // Parse JSON fields (safely handle if field doesn't exist in view)
     applications.forEach(app => {
-      if (app.affected_routes) {
-        app.affected_routes = JSON.parse(app.affected_routes);
+      if (app.affected_routes && typeof app.affected_routes === 'string') {
+        try {
+          app.affected_routes = JSON.parse(app.affected_routes);
+        } catch (e) {
+          console.warn('Failed to parse affected_routes:', e);
+        }
       }
     });
 
@@ -11638,16 +12233,20 @@ app.get('/api/grants/templates', async (req, res) => {
 
     const templates = db.db.prepare(query).all(...params);
 
-    // Parse JSON fields
+    // Parse JSON fields safely
     templates.forEach(template => {
-      if (template.required_sections) {
-        template.required_sections = JSON.parse(template.required_sections);
-      }
-      if (template.data_requirements) {
-        template.data_requirements = JSON.parse(template.data_requirements);
-      }
-      if (template.scoring_criteria) {
-        template.scoring_criteria = JSON.parse(template.scoring_criteria);
+      try {
+        if (template.required_sections && typeof template.required_sections === 'string') {
+          template.required_sections = JSON.parse(template.required_sections);
+        }
+        if (template.data_requirements && typeof template.data_requirements === 'string') {
+          template.data_requirements = JSON.parse(template.data_requirements);
+        }
+        if (template.scoring_criteria && typeof template.scoring_criteria === 'string') {
+          template.scoring_criteria = JSON.parse(template.scoring_criteria);
+        }
+      } catch (e) {
+        console.warn('Failed to parse template JSON fields:', e, template.id);
       }
     });
 
