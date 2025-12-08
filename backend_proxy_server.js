@@ -2593,11 +2593,26 @@ app.get('/api/events/:state', async (req, res) => {
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   console.log('✅ /api/health endpoint hit!');
+
+  // Check if GDAL is available
+  let gdalAvailable = false;
+  try {
+    const { execSync } = require('child_process');
+    execSync('which ogr2ogr', { stdio: 'ignore' });
+    gdalAvailable = true;
+  } catch (e) {
+    gdalAvailable = false;
+  }
+
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     states: getAllStateKeys().length,
-    version: '1.1.1' // Updated with database diagnostics
+    version: '1.1.1',
+    gdal: gdalAvailable,
+    features: {
+      gisUpload: gdalAvailable ? 'Full support (.gdb, .shp, .geojson, .kml, .csv)' : 'Limited (.shp, .geojson, .kml, .csv)'
+    }
   });
 });
 
