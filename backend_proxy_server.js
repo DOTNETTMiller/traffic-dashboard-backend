@@ -11691,9 +11691,13 @@ app.post('/api/grants/applications/:id/generate-metrics', async (req, res) => {
     const { id } = req.params;
 
     // Get application details
-    const application = db.db.prepare(`
-      SELECT * FROM grant_applications WHERE id = ?
-    `).get(id);
+    let application;
+    if (db.isPostgres) {
+      const result = await db.db.query('SELECT * FROM grant_applications WHERE id = $1', [id]);
+      application = result.rows[0];
+    } else {
+      application = db.db.prepare('SELECT * FROM grant_applications WHERE id = ?').get(id);
+    }
 
     if (!application) {
       return res.status(404).json({
@@ -11705,82 +11709,188 @@ app.post('/api/grants/applications/:id/generate-metrics', async (req, res) => {
     console.log(`📊 Generating metrics for grant application: ${id}`);
 
     // Calculate safety metrics from incident data
-    const safetyMetrics = db.db.prepare(`
-      SELECT
-        COUNT(*) as total_incidents,
-        SUM(CASE WHEN severity IN ('major', 'critical') THEN 1 ELSE 0 END) as high_severity,
-        SUM(CASE WHEN type = 'crash' AND details LIKE '%fatal%' THEN 1 ELSE 0 END) as fatalities
-      FROM incident_history
-      WHERE state = ?
-        AND datetime(timestamp) >= datetime('now', '-1 year')
-    `).get(application.state_key);
+    let safetyMetrics;
+    if (db.isPostgres) {
+      const result = await db.db.query(`
+        SELECT
+          COUNT(*) as total_incidents,
+          SUM(CASE WHEN severity IN ('major', 'critical') THEN 1 ELSE 0 END) as high_severity,
+          SUM(CASE WHEN type = 'crash' AND details LIKE '%fatal%' THEN 1 ELSE 0 END) as fatalities
+        FROM incident_history
+        WHERE state = $1
+          AND timestamp >= CURRENT_TIMESTAMP - INTERVAL '1 year'
+      `, [application.state_key]);
+      safetyMetrics = result.rows[0];
+    } else {
+      safetyMetrics = db.db.prepare(`
+        SELECT
+          COUNT(*) as total_incidents,
+          SUM(CASE WHEN severity IN ('major', 'critical') THEN 1 ELSE 0 END) as high_severity,
+          SUM(CASE WHEN type = 'crash' AND details LIKE '%fatal%' THEN 1 ELSE 0 END) as fatalities
+        FROM incident_history
+        WHERE state = ?
+          AND datetime(timestamp) >= datetime('now', '-1 year')
+      `).get(application.state_key);
+    }
 
     // Calculate traffic metrics
-    const trafficMetrics = db.db.prepare(`
-      SELECT
-        AVG(CAST(volume AS INTEGER)) as avg_daily_traffic,
-        AVG(CAST(truck_percentage AS REAL)) as truck_percentage
-      FROM traffic_volume
-      WHERE state_key = ?
-    `).get(application.state_key);
+    let trafficMetrics;
+    if (db.isPostgres) {
+      const result = await db.db.query(`
+        SELECT
+          AVG(volume::INTEGER) as avg_daily_traffic,
+          AVG(truck_percentage::REAL) as truck_percentage
+        FROM traffic_volume
+        WHERE state_key = $1
+      `, [application.state_key]);
+      trafficMetrics = result.rows[0];
+    } else {
+      trafficMetrics = db.db.prepare(`
+        SELECT
+          AVG(CAST(volume AS INTEGER)) as avg_daily_traffic,
+          AVG(CAST(truck_percentage AS REAL)) as truck_percentage
+        FROM traffic_volume
+        WHERE state_key = ?
+      `).get(application.state_key);
+    }
 
     // Count ITS equipment deployed
-    const equipmentMetrics = db.db.prepare(`
-      SELECT
-        SUM(CASE WHEN equipment_type = 'camera' THEN 1 ELSE 0 END) as cameras,
-        SUM(CASE WHEN equipment_type = 'dms' THEN 1 ELSE 0 END) as dms,
-        SUM(CASE WHEN equipment_type = 'rsu' THEN 1 ELSE 0 END) as rsu,
-        SUM(CASE WHEN equipment_type = 'sensor' THEN 1 ELSE 0 END) as sensors
-      FROM its_equipment
-      WHERE state_key = ?
-        AND status = 'operational'
-    `).get(application.state_key);
+    let equipmentMetrics;
+    if (db.isPostgres) {
+      const result = await db.db.query(`
+        SELECT
+          SUM(CASE WHEN equipment_type = 'camera' THEN 1 ELSE 0 END) as cameras,
+          SUM(CASE WHEN equipment_type = 'dms' THEN 1 ELSE 0 END) as dms,
+          SUM(CASE WHEN equipment_type = 'rsu' THEN 1 ELSE 0 END) as rsu,
+          SUM(CASE WHEN equipment_type = 'sensor' THEN 1 ELSE 0 END) as sensors
+        FROM its_equipment
+        WHERE state_key = $1
+          AND status = 'operational'
+      `, [application.state_key]);
+      equipmentMetrics = result.rows[0];
+    } else {
+      equipmentMetrics = db.db.prepare(`
+        SELECT
+          SUM(CASE WHEN equipment_type = 'camera' THEN 1 ELSE 0 END) as cameras,
+          SUM(CASE WHEN equipment_type = 'dms' THEN 1 ELSE 0 END) as dms,
+          SUM(CASE WHEN equipment_type = 'rsu' THEN 1 ELSE 0 END) as rsu,
+          SUM(CASE WHEN equipment_type = 'sensor' THEN 1 ELSE 0 END) as sensors
+        FROM its_equipment
+        WHERE state_key = ?
+          AND status = 'operational'
+      `).get(application.state_key);
+    }
 
     // Count V2X coverage gaps
-    const v2xGaps = db.db.prepare(`
-      SELECT COUNT(*) as gap_count
-      FROM v2x_deployment_gaps
-      WHERE state_key = ?
-        AND status = 'identified'
-    `).get(application.state_key);
+    let v2xGaps;
+    if (db.isPostgres) {
+      const result = await db.db.query(`
+        SELECT COUNT(*) as gap_count
+        FROM v2x_deployment_gaps
+        WHERE state_key = $1
+          AND status = 'identified'
+      `, [application.state_key]);
+      v2xGaps = result.rows[0];
+    } else {
+      v2xGaps = db.db.prepare(`
+        SELECT COUNT(*) as gap_count
+        FROM v2x_deployment_gaps
+        WHERE state_key = ?
+          AND status = 'identified'
+      `).get(application.state_key);
+    }
 
     // Get data quality score from TETC
-    const dqiScore = db.db.prepare(`
-      SELECT AVG(overall_score) as avg_dqi
-      FROM vendor_dqi_scores
-      WHERE vendor = (SELECT vendor FROM states WHERE state_key = ?)
-        AND validated = TRUE
-    `).get(application.state_key);
+    let dqiScore;
+    if (db.isPostgres) {
+      const result = await db.db.query(`
+        SELECT AVG(overall_score) as avg_dqi
+        FROM vendor_dqi_scores
+        WHERE vendor = (SELECT vendor FROM states WHERE state_key = $1)
+          AND validated = TRUE
+      `, [application.state_key]);
+      dqiScore = result.rows[0];
+    } else {
+      dqiScore = db.db.prepare(`
+        SELECT AVG(overall_score) as avg_dqi
+        FROM vendor_dqi_scores
+        WHERE vendor = (SELECT vendor FROM states WHERE state_key = ?)
+          AND validated = TRUE
+      `).get(application.state_key);
+    }
 
     // Insert or update metrics
     const metricsId = `metrics-${id}-${Date.now()}`;
 
-    db.prepare(`
-      INSERT OR REPLACE INTO grant_metrics (
-        id, application_id,
-        total_incidents, high_severity_incidents, fatalities,
-        average_daily_traffic, truck_percentage,
-        v2x_coverage_gaps,
-        cameras_deployed, dms_deployed, rsu_deployed, sensors_deployed,
-        data_quality_score,
-        calculation_notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      metricsId,
-      id,
-      safetyMetrics?.total_incidents || 0,
-      safetyMetrics?.high_severity || 0,
-      safetyMetrics?.fatalities || 0,
-      trafficMetrics?.avg_daily_traffic || 0,
-      trafficMetrics?.truck_percentage || 0,
-      v2xGaps?.gap_count || 0,
-      equipmentMetrics?.cameras || 0,
-      equipmentMetrics?.dms || 0,
-      equipmentMetrics?.rsu || 0,
-      equipmentMetrics?.sensors || 0,
-      dqiScore?.avg_dqi || null,
-      'Auto-calculated from system data: incidents (1 year), traffic, ITS equipment, V2X gaps, TETC DQI scores'
-    );
+    if (db.isPostgres) {
+      await db.db.query(`
+        INSERT INTO grant_metrics (
+          id, application_id,
+          total_incidents, high_severity_incidents, fatalities,
+          average_daily_traffic, truck_percentage,
+          v2x_coverage_gaps,
+          cameras_deployed, dms_deployed, rsu_deployed, sensors_deployed,
+          data_quality_score,
+          calculation_notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        ON CONFLICT (application_id) DO UPDATE SET
+          total_incidents = EXCLUDED.total_incidents,
+          high_severity_incidents = EXCLUDED.high_severity_incidents,
+          fatalities = EXCLUDED.fatalities,
+          average_daily_traffic = EXCLUDED.average_daily_traffic,
+          truck_percentage = EXCLUDED.truck_percentage,
+          v2x_coverage_gaps = EXCLUDED.v2x_coverage_gaps,
+          cameras_deployed = EXCLUDED.cameras_deployed,
+          dms_deployed = EXCLUDED.dms_deployed,
+          rsu_deployed = EXCLUDED.rsu_deployed,
+          sensors_deployed = EXCLUDED.sensors_deployed,
+          data_quality_score = EXCLUDED.data_quality_score,
+          calculation_notes = EXCLUDED.calculation_notes,
+          updated_at = CURRENT_TIMESTAMP
+      `, [
+        metricsId,
+        id,
+        safetyMetrics?.total_incidents || 0,
+        safetyMetrics?.high_severity || 0,
+        safetyMetrics?.fatalities || 0,
+        trafficMetrics?.avg_daily_traffic || 0,
+        trafficMetrics?.truck_percentage || 0,
+        v2xGaps?.gap_count || 0,
+        equipmentMetrics?.cameras || 0,
+        equipmentMetrics?.dms || 0,
+        equipmentMetrics?.rsu || 0,
+        equipmentMetrics?.sensors || 0,
+        dqiScore?.avg_dqi || null,
+        'Auto-calculated from system data: incidents (1 year), traffic, ITS equipment, V2X gaps, TETC DQI scores'
+      ]);
+    } else {
+      db.db.prepare(`
+        INSERT OR REPLACE INTO grant_metrics (
+          id, application_id,
+          total_incidents, high_severity_incidents, fatalities,
+          average_daily_traffic, truck_percentage,
+          v2x_coverage_gaps,
+          cameras_deployed, dms_deployed, rsu_deployed, sensors_deployed,
+          data_quality_score,
+          calculation_notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        metricsId,
+        id,
+        safetyMetrics?.total_incidents || 0,
+        safetyMetrics?.high_severity || 0,
+        safetyMetrics?.fatalities || 0,
+        trafficMetrics?.avg_daily_traffic || 0,
+        trafficMetrics?.truck_percentage || 0,
+        v2xGaps?.gap_count || 0,
+        equipmentMetrics?.cameras || 0,
+        equipmentMetrics?.dms || 0,
+        equipmentMetrics?.rsu || 0,
+        equipmentMetrics?.sensors || 0,
+        dqiScore?.avg_dqi || null,
+        'Auto-calculated from system data: incidents (1 year), traffic, ITS equipment, V2X gaps, TETC DQI scores'
+      );
+    }
 
     console.log(`✅ Generated metrics for application: ${id}`);
 
