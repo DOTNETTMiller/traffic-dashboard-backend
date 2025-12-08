@@ -780,7 +780,13 @@ async function checkInterchangeProximity(event, stateKey) {
 // Helper function to ensure grant tables exist
 function ensureGrantTables() {
   try {
-    // Check if grant_applications table exists
+    // Skip for PostgreSQL - tables should already exist from migrations
+    if (db.isPostgres) {
+      console.log('✅ Using PostgreSQL - grant tables managed by migrations');
+      return;
+    }
+
+    // Check if grant_applications table exists (SQLite only)
     const tableCheck = db.db.prepare(`
       SELECT name FROM sqlite_master
       WHERE type='table' AND name='grant_applications'
