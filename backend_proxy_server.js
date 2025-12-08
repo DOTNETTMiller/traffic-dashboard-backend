@@ -12283,6 +12283,88 @@ app.get('/api/grants/success-rates', async (req, res) => {
   }
 });
 
+/**
+ * Get grant recommendations based on project characteristics
+ */
+app.post('/api/grants/recommend', async (req, res) => {
+  try {
+    const {
+      description,
+      primaryCorridor,
+      requestedAmount,
+      geographicScope,
+      stateKey
+    } = req.body;
+
+    // Get project context
+    let hasITSEquipment = false;
+    let hasIncidentData = false;
+    let hasBridgeData = false;
+    let isFreightCorridor = false;
+    let hasV2XGaps = false;
+
+    if (stateKey) {
+      // Check for ITS equipment
+      const itsCount = db.db.prepare('SELECT COUNT(*) as count FROM its_equipment WHERE state_key = ?').get(stateKey);
+      hasITSEquipment = itsCount?.count > 0;
+
+      // Check for V2X gaps (RSUs needed but not deployed)
+      const v2xGaps = db.db.prepare(`
+        SELECT COUNT(*) as count FROM its_equipment
+        WHERE state_key = ? AND equipment_type != 'rsu'
+      `).get(stateKey);
+      hasV2XGaps = v2xGaps?.count > 10; // Simple heuristic
+    }
+
+    // Check if corridor appears to be freight-focused
+    isFreightCorridor = /I-\d+|freight|truck|commercial/i.test(primaryCorridor || description);
+
+    // Check for incident/safety data mentions
+    hasIncidentData = /incident|crash|accident|safety|fatality/i.test(description);
+    hasBridgeData = /bridge|clearance|overpass/i.test(description);
+
+    const grantRecommender = require('./utils/grant-recommender');
+    const recommendations = grantRecommender.recommendGrants({
+      description,
+      primaryCorridor,
+      requestedAmount: parseFloat(requestedAmount) || 0,
+      geographicScope,
+      hasITSEquipment,
+      hasIncidentData,
+      hasBridgeData,
+      isFreightCorridor,
+      hasV2XGaps
+    });
+
+    // Add explanations
+    recommendations.topMatches = recommendations.topMatches.map(match => ({
+      ...match,
+      explanation: grantRecommender.explainRecommendation(match, { description, fundingRange: requestedAmount })
+    }));
+
+    recommendations.blockGrants = recommendations.blockGrants.map(grant => ({
+      ...grant,
+      explanation: grantRecommender.explainRecommendation(grant, { description, fundingRange: requestedAmount })
+    }));
+
+    res.json({
+      success: true,
+      recommendations,
+      context: {
+        hasITSEquipment,
+        hasIncidentData,
+        hasBridgeData,
+        isFreightCorridor,
+        hasV2XGaps
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Grant recommendation error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Run Users table migration for PostgreSQL
 app.post('/api/admin/migrate-users', async (req, res) => {
   try {
