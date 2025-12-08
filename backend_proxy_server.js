@@ -11354,7 +11354,20 @@ app.get('/api/grants/applications', async (req, res) => {
 
     query += ' ORDER BY created_at DESC';
 
-    const applications = db.db.prepare(query).all(...params);
+    let applications;
+    if (db.isPostgres) {
+      // Convert ? placeholders to $1, $2, etc. for PostgreSQL
+      let pgQuery = query;
+      for (let i = params.length; i > 0; i--) {
+        pgQuery = pgQuery.replace('?', `$${i}`);
+      }
+      // Reverse params to match the replacement order
+      const result = await db.db.query(pgQuery, params.reverse());
+      applications = result.rows || [];
+      params.reverse(); // Reverse back in case needed
+    } else {
+      applications = db.db.prepare(query).all(...params);
+    }
 
     // Parse JSON fields (safely handle if field doesn't exist in view)
     applications.forEach(app => {
@@ -12237,7 +12250,19 @@ app.get('/api/grants/templates', async (req, res) => {
 
     query += ' ORDER BY grant_program, template_name';
 
-    const templates = db.db.prepare(query).all(...params);
+    let templates;
+    if (db.isPostgres) {
+      // Convert ? placeholders to $1, $2, etc. for PostgreSQL
+      let pgQuery = query;
+      for (let i = params.length; i > 0; i--) {
+        pgQuery = pgQuery.replace('?', `$${i}`);
+      }
+      const result = await db.db.query(pgQuery, params.reverse());
+      templates = result.rows || [];
+      params.reverse();
+    } else {
+      templates = db.db.prepare(query).all(...params);
+    }
 
     // Parse JSON fields safely
     templates.forEach(template => {
