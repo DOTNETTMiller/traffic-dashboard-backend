@@ -413,7 +413,7 @@ export default function GrantApplications({ user }) {
             </p>
           </div>
 
-          {viewMode === 'list' && (
+          {viewMode === 'list' && activeTab === 'applications' && (
             <button
               style={styles.button}
               onClick={() => {
@@ -452,6 +452,70 @@ export default function GrantApplications({ user }) {
             </button>
           )}
         </div>
+
+        {/* Tab Navigation */}
+        {viewMode === 'list' && (
+          <div style={{
+            display: 'flex',
+            gap: '8px',
+            borderBottom: `2px solid ${theme.border}`,
+            marginBottom: '24px'
+          }}>
+            <button
+              onClick={() => setActiveTab('applications')}
+              style={{
+                padding: '12px 24px',
+                border: 'none',
+                background: activeTab === 'applications' ? theme.primary : 'transparent',
+                color: activeTab === 'applications' ? '#ffffff' : theme.text,
+                borderBottom: activeTab === 'applications' ? `3px solid ${theme.primary}` : 'none',
+                fontWeight: activeTab === 'applications' ? '600' : '400',
+                cursor: 'pointer',
+                fontSize: '15px',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseOver={(e) => {
+                if (activeTab !== 'applications') {
+                  e.currentTarget.style.background = theme.bgTertiary;
+                }
+              }}
+              onMouseOut={(e) => {
+                if (activeTab !== 'applications') {
+                  e.currentTarget.style.background = 'transparent';
+                }
+              }}
+            >
+              📋 My Applications
+            </button>
+
+            <button
+              onClick={() => setActiveTab('resources')}
+              style={{
+                padding: '12px 24px',
+                border: 'none',
+                background: activeTab === 'resources' ? theme.primary : 'transparent',
+                color: activeTab === 'resources' ? '#ffffff' : theme.text,
+                borderBottom: activeTab === 'resources' ? `3px solid ${theme.primary}` : 'none',
+                fontWeight: activeTab === 'resources' ? '600' : '400',
+                cursor: 'pointer',
+                fontSize: '15px',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseOver={(e) => {
+                if (activeTab !== 'resources') {
+                  e.currentTarget.style.background = theme.bgTertiary;
+                }
+              }}
+              onMouseOut={(e) => {
+                if (activeTab !== 'resources') {
+                  e.currentTarget.style.background = 'transparent';
+                }
+              }}
+            >
+              💰 Browse Programs & NOFOs
+            </button>
+          </div>
+        )}
 
         {/* Status Messages */}
         {successMessage && (
@@ -510,50 +574,64 @@ export default function GrantApplications({ user }) {
           </div>
         )}
 
-        {/* Create Application Form */}
-        {viewMode === 'create' && (
-          <CreateApplicationForm
-            theme={theme}
-            styles={styles}
-            templates={templates}
-            selectedTemplate={selectedTemplate}
-            handleTemplateSelect={handleTemplateSelect}
-            formData={formData}
-            setFormData={setFormData}
-            handleCreateApplication={handleCreateApplication}
-            setViewMode={setViewMode}
-            darkMode={darkMode}
-          />
+        {/* Tab Content - Applications Tab */}
+        {activeTab === 'applications' && (
+          <>
+            {/* Create Application Form */}
+            {viewMode === 'create' && (
+              <CreateApplicationForm
+                theme={theme}
+                styles={styles}
+                templates={templates}
+                selectedTemplate={selectedTemplate}
+                handleTemplateSelect={handleTemplateSelect}
+                formData={formData}
+                setFormData={setFormData}
+                handleCreateApplication={handleCreateApplication}
+                setViewMode={setViewMode}
+                darkMode={darkMode}
+                user={user}
+                recommendations={recommendations}
+                setRecommendations={setRecommendations}
+                setActiveTab={setActiveTab}
+              />
+            )}
+
+            {/* Application Details */}
+            {viewMode === 'details' && selectedApp && (
+              <ApplicationDetails
+                theme={theme}
+                styles={styles}
+                selectedApp={selectedApp}
+                getStatusConfig={getStatusConfig}
+                handleGenerateMetrics={handleGenerateMetrics}
+                proposalFile={proposalFile}
+                setProposalFile={setProposalFile}
+                handleProposalUpload={handleProposalUpload}
+                uploadingProposal={uploadingProposal}
+                darkMode={darkMode}
+              />
+            )}
+
+            {/* Applications List */}
+            {viewMode === 'list' && (
+              <ApplicationsList
+                theme={theme}
+                styles={styles}
+                applications={applications}
+                viewApplicationDetails={viewApplicationDetails}
+                getStatusConfig={getStatusConfig}
+                setViewMode={setViewMode}
+                setShowCreateForm={setShowCreateForm}
+                darkMode={darkMode}
+              />
+            )}
+          </>
         )}
 
-        {/* Application Details */}
-        {viewMode === 'details' && selectedApp && (
-          <ApplicationDetails
-            theme={theme}
-            styles={styles}
-            selectedApp={selectedApp}
-            getStatusConfig={getStatusConfig}
-            handleGenerateMetrics={handleGenerateMetrics}
-            proposalFile={proposalFile}
-            setProposalFile={setProposalFile}
-            handleProposalUpload={handleProposalUpload}
-            uploadingProposal={uploadingProposal}
-            darkMode={darkMode}
-          />
-        )}
-
-        {/* Applications List */}
-        {viewMode === 'list' && (
-          <ApplicationsList
-            theme={theme}
-            styles={styles}
-            applications={applications}
-            viewApplicationDetails={viewApplicationDetails}
-            getStatusConfig={getStatusConfig}
-            setViewMode={setViewMode}
-            setShowCreateForm={setShowCreateForm}
-            darkMode={darkMode}
-          />
+        {/* Tab Content - Browse Programs & NOFOs */}
+        {activeTab === 'resources' && viewMode === 'list' && (
+          <FederalGrantResources darkMode={darkMode} />
         )}
       </div>
 
@@ -619,7 +697,31 @@ export default function GrantApplications({ user }) {
 }
 
 // Create Application Form Component
-function CreateApplicationForm({ theme, styles, templates, selectedTemplate, handleTemplateSelect, formData, setFormData, handleCreateApplication, setViewMode, darkMode }) {
+function CreateApplicationForm({ theme, styles, templates, selectedTemplate, handleTemplateSelect, formData, setFormData, handleCreateApplication, setViewMode, darkMode, user, recommendations, setRecommendations, setActiveTab }) {
+  const [loadingRecommendations, setLoadingRecommendations] = React.useState(false);
+
+  const handleGetRecommendations = async () => {
+    try {
+      setLoadingRecommendations(true);
+      const response = await api.post('/api/grants/recommend', {
+        description: formData.projectDescription,
+        primaryCorridor: formData.primaryCorridor,
+        requestedAmount: formData.requestedAmount,
+        geographicScope: formData.geographicScope,
+        stateKey: user?.stateKey
+      });
+
+      if (response.data.success) {
+        setRecommendations(response.data.recommendations);
+      }
+    } catch (error) {
+      console.error('Error getting recommendations:', error);
+      alert('Failed to get recommendations. Please try again.');
+    } finally {
+      setLoadingRecommendations(false);
+    }
+  };
+
   return (
     <div style={{ ...styles.card, animation: 'slideInDown 0.5s ease' }}>
       <h2 style={{ margin: '0 0 24px 0', fontSize: '24px', fontWeight: '700', color: theme.text }}>
@@ -799,6 +901,153 @@ function CreateApplicationForm({ theme, styles, templates, selectedTemplate, han
             </select>
           </div>
         </div>
+
+        {/* Grant Recommendations */}
+        {formData.projectDescription && formData.primaryCorridor && formData.requestedAmount && (
+          <div style={{
+            background: theme.primaryLight,
+            padding: '16px',
+            borderRadius: '8px',
+            marginTop: '16px',
+            marginBottom: '16px'
+          }}>
+            <div style={{
+              fontSize: '14px',
+              fontWeight: '600',
+              color: theme.text,
+              marginBottom: '12px'
+            }}>
+              💡 Recommended Grant Programs
+            </div>
+            <button
+              type="button"
+              onClick={handleGetRecommendations}
+              disabled={loadingRecommendations}
+              style={{
+                padding: '8px 16px',
+                background: theme.primary,
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: loadingRecommendations ? 'not-allowed' : 'pointer',
+                fontSize: '13px',
+                fontWeight: '600',
+                opacity: loadingRecommendations ? 0.6 : 1
+              }}
+            >
+              {loadingRecommendations ? '⏳ Getting Recommendations...' : '🎯 Get Recommendations'}
+            </button>
+
+            {recommendations && (
+              <div style={{ marginTop: '16px' }}>
+                {recommendations.topMatches && recommendations.topMatches.length > 0 && (
+                  <>
+                    <div style={{
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      color: theme.textSecondary,
+                      marginBottom: '8px',
+                      textTransform: 'uppercase'
+                    }}>
+                      Top Matches (Competitive):
+                    </div>
+                    {recommendations.topMatches.map((grant, idx) => (
+                      <div key={idx} style={{
+                        background: theme.bgSecondary,
+                        padding: '12px',
+                        borderRadius: '6px',
+                        marginBottom: '8px',
+                        border: `1px solid ${theme.border}`
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: '6px'
+                        }}>
+                          <span style={{ fontWeight: '600', fontSize: '14px' }}>
+                            {grant.name}
+                          </span>
+                          <span style={{
+                            padding: '4px 8px',
+                            borderRadius: '12px',
+                            background: grant.score >= 80 ? '#dcfce7' : '#fef3c7',
+                            color: grant.score >= 80 ? '#166534' : '#92400e',
+                            fontSize: '11px',
+                            fontWeight: '700'
+                          }}>
+                            {grant.score}% Match
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '12px', color: theme.textSecondary }}>
+                          {grant.fullName}
+                        </div>
+                        {grant.keyIndicators && (
+                          <div style={{ fontSize: '11px', color: theme.textMuted, marginTop: '6px' }}>
+                            {grant.keyIndicators.slice(0, 2).join(' • ')}
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTab('resources');
+                            setViewMode('list');
+                          }}
+                          style={{
+                            marginTop: '8px',
+                            padding: '6px 12px',
+                            background: theme.primary,
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          View NOFO & Details →
+                        </button>
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                {recommendations.blockGrants && recommendations.blockGrants.length > 0 && (
+                  <>
+                    <div style={{
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      color: theme.textSecondary,
+                      marginTop: '16px',
+                      marginBottom: '8px',
+                      textTransform: 'uppercase'
+                    }}>
+                      Block Grant Options:
+                    </div>
+                    {recommendations.blockGrants.map((grant, idx) => (
+                      <div key={idx} style={{
+                        background: theme.bgSecondary,
+                        padding: '10px',
+                        borderRadius: '6px',
+                        marginBottom: '6px',
+                        border: `1px solid ${theme.border}`
+                      }}>
+                        <div style={{ fontWeight: '600', fontSize: '13px' }}>
+                          {grant.name}
+                        </div>
+                        <div style={{ fontSize: '11px', color: theme.textSecondary }}>
+                          {grant.type} • Administered by {grant.administered}
+                        </div>
+                        <div style={{ fontSize: '11px', color: theme.textMuted, marginTop: '4px' }}>
+                          {grant.focus}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <button
