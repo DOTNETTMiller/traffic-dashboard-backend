@@ -8175,7 +8175,13 @@ app.get('/api/state-osow-regulations', async (req, res) => {
 
     query += ' ORDER BY state_name';
 
-    const regulations = db.db.prepare(query).all(...params);
+    let regulations;
+    if (db.isPostgres) {
+      const result = await db.db.query(query, params);
+      regulations = result.rows || [];
+    } else {
+      regulations = db.db.prepare(query).all(...params);
+    }
 
     // Parse JSON fields
     regulations.forEach(reg => {
@@ -8220,9 +8226,18 @@ app.get('/api/state-osow-regulations/:stateKey', async (req, res) => {
   try {
     const { stateKey } = req.params;
 
-    const regulation = db.db.prepare(`
-      SELECT * FROM state_osow_regulations WHERE state_key = ?
-    `).get(stateKey.toLowerCase());
+    let regulation;
+    if (db.isPostgres) {
+      const result = await db.db.query(
+        'SELECT * FROM state_osow_regulations WHERE state_key = $1',
+        [stateKey.toLowerCase()]
+      );
+      regulation = result.rows[0];
+    } else {
+      regulation = db.db.prepare(`
+        SELECT * FROM state_osow_regulations WHERE state_key = ?
+      `).get(stateKey.toLowerCase());
+    }
 
     if (!regulation) {
       return res.status(404).json({
@@ -8289,9 +8304,13 @@ app.put('/api/state-osow-regulations/:stateKey', async (req, res) => {
     const fields = [];
     const values = [];
 
-    Object.keys(updates).forEach(key => {
+    Object.keys(updates).forEach((key, index) => {
       if (allowedFields.includes(key)) {
-        fields.push(`${key} = ?`);
+        if (db.isPostgres) {
+          fields.push(`${key} = $${values.length + 1}`);
+        } else {
+          fields.push(`${key} = ?`);
+        }
         // Stringify JSON fields
         if (['holiday_restrictions', 'permit_cost_data', 'nasco_corridor_routes'].includes(key)) {
           values.push(typeof updates[key] === 'string' ? updates[key] : JSON.stringify(updates[key]));
@@ -8313,35 +8332,63 @@ app.put('/api/state-osow-regulations/:stateKey', async (req, res) => {
     const filledFields = Object.keys(updates).filter(k => updates[k] !== null && updates[k] !== '').length;
     const completeness = Math.round((filledFields / totalFields) * 100);
 
-    fields.push('data_completeness_pct = ?');
+    if (db.isPostgres) {
+      fields.push(`data_completeness_pct = $${values.length + 1}`);
+    } else {
+      fields.push('data_completeness_pct = ?');
+    }
     values.push(completeness);
 
-    fields.push('last_verified_date = ?');
+    if (db.isPostgres) {
+      fields.push(`last_verified_date = $${values.length + 1}`);
+    } else {
+      fields.push('last_verified_date = ?');
+    }
     values.push(new Date().toISOString().split('T')[0]);
 
     fields.push('updated_at = CURRENT_TIMESTAMP');
 
+    const whereParam = db.isPostgres ? `$${values.length + 1}` : '?';
     values.push(stateKey.toLowerCase());
 
     const query = `
       UPDATE state_osow_regulations
       SET ${fields.join(', ')}
-      WHERE state_key = ?
+      WHERE state_key = ${whereParam}
     `;
 
-    const result = db.db.prepare(query).run(...values);
-
-    if (result.changes === 0) {
-      return res.status(404).json({
-        success: false,
-        error: `State ${stateKey} not found`
-      });
+    let result;
+    if (db.isPostgres) {
+      result = await db.db.query(query, values);
+      if (result.rowCount === 0) {
+        return res.status(404).json({
+          success: false,
+          error: `State ${stateKey} not found`
+        });
+      }
+    } else {
+      result = db.db.prepare(query).run(...values);
+      if (result.changes === 0) {
+        return res.status(404).json({
+          success: false,
+          error: `State ${stateKey} not found`
+        });
+      }
     }
 
     // Fetch updated record
-    const updated = db.db.prepare(`
-      SELECT * FROM state_osow_regulations WHERE state_key = ?
-    `).get(stateKey.toLowerCase());
+    let updated;
+    if (db.isPostgres) {
+      const updateResult = await db.db.query(
+        'SELECT * FROM state_osow_regulations WHERE state_key = $1',
+        [stateKey.toLowerCase()]
+      );
+      updated = updateResult.rows[0];
+    } else {
+      updated = db.db.prepare(`
+        SELECT * FROM state_osow_regulations WHERE state_key = ?
+      `).get(stateKey.toLowerCase());
+    }
 
     res.json({
       success: true,
@@ -8359,11 +8406,21 @@ app.put('/api/state-osow-regulations/:stateKey', async (req, res) => {
  */
 app.get('/api/nasco-corridor-summary', async (req, res) => {
   try {
-    const nascoStates = db.db.prepare(`
-      SELECT * FROM state_osow_regulations
-      WHERE is_nasco_state = 1
-      ORDER BY id
-    `).all();
+    let nascoStates;
+    if (db.isPostgres) {
+      const result = await db.db.query(`
+        SELECT * FROM state_osow_regulations
+        WHERE is_nasco_state = 1
+        ORDER BY id
+      `);
+      nascoStates = result.rows || [];
+    } else {
+      nascoStates = db.db.prepare(`
+        SELECT * FROM state_osow_regulations
+        WHERE is_nasco_state = 1
+        ORDER BY id
+      `).all();
+    }
 
     const summary = {
       totalStates: nascoStates.length,
@@ -8400,11 +8457,21 @@ app.post('/api/nasco-corridor-ai-analysis', async (req, res) => {
     }
 
     // Fetch all NASCO corridor state regulations
-    const nascoStates = db.db.prepare(`
-      SELECT * FROM state_osow_regulations
-      WHERE is_nasco_state = 1
-      ORDER BY id
-    `).all();
+    let nascoStates;
+    if (db.isPostgres) {
+      const result = await db.db.query(`
+        SELECT * FROM state_osow_regulations
+        WHERE is_nasco_state = 1
+        ORDER BY id
+      `);
+      nascoStates = result.rows || [];
+    } else {
+      nascoStates = db.db.prepare(`
+        SELECT * FROM state_osow_regulations
+        WHERE is_nasco_state = 1
+        ORDER BY id
+      `).all();
+    }
 
     if (nascoStates.length === 0) {
       return res.status(404).json({
