@@ -165,5 +165,80 @@ INSERT INTO state_osow_regulations (
    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 0, NULL, NULL,
    '850-617-2000', NULL,
    'https://www.fdot.gov/agencyresources/permitoffice.shtm',
-   NULL, NULL, 25.0, 'Partial data - needs completion')
+   NULL, NULL, 25.0, 'Partial data - needs completion'),
+
+  -- ADDITIONAL NASCO CORRIDOR STATES (Partial data - to be completed by state DOT users)
+
+  -- Missouri (I-35 and I-29 junction)
+  ('mo', 'Missouri', 65, 8.5, 14.0, 80000, NULL, NULL, NULL, NULL, 1, NULL,
+   NULL, 8.5, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 1,
+   '[\"I-35\", \"I-29\", \"I-70\"]',
+   'NASCO corridor junction state - I-35 and I-29 converge in Kansas City',
+   '573-751-2551', 'motor.carrier@modot.mo.gov',
+   'https://www.modot.org/commercial-vehicle',
+   'https://www.modot.org/commercial-vehicle-permits',
+   NULL, 20.0, 'Partial data - needs completion by Missouri DOT'),
+
+  -- South Dakota (I-29 corridor)
+  ('sd', 'South Dakota', 65, 8.5, 14.0, 80000, NULL, NULL, NULL, NULL, 1, NULL,
+   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 1,
+   '[\"I-29\", \"I-90\"]',
+   'NASCO I-29 corridor state connecting to Canada',
+   '605-773-3265', NULL,
+   'https://dot.sd.gov/commercial',
+   NULL, NULL, 15.0, 'Partial data - needs completion by South Dakota DOT'),
+
+  -- North Dakota (I-29 and I-94 corridor)
+  ('nd', 'North Dakota', 65, 8.5, 14.0, 80000, NULL, NULL, NULL, NULL, 1, NULL,
+   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 1,
+   '[\"I-29\", \"I-94\"]',
+   'Northern NASCO gateway - I-29 and I-94 to Canadian border',
+   '701-328-2621', NULL,
+   'https://www.dot.nd.gov/divisions/mv/oversize.htm',
+   NULL, NULL, 15.0, 'Partial data - needs completion by North Dakota DOT'),
+
+  -- Montana (I-94 western terminus)
+  ('mt', 'Montana', 65, 8.5, 14.0, 80000, NULL, NULL, NULL, NULL, 1, NULL,
+   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 1,
+   '[\"I-94\", \"I-90\"]',
+   'Western terminus of NASCO I-94 corridor',
+   '406-444-6130', NULL,
+   'https://www.mdt.mt.gov/business/commercial-vehicle/',
+   NULL, NULL, 15.0, 'Partial data - needs completion by Montana DOT'),
+
+  -- Wisconsin (I-94 corridor)
+  ('wi', 'Wisconsin', 65, 8.5, 13.5, 80000, NULL, NULL, NULL, NULL, 1, NULL,
+   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 1,
+   '[\"I-94\", \"I-90\"]',
+   'NASCO I-94 corridor state',
+   '608-266-0976', NULL,
+   'https://wisconsindot.gov/Pages/dmv/com-drv-vehi/mtr-car-trkr/default.aspx',
+   NULL, NULL, 15.0, 'Partial data - needs completion by Wisconsin DOT'),
+
+  -- Illinois (I-94 corridor)
+  ('il', 'Illinois', 65, 8.5, 13.5, 80000, NULL, NULL, NULL, NULL, 1, NULL,
+   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 1,
+   '[\"I-94\", \"I-80\", \"I-90\"]',
+   'NASCO I-94 corridor state',
+   '217-782-6212', NULL,
+   'https://www.ilsos.gov/departments/vehicles/commercial_vehicles/home.html',
+   NULL, NULL, 15.0, 'Partial data - needs completion by Illinois DOT'),
+
+  -- Indiana (I-94 corridor)
+  ('in', 'Indiana', 65, 8.5, 13.5, 80000, NULL, NULL, NULL, NULL, 1, NULL,
+   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 1,
+   '[\"I-94\", \"I-80\"]',
+   'NASCO I-94 corridor state',
+   '317-615-7200', NULL,
+   'https://www.in.gov/indot/doing-business-with-indot/oversize-and-overweight-permits/',
+   NULL, NULL, 15.0, 'Partial data - needs completion by Indiana DOT'),
+
+  -- Michigan (I-94 Ambassador Bridge to Canada)
+  ('mi', 'Michigan', 65, 8.5, 13.5, 80000, NULL, NULL, NULL, NULL, 1, NULL,
+   NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 1,
+   '[\"I-94\", \"I-75\"]',
+   'Eastern NASCO gateway - Ambassador Bridge connects to Windsor, Ontario',
+   '517-241-6830', NULL,
+   'https://www.michigan.gov/mdot/travel/commercial/permits',
+   NULL, NULL, 15.0, 'Partial data - needs completion by Michigan DOT')
 ON CONFLICT (state_key) DO NOTHING;
