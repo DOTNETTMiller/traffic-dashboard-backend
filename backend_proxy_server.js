@@ -12995,6 +12995,150 @@ app.post('/api/admin/migrate-grants', async (req, res) => {
   }
 });
 
+/**
+ * Migrate ITS Equipment tables to PostgreSQL
+ * One-time migration endpoint to create ITS equipment tables in production
+ */
+app.post('/api/admin/migrate-its', async (req, res) => {
+  try {
+    const { Client } = require('pg');
+
+    console.log('🔧 Starting ITS equipment tables migration...');
+
+    // Use PostgreSQL client for production
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+    console.log('✅ Connected to PostgreSQL database');
+
+    // Create ITS equipment table
+    console.log('📋 Creating its_equipment table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS its_equipment (
+        id TEXT PRIMARY KEY,
+        state_key TEXT NOT NULL,
+        equipment_type TEXT NOT NULL,
+        equipment_subtype TEXT,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        elevation REAL,
+        location_description TEXT,
+        route TEXT,
+        milepost REAL,
+        manufacturer TEXT,
+        model TEXT,
+        serial_number TEXT,
+        installation_date TEXT,
+        status TEXT DEFAULT 'operational',
+        arc_its_id TEXT,
+        arc_its_category TEXT,
+        arc_its_function TEXT,
+        arc_its_interface TEXT,
+        rsu_id TEXT,
+        rsu_mode TEXT,
+        communication_range INTEGER,
+        supported_protocols TEXT,
+        dms_type TEXT,
+        display_technology TEXT,
+        message_capacity INTEGER,
+        camera_type TEXT,
+        resolution TEXT,
+        field_of_view INTEGER,
+        stream_url TEXT,
+        sensor_type TEXT,
+        measurement_types TEXT,
+        data_source TEXT,
+        uploaded_by TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ its_equipment table created');
+
+    // Create indexes
+    console.log('📋 Creating indexes...');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_its_equipment_state ON its_equipment(state_key)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_its_equipment_type ON its_equipment(equipment_type)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_its_equipment_arc_id ON its_equipment(arc_its_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_its_equipment_route ON its_equipment(route)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_its_equipment_coords ON its_equipment(latitude, longitude)');
+    console.log('✅ Indexes created');
+
+    // Create GIS upload history table
+    console.log('📋 Creating gis_upload_history table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS gis_upload_history (
+        id TEXT PRIMARY KEY,
+        state_key TEXT NOT NULL,
+        file_name TEXT NOT NULL,
+        file_type TEXT NOT NULL,
+        file_size INTEGER,
+        records_total INTEGER,
+        records_imported INTEGER,
+        records_failed INTEGER,
+        uploaded_by TEXT,
+        status TEXT DEFAULT 'pending',
+        error_message TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ gis_upload_history table created');
+
+    // Create V2X deployment gaps table
+    console.log('📋 Creating v2x_deployment_gaps table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS v2x_deployment_gaps (
+        id TEXT PRIMARY KEY,
+        state_key TEXT NOT NULL,
+        gap_type TEXT NOT NULL,
+        corridor TEXT,
+        location_description TEXT,
+        latitude REAL,
+        longitude REAL,
+        priority TEXT,
+        status TEXT DEFAULT 'identified',
+        notes TEXT,
+        identified_date TEXT,
+        target_completion_date TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ v2x_deployment_gaps table created');
+
+    // Verify tables exist
+    console.log('🔍 Verifying tables...');
+    const equipmentCount = await client.query('SELECT COUNT(*) as count FROM its_equipment');
+    const uploadCount = await client.query('SELECT COUNT(*) as count FROM gis_upload_history');
+    const gapsCount = await client.query('SELECT COUNT(*) as count FROM v2x_deployment_gaps');
+
+    const result = {
+      success: true,
+      message: 'ITS equipment tables migration completed successfully!',
+      summary: {
+        its_equipment: parseInt(equipmentCount.rows[0].count),
+        gis_upload_history: parseInt(uploadCount.rows[0].count),
+        v2x_deployment_gaps: parseInt(gapsCount.rows[0].count)
+      }
+    };
+
+    await client.end();
+    console.log('✅ Migration complete:', result.summary);
+    res.json(result);
+  } catch (error) {
+    console.error('❌ ITS migration failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: 'Check server logs for full error details'
+    });
+  }
+});
+
 // ========================================
 // Truck Parking API Endpoints
 // ========================================
