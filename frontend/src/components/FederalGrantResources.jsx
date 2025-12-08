@@ -61,7 +61,7 @@ export default function FederalGrantResources({ darkMode = false }) {
         'Economic Competitiveness'
       ],
       arcItsRelevance: 'MEDIUM - ITS components strengthen applications',
-      nofoUrl: 'https://www.transportation.gov/RAISEgrants',
+      nofoUrl: 'https://www.transportation.gov/RAISEgrants/raise-nofo',
       grantsGovUrl: 'https://www.grants.gov/search-results-detail/351876',
       applicationPeriod: 'Typically opens Q1-Q2 (Feb-Apr)',
       keyRequirements: [
@@ -91,9 +91,9 @@ export default function FederalGrantResources({ darkMode = false }) {
         'Credential Verification'
       ],
       arcItsRelevance: 'HIGH - Freight and commercial vehicle ITS focus',
-      nofoUrl: 'https://www.fmcsa.dot.gov/grants/cmv-information-technology-data-grant-program',
-      grantsGovUrl: 'https://www.grants.gov/search-results-detail/350122',
-      applicationPeriod: 'Typically opens Q2 (Apr-Jun)',
+      nofoUrl: 'https://www.fmcsa.dot.gov/fy25grantfundingopportunities',
+      grantsGovUrl: 'https://www.grants.gov/search-results-detail/347765',
+      applicationPeriod: 'FY2025: Deadline June 20, 2025',
       keyRequirements: [
         'CMV safety data plan',
         'System interoperability plan',
@@ -120,9 +120,9 @@ export default function FederalGrantResources({ darkMode = false }) {
         'Real-Time Monitoring Systems'
       ],
       arcItsRelevance: 'MEDIUM - ITS for emergency management and monitoring',
-      nofoUrl: 'https://www.fhwa.dot.gov/environment/protect/',
-      grantsGovUrl: 'https://www.grants.gov/search-results-detail/351234',
-      applicationPeriod: 'Rolling/Annual',
+      nofoUrl: 'https://www.fhwa.dot.gov/environment/protect/discretionary/',
+      grantsGovUrl: 'https://www.grants.gov/search-results-detail/356840',
+      applicationPeriod: 'FY2024-2026: Check grants.gov for updates',
       keyRequirements: [
         'Resilience improvement plan',
         'Vulnerability assessment',
@@ -135,11 +135,11 @@ export default function FederalGrantResources({ darkMode = false }) {
       color: '#8b5cf6'
     },
     {
-      id: 'atcmtd',
-      name: 'ATCMTD',
-      fullName: 'Advanced Transportation and Congestion Management Technologies Deployment',
-      agency: 'USDOT - ITS Joint Program Office',
-      funding: '$60M - $100M annually',
+      id: 'attain',
+      name: 'ATTAIN (formerly ATCMTD)',
+      fullName: 'Advanced Transportation Technologies and Innovative Mobility Deployment',
+      agency: 'USDOT - FHWA',
+      funding: '$60M annually (FY2022-2026)',
       eligibility: 'State DOTs, Local Governments, Transit Agencies, Metropolitan Planning Organizations',
       focus: [
         'Advanced Traveler Information',
@@ -150,9 +150,9 @@ export default function FederalGrantResources({ darkMode = false }) {
         'ITS Integration'
       ],
       arcItsRelevance: 'VERY HIGH - Core ITS technology deployment',
-      nofoUrl: 'https://www.its.dot.gov/grants/atcmtd.htm',
-      grantsGovUrl: 'https://www.grants.gov/search-results-detail/352012',
-      applicationPeriod: 'Typically opens Q1 (Jan-Mar)',
+      nofoUrl: 'https://www.fhwa.dot.gov/infrastructure-investment-and-jobs-act/attain.cfm',
+      grantsGovUrl: 'https://www.grants.gov/search-results-detail/351055',
+      applicationPeriod: 'FY23-24 NOFO published: Check grants.gov for FY25',
       keyRequirements: [
         'Technology deployment plan',
         'Data sharing requirements',
