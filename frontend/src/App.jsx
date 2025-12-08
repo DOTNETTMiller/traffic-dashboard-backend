@@ -37,6 +37,7 @@ import CorridorDataQuality from './components/CorridorDataQuality';
 import TETCDataGrading from './components/TETCDataGrading';
 import VendorDQIComparison from './components/VendorDQIComparison';
 import GrantApplications from './components/GrantApplications';
+import NASCOCorridorRegulationsView from './components/NASCOCorridorRegulationsView';
 import './styles/App.css';
 
 function App() {
@@ -1302,6 +1303,30 @@ function App() {
                   🎯 Ground Truth
                 </button>
 
+                {/* NASCO OS/OW Regulations */}
+                <button
+                  onClick={() => {
+                    setView('nasco-regulations');
+                    setCommercialFreightDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'nasco-regulations' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'nasco-regulations' ? '600' : '400',
+                    color: view === 'nasco-regulations' ? '#10b981' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'nasco-regulations' ? '#f3f4f6' : 'white'}
+                >
+                  🛣️ NASCO OS/OW Regulations
+                </button>
+
                 {/* Divider */}
                 <div style={{ height: '1px', background: '#e5e7eb', margin: '4px 0' }}></div>
 
@@ -1578,6 +1603,17 @@ function App() {
             position: 'relative'
           }}>
             <GrantApplications user={currentUser} authToken={authToken} />
+          </div>
+        ) : view === 'nasco-regulations' ? (
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            minHeight: 0,
+            WebkitOverflowScrolling: 'touch',
+            position: 'relative'
+          }}>
+            <NASCOCorridorRegulationsView darkMode={isDarkMode} />
           </div>
         ) : view === 'profile' ? (
           <UserProfile
