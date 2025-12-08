@@ -115,7 +115,9 @@ const GRANT_PROGRAMS = {
 
       if (project.description?.match(/commercial vehicle|cmv|truck|freight|weigh station/i)) score += 40;
       if (project.description?.match(/safety data|electronic screening|credential|bypass/i)) score += 30;
-      if (project.isFreightCorridor) score += 20;
+      if (project.description?.match(/truck parking|parking availability|atri|parking infrastructure|rest area/i)) score += 25;
+      if (project.hasTruckParkingData) score += 20;
+      if (project.isFreightCorridor) score += 15;
       if (project.fundingRange >= 500000 && project.fundingRange <= 3000000) score += 10;
 
       return Math.min(score, 100);
@@ -123,7 +125,7 @@ const GRANT_PROGRAMS = {
     minAward: 500000,
     maxAward: 3000000,
     matchRequired: 0.2,
-    keyIndicators: ['Commercial vehicles', 'Freight safety', 'Weigh stations', 'CMV data']
+    keyIndicators: ['Commercial vehicles', 'Freight safety', 'Truck parking', 'Weigh stations', 'CMV data', 'ATRI data integration']
   }
 };
 
@@ -229,7 +231,8 @@ function recommendGrants(projectData) {
     hasBCA = false,
     isFreightCorridor = false,
     hasV2XGaps = false,
-    inNonAttainmentArea = false
+    inNonAttainmentArea = false,
+    hasTruckParkingData = false
   } = projectData;
 
   const project = {
@@ -244,7 +247,8 @@ function recommendGrants(projectData) {
     hasBCA,
     isFreightCorridor,
     hasV2XGaps,
-    inNonAttainmentArea
+    inNonAttainmentArea,
+    hasTruckParkingData
   };
 
   // Score competitive grants
