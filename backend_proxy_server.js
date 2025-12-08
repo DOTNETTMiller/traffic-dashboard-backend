@@ -12304,16 +12304,21 @@ app.post('/api/grants/recommend', async (req, res) => {
     let hasV2XGaps = false;
 
     if (stateKey) {
-      // Check for ITS equipment
-      const itsCount = db.db.prepare('SELECT COUNT(*) as count FROM its_equipment WHERE state_key = ?').get(stateKey);
-      hasITSEquipment = itsCount?.count > 0;
+      // Check for ITS equipment (gracefully handle if table doesn't exist)
+      try {
+        const itsCount = db.db.prepare('SELECT COUNT(*) as count FROM its_equipment WHERE state_key = ?').get(stateKey);
+        hasITSEquipment = itsCount?.count > 0;
 
-      // Check for V2X gaps (RSUs needed but not deployed)
-      const v2xGaps = db.db.prepare(`
-        SELECT COUNT(*) as count FROM its_equipment
-        WHERE state_key = ? AND equipment_type != 'rsu'
-      `).get(stateKey);
-      hasV2XGaps = v2xGaps?.count > 10; // Simple heuristic
+        // Check for V2X gaps (RSUs needed but not deployed)
+        const v2xGaps = db.db.prepare(`
+          SELECT COUNT(*) as count FROM its_equipment
+          WHERE state_key = ? AND equipment_type != 'rsu'
+        `).get(stateKey);
+        hasV2XGaps = v2xGaps?.count > 10; // Simple heuristic
+      } catch (error) {
+        // Table doesn't exist - that's okay, just skip ITS checks
+        console.log('ITS equipment table not available for recommendations');
+      }
     }
 
     // Check if corridor appears to be freight-focused
