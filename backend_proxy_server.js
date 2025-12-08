@@ -13533,6 +13533,64 @@ app.post('/api/admin/migrate-its', async (req, res) => {
   }
 });
 
+/**
+ * One-time migration endpoint to create state OS/OW regulations table in production
+ */
+app.post('/api/admin/migrate-state-osow', async (req, res) => {
+  try {
+    const { Client } = require('pg');
+    const fs = require('fs');
+    const path = require('path');
+
+    console.log('🔧 Starting state OS/OW regulations table migration...');
+
+    // Use PostgreSQL client for production
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+    console.log('✅ Connected to PostgreSQL database');
+
+    // Read and execute migration SQL file
+    console.log('📋 Reading migration file...');
+    const migrationSQL = fs.readFileSync(
+      path.join(__dirname, 'migrations/003_create_state_osow_regulations.sql'),
+      'utf8'
+    );
+
+    console.log('📋 Executing migration SQL...');
+    await client.query(migrationSQL);
+    console.log('✅ Migration SQL executed');
+
+    // Verify table and data
+    console.log('🔍 Verifying migration...');
+    const stateCount = await client.query('SELECT COUNT(*) as count FROM state_osow_regulations');
+    const nascoCount = await client.query('SELECT COUNT(*) as count FROM state_osow_regulations WHERE is_nasco_state = 1');
+
+    const result = {
+      success: true,
+      message: 'State OS/OW regulations table migration completed successfully!',
+      summary: {
+        total_states: parseInt(stateCount.rows[0].count),
+        nasco_states: parseInt(nascoCount.rows[0].count)
+      }
+    };
+
+    await client.end();
+    console.log('✅ Migration complete:', result.summary);
+    res.json(result);
+  } catch (error) {
+    console.error('❌ State OS/OW migration failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: 'Check server logs for full error details'
+    });
+  }
+});
+
 // ========================================
 // Truck Parking API Endpoints
 // ========================================
