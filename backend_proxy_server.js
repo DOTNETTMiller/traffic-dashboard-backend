@@ -10108,100 +10108,200 @@ app.post('/api/its-equipment/upload', upload.single('gisFile'), async (req, res)
     const converter = new ARCITSConverter();
     const arcItsEquipment = converter.convertBatch(parseResult.records);
 
-    // Save to database (use INSERT OR REPLACE to handle duplicates)
-    const insertStmt = db.db.prepare(`
-      INSERT OR REPLACE INTO its_equipment (
-        id, state_key, equipment_type, equipment_subtype,
-        latitude, longitude, elevation, location_description, route, milepost,
-        manufacturer, model, serial_number, installation_date, status,
-        arc_its_id, arc_its_category, arc_its_function, arc_its_interface,
-        rsu_id, rsu_mode, communication_range, supported_protocols,
-        dms_type, display_technology, message_capacity,
-        camera_type, resolution, field_of_view, stream_url,
-        sensor_type, measurement_types,
-        data_source, uploaded_by, notes
-      ) VALUES (
-        ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?,
-        ?, ?, ?, ?,
-        ?, ?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?, ?,
-        ?, ?,
-        ?, ?, ?
-      )
-    `);
-
+    // Save to database
     let imported = 0;
     let failed = 0;
 
-    for (const equipment of arcItsEquipment) {
-      try {
-        insertStmt.run(
-          equipment.id,
-          equipment.stateKey,
-          equipment.equipmentType,
-          equipment.equipmentSubtype,
-          equipment.latitude,
-          equipment.longitude,
-          equipment.elevation,
-          equipment.locationDescription,
-          equipment.route,
-          equipment.milepost,
-          equipment.manufacturer,
-          equipment.model,
-          equipment.serialNumber,
-          equipment.installationDate,
-          equipment.status,
-          equipment.arcItsId,
-          equipment.arcItsCategory,
-          equipment.arcItsFunction,
-          equipment.arcItsInterface,
-          equipment.rsuId,
-          equipment.rsuMode,
-          equipment.communicationRange,
-          equipment.supportedProtocols,
-          equipment.dmsType,
-          equipment.displayTechnology,
-          equipment.messageCapacity,
-          equipment.cameraType,
-          equipment.resolution,
-          equipment.fieldOfView,
-          equipment.streamUrl,
-          equipment.sensorType,
-          equipment.measurementTypes,
-          req.file.originalname,
-          uploadedBy || 'system',
-          null
-        );
-        imported++;
-      } catch (err) {
-        console.error(`Error importing equipment ${equipment.id}:`, err.message);
-        failed++;
+    if (db.isPostgres) {
+      // PostgreSQL version - use UPSERT
+      for (const equipment of arcItsEquipment) {
+        try {
+          await db.db.query(`
+            INSERT INTO its_equipment (
+              id, state_key, equipment_type, equipment_subtype,
+              latitude, longitude, elevation, location_description, route, milepost,
+              manufacturer, model, serial_number, installation_date, status,
+              arc_its_id, arc_its_category, arc_its_function, arc_its_interface,
+              rsu_id, rsu_mode, communication_range, supported_protocols,
+              dms_type, display_technology, message_capacity,
+              camera_type, resolution, field_of_view, stream_url,
+              sensor_type, measurement_types,
+              data_source, uploaded_by, notes
+            ) VALUES (
+              $1, $2, $3, $4,
+              $5, $6, $7, $8, $9, $10,
+              $11, $12, $13, $14, $15,
+              $16, $17, $18, $19,
+              $20, $21, $22, $23,
+              $24, $25, $26,
+              $27, $28, $29, $30,
+              $31, $32,
+              $33, $34, $35
+            )
+            ON CONFLICT (id) DO UPDATE SET
+              equipment_type = EXCLUDED.equipment_type,
+              latitude = EXCLUDED.latitude,
+              longitude = EXCLUDED.longitude,
+              status = EXCLUDED.status,
+              updated_at = CURRENT_TIMESTAMP
+          `, [
+            equipment.id,
+            equipment.stateKey,
+            equipment.equipmentType,
+            equipment.equipmentSubtype,
+            equipment.latitude,
+            equipment.longitude,
+            equipment.elevation,
+            equipment.locationDescription,
+            equipment.route,
+            equipment.milepost,
+            equipment.manufacturer,
+            equipment.model,
+            equipment.serialNumber,
+            equipment.installationDate,
+            equipment.status,
+            equipment.arcItsId,
+            equipment.arcItsCategory,
+            equipment.arcItsFunction,
+            equipment.arcItsInterface,
+            equipment.rsuId,
+            equipment.rsuMode,
+            equipment.communicationRange,
+            equipment.supportedProtocols,
+            equipment.dmsType,
+            equipment.displayTechnology,
+            equipment.messageCapacity,
+            equipment.cameraType,
+            equipment.resolution,
+            equipment.fieldOfView,
+            equipment.streamUrl,
+            equipment.sensorType,
+            equipment.measurementTypes,
+            req.file.originalname,
+            uploadedBy || 'system',
+            null
+          ]);
+          imported++;
+        } catch (err) {
+          console.error(`Error importing equipment ${equipment.id}:`, err.message);
+          failed++;
+        }
+      }
+    } else {
+      // SQLite version - use INSERT OR REPLACE
+      const insertStmt = db.db.prepare(`
+        INSERT OR REPLACE INTO its_equipment (
+          id, state_key, equipment_type, equipment_subtype,
+          latitude, longitude, elevation, location_description, route, milepost,
+          manufacturer, model, serial_number, installation_date, status,
+          arc_its_id, arc_its_category, arc_its_function, arc_its_interface,
+          rsu_id, rsu_mode, communication_range, supported_protocols,
+          dms_type, display_technology, message_capacity,
+          camera_type, resolution, field_of_view, stream_url,
+          sensor_type, measurement_types,
+          data_source, uploaded_by, notes
+        ) VALUES (
+          ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, ?,
+          ?, ?, ?
+        )
+      `);
+
+      for (const equipment of arcItsEquipment) {
+        try {
+          insertStmt.run(
+            equipment.id,
+            equipment.stateKey,
+            equipment.equipmentType,
+            equipment.equipmentSubtype,
+            equipment.latitude,
+            equipment.longitude,
+            equipment.elevation,
+            equipment.locationDescription,
+            equipment.route,
+            equipment.milepost,
+            equipment.manufacturer,
+            equipment.model,
+            equipment.serialNumber,
+            equipment.installationDate,
+            equipment.status,
+            equipment.arcItsId,
+            equipment.arcItsCategory,
+            equipment.arcItsFunction,
+            equipment.arcItsInterface,
+            equipment.rsuId,
+            equipment.rsuMode,
+            equipment.communicationRange,
+            equipment.supportedProtocols,
+            equipment.dmsType,
+            equipment.displayTechnology,
+            equipment.messageCapacity,
+            equipment.cameraType,
+            equipment.resolution,
+            equipment.fieldOfView,
+            equipment.streamUrl,
+            equipment.sensorType,
+            equipment.measurementTypes,
+            req.file.originalname,
+            uploadedBy || 'system',
+            null
+          );
+          imported++;
+        } catch (err) {
+          console.error(`Error importing equipment ${equipment.id}:`, err.message);
+          failed++;
+        }
       }
     }
 
     // Log upload history
     const historyId = `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    db.db.prepare(`
-      INSERT INTO gis_upload_history (
-        id, state_key, file_name, file_type, file_size,
-        records_total, records_imported, records_failed,
-        uploaded_by, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      historyId,
-      stateKey,
-      req.file.originalname,
-      parseResult.fileType,
-      req.file.size,
-      parseResult.records.length,
-      imported,
-      failed,
-      uploadedBy || 'system',
-      'completed'
-    );
+
+    if (db.isPostgres) {
+      await db.db.query(`
+        INSERT INTO gis_upload_history (
+          id, state_key, file_name, file_type, file_size,
+          records_total, records_imported, records_failed,
+          uploaded_by, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `, [
+        historyId,
+        stateKey,
+        req.file.originalname,
+        parseResult.fileType,
+        req.file.size,
+        parseResult.records.length,
+        imported,
+        failed,
+        uploadedBy || 'system',
+        'completed'
+      ]);
+    } else {
+      db.db.prepare(`
+        INSERT INTO gis_upload_history (
+          id, state_key, file_name, file_type, file_size,
+          records_total, records_imported, records_failed,
+          uploaded_by, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        historyId,
+        stateKey,
+        req.file.originalname,
+        parseResult.fileType,
+        req.file.size,
+        parseResult.records.length,
+        imported,
+        failed,
+        uploadedBy || 'system',
+        'completed'
+      );
+    }
 
     // Clean up uploaded file
     fs.unlinkSync(req.file.path);
