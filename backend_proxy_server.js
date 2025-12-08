@@ -11358,13 +11358,10 @@ app.get('/api/grants/applications', async (req, res) => {
     if (db.isPostgres) {
       // Convert ? placeholders to $1, $2, etc. for PostgreSQL
       let pgQuery = query;
-      for (let i = params.length; i > 0; i--) {
-        pgQuery = pgQuery.replace('?', `$${i}`);
-      }
-      // Reverse params to match the replacement order
-      const result = await db.db.query(pgQuery, params.reverse());
+      let paramIndex = 1;
+      pgQuery = pgQuery.replace(/\?/g, () => `$${paramIndex++}`);
+      const result = await db.db.query(pgQuery, params);
       applications = result.rows || [];
-      params.reverse(); // Reverse back in case needed
     } else {
       applications = db.db.prepare(query).all(...params);
     }
@@ -12254,12 +12251,10 @@ app.get('/api/grants/templates', async (req, res) => {
     if (db.isPostgres) {
       // Convert ? placeholders to $1, $2, etc. for PostgreSQL
       let pgQuery = query;
-      for (let i = params.length; i > 0; i--) {
-        pgQuery = pgQuery.replace('?', `$${i}`);
-      }
-      const result = await db.db.query(pgQuery, params.reverse());
+      let paramIndex = 1;
+      pgQuery = pgQuery.replace(/\?/g, () => `$${paramIndex++}`);
+      const result = await db.db.query(pgQuery, params);
       templates = result.rows || [];
-      params.reverse();
     } else {
       templates = db.db.prepare(query).all(...params);
     }
