@@ -10,11 +10,13 @@ import ParkingLayer from './ParkingLayer';
 import InterchangeLayer from './InterchangeLayer';
 import BridgeClearanceLayer from './BridgeClearanceLayer';
 import OSWRegulationsLayer from './OSWRegulationsLayer';
+import StateOSWRegulationsLayer from './StateOSWRegulationsLayer';
 import ITSEquipmentLayer from './ITSEquipmentLayer';
 import BoundingBoxSelector from './BoundingBoxSelector';
 import HeatMapControl from './HeatMapControl';
 import HeatMapLayer from './HeatMapLayer';
 import MiniMapControl from './MiniMapControl';
+import NASCOAIAnalysis from './NASCOAIAnalysis';
 
 // Component to center map on selected event
 function MapCenterController({ selectedEvent }) {
@@ -670,9 +672,9 @@ export default function TrafficMap({
           />
         )}
 
-        {/* Corridor Regulations Layer */}
+        {/* State OS/OW Regulations Layer */}
         {showCorridorRegulations && (
-          <OSWRegulationsLayer corridor="I-35" />
+          <StateOSWRegulationsLayer />
         )}
 
         {/* ITS Equipment Layer */}
@@ -705,6 +707,11 @@ export default function TrafficMap({
         isVisible={showMiniMap}
         onToggle={() => setShowMiniMap(!showMiniMap)}
       />
+
+      {/* AI Harmonization Analysis - shown when corridor regulations are active */}
+      {showCorridorRegulations && (
+        <NASCOAIAnalysis />
+      )}
     </div>
   );
 }

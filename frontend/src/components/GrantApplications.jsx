@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import React from 'react';
 import api from '../services/api';
+import FederalGrantResources from './FederalGrantResources';
 
 export default function GrantApplications({ user }) {
   const [applications, setApplications] = useState([]);
@@ -10,6 +11,8 @@ export default function GrantApplications({ user }) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedApp, setSelectedApp] = useState(null);
   const [viewMode, setViewMode] = useState('list');
+  const [activeTab, setActiveTab] = useState('applications'); // 'applications', 'resources', 'recommend'
+  const [recommendations, setRecommendations] = useState(null);
   const [darkMode, setDarkMode] = useState(window.matchMedia('(prefers-color-scheme: dark)').matches);
 
   // Form state
