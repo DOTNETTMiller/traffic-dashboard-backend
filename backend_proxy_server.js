@@ -8549,34 +8549,62 @@ app.post('/api/nasco-corridor-ai-analysis', async (req, res) => {
       messages: [
         {
           role: 'system',
-          content: `You are an expert transportation policy analyst specializing in oversize/overweight (OS/OW) vehicle regulations and interstate freight corridor harmonization. Your task is to analyze regulations across the NASCO (North American SuperCorridor Coalition) corridor states and provide actionable recommendations for regulatory consistency to improve cross-border freight movement efficiency.
+          content: `You are an expert transportation policy analyst specializing in oversize/overweight (OS/OW) vehicle regulations and interstate freight corridor harmonization. Your task is to analyze regulations across the NASCO (North American SuperCorridor Coalition) corridor states and provide SPECIFIC, ACTIONABLE recommendations for regulatory consistency.
 
-The NASCO corridor runs from Mexico through Texas, Oklahoma, Kansas, Nebraska, Iowa, and Minnesota to Canada. Inconsistent regulations across these states create operational inefficiencies, increased costs, and safety concerns for freight carriers.
+The NASCO corridor runs from Mexico through the I-35, I-29, and I-94 corridors, connecting 14 U.S. states from Texas to Michigan/Minnesota/Montana, facilitating $400+ billion in annual trade with Canada and Mexico.
 
-Provide your analysis in the following structure:
-1. **Executive Summary**: Brief overview of key findings (2-3 sentences)
-2. **Critical Inconsistencies**: Identify the most significant regulatory differences that impact freight operations
-3. **Harmonization Opportunities**: Specific areas where alignment would provide the greatest benefit
-4. **Legislative Recommendations**: Concrete suggestions for model legislation or interstate agreements
-5. **Economic Impact**: Estimated benefits of harmonization (efficiency gains, cost savings, safety improvements)
-6. **Implementation Strategy**: Phased approach for states to adopt consistent regulations
+Provide your analysis in the following structure with SPECIFIC NUMERIC RECOMMENDATIONS:
 
-Focus on practical, politically feasible recommendations that balance safety, economic efficiency, and state autonomy.`
+1. **Executive Summary**: Brief overview of key findings and corridor-wide economic impact
+
+2. **Recommended Corridor-Wide Standards** (BE SPECIFIC WITH NUMBERS):
+   - Target Maximum Dimensions: Recommend specific corridor-wide maximums (ft)
+   - Target Weight Limits: Recommend corridor-wide GVW and axle weight goals (lbs)
+   - Target Permit Costs: Recommend standardized fee structure ($)
+   - Target Travel Windows: Recommend uniform time restrictions
+
+3. **State-by-State Compliance Gaps** (IDENTIFY SPECIFIC STATES):
+   - Which states are below recommended minimums and by how much
+   - Which states have the most restrictive limits
+   - Priority states for immediate regulatory updates
+
+4. **Harmonized Permit Process Recommendations**:
+   - Single corridor-wide permit system design
+   - Electronic permitting portal specifications
+   - Reciprocity agreements between states
+   - Standard processing timelines (hours/days)
+
+5. **Escort Requirement Standardization**:
+   - Recommended uniform thresholds for escort requirements (ft/lbs)
+   - Specific width/height/length/weight triggers
+
+6. **Economic Impact Analysis** (USE NUMBERS):
+   - Estimated annual cost savings from harmonization ($)
+   - Reduced transit times (hours/days)
+   - Avoided permit fees through reciprocity ($)
+   - Number of affected shipments annually
+
+7. **Implementation Roadmap** (WITH TIMELINE):
+   - Phase 1 (Year 1): Specific immediate actions
+   - Phase 2 (Years 2-3): Medium-term goals
+   - Phase 3 (Years 4-5): Long-term harmonization
+
+Focus on CONCRETE, MEASURABLE recommendations that DOT officials can implement. Be specific with all numbers.`
         },
         {
           role: 'user',
-          content: `Please analyze the following oversize/overweight regulations from the NASCO corridor states and provide recommendations for harmonization and consistency:
+          content: `Please analyze the following oversize/overweight regulations from the NASCO corridor states and provide SPECIFIC recommendations for harmonization:
 
 ${JSON.stringify(regulationsSummary, null, 2)}
 
-Analyze these regulations and provide:
-1. A comparison of the most critical differences (dimensions, weights, travel restrictions, escort requirements)
-2. Specific recommendations for harmonizing regulations across the corridor
-3. Model legislation language or interstate agreement provisions
-4. Priority areas for immediate action vs. long-term goals
-5. Potential economic and safety benefits of harmonization
+For each section of your analysis:
+1. **Provide specific numeric targets** (e.g., "Recommend corridor-wide maximum width of 12 ft" not "increase width limits")
+2. **Name specific states** that need to change regulations (e.g., "Iowa should increase max GVW from 120,000 lbs to 140,000 lbs")
+3. **Quantify economic benefits** (e.g., "Save carriers $X million annually")
+4. **Include exact permit process specifications** (e.g., "48-hour electronic permit issuance", "$150 single-trip corridor permit")
+5. **Recommend specific legislative language** for model interstate compact
 
-Format your response as a comprehensive policy analysis document.`
+Format your response as a professional policy analysis document with concrete action items.`
         }
       ],
       temperature: 0.7,
