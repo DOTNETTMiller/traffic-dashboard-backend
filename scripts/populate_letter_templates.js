@@ -87,6 +87,21 @@ const templates = [
     optional_fields: JSON.stringify(['populationServed', 'dailyTraffic', 'economicValue', 'planYear', 'benefit1', 'benefit2', 'benefit3', 'jurisdictionCount']),
     description: 'Metropolitan Planning Organization letter of support',
     usage_notes: 'Use to demonstrate regional planning consistency and support'
+  },
+  {
+    id: 'dot-director-fmcsa-itd',
+    letter_type: 'dot_director',
+    grant_type: 'FMCSA_ITD',
+    subject_line: 'Letter of Support - {{projectTitle}} FMCSA CMV IT&D Grant Application',
+    salutation: 'Dear FMCSA Selection Committee:',
+    opening_paragraph: 'On behalf of the {{stateName}} Department of Transportation, I am pleased to provide this letter of support for {{projectTitle}}. This project will enhance commercial motor vehicle safety and efficiency through advanced information technology and data systems, directly supporting FMCSA\'s mission to reduce crashes, injuries, and fatalities involving large trucks and buses.',
+    body_template: '{{stateName}} is a critical freight corridor state with {{annualTruckVolume}} commercial vehicles traveling our highways annually. This project will deploy {{proposedSystems}} to improve CMV safety, compliance, and operations.\n\nPROJECT COMPONENTS:\n\nDATA INTEGRATION: The project will integrate real-time data from:\n• Electronic screening systems at {{weighStationCount}} weigh stations\n• ATRI truck parking availability data for {{parkingFacilityCount}} facilities\n• Safety inspection records and violation data\n• Credential verification and bypass systems\n\nINFRASTRUCTURE IMPROVEMENTS:\n• {{truckParkingInfrastructure}}\n• Enhanced weigh station technology\n• Real-time parking availability systems\n• Driver notification and guidance systems\n\nSAFETY BENEFITS:\nOur analysis indicates this project will:\n• Reduce CMV-related crashes by {{crashReduction}}%\n• Improve HOS compliance through better parking availability\n• Reduce unsafe parking on highway shoulders and ramps\n• Enhance electronic screening efficiency by {{efficiencyImprovement}}%\n\nDATA SHARING: {{stateName}} commits to sharing all data collected through this project with FMCSA, participating states, and industry stakeholders. We will integrate with national systems including CVISN, e-Screening, and the National Truck Parking Information System.\n\n{{stateName}} DOT commits {{matchPercentage}}% (${{matchAmount}}) in matching funds and will ensure ongoing operations and data maintenance.',
+    closing_paragraph: 'This project represents a significant advancement in commercial vehicle safety and efficiency for {{stateName}} and the national freight network. We respectfully request your favorable consideration.',
+    signature_block: 'Respectfully,\n\n{{directorName}}\nDirector\n{{stateName}} Department of Transportation',
+    required_fields: JSON.stringify(['projectTitle', 'stateName', 'proposedSystems', 'directorName', 'matchPercentage', 'matchAmount']),
+    optional_fields: JSON.stringify(['annualTruckVolume', 'weighStationCount', 'parkingFacilityCount', 'truckParkingInfrastructure', 'crashReduction', 'efficiencyImprovement']),
+    description: 'State DOT Director letter for FMCSA CMV IT&D Grant with truck parking focus',
+    usage_notes: 'Use for FMCSA grants involving CMV data systems, weigh stations, parking availability, and ATRI data integration'
   }
 ];
 

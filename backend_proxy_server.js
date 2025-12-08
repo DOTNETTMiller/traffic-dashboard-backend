@@ -12720,6 +12720,7 @@ app.post('/api/grants/recommend', async (req, res) => {
     let hasBridgeData = false;
     let isFreightCorridor = false;
     let hasV2XGaps = false;
+    let hasTruckParkingData = false;
 
     if (stateKey) {
       // Check for ITS equipment (gracefully handle if table doesn't exist)
@@ -12736,6 +12737,15 @@ app.post('/api/grants/recommend', async (req, res) => {
       } catch (error) {
         // Table doesn't exist - that's okay, just skip ITS checks
         console.log('ITS equipment table not available for recommendations');
+      }
+
+      // Check for truck parking data (gracefully handle if table doesn't exist)
+      try {
+        const parkingCount = db.db.prepare('SELECT COUNT(*) as count FROM truck_parking_facilities WHERE state = ?').get(stateKey);
+        hasTruckParkingData = parkingCount?.count > 0;
+      } catch (error) {
+        // Table doesn't exist - that's okay, just skip parking checks
+        console.log('Truck parking table not available for recommendations');
       }
     }
 
@@ -12756,7 +12766,8 @@ app.post('/api/grants/recommend', async (req, res) => {
       hasIncidentData,
       hasBridgeData,
       isFreightCorridor,
-      hasV2XGaps
+      hasV2XGaps,
+      hasTruckParkingData
     });
 
     // Add explanations
@@ -12778,7 +12789,8 @@ app.post('/api/grants/recommend', async (req, res) => {
         hasIncidentData,
         hasBridgeData,
         isFreightCorridor,
-        hasV2XGaps
+        hasV2XGaps,
+        hasTruckParkingData
       }
     });
 
