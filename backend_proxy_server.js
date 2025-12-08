@@ -10252,12 +10252,21 @@ app.get('/api/its-equipment', async (req, res) => {
 
     query += ' ORDER BY state_key, equipment_type';
 
-    const equipment = db.db.prepare(query).all(...params);
+    let equipment;
+    if (db.isPostgres) {
+      let pgQuery = query;
+      let paramIndex = 1;
+      pgQuery = pgQuery.replace(/\?/g, () => `$${paramIndex++}`);
+      const result = await db.db.query(pgQuery, params);
+      equipment = result.rows || [];
+    } else {
+      equipment = db.db.prepare(query).all(...params);
+    }
 
     res.json({
       success: true,
-      equipment,
-      total: equipment.length
+      equipment: Array.isArray(equipment) ? equipment : [],
+      total: Array.isArray(equipment) ? equipment.length : 0
     });
 
   } catch (error) {
@@ -10279,7 +10288,16 @@ app.get('/api/its-equipment/export', async (req, res) => {
       params.push(stateKey);
     }
 
-    const dbRecords = db.db.prepare(query).all(...params);
+    let dbRecords;
+    if (db.isPostgres) {
+      let pgQuery = query;
+      let paramIndex = 1;
+      pgQuery = pgQuery.replace(/\?/g, () => `$${paramIndex++}`);
+      const result = await db.db.query(pgQuery, params);
+      dbRecords = result.rows || [];
+    } else {
+      dbRecords = db.db.prepare(query).all(...params);
+    }
 
     // Map snake_case database fields to camelCase for ARC-ITS converter
     const equipment = dbRecords.map(record => ({
