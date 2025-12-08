@@ -985,6 +985,95 @@ function ensureGrantTables() {
   }
 }
 
+/**
+ * Ensure state OS/OW regulations table exists
+ */
+function ensureStateOSWRegulationsTable() {
+  try {
+    // Skip if using PostgreSQL (handled by migrations)
+    if (db.isPostgres) {
+      console.log('✅ Using PostgreSQL - state OS/OW regulations table managed by migrations');
+      return;
+    }
+
+    // Check if table exists (SQLite only)
+    const tableCheck = db.db.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE type='table' AND name='state_osow_regulations'
+    `).get();
+
+    if (!tableCheck) {
+      console.log('🛣️  Creating state OS/OW regulations table...');
+
+      db.db.exec(`
+        CREATE TABLE IF NOT EXISTS state_osow_regulations (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          state_key TEXT NOT NULL UNIQUE,
+          state_name TEXT NOT NULL,
+
+          -- Maximum Dimensions (non-divisible loads without permit)
+          max_length_ft INTEGER,
+          max_width_ft REAL,
+          max_height_ft REAL,
+
+          -- Weight Limits (pounds)
+          legal_gvw INTEGER,               -- Gross Vehicle Weight
+          permitted_single_axle INTEGER,
+          permitted_tandem_axle INTEGER,
+          permitted_tridem_axle INTEGER,
+          permitted_max_gvw INTEGER,        -- Maximum with permit
+
+          -- Travel Restrictions
+          weekend_travel_allowed INTEGER DEFAULT 1,  -- Boolean
+          night_travel_allowed INTEGER DEFAULT 1,    -- Boolean
+          holiday_restrictions TEXT,                 -- JSON array
+
+          -- Permit Requirements
+          permit_required_width_ft REAL,
+          permit_required_height_ft REAL,
+          permit_required_length_ft INTEGER,
+          permit_required_weight_lbs INTEGER,
+
+          -- Permit Costs (JSON object with permit types and costs)
+          permit_cost_data TEXT,
+
+          -- Escort Requirements
+          escort_required_width_ft REAL,
+          escort_required_height_ft REAL,
+          escort_required_length_ft INTEGER,
+          front_escort INTEGER DEFAULT 0,
+          rear_escort INTEGER DEFAULT 0,
+          both_escorts INTEGER DEFAULT 0,
+
+          -- NASCO Corridor Information
+          is_nasco_state INTEGER DEFAULT 0,           -- Part of NASCO corridor
+          nasco_corridor_routes TEXT,                 -- JSON array of routes
+          nasco_special_provisions TEXT,
+
+          -- Administrative
+          permit_office_phone TEXT,
+          permit_office_email TEXT,
+          permit_portal_url TEXT,
+          regulation_url TEXT,
+          last_verified_date TEXT,
+          data_completeness_pct REAL DEFAULT 0.0,    -- Percentage of fields filled
+          notes TEXT,
+
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_state_osow_state ON state_osow_regulations(state_key);
+        CREATE INDEX IF NOT EXISTS idx_state_osow_nasco ON state_osow_regulations(is_nasco_state);
+      `);
+
+      console.log('✅ State OS/OW regulations table created');
+    }
+  } catch (error) {
+    console.warn('⚠️  Could not create state OS/OW regulations table:', error.message);
+  }
+}
+
 // Initialize database and run migration (async startup)
 async function initializeDatabase() {
   try {
@@ -1003,6 +1092,9 @@ async function initializeDatabase() {
 
     // Ensure grant tables exist
     ensureGrantTables();
+
+    // Ensure state OS/OW regulations table exists
+    ensureStateOSWRegulationsTable();
 
     // Generate admin token if none exist
     const tokenCheck = db.db.prepare('SELECT COUNT(*) as count FROM admin_tokens').get();
