@@ -83,6 +83,7 @@ function App() {
   const [heatMapMode, setHeatMapMode] = useState('density');
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showCorridorBriefing, setShowCorridorBriefing] = useState(false);
+  const [hasITSEquipment, setHasITSEquipment] = useState(false);
 
   // Apply dark mode class to document root
   useEffect(() => {
@@ -210,6 +211,33 @@ function App() {
     };
 
     fetchRoutes();
+  }, [authToken, currentUser]);
+
+  // Check if user's state has ITS equipment uploaded
+  useEffect(() => {
+    const checkITSEquipment = async () => {
+      if (!authToken || !currentUser?.stateKey) {
+        setHasITSEquipment(false);
+        return;
+      }
+
+      try {
+        const response = await api.get('/api/its-equipment', {
+          params: { stateKey: currentUser.stateKey }
+        });
+
+        if (response.data.success && response.data.equipment?.length > 0) {
+          setHasITSEquipment(true);
+        } else {
+          setHasITSEquipment(false);
+        }
+      } catch (error) {
+        console.error('Error checking ITS equipment:', error);
+        setHasITSEquipment(false);
+      }
+    };
+
+    checkITSEquipment();
   }, [authToken, currentUser]);
 
   // Global keyboard shortcuts
@@ -1090,6 +1118,126 @@ function App() {
                   >
                     💰 Grant Applications
                   </button>
+
+                  {/* ARC-ITS Export - Only show if state has uploaded equipment */}
+                  {hasITSEquipment && (
+                    <>
+                      <div style={{
+                        height: '1px',
+                        background: '#e5e7eb',
+                        margin: '4px 0'
+                      }} />
+                      <div style={{
+                        padding: '8px 16px',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        color: '#9ca3af',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em'
+                      }}>
+                        ITS Equipment Data
+                      </div>
+                      <button
+                        onClick={() => {
+                          // Download JSON format
+                          const url = `${config.apiUrl}/api/its-equipment/export?format=json&stateKey=${currentUser.stateKey}`;
+                          window.open(url, '_blank');
+                          setStateToolsDropdownOpen(false);
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px 16px',
+                          border: 'none',
+                          background: 'white',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: '400',
+                          color: '#374151',
+                          transition: 'background 0.15s ease',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                      >
+                        <span>📥</span>
+                        <div style={{ flex: 1 }}>
+                          <div>Download ARC-ITS (JSON)</div>
+                          <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
+                            Equipment inventory export
+                          </div>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Download XML format
+                          const url = `${config.apiUrl}/api/its-equipment/export?format=xml&stateKey=${currentUser.stateKey}`;
+                          window.open(url, '_blank');
+                          setStateToolsDropdownOpen(false);
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px 16px',
+                          border: 'none',
+                          background: 'white',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: '400',
+                          color: '#374151',
+                          transition: 'background 0.15s ease',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                      >
+                        <span>📥</span>
+                        <div style={{ flex: 1 }}>
+                          <div>Download ARC-ITS (XML)</div>
+                          <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
+                            Regional architecture format
+                          </div>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => {
+                          // Download CSV format
+                          const url = `${config.apiUrl}/api/its-equipment/export?format=csv&stateKey=${currentUser.stateKey}`;
+                          window.open(url, '_blank');
+                          setStateToolsDropdownOpen(false);
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px 16px',
+                          border: 'none',
+                          background: 'white',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          fontWeight: '400',
+                          color: '#374151',
+                          transition: 'background 0.15s ease',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                      >
+                        <span>📊</span>
+                        <div style={{ flex: 1 }}>
+                          <div>Download ARC-ITS (CSV)</div>
+                          <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
+                            Spreadsheet format
+                          </div>
+                        </div>
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -1238,7 +1386,7 @@ function App() {
                       onChange={(e) => setShowCorridorRegulations(e.target.checked)}
                       style={{ marginRight: '8px' }}
                     />
-                    🛣️ I-35 OS/OW Regulations
+                    🛣️ State OS/OW Regulations
                   </label>
                 </div>
 

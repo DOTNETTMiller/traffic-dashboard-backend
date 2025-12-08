@@ -79,7 +79,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
 
       const response = await api.get('/api/its-equipment', { params });
 
-      if (response.data.success) {
+      if (response.data.success && Array.isArray(response.data.equipment)) {
         setEquipment(response.data.equipment);
         console.log(`📡 Loaded ${response.data.equipment.length} ITS equipment items${route ? ` for route ${route}` : ''}`);
       }
@@ -121,7 +121,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
         });
       }}
     >
-      {equipment.map((item) => {
+      {Array.isArray(equipment) && equipment.map((item) => {
         if (!item.latitude || !item.longitude) return null;
 
         const style = equipmentStyles[item.equipment_type] || equipmentStyles.sensor;

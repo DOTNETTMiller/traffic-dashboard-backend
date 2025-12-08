@@ -16,7 +16,7 @@ export default function ActivityTimeline({ events, messages = {} }) {
       try {
         const response = await fetch(`${config.apiUrl}/api/projects`);
         const data = await response.json();
-        if (data.success) {
+        if (data.success && Array.isArray(data.projects)) {
           setProjects(data.projects);
         }
       } catch (error) {
@@ -28,7 +28,7 @@ export default function ActivityTimeline({ events, messages = {} }) {
       try {
         const response = await fetch(`${config.apiUrl}/api/biweekly-reports`);
         const data = await response.json();
-        if (data.success) {
+        if (data.success && Array.isArray(data.reports)) {
           setBiweeklyReports(data.reports);
         }
       } catch (error) {
@@ -93,46 +93,50 @@ export default function ActivityTimeline({ events, messages = {} }) {
     });
 
     // Add projects as activity items
-    projects.forEach(project => {
-      if (project.created_at) {
-        items.push({
-          id: `project-${project.id}`,
-          type: 'project',
-          timestamp: new Date(project.created_at),
-          icon: '📋',
-          color: theme.colors.accentBlue,
-          title: `Project: ${project.title}`,
-          description: project.location_name || `${project.latitude.toFixed(4)}, ${project.longitude.toFixed(4)}`,
-          details: project.description,
-          metadata: {
-            status: project.status,
-            priority: project.priority,
-            startDate: project.start_date,
-            endDate: project.end_date
-          }
-        });
-      }
-    });
+    if (Array.isArray(projects)) {
+      projects.forEach(project => {
+        if (project.created_at) {
+          items.push({
+            id: `project-${project.id}`,
+            type: 'project',
+            timestamp: new Date(project.created_at),
+            icon: '📋',
+            color: theme.colors.accentBlue,
+            title: `Project: ${project.title}`,
+            description: project.location_name || `${project.latitude.toFixed(4)}, ${project.longitude.toFixed(4)}`,
+            details: project.description,
+            metadata: {
+              status: project.status,
+              priority: project.priority,
+              startDate: project.start_date,
+              endDate: project.end_date
+            }
+          });
+        }
+      });
+    }
 
     // Add biweekly reports as activity items
-    biweeklyReports.forEach(report => {
-      if (report.report_date) {
-        items.push({
-          id: `biweekly-${report.id}`,
-          type: 'biweekly',
-          timestamp: new Date(report.report_date),
-          icon: '📝',
-          color: theme.colors.accentPurple,
-          title: `Biweekly Report: ${report.title}`,
-          description: report.location_name || (report.latitude ? `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}` : 'No location'),
-          details: report.content,
-          metadata: {
-            reportDate: report.report_date,
-            projectId: report.project_id
-          }
-        });
-      }
-    });
+    if (Array.isArray(biweeklyReports)) {
+      biweeklyReports.forEach(report => {
+        if (report.report_date) {
+          items.push({
+            id: `biweekly-${report.id}`,
+            type: 'biweekly',
+            timestamp: new Date(report.report_date),
+            icon: '📝',
+            color: theme.colors.accentPurple,
+            title: `Biweekly Report: ${report.title}`,
+            description: report.location_name || (report.latitude ? `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}` : 'No location'),
+            details: report.content,
+            metadata: {
+              reportDate: report.report_date,
+              projectId: report.project_id
+            }
+          });
+        }
+      });
+    }
 
     // Sort by timestamp (most recent first)
     return items.sort((a, b) => b.timestamp - a.timestamp);

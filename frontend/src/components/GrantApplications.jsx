@@ -864,7 +864,9 @@ function ApplicationDetails({ theme, styles, selectedApp, getStatusConfig, handl
       setLoadingITS(true);
       const response = await api.get(`/api/grants/applications/${selectedApp.application.id}/its-equipment`);
       if (response.data.success) {
-        setItsEquipment(response.data.equipment);
+        if (Array.isArray(response.data.equipment)) {
+          setItsEquipment(response.data.equipment);
+        }
         setItsStats(response.data.stats);
       }
     } catch (error) {
@@ -1421,7 +1423,7 @@ function ApplicationDetails({ theme, styles, selectedApp, getStatusConfig, handl
             </div>
 
             {/* Equipment List (first 5 items) */}
-            {itsEquipment && itsEquipment.length > 0 && (
+            {Array.isArray(itsEquipment) && itsEquipment.length > 0 && (
               <div style={{
                 marginTop: '16px',
                 padding: '16px',
