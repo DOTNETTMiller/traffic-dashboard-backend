@@ -12788,6 +12788,129 @@ app.post('/api/grants/recommend', async (req, res) => {
   }
 });
 
+/**
+ * Get available support letter templates
+ */
+app.get('/api/grants/letter-templates', async (req, res) => {
+  try {
+    const { letterType, grantType } = req.query;
+
+    let query = 'SELECT * FROM support_letter_templates WHERE 1=1';
+    const params = [];
+
+    if (letterType) {
+      query += db.isPostgres ? ' AND letter_type = $1' : ' AND letter_type = ?';
+      params.push(letterType);
+    }
+
+    if (grantType) {
+      const paramNum = params.length + 1;
+      query += db.isPostgres ?
+        ` AND (grant_type = $${paramNum} OR grant_type = 'generic')` :
+        ' AND (grant_type = ? OR grant_type = \'generic\')';
+      params.push(grantType);
+    }
+
+    let templates;
+    if (db.isPostgres) {
+      const result = await db.db.query(query, params);
+      templates = result.rows;
+    } else {
+      templates = db.db.prepare(query).all(...params);
+    }
+
+    res.json({
+      success: true,
+      templates: templates.map(t => ({
+        ...t,
+        required_fields: typeof t.required_fields === 'string' ? JSON.parse(t.required_fields) : t.required_fields,
+        optional_fields: typeof t.optional_fields === 'string' ? JSON.parse(t.optional_fields) : t.optional_fields
+      }))
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching letter templates:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Generate support letter from template
+ */
+app.post('/api/grants/generate-letter', async (req, res) => {
+  try {
+    const { templateId, data } = req.body;
+
+    if (!templateId || !data) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: templateId and data'
+      });
+    }
+
+    // Get template
+    let template;
+    if (db.isPostgres) {
+      const result = await db.db.query(
+        'SELECT * FROM support_letter_templates WHERE id = $1',
+        [templateId]
+      );
+      template = result.rows[0];
+    } else {
+      template = db.db.prepare(
+        'SELECT * FROM support_letter_templates WHERE id = ?'
+      ).get(templateId);
+    }
+
+    if (!template) {
+      return res.status(404).json({ success: false, error: 'Template not found' });
+    }
+
+    // Build letter
+    let letter = `Subject: ${template.subject_line}\n\n`;
+    letter += `${template.salutation}\n\n`;
+    letter += `${template.opening_paragraph}\n\n`;
+    letter += `${template.body_template}\n\n`;
+    letter += `${template.closing_paragraph}\n\n`;
+    letter += template.signature_block;
+
+    // Replace placeholders
+    Object.keys(data).forEach(key => {
+      const regex = new RegExp(`{{${key}}}`, 'g');
+      letter = letter.replace(regex, data[key] || '');
+    });
+
+    // Clean up any remaining placeholders (optional fields not provided)
+    letter = letter.replace(/{{[^}]+}}/g, '[Not Provided]');
+
+    // Get required vs optional fields
+    const requiredFields = typeof template.required_fields === 'string' ?
+      JSON.parse(template.required_fields) : template.required_fields;
+    const optionalFields = typeof template.optional_fields === 'string' ?
+      JSON.parse(template.optional_fields) : template.optional_fields;
+
+    // Check for missing required fields
+    const missingRequired = requiredFields.filter(field => !data[field]);
+
+    res.json({
+      success: true,
+      letter,
+      format: 'text/plain',
+      template: {
+        id: template.id,
+        name: template.description,
+        letter_type: template.letter_type,
+        grant_type: template.grant_type
+      },
+      missingRequired: missingRequired.length > 0 ? missingRequired : undefined
+    });
+
+  } catch (error) {
+    console.error('❌ Error generating letter:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Run Users table migration for PostgreSQL
 app.post('/api/admin/migrate-users', async (req, res) => {
   try {
