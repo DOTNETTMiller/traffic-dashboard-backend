@@ -12450,6 +12450,239 @@ app.post('/api/admin/migrate-users', async (req, res) => {
   }
 });
 
+// Migrate grant tables to PostgreSQL
+app.post('/api/admin/migrate-grants', async (req, res) => {
+  try {
+    const { Client } = require('pg');
+
+    console.log('🔧 Starting grant tables migration...');
+
+    // Use PostgreSQL client for production
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+    console.log('✅ Connected to PostgreSQL database');
+
+    // Create grant tables
+    console.log('📋 Creating grant tables...');
+    const grantsTableSQL = `
+      CREATE TABLE IF NOT EXISTS grant_applications (
+        id TEXT PRIMARY KEY,
+        state_key TEXT NOT NULL,
+        grant_program TEXT NOT NULL,
+        grant_year INTEGER NOT NULL,
+        application_title TEXT NOT NULL,
+        project_description TEXT,
+        requested_amount REAL,
+        matching_funds REAL,
+        total_project_cost REAL,
+        primary_corridor TEXT,
+        affected_routes TEXT,
+        geographic_scope TEXT,
+        status TEXT DEFAULT 'draft',
+        submission_date TIMESTAMP,
+        award_date TIMESTAMP,
+        award_amount REAL,
+        proposal_document_path TEXT,
+        proposal_document_name TEXT,
+        proposal_uploaded_at TIMESTAMP,
+        created_by TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS grant_supporting_data (
+        id TEXT PRIMARY KEY,
+        application_id TEXT NOT NULL,
+        data_type TEXT NOT NULL,
+        data_source TEXT NOT NULL,
+        date_range_start TIMESTAMP,
+        date_range_end TIMESTAMP,
+        corridor_filter TEXT,
+        severity_filter TEXT,
+        summary_stats TEXT,
+        exported BOOLEAN DEFAULT FALSE,
+        export_format TEXT,
+        export_path TEXT,
+        included_in_package BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (application_id) REFERENCES grant_applications(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS grant_justifications (
+        id TEXT PRIMARY KEY,
+        application_id TEXT NOT NULL,
+        justification_category TEXT NOT NULL,
+        justification_text TEXT NOT NULL,
+        supporting_data_ids TEXT,
+        priority INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (application_id) REFERENCES grant_applications(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS grant_metrics (
+        id TEXT PRIMARY KEY,
+        application_id TEXT NOT NULL,
+        total_incidents INTEGER,
+        high_severity_incidents INTEGER,
+        fatalities INTEGER,
+        injuries INTEGER,
+        crash_rate REAL,
+        average_daily_traffic INTEGER,
+        truck_percentage REAL,
+        congestion_hours_per_day REAL,
+        v2x_coverage_gaps INTEGER,
+        missing_its_equipment INTEGER,
+        bridge_clearance_issues INTEGER,
+        truck_parking_shortage INTEGER,
+        estimated_delay_cost_annual REAL,
+        freight_volume_annual REAL,
+        economic_corridor_value REAL,
+        cameras_deployed INTEGER,
+        dms_deployed INTEGER,
+        rsu_deployed INTEGER,
+        sensors_deployed INTEGER,
+        data_quality_score REAL,
+        calculation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        calculation_notes TEXT,
+        FOREIGN KEY (application_id) REFERENCES grant_applications(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS grant_templates (
+        id TEXT PRIMARY KEY,
+        template_name TEXT NOT NULL,
+        grant_program TEXT NOT NULL,
+        required_sections TEXT,
+        data_requirements TEXT,
+        scoring_criteria TEXT,
+        template_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS grant_data_packages (
+        id TEXT PRIMARY KEY,
+        application_id TEXT NOT NULL,
+        package_name TEXT NOT NULL,
+        package_description TEXT,
+        included_data_types TEXT,
+        export_format TEXT DEFAULT 'zip',
+        package_file_path TEXT,
+        generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (application_id) REFERENCES grant_applications(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_grants_state ON grant_applications(state_key);
+      CREATE INDEX IF NOT EXISTS idx_grants_program ON grant_applications(grant_program);
+      CREATE INDEX IF NOT EXISTS idx_grants_status ON grant_applications(status);
+      CREATE INDEX IF NOT EXISTS idx_grants_year ON grant_applications(grant_year);
+
+      CREATE OR REPLACE VIEW v_grant_applications_summary AS
+      SELECT
+        ga.id,
+        ga.state_key,
+        ga.grant_program,
+        ga.grant_year,
+        ga.application_title,
+        ga.requested_amount,
+        ga.status,
+        gm.total_incidents,
+        gm.high_severity_incidents,
+        gm.v2x_coverage_gaps,
+        gm.data_quality_score,
+        (SELECT COUNT(*) FROM grant_supporting_data WHERE application_id = ga.id) as attached_datasets,
+        ga.created_at,
+        ga.updated_at
+      FROM grant_applications ga
+      LEFT JOIN grant_metrics gm ON ga.id = gm.application_id
+      ORDER BY ga.created_at DESC;
+
+      CREATE OR REPLACE VIEW v_grant_success_rates AS
+      SELECT
+        grant_program,
+        grant_year,
+        COUNT(*) as total_applications,
+        SUM(CASE WHEN status = 'awarded' THEN 1 ELSE 0 END) as awarded_count,
+        SUM(CASE WHEN status = 'denied' THEN 1 ELSE 0 END) as denied_count,
+        CAST(SUM(CASE WHEN status = 'awarded' THEN 1 ELSE 0 END) AS REAL) / NULLIF(COUNT(*), 0) * 100 as success_rate,
+        SUM(CASE WHEN status = 'awarded' THEN award_amount ELSE 0 END) as total_awarded_amount
+      FROM grant_applications
+      GROUP BY grant_program, grant_year;
+    `;
+
+    await client.query(grantsTableSQL);
+    console.log('✅ Grant tables created');
+
+    // Insert default templates
+    console.log('📝 Inserting default templates...');
+    const templates = [
+      {
+        id: 'template-raise-2025',
+        name: 'RAISE Grant 2025',
+        program: 'RAISE',
+        sections: JSON.stringify(['Safety', 'State of Good Repair', 'Economic Competitiveness', 'Environmental Sustainability', 'Quality of Life', 'Innovation', 'Partnership']),
+        requirements: JSON.stringify({safety: ['incident', 'safety'], economic: ['traffic', 'freight', 'delay_cost'], infrastructure: ['equipment', 'v2x_gaps'], innovation: ['data_quality', 'v2x']}),
+        criteria: JSON.stringify({safety: 20, state_of_good_repair: 15, economic: 20, environmental: 15, quality_of_life: 10, innovation: 10, partnership: 10})
+      },
+      {
+        id: 'template-infra-2025',
+        name: 'INFRA Grant 2025',
+        program: 'INFRA',
+        sections: JSON.stringify(['Project Description', 'Project Location', 'Grant Funds and Sources', 'Selection Criteria']),
+        requirements: JSON.stringify({economic: ['freight', 'traffic', 'delay_cost'], safety: ['incident', 'crash_rate'], innovation: ['its_equipment', 'v2x']}),
+        criteria: JSON.stringify({support_economic_vitality: 25, leveraging_federal_funding: 20, innovation: 15, partnership: 15, performance_accountability: 25})
+      },
+      {
+        id: 'template-protect-2025',
+        name: 'PROTECT Grant 2025',
+        program: 'PROTECT',
+        sections: JSON.stringify(['Project Description', 'Resilience Improvement', 'Vulnerability Assessment', 'Cost-Benefit']),
+        requirements: JSON.stringify({vulnerability: ['incident', 'bridge', 'safety'], resilience: ['equipment', 'monitoring'], economic: ['traffic', 'freight']}),
+        criteria: JSON.stringify({resilience_improvement: 30, vulnerable_populations: 20, cost_effectiveness: 25, innovation: 15, partnership: 10})
+      }
+    ];
+
+    for (const t of templates) {
+      await client.query(`
+        INSERT INTO grant_templates (id, template_name, grant_program, required_sections, data_requirements, scoring_criteria)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (id) DO NOTHING
+      `, [t.id, t.name, t.program, t.sections, t.requirements, t.criteria]);
+    }
+
+    console.log('✅ Default templates inserted');
+
+    // Verify tables exist
+    console.log('🔍 Verifying tables...');
+    const appCount = await client.query('SELECT COUNT(*) as count FROM grant_applications');
+    const templateCount = await client.query('SELECT COUNT(*) as count FROM grant_templates');
+
+    const result = {
+      success: true,
+      message: 'Grant tables migration completed successfully!',
+      summary: {
+        grant_applications: parseInt(appCount.rows[0].count),
+        grant_templates: parseInt(templateCount.rows[0].count)
+      }
+    };
+
+    await client.end();
+    console.log('✅ Migration complete:', result.summary);
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Grant migration failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: 'Check server logs for full error details'
+    });
+  }
+});
+
 // ========================================
 // Truck Parking API Endpoints
 // ========================================
