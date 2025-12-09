@@ -10519,14 +10519,26 @@ app.post('/api/its-equipment/upload', upload.single('gisFile'), async (req, res)
     // Clean up uploaded file
     fs.unlinkSync(req.file.path);
 
+    // Determine primary state (state with most equipment) from uploaded records
+    const { getPrimaryState } = require('./utils/state-detector');
+    const coordinates = arcItsEquipment.map(eq => ({
+      latitude: eq.latitude,
+      longitude: eq.longitude
+    }));
+    const primaryState = getPrimaryState(coordinates);
+
     console.log(`✅ Imported ${imported} equipment records (${failed} failed)`);
+    if (primaryState) {
+      console.log(`📍 Primary state detected: ${primaryState}`);
+    }
 
     res.json({
       success: true,
       imported,
       failed,
       total: parseResult.records.length,
-      historyId
+      historyId,
+      primaryState: primaryState || stateKey
     });
 
   } catch (error) {
