@@ -11012,6 +11012,45 @@ app.post('/api/its-equipment/fix-multi-state', async (req, res) => {
   }
 });
 
+// Fix IL equipment to IA (for Iowa data that was auto-detected as IL)
+app.post('/api/its-equipment/fix-il-to-ia', async (req, res) => {
+  try {
+    console.log('🔧 Fixing IL records to IA...');
+
+    // Update all IL equipment to IA
+    let updateCount = 0;
+
+    if (db.isPostgres) {
+      const result = await db.db.query(`
+        UPDATE its_equipment
+        SET state_key = 'IA', updated_at = CURRENT_TIMESTAMP
+        WHERE state_key = 'IL'
+      `);
+      updateCount = result.rowCount || 0;
+    } else {
+      const stmt = db.db.prepare(`
+        UPDATE its_equipment
+        SET state_key = 'IA', updated_at = CURRENT_TIMESTAMP
+        WHERE state_key = 'IL'
+      `);
+      const result = stmt.run();
+      updateCount = result.changes || 0;
+    }
+
+    console.log(`✅ Fixed ${updateCount} IL records to IA`);
+
+    res.json({
+      success: true,
+      updated: updateCount,
+      message: `Successfully updated ${updateCount} IL equipment records to IA`
+    });
+
+  } catch (error) {
+    console.error('❌ Fix IL to IA error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // RAD-IT Export (Regional Architecture Development for ITS)
 app.get('/api/its-equipment/export/radit', async (req, res) => {
   try {
