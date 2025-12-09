@@ -16,8 +16,9 @@ RUN apk add --no-cache \
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files and scripts needed for postinstall
 COPY package*.json ./
+COPY scripts ./scripts
 
 # Install Node.js dependencies (skip frontend build in Docker)
 ENV SKIP_FRONTEND_BUILD=1
