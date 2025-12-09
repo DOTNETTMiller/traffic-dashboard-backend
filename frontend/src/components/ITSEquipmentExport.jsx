@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { theme } from '../styles/theme';
+import { config } from '../config';
 
 export default function ITSEquipmentExport({ user }) {
   // Export filter state
@@ -196,7 +197,7 @@ export default function ITSEquipmentExport({ user }) {
         flexWrap: 'wrap'
       }}>
         <a
-          href={`/api/its-equipment/export?${buildExportParams('xml')}`}
+          href={`${config.apiUrl}/api/its-equipment/export?${buildExportParams('xml')}`}
           download
           style={{
             padding: '8px 16px',
@@ -216,7 +217,7 @@ export default function ITSEquipmentExport({ user }) {
           📄 ARC-ITS XML (Compliant Data)
         </a>
         <a
-          href={`/api/its-equipment/export?${buildExportParams('json')}`}
+          href={`${config.apiUrl}/api/its-equipment/export?${buildExportParams('json')}`}
           download
           style={{
             padding: '8px 16px',
@@ -236,7 +237,7 @@ export default function ITSEquipmentExport({ user }) {
           📊 ARC-ITS JSON (Compliant Data)
         </a>
         <a
-          href={`/api/its-equipment/compliance-report?${buildExportParams()}`}
+          href={`${config.apiUrl}/api/its-equipment/compliance-report?${buildExportParams()}`}
           download
           style={{
             padding: '8px 16px',
@@ -256,7 +257,7 @@ export default function ITSEquipmentExport({ user }) {
           📋 Gap Report (Items to Fix)
         </a>
         <a
-          href={`/api/its-equipment/export/radit?${buildExportParams(null, true)}`}
+          href={`${config.apiUrl}/api/its-equipment/export/radit?${buildExportParams(null, true)}`}
           download
           style={{
             padding: '8px 16px',
