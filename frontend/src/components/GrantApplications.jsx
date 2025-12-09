@@ -1579,6 +1579,60 @@ function ApplicationDetails({ theme, styles, selectedApp, getStatusConfig, handl
           </button>
         </div>
 
+        {/* ARC-ITS Download Reference */}
+        {itsStats && itsStats.total > 0 && (
+          <div style={{
+            padding: '16px',
+            background: theme.primaryLight,
+            borderRadius: '10px',
+            border: `2px solid ${theme.primary}`,
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+          }}>
+            <span style={{ fontSize: '32px' }}>📥</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '14px', fontWeight: '700', color: theme.text, marginBottom: '4px' }}>
+                Download ARC-ITS Compliant Data for Grant Submission
+              </div>
+              <div style={{ fontSize: '12px', color: theme.textSecondary, marginBottom: '10px' }}>
+                Export equipment inventory as ARC-IT 10.0 compliant XML/JSON, compliance gap reports, or RAD-IT format for federal grant applications (SMART, RAISE, ATCMTD, Pooled Fund).
+              </div>
+              <a
+                href="#its-equipment"
+                onClick={(e) => {
+                  e.preventDefault();
+                  // Navigate to ITS Equipment page
+                  window.location.hash = 'its-equipment';
+                  window.location.reload();
+                }}
+                style={{
+                  display: 'inline-block',
+                  padding: '8px 16px',
+                  background: theme.primary,
+                  color: 'white',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  textDecoration: 'none',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = theme.shadow;
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                📄 Go to ITS Equipment Downloads →
+              </a>
+            </div>
+          </div>
+        )}
+
         {loadingITS ? (
           <div style={{
             padding: '40px',
