@@ -9,7 +9,7 @@ class TrafficAPI {
   constructor() {
     this.client = axios.create({
       baseURL: API_BASE_URL,
-      timeout: 60000 // Increased to 60 seconds for 46+ data sources
+      timeout: 300000 // Increased to 5 minutes for large GIS file uploads (.gdb.zip)
     });
   }
 
