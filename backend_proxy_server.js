@@ -10893,6 +10893,77 @@ app.get('/api/its-equipment/compliance-report', async (req, res) => {
   }
 });
 
+// Auto-fix multi-state records by detecting actual state from coordinates
+app.post('/api/its-equipment/fix-multi-state', async (req, res) => {
+  try {
+    const { detectStateFromCoordinates } = require('./utils/state-detector');
+
+    console.log('🔧 Starting auto-fix for multi-state equipment records...');
+
+    // Get all equipment with state_key = 'multi-state'
+    let selectQuery = `SELECT id, latitude, longitude, state_key FROM its_equipment WHERE state_key = 'multi-state'`;
+    let multiStateRecords;
+
+    if (db.isPostgres) {
+      const result = await db.db.query(selectQuery);
+      multiStateRecords = result.rows || [];
+    } else {
+      multiStateRecords = db.db.prepare(selectQuery).all();
+    }
+
+    console.log(`   Found ${multiStateRecords.length} multi-state records to process`);
+
+    const updates = [];
+    const stateDistribution = {};
+    let fixed = 0;
+    let failed = 0;
+
+    for (const record of multiStateRecords) {
+      const detectedState = detectStateFromCoordinates(record.latitude, record.longitude);
+
+      if (detectedState) {
+        updates.push({ id: record.id, newState: detectedState });
+        stateDistribution[detectedState] = (stateDistribution[detectedState] || 0) + 1;
+        fixed++;
+      } else {
+        console.warn(`   ⚠️  Could not detect state for equipment ID ${record.id} at (${record.latitude}, ${record.longitude})`);
+        failed++;
+      }
+    }
+
+    console.log(`   Detected states:`, stateDistribution);
+
+    // Apply updates
+    if (db.isPostgres) {
+      for (const update of updates) {
+        await db.db.query(
+          `UPDATE its_equipment SET state_key = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+          [update.newState, update.id]
+        );
+      }
+    } else {
+      const stmt = db.db.prepare(`UPDATE its_equipment SET state_key = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`);
+      for (const update of updates) {
+        stmt.run(update.newState, update.id);
+      }
+    }
+
+    console.log(`✅ Auto-fix complete: ${fixed} fixed, ${failed} failed`);
+
+    res.json({
+      success: true,
+      fixed,
+      failed,
+      stateDistribution,
+      message: `Successfully updated ${fixed} equipment records with correct state identifiers`
+    });
+
+  } catch (error) {
+    console.error('❌ Auto-fix error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // RAD-IT Export (Regional Architecture Development for ITS)
 app.get('/api/its-equipment/export/radit', async (req, res) => {
   try {

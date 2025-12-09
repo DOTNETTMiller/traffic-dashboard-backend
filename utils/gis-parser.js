@@ -13,6 +13,7 @@ const tj = require('@tmcw/togeojson');
 const Papa = require('papaparse');
 const JSZip = require('jszip');
 const { DOMParser } = require('@xmldom/xmldom');
+const { detectStateFromCoordinates } = require('./state-detector');
 
 class GISParser {
   constructor() {
@@ -515,13 +516,26 @@ class GISParser {
 
     const props = feature.properties || {};
 
+    // Auto-detect state from coordinates if stateKey is "multi-state"
+    let detectedState = stateKey;
+    if (stateKey === 'multi-state' || !stateKey) {
+      const autoDetected = detectStateFromCoordinates(lat, lon);
+      if (autoDetected) {
+        detectedState = autoDetected;
+        console.log(`   🗺️  Auto-detected state: ${autoDetected} for coordinates (${lat}, ${lon})`);
+      } else {
+        console.warn(`   ⚠️  Could not detect state for coordinates (${lat}, ${lon}), using: ${stateKey}`);
+        detectedState = stateKey || 'multi-state';
+      }
+    }
+
     // Generate unique ID
     const id = props.id || props.ID || props.equipment_id || props.OBJECTID ||
-               `eq-${stateKey}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+               `eq-${detectedState}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     return {
       id,
-      stateKey,
+      stateKey: detectedState,
       equipmentType: this.detectEquipmentType(props, feature.geometry.type, metadata.layers),
       equipmentSubtype: props.subtype || props.equipment_subtype || null,
       latitude: lat,
@@ -558,12 +572,23 @@ class GISParser {
    * Convert CSV row to equipment record
    */
   convertCSVRowToEquipment(row, lat, lon, stateKey) {
+    // Auto-detect state from coordinates if stateKey is "multi-state"
+    let detectedState = stateKey;
+    if (stateKey === 'multi-state' || !stateKey) {
+      const autoDetected = detectStateFromCoordinates(lat, lon);
+      if (autoDetected) {
+        detectedState = autoDetected;
+      } else {
+        detectedState = stateKey || 'multi-state';
+      }
+    }
+
     const id = row.id || row.ID || row.equipment_id ||
-               `eq-${stateKey}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+               `eq-${detectedState}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     return {
       id,
-      stateKey,
+      stateKey: detectedState,
       equipmentType: this.detectEquipmentType(row),
       equipmentSubtype: row.subtype || row.equipment_subtype || null,
       latitude: lat,
