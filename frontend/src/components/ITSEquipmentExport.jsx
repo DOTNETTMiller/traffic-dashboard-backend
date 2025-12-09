@@ -244,7 +244,7 @@ export default function ITSEquipmentExport({ user }) {
           rel="noopener noreferrer"
           style={{
             padding: '8px 16px',
-            backgroundColor: theme.colors.accentGreen,
+            backgroundColor: '#16a34a',
             color: 'white',
             border: 'none',
             borderRadius: '6px',
@@ -265,7 +265,7 @@ export default function ITSEquipmentExport({ user }) {
           rel="noopener noreferrer"
           style={{
             padding: '8px 16px',
-            backgroundColor: theme.colors.accent,
+            backgroundColor: '#ea580c',
             color: 'white',
             border: 'none',
             borderRadius: '6px',
