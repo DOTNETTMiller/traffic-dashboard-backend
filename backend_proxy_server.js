@@ -11008,12 +11008,23 @@ app.get('/api/its-equipment/export/radit', async (req, res) => {
     let query = 'SELECT * FROM its_equipment WHERE arc_its_id IS NOT NULL';
     const params = [];
 
-    if (stateKey) {
-      query += ' AND state_key = ?';
+    if (stateKey && stateKey !== 'multi-state') {
+      if (db.isPostgres) {
+        query += ' AND state_key = $1';
+      } else {
+        query += ' AND state_key = ?';
+      }
       params.push(stateKey);
     }
 
-    const equipment = db.db.prepare(query).all(...params);
+    // PostgreSQL compatibility
+    let equipment;
+    if (db.isPostgres) {
+      const result = await db.db.query(query, params);
+      equipment = result.rows || [];
+    } else {
+      equipment = db.db.prepare(query).all(...params);
+    }
 
     // RAD-IT XML format (compatible with RAD-IT tool import)
     const raditXML = `<?xml version="1.0" encoding="UTF-8"?>
