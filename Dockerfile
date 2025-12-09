@@ -19,10 +19,11 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install Node.js dependencies
+# Install Node.js dependencies (skip frontend build in Docker)
+ENV SKIP_FRONTEND_BUILD=1
 RUN npm ci --only=production
 
-# Copy application files
+# Copy remaining application files
 COPY . .
 
 # Expose port (Railway will set PORT env variable)
