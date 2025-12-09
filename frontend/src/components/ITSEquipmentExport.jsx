@@ -4,8 +4,14 @@ import { theme } from '../styles/theme';
 import { config } from '../config';
 
 export default function ITSEquipmentExport({ user }) {
-  // Export filter state
-  const [exportStateKey, setExportStateKey] = useState(user?.stateKey || '');
+  // Export filter state - default to user's state, or last uploaded primary state
+  const getInitialState = () => {
+    if (user?.stateKey) return user.stateKey;
+    const lastPrimaryState = localStorage.getItem('its_last_primary_state');
+    return lastPrimaryState || '';
+  };
+
+  const [exportStateKey, setExportStateKey] = useState(getInitialState());
   const [exportRoute, setExportRoute] = useState('');
   const [exportEquipmentType, setExportEquipmentType] = useState('');
   const [availableRoutes, setAvailableRoutes] = useState([]);

@@ -119,10 +119,16 @@ export default function FeedSubmission({ authToken, user }) {
       });
 
       if (response.data.success) {
-        setGisSuccess(`Successfully imported ${response.data.imported} equipment records! ${response.data.failed > 0 ? `(${response.data.failed} failed)` : ''}`);
+        const primaryStateMsg = response.data.primaryState ? ` Primary state detected: ${response.data.primaryState}` : '';
+        setGisSuccess(`Successfully imported ${response.data.imported} equipment records!${primaryStateMsg} ${response.data.failed > 0 ? `(${response.data.failed} failed)` : ''}`);
         setGisFile(null);
         // Reset file input
         document.getElementById('gis-file-input').value = '';
+
+        // Store primary state in localStorage for export dropdown default
+        if (response.data.primaryState) {
+          localStorage.setItem('its_last_primary_state', response.data.primaryState);
+        }
       }
     } catch (err) {
       setGisError(err.response?.data?.error || 'Failed to upload GIS file');
