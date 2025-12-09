@@ -10766,11 +10766,22 @@ app.get('/api/its-equipment/compliance-report', async (req, res) => {
     let uploadQuery = 'SELECT * FROM gis_upload_history WHERE 1=1';
     const uploadParams = [];
     if (stateKey) {
-      uploadQuery += ' AND state_key = ?';
+      if (db.isPostgres) {
+        uploadQuery += ' AND state_key = $1';
+      } else {
+        uploadQuery += ' AND state_key = ?';
+      }
       uploadParams.push(stateKey);
     }
     uploadQuery += ' ORDER BY upload_date DESC LIMIT 1';
-    const latestUpload = db.db.prepare(uploadQuery).get(...uploadParams);
+
+    let latestUpload;
+    if (db.isPostgres) {
+      const result = await db.db.query(uploadQuery, uploadParams);
+      latestUpload = result.rows && result.rows.length > 0 ? result.rows[0] : null;
+    } else {
+      latestUpload = db.db.prepare(uploadQuery).get(...uploadParams);
+    }
 
     // Get equipment summary
     let summaryQuery = `
@@ -10786,12 +10797,22 @@ app.get('/api/its-equipment/compliance-report', async (req, res) => {
     `;
     const summaryParams = [];
     if (stateKey) {
-      summaryQuery += ' AND state_key = ?';
+      if (db.isPostgres) {
+        summaryQuery += ' AND state_key = $1';
+      } else {
+        summaryQuery += ' AND state_key = ?';
+      }
       summaryParams.push(stateKey);
     }
     summaryQuery += ' GROUP BY equipment_type';
 
-    const summary = db.db.prepare(summaryQuery).all(...summaryParams);
+    let summary;
+    if (db.isPostgres) {
+      const result = await db.db.query(summaryQuery, summaryParams);
+      summary = result.rows || [];
+    } else {
+      summary = db.db.prepare(summaryQuery).all(...summaryParams);
+    }
 
     // Build CSV
     let csv = 'ITS Equipment Compliance Gap Report\\n\\n';
@@ -10853,12 +10874,22 @@ app.get('/api/its-equipment/compliance-report', async (req, res) => {
     `;
     const detailParams = [];
     if (stateKey) {
-      detailQuery += ' AND state_key = ?';
+      if (db.isPostgres) {
+        detailQuery += ' AND state_key = $1';
+      } else {
+        detailQuery += ' AND state_key = ?';
+      }
       detailParams.push(stateKey);
     }
     detailQuery += ' ORDER BY equipment_type, route, milepost';
 
-    const allEquipment = db.db.prepare(detailQuery).all(...detailParams);
+    let allEquipment;
+    if (db.isPostgres) {
+      const result = await db.db.query(detailQuery, detailParams);
+      allEquipment = result.rows || [];
+    } else {
+      allEquipment = db.db.prepare(detailQuery).all(...detailParams);
+    }
 
     // Filter to items with missing data
     const nonCompliant = allEquipment.filter(eq =>
