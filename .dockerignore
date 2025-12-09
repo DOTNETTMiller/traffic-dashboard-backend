@@ -10,9 +10,10 @@ npm-debug.log
 .env
 .env.local
 
-# Documentation
-*.md
-docs/
+# Documentation (keep docs folder for /docs API endpoint)
+# Exclude README files but keep docs/ folder
+README.md
+DEPLOYMENT.md
 
 # Development files
 .vscode/
