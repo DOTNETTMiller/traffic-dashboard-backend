@@ -10762,25 +10762,30 @@ app.get('/api/its-equipment/compliance-report', async (req, res) => {
   try {
     const { stateKey } = req.query;
 
-    // Get upload history
-    let uploadQuery = 'SELECT * FROM gis_upload_history WHERE 1=1';
-    const uploadParams = [];
-    if (stateKey) {
-      if (db.isPostgres) {
-        uploadQuery += ' AND state_key = $1';
-      } else {
-        uploadQuery += ' AND state_key = ?';
+    // Get upload history (optional - may not exist in all databases)
+    let latestUpload = null;
+    try {
+      let uploadQuery = 'SELECT * FROM gis_upload_history WHERE 1=1';
+      const uploadParams = [];
+      if (stateKey) {
+        if (db.isPostgres) {
+          uploadQuery += ' AND state_key = $1';
+        } else {
+          uploadQuery += ' AND state_key = ?';
+        }
+        uploadParams.push(stateKey);
       }
-      uploadParams.push(stateKey);
-    }
-    uploadQuery += ' ORDER BY upload_date DESC LIMIT 1';
+      uploadQuery += ' ORDER BY upload_date DESC LIMIT 1';
 
-    let latestUpload;
-    if (db.isPostgres) {
-      const result = await db.db.query(uploadQuery, uploadParams);
-      latestUpload = result.rows && result.rows.length > 0 ? result.rows[0] : null;
-    } else {
-      latestUpload = db.db.prepare(uploadQuery).get(...uploadParams);
+      if (db.isPostgres) {
+        const result = await db.db.query(uploadQuery, uploadParams);
+        latestUpload = result.rows && result.rows.length > 0 ? result.rows[0] : null;
+      } else {
+        latestUpload = db.db.prepare(uploadQuery).get(...uploadParams);
+      }
+    } catch (e) {
+      // Upload history table doesn't exist, continue without it
+      console.log('Upload history not available:', e.message);
     }
 
     // Get equipment summary
