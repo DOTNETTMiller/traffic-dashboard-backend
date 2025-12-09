@@ -198,7 +198,8 @@ export default function ITSEquipmentExport({ user }) {
       }}>
         <a
           href={`${config.apiUrl}/api/its-equipment/export?${buildExportParams('xml')}`}
-          download
+          target="_blank"
+          rel="noopener noreferrer"
           style={{
             padding: '8px 16px',
             backgroundColor: theme.colors.accentBlue,
@@ -218,7 +219,8 @@ export default function ITSEquipmentExport({ user }) {
         </a>
         <a
           href={`${config.apiUrl}/api/its-equipment/export?${buildExportParams('json')}`}
-          download
+          target="_blank"
+          rel="noopener noreferrer"
           style={{
             padding: '8px 16px',
             backgroundColor: theme.colors.accentPurple,
@@ -238,7 +240,8 @@ export default function ITSEquipmentExport({ user }) {
         </a>
         <a
           href={`${config.apiUrl}/api/its-equipment/compliance-report?${buildExportParams()}`}
-          download
+          target="_blank"
+          rel="noopener noreferrer"
           style={{
             padding: '8px 16px',
             backgroundColor: theme.colors.accentGreen,
@@ -258,7 +261,8 @@ export default function ITSEquipmentExport({ user }) {
         </a>
         <a
           href={`${config.apiUrl}/api/its-equipment/export/radit?${buildExportParams(null, true)}`}
-          download
+          target="_blank"
+          rel="noopener noreferrer"
           style={{
             padding: '8px 16px',
             backgroundColor: theme.colors.accent,
