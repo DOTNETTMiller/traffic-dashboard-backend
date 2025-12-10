@@ -11241,6 +11241,103 @@ app.delete('/api/its-equipment/clear-state/:stateKey', async (req, res) => {
   }
 });
 
+// Remove duplicate equipment records (keep only one per unique location)
+app.post('/api/its-equipment/remove-duplicates', async (req, res) => {
+  try {
+    const { stateKey } = req.body;
+
+    if (!stateKey || stateKey.length !== 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid state key. Must be 2-letter state code (e.g., IA, IL)'
+      });
+    }
+
+    console.log(`🔍 Finding duplicate equipment for state: ${stateKey.toUpperCase()}`);
+
+    // Get all equipment for the state
+    let equipment;
+    if (db.isPostgres) {
+      const result = await db.db.query(
+        'SELECT id, latitude, longitude, equipment_type FROM its_equipment WHERE state_key = $1 ORDER BY id ASC',
+        [stateKey.toUpperCase()]
+      );
+      equipment = result.rows || [];
+    } else {
+      equipment = db.db.prepare(
+        'SELECT id, latitude, longitude, equipment_type FROM its_equipment WHERE state_key = ? ORDER BY id ASC'
+      ).all(stateKey.toUpperCase());
+    }
+
+    console.log(`   Found ${equipment.length} total equipment records`);
+
+    // Group by location and equipment type to find duplicates
+    const locationMap = new Map();
+    const duplicateIds = [];
+
+    for (const item of equipment) {
+      const key = `${item.latitude}_${item.longitude}_${item.equipment_type}`;
+
+      if (locationMap.has(key)) {
+        // This is a duplicate - add to deletion list
+        duplicateIds.push(item.id);
+      } else {
+        // This is the first occurrence - keep it
+        locationMap.set(key, item.id);
+      }
+    }
+
+    console.log(`   Found ${duplicateIds.length} duplicate records to remove`);
+    console.log(`   Will keep ${locationMap.size} unique equipment items`);
+
+    if (duplicateIds.length === 0) {
+      return res.json({
+        success: true,
+        deleted: 0,
+        remaining: equipment.length,
+        message: 'No duplicates found'
+      });
+    }
+
+    // Delete duplicates in batches
+    let deleteCount = 0;
+    const batchSize = 100;
+
+    for (let i = 0; i < duplicateIds.length; i += batchSize) {
+      const batch = duplicateIds.slice(i, i + batchSize);
+
+      if (db.isPostgres) {
+        const placeholders = batch.map((_, idx) => `$${idx + 1}`).join(',');
+        const result = await db.db.query(
+          `DELETE FROM its_equipment WHERE id IN (${placeholders})`,
+          batch
+        );
+        deleteCount += result.rowCount || 0;
+      } else {
+        const placeholders = batch.map(() => '?').join(',');
+        const stmt = db.db.prepare(`DELETE FROM its_equipment WHERE id IN (${placeholders})`);
+        const result = stmt.run(...batch);
+        deleteCount += result.changes || 0;
+      }
+    }
+
+    console.log(`✅ Deleted ${deleteCount} duplicate equipment records for ${stateKey.toUpperCase()}`);
+    console.log(`   ${locationMap.size} unique equipment items remain`);
+
+    res.json({
+      success: true,
+      deleted: deleteCount,
+      remaining: locationMap.size,
+      stateKey: stateKey.toUpperCase(),
+      message: `Successfully removed ${deleteCount} duplicates. ${locationMap.size} unique equipment items remain.`
+    });
+
+  } catch (error) {
+    console.error('❌ Remove duplicates error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Reassign equipment from one state to another
 app.post('/api/its-equipment/reassign-state', async (req, res) => {
   try {
