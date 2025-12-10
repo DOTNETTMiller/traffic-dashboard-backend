@@ -11241,6 +11241,84 @@ app.delete('/api/its-equipment/clear-state/:stateKey', async (req, res) => {
   }
 });
 
+// Reassign equipment from one state to another
+app.post('/api/its-equipment/reassign-state', async (req, res) => {
+  try {
+    const { fromState, toState } = req.body;
+
+    if (!fromState || !toState || fromState.length !== 2 || toState.length !== 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid state keys. Must be 2-letter state codes (e.g., IL, IA)'
+      });
+    }
+
+    console.log(`🔄 Reassigning equipment from ${fromState.toUpperCase()} to ${toState.toUpperCase()}...`);
+
+    const ARCITSConverter = require('./utils/arc-its-converter');
+    const converter = new ARCITSConverter();
+
+    // Get all equipment for the source state
+    let query, equipment;
+    if (db.isPostgres) {
+      query = 'SELECT * FROM its_equipment WHERE state_key = $1';
+      const result = await db.db.query(query, [fromState.toUpperCase()]);
+      equipment = result.rows || [];
+    } else {
+      query = 'SELECT * FROM its_equipment WHERE state_key = ?';
+      equipment = db.db.prepare(query).all(fromState.toUpperCase());
+    }
+
+    if (equipment.length === 0) {
+      return res.json({
+        success: true,
+        updated: 0,
+        message: `No equipment found for state ${fromState.toUpperCase()}`
+      });
+    }
+
+    console.log(`   Found ${equipment.length} equipment records to reassign`);
+
+    let updated = 0;
+    for (const item of equipment) {
+      // Regenerate ARC-ITS ID with new state
+      const newArcItsId = converter.generateARCITSId({
+        equipmentType: item.equipment_type,
+        stateKey: toState.toUpperCase(),
+        latitude: item.latitude,
+        longitude: item.longitude
+      });
+
+      // Update record with new state and ARC-ITS ID
+      if (db.isPostgres) {
+        await db.db.query(
+          'UPDATE its_equipment SET state_key = $1, arc_its_id = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
+          [toState.toUpperCase(), newArcItsId, item.id]
+        );
+      } else {
+        db.db.prepare(
+          'UPDATE its_equipment SET state_key = ?, arc_its_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+        ).run(toState.toUpperCase(), newArcItsId, item.id);
+      }
+      updated++;
+    }
+
+    console.log(`✅ Reassigned ${updated} equipment records from ${fromState.toUpperCase()} to ${toState.toUpperCase()}`);
+
+    res.json({
+      success: true,
+      updated,
+      fromState: fromState.toUpperCase(),
+      toState: toState.toUpperCase(),
+      message: `Successfully reassigned ${updated} equipment records from ${fromState.toUpperCase()} to ${toState.toUpperCase()}`
+    });
+
+  } catch (error) {
+    console.error('❌ Reassign state error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // RAD-IT Export (Regional Architecture Development for ITS)
 app.get('/api/its-equipment/export/radit', async (req, res) => {
   try {
