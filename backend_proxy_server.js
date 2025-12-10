@@ -11067,6 +11067,73 @@ app.post('/api/its-equipment/fix-il-to-ia', async (req, res) => {
   }
 });
 
+// Regenerate ARC-ITS IDs for Iowa equipment (fixes MULTI-STATE and IL in IDs)
+app.post('/api/its-equipment/regenerate-iowa-ids', async (req, res) => {
+  try {
+    console.log('🔧 Regenerating ARC-ITS IDs for Iowa equipment...');
+
+    const ARCITSConverter = require('./utils/arc-its-converter');
+    const converter = new ARCITSConverter();
+
+    // Get all Iowa equipment
+    let query = 'SELECT * FROM its_equipment WHERE state_key = \'IA\'';
+    let equipment;
+
+    if (db.isPostgres) {
+      const result = await db.db.query(query);
+      equipment = result.rows || [];
+    } else {
+      equipment = db.db.prepare(query).all();
+    }
+
+    console.log(`   Found ${equipment.length} Iowa equipment records`);
+
+    let updated = 0;
+    let skipped = 0;
+
+    for (const item of equipment) {
+      // Regenerate ARC-ITS ID with correct state
+      const newArcItsId = converter.generateARCITSId({
+        equipmentType: item.equipment_type,
+        stateKey: 'IA',
+        latitude: item.latitude,
+        longitude: item.longitude
+      });
+
+      // Only update if the ID changed
+      if (newArcItsId !== item.arc_its_id) {
+        if (db.isPostgres) {
+          await db.db.query(
+            'UPDATE its_equipment SET arc_its_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+            [newArcItsId, item.id]
+          );
+        } else {
+          db.db.prepare(
+            'UPDATE its_equipment SET arc_its_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+          ).run(newArcItsId, item.id);
+        }
+        updated++;
+      } else {
+        skipped++;
+      }
+    }
+
+    console.log(`✅ Regenerated ${updated} ARC-ITS IDs (${skipped} already correct)`);
+
+    res.json({
+      success: true,
+      updated,
+      skipped,
+      total: equipment.length,
+      message: `Successfully regenerated ${updated} ARC-ITS IDs for Iowa equipment`
+    });
+
+  } catch (error) {
+    console.error('❌ Regenerate IDs error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // RAD-IT Export (Regional Architecture Development for ITS)
 app.get('/api/its-equipment/export/radit', async (req, res) => {
   try {
