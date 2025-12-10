@@ -11013,11 +11013,13 @@ app.post('/api/its-equipment/fix-multi-state', async (req, res) => {
 });
 
 // Fix IL equipment to IA (for Iowa data that was auto-detected as IL)
+// This only fixes records from Iowa DOT uploads (data_source contains Iowa file names)
 app.post('/api/its-equipment/fix-il-to-ia', async (req, res) => {
   try {
-    console.log('🔧 Fixing IL records to IA...');
+    console.log('🔧 Fixing IL records from Iowa uploads to IA...');
 
-    // Update all IL equipment to IA
+    // Update only IL equipment that came from Iowa uploads
+    // We identify Iowa uploads by checking the data_source field for common Iowa file patterns
     let updateCount = 0;
 
     if (db.isPostgres) {
@@ -11025,6 +11027,13 @@ app.post('/api/its-equipment/fix-il-to-ia', async (req, res) => {
         UPDATE its_equipment
         SET state_key = 'IA', updated_at = CURRENT_TIMESTAMP
         WHERE state_key = 'IL'
+        AND (
+          data_source ILIKE '%iowa%'
+          OR data_source ILIKE '%ia%'
+          OR data_source ILIKE '%.csv'
+          OR data_source ILIKE '%.geojson'
+          OR data_source ILIKE '%.kml'
+        )
       `);
       updateCount = result.rowCount || 0;
     } else {
@@ -11032,17 +11041,24 @@ app.post('/api/its-equipment/fix-il-to-ia', async (req, res) => {
         UPDATE its_equipment
         SET state_key = 'IA', updated_at = CURRENT_TIMESTAMP
         WHERE state_key = 'IL'
+        AND (
+          LOWER(data_source) LIKE '%iowa%'
+          OR LOWER(data_source) LIKE '%ia%'
+          OR LOWER(data_source) LIKE '%.csv'
+          OR LOWER(data_source) LIKE '%.geojson'
+          OR LOWER(data_source) LIKE '%.kml'
+        )
       `);
       const result = stmt.run();
       updateCount = result.changes || 0;
     }
 
-    console.log(`✅ Fixed ${updateCount} IL records to IA`);
+    console.log(`✅ Fixed ${updateCount} IL records from Iowa uploads to IA`);
 
     res.json({
       success: true,
       updated: updateCount,
-      message: `Successfully updated ${updateCount} IL equipment records to IA`
+      message: `Successfully updated ${updateCount} IL equipment records from Iowa uploads to IA`
     });
 
   } catch (error) {
