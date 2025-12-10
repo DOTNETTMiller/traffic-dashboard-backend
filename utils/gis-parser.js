@@ -516,17 +516,23 @@ class GISParser {
 
     const props = feature.properties || {};
 
-    // Auto-detect state from coordinates if stateKey is "multi-state"
+    // Only auto-detect state if explicitly set to "multi-state"
+    // If a specific state is provided, always use that state regardless of coordinates
     let detectedState = stateKey;
-    if (stateKey === 'multi-state' || !stateKey) {
+    if (stateKey === 'multi-state') {
       const autoDetected = detectStateFromCoordinates(lat, lon);
       if (autoDetected) {
         detectedState = autoDetected;
         console.log(`   🗺️  Auto-detected state: ${autoDetected} for coordinates (${lat}, ${lon})`);
       } else {
-        console.warn(`   ⚠️  Could not detect state for coordinates (${lat}, ${lon}), using: ${stateKey}`);
-        detectedState = stateKey || 'multi-state';
+        console.warn(`   ⚠️  Could not detect state for coordinates (${lat}, ${lon}), using: multi-state`);
+        detectedState = 'multi-state';
       }
+    } else if (!stateKey) {
+      console.warn(`   ⚠️  No state key provided, defaulting to: multi-state`);
+      detectedState = 'multi-state';
+    } else {
+      console.log(`   📍 Using provided state: ${stateKey} for coordinates (${lat}, ${lon})`);
     }
 
     // Generate unique ID
@@ -572,15 +578,18 @@ class GISParser {
    * Convert CSV row to equipment record
    */
   convertCSVRowToEquipment(row, lat, lon, stateKey) {
-    // Auto-detect state from coordinates if stateKey is "multi-state"
+    // Only auto-detect state if explicitly set to "multi-state"
+    // If a specific state is provided, always use that state regardless of coordinates
     let detectedState = stateKey;
-    if (stateKey === 'multi-state' || !stateKey) {
+    if (stateKey === 'multi-state') {
       const autoDetected = detectStateFromCoordinates(lat, lon);
       if (autoDetected) {
         detectedState = autoDetected;
       } else {
-        detectedState = stateKey || 'multi-state';
+        detectedState = 'multi-state';
       }
+    } else if (!stateKey) {
+      detectedState = 'multi-state';
     }
 
     const id = row.id || row.ID || row.equipment_id ||
