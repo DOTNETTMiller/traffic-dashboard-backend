@@ -11134,6 +11134,70 @@ app.post('/api/its-equipment/regenerate-iowa-ids', async (req, res) => {
   }
 });
 
+// Verify equipment count and check for duplicates
+app.get('/api/its-equipment/verify-count', async (req, res) => {
+  try {
+    const { stateKey } = req.query;
+
+    console.log(`🔍 Verifying equipment count${stateKey ? ` for ${stateKey}` : ''}...`);
+
+    let query = 'SELECT id, arc_its_id FROM its_equipment';
+    const params = [];
+
+    if (stateKey && stateKey !== 'multi-state') {
+      if (db.isPostgres) {
+        query += ' WHERE state_key = $1';
+      } else {
+        query += ' WHERE state_key = ?';
+      }
+      params.push(stateKey);
+    }
+
+    // Get all equipment IDs
+    let equipment;
+    if (db.isPostgres) {
+      const result = await db.db.query(query, params);
+      equipment = result.rows || [];
+    } else {
+      equipment = db.db.prepare(query).all(...params);
+    }
+
+    const total = equipment.length;
+    const uniqueIds = new Set(equipment.map(eq => eq.id)).size;
+    const uniqueArcIds = new Set(equipment.map(eq => eq.arc_its_id)).size;
+    const duplicates = total - uniqueIds;
+
+    // Find duplicate IDs if any
+    const idCounts = {};
+    equipment.forEach(eq => {
+      idCounts[eq.id] = (idCounts[eq.id] || 0) + 1;
+    });
+    const duplicateIds = Object.entries(idCounts)
+      .filter(([id, count]) => count > 1)
+      .map(([id, count]) => ({ id, count }));
+
+    console.log(`   Total: ${total}`);
+    console.log(`   Unique IDs: ${uniqueIds}`);
+    console.log(`   Unique ARC-ITS IDs: ${uniqueArcIds}`);
+    console.log(`   Duplicates: ${duplicates}`);
+
+    res.json({
+      success: true,
+      stateKey: stateKey || 'all',
+      total,
+      uniqueIds,
+      uniqueArcIds,
+      duplicates,
+      duplicateList: duplicateIds.length > 0 ? duplicateIds : null,
+      message: duplicates === 0 ? 'No duplicates found' : `Found ${duplicates} duplicate records`
+    });
+
+  } catch (error) {
+    console.error('❌ Verify count error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // RAD-IT Export (Regional Architecture Development for ITS)
 app.get('/api/its-equipment/export/radit', async (req, res) => {
   try {
