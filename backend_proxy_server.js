@@ -10832,36 +10832,36 @@ app.get('/api/its-equipment/compliance-report', async (req, res) => {
     }
 
     // Build CSV
-    let csv = 'ITS Equipment Compliance Gap Report\\n\\n';
+    let csv = 'ITS Equipment Compliance Gap Report\n\n';
 
     // Add metadata
-    csv += 'State,' + (stateKey || 'All States') + '\\n';
-    csv += 'Report Generated,' + new Date().toISOString() + '\\n\\n';
+    csv += 'State,' + (stateKey || 'All States') + '\n';
+    csv += 'Report Generated,' + new Date().toISOString() + '\n\n';
 
     // Add upload statistics
     if (latestUpload) {
-      csv += 'IMPORT STATISTICS\\n';
-      csv += 'File Name,' + latestUpload.file_name + '\\n';
-      csv += 'Upload Date,' + latestUpload.upload_date + '\\n';
-      csv += 'Total Records in File,' + latestUpload.records_total + '\\n';
-      csv += 'Successfully Processed,' + latestUpload.records_imported + '\\n';
-      csv += 'Failed (Invalid Geometry),' + latestUpload.records_failed + '\\n';
+      csv += 'IMPORT STATISTICS\n';
+      csv += 'File Name,' + latestUpload.file_name + '\n';
+      csv += 'Upload Date,' + latestUpload.upload_date + '\n';
+      csv += 'Total Records in File,' + latestUpload.records_total + '\n';
+      csv += 'Successfully Processed,' + latestUpload.records_imported + '\n';
+      csv += 'Failed (Invalid Geometry),' + latestUpload.records_failed + '\n';
 
       const stored = summary.reduce((sum, row) => sum + row.count, 0);
       const duplicates = latestUpload.records_imported - stored;
-      csv += 'Unique Records Stored,' + stored + '\\n';
-      csv += 'Duplicates Prevented,' + duplicates + '\\n\\n';
+      csv += 'Unique Records Stored,' + stored + '\n';
+      csv += 'Duplicates Prevented,' + duplicates + '\n\n';
     }
 
     // Add equipment breakdown
-    csv += 'EQUIPMENT TYPE BREAKDOWN\\n';
-    csv += 'Type,Total,ARC-ITS Compliant,Missing Manufacturer,Missing Model,Missing Install Date\\n';
+    csv += 'EQUIPMENT TYPE BREAKDOWN\n';
+    csv += 'Type,Total,ARC-ITS Compliant,Missing Manufacturer,Missing Model,Missing Install Date\n';
 
     summary.forEach(row => {
-      csv += `${row.equipment_type},${row.count},${row.arc_compliant},${row.missing_manufacturer},${row.missing_model},${row.missing_install_date}\\n`;
+      csv += `${row.equipment_type},${row.count},${row.arc_compliant},${row.missing_manufacturer},${row.missing_model},${row.missing_install_date}\n`;
     });
 
-    csv += '\\n';
+    csv += '\n';
 
     // Add totals
     const totals = summary.reduce((acc, row) => ({
@@ -10872,7 +10872,7 @@ app.get('/api/its-equipment/compliance-report', async (req, res) => {
       missing_install_date: acc.missing_install_date + row.missing_install_date
     }), { count: 0, arc_compliant: 0, missing_manufacturer: 0, missing_model: 0, missing_install_date: 0 });
 
-    csv += `TOTAL,${totals.count},${totals.arc_compliant},${totals.missing_manufacturer},${totals.missing_model},${totals.missing_install_date}\\n`;
+    csv += `TOTAL,${totals.count},${totals.arc_compliant},${totals.missing_manufacturer},${totals.missing_model},${totals.missing_install_date}\n`;
 
     // Get detailed list of non-compliant items
     let detailQuery = `
@@ -10914,8 +10914,8 @@ app.get('/api/its-equipment/compliance-report', async (req, res) => {
     );
 
     if (nonCompliant.length > 0) {
-      csv += '\\n\\nDETAILED LIST OF ITEMS TO FIX\\n';
-      csv += 'Equipment ID,Type,Route,Milepost,Location,Missing ARC-ITS ID,Missing Manufacturer,Missing Model,Missing Install Date,Issues Summary\\n';
+      csv += '\n\nDETAILED LIST OF ITEMS TO FIX\n';
+      csv += 'Equipment ID,Type,Route,Milepost,Location,Missing ARC-ITS ID,Missing Manufacturer,Missing Model,Missing Install Date,Issues Summary\n';
 
       nonCompliant.forEach(eq => {
         const issues = [];
@@ -10924,10 +10924,10 @@ app.get('/api/its-equipment/compliance-report', async (req, res) => {
         if (!eq.model) issues.push('Model');
         if (!eq.installation_date) issues.push('Install Date');
 
-        csv += `${eq.id},${eq.equipment_type},${eq.route || 'N/A'},${eq.milepost || 'N/A'},"${eq.location_description || 'N/A'}",${!eq.arc_its_id ? 'YES' : 'NO'},${!eq.manufacturer ? 'YES' : 'NO'},${!eq.model ? 'YES' : 'NO'},${!eq.installation_date ? 'YES' : 'NO'},"${issues.join(', ')}"\\n`;
+        csv += `${eq.id},${eq.equipment_type},${eq.route || 'N/A'},${eq.milepost || 'N/A'},"${eq.location_description || 'N/A'}",${!eq.arc_its_id ? 'YES' : 'NO'},${!eq.manufacturer ? 'YES' : 'NO'},${!eq.model ? 'YES' : 'NO'},${!eq.installation_date ? 'YES' : 'NO'},"${issues.join(', ')}"\n`;
       });
 
-      csv += `\\nTOTAL ITEMS REQUIRING FIXES: ${nonCompliant.length}\\n`;
+      csv += `\nTOTAL ITEMS REQUIRING FIXES: ${nonCompliant.length}\n`;
     }
 
     // Send as downloadable CSV
