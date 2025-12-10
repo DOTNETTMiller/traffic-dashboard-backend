@@ -29,6 +29,7 @@ export default function FeedSubmission({ authToken, user }) {
   const [uploadingGIS, setUploadingGIS] = useState(false);
   const [gisSuccess, setGisSuccess] = useState('');
   const [gisError, setGisError] = useState('');
+  const [uploadStateKey, setUploadStateKey] = useState(user?.stateKey || 'IA');
 
   useEffect(() => {
     fetchIntegratedFeeds();
@@ -92,11 +93,8 @@ export default function FeedSubmission({ authToken, user }) {
       return;
     }
 
-    // Admin users can upload without a state key
-    const isAdmin = user?.role === 'admin' || user?.email === 'matthew.miller@iowadot.us';
-
-    if (!user?.stateKey && !isAdmin) {
-      setGisError('State key required. Please ensure you are logged in.');
+    if (!uploadStateKey) {
+      setGisError('Please select a state for this equipment');
       return;
     }
 
@@ -107,8 +105,8 @@ export default function FeedSubmission({ authToken, user }) {
     try {
       const formData = new FormData();
       formData.append('gisFile', gisFile);
-      // For admin users without a state key, send 'multi-state' as the state key
-      formData.append('stateKey', user.stateKey || 'multi-state');
+      // Use the explicitly selected state from dropdown
+      formData.append('stateKey', uploadStateKey);
       formData.append('uploadedBy', user.email || user.username);
 
       const response = await api.post('/api/its-equipment/upload', formData, {
@@ -593,6 +591,42 @@ export default function FeedSubmission({ authToken, user }) {
           gap: theme.spacing.md,
           alignItems: 'flex-end'
         }}>
+          <div style={{ flex: 0.3, minWidth: '150px' }}>
+            <label style={{
+              display: 'block',
+              fontSize: '12px',
+              fontWeight: 600,
+              color: theme.colors.text,
+              marginBottom: '6px'
+            }}>
+              State
+            </label>
+            <select
+              value={uploadStateKey}
+              onChange={(e) => setUploadStateKey(e.target.value)}
+              disabled={uploadingGIS}
+              style={{
+                width: '100%',
+                padding: '8px',
+                borderRadius: '6px',
+                border: `1px solid ${theme.colors.border}`,
+                backgroundColor: theme.colors.glassLight,
+                color: theme.colors.text,
+                fontSize: '13px',
+                cursor: uploadingGIS ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <option value="IA">Iowa (IA)</option>
+              <option value="IL">Illinois (IL)</option>
+              <option value="WI">Wisconsin (WI)</option>
+              <option value="MN">Minnesota (MN)</option>
+              <option value="MO">Missouri (MO)</option>
+              <option value="NE">Nebraska (NE)</option>
+              <option value="SD">South Dakota (SD)</option>
+              <option value="KS">Kansas (KS)</option>
+              <option value="multi-state">Multi-State (Auto-Detect)</option>
+            </select>
+          </div>
           <div style={{ flex: 1 }}>
             <label style={{
               display: 'block',
