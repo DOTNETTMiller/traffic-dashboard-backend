@@ -11198,6 +11198,49 @@ app.get('/api/its-equipment/verify-count', async (req, res) => {
   }
 });
 
+// Clear equipment data for a specific state
+app.delete('/api/its-equipment/clear-state/:stateKey', async (req, res) => {
+  try {
+    const { stateKey } = req.params;
+
+    if (!stateKey || stateKey.length !== 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid state key. Must be 2-letter state code (e.g., IA, IL)'
+      });
+    }
+
+    console.log(`🗑️  Clearing all equipment for state: ${stateKey.toUpperCase()}`);
+
+    let deleteCount = 0;
+
+    if (db.isPostgres) {
+      const result = await db.db.query(
+        'DELETE FROM its_equipment WHERE state_key = $1',
+        [stateKey.toUpperCase()]
+      );
+      deleteCount = result.rowCount || 0;
+    } else {
+      const stmt = db.db.prepare('DELETE FROM its_equipment WHERE state_key = ?');
+      const result = stmt.run(stateKey.toUpperCase());
+      deleteCount = result.changes || 0;
+    }
+
+    console.log(`✅ Deleted ${deleteCount} equipment records for ${stateKey.toUpperCase()}`);
+
+    res.json({
+      success: true,
+      deleted: deleteCount,
+      stateKey: stateKey.toUpperCase(),
+      message: `Successfully deleted ${deleteCount} equipment records for ${stateKey.toUpperCase()}`
+    });
+
+  } catch (error) {
+    console.error('❌ Clear state error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // RAD-IT Export (Regional Architecture Development for ITS)
 app.get('/api/its-equipment/export/radit', async (req, res) => {
   try {
