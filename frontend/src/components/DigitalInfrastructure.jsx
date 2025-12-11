@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { config } from '../config';
+import IFCViewer from './IFCViewer';
 
 const API_BASE = config.apiUrl;
 
@@ -600,7 +601,13 @@ function DigitalInfrastructure() {
                   onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'}
                   onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+                    {/* 3D Preview Thumbnail */}
+                    <div style={{ flexShrink: 0, width: '200px' }}>
+                      <IFCViewer model={model} width="200px" height="150px" />
+                    </div>
+
+                    {/* Model Info */}
                     <div
                       style={{ flex: 1, cursor: 'pointer' }}
                       onClick={() => loadModelDetails(model.id)}
@@ -628,6 +635,8 @@ function DigitalInfrastructure() {
                         </span>
                       </div>
                     </div>
+
+                    {/* Action Buttons */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
                       <span style={{
                         padding: '6px 12px',
