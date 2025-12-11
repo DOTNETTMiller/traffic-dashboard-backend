@@ -12344,6 +12344,131 @@ app.delete('/api/digital-infrastructure/models/:modelId', async (req, res) => {
   }
 });
 
+// Helper function to generate summarized gap report CSV
+function generateGapReportCSV(model, gaps) {
+  // Group gaps by unique combination of property + element type
+  const uniqueGaps = new Map();
+
+  gaps.forEach(gap => {
+    const key = `${gap.missing_property}|${gap.ifc_type || 'MODEL'}|${gap.gap_category}`;
+    if (!uniqueGaps.has(key)) {
+      uniqueGaps.set(key, {
+        ...gap,
+        element_count: 1,
+        affected_elements: new Set([gap.element_ifc_guid])
+      });
+    } else {
+      const existing = uniqueGaps.get(key);
+      existing.element_count++;
+      existing.affected_elements.add(gap.element_ifc_guid);
+    }
+  });
+
+  // Convert to array and sort by severity and element count
+  const summarizedGaps = Array.from(uniqueGaps.values())
+    .sort((a, b) => {
+      const severityOrder = { high: 0, medium: 1, low: 2 };
+      if (severityOrder[a.severity] !== severityOrder[b.severity]) {
+        return severityOrder[a.severity] - severityOrder[b.severity];
+      }
+      return b.element_count - a.element_count;
+    });
+
+  // Count statistics
+  const totalGaps = gaps.length;
+  const uniqueGapTypes = summarizedGaps.length;
+  const highSeverity = gaps.filter(g => g.severity === 'high').length;
+  const mediumSeverity = gaps.filter(g => g.severity === 'medium').length;
+  const lowSeverity = gaps.filter(g => g.severity === 'low').length;
+
+  // Group by category
+  const byCategory = {};
+  summarizedGaps.forEach(gap => {
+    const cat = gap.gap_category || 'General';
+    if (!byCategory[cat]) {
+      byCategory[cat] = [];
+    }
+    byCategory[cat].push(gap);
+  });
+
+  // Build CSV with multiple sections
+  let csv = '';
+
+  // Section 1: Executive Summary
+  csv += 'EXECUTIVE SUMMARY\n';
+  csv += `Project,${model.project_name || 'N/A'}\n`;
+  csv += `IFC File,${model.filename}\n`;
+  csv += `IFC Schema,${model.ifc_schema}\n`;
+  csv += `Upload Date,${new Date(model.upload_date).toLocaleDateString()}\n`;
+  csv += `Total Elements,${model.total_elements}\n`;
+  csv += '\n';
+  csv += 'GAP STATISTICS\n';
+  csv += `Total Data Gaps Identified,${totalGaps}\n`;
+  csv += `Unique Gap Types,${uniqueGapTypes}\n`;
+  csv += `High Severity Gaps,${highSeverity}\n`;
+  csv += `Medium Severity Gaps,${mediumSeverity}\n`;
+  csv += `Low Severity Gaps,${lowSeverity}\n`;
+  csv += '\n\n';
+
+  // Section 2: Summary by Category
+  csv += 'GAP SUMMARY BY CATEGORY\n';
+  csv += 'Category,Unique Gap Types,Total Gaps,High Severity,Medium Severity,Low Severity\n';
+  Object.entries(byCategory).forEach(([category, categoryGaps]) => {
+    const high = categoryGaps.filter(g => g.severity === 'high').reduce((sum, g) => sum + g.element_count, 0);
+    const medium = categoryGaps.filter(g => g.severity === 'medium').reduce((sum, g) => sum + g.element_count, 0);
+    const low = categoryGaps.filter(g => g.severity === 'low').reduce((sum, g) => sum + g.element_count, 0);
+    const total = categoryGaps.reduce((sum, g) => sum + g.element_count, 0);
+    csv += `${category},${categoryGaps.length},${total},${high},${medium},${low}\n`;
+  });
+  csv += '\n\n';
+
+  // Section 3: Actionable Gaps (deduplicated)
+  csv += 'ACTIONABLE GAPS (DEDUPLICATED)\n';
+  csv += 'Priority,Category,Missing Property,IFC Element Type,Affected Elements,Required For,ITS Use Case,Standards Reference,Recommendation\n';
+
+  summarizedGaps.forEach(gap => {
+    const priority = gap.severity === 'high' ? '🔴 HIGH' : gap.severity === 'medium' ? '🟡 MEDIUM' : '🟢 LOW';
+    csv += [
+      priority,
+      gap.gap_category || 'General',
+      gap.missing_property,
+      gap.ifc_type || 'Model-Level',
+      gap.element_count,
+      `"${gap.required_for}"`,
+      `"${gap.its_use_case}"`,
+      gap.standards_reference,
+      `"${gap.idm_recommendation}"`
+    ].join(',') + '\n';
+  });
+  csv += '\n\n';
+
+  // Section 4: Quick Action Items
+  csv += 'QUICK ACTION ITEMS\n';
+  csv += 'Action,Property to Add,Element Type,Count,Priority\n';
+
+  summarizedGaps.slice(0, 20).forEach((gap, idx) => {
+    csv += [
+      `${idx + 1}. Add ${gap.missing_property} property`,
+      gap.missing_property,
+      gap.ifc_type || 'Model-Level',
+      gap.element_count,
+      gap.severity.toUpperCase()
+    ].join(',') + '\n';
+  });
+
+  if (summarizedGaps.length > 20) {
+    csv += `\n... and ${summarizedGaps.length - 20} more gap types (see Actionable Gaps section)\n`;
+  }
+
+  csv += '\n\n';
+  csv += 'NOTES:\n';
+  csv += '"This is a SUMMARIZED report. Each row in the Actionable Gaps section represents a unique gap type that may affect multiple elements."\n';
+  csv += '"The Affected Elements column shows how many infrastructure elements are missing each property."\n';
+  csv += '"For detailed element-by-element gap data, use the buildingSMART IDS export or the full standardization report."\n';
+
+  return csv;
+}
+
 // Export gap report as CSV
 app.get('/api/digital-infrastructure/gap-report/:modelId', async (req, res) => {
   try {
@@ -12389,23 +12514,9 @@ app.get('/api/digital-infrastructure/gap-report/:modelId', async (req, res) => {
     }
 
     if (format === 'csv') {
-      const csvHeader = 'Severity,Element Type,Element Name,Missing Property,Required For,ITS Use Case,Standards Reference,IDM Recommendation,IDS Requirement\n';
-      const csvRows = gaps.map(gap => {
-        return [
-          gap.severity,
-          gap.ifc_type || 'N/A',
-          gap.element_name || 'N/A',
-          gap.missing_property,
-          gap.required_for,
-          gap.its_use_case,
-          gap.standards_reference,
-          `"${gap.idm_recommendation}"`,
-          `"${gap.ids_requirement}"`
-        ].join(',');
-      });
-
-      const csv = csvHeader + csvRows.join('\n');
-      const filename = `digital-infrastructure-gaps-${model.filename.replace('.ifc', '')}-${Date.now()}.csv`;
+      // Create summarized, actionable CSV report
+      const csv = generateGapReportCSV(model, gaps);
+      const filename = `gap-analysis-summary-${model.filename.replace('.ifc', '')}-${Date.now()}.csv`;
 
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
