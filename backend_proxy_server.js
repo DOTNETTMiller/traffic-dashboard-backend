@@ -12438,6 +12438,623 @@ ${gaps.map((gap, idx) => `    <specification name="ITS_Requirement_${idx + 1}" m
   }
 });
 
+// Export comprehensive BIM standardization requirements document
+app.get('/api/digital-infrastructure/standards-report/:modelId', async (req, res) => {
+  try {
+    const { modelId } = req.params;
+    const { format = 'markdown' } = req.query;
+
+    // Get model info
+    const modelQuery = db.isPostgres
+      ? 'SELECT * FROM ifc_models WHERE id = $1'
+      : 'SELECT * FROM ifc_models WHERE id = ?';
+
+    let model;
+    if (db.isPostgres) {
+      const result = await db.db.query(modelQuery, [modelId]);
+      model = result.rows?.[0];
+    } else {
+      model = db.db.prepare(modelQuery).get(modelId);
+    }
+
+    if (!model) {
+      return res.status(404).json({ success: false, error: 'Model not found' });
+    }
+
+    // Get gaps
+    const gapQuery = db.isPostgres
+      ? `SELECT g.*, e.ifc_type, e.element_name
+         FROM infrastructure_gaps g
+         LEFT JOIN infrastructure_elements e ON g.element_id = e.id
+         WHERE g.model_id = $1
+         ORDER BY g.severity DESC, g.gap_category, e.ifc_type`
+      : `SELECT g.*, e.ifc_type, e.element_name
+         FROM infrastructure_gaps g
+         LEFT JOIN infrastructure_elements e ON g.element_id = e.id
+         WHERE g.model_id = ?
+         ORDER BY g.severity DESC, g.gap_category, e.ifc_type`;
+
+    let gaps;
+    if (db.isPostgres) {
+      const result = await db.db.query(gapQuery, [modelId]);
+      gaps = result.rows || [];
+    } else {
+      gaps = db.db.prepare(gapQuery).all(modelId);
+    }
+
+    // Get element statistics
+    const elementQuery = db.isPostgres
+      ? `SELECT ifc_type, COUNT(*) as count,
+         SUM(CASE WHEN v2x_applicable = true THEN 1 ELSE 0 END) as v2x_count,
+         SUM(CASE WHEN av_critical = true THEN 1 ELSE 0 END) as av_count
+         FROM infrastructure_elements
+         WHERE model_id = $1
+         GROUP BY ifc_type
+         ORDER BY count DESC`
+      : `SELECT ifc_type, COUNT(*) as count,
+         SUM(CASE WHEN v2x_applicable = 1 THEN 1 ELSE 0 END) as v2x_count,
+         SUM(CASE WHEN av_critical = 1 THEN 1 ELSE 0 END) as av_count
+         FROM infrastructure_elements
+         WHERE model_id = ?
+         GROUP BY ifc_type
+         ORDER BY count DESC`;
+
+    let elementStats;
+    if (db.isPostgres) {
+      const result = await db.db.query(elementQuery, [modelId]);
+      elementStats = result.rows || [];
+    } else {
+      elementStats = db.db.prepare(elementQuery).all(modelId);
+    }
+
+    // Group gaps by category
+    const gapsByCategory = {};
+    gaps.forEach(gap => {
+      const category = gap.gap_category || 'General';
+      if (!gapsByCategory[category]) {
+        gapsByCategory[category] = [];
+      }
+      gapsByCategory[category].push(gap);
+    });
+
+    // Generate comprehensive standards report
+    const report = generateStandardsReport(model, gaps, gapsByCategory, elementStats);
+
+    const filename = `bim-standardization-requirements-${model.filename.replace('.ifc', '')}-${Date.now()}.md`;
+
+    res.setHeader('Content-Type', 'text/markdown');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(report);
+
+  } catch (error) {
+    console.error('❌ Standards report export error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Helper function to generate comprehensive standards report
+function generateStandardsReport(model, gaps, gapsByCategory, elementStats) {
+  const metadata = model.metadata ? JSON.parse(model.metadata) : {};
+  const totalElements = elementStats.reduce((sum, e) => sum + e.count, 0);
+  const v2xElements = elementStats.reduce((sum, e) => sum + (e.v2x_count || 0), 0);
+  const avElements = elementStats.reduce((sum, e) => sum + (e.av_count || 0), 0);
+
+  return `# BIM Standardization Requirements for DOT Operations
+# Digital Infrastructure & ITS Integration
+
+**Generated:** ${new Date().toISOString().split('T')[0]}
+**Project:** ${model.project_name || 'Unknown'}
+**IFC File:** ${model.filename}
+**IFC Schema:** ${model.ifc_schema}
+**State:** ${model.state_key ? model.state_key.toUpperCase() : 'N/A'}
+
+---
+
+## Executive Summary
+
+This document outlines comprehensive standardization requirements for successful Building Information Modeling (BIM) deployment with Intelligent Transportation Systems (ITS) operations and digital infrastructure. These requirements are derived from analysis of real-world BIM models and operational DOT needs.
+
+### Model Analysis Summary
+- **Total Infrastructure Elements:** ${totalElements.toLocaleString()}
+- **V2X-Applicable Elements:** ${v2xElements.toLocaleString()}
+- **AV-Critical Elements:** ${avElements.toLocaleString()}
+- **Data Gaps Identified:** ${gaps.length.toLocaleString()}
+- **Gap Categories:** ${Object.keys(gapsByCategory).length}
+
+### Key Findings
+${gaps.length > 0 ? `
+The analysis identified ${gaps.length} data gaps across ${Object.keys(gapsByCategory).length} categories, preventing full integration between BIM models and ITS operations. These gaps affect:
+- Vehicle-to-Infrastructure (V2X) deployments
+- Autonomous vehicle (AV) routing and navigation
+- Real-time operational digital twins
+- Asset management system integration
+- Safety system interoperability
+` : `
+This model demonstrates strong alignment with ITS operational requirements with minimal data gaps identified.
+`}
+
+---
+
+## 1. Current Standards Landscape
+
+### 1.1 BIM/IFC Standards
+**buildingSMART IFC Schemas:**
+- **IFC2x3** - Widely adopted, limited transportation infrastructure support
+- **IFC4** - Enhanced infrastructure support, bridge extensions
+- **IFC4.3** - Road and railway extensions (IFC Road, IFC Rail, IFC Bridge)
+
+**Current Model Uses:** ${model.ifc_schema}
+
+### 1.2 Transportation-Specific Standards
+**Operational ITS Standards:**
+- **NTCIP (National Transportation Communications for ITS Protocol)** - Traffic signal control, VMS, sensors
+- **TMDD (Traffic Management Data Dictionary)** - Center-to-center communications
+- **SAE J2735** - V2X message sets (BSM, SPaT, MAP)
+- **ISO 14825 (GDF)** - Geographic Data Files for ITS applications
+
+**Asset Management:**
+- **AASHTO Asset Management** - Bridge Management, Pavement Management
+- **FHWA NBI (National Bridge Inventory)** - Bridge condition ratings
+- **HPMS (Highway Performance Monitoring System)** - Roadway inventory
+
+**Safety & Compliance:**
+- **MUTCD (Manual on Uniform Traffic Control Devices)** - Sign and marking standards
+- **MASH (Manual for Assessing Safety Hardware)** - Guardrail and barrier testing
+- **AASHTO LRFD** - Bridge design specifications
+
+### 1.3 Geospatial Standards
+- **OGC GeoSPARQL** - Spatial queries and relationships
+- **OGC CityGML** - 3D city models
+- **LandXML** - Civil engineering and surveying data exchange
+
+---
+
+## 2. Infrastructure Element Analysis
+
+### 2.1 Elements Extracted from Model
+
+${elementStats.map(stat => `
+#### ${stat.ifc_type}
+- **Count:** ${stat.count}
+- **V2X Applicable:** ${stat.v2x_count || 0}
+- **AV Critical:** ${stat.av_count || 0}
+`).join('\n')}
+
+---
+
+## 3. Identified Data Gaps
+
+${Object.entries(gapsByCategory).map(([category, categoryGaps]) => `
+### 3.${Object.keys(gapsByCategory).indexOf(category) + 1} ${category} (${categoryGaps.length} gaps)
+
+${categoryGaps.slice(0, 10).map((gap, idx) => `
+#### Gap ${idx + 1}: ${gap.missing_property}
+- **Severity:** ${gap.severity.toUpperCase()}
+- **Required For:** ${gap.required_for}
+- **ITS Use Case:** ${gap.its_use_case}
+- **Standards Reference:** ${gap.standards_reference}
+- **IFC Element Type:** ${gap.ifc_type || 'Model-level'}
+
+**Recommendation:**
+${gap.idm_recommendation}
+`).join('\n')}
+${categoryGaps.length > 10 ? `\n*... and ${categoryGaps.length - 10} additional ${category.toLowerCase()} gaps (see full CSV report)*\n` : ''}
+`).join('\n')}
+
+---
+
+## 4. Required BIM Property Sets for ITS Operations
+
+### 4.1 Bridge Infrastructure (IFCBRIDGE, IFCBEAM)
+**Property Set:** Pset_ITS_BridgeOperations
+
+| Property | Data Type | Required For | Standard |
+|----------|-----------|--------------|----------|
+| vertical_clearance | IfcLengthMeasure | V2X clearance warnings, AV routing | FHWA NBI Item 10 |
+| nbi_structure_number | IfcIdentifier | Asset tracking, maintenance | FHWA NBI |
+| nbi_condition_rating | IfcLabel | Safety, maintenance prioritization | FHWA NBI Item 58-62 |
+| last_inspection_date | IfcDate | Safety certification, V2X alerts | FHWA NBIS §650.311 |
+| load_rating | IfcMassMeasure | Commercial vehicle routing | AASHTO MBE |
+| scour_critical | IfcBoolean | Emergency response, flood routing | FHWA NBI Item 113 |
+
+### 4.2 Traffic Signs (IFCSIGN)
+**Property Set:** Pset_ITS_SignOperations
+
+| Property | Data Type | Required For | Standard |
+|----------|-----------|--------------|----------|
+| mutcd_code | IfcLabel | Sign inventory, V2X message generation | MUTCD |
+| message_text | IfcText | V2X content broadcasting | SAE J2735 |
+| retroreflectivity | IfcReal | Maintenance scheduling, safety | MUTCD §2A.08 |
+| sign_condition | IfcLabel | Asset management | AASHTO Asset Mgmt |
+| gps_coordinates | IfcGeographicCoordinate | Location-based services, mapping | ISO 19107 |
+
+### 4.3 Traffic Signals (IFCSIGNAL, IFCTRAFFICSIGNAL)
+**Property Set:** Pset_ITS_SignalOperations
+
+| Property | Data Type | Required For | Standard |
+|----------|-----------|--------------|----------|
+| spat_capable | IfcBoolean | V2X SPaT message broadcasting | SAE J2735 |
+| controller_id | IfcIdentifier | Signal system integration | NTCIP 1202 |
+| phase_timing | IfcTimeSeries | Adaptive signal control | NTCIP 1202 |
+| signal_group_id | IfcInteger | MAP message generation | SAE J2735 |
+| preemption_enabled | IfcBoolean | Emergency vehicle operations | NTCIP 1211 |
+
+### 4.4 Pavement (IFCPAVEMENT, IFCROAD)
+**Property Set:** Pset_ITS_PavementOperations
+
+| Property | Data Type | Required For | Standard |
+|----------|-----------|--------------|----------|
+| iri_value | IfcReal | Ride quality, maintenance | AASHTO PP 49 |
+| friction_coefficient | IfcReal | Safety, AV traction control | ASTM E1960 |
+| surface_condition | IfcLabel | Weather routing, V2X warnings | AASHTO MEPDG |
+| last_rehab_date | IfcDate | Maintenance forecasting | HPMS |
+| functional_class | IfcLabel | Traffic modeling, routing | FHWA HPMS |
+
+### 4.5 Pavement Markings (IFCPAVEMENTMARKING)
+**Property Set:** Pset_ITS_MarkingOperations
+
+| Property | Data Type | Required For | Standard |
+|----------|-----------|--------------|----------|
+| marking_type | IfcLabel | Lane detection, AV navigation | MUTCD §3A |
+| retroreflectivity | IfcReal | Maintenance, nighttime visibility | MUTCD §3A.03 |
+| lane_use_designation | IfcLabel | Lane-level routing | MUTCD |
+| color | IfcLabel | Regulatory compliance | MUTCD §3A.04 |
+| material_type | IfcLabel | Durability forecasting | AASHTO M 249 |
+
+### 4.6 Guardrail & Barriers (IFCRAILING, IFCVEHICLEBARRIER)
+**Property Set:** Pset_ITS_BarrierSafety
+
+| Property | Data Type | Required For | Standard |
+|----------|-----------|--------------|----------|
+| mash_test_level | IfcLabel | Safety compliance, crash modeling | MASH |
+| barrier_type | IfcLabel | Maintenance, safety analysis | AASHTO Roadside Design Guide |
+| end_treatment_type | IfcLabel | Safety critical points | MASH |
+| installation_date | IfcDate | Service life tracking | AASHTO |
+| condition_rating | IfcLabel | Maintenance prioritization | AASHTO Asset Mgmt |
+
+### 4.7 Sensors & ITS Devices (IFCSENSOR, IFCACTUATOR)
+**Property Set:** Pset_ITS_DeviceOperations
+
+| Property | Data Type | Required For | Standard |
+|----------|-----------|--------------|----------|
+| device_type | IfcLabel | System integration | NTCIP |
+| data_feed_url | IfcURIReference | Real-time data access | TMDD |
+| control_protocol | IfcLabel | Device management | NTCIP family |
+| calibration_date | IfcDate | Data quality assurance | ISO/IEC 17025 |
+| alert_threshold | IfcReal | Automated monitoring | Agency-specific |
+| ntcip_oid | IfcIdentifier | SNMP management | NTCIP |
+
+---
+
+## 5. Data Exchange Protocols & APIs
+
+### 5.1 BIM-to-ITS Data Pipeline
+
+\`\`\`
+┌──────────────┐
+│  IFC Model   │ (Design Phase - BIM authoring tools)
+└──────┬───────┘
+       │ IFC file export
+       ↓
+┌──────────────┐
+│  IFC Parser  │ (Extraction - this system)
+└──────┬───────┘
+       │ Extract elements + properties
+       ↓
+┌──────────────────┐
+│  Data Validation │ (Gap Analysis - verify ITS requirements)
+└──────┬───────────┘
+       │ Validated infrastructure data
+       ↓
+┌────────────────────┐
+│  REST API / OGC    │ (Data Service Layer)
+│  WFS / GraphQL     │
+└────────┬───────────┘
+       │ Standard protocols
+       ↓
+┌──────────────────────────────────────┐
+│  ITS Operations                      │
+│  - Traffic Management Centers (TMC)  │
+│  - V2X RSUs                          │
+│  - Asset Management Systems          │
+│  - Maintenance Management            │
+│  - Digital Twin Platform             │
+└──────────────────────────────────────┘
+\`\`\`
+
+### 5.2 Required API Capabilities
+
+**RESTful API Endpoints:**
+- \`GET /api/infrastructure/bridges/{id}\` - Bridge details with NBI data
+- \`GET /api/infrastructure/signs\` - Traffic sign inventory
+- \`GET /api/infrastructure/signals/{id}/spat\` - Real-time signal phase and timing
+- \`GET /api/infrastructure/sensors/{id}/data\` - Sensor data feed
+- \`POST /api/v2x/broadcast\` - V2X message generation from BIM data
+
+**OGC Web Feature Service (WFS):**
+- Spatial queries for infrastructure elements
+- Filter by bounding box, route, milepost
+- GeoJSON, GML output formats
+
+**GraphQL Schema:**
+\`\`\`graphql
+type Bridge {
+  id: ID!
+  nbiStructureNumber: String!
+  verticalClearance: Float!
+  condition: BridgeCondition!
+  geometry: Geometry!
+  v2xMessages: [V2XMessage]!
+}
+
+type TrafficSign {
+  id: ID!
+  mutcdCode: String!
+  messageText: String!
+  location: Point!
+  retroreflectivity: Float!
+}
+\`\`\`
+
+### 5.3 Data Update Synchronization
+- **Near Real-Time:** Sensor data, signal timing (< 1 second)
+- **Periodic:** Asset condition, maintenance status (daily/weekly)
+- **Event-Driven:** Closures, incidents, condition changes (immediate)
+
+---
+
+## 6. Interoperability Standards
+
+### 6.1 Coordinate Reference Systems
+**Requirement:** All infrastructure must reference WGS84 (EPSG:4326) for global positioning
+
+**Implementation:**
+- IFC models must include \`IFCMAPCONVERSION\` or \`IFCSITE\` with geographic coordinates
+- Support for state plane coordinate systems with documented transformations
+- Vertical datum: NAVD88 for elevation data
+
+### 6.2 Unique Identifiers
+**Requirement:** Globally unique identifiers for cross-system integration
+
+**Implementation:**
+- IFC GUID for all elements (128-bit)
+- NBI Structure Number for bridges
+- MUTCD code + GPS location for signs
+- NTCIP OID for ITS devices
+
+### 6.3 Data Quality Requirements
+- **Spatial Accuracy:** ±1 meter horizontal, ±0.1 meter vertical (for V2X)
+- **Attribute Completeness:** 95% for critical safety properties
+- **Temporal Currency:** Asset data < 1 year old, sensor data < 1 minute
+
+---
+
+## 7. buildingSMART IDM/IDS Recommendations
+
+### 7.1 Information Delivery Manual (IDM)
+**Process Map for BIM-to-ITS Integration:**
+
+1. **Design Phase** - BIM authoring with ITS-required properties
+2. **Construction Phase** - As-built verification of ITS elements
+3. **Commissioning** - ITS device testing and data feed validation
+4. **Operations Phase** - Continuous data synchronization
+5. **Maintenance Phase** - Condition updates flowing back to BIM
+
+**Exchange Requirements:**
+- **ER-01:** Bridge vertical clearance for V2X warnings
+- **ER-02:** Traffic sign MUTCD codes and messages for V2X
+- **ER-03:** Signal controller data for SPaT messaging
+- **ER-04:** Sensor locations and data feeds for digital twin
+
+### 7.2 Information Delivery Specification (IDS)
+**Functional Parts:**
+
+\`\`\`xml
+<specification name="Bridge_V2X_Requirements">
+  <applicability>
+    <entity type="IfcBridge" />
+  </applicability>
+  <requirements>
+    <property measure="IfcLengthMeasure" minOccurs="1">
+      <propertySet>Pset_ITS_BridgeOperations</propertySet>
+      <name>vertical_clearance</name>
+    </property>
+    <property measure="IfcLabel" minOccurs="1">
+      <propertySet>Pset_ITS_BridgeOperations</propertySet>
+      <name>nbi_condition_rating</name>
+    </property>
+  </requirements>
+</specification>
+\`\`\`
+
+### 7.3 Recommended buildingSMART Actions
+1. **Develop Transportation IDM** - Formalize BIM-to-ITS workflows
+2. **Extend Property Set Definitions** - Create official Pset_ITS_* standards
+3. **Validation Tools** - IDS validators for ITS property requirements
+4. **Certification Program** - Certify BIM tools for ITS data authoring
+5. **Case Studies** - Document successful BIM-to-ITS implementations
+
+---
+
+## 8. V2X Integration Requirements
+
+### 8.1 Message Sets from BIM Data
+**SAE J2735 Message Generation:**
+
+| V2X Message | IFC Source | Required Properties |
+|-------------|-----------|---------------------|
+| MAP (Intersection Geometry) | IFCROAD, IFCKERB, IFCLANE | Lane geometry, signal groups |
+| SPaT (Signal Phase & Timing) | IFCSIGNAL | Controller ID, phase timing |
+| TIM (Traveler Information) | IFCSIGN, IFCBRIDGE | Sign messages, clearance warnings |
+| RSA (Road Side Alert) | IFCPAVEMENT | Surface condition, friction |
+
+### 8.2 RSU Configuration from BIM
+- **RSU Placement:** Derived from IFCSITE + critical infrastructure locations
+- **Coverage Areas:** Calculated from building/bridge geometry
+- **Message Priorities:** Based on element safety criticality
+
+### 8.3 Data Freshness Requirements
+- **Static Data (from BIM):** Bridge clearances, sign messages - updated on model changes
+- **Semi-Static Data:** Signal timing plans - daily updates
+- **Dynamic Data:** SPaT - real-time from controllers, not BIM
+
+---
+
+## 9. Digital Twin Architecture
+
+### 9.1 BIM as Digital Twin Foundation
+**Three-Tier Architecture:**
+
+\`\`\`
+┌─────────────────────────────────────┐
+│  Tier 1: Static Digital Twin       │
+│  (Source: IFC Model)                │
+│  - Infrastructure geometry          │
+│  - Design specifications            │
+│  - Asset attributes                 │
+└────────────┬────────────────────────┘
+             │
+┌────────────▼────────────────────────┐
+│  Tier 2: Operational Digital Twin  │
+│  (Source: ITS Systems + Sensors)   │
+│  - Real-time sensor data            │
+│  - Traffic conditions               │
+│  - Asset condition monitoring       │
+└────────────┬────────────────────────┘
+             │
+┌────────────▼────────────────────────┐
+│  Tier 3: Predictive Digital Twin   │
+│  (Source: AI/ML + Historical Data)  │
+│  - Maintenance forecasting          │
+│  - Performance prediction           │
+│  - Scenario simulation              │
+└─────────────────────────────────────┘
+\`\`\`
+
+### 9.2 Data Synchronization Strategy
+- **BIM → Digital Twin:** One-way sync for design changes (periodic)
+- **Sensors → Digital Twin:** Continuous streaming (real-time)
+- **Digital Twin → Asset Mgmt:** Condition updates (event-driven)
+- **Field Verification → BIM:** As-built corrections (manual/periodic)
+
+---
+
+## 10. Implementation Roadmap
+
+### Phase 1: Foundation (Months 1-6)
+- [ ] Define minimum viable property sets for ITS operations
+- [ ] Develop IDS validation rules for critical elements
+- [ ] Create BIM authoring guidelines for DOT designers
+- [ ] Establish API specifications for BIM-to-ITS integration
+
+### Phase 2: Pilot Projects (Months 7-12)
+- [ ] Select 2-3 pilot corridors for BIM-to-ITS implementation
+- [ ] Train design consultants on ITS property requirements
+- [ ] Deploy IFC validation in design review process
+- [ ] Integrate V2X message generation from BIM data
+
+### Phase 3: Standards Development (Months 13-18)
+- [ ] Submit property set proposals to buildingSMART
+- [ ] Develop AASHTO/TRB implementation guide
+- [ ] Create certification program for BIM tools
+- [ ] Publish case studies and lessons learned
+
+### Phase 4: Scaling (Months 19-24)
+- [ ] Mandate ITS properties in design contracts
+- [ ] Deploy statewide digital twin platform
+- [ ] Integrate with asset management systems
+- [ ] Expand to all infrastructure types
+
+---
+
+## 11. Procurement Language
+
+### 11.1 Contract Specifications
+**Sample RFP Language:**
+
+> *"The Designer shall deliver all infrastructure BIM models in IFC4.3 format with complete property sets as defined in the DOT ITS Operations Data Requirements specification. All bridge elements shall include vertical clearance, NBI condition ratings, and inspection dates. All traffic control devices shall include MUTCD codes and V2X-compatible message text. Models shall pass IDS validation prior to final acceptance."*
+
+### 11.2 Deliverable Requirements
+- IFC models with required property sets (100% complete for V2X/AV elements)
+- IDS validation report (zero critical gaps)
+- GeoJSON export of infrastructure elements
+- API endpoints for real-time data integration (if applicable)
+- As-built verification documentation
+
+---
+
+## 12. Gap Closure Plan
+
+Based on this model analysis, the following actions are recommended to close identified gaps:
+
+${Object.entries(gapsByCategory).map(([category, categoryGaps]) => `
+### ${category}
+**Gaps:** ${categoryGaps.length}
+**Priority:** ${categoryGaps.some(g => g.severity === 'high') ? 'HIGH' : 'MEDIUM'}
+
+**Actions:**
+${categoryGaps.slice(0, 5).map((gap, idx) =>
+`${idx + 1}. Add \`${gap.missing_property}\` property to ${gap.ifc_type || 'model'} - ${gap.standards_reference}`
+).join('\n')}
+${categoryGaps.length > 5 ? `\n*... plus ${categoryGaps.length - 5} additional ${category.toLowerCase()} properties (see full gap report)*` : ''}
+`).join('\n')}
+
+---
+
+## 13. References & Standards Documents
+
+### buildingSMART
+- IFC4.3 Specification: https://standards.buildingsmart.org/IFC/RELEASE/IFC4_3/
+- IDS Specification: https://standards.buildingsmart.org/IDS/
+- Railway/Road Project: https://www.buildingsmart.org/standards/rooms/infrastructure/
+
+### FHWA/AASHTO
+- National Bridge Inventory: https://www.fhwa.dot.gov/bridge/nbi.cfm
+- Highway Performance Monitoring System: https://www.fhwa.dot.gov/policyinformation/hpms.cfm
+- Manual on Uniform Traffic Control Devices (MUTCD): https://mutcd.fhwa.dot.gov/
+- Manual for Assessing Safety Hardware (MASH): https://safety.fhwa.dot.gov/roadway_dept/policy_guide/road_hardware/mash/
+
+### ITS Standards
+- NTCIP Standards: https://www.ntcip.org/
+- SAE J2735 (V2X Messages): https://www.sae.org/standards/content/j2735_202007/
+- Traffic Management Data Dictionary: https://www.standards.its.dot.gov/
+
+### OGC
+- Web Feature Service (WFS): https://www.ogc.org/standards/wfs
+- GeoJSON: https://geojson.org/
+- CityGML: https://www.ogc.org/standards/citygml
+
+---
+
+## Appendix A: Complete Gap Analysis
+
+See attached CSV file for complete itemized gap analysis with:
+- All ${gaps.length} identified gaps
+- Element-level details
+- Severity classifications
+- Standards references
+- IDM/IDS recommendations
+
+**Download:** \`gap-report-${model.filename.replace('.ifc', '')}.csv\`
+
+---
+
+## Appendix B: buildingSMART IDS File
+
+See attached IDS XML file for machine-readable validation rules.
+
+**Download:** \`its-requirements-${model.filename.replace('.ifc', '')}.xml\`
+
+---
+
+*This document was automatically generated by the DOT Corridor Communicator Digital Infrastructure system based on analysis of real-world IFC models and operational ITS requirements. For questions or clarifications, contact your State DOT BIM/ITS coordinator.*
+
+**Document Version:** 1.0
+**System:** DOT Corridor Communicator - Digital Infrastructure Module
+**Analysis Date:** ${new Date().toISOString()}
+`;
+}
+
 // ========================================
 // WEB FEATURE SERVICE (WFS) CONNECTIONS
 // ========================================
