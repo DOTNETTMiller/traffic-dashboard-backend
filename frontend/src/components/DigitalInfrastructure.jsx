@@ -13,6 +13,7 @@ function DigitalInfrastructure() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
+  const [liveStats, setLiveStats] = useState(null);
 
   // Upload form state
   const [selectedFile, setSelectedFile] = useState(null);
@@ -38,6 +39,42 @@ function DigitalInfrastructure() {
       alert('Failed to load models');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadLiveStats = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/digital-infrastructure/models`);
+      const allModels = response.data.models || [];
+
+      // Calculate aggregate statistics
+      const totalModels = allModels.length;
+      const totalElements = allModels.reduce((sum, m) => sum + (m.total_elements || 0), 0);
+      const statesContributing = [...new Set(allModels.map(m => m.state_key).filter(Boolean))];
+
+      // Get most recent upload
+      const mostRecent = allModels.length > 0
+        ? new Date(Math.max(...allModels.map(m => new Date(m.upload_date))))
+        : null;
+
+      // Count by schema
+      const schemaCount = {};
+      allModels.forEach(m => {
+        if (m.ifc_schema) {
+          schemaCount[m.ifc_schema] = (schemaCount[m.ifc_schema] || 0) + 1;
+        }
+      });
+
+      setLiveStats({
+        totalModels,
+        totalElements,
+        statesContributing: statesContributing.length,
+        statesList: statesContributing.sort(),
+        mostRecent,
+        schemaCount
+      });
+    } catch (error) {
+      console.error('Error loading live stats:', error);
     }
   };
 
@@ -223,6 +260,23 @@ function DigitalInfrastructure() {
             Model Details
           </button>
         )}
+        <button
+          onClick={() => {
+            setActiveTab('documentation');
+            if (!liveStats) loadLiveStats();
+          }}
+          style={{
+            padding: '12px 24px',
+            border: 'none',
+            borderBottom: activeTab === 'documentation' ? '3px solid #1976d2' : '3px solid transparent',
+            background: 'none',
+            cursor: 'pointer',
+            fontWeight: activeTab === 'documentation' ? 'bold' : 'normal',
+            color: activeTab === 'documentation' ? '#1976d2' : '#666'
+          }}
+        >
+          Documentation
+        </button>
       </div>
 
       {/* Upload Tab */}
@@ -650,6 +704,224 @@ function DigitalInfrastructure() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Documentation Tab */}
+      {activeTab === 'documentation' && (
+        <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+          <h2 style={{ fontSize: '24px', marginBottom: '10px' }}>Digital Infrastructure Documentation</h2>
+          <p style={{ color: '#666', marginBottom: '30px' }}>
+            BIM/IFC to ITS Operations - System Overview and Live Statistics
+          </p>
+
+          {/* Live Statistics */}
+          {liveStats && (
+            <div style={{ marginBottom: '40px', padding: '20px', backgroundColor: '#f0f9ff', borderRadius: '8px', border: '1px solid #0ea5e9' }}>
+              <h3 style={{ fontSize: '20px', marginBottom: '20px', color: '#0369a1' }}>Live Usage Statistics</h3>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '20px' }}>
+                <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#1976d2', marginBottom: '8px' }}>
+                    {liveStats.totalModels}
+                  </div>
+                  <div style={{ color: '#666' }}>Models Uploaded</div>
+                </div>
+
+                <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#059669', marginBottom: '8px' }}>
+                    {liveStats.totalElements.toLocaleString()}
+                  </div>
+                  <div style={{ color: '#666' }}>Infrastructure Elements</div>
+                </div>
+
+                <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>
+                  <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#f57c00', marginBottom: '8px' }}>
+                    {liveStats.statesContributing}
+                  </div>
+                  <div style={{ color: '#666' }}>States Contributing</div>
+                </div>
+
+                {liveStats.mostRecent && (
+                  <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#7c3aed', marginBottom: '8px' }}>
+                      {liveStats.mostRecent.toLocaleDateString()}
+                    </div>
+                    <div style={{ color: '#666' }}>Most Recent Upload</div>
+                  </div>
+                )}
+              </div>
+
+              {liveStats.statesList.length > 0 && (
+                <div style={{ marginBottom: '15px' }}>
+                  <strong>Contributing States:</strong> {liveStats.statesList.join(', ')}
+                </div>
+              )}
+
+              {Object.keys(liveStats.schemaCount).length > 0 && (
+                <div>
+                  <strong>IFC Schemas in Use:</strong>
+                  <div style={{ display: 'flex', gap: '15px', marginTop: '10px', flexWrap: 'wrap' }}>
+                    {Object.entries(liveStats.schemaCount).map(([schema, count]) => (
+                      <span key={schema} style={{ padding: '6px 12px', backgroundColor: 'white', borderRadius: '4px', fontSize: '14px' }}>
+                        {schema}: <strong>{count}</strong>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* System Overview */}
+          <div style={{ marginBottom: '40px' }}>
+            <h3 style={{ fontSize: '20px', marginBottom: '15px', borderBottom: '2px solid #e0e0e0', paddingBottom: '10px' }}>
+              System Overview
+            </h3>
+            <p style={{ lineHeight: '1.8', color: '#444', marginBottom: '15px' }}>
+              This system bridges the gap between BIM/CAD design data and ITS operational needs by extracting infrastructure elements
+              from IFC models, analyzing what properties exist versus what ITS operations require, identifying gaps in data for V2X
+              and autonomous vehicle deployments, and generating buildingSMART IDM/IDS recommendations for industry standards.
+            </p>
+            <p style={{ lineHeight: '1.8', color: '#444' }}>
+              This directly informs IDM/IDS development for transportation infrastructure at scale, helping to close the gap between
+              design-phase BIM models and operational ITS requirements.
+            </p>
+          </div>
+
+          {/* Supported IFC Types */}
+          <div style={{ marginBottom: '40px' }}>
+            <h3 style={{ fontSize: '20px', marginBottom: '15px', borderBottom: '2px solid #e0e0e0', paddingBottom: '10px' }}>
+              Supported IFC Types
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
+              {[
+                { type: 'IFCBRIDGE', desc: 'Bridge structures (V2X + AV critical)', critical: true },
+                { type: 'IFCBEAM', desc: 'Girders, beams (clearance verification)', critical: true },
+                { type: 'IFCSIGN', desc: 'Traffic signs (V2X critical)', critical: true },
+                { type: 'IFCPAVEMENT', desc: 'Pavement surfaces', critical: false },
+                { type: 'IFCKERB', desc: 'Lane boundaries', critical: false },
+                { type: 'IFCROAD/IFCROADPART', desc: 'Roadway elements', critical: false },
+                { type: 'IFCCOLUMN', desc: 'Structural columns', critical: false },
+                { type: 'IFCPLATE', desc: 'Deck plates, structural plates', critical: false },
+              ].map(item => (
+                <div key={item.type} style={{
+                  padding: '15px',
+                  backgroundColor: item.critical ? '#fef3c7' : '#f5f5f5',
+                  borderRadius: '4px',
+                  borderLeft: item.critical ? '4px solid #f59e0b' : '4px solid #999'
+                }}>
+                  <div style={{ fontWeight: 'bold', marginBottom: '5px', fontFamily: 'monospace' }}>
+                    {item.type}
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#666' }}>{item.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ITS Use Cases */}
+          <div style={{ marginBottom: '40px' }}>
+            <h3 style={{ fontSize: '20px', marginBottom: '15px', borderBottom: '2px solid #e0e0e0', paddingBottom: '10px' }}>
+              Industry Impact & Use Cases
+            </h3>
+
+            <div style={{ display: 'grid', gap: '20px' }}>
+              <div style={{ padding: '20px', backgroundColor: '#e3f2fd', borderRadius: '8px' }}>
+                <h4 style={{ fontSize: '18px', marginBottom: '10px', color: '#1976d2' }}>V2X Deployments</h4>
+                <ul style={{ lineHeight: '1.8', color: '#444', margin: '0', paddingLeft: '20px' }}>
+                  <li>Bridge clearance broadcasting to commercial vehicles</li>
+                  <li>Sign message content for V2X-enabled vehicles</li>
+                  <li>Pavement condition for traction control systems</li>
+                </ul>
+              </div>
+
+              <div style={{ padding: '20px', backgroundColor: '#f3e5f5', borderRadius: '8px' }}>
+                <h4 style={{ fontSize: '18px', marginBottom: '10px', color: '#7b1fa2' }}>Autonomous Vehicles</h4>
+                <ul style={{ lineHeight: '1.8', color: '#444', margin: '0', paddingLeft: '20px' }}>
+                  <li>Route planning with vertical clearance verification</li>
+                  <li>Lane boundary detection from pavement markings</li>
+                  <li>Dynamic routing around low-clearance structures</li>
+                </ul>
+              </div>
+
+              <div style={{ padding: '20px', backgroundColor: '#e8f5e9', borderRadius: '8px' }}>
+                <h4 style={{ fontSize: '18px', marginBottom: '10px', color: '#2e7d32' }}>Digital Infrastructure</h4>
+                <ul style={{ lineHeight: '1.8', color: '#444', margin: '0', paddingLeft: '20px' }}>
+                  <li>Real-time infrastructure data feeds</li>
+                  <li>Operational digital twins for asset management</li>
+                  <li>Integration with existing ITS and asset management systems</li>
+                </ul>
+              </div>
+
+              <div style={{ padding: '20px', backgroundColor: '#fff3e0', borderRadius: '8px' }}>
+                <h4 style={{ fontSize: '18px', marginBottom: '10px', color: '#e65100' }}>Grant Applications</h4>
+                <ul style={{ lineHeight: '1.8', color: '#444', margin: '0', paddingLeft: '20px' }}>
+                  <li>SMART grants (data-driven transportation)</li>
+                  <li>RAISE grants (innovative infrastructure)</li>
+                  <li>ATCMTD programs (advanced transportation technologies)</li>
+                  <li>Digital infrastructure modernization initiatives</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* buildingSMART Standards */}
+          <div style={{ marginBottom: '40px' }}>
+            <h3 style={{ fontSize: '20px', marginBottom: '15px', borderBottom: '2px solid #e0e0e0', paddingBottom: '10px' }}>
+              buildingSMART IDM/IDS Development
+            </h3>
+            <p style={{ lineHeight: '1.8', color: '#444', marginBottom: '15px' }}>
+              This system demonstrates the gap between current BIM models and ITS operational requirements, providing concrete
+              data-driven recommendations for buildingSMART standards development:
+            </p>
+            <ul style={{ lineHeight: '1.8', color: '#444', paddingLeft: '20px' }}>
+              <li><strong>Current State:</strong> What BIM models provide today (extracted elements and properties)</li>
+              <li><strong>Operational Needs:</strong> What ITS systems actually require for V2X, AV, and digital infrastructure</li>
+              <li><strong>Gaps:</strong> Specific properties missing for digital infrastructure maturity</li>
+              <li><strong>Standards:</strong> Precise IDM/IDS requirements to close gaps and enable operational data exchange</li>
+            </ul>
+          </div>
+
+          {/* Technical Details */}
+          <div style={{ marginBottom: '40px' }}>
+            <h3 style={{ fontSize: '20px', marginBottom: '15px', borderBottom: '2px solid #e0e0e0', paddingBottom: '10px' }}>
+              Technical Architecture
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div>
+                <h4 style={{ fontSize: '16px', marginBottom: '10px', color: '#1976d2' }}>Backend</h4>
+                <ul style={{ lineHeight: '1.6', color: '#666', fontSize: '14px', margin: '0', paddingLeft: '20px' }}>
+                  <li>Custom IFC parser (IFC2X3, IFC4.3)</li>
+                  <li>Multi-line entity parsing</li>
+                  <li>Gap analysis engine</li>
+                  <li>IDM/IDS recommendation generation</li>
+                  <li>PostgreSQL + SQLite dual support</li>
+                </ul>
+              </div>
+              <div>
+                <h4 style={{ fontSize: '16px', marginBottom: '10px', color: '#1976d2' }}>Database Schema</h4>
+                <ul style={{ lineHeight: '1.6', color: '#666', fontSize: '14px', margin: '0', paddingLeft: '20px' }}>
+                  <li>ifc_models - Uploaded BIM files</li>
+                  <li>infrastructure_elements - Extracted data</li>
+                  <li>infrastructure_gaps - Missing properties</li>
+                  <li>infrastructure_standards - IFC to ITS mapping</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Getting Started */}
+          <div style={{ padding: '20px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
+            <h3 style={{ fontSize: '18px', marginBottom: '15px' }}>Getting Started</h3>
+            <ol style={{ lineHeight: '1.8', color: '#444', paddingLeft: '20px' }}>
+              <li>Upload your IFC model (IFC2X3 or IFC4.3 format) using the Upload tab</li>
+              <li>System automatically extracts infrastructure elements and analyzes gaps</li>
+              <li>Review extraction results and gap analysis in the Models and Details tabs</li>
+              <li>Download CSV gap reports for review or buildingSMART IDS XML for validation</li>
+              <li>Use findings to inform BIM authoring workflows and standards development</li>
+            </ol>
           </div>
         </div>
       )}
