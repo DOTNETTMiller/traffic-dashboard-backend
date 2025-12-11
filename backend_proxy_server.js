@@ -12274,6 +12274,76 @@ app.get('/api/digital-infrastructure/gaps/:modelId', async (req, res) => {
   }
 });
 
+// Delete IFC model and associated data
+app.delete('/api/digital-infrastructure/models/:modelId', async (req, res) => {
+  try {
+    const { modelId } = req.params;
+
+    console.log(`🗑️  Deleting IFC model ${modelId}...`);
+
+    // Check if model exists
+    const modelQuery = db.isPostgres
+      ? 'SELECT * FROM ifc_models WHERE id = $1'
+      : 'SELECT * FROM ifc_models WHERE id = ?';
+
+    let model;
+    if (db.isPostgres) {
+      const result = await db.db.query(modelQuery, [modelId]);
+      model = result.rows?.[0];
+    } else {
+      model = db.db.prepare(modelQuery).get(modelId);
+    }
+
+    if (!model) {
+      return res.status(404).json({ success: false, error: 'Model not found' });
+    }
+
+    // Delete associated elements
+    const deleteElements = db.isPostgres
+      ? 'DELETE FROM infrastructure_elements WHERE model_id = $1'
+      : 'DELETE FROM infrastructure_elements WHERE model_id = ?';
+
+    if (db.isPostgres) {
+      await db.db.query(deleteElements, [modelId]);
+    } else {
+      db.db.prepare(deleteElements).run(modelId);
+    }
+
+    // Delete associated gaps
+    const deleteGaps = db.isPostgres
+      ? 'DELETE FROM infrastructure_gaps WHERE model_id = $1'
+      : 'DELETE FROM infrastructure_gaps WHERE model_id = ?';
+
+    if (db.isPostgres) {
+      await db.db.query(deleteGaps, [modelId]);
+    } else {
+      db.db.prepare(deleteGaps).run(modelId);
+    }
+
+    // Delete model record
+    const deleteModel = db.isPostgres
+      ? 'DELETE FROM ifc_models WHERE id = $1'
+      : 'DELETE FROM ifc_models WHERE id = ?';
+
+    if (db.isPostgres) {
+      await db.db.query(deleteModel, [modelId]);
+    } else {
+      db.db.prepare(deleteModel).run(modelId);
+    }
+
+    console.log(`✅ Successfully deleted IFC model ${modelId} (${model.filename})`);
+
+    res.json({
+      success: true,
+      message: `Successfully deleted model: ${model.filename}`
+    });
+
+  } catch (error) {
+    console.error('❌ Delete model error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Export gap report as CSV
 app.get('/api/digital-infrastructure/gap-report/:modelId', async (req, res) => {
   try {

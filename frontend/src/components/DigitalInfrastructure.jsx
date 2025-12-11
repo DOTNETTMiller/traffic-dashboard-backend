@@ -249,6 +249,31 @@ function DigitalInfrastructure() {
     }
   };
 
+  const deleteModel = async (modelId, filename) => {
+    if (!confirm(`Are you sure you want to delete "${filename}"? This will permanently remove the model and all associated data.`)) {
+      return;
+    }
+
+    try {
+      const response = await axios.delete(`${API_BASE}/api/digital-infrastructure/models/${modelId}`);
+
+      if (response.data.success) {
+        alert(`Successfully deleted ${filename}`);
+        // Reload models list
+        await loadModels();
+        // If we're viewing this model's details, switch back to models tab
+        if (selectedModel === modelId) {
+          setSelectedModel(null);
+          setModelDetails(null);
+          setActiveTab('models');
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting model:', error);
+      alert(error.response?.data?.error || 'Failed to delete model');
+    }
+  };
+
   return (
     <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto', height: '100%', overflow: 'auto' }}>
       <h1 style={{ fontSize: '28px', marginBottom: '10px' }}>Digital Infrastructure</h1>
@@ -562,15 +587,16 @@ function DigitalInfrastructure() {
                     padding: '20px',
                     border: '1px solid #e0e0e0',
                     borderRadius: '8px',
-                    cursor: 'pointer',
                     transition: 'box-shadow 0.2s',
                   }}
-                  onClick={() => loadModelDetails(model.id)}
                   onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)'}
                   onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ flex: 1 }}>
+                    <div
+                      style={{ flex: 1, cursor: 'pointer' }}
+                      onClick={() => loadModelDetails(model.id)}
+                    >
                       <h3 style={{ fontSize: '18px', marginBottom: '8px', color: '#1976d2' }}>
                         {model.filename}
                       </h3>
@@ -594,7 +620,7 @@ function DigitalInfrastructure() {
                         </span>
                       </div>
                     </div>
-                    <div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
                       <span style={{
                         padding: '6px 12px',
                         backgroundColor: model.extraction_status === 'completed' ? '#4caf50' : '#ff9800',
@@ -605,6 +631,24 @@ function DigitalInfrastructure() {
                       }}>
                         {model.extraction_status.toUpperCase()}
                       </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteModel(model.id, model.filename);
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          backgroundColor: '#f44336',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        🗑️ Delete
+                      </button>
                     </div>
                   </div>
                 </div>
