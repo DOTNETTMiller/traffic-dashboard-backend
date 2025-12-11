@@ -171,7 +171,7 @@ IFCBRIDGE:
 
 ### Gap Analysis Examples
 
-**High Severity (AV-Critical):**
+**High Severity (AV-Critical & Alignment-Based):**
 
 1. **Missing: clearance_height** (IFCBRIDGE)
    - **Required For:** Vertical clearance for routing
@@ -184,12 +184,27 @@ IFCBRIDGE:
                applicableEntity="IFCBRIDGE" purpose="ITS_Operations" />
      ```
 
-2. **Missing: bottom_elevation** (IFCBEAM)
+2. **Missing: IfcAlignment** (IFCROAD, IFCBRIDGE, IFCPAVEMENT, etc.)
+   - **Required For:** Alignment-based positioning for linear infrastructure
+   - **ITS Use Case:** Linear referencing (station/offset), asset management, maintenance planning, route-based queries
+   - **Standards:** IFC4x3 Road and Railway, buildingSMART Alignment standards
+   - **IDM Recommendation:** Linear infrastructure models should include IfcAlignment entities with IfcLinearPlacement for station/offset positioning
+   - **IDS Requirement:**
+     ```xml
+     <alignment required="true" purpose="Linear_Referencing">
+       <entity type="IfcAlignment" minOccurs="1" />
+       <entity type="IFCROAD">
+         <placement type="IfcLinearPlacement" required="true" />
+       </entity>
+     </alignment>
+     ```
+
+3. **Missing: bottom_elevation** (IFCBEAM)
    - **Required For:** Clearance verification
    - **ITS Use Case:** Infrastructure operations
    - **Standards:** IFC4x3 Road and Railway
 
-3. **Missing: span_length** (IFCBEAM)
+4. **Missing: span_length** (IFCBEAM)
    - **Required For:** Clearance verification
 
 ### Digital Infrastructure Maturity
