@@ -17,6 +17,7 @@ const { fetchCaltransLCS } = require('./scripts/fetch_caltrans_lcs');
 const { fetchPennDOTRCRS } = require('./scripts/fetch_penndot_rcrs');
 const ComplianceAnalyzer = require('./compliance-analyzer');
 const { OpenAI } = require('openai');
+const IFCParser = require('./utils/ifc-parser');
 
 // Initialize volume data from bundled sources on startup
 function initVolumeData() {
@@ -11840,6 +11841,588 @@ app.get('/api/its-equipment/states', async (req, res) => {
   }
 });
 
+// ==========================================
+// DIGITAL INFRASTRUCTURE - BIM/IFC ENDPOINTS
+// ==========================================
+
+// Upload IFC model and extract infrastructure elements
+app.post('/api/digital-infrastructure/upload', upload.single('ifcFile'), async (req, res) => {
+  try {
+    const { stateKey, uploadedBy, latitude, longitude, route, milepost } = req.body;
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No IFC file provided' });
+    }
+
+    console.log(`🏗️  Processing IFC upload: ${req.file.originalname}`);
+    console.log(`   State: ${stateKey || 'N/A'}, Uploaded by: ${uploadedBy || 'anonymous'}`);
+
+    // Parse IFC file
+    const parser = new IFCParser();
+    const extractionResult = await parser.parseFile(req.file.path);
+
+    console.log(`   ✅ Parsed ${extractionResult.statistics.total_entities} IFC entities`);
+    console.log(`   ✅ Extracted ${extractionResult.elements.length} infrastructure elements`);
+
+    // Generate gap analysis
+    const gaps = parser.identifyGaps(extractionResult.elements);
+    console.log(`   ✅ Identified ${gaps.length} data gaps for ITS operations`);
+
+    // Store in database
+    const modelInsert = db.isPostgres
+      ? `INSERT INTO ifc_models (filename, file_size, ifc_schema, project_name, uploaded_by,
+         state_key, latitude, longitude, route, milepost, extraction_status,
+         extraction_log, total_elements, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         RETURNING id`
+      : `INSERT INTO ifc_models (filename, file_size, ifc_schema, project_name, uploaded_by,
+         state_key, latitude, longitude, route, milepost, extraction_status,
+         extraction_log, total_elements, metadata)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+    const metadata = JSON.stringify({
+      entity_types: extractionResult.statistics.by_type,
+      v2x_elements: extractionResult.elements.filter(e => e.v2x_applicable).length,
+      av_critical_elements: extractionResult.elements.filter(e => e.av_critical).length
+    });
+
+    let modelId;
+    if (db.isPostgres) {
+      const result = await db.db.query(modelInsert, [
+        req.file.originalname,
+        req.file.size,
+        extractionResult.schema,
+        extractionResult.project,
+        uploadedBy || 'anonymous',
+        stateKey || null,
+        latitude ? parseFloat(latitude) : null,
+        longitude ? parseFloat(longitude) : null,
+        route || null,
+        milepost ? parseFloat(milepost) : null,
+        'completed',
+        JSON.stringify(extractionResult.extractionLog),
+        extractionResult.elements.length,
+        metadata
+      ]);
+      modelId = result.rows[0].id;
+    } else {
+      const stmt = db.db.prepare(modelInsert);
+      const result = stmt.run(
+        req.file.originalname,
+        req.file.size,
+        extractionResult.schema,
+        extractionResult.project,
+        uploadedBy || 'anonymous',
+        stateKey || null,
+        latitude ? parseFloat(latitude) : null,
+        longitude ? parseFloat(longitude) : null,
+        route || null,
+        milepost ? parseFloat(milepost) : null,
+        'completed',
+        JSON.stringify(extractionResult.extractionLog),
+        extractionResult.elements.length,
+        metadata
+      );
+      modelId = result.lastInsertRowid;
+    }
+
+    // Store infrastructure elements
+    const elementInsert = db.isPostgres
+      ? `INSERT INTO infrastructure_elements (model_id, ifc_guid, ifc_type, element_name,
+         element_description, category, its_relevance, v2x_applicable, av_critical,
+         properties)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
+      : `INSERT INTO infrastructure_elements (model_id, ifc_guid, ifc_type, element_name,
+         element_description, category, its_relevance, v2x_applicable, av_critical,
+         properties)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+    for (const element of extractionResult.elements) {
+      const params = [
+        modelId,
+        element.ifc_guid,
+        element.ifc_type,
+        element.element_name,
+        element.element_description,
+        element.category,
+        element.its_relevance,
+        element.v2x_applicable ? 1 : 0,
+        element.av_critical ? 1 : 0,
+        element.raw_entity
+      ];
+
+      if (db.isPostgres) {
+        await db.db.query(elementInsert, params);
+      } else {
+        db.db.prepare(elementInsert).run(...params);
+      }
+    }
+
+    // Store gaps
+    const gapInsert = db.isPostgres
+      ? `INSERT INTO infrastructure_gaps (model_id, gap_type, gap_category, severity,
+         missing_property, required_for, its_use_case, standards_reference,
+         idm_recommendation, ids_requirement)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
+      : `INSERT INTO infrastructure_gaps (model_id, gap_type, gap_category, severity,
+         missing_property, required_for, its_use_case, standards_reference,
+         idm_recommendation, ids_requirement)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+    for (const gap of gaps) {
+      const params = [
+        modelId,
+        gap.gap_type,
+        gap.gap_category,
+        gap.severity,
+        gap.missing_property,
+        gap.required_for,
+        gap.its_use_case,
+        gap.standards_reference,
+        gap.idm_recommendation,
+        gap.ids_requirement
+      ];
+
+      if (db.isPostgres) {
+        await db.db.query(gapInsert, params);
+      } else {
+        db.db.prepare(gapInsert).run(...params);
+      }
+    }
+
+    // Clean up uploaded file
+    fs.unlinkSync(req.file.path);
+
+    console.log(`✅ Successfully stored IFC model ${modelId} with ${extractionResult.elements.length} elements and ${gaps.length} gaps`);
+
+    res.json({
+      success: true,
+      model_id: modelId,
+      filename: req.file.originalname,
+      schema: extractionResult.schema,
+      elements_extracted: extractionResult.elements.length,
+      gaps_identified: gaps.length,
+      extraction_log: extractionResult.extractionLog,
+      message: 'Successfully processed IFC model'
+    });
+
+  } catch (error) {
+    console.error('❌ IFC upload error:', error);
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// List all IFC models
+app.get('/api/digital-infrastructure/models', async (req, res) => {
+  try {
+    const { stateKey } = req.query;
+
+    let query = 'SELECT * FROM ifc_models';
+    const params = [];
+
+    if (stateKey && stateKey !== 'multi-state') {
+      if (db.isPostgres) {
+        query += ' WHERE state_key = $1';
+      } else {
+        query += ' WHERE state_key = ?';
+      }
+      params.push(stateKey);
+    }
+
+    query += ' ORDER BY upload_date DESC';
+
+    let models;
+    if (db.isPostgres) {
+      const result = await db.db.query(query, params);
+      models = result.rows || [];
+    } else {
+      models = db.db.prepare(query).all(...params);
+    }
+
+    res.json({
+      success: true,
+      models: models
+    });
+
+  } catch (error) {
+    console.error('❌ List models error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get model details with statistics
+app.get('/api/digital-infrastructure/models/:modelId', async (req, res) => {
+  try {
+    const { modelId } = req.params;
+
+    // Get model
+    const modelQuery = db.isPostgres
+      ? 'SELECT * FROM ifc_models WHERE id = $1'
+      : 'SELECT * FROM ifc_models WHERE id = ?';
+
+    let model;
+    if (db.isPostgres) {
+      const result = await db.db.query(modelQuery, [modelId]);
+      model = result.rows?.[0];
+    } else {
+      model = db.db.prepare(modelQuery).get(modelId);
+    }
+
+    if (!model) {
+      return res.status(404).json({ success: false, error: 'Model not found' });
+    }
+
+    // Get element statistics
+    const statsQuery = db.isPostgres
+      ? 'SELECT ifc_type, COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 GROUP BY ifc_type'
+      : 'SELECT ifc_type, COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? GROUP BY ifc_type';
+
+    let stats;
+    if (db.isPostgres) {
+      const result = await db.db.query(statsQuery, [modelId]);
+      stats = result.rows || [];
+    } else {
+      stats = db.db.prepare(statsQuery).all(modelId);
+    }
+
+    const by_type = {};
+    stats.forEach(s => {
+      by_type[s.ifc_type] = parseInt(s.count);
+    });
+
+    // Get V2X and AV counts
+    const v2xQuery = db.isPostgres
+      ? 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 AND v2x_applicable = 1'
+      : 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? AND v2x_applicable = 1';
+
+    const avQuery = db.isPostgres
+      ? 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 AND av_critical = 1'
+      : 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? AND av_critical = 1';
+
+    let v2xCount, avCount;
+    if (db.isPostgres) {
+      const v2xResult = await db.db.query(v2xQuery, [modelId]);
+      const avResult = await db.db.query(avQuery, [modelId]);
+      v2xCount = v2xResult.rows?.[0]?.count || 0;
+      avCount = avResult.rows?.[0]?.count || 0;
+    } else {
+      v2xCount = db.db.prepare(v2xQuery).get(modelId)?.count || 0;
+      avCount = db.db.prepare(avQuery).get(modelId)?.count || 0;
+    }
+
+    // Get gap count
+    const gapQuery = db.isPostgres
+      ? 'SELECT COUNT(*) as count FROM infrastructure_gaps WHERE model_id = $1'
+      : 'SELECT COUNT(*) as count FROM infrastructure_gaps WHERE model_id = ?';
+
+    let gapCount;
+    if (db.isPostgres) {
+      const result = await db.db.query(gapQuery, [modelId]);
+      gapCount = result.rows?.[0]?.count || 0;
+    } else {
+      gapCount = db.db.prepare(gapQuery).get(modelId)?.count || 0;
+    }
+
+    res.json({
+      success: true,
+      model: {
+        ...model,
+        by_type,
+        v2x_elements: parseInt(v2xCount),
+        av_critical_elements: parseInt(avCount),
+        gaps: parseInt(gapCount),
+        compliance_score: gapCount > 0 ? 0 : 100
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Get model details error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get infrastructure elements for a model
+app.get('/api/digital-infrastructure/elements/:modelId', async (req, res) => {
+  try {
+    const { modelId } = req.params;
+    const { type } = req.query;
+
+    let query = 'SELECT * FROM infrastructure_elements WHERE model_id = ';
+    const params = [];
+
+    if (db.isPostgres) {
+      query += '$1';
+      params.push(modelId);
+      if (type) {
+        query += ' AND ifc_type = $2';
+        params.push(type);
+      }
+    } else {
+      query += '?';
+      params.push(modelId);
+      if (type) {
+        query += ' AND ifc_type = ?';
+        params.push(type);
+      }
+    }
+
+    let elements;
+    if (db.isPostgres) {
+      const result = await db.db.query(query, params);
+      elements = result.rows || [];
+    } else {
+      elements = db.db.prepare(query).all(...params);
+    }
+
+    res.json({
+      success: true,
+      elements: elements
+    });
+
+  } catch (error) {
+    console.error('❌ Get elements error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get gap analysis for a model
+app.get('/api/digital-infrastructure/gaps/:modelId', async (req, res) => {
+  try {
+    const { modelId } = req.params;
+    const { severity } = req.query;
+
+    let query = 'SELECT * FROM infrastructure_gaps WHERE model_id = ';
+    const params = [];
+
+    if (db.isPostgres) {
+      query += '$1';
+      params.push(modelId);
+      if (severity) {
+        query += ' AND severity = $2';
+        params.push(severity);
+      }
+    } else {
+      query += '?';
+      params.push(modelId);
+      if (severity) {
+        query += ' AND severity = ?';
+        params.push(severity);
+      }
+    }
+
+    let gaps;
+    if (db.isPostgres) {
+      const result = await db.db.query(query, params);
+      gaps = result.rows || [];
+    } else {
+      gaps = db.db.prepare(query).all(...params);
+    }
+
+    // Get severity counts
+    const countQuery = db.isPostgres
+      ? 'SELECT severity, COUNT(*) as count FROM infrastructure_gaps WHERE model_id = $1 GROUP BY severity'
+      : 'SELECT severity, COUNT(*) as count FROM infrastructure_gaps WHERE model_id = ? GROUP BY severity';
+
+    let counts;
+    if (db.isPostgres) {
+      const result = await db.db.query(countQuery, [modelId]);
+      counts = result.rows || [];
+    } else {
+      counts = db.db.prepare(countQuery).all(modelId);
+    }
+
+    const severityCounts = {
+      high: 0,
+      medium: 0,
+      low: 0
+    };
+
+    counts.forEach(c => {
+      severityCounts[c.severity] = parseInt(c.count);
+    });
+
+    res.json({
+      success: true,
+      total_gaps: gaps.length,
+      high_severity: severityCounts.high,
+      medium_severity: severityCounts.medium,
+      low_severity: severityCounts.low,
+      gaps: gaps
+    });
+
+  } catch (error) {
+    console.error('❌ Get gaps error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Export gap report as CSV
+app.get('/api/digital-infrastructure/gap-report/:modelId', async (req, res) => {
+  try {
+    const { modelId } = req.params;
+    const { format = 'csv' } = req.query;
+
+    // Get model info
+    const modelQuery = db.isPostgres
+      ? 'SELECT * FROM ifc_models WHERE id = $1'
+      : 'SELECT * FROM ifc_models WHERE id = ?';
+
+    let model;
+    if (db.isPostgres) {
+      const result = await db.db.query(modelQuery, [modelId]);
+      model = result.rows?.[0];
+    } else {
+      model = db.db.prepare(modelQuery).get(modelId);
+    }
+
+    if (!model) {
+      return res.status(404).json({ success: false, error: 'Model not found' });
+    }
+
+    // Get gaps with element info
+    const gapQuery = db.isPostgres
+      ? `SELECT g.*, e.ifc_type, e.element_name
+         FROM infrastructure_gaps g
+         LEFT JOIN infrastructure_elements e ON g.element_id = e.id
+         WHERE g.model_id = $1
+         ORDER BY g.severity DESC, e.ifc_type`
+      : `SELECT g.*, e.ifc_type, e.element_name
+         FROM infrastructure_gaps g
+         LEFT JOIN infrastructure_elements e ON g.element_id = e.id
+         WHERE g.model_id = ?
+         ORDER BY g.severity DESC, e.ifc_type`;
+
+    let gaps;
+    if (db.isPostgres) {
+      const result = await db.db.query(gapQuery, [modelId]);
+      gaps = result.rows || [];
+    } else {
+      gaps = db.db.prepare(gapQuery).all(modelId);
+    }
+
+    if (format === 'csv') {
+      const csvHeader = 'Severity,Element Type,Element Name,Missing Property,Required For,ITS Use Case,Standards Reference,IDM Recommendation,IDS Requirement\n';
+      const csvRows = gaps.map(gap => {
+        return [
+          gap.severity,
+          gap.ifc_type || 'N/A',
+          gap.element_name || 'N/A',
+          gap.missing_property,
+          gap.required_for,
+          gap.its_use_case,
+          gap.standards_reference,
+          `"${gap.idm_recommendation}"`,
+          `"${gap.ids_requirement}"`
+        ].join(',');
+      });
+
+      const csv = csvHeader + csvRows.join('\n');
+      const filename = `digital-infrastructure-gaps-${model.filename.replace('.ifc', '')}-${Date.now()}.csv`;
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(csv);
+    } else {
+      res.json({
+        success: true,
+        model: model,
+        gaps: gaps
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Gap report error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Export IDS (Information Delivery Specification) file
+app.get('/api/digital-infrastructure/ids-export/:modelId', async (req, res) => {
+  try {
+    const { modelId } = req.params;
+
+    // Get model info
+    const modelQuery = db.isPostgres
+      ? 'SELECT * FROM ifc_models WHERE id = $1'
+      : 'SELECT * FROM ifc_models WHERE id = ?';
+
+    let model;
+    if (db.isPostgres) {
+      const result = await db.db.query(modelQuery, [modelId]);
+      model = result.rows?.[0];
+    } else {
+      model = db.db.prepare(modelQuery).get(modelId);
+    }
+
+    if (!model) {
+      return res.status(404).json({ success: false, error: 'Model not found' });
+    }
+
+    // Get gaps
+    const gapQuery = db.isPostgres
+      ? 'SELECT * FROM infrastructure_gaps WHERE model_id = $1'
+      : 'SELECT * FROM infrastructure_gaps WHERE model_id = ?';
+
+    let gaps;
+    if (db.isPostgres) {
+      const result = await db.db.query(gapQuery, [modelId]);
+      gaps = result.rows || [];
+    } else {
+      gaps = db.db.prepare(gapQuery).all(modelId);
+    }
+
+    // Generate buildingSMART IDS XML
+    const idsXML = `<?xml version="1.0" encoding="UTF-8"?>
+<ids xmlns="http://standards.buildingsmart.org/IDS"
+     xmlns:xs="http://www.w3.org/2001/XMLSchema"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <info>
+    <title>ITS Operations Data Requirements</title>
+    <description>Information Delivery Specification for ITS operational data extracted from BIM models</description>
+    <author>DOT Corridor Communicator - Digital Infrastructure</author>
+    <date>${new Date().toISOString().split('T')[0]}</date>
+    <purpose>Ensure BIM models contain necessary data for ITS operations, V2X deployments, and autonomous vehicle routing</purpose>
+    <milestone>ITS Operations Phase</milestone>
+  </info>
+
+  <specifications>
+${gaps.map((gap, idx) => `    <specification name="ITS_Requirement_${idx + 1}" minOccurs="0">
+      <applicability>
+        <entity>
+          <name>
+            <simpleValue>${gap.missing_property.split('_').map(w => w.toUpperCase()).join('')}</simpleValue>
+          </name>
+        </entity>
+      </applicability>
+      <requirements>
+        <property measure="IfcLabel" minOccurs="1">
+          <propertySet>
+            <simpleValue>ITS_OperationalProperties</simpleValue>
+          </propertySet>
+          <name>
+            <simpleValue>${gap.missing_property}</simpleValue>
+          </name>
+        </property>
+      </requirements>
+    </specification>`).join('\n')}
+  </specifications>
+</ids>`;
+
+    const filename = `its-requirements-${model.filename.replace('.ifc', '')}-${Date.now()}.xml`;
+
+    res.setHeader('Content-Type', 'application/xml');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(idsXML);
+
+  } catch (error) {
+    console.error('❌ IDS export error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ========================================
 // WEB FEATURE SERVICE (WFS) CONNECTIONS
 // ========================================
@@ -14187,6 +14770,175 @@ app.post('/api/admin/migrate-state-osow', async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('❌ State OS/OW migration failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: 'Check server logs for full error details'
+    });
+  }
+});
+
+/**
+ * One-time migration endpoint to create Digital Infrastructure tables in production
+ */
+app.post('/api/admin/migrate-digital-infrastructure', async (req, res) => {
+  try {
+    const { Client } = require('pg');
+
+    console.log('🏗️  Starting Digital Infrastructure tables migration...');
+
+    // Use PostgreSQL client for production
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+    console.log('✅ Connected to PostgreSQL database');
+
+    // Create ifc_models table
+    console.log('📦 Creating ifc_models table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ifc_models (
+        id SERIAL PRIMARY KEY,
+        filename TEXT NOT NULL,
+        file_size INTEGER,
+        ifc_schema TEXT,
+        project_name TEXT,
+        uploaded_by TEXT,
+        upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        state_key TEXT,
+        latitude REAL,
+        longitude REAL,
+        route TEXT,
+        milepost REAL,
+        extraction_status TEXT DEFAULT 'pending',
+        extraction_log TEXT,
+        total_elements INTEGER DEFAULT 0,
+        metadata TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ ifc_models table created');
+
+    // Create infrastructure_elements table
+    console.log('📦 Creating infrastructure_elements table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS infrastructure_elements (
+        id SERIAL PRIMARY KEY,
+        model_id INTEGER REFERENCES ifc_models(id) ON DELETE CASCADE,
+        ifc_guid TEXT,
+        ifc_type TEXT NOT NULL,
+        element_name TEXT,
+        element_description TEXT,
+        category TEXT,
+
+        latitude REAL,
+        longitude REAL,
+        elevation REAL,
+        length REAL,
+        width REAL,
+        height REAL,
+        clearance REAL,
+
+        operational_purpose TEXT,
+        its_relevance TEXT,
+        v2x_applicable INTEGER DEFAULT 0,
+        av_critical INTEGER DEFAULT 0,
+
+        has_manufacturer INTEGER DEFAULT 0,
+        has_model INTEGER DEFAULT 0,
+        has_install_date INTEGER DEFAULT 0,
+        has_clearance INTEGER DEFAULT 0,
+        has_coordinates INTEGER DEFAULT 0,
+        compliance_score INTEGER DEFAULT 0,
+
+        properties TEXT,
+        geometry_data TEXT,
+
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ infrastructure_elements table created');
+
+    // Create infrastructure_gaps table
+    console.log('📦 Creating infrastructure_gaps table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS infrastructure_gaps (
+        id SERIAL PRIMARY KEY,
+        element_id INTEGER REFERENCES infrastructure_elements(id) ON DELETE CASCADE,
+        model_id INTEGER REFERENCES ifc_models(id) ON DELETE CASCADE,
+        gap_type TEXT NOT NULL,
+        gap_category TEXT,
+        severity TEXT,
+
+        missing_property TEXT,
+        required_for TEXT,
+        its_use_case TEXT,
+        standards_reference TEXT,
+        idm_recommendation TEXT,
+        ids_requirement TEXT,
+
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ infrastructure_gaps table created');
+
+    // Create infrastructure_standards table
+    console.log('📦 Creating infrastructure_standards table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS infrastructure_standards (
+        id SERIAL PRIMARY KEY,
+        ifc_type TEXT NOT NULL,
+        ifc_property TEXT,
+        its_application TEXT,
+        operational_need TEXT,
+        v2x_use_case TEXT,
+        av_requirement TEXT,
+        standard_reference TEXT,
+        idm_section TEXT,
+        ids_requirement TEXT,
+        priority TEXT,
+
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    console.log('✅ infrastructure_standards table created');
+
+    // Create indexes
+    console.log('📑 Creating indexes...');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_infra_elements_model ON infrastructure_elements(model_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_infra_elements_type ON infrastructure_elements(ifc_type)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_infra_gaps_element ON infrastructure_gaps(element_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_infra_gaps_model ON infrastructure_gaps(model_id)');
+    console.log('✅ Indexes created');
+
+    // Verify tables
+    console.log('🔍 Verifying tables...');
+    const modelsCount = await client.query('SELECT COUNT(*) as count FROM ifc_models');
+    const elementsCount = await client.query('SELECT COUNT(*) as count FROM infrastructure_elements');
+    const gapsCount = await client.query('SELECT COUNT(*) as count FROM infrastructure_gaps');
+    const standardsCount = await client.query('SELECT COUNT(*) as count FROM infrastructure_standards');
+
+    const result = {
+      success: true,
+      message: 'Digital Infrastructure tables migration completed successfully!',
+      summary: {
+        ifc_models: parseInt(modelsCount.rows[0].count),
+        infrastructure_elements: parseInt(elementsCount.rows[0].count),
+        infrastructure_gaps: parseInt(gapsCount.rows[0].count),
+        infrastructure_standards: parseInt(standardsCount.rows[0].count)
+      }
+    };
+
+    await client.end();
+    console.log('✅ Migration complete:', result.summary);
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Digital Infrastructure migration failed:', error);
     res.status(500).json({
       success: false,
       error: error.message,
