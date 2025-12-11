@@ -33,8 +33,8 @@ export default function NASCOCorridorRegulationsView({ darkMode = false }) {
   const fetchRegulations = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/state-osow-regulations', {
-        params: showNascoOnly ? { nascoOnly: 'true' } : {}
+      const response = await api.get('/api/corridor-regulations', {
+        params: showNascoOnly ? { corridor: 'I-35' } : {}
       });
 
       if (response.data.success) {

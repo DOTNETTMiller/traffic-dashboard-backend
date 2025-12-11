@@ -19,7 +19,8 @@
     "permitted_limits": {
       "single_axle": 25000,
       "tandem_axle": 46000,
-      "tridem_axle": 60000
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 200000
     },
     "max_dimensions": {
       "length_ft": 125,
@@ -27,16 +28,27 @@
       "height_ft": 18
     },
     "permit_costs": {
-      "annual_permit": 4000,
-      "county_fees": "Additional fees apply",
-      "notes": "Plus county fees"
+      "annual_permit": "$4,000",
+      "single_trip": "Varies",
+      "notes": "Plus county fees; additional fees apply"
     },
     "color": "#dc2626",
-    "requirements": [
-      "Pilot/escort certifications required at size thresholds",
-      "Operating hours tied to daylight",
-      "Signage requirements: flags, banners, warning lights"
-    ]
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width + 2 ft clearance on each side",
+      "height_pole": "Required for loads over 15' 6\" height",
+      "pilot_car_escort": "1 escort required for loads >12' wide OR >100' long; 2 escorts for >16' wide; certified escort required for superloads",
+      "trip_permits": "Required for all OS/OW movements; available online through TxDMV system",
+      "fuel_permits": "Not required - fuel tax already collected",
+      "running_hours": "30 minutes before sunrise to 30 minutes after sunset; no weekend/holiday travel for superloads",
+      "holiday_restrictions": "No travel on major holidays for superloads; regular permits may travel",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required front and/or rear; 18\" letters, black on yellow, fluorescent material",
+      "flag_regulations": "18\" square red or orange flags required at each corner for loads >4' wider than vehicle",
+      "warning_light_regulations": "Amber rotating/flashing lights required on escort vehicles and load when >12' wide",
+      "permit_dimensions": "Max without superload: 125'L x 20'W x 18'H; Superload: case-by-case",
+      "annual_permit_cost": "$4,000 base + county fees",
+      "commodity_specific": "Agricultural equipment exempt from certain restrictions; wind energy components require special routing",
+      "route_requirements": "Pre-approved routes for superloads; bridge analysis required; utility notification for high loads"
+    }
   },
   {
     "corridor": "I-35",
@@ -58,7 +70,8 @@
     "permitted_limits": {
       "single_axle": 25000,
       "tandem_axle": 46000,
-      "tridem_axle": 60000
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 120000
     },
     "max_dimensions": {
       "length_ft": 110,
@@ -66,16 +79,28 @@
       "height_ft": 15
     },
     "permit_costs": {
-      "oversize_annual": 10,
-      "overweight_annual": 60,
-      "notes": "Lowest in corridor"
+      "annual_permit": "$60",
+      "oversize_annual": "$10",
+      "single_trip": "$30",
+      "notes": "Lowest cost in corridor"
     },
     "color": "#f97316",
-    "requirements": [
-      "Holiday restrictions apply",
-      "Pilot/escort certifications required",
-      "Signage requirements vary by size"
-    ]
+    "requirements": {
+      "minimum_road_width": "Road width must be at least 2 ft wider than load on each side",
+      "height_pole": "Required for loads over 14'",
+      "pilot_car_escort": "1 escort for >12' wide; 2 escorts for >14' wide OR >120' long; OK certified escort drivers required",
+      "trip_permits": "Available online or by phone; 24-hour processing",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Daylight hours only for loads >12' wide; 1/2 hour before sunrise to 1/2 hour after sunset",
+      "holiday_restrictions": "No travel on New Year's Day, Memorial Day, Independence Day, Labor Day, Thanksgiving, Christmas",
+      "banner_regulations": "\"OVERSIZE LOAD\" sign required; 12\" letters minimum, black on yellow",
+      "flag_regulations": "Red or orange flags 12\" minimum at extremities for loads extending >4' from vehicle",
+      "warning_light_regulations": "Amber flashing lights required on escort vehicles; load must have clearance lights",
+      "permit_dimensions": "Standard max: 110'L x 16'W x 15'H; Superload permits available for larger",
+      "annual_permit_cost": "$60 overweight, $10 oversize - lowest in corridor",
+      "commodity_specific": "Farm equipment exempt from width restrictions on state highways during planting/harvest",
+      "route_requirements": "Designated truck routes in metro areas; some roads restricted to certain times"
+    }
   },
   {
     "corridor": "I-35",
@@ -97,7 +122,8 @@
     "permitted_limits": {
       "single_axle": 25000,
       "tandem_axle": 46000,
-      "tridem_axle": 54000
+      "tridem_axle": 54000,
+      "gross_vehicle_weight": 160000
     },
     "max_dimensions": {
       "length_ft": 110,
@@ -105,16 +131,27 @@
       "height_ft": 14.5
     },
     "permit_costs": {
-      "single_trip": 30,
-      "annual_permit": 300,
-      "notes": "Varies by size and route"
+      "annual_permit": "$300",
+      "single_trip": "$30",
+      "notes": "Varies by size, weight, and route"
     },
     "color": "#fbbf24",
-    "requirements": [
-      "Pilot/escort required for wide loads",
-      "Weekend/holiday restrictions on some routes",
-      "Special provisions for agricultural equipment"
-    ]
+    "requirements": {
+      "minimum_road_width": "Minimum 24 ft roadway for loads up to 14' wide",
+      "height_pole": "Required for all loads over 14' high",
+      "pilot_car_escort": "1 front escort for >14' wide; 2 escorts for >16' wide; rear escort required for loads >150' long",
+      "trip_permits": "Online system available; permits issued same day if applied before noon",
+      "fuel_permits": "IFTA or KS fuel permit required",
+      "running_hours": "1/2 hour before sunrise to 1/2 hour after sunset for >12' wide",
+      "holiday_restrictions": "No travel on 6 major holidays; weekend restrictions for >16' wide in certain areas",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required on front and rear for loads >12' wide; 18\" letters",
+      "flag_regulations": "18\" square red or orange flags at corners for projecting loads",
+      "warning_light_regulations": "Amber rotating lights on escorts; load must have amber flashing lights when >14' wide",
+      "permit_dimensions": "Standard: 110'L x 16'W x 14.5'H; Superload permits available",
+      "annual_permit_cost": "$300 for annual oversize/overweight permit",
+      "commodity_specific": "Special provisions for agricultural equipment up to 18' wide on non-interstate roads",
+      "route_requirements": "Must use designated truck routes in cities; bridge restrictions on some county roads"
+    }
   },
   {
     "corridor": "I-35",
@@ -136,7 +173,8 @@
     "permitted_limits": {
       "single_axle": 24000,
       "tandem_axle": 44000,
-      "tridem_axle": 54000
+      "tridem_axle": 54000,
+      "gross_vehicle_weight": 160000
     },
     "max_dimensions": {
       "length_ft": 110,
@@ -144,16 +182,28 @@
       "height_ft": 14
     },
     "permit_costs": {
-      "single_trip": 25,
-      "annual_permit": 400,
-      "notes": "Additional fees for heavy loads"
+      "annual_permit": "$400",
+      "single_trip": "$25",
+      "superload": "$150+",
+      "notes": "Additional fees for heavy loads and bridge crossings"
     },
     "color": "#10b981",
-    "requirements": [
-      "Travel restricted during peak hours in metro areas",
-      "Escort required over 12' wide",
-      "Notice required for superloads"
-    ]
+    "requirements": {
+      "minimum_road_width": "Road width must be adequate for safe passage with 1 ft clearance each side",
+      "height_pole": "Required for loads over 13'6\"",
+      "pilot_car_escort": "1 escort for >12' wide; 2 escorts for >14' wide or >120' long; MO certified escorts",
+      "trip_permits": "Available online through MoDOT system; 24-hour approval for standard permits",
+      "fuel_permits": "IFTA or Missouri fuel tax permit required",
+      "running_hours": "Daylight only for loads >12' wide; no travel during peak hours (7-9 AM, 4-6 PM) in metro areas",
+      "holiday_restrictions": "No travel on 7 major holidays; restricted hours on holiday weekends",
+      "banner_regulations": "\"OVERSIZE LOAD\" sign required front and rear; minimum 12\" letters, black on yellow reflective",
+      "flag_regulations": "Red or orange flags 16\" square at extremities when load extends >4' beyond vehicle",
+      "warning_light_regulations": "Amber flashing lights on escorts and load when >12' wide; must be visible 500 ft",
+      "permit_dimensions": "Standard: 110'L x 16'W x 14'H; Superloads require special engineering review",
+      "annual_permit_cost": "$400 for combined oversize/overweight annual permit",
+      "commodity_specific": "Agricultural implements up to 20' wide allowed on state highways with restrictions",
+      "route_requirements": "Advance notice required for superloads; bridge analysis for loads >150,000 lbs; metro area restrictions"
+    }
   },
   {
     "corridor": "I-35",
@@ -175,7 +225,8 @@
     "permitted_limits": {
       "single_axle": 22400,
       "tandem_axle": 40000,
-      "tridem_axle": 52000
+      "tridem_axle": 52000,
+      "gross_vehicle_weight": 145000
     },
     "max_dimensions": {
       "length_ft": 100,
@@ -183,16 +234,27 @@
       "height_ft": 13.5
     },
     "permit_costs": {
-      "single_trip": 15,
-      "annual_permit": 300,
-      "notes": "Seasonal weight restrictions apply"
+      "annual_permit": "$300",
+      "single_trip": "$15",
+      "notes": "Seasonal weight restrictions apply; reduced fees during non-frost period"
     },
     "color": "#3b82f6",
-    "requirements": [
-      "Seasonal weight restrictions (spring thaw)",
-      "Escort requirements vary by size",
-      "Holiday/weekend travel restrictions"
-    ]
+    "requirements": {
+      "minimum_road_width": "Minimum 20 ft traveled way for 12' wide loads",
+      "height_pole": "Required for loads over 13'",
+      "pilot_car_escort": "1 escort for >12' wide or >100' long; 2 escorts for >16' wide; Iowa DOT certified",
+      "trip_permits": "Online permit system available; instant approval for standard dimensions",
+      "fuel_permits": "IFTA required for interstate operations",
+      "running_hours": "Sunrise to sunset for >12' wide; no travel 1/2 hour before sunset to 1/2 hour after sunrise",
+      "holiday_restrictions": "No travel on 8 major holidays; no weekend travel for superloads",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner front and rear; 18\" letters minimum, black on yellow fluorescent",
+      "flag_regulations": "18\" square red or orange fluorescent flags at extremities",
+      "warning_light_regulations": "Amber rotating beacons on escorts; flashing amber lights on load when >14' wide",
+      "permit_dimensions": "Standard: 100'L x 16'W x 13.5'H; Reduced during seasonal restrictions",
+      "annual_permit_cost": "$300 annual permit; additional fees for seasonal periods",
+      "commodity_specific": "Farm equipment permitted up to 18' wide on primary roads during planting/harvest seasons",
+      "route_requirements": "Seasonal weight restrictions (spring thaw March-May); load posting maps available online"
+    }
   },
   {
     "corridor": "I-35",
@@ -214,7 +276,8 @@
     "permitted_limits": {
       "single_axle": 22000,
       "tandem_axle": 40000,
-      "tridem_axle": 54000
+      "tridem_axle": 54000,
+      "gross_vehicle_weight": 145600
     },
     "max_dimensions": {
       "length_ft": 100,
@@ -222,16 +285,27 @@
       "height_ft": 13.5
     },
     "permit_costs": {
-      "single_trip": 50,
-      "annual_permit": 500,
-      "notes": "Super-load corridor designation"
+      "annual_permit": "$500",
+      "single_trip": "$50",
+      "superload_corridor": "$1,000+",
+      "notes": "I-35 designated as super-load corridor with premium permits"
     },
     "color": "#8b5cf6",
-    "requirements": [
-      "I-35 listed as super-load corridor",
-      "Twin Trailer network designation",
-      "Severe winter weight restrictions",
-      "Special permits for metro area travel"
-    ]
+    "requirements": {
+      "minimum_road_width": "Minimum roadway width must be load width plus 3 ft on each side",
+      "height_pole": "Required for all loads exceeding 13'6\" height",
+      "pilot_car_escort": "1 certified escort for >12' wide; 2 escorts for >15' wide or >110' long; MN DOT certification required",
+      "trip_permits": "Online permitting available; expedited processing for I-35 corridor; 48-hour advance notice for superloads",
+      "fuel_permits": "IFTA credentials required; Minnesota fuel tax permit for intrastate",
+      "running_hours": "Daylight hours only for >12' wide; 1 hour after sunrise to 1 hour before sunset; severe weather restrictions",
+      "holiday_restrictions": "No travel on 10 major holidays; no Friday travel for superloads; weekend restrictions November-March",
+      "banner_regulations": "\"OVERSIZE LOAD\" signs required front and rear; 18\" letters minimum, black on fluorescent yellow-green",
+      "flag_regulations": "18\" square red or orange fluorescent flags at all extremities exceeding vehicle body",
+      "warning_light_regulations": "Amber rotating or flashing lights on escorts and load; must be visible 500 ft; additional lights required for >16' wide",
+      "permit_dimensions": "Standard: 100'L x 18'W x 13.5'H; I-35 Super-load corridor allows larger with special permit",
+      "annual_permit_cost": "$500 standard annual; $1,000+ for super-load corridor designation",
+      "commodity_specific": "Special permits for wind energy components; agricultural equipment allowed up to 20' wide on non-interstate roads during growing season",
+      "route_requirements": "I-35 designated as Twin Trailer network and super-load corridor; advance routing required; bridge analysis mandatory for >200,000 lbs; severe winter weight restrictions (9-ton axle limit during spring thaw)"
+    }
   }
 ]
