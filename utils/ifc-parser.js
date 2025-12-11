@@ -7,6 +7,8 @@ class IFCParser {
     this.schema = null;
     this.project = null;
     this.extractionLog = [];
+    this.alignments = [];
+    this.hasAlignments = false;
   }
 
   /**
@@ -131,6 +133,26 @@ class IFCParser {
       'IFCROADPART', 'IFCPAVEMENT', 'IFCKERB', 'IFCBUILDINGELEMENTPROXY'
     ];
 
+    const alignmentTypes = [
+      'IFCALIGNMENT', 'IFCALIGNMENTHORIZONTAL', 'IFCALIGNMENTVERTICAL',
+      'IFCALIGNMENTSEGMENT', 'IFCALIGNMENTCANT'
+    ];
+
+    // First pass: detect alignments
+    for (const [id, entity] of this.entities) {
+      if (alignmentTypes.includes(entity.type)) {
+        this.alignments.push({ id, type: entity.type });
+        this.hasAlignments = true;
+      }
+    }
+
+    if (this.hasAlignments) {
+      this.log(`Found ${this.alignments.length} alignment entities in model`);
+    } else {
+      this.log('No alignment entities found - model uses absolute coordinates');
+    }
+
+    // Second pass: extract infrastructure elements
     for (const [id, entity] of this.entities) {
       if (relevantTypes.includes(entity.type)) {
         const element = this.extractElementProperties(id, entity);
@@ -236,6 +258,9 @@ class IFCParser {
   identifyGaps(elements) {
     const gaps = [];
 
+    // Linear infrastructure types that should use alignment-based placement
+    const linearInfraTypes = ['IFCROAD', 'IFCROADPART', 'IFCBRIDGE', 'IFCPAVEMENT', 'IFCKERB', 'IFCSIGN'];
+
     for (const element of elements) {
       const itsRequirements = this.assessITSRelevance(element.ifc_type);
 
@@ -257,6 +282,39 @@ class IFCParser {
         };
 
         gaps.push(gap);
+      }
+
+      // Check for alignment-based placement gaps
+      if (linearInfraTypes.includes(element.ifc_type)) {
+        if (!this.hasAlignments) {
+          // No alignments in model at all
+          gaps.push({
+            element_ifc_guid: element.ifc_guid,
+            gap_type: 'missing_alignment',
+            gap_category: 'Alignment-Based Positioning',
+            severity: 'high',
+            missing_property: 'IfcAlignment',
+            required_for: 'Alignment-based positioning for linear infrastructure',
+            its_use_case: 'Linear referencing (station/offset), asset management, maintenance planning, route-based queries',
+            standards_reference: 'IFC4x3 Road and Railway, buildingSMART Alignment standards',
+            idm_recommendation: this.getAlignmentIDMRecommendation(element.ifc_type),
+            ids_requirement: this.getAlignmentIDSRequirement(element.ifc_type)
+          });
+        } else {
+          // Alignments exist but element may not use them (would need to check ObjectPlacement)
+          gaps.push({
+            element_ifc_guid: element.ifc_guid,
+            gap_type: 'absolute_placement',
+            gap_category: 'Alignment-Based Positioning',
+            severity: 'medium',
+            missing_property: 'IfcLinearPlacement',
+            required_for: 'Alignment-based positioning using station/offset coordinates',
+            its_use_case: 'Linear referencing system for maintenance, asset management, ITS integration',
+            standards_reference: 'IFC4x3 IfcLinearPlacement, buildingSMART IDM for Roads',
+            idm_recommendation: `${element.ifc_type} should use IfcLinearPlacement referencing the project alignment instead of absolute IfcLocalPlacement. This enables station/offset coordinates for better integration with linear referencing systems, CAD/GIS workflows, and asset management.`,
+            ids_requirement: `<placement type="IfcLinearPlacement" required="true" applicableEntity="${element.ifc_type}" purpose="Alignment_Based_Positioning" />`
+          });
+        }
       }
     }
 
@@ -292,6 +350,19 @@ class IFCParser {
 
   getIDSRequirement(ifcType, property) {
     return `<property name="${property}" required="true" applicableEntity="${ifcType}" purpose="ITS_Operations" />`;
+  }
+
+  getAlignmentIDMRecommendation(ifcType) {
+    return `Linear infrastructure models containing ${ifcType} should include IfcAlignment entities with horizontal and vertical geometry. All ${ifcType} elements should use IfcLinearPlacement to position relative to the alignment using station/offset coordinates. This enables integration with linear referencing systems (LRS), CAD/GIS workflows, maintenance management systems, and ITS applications that require station-based queries.`;
+  }
+
+  getAlignmentIDSRequirement(ifcType) {
+    return `<alignment required="true" purpose="Linear_Referencing">
+  <entity type="IfcAlignment" minOccurs="1" />
+  <entity type="${ifcType}">
+    <placement type="IfcLinearPlacement" required="true" referencingAlignment="true" />
+  </entity>
+</alignment>`;
   }
 
   splitParams(paramString) {
