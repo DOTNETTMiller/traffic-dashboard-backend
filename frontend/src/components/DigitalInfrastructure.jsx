@@ -236,16 +236,21 @@ function DigitalInfrastructure() {
         { responseType: 'blob' }
       );
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      // Create blob with explicit markdown MIME type
+      const blob = new Blob([response.data], { type: 'text/markdown' });
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', `bim-standardization-requirements-${filename}-${Date.now()}.md`);
       document.body.appendChild(link);
       link.click();
       link.remove();
+      window.URL.revokeObjectURL(url);
+
+      console.log('✅ Standards report downloaded successfully');
     } catch (error) {
       console.error('Error downloading standards report:', error);
-      alert('Failed to download standards report');
+      alert(`Failed to download standards report: ${error.response?.data?.error || error.message}`);
     }
   };
 
