@@ -131,9 +131,32 @@ class IFCParser {
   extractInfrastructureElements() {
     const elements = [];
     const relevantTypes = [
+      // Bridge Infrastructure
       'IFCBRIDGE', 'IFCBEAM', 'IFCCOLUMN', 'IFCPLATE', 'IFCPILE',
-      'IFCTENDON', 'IFCSIGN', 'IFCFACILITYPART', 'IFCROAD',
-      'IFCROADPART', 'IFCPAVEMENT', 'IFCKERB', 'IFCBUILDINGELEMENTPROXY'
+      'IFCTENDON', 'IFCFACILITYPART',
+
+      // Roadway Infrastructure
+      'IFCROAD', 'IFCROADPART', 'IFCPAVEMENT', 'IFCKERB',
+
+      // ITS Equipment & Traffic Control
+      'IFCSIGN',                    // Traffic signs (regulatory, warning, guide)
+      'IFCSIGNAL',                  // Traffic signals
+      'IFCTRAFFICSIGNAL',           // Traffic signal heads
+
+      // Safety Infrastructure
+      'IFCRAILING',                 // Guardrail, barriers
+      'IFCVEHICLEBARRIER',          // Crash barriers
+
+      // Pavement & Lane Infrastructure
+      'IFCPAVEMENTMARKING',         // Lane lines, arrows, crosswalks
+      'IFCMARKING',                 // General markings
+
+      // Sensors & Monitoring
+      'IFCSENSOR',                  // Structural health sensors, traffic sensors
+      'IFCACTUATOR',                // Variable message signs, ramp meters
+
+      // Catch-all for custom types
+      'IFCBUILDINGELEMENTPROXY'
     ];
 
     const alignmentTypes = [
@@ -215,18 +238,37 @@ class IFCParser {
 
   categorizeElement(ifcType) {
     const categories = {
+      // Bridge Infrastructure
       'IFCBRIDGE': 'Bridge Structure',
       'IFCBEAM': 'Structural Element',
       'IFCCOLUMN': 'Structural Element',
       'IFCPLATE': 'Structural Element',
       'IFCPILE': 'Foundation',
       'IFCTENDON': 'Post-Tensioning',
-      'IFCSIGN': 'Traffic Control',
       'IFCFACILITYPART': 'Bridge Component',
+
+      // Roadway Infrastructure
       'IFCROAD': 'Roadway',
       'IFCROADPART': 'Roadway Component',
       'IFCPAVEMENT': 'Pavement',
-      'IFCKERB': 'Roadway Edge'
+      'IFCKERB': 'Lane Edge',
+
+      // ITS Equipment & Traffic Control
+      'IFCSIGN': 'Traffic Sign',
+      'IFCSIGNAL': 'Traffic Signal',
+      'IFCTRAFFICSIGNAL': 'Traffic Signal',
+
+      // Safety Infrastructure
+      'IFCRAILING': 'Guardrail/Barrier',
+      'IFCVEHICLEBARRIER': 'Safety Barrier',
+
+      // Pavement & Lane Infrastructure
+      'IFCPAVEMENTMARKING': 'Pavement Marking',
+      'IFCMARKING': 'Pavement Marking',
+
+      // Sensors & Monitoring
+      'IFCSENSOR': 'Sensor/Monitoring',
+      'IFCACTUATOR': 'ITS Actuator'
     };
 
     return categories[ifcType] || 'Other Infrastructure';
@@ -234,36 +276,168 @@ class IFCParser {
 
   assessITSRelevance(ifcType) {
     // Map IFC types to ITS operational needs
+    // This assessment informs buildingSMART IDM/IDS development for transportation infrastructure
     const relevance = {
+      // ===== BRIDGE INFRASTRUCTURE =====
       'IFCBRIDGE': {
-        purpose: 'Vertical clearance for routing',
+        purpose: 'Vertical clearance for routing and structural health monitoring',
         v2x: true,
         av: true,
-        properties_needed: ['clearance_height', 'load_limit', 'width']
+        properties_needed: [
+          'clearance_height',        // For oversize load routing
+          'clearance_width',         // Lateral clearance
+          'load_limit',              // Weight restrictions
+          'bridge_condition_rating', // Structural health (NBI rating)
+          'last_inspection_date',    // Maintenance tracking
+          'functional_class'         // Route classification
+        ]
       },
       'IFCBEAM': {
-        purpose: 'Clearance verification',
+        purpose: 'Clearance verification and structural health',
         v2x: true,
         av: true,
-        properties_needed: ['bottom_elevation', 'span_length']
+        properties_needed: [
+          'bottom_elevation',        // Lowest point for clearance
+          'span_length',             // Structural span
+          'material_condition',      // Health monitoring
+          'load_capacity'            // Structural capacity
+        ]
       },
+
+      // ===== ITS EQUIPMENT & TRAFFIC CONTROL =====
       'IFCSIGN': {
-        purpose: 'Traffic sign inventory and content',
+        purpose: 'Traffic sign inventory and V2X message broadcasting',
         v2x: true,
         av: true,
-        properties_needed: ['sign_type', 'sign_text', 'location', 'orientation']
+        properties_needed: [
+          'sign_type',               // Regulatory, warning, guide (MUTCD)
+          'sign_text',               // Message content for V2X
+          'mutcd_code',              // MUTCD sign designation
+          'retroreflectivity',       // Visibility/condition
+          'installation_date',       // Maintenance tracking
+          'facing_direction',        // Sign orientation
+          'height_above_road',       // Mounting height
+          'support_type'             // Post, overhead, etc.
+        ]
+      },
+      'IFCSIGNAL': {
+        purpose: 'Traffic signal inventory and SPaT message broadcasting',
+        v2x: true,
+        av: true,
+        properties_needed: [
+          'signal_type',             // Vehicle, pedestrian, bicycle
+          'phase_timing',            // Signal timing plan
+          'spat_enabled',            // V2X SPaT capability
+          'signal_controller_id',    // Controller identification
+          'interconnect_type',       // Coordination method
+          'preemption_enabled'       // Emergency vehicle preemption
+        ]
+      },
+
+      // ===== SAFETY INFRASTRUCTURE =====
+      'IFCRAILING': {
+        purpose: 'Guardrail inventory and barrier performance',
+        v2x: false,
+        av: true,
+        properties_needed: [
+          'barrier_type',            // W-beam, cable, concrete
+          'test_level',              // MASH/NCHRP 350 rating
+          'length',                  // Barrier extent
+          'condition',               // Maintenance status
+          'offset_from_travel_lane', // Lateral offset
+          'end_treatment_type'       // Terminal type
+        ]
+      },
+      'IFCVEHICLEBARRIER': {
+        purpose: 'Crash barrier and TMA inventory',
+        v2x: false,
+        av: true,
+        properties_needed: [
+          'barrier_type',            // Concrete, cable, TMA
+          'test_level',              // Crash test rating
+          'condition'                // Maintenance status
+        ]
+      },
+
+      // ===== PAVEMENT & LANE INFRASTRUCTURE =====
+      'IFCPAVEMENTMARKING': {
+        purpose: 'Lane detection for AV systems and lane-level routing',
+        v2x: false,
+        av: true,
+        properties_needed: [
+          'marking_type',            // Solid, dashed, arrow, crosswalk
+          'color',                   // White, yellow
+          'width',                   // Marking width
+          'retroreflectivity',       // Visibility/condition
+          'material',                // Paint, thermoplastic, tape
+          'lane_use',                // Through, turn, HOV, bike
+          'last_application_date'    // Maintenance tracking
+        ]
       },
       'IFCPAVEMENT': {
-        purpose: 'Surface condition and type',
+        purpose: 'Surface condition and friction for vehicle dynamics',
         v2x: false,
         av: true,
-        properties_needed: ['material', 'roughness', 'condition']
+        properties_needed: [
+          'pavement_type',           // Asphalt, concrete, gravel
+          'surface_condition',       // IRI/roughness
+          'friction_coefficient',    // Skid resistance
+          'last_treatment_date',     // Maintenance history
+          'distress_type',           // Cracking, rutting, etc.
+          'structural_capacity'      // Pavement strength
+        ]
       },
       'IFCKERB': {
-        purpose: 'Lane boundaries',
+        purpose: 'Lane boundaries and edge detection',
         v2x: false,
         av: true,
-        properties_needed: ['height', 'geometry']
+        properties_needed: [
+          'kerb_height',             // Curb height
+          'kerb_type',               // Barrier, mountable
+          'edge_line_offset',        // Distance to edge line
+          'geometry'                 // 3D path
+        ]
+      },
+      'IFCROAD': {
+        purpose: 'Roadway geometry and lane configuration',
+        v2x: true,
+        av: true,
+        properties_needed: [
+          'functional_class',        // Interstate, arterial, etc.
+          'number_of_lanes',         // Lane count
+          'lane_width',              // Width per lane
+          'design_speed',            // Posted/design speed
+          'surface_type',            // Pavement type
+          'shoulder_width',          // Shoulder dimensions
+          'median_type'              // Divided, undivided
+        ]
+      },
+
+      // ===== SENSORS & MONITORING =====
+      'IFCSENSOR': {
+        purpose: 'Structural health monitoring and traffic detection',
+        v2x: true,
+        av: false,
+        properties_needed: [
+          'sensor_type',             // Strain, vibration, traffic, weather
+          'measurement_type',        // What it measures
+          'data_feed_url',           // Real-time data API
+          'calibration_date',        // Maintenance tracking
+          'alert_threshold',         // Alarm conditions
+          'sampling_rate'            // Data frequency
+        ]
+      },
+      'IFCACTUATOR': {
+        purpose: 'Variable message signs and ramp metering',
+        v2x: true,
+        av: true,
+        properties_needed: [
+          'device_type',             // VMS, ramp meter, gate
+          'control_protocol',        // NTCIP, etc.
+          'message_capability',      // Character matrix, graphics
+          'remote_control_enabled',  // TMC connectivity
+          'current_status'           // Operational state
+        ]
       }
     };
 
