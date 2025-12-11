@@ -10271,7 +10271,7 @@ const multer = require('multer');
 const GISParser = require('./utils/gis-parser');
 const ARCITSConverter = require('./utils/arc-its-converter');
 
-// Configure multer for file uploads
+// Configure multer for GIS file uploads
 const upload = multer({
   dest: path.join(__dirname, 'uploads/gis'),
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
@@ -10282,6 +10282,21 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error(`Unsupported file type: ${ext}. Supported: ${allowedExtensions.join(', ')}`));
+    }
+  }
+});
+
+// Configure multer for IFC file uploads (BIM models)
+const uploadIFC = multer({
+  dest: path.join(__dirname, 'uploads/ifc'),
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit for BIM models
+  fileFilter: (req, file, cb) => {
+    const allowedExtensions = ['.ifc'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedExtensions.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Unsupported file type: ${ext}. IFC files only (.ifc extension required)`));
     }
   }
 });
@@ -11846,7 +11861,7 @@ app.get('/api/its-equipment/states', async (req, res) => {
 // ==========================================
 
 // Upload IFC model and extract infrastructure elements
-app.post('/api/digital-infrastructure/upload', upload.single('ifcFile'), async (req, res) => {
+app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), async (req, res) => {
   try {
     const { stateKey, uploadedBy, latitude, longitude, route, milepost } = req.body;
 
