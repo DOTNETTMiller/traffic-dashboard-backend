@@ -52,14 +52,14 @@ function DigitalInfrastructure() {
       console.error('Error loading states:', error);
       // Fallback to hardcoded list if API fails
       setAvailableStates([
-        { key: 'IA', name: 'Iowa' },
-        { key: 'IL', name: 'Illinois' },
-        { key: 'IN', name: 'Indiana' },
-        { key: 'MI', name: 'Michigan' },
-        { key: 'MN', name: 'Minnesota' },
-        { key: 'OH', name: 'Ohio' },
-        { key: 'PA', name: 'Pennsylvania' },
-        { key: 'WI', name: 'Wisconsin' }
+        { stateKey: 'ia', stateName: 'Iowa' },
+        { stateKey: 'il', stateName: 'Illinois' },
+        { stateKey: 'in', stateName: 'Indiana' },
+        { stateKey: 'mi', stateName: 'Michigan' },
+        { stateKey: 'mn', stateName: 'Minnesota' },
+        { stateKey: 'oh', stateName: 'Ohio' },
+        { stateKey: 'pa', stateName: 'Pennsylvania' },
+        { stateKey: 'wi', stateName: 'Wisconsin' }
       ]);
     }
   };
@@ -349,8 +349,8 @@ function DigitalInfrastructure() {
                 >
                   <option value="">Select State...</option>
                   {availableStates.map(state => (
-                    <option key={state.key} value={state.key}>
-                      {state.name} ({state.key})
+                    <option key={state.stateKey} value={state.stateKey}>
+                      {state.stateName} ({state.stateKey.toUpperCase()})
                     </option>
                   ))}
                 </select>
