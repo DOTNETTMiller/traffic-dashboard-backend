@@ -229,6 +229,26 @@ function DigitalInfrastructure() {
     }
   };
 
+  const downloadStandardsReport = async (modelId, filename) => {
+    try {
+      const response = await axios.get(
+        `${API_BASE}/api/digital-infrastructure/standards-report/${modelId}`,
+        { responseType: 'blob' }
+      );
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `bim-standardization-requirements-${filename}-${Date.now()}.md`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error('Error downloading standards report:', error);
+      alert('Failed to download standards report');
+    }
+  };
+
   return (
     <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto', height: '100%', overflow: 'auto' }}>
       <h1 style={{ fontSize: '28px', marginBottom: '10px' }}>Digital Infrastructure</h1>
@@ -650,7 +670,7 @@ function DigitalInfrastructure() {
           <div style={{ marginBottom: '30px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
               <h3 style={{ fontSize: '20px' }}>Gap Analysis ({gaps.length} gaps)</h3>
-              <div>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <button
                   onClick={() => downloadGapReport(modelDetails.id, modelDetails.filename.replace('.ifc', ''))}
                   style={{
@@ -660,10 +680,10 @@ function DigitalInfrastructure() {
                     border: 'none',
                     borderRadius: '4px',
                     cursor: 'pointer',
-                    marginRight: '10px'
+                    fontSize: '14px'
                   }}
                 >
-                  Download CSV Report
+                  📊 Download CSV Report
                 </button>
                 <button
                   onClick={() => downloadIDSFile(modelDetails.id, modelDetails.filename.replace('.ifc', ''))}
@@ -673,10 +693,26 @@ function DigitalInfrastructure() {
                     color: 'white',
                     border: 'none',
                     borderRadius: '4px',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    fontSize: '14px'
                   }}
                 >
-                  Download IDS XML
+                  🏗️ Download IDS XML
+                </button>
+                <button
+                  onClick={() => downloadStandardsReport(modelDetails.id, modelDetails.filename.replace('.ifc', ''))}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#1976d2',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  📋 BIM Standardization Report
                 </button>
               </div>
             </div>
