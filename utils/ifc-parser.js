@@ -9,6 +9,9 @@ class IFCParser {
     this.extractionLog = [];
     this.alignments = [];
     this.hasAlignments = false;
+    this.siteLocation = null;
+    this.hasSite = false;
+    this.hasMapConversion = false;
   }
 
   /**
@@ -138,11 +141,24 @@ class IFCParser {
       'IFCALIGNMENTSEGMENT', 'IFCALIGNMENTCANT'
     ];
 
-    // First pass: detect alignments
+    // First pass: detect alignments and site information
     for (const [id, entity] of this.entities) {
       if (alignmentTypes.includes(entity.type)) {
         this.alignments.push({ id, type: entity.type });
         this.hasAlignments = true;
+      }
+
+      if (entity.type === 'IFCSITE') {
+        this.hasSite = true;
+        // Try to extract lat/long from RefLatitude/RefLongitude
+        // IFC2X3: #123=IFCSITE('guid','owner','name','desc',$,#placement,$,$,.ELEMENT.,$,$,#refLat,#refLong,$);
+        // IFC4: similar structure but may have address
+        this.log('Found IFCSITE entity - checking for coordinates');
+      }
+
+      if (entity.type === 'IFCMAPCONVERSION') {
+        this.hasMapConversion = true;
+        this.log('Found IFCMAPCONVERSION entity - model has geolocation');
       }
     }
 
@@ -150,6 +166,10 @@ class IFCParser {
       this.log(`Found ${this.alignments.length} alignment entities in model`);
     } else {
       this.log('No alignment entities found - model uses absolute coordinates');
+    }
+
+    if (!this.hasSite && !this.hasMapConversion) {
+      this.log('WARNING: No site location data (IFCSITE or IFCMAPCONVERSION) found in model');
     }
 
     // Second pass: extract infrastructure elements
@@ -260,6 +280,28 @@ class IFCParser {
 
     // Linear infrastructure types that should use alignment-based placement
     const linearInfraTypes = ['IFCROAD', 'IFCROADPART', 'IFCBRIDGE', 'IFCPAVEMENT', 'IFCKERB', 'IFCSIGN'];
+
+    // Check for missing site location data (model-level gap)
+    if (!this.hasSite && !this.hasMapConversion && elements.length > 0) {
+      // Add one gap for the entire model (use first element's GUID as placeholder)
+      gaps.push({
+        element_ifc_guid: elements[0].ifc_guid,
+        gap_type: 'missing_site_location',
+        gap_category: 'Geolocation',
+        severity: 'high',
+        missing_property: 'IFCSITE or IFCMAPCONVERSION',
+        required_for: 'Geographic location of infrastructure for mapping and spatial queries',
+        its_use_case: 'GIS integration, asset location, V2X positioning, route planning, multi-project coordination',
+        standards_reference: 'IFC2x3/IFC4x3 IFCSITE with RefLatitude/RefLongitude, or IFCMAPCONVERSION for projected coordinates',
+        idm_recommendation: 'All infrastructure models should include an IFCSITE entity with RefLatitude and RefLongitude properties (for lat/long coordinates) or IFCMAPCONVERSION (for projected coordinate systems). This enables integration with GIS systems, V2X applications, and asset management platforms that require real-world geographic positioning.',
+        ids_requirement: `<site required="true" purpose="Geographic_Positioning">
+  <entity type="IfcSite" minOccurs="1">
+    <attribute name="RefLatitude" required="true" />
+    <attribute name="RefLongitude" required="true" />
+  </entity>
+</site>`
+      });
+    }
 
     for (const element of elements) {
       const itsRequirements = this.assessITSRelevance(element.ifc_type);
