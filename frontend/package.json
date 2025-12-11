@@ -21,7 +21,9 @@
     "react-leaflet-cluster": "^3.1.1",
     "react-router-dom": "^6.20.0",
     "serve": "^14.2.1",
-    "socket.io-client": "^4.7.2"
+    "socket.io-client": "^4.7.2",
+    "three": "^0.135.0",
+    "web-ifc-viewer": "^1.0.218"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",
