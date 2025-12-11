@@ -16558,13 +16558,16 @@ If image quality is too poor or no parking lot is visible, return {"occupied": 0
     let parsedResponse;
     try {
       const cleanedResponse = extractJSON(aiResponse);
+      console.log('  Extracted JSON:', cleanedResponse);
       parsedResponse = JSON.parse(cleanedResponse);
     } catch (parseError) {
-      console.error('AI returned non-JSON response:', aiResponse);
+      console.error('❌ AI returned non-JSON response:', aiResponse);
+      console.error('  Parse error:', parseError.message);
       return res.status(500).json({
         success: false,
-        error: 'AI returned invalid JSON response',
-        aiResponse
+        error: 'AI returned invalid JSON response. Try again or check image quality.',
+        details: parseError.message,
+        aiResponse: aiResponse.substring(0, 200)  // Return first 200 chars for debugging
       });
     }
 
@@ -16607,6 +16610,7 @@ If image quality is too poor or no parking lot is visible, return {"occupied": 0
 function extractJSON(text) {
   // Try to find JSON within the text
   // Handle cases like: "Here is the JSON: {...}" or "```json {...} ```"
+  // Or AI responses like: "To determine the count, ... {json}"
 
   // First, try to extract from code blocks
   const codeBlockMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
@@ -16618,6 +16622,16 @@ function extractJSON(text) {
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (jsonMatch) {
     return jsonMatch[0].trim();
+  }
+
+  // If text starts with explanatory text, try to find JSON after a colon or newline
+  // Example: "To determine the count, I analyzed: {json}"
+  if (text.includes(':')) {
+    const afterColon = text.split(':').slice(1).join(':');
+    const afterColonMatch = afterColon.match(/\{[\s\S]*\}/);
+    if (afterColonMatch) {
+      return afterColonMatch[0].trim();
+    }
   }
 
   // If no JSON found, return original text trimmed
@@ -16777,8 +16791,17 @@ If image quality is too poor or no parking lot is visible, return {"occupied": 0
         });
 
         const aiResponse = response.choices[0].message.content.trim();
-        const cleanedResponse = extractJSON(aiResponse);
-        const parsedResponse = JSON.parse(cleanedResponse);
+        let parsedResponse;
+
+        try {
+          const cleanedResponse = extractJSON(aiResponse);
+          console.log(`    Extracted JSON for ${viewName}:`, cleanedResponse.substring(0, 100));
+          parsedResponse = JSON.parse(cleanedResponse);
+        } catch (parseError) {
+          console.error(`    ❌ JSON parse error for ${viewName}:`, parseError.message);
+          console.error(`    AI response:`, aiResponse.substring(0, 200));
+          throw new Error(`Failed to parse JSON: ${parseError.message}`);
+        }
 
         cameraAnalyses.push({
           viewName,
@@ -16850,8 +16873,22 @@ Example: {"consensusOccupied": 25, "consensusTotalCapacity": 40, "confidence": "
     });
 
     const consensusAI = consensusResponse.choices[0].message.content.trim();
-    const cleanedConsensus = extractJSON(consensusAI);
-    const consensus = JSON.parse(cleanedConsensus);
+    let consensus;
+
+    try {
+      const cleanedConsensus = extractJSON(consensusAI);
+      console.log('  Consensus extracted JSON:', cleanedConsensus.substring(0, 150));
+      consensus = JSON.parse(cleanedConsensus);
+    } catch (parseError) {
+      console.error('❌ Consensus AI returned non-JSON response:', consensusAI);
+      console.error('  Parse error:', parseError.message);
+      return res.status(500).json({
+        success: false,
+        error: 'Consensus AI returned invalid JSON. Try again or check image quality.',
+        details: parseError.message,
+        aiResponse: consensusAI.substring(0, 200)
+      });
+    }
 
     const consensusOccupied = parseInt(consensus.consensusOccupied);
     const consensusTotal = parseInt(consensus.consensusTotalCapacity);
