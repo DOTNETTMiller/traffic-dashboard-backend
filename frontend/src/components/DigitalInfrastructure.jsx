@@ -354,17 +354,20 @@ function DigitalInfrastructure() {
       {/* Upload Tab */}
       {activeTab === 'upload' && (
         <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-          <h2 style={{ fontSize: '24px', marginBottom: '20px' }}>Upload IFC Model</h2>
+          <h2 style={{ fontSize: '24px', marginBottom: '10px' }}>Upload BIM/CAD Model</h2>
+          <p style={{ color: '#666', marginBottom: '20px', fontSize: '14px' }}>
+            Supported formats: IFC (.ifc), DXF (.dxf), DWG (.dwg), DGN (.dgn)
+          </p>
 
           <form onSubmit={handleUpload}>
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-                IFC File *
+                BIM/CAD File *
               </label>
               <input
                 id="ifcFileInput"
                 type="file"
-                accept=".ifc"
+                accept=".ifc,.dxf,.dwg,.dgn"
                 onChange={handleFileSelect}
                 disabled={uploading}
                 style={{

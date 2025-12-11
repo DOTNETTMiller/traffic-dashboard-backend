@@ -10286,17 +10286,17 @@ const upload = multer({
   }
 });
 
-// Configure multer for IFC file uploads (BIM models)
+// Configure multer for IFC/CAD file uploads (BIM models and CAD files)
 const uploadIFC = multer({
   dest: path.join(__dirname, 'uploads/ifc'),
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit for BIM models
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit for BIM/CAD models
   fileFilter: (req, file, cb) => {
-    const allowedExtensions = ['.ifc'];
+    const allowedExtensions = ['.ifc', '.dxf', '.dwg', '.dgn'];
     const ext = path.extname(file.originalname).toLowerCase();
     if (allowedExtensions.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error(`Unsupported file type: ${ext}. IFC files only (.ifc extension required)`));
+      cb(new Error(`Unsupported file type: ${ext}. Supported formats: IFC (.ifc), DXF (.dxf), DWG (.dwg), DGN (.dgn)`));
     }
   }
 });
@@ -11860,21 +11860,32 @@ app.get('/api/its-equipment/states', async (req, res) => {
 // DIGITAL INFRASTRUCTURE - BIM/IFC ENDPOINTS
 // ==========================================
 
-// Upload IFC model and extract infrastructure elements
+// Upload IFC/CAD model and extract infrastructure elements
 app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), async (req, res) => {
   try {
     const { stateKey, uploadedBy, latitude, longitude, route, milepost } = req.body;
 
     if (!req.file) {
-      return res.status(400).json({ success: false, error: 'No IFC file provided' });
+      return res.status(400).json({ success: false, error: 'No file provided' });
     }
 
-    console.log(`🏗️  Processing IFC upload: ${req.file.originalname}`);
+    const fileExt = path.extname(req.file.originalname).toLowerCase();
+    const isCAD = ['.dxf', '.dwg', '.dgn'].includes(fileExt);
+    const fileType = isCAD ? 'CAD' : 'IFC';
+
+    console.log(`🏗️  Processing ${fileType} upload: ${req.file.originalname}`);
     console.log(`   State: ${stateKey || 'N/A'}, Uploaded by: ${uploadedBy || 'anonymous'}`);
 
-    // Parse IFC file
-    const parser = new IFCParser();
-    const extractionResult = await parser.parseFile(req.file.path);
+    // Select appropriate parser based on file type
+    let parser, extractionResult;
+    if (isCAD) {
+      const CADParser = require('./utils/cad-parser');
+      parser = new CADParser();
+      extractionResult = await parser.parseFile(req.file.path);
+    } else {
+      parser = new IFCParser();
+      extractionResult = await parser.parseFile(req.file.path);
+    }
 
     console.log(`   ✅ Parsed ${extractionResult.statistics.total_entities} IFC entities`);
     console.log(`   ✅ Extracted ${extractionResult.elements.length} infrastructure elements`);
