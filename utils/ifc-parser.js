@@ -155,8 +155,9 @@ class IFCParser {
       'IFCSENSOR',                  // Structural health sensors, traffic sensors
       'IFCACTUATOR',                // Variable message signs, ramp meters
 
-      // Catch-all for custom types
-      'IFCBUILDINGELEMENTPROXY'
+      // Catch-all for custom types (generic proxy elements from Bentley, etc.)
+      'IFCBUILDINGELEMENTPROXY',
+      'IFCPROXY'                    // Generic placeholder for unclassified elements
     ];
 
     const alignmentTypes = [
@@ -268,7 +269,11 @@ class IFCParser {
 
       // Sensors & Monitoring
       'IFCSENSOR': 'Sensor/Monitoring',
-      'IFCACTUATOR': 'ITS Actuator'
+      'IFCACTUATOR': 'ITS Actuator',
+
+      // Generic proxy elements (common in Bentley ProStructures exports)
+      'IFCPROXY': 'Generic Element',
+      'IFCBUILDINGELEMENTPROXY': 'Generic Element'
     };
 
     return categories[ifcType] || 'Other Infrastructure';
@@ -437,6 +442,30 @@ class IFCParser {
           'message_capability',      // Character matrix, graphics
           'remote_control_enabled',  // TMC connectivity
           'current_status'           // Operational state
+        ]
+      },
+
+      // ===== GENERIC PROXY ELEMENTS =====
+      'IFCPROXY': {
+        purpose: 'Generic infrastructure element (unclassified)',
+        v2x: false,
+        av: false,
+        properties_needed: [
+          'element_classification',  // What type of element this represents
+          'functional_purpose',      // Intended use/function
+          'asset_id',                // Unique identifier for asset tracking
+          'installation_date'        // When installed
+        ]
+      },
+      'IFCBUILDINGELEMENTPROXY': {
+        purpose: 'Generic infrastructure element (unclassified)',
+        v2x: false,
+        av: false,
+        properties_needed: [
+          'element_classification',  // What type of element this represents
+          'functional_purpose',      // Intended use/function
+          'asset_id',                // Unique identifier for asset tracking
+          'installation_date'        // When installed
         ]
       }
     };
