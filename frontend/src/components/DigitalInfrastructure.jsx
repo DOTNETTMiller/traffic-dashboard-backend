@@ -14,6 +14,7 @@ function DigitalInfrastructure() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
   const [liveStats, setLiveStats] = useState(null);
+  const [availableStates, setAvailableStates] = useState([]);
 
   // Upload form state
   const [selectedFile, setSelectedFile] = useState(null);
@@ -24,9 +25,10 @@ function DigitalInfrastructure() {
   const [route, setRoute] = useState('');
   const [milepost, setMilepost] = useState('');
 
-  // Load models on mount
+  // Load models and states on mount
   useEffect(() => {
     loadModels();
+    loadStates();
   }, []);
 
   const loadModels = async () => {
@@ -39,6 +41,26 @@ function DigitalInfrastructure() {
       alert('Failed to load models');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadStates = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/states/list`);
+      setAvailableStates(response.data.states || []);
+    } catch (error) {
+      console.error('Error loading states:', error);
+      // Fallback to hardcoded list if API fails
+      setAvailableStates([
+        { key: 'IA', name: 'Iowa' },
+        { key: 'IL', name: 'Illinois' },
+        { key: 'IN', name: 'Indiana' },
+        { key: 'MI', name: 'Michigan' },
+        { key: 'MN', name: 'Minnesota' },
+        { key: 'OH', name: 'Ohio' },
+        { key: 'PA', name: 'Pennsylvania' },
+        { key: 'WI', name: 'Wisconsin' }
+      ]);
     }
   };
 
@@ -208,7 +230,7 @@ function DigitalInfrastructure() {
   };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto', height: '100%', overflow: 'auto' }}>
       <h1 style={{ fontSize: '28px', marginBottom: '10px' }}>Digital Infrastructure</h1>
       <p style={{ color: '#666', marginBottom: '30px' }}>
         BIM/IFC to ITS Operations - Extract operational data from Building Information Models
@@ -312,7 +334,7 @@ function DigitalInfrastructure() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-                  State
+                  State (optional)
                 </label>
                 <select
                   value={stateKey}
@@ -326,14 +348,11 @@ function DigitalInfrastructure() {
                   }}
                 >
                   <option value="">Select State...</option>
-                  <option value="IA">Iowa (IA)</option>
-                  <option value="IL">Illinois (IL)</option>
-                  <option value="IN">Indiana (IN)</option>
-                  <option value="MI">Michigan (MI)</option>
-                  <option value="MN">Minnesota (MN)</option>
-                  <option value="OH">Ohio (OH)</option>
-                  <option value="PA">Pennsylvania (PA)</option>
-                  <option value="WI">Wisconsin (WI)</option>
+                  {availableStates.map(state => (
+                    <option key={state.key} value={state.key}>
+                      {state.name} ({state.key})
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -357,17 +376,21 @@ function DigitalInfrastructure() {
               </div>
             </div>
 
+            <div style={{ padding: '12px', backgroundColor: '#f0f9ff', borderRadius: '4px', marginBottom: '15px', fontSize: '14px', color: '#0369a1' }}>
+              <strong>Note:</strong> Location and route information will be automatically extracted from the IFC model if available. These fields are optional overrides.
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-                  Latitude
+                  Latitude (optional)
                 </label>
                 <input
                   type="number"
                   step="any"
                   value={latitude}
                   onChange={(e) => setLatitude(e.target.value)}
-                  placeholder="41.5"
+                  placeholder="Auto-extracted from IFC"
                   disabled={uploading}
                   style={{
                     padding: '10px',
@@ -380,14 +403,14 @@ function DigitalInfrastructure() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-                  Longitude
+                  Longitude (optional)
                 </label>
                 <input
                   type="number"
                   step="any"
                   value={longitude}
                   onChange={(e) => setLongitude(e.target.value)}
-                  placeholder="-93.6"
+                  placeholder="Auto-extracted from IFC"
                   disabled={uploading}
                   style={{
                     padding: '10px',
@@ -402,13 +425,13 @@ function DigitalInfrastructure() {
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px', marginBottom: '30px' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-                  Route
+                  Route (optional)
                 </label>
                 <input
                   type="text"
                   value={route}
                   onChange={(e) => setRoute(e.target.value)}
-                  placeholder="I-80"
+                  placeholder="I-80 (auto-extracted if available)"
                   disabled={uploading}
                   style={{
                     padding: '10px',
@@ -421,14 +444,14 @@ function DigitalInfrastructure() {
 
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-                  Milepost
+                  Milepost (optional)
                 </label>
                 <input
                   type="number"
                   step="any"
                   value={milepost}
                   onChange={(e) => setMilepost(e.target.value)}
-                  placeholder="123.4"
+                  placeholder="Auto-extracted"
                   disabled={uploading}
                   style={{
                     padding: '10px',
