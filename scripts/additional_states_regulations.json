@@ -1,0 +1,319 @@
+[
+  {
+    "corridor": "Multi-State",
+    "state_key": "illinois",
+    "state_name": "Illinois",
+    "state_code": "IL",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42500,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 25000,
+      "tandem_axle": 48000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 120000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "Varies",
+      "single_trip": "$25-$50",
+      "notes": "Multiple permit types available"
+    },
+    "color": "#3b82f6",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width + 2 ft clearance on each side",
+      "height_pole": "Required for loads over 14'",
+      "pilot_car_escort": "Required for loads >14' wide; 2 escorts for >16' wide",
+      "trip_permits": "Available online through IDOT system; 72-hour and 144-hour permits available",
+      "fuel_permits": "IFTA credentials required",
+      "running_hours": "Daylight hours (1/2 hour before sunrise to 1/2 hour after sunset) for OS loads; 24/7 for OW only with legal dimensions",
+      "holiday_restrictions": "No travel on major holidays for oversize loads",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required; yellow background with black letters",
+      "flag_regulations": "Red or fluorescent orange flags 18\" square minimum at all extremities",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Standard max: 200'L x 14.5'W x 15'H; Superload permits available",
+      "annual_permit_cost": "Varies by type and usage",
+      "commodity_specific": "Agricultural equipment may have exemptions; special permits for specific commodities",
+      "route_requirements": "Route approval required for superloads; bridge analysis may be required"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "indiana",
+    "state_name": "Indiana",
+    "state_code": "IN",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42500,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 28000,
+      "tandem_axle": 48000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 120000
+    },
+    "max_dimensions": {
+      "length_ft": 60,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$150-$400",
+      "single_trip": "$15-$50",
+      "notes": "Varies by dimensions and weight"
+    },
+    "color": "#8b5cf6",
+    "requirements": {
+      "minimum_road_width": "Road width must be at least 2 ft wider than load on each side",
+      "height_pole": "Required for loads over 14'",
+      "pilot_car_escort": "1 escort for loads >12' wide; 2 escorts for >14' wide",
+      "trip_permits": "Available online; up to 10 days validity",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Continuous travel for loads up to 10'W x 13.5'H x 110'L; restricted hours for larger loads (8:30am-3:30pm Mon-Fri)",
+      "holiday_restrictions": "No travel on major holidays for oversize loads",
+      "banner_regulations": "\"OVERSIZE LOAD\" sign required; yellow background with black letters, visible 500'",
+      "flag_regulations": "Red or orange fluorescent flags 18\" square at extremities",
+      "warning_light_regulations": "Flashing or strobe amber light must be mounted on towing unit",
+      "permit_dimensions": "Standard max: 110'L x 16'W x 15'H; Superloads require special approval",
+      "annual_permit_cost": "$150-$400 depending on configuration",
+      "commodity_specific": "Agricultural equipment has some exemptions; containerized cargo permits available",
+      "route_requirements": "Route approval required for loads >10'W or >120,000 lbs; bridge analysis may be required"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "nebraska",
+    "state_name": "Nebraska",
+    "state_code": "NE",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle_8ft": 42000,
+      "tridem_axle_9ft": 42500,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 48000,
+      "gross_vehicle_weight_interstate": 80000,
+      "gross_vehicle_weight_state": 95000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$200-$500",
+      "single_trip": "$30-$75",
+      "notes": "Varies by configuration"
+    },
+    "color": "#ec4899",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load + 2 ft clearance each side",
+      "height_pole": "Required for loads over 14'",
+      "pilot_car_escort": "1 escort for >12' wide; 2 escorts for >14' wide OR >150' long",
+      "trip_permits": "Available online through NDOT system",
+      "fuel_permits": "IFTA credentials required",
+      "running_hours": "1/2 hour before sunrise to 1/2 hour after sunset for OS loads",
+      "holiday_restrictions": "No movement on major holidays for oversize loads",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required; yellow background with black letters",
+      "flag_regulations": "Red or orange flags at extremities for OS loads",
+      "warning_light_regulations": "Amber warning lights required for wide loads and escorts",
+      "permit_dimensions": "Standard max: 100'L x 16'W x 15'H; Superload >16'W or >100'L or >160,000 lbs",
+      "annual_permit_cost": "$200-$500 depending on usage",
+      "commodity_specific": "Agricultural equipment may have seasonal exemptions",
+      "route_requirements": "Route approval required for superloads; bridge analysis required for heavy loads"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "nevada",
+    "state_name": "Nevada",
+    "state_code": "NV",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 22000,
+      "tandem_axle": 46725,
+      "tridem_axle": 59000,
+      "gross_vehicle_weight": 129000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$200-$600",
+      "single_trip": "$40-$100",
+      "notes": "Online processing required"
+    },
+    "color": "#f59e0b",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load + clearance",
+      "height_pole": "Required for loads over 14'",
+      "pilot_car_escort": "1 escort for >12' wide; 2 escorts for >14' wide; additional for superloads",
+      "trip_permits": "Available online only through NDOT Carson City; 10 business days advance notice for superloads",
+      "fuel_permits": "IFTA credentials required",
+      "running_hours": "Daylight hours for OS loads; some routes have specific time restrictions",
+      "holiday_restrictions": "No travel on major holidays for oversize loads",
+      "banner_regulations": "\"OVERSIZE LOAD\" sign required; reflective material, yellow with black letters",
+      "flag_regulations": "Red or orange flags 18\" square at extremities",
+      "warning_light_regulations": "Amber flashing lights required on escort vehicles and wide loads",
+      "permit_dimensions": "Standard max: 150'L x 17'W x 18'H; Superload >17'W (2-3 lane) or >19'W (4+ lane) or >18'H or >200'L",
+      "annual_permit_cost": "$200-$600 depending on configuration",
+      "commodity_specific": "Mining equipment common; special permits for gaming equipment",
+      "route_requirements": "All superloads require route survey; advance coordination with utilities and law enforcement"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "newjersey",
+    "state_name": "New Jersey",
+    "state_code": "NJ",
+    "legal_limits": {
+      "single_axle": 22400,
+      "tandem_axle": 34000,
+      "tridem_axle": 56400,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 28000,
+      "tandem_axle": 48000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 120000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$100",
+      "single_trip": "$10-$20",
+      "notes": "$10 for OS or OW, $20 for both"
+    },
+    "color": "#14b8a6",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width + safe clearance",
+      "height_pole": "Required for loads over 13.5'; utility notification required for loads >14'",
+      "pilot_car_escort": "1 escort for loads >14' wide; 2 escorts for >16' wide",
+      "trip_permits": "Available online at nj.gotpermits.com; non-divisible load certification required",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Daylight hours Monday-Friday and until noon Saturday; no travel Saturday afternoon, Sunday, or holidays for OS loads",
+      "holiday_restrictions": "No travel on major holidays or weekends for oversize loads; OW-only loads not restricted",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required; yellow background with black letters",
+      "flag_regulations": "Red flags at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Routine max: 120'L x 18'W x 16'H; >16'W or >200,000 lbs requires special coordination",
+      "annual_permit_cost": "$100 for ocean-borne containerized cargo annual permit",
+      "commodity_specific": "Port cargo has special annual permits; agricultural equipment limited exemptions",
+      "route_requirements": "Route approval required; public utility, NJDOT, county and municipal notification for >14'H"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "ohio",
+    "state_name": "Ohio",
+    "state_code": "OH",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 48000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 29000,
+      "tandem_axle": 48000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 90000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$300-$600",
+      "single_trip": "$25-$75",
+      "notes": "Varies by dimensions and weight; annual limited to 14'W x 14.5'H x 140,000 lbs"
+    },
+    "color": "#ef4444",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load + 2 ft clearance each side",
+      "height_pole": "Required for loads over 14'",
+      "pilot_car_escort": "1 escort for >12' wide; 2 escorts for >14' wide OR >150' long",
+      "trip_permits": "Available online through ODOT system; 2-day pre-approval for >90,000 lbs",
+      "fuel_permits": "IFTA credentials required",
+      "running_hours": "Daylight hours for OS loads; 1/2 hour before sunrise to 1/2 hour after sunset",
+      "holiday_restrictions": "No travel on major holidays for oversize loads",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required; yellow background with black letters",
+      "flag_regulations": "Red or orange flags 18\" square at extremities",
+      "warning_light_regulations": "Amber flashing lights required on escort vehicles and wide loads",
+      "permit_dimensions": "Standard max (without pre-approval): 112'L x 14'W x 14.5'H x 90,000 lbs; Annual max: 140,000 lbs; Superload >18'W or >160'L or >120,000 lbs",
+      "annual_permit_cost": "$300-$600 depending on configuration",
+      "commodity_specific": "Agricultural equipment may have exemptions; special provisions for construction equipment",
+      "route_requirements": "Pre-approval required for >90,000 lbs; bridge analysis required; superloads require extensive planning"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "utah",
+    "state_name": "Utah",
+    "state_code": "UT",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 29000,
+      "tandem_axle": 50000,
+      "tridem_axle": 61750,
+      "gross_vehicle_weight": 125000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 14
+    },
+    "permit_costs": {
+      "annual_permit": "$300-$800",
+      "single_trip": "$30-$100",
+      "notes": "Single-trip only for >125,000 lbs GVW"
+    },
+    "color": "#06b6d4",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load + safe clearance",
+      "height_pole": "Required for loads over 14'",
+      "pilot_car_escort": "1 escort for >12' wide; 2 escorts for >14' wide OR >150' long",
+      "trip_permits": "Available online through UDOT system; 14 days processing for >17.5'H or >17'W or >300,000 lbs",
+      "fuel_permits": "IFTA credentials required",
+      "running_hours": "Daylight hours for OS loads; some routes have specific restrictions",
+      "holiday_restrictions": "No travel on major holidays for oversize loads",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required; yellow background with black letters",
+      "flag_regulations": "Red or orange flags at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles and wide loads",
+      "permit_dimensions": "Standard max: 17'W x 17.5'H; Single-trip only for >125,000 lbs GVW",
+      "annual_permit_cost": "$300-$800 depending on configuration",
+      "commodity_specific": "Mining equipment common; dual-lane trailers >10'W axle width require Structures Division clearance",
+      "route_requirements": "Route approval required for wide/heavy loads; bridge validation required; extensive coordination for superloads"
+    }
+  }
+]
