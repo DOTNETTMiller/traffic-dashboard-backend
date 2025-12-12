@@ -12788,8 +12788,53 @@ app.get('/api/digital-infrastructure/standards-report/:modelId', async (req, res
       gapsByCategory[category].push(gap);
     });
 
+    // Get fleet-wide statistics for comparative analysis
+    let fleetStats = null;
+    try {
+      const allModelsQuery = db.isPostgres
+        ? 'SELECT id, project_name, ifc_schema, total_elements, upload_date, state_key FROM ifc_models ORDER BY upload_date DESC'
+        : 'SELECT id, project_name, ifc_schema, total_elements, upload_date, state_key FROM ifc_models ORDER BY upload_date DESC';
+
+      let allModels;
+      if (db.isPostgres) {
+        const result = await db.db.query(allModelsQuery);
+        allModels = result.rows || [];
+      } else {
+        allModels = db.db.prepare(allModelsQuery).all();
+      }
+
+      if (allModels.length > 1) {
+        // Get gap counts for all models
+        const gapCountsQuery = db.isPostgres
+          ? `SELECT model_id, gap_category, severity, missing_property, COUNT(*) as gap_count
+             FROM infrastructure_gaps
+             GROUP BY model_id, gap_category, severity, missing_property`
+          : `SELECT model_id, gap_category, severity, missing_property, COUNT(*) as gap_count
+             FROM infrastructure_gaps
+             GROUP BY model_id, gap_category, severity, missing_property`;
+
+        let allGaps;
+        if (db.isPostgres) {
+          const result = await db.db.query(gapCountsQuery);
+          allGaps = result.rows || [];
+        } else {
+          allGaps = db.db.prepare(gapCountsQuery).all();
+        }
+
+        fleetStats = {
+          totalModels: allModels.length,
+          models: allModels,
+          allGaps: allGaps,
+          stateKey: model.state_key
+        };
+      }
+    } catch (err) {
+      console.warn('Could not fetch fleet statistics:', err.message);
+      // Continue without fleet stats
+    }
+
     // Generate comprehensive standards report
-    const report = generateStandardsReport(model, gaps, gapsByCategory, elementStats);
+    const report = generateStandardsReport(model, gaps, gapsByCategory, elementStats, fleetStats);
 
     const filename = `bim-standardization-requirements-${model.filename.replace('.ifc', '')}-${Date.now()}.md`;
 
@@ -12804,7 +12849,7 @@ app.get('/api/digital-infrastructure/standards-report/:modelId', async (req, res
 });
 
 // Helper function to generate comprehensive standards report
-function generateStandardsReport(model, gaps, gapsByCategory, elementStats) {
+function generateStandardsReport(model, gaps, gapsByCategory, elementStats, fleetStats = null) {
   const metadata = model.metadata ? JSON.parse(model.metadata) : {};
   const totalElements = elementStats.reduce((sum, e) => sum + e.count, 0);
   const v2xElements = elementStats.reduce((sum, e) => sum + (e.v2x_count || 0), 0);
@@ -12844,6 +12889,188 @@ The analysis identified ${gaps.length} data gaps across ${Object.keys(gapsByCate
 This model demonstrates strong alignment with ITS operational requirements with minimal data gaps identified.
 `}
 
+${fleetStats && fleetStats.totalModels > 1 ? `
+---
+
+## Fleet Analysis: Data-Driven Recommendations
+
+**Your BIM Portfolio:** ${fleetStats.totalModels} models uploaded
+
+This section analyzes patterns across all ${fleetStats.totalModels} BIM models in your portfolio to provide evolving, data-driven recommendations. As you upload more models, these insights become more accurate and tailored to your organization's specific needs.
+
+### Current Model vs Fleet Average
+
+**This Model:**
+- Total Elements: ${totalElements.toLocaleString()}
+- Data Gaps: ${gaps.length}
+- IFC Schema: ${model.ifc_schema}
+- Upload Date: ${new Date(model.upload_date).toLocaleDateString()}
+
+**Fleet Statistics:**
+${(() => {
+  // Calculate fleet averages
+  const gapsByModel = {};
+  fleetStats.allGaps.forEach(g => {
+    if (!gapsByModel[g.model_id]) gapsByModel[g.model_id] = 0;
+    gapsByModel[g.model_id] += parseInt(g.gap_count);
+  });
+
+  const modelGapCounts = Object.values(gapsByModel);
+  const avgGaps = modelGapCounts.length > 0
+    ? (modelGapCounts.reduce((sum, val) => sum + val, 0) / modelGapCounts.length).toFixed(1)
+    : 0;
+
+  const avgElements = (fleetStats.models.reduce((sum, m) => sum + (m.total_elements || 0), 0) / fleetStats.totalModels).toFixed(0);
+
+  const thisModelGaps = gaps.length;
+  const thisModelElements = totalElements;
+
+  const gapComparison = thisModelGaps < avgGaps ? '✅ Better than average' : thisModelGaps > avgGaps ? '⚠️ Above average' : '➖ At average';
+  const elementComparison = thisModelElements > avgElements ? '📈 Larger than average' : thisModelElements < avgElements ? '📉 Smaller than average' : '➖ Average size';
+
+  const schemaFreq = fleetStats.models.map(m => m.ifc_schema).reduce((acc, val) => {
+    acc[val] = (acc[val] || 0) + 1;
+    return acc;
+  }, {});
+  const mostCommonSchema = Object.entries(schemaFreq).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown';
+
+  return \`- Average Gaps per Model: \${avgGaps} (\${gapComparison})
+- Average Elements per Model: \${avgElements} (\${elementComparison})
+- Most Common IFC Schema: \${mostCommonSchema}\`;
+})()}
+
+### Most Common Data Gaps Across Your Portfolio
+
+The following gaps appear most frequently across all uploaded models, indicating systematic issues that should be prioritized:
+
+${(() => {
+  // Count how many models have each gap type
+  const gapFrequency = {};
+  fleetStats.allGaps.forEach(g => {
+    const key = \`\${g.gap_category || 'General'}|\${g.missing_property}\`;
+    if (!gapFrequency[key]) {
+      gapFrequency[key] = {
+        category: g.gap_category || 'General',
+        property: g.missing_property,
+        severity: g.severity,
+        modelCount: new Set()
+      };
+    }
+    gapFrequency[key].modelCount.add(g.model_id);
+  });
+
+  // Convert to array and sort by frequency
+  const sortedGaps = Object.values(gapFrequency)
+    .map(g => ({
+      ...g,
+      modelCount: g.modelCount.size,
+      percentage: ((g.modelCount.size / fleetStats.totalModels) * 100).toFixed(0)
+    }))
+    .sort((a, b) => b.modelCount - a.modelCount)
+    .slice(0, 10);
+
+  if (sortedGaps.length === 0) {
+    return '✅ No common gaps identified across models.';
+  }
+
+  return sortedGaps.map((g, idx) =>
+    \`\${idx + 1}. **\${g.property}** (\${g.category})
+   - Found in \${g.modelCount}/\${fleetStats.totalModels} models (\${g.percentage}%)
+   - Severity: \${g.severity.toUpperCase()}
+   - 💡 **Recommendation:** \${g.percentage >= 75 ? 'CRITICAL - Appears in most models. Consider updating authoring standards and designer training.' : g.percentage >= 50 ? 'HIGH PRIORITY - Common issue. Add to QA/QC checklist and IDS validation.' : 'Address in future model updates and designer guidance.'}\`
+  ).join('\\n\\n');
+})()}
+
+### Portfolio Trends & Insights
+
+${(() => {
+  const stateModels = fleetStats.models.filter(m => m.state_key === fleetStats.stateKey);
+  const stateSpecific = stateModels.length > 1 && fleetStats.stateKey;
+
+  const insights = [];
+
+  // Schema adoption
+  const schemaCount = fleetStats.models.reduce((acc, m) => {
+    acc[m.ifc_schema] = (acc[m.ifc_schema] || 0) + 1;
+    return acc;
+  }, {});
+
+  if (schemaCount['IFC4.3'] || schemaCount['IFC4X3']) {
+    insights.push('✅ **IFC4.3 Adoption:** ' + ((schemaCount['IFC4.3'] || 0) + (schemaCount['IFC4X3'] || 0)) + ' models using IFC4.3 (recommended for transportation infrastructure)');
+  } else {
+    insights.push('⚠️ **IFC4.3 Adoption:** No models using IFC4.3 yet. Consider upgrading to IFC4.3 for enhanced road/railway support.');
+  }
+
+  // State-specific insights
+  if (stateSpecific) {
+    insights.push(\`📍 **\${fleetStats.stateKey.toUpperCase()} Portfolio:** \${stateModels.length} models from your state provide state-specific benchmark data.\`);
+  }
+
+  // Temporal trends
+  const sortedByDate = [...fleetStats.models].sort((a, b) => new Date(a.upload_date) - new Date(b.upload_date));
+  const oldestDate = new Date(sortedByDate[0].upload_date);
+  const newestDate = new Date(sortedByDate[sortedByDate.length - 1].upload_date);
+  const daysDiff = Math.floor((newestDate - oldestDate) / (1000 * 60 * 60 * 24));
+
+  if (daysDiff > 30) {
+    insights.push(\`📅 **Data Collection Period:** \${daysDiff} days of model uploads tracked. Longitudinal analysis available for quality improvement trends.\`);
+  }
+
+  return insights.join('\\n\\n');
+})()}
+
+### Actionable Next Steps Based on Fleet Data
+
+${(() => {
+  const actions = [];
+
+  // Priority 1: Address most common gaps
+  const gapFrequency = {};
+  fleetStats.allGaps.forEach(g => {
+    const key = g.missing_property;
+    if (!gapFrequency[key]) gapFrequency[key] = new Set();
+    gapFrequency[key].add(g.model_id);
+  });
+
+  const mostCommonGaps = Object.entries(gapFrequency)
+    .map(([prop, models]) => ({ property: prop, count: models.size }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+
+  if (mostCommonGaps.length > 0 && mostCommonGaps[0].count >= 2) {
+    actions.push(\`1. **Update Design Standards:** The property "\${mostCommonGaps[0].property}" is missing in \${mostCommonGaps[0].count} models. Add this to your BIM authoring templates and designer training.\`);
+  }
+
+  // Priority 2: IDS validation
+  actions.push(\`2. **Implement IDS Validation:** Create an Information Delivery Specification (IDS) file based on these common gaps to catch issues during design review.\`);
+
+  // Priority 3: Schema consistency
+  const schemas = [...new Set(fleetStats.models.map(m => m.ifc_schema))];
+  if (schemas.length > 2) {
+    actions.push(\`3. **Standardize IFC Schema:** Your portfolio uses \${schemas.length} different IFC versions. Standardize on IFC4.3 for new projects to ensure consistency.\`);
+  }
+
+  // Priority 4: Best practice sharing
+  const gapsByModel = {};
+  fleetStats.allGaps.forEach(g => {
+    if (!gapsByModel[g.model_id]) gapsByModel[g.model_id] = 0;
+    gapsByModel[g.model_id] += parseInt(g.gap_count);
+  });
+
+  const bestModel = Object.entries(gapsByModel).sort((a, b) => a[1] - b[1])[0];
+  if (bestModel && bestModel[1] < gaps.length) {
+    const bestModelInfo = fleetStats.models.find(m => m.id === bestModel[0]);
+    if (bestModelInfo) {
+      actions.push(\`4. **Learn from Best Practices:** Model "\${bestModelInfo.project_name || bestModelInfo.id}" has the fewest gaps (\${bestModel[1]}) in your portfolio. Review it as a template for future projects.\`);
+    }
+  }
+
+  return actions.length > 0 ? actions.join('\\n\\n') : '✅ Continue current practices and monitor new uploads for emerging patterns.';
+})()}
+
+**📊 Note:** These recommendations will become more refined as you upload additional models. The system learns from your portfolio to provide increasingly tailored guidance.
+
+` : ''}
 ---
 
 ## 1. Current Standards Landscape
