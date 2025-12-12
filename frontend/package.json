@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node server.js"
+    "start": "node server.js",
+    "postinstall": "node patch-ifc-loader.js"
   },
   "dependencies": {
     "axios": "^1.6.0",
@@ -22,10 +23,9 @@
     "react-router-dom": "^6.20.0",
     "serve": "^14.2.1",
     "socket.io-client": "^4.7.2",
-    "three": "^0.149.0",
-    "web-ifc": "0.0.44",
-    "web-ifc-three": "^0.0.126",
-    "web-ifc-viewer": "^1.0.218"
+    "three": "^0.135.0",
+    "web-ifc": "^0.0.44",
+    "web-ifc-three": "^0.0.126"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

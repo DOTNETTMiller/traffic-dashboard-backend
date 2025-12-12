@@ -32,8 +32,8 @@ export default function FederalGrantResources({ darkMode = false }) {
       ],
       arcItsRelevance: 'HIGH - Requires ARC-ITS compliant ITS inventory',
       nofoUrl: 'https://www.transportation.gov/grants/SMART',
-      grantsGovUrl: 'https://www.grants.gov/search-results-detail/352748',
-      applicationPeriod: 'Typically opens Q1 (Jan-Mar)',
+      grantsGovUrl: 'https://grants.gov/search-results-detail/355389',
+      applicationPeriod: 'FY24 Stage 2 closed. FY25 Stage 2 expected Fall 2025',
       keyRequirements: [
         'Technology deployment plan',
         'Safety impact analysis',
@@ -62,8 +62,8 @@ export default function FederalGrantResources({ darkMode = false }) {
       ],
       arcItsRelevance: 'MEDIUM - ITS components strengthen applications',
       nofoUrl: 'https://www.transportation.gov/RAISEgrants/raise-nofo',
-      grantsGovUrl: 'https://www.grants.gov/search-results-detail/351876',
-      applicationPeriod: 'Typically opens Q1-Q2 (Feb-Apr)',
+      grantsGovUrl: 'https://www.grants.gov/search-results-detail/356890',
+      applicationPeriod: 'FY2025: Deadline January 30, 2025 (CFDA 20.933)',
       keyRequirements: [
         'Benefit-Cost Analysis (BCA)',
         'Project readiness documentation',
@@ -92,8 +92,8 @@ export default function FederalGrantResources({ darkMode = false }) {
       ],
       arcItsRelevance: 'HIGH - Freight and commercial vehicle ITS focus',
       nofoUrl: 'https://www.fmcsa.dot.gov/fy25grantfundingopportunities',
-      grantsGovUrl: 'https://www.grants.gov/search-results-detail/347765',
-      applicationPeriod: 'FY2025: Deadline June 20, 2025',
+      grantsGovUrl: 'https://www.fmcsa.dot.gov/fy25grantfundingopportunities',
+      applicationPeriod: 'FY2025: Deadline June 20, 2025 (search "HP-ITD" on Grants.gov)',
       keyRequirements: [
         'CMV safety data plan',
         'System interoperability plan',
@@ -122,7 +122,7 @@ export default function FederalGrantResources({ darkMode = false }) {
       arcItsRelevance: 'MEDIUM - ITS for emergency management and monitoring',
       nofoUrl: 'https://www.fhwa.dot.gov/environment/protect/discretionary/',
       grantsGovUrl: 'https://www.grants.gov/search-results-detail/356840',
-      applicationPeriod: 'FY2024-2026: Check grants.gov for updates',
+      applicationPeriod: 'NOFO under review by FHWA. Check grants.gov for re-posting',
       keyRequirements: [
         'Resilience improvement plan',
         'Vulnerability assessment',
@@ -151,8 +151,8 @@ export default function FederalGrantResources({ darkMode = false }) {
       ],
       arcItsRelevance: 'VERY HIGH - Core ITS technology deployment',
       nofoUrl: 'https://www.fhwa.dot.gov/infrastructure-investment-and-jobs-act/attain.cfm',
-      grantsGovUrl: 'https://www.grants.gov/search-results-detail/351055',
-      applicationPeriod: 'FY23-24 NOFO published: Check grants.gov for FY25',
+      grantsGovUrl: 'https://www.grants.gov/search-results-detail/343624',
+      applicationPeriod: '$60M annually (FY22-26). Check grants.gov for current NOFO',
       keyRequirements: [
         'Technology deployment plan',
         'Data sharing requirements',
@@ -180,8 +180,8 @@ export default function FederalGrantResources({ darkMode = false }) {
       ],
       arcItsRelevance: 'LOW-MEDIUM - ITS can be project component',
       nofoUrl: 'https://www.transportation.gov/grants/infra-grants-program',
-      grantsGovUrl: 'https://www.grants.gov/search-results-detail/351987',
-      applicationPeriod: 'Typically opens Q1 (Feb-Mar)',
+      grantsGovUrl: 'https://www.transportation.gov/grants/mpdg',
+      applicationPeriod: 'FY25-26: Part of MPDG. Search "INFRA" or "MPDG" on Grants.gov',
       keyRequirements: [
         'Benefit-Cost Analysis',
         'Project readiness',
