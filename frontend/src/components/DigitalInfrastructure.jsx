@@ -730,7 +730,7 @@ function DigitalInfrastructure() {
           {/* Gap Analysis */}
           <div style={{ marginBottom: '30px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h3 style={{ fontSize: '20px' }}>Gap Analysis ({gaps.length} gaps)</h3>
+              <h3 style={{ fontSize: '20px' }}>Gap Analysis ({gaps.length} unique gaps)</h3>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <button
                   onClick={() => downloadGapReport(modelDetails.id, modelDetails.filename.replace('.ifc', ''))}
@@ -780,47 +780,136 @@ function DigitalInfrastructure() {
 
             {gaps.length === 0 ? (
               <p style={{ color: '#666', padding: '20px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
-                No gaps identified - this model contains all required properties for ITS operations!
+                ✅ No gaps identified - this model contains all required properties for ITS operations!
               </p>
             ) : (
-              <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ backgroundColor: '#f5f5f5', borderBottom: '2px solid #e0e0e0' }}>
-                      <th style={{ padding: '12px', textAlign: 'left' }}>Severity</th>
-                      <th style={{ padding: '12px', textAlign: 'left' }}>Missing Property</th>
-                      <th style={{ padding: '12px', textAlign: 'left' }}>Required For</th>
-                      <th style={{ padding: '12px', textAlign: 'left' }}>ITS Use Case</th>
-                      <th style={{ padding: '12px', textAlign: 'left' }}>Standards</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {gaps.slice(0, 50).map((gap, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #e0e0e0' }}>
-                        <td style={{ padding: '12px' }}>
-                          <span style={{
-                            padding: '4px 8px',
-                            backgroundColor: gap.severity === 'high' ? '#ffebee' : '#fff3e0',
-                            color: gap.severity === 'high' ? '#d32f2f' : '#f57c00',
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            fontWeight: 'bold'
-                          }}>
-                            {gap.severity.toUpperCase()}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px', fontWeight: 'bold' }}>{gap.missing_property}</td>
-                        <td style={{ padding: '12px' }}>{gap.required_for}</td>
-                        <td style={{ padding: '12px', fontSize: '14px', color: '#666' }}>{gap.its_use_case}</td>
-                        <td style={{ padding: '12px', fontSize: '14px', color: '#666' }}>{gap.standards_reference}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {gaps.length > 50 && (
-                  <p style={{ padding: '15px', textAlign: 'center', color: '#666', backgroundColor: '#f5f5f5' }}>
-                    Showing first 50 of {gaps.length} gaps. Download CSV for complete report.
-                  </p>
+              <div>
+                {/* Gap Summary Cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
+                  <div style={{ padding: '20px', backgroundColor: '#ffebee', borderRadius: '8px', border: '2px solid #d32f2f' }}>
+                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#d32f2f', marginBottom: '8px' }}>
+                      {gaps.filter(g => g.severity === 'high').length}
+                    </div>
+                    <div style={{ color: '#666', fontSize: '14px' }}>High Severity Gaps</div>
+                  </div>
+                  <div style={{ padding: '20px', backgroundColor: '#fff3e0', borderRadius: '8px', border: '2px solid #f57c00' }}>
+                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#f57c00', marginBottom: '8px' }}>
+                      {gaps.filter(g => g.severity === 'medium').length}
+                    </div>
+                    <div style={{ color: '#666', fontSize: '14px' }}>Medium Severity Gaps</div>
+                  </div>
+                  <div style={{ padding: '20px', backgroundColor: '#f1f8e9', borderRadius: '8px', border: '2px solid #689f38' }}>
+                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#689f38', marginBottom: '8px' }}>
+                      {gaps.filter(g => g.severity === 'low').length}
+                    </div>
+                    <div style={{ color: '#666', fontSize: '14px' }}>Low Severity Gaps</div>
+                  </div>
+                </div>
+
+                {/* Gaps by Priority */}
+                <div style={{ marginBottom: '15px' }}>
+                  <h4 style={{ fontSize: '16px', marginBottom: '10px', color: '#666' }}>
+                    Top Priority Data Gaps (sorted by severity and impact)
+                  </h4>
+                </div>
+
+                <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                  {gaps.slice(0, 20).map((gap, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        marginBottom: '12px',
+                        padding: '16px',
+                        backgroundColor: '#ffffff',
+                        border: `2px solid ${gap.severity === 'high' ? '#d32f2f' : gap.severity === 'medium' ? '#f57c00' : '#689f38'}`,
+                        borderRadius: '8px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                            <span style={{
+                              padding: '4px 10px',
+                              backgroundColor: gap.severity === 'high' ? '#d32f2f' : gap.severity === 'medium' ? '#f57c00' : '#689f38',
+                              color: 'white',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              textTransform: 'uppercase'
+                            }}>
+                              {gap.severity}
+                            </span>
+                            <span style={{
+                              padding: '4px 10px',
+                              backgroundColor: '#e3f2fd',
+                              color: '#1976d2',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: '500'
+                            }}>
+                              {gap.gap_category || 'General'}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#333', marginBottom: '8px' }}>
+                            Missing: {gap.missing_property}
+                          </div>
+                          <div style={{ fontSize: '14px', color: '#666', marginBottom: '6px' }}>
+                            <strong>Required for:</strong> {gap.required_for}
+                          </div>
+                          <div style={{ fontSize: '14px', color: '#666', marginBottom: '6px' }}>
+                            <strong>ITS Use Case:</strong> {gap.its_use_case}
+                          </div>
+                          <div style={{ fontSize: '13px', color: '#999' }}>
+                            <strong>Standards:</strong> {gap.standards_reference}
+                          </div>
+                        </div>
+                        <div style={{
+                          marginLeft: '20px',
+                          padding: '12px 16px',
+                          backgroundColor: '#f5f5f5',
+                          borderRadius: '8px',
+                          textAlign: 'center',
+                          minWidth: '120px'
+                        }}>
+                          <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1976d2' }}>
+                            {gap.affected_element_count || 1}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#666' }}>
+                            {gap.affected_element_count === 1 ? 'element' : 'elements'} affected
+                          </div>
+                        </div>
+                      </div>
+
+                      {gap.idm_recommendation && (
+                        <div style={{
+                          marginTop: '10px',
+                          padding: '10px',
+                          backgroundColor: '#f9f9f9',
+                          borderLeft: '3px solid #1976d2',
+                          fontSize: '13px',
+                          color: '#555'
+                        }}>
+                          <strong>💡 Recommendation:</strong> {gap.idm_recommendation}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {gaps.length > 20 && (
+                  <div style={{
+                    marginTop: '20px',
+                    padding: '15px',
+                    textAlign: 'center',
+                    backgroundColor: '#e3f2fd',
+                    borderRadius: '8px',
+                    border: '1px solid #1976d2'
+                  }}>
+                    <p style={{ margin: 0, color: '#1976d2', fontWeight: '500' }}>
+                      Showing top 20 of {gaps.length} unique gaps. Download the CSV report for complete analysis.
+                    </p>
+                  </div>
                 )}
               </div>
             )}
