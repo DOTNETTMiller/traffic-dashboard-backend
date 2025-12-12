@@ -13032,9 +13032,9 @@ ${(() => {
   }, {});
   const mostCommonSchema = Object.entries(schemaFreq).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown';
 
-  return \`- Average Gaps per Model: \${avgGaps} (\${gapComparison})
-- Average Elements per Model: \${avgElements} (\${elementComparison})
-- Most Common IFC Schema: \${mostCommonSchema}\`;
+  return `- Average Gaps per Model: ${avgGaps} (${gapComparison})
+- Average Elements per Model: ${avgElements} (${elementComparison})
+- Most Common IFC Schema: ${mostCommonSchema}`;
 })()}
 
 ### Most Common Data Gaps Across Your Portfolio
@@ -13045,7 +13045,7 @@ ${(() => {
   // Count how many models have each gap type
   const gapFrequency = {};
   fleetStats.allGaps.forEach(g => {
-    const key = \`\${g.gap_category || 'General'}|\${g.missing_property}\`;
+    const key = `${g.gap_category || 'General'}|${g.missing_property}`;
     if (!gapFrequency[key]) {
       gapFrequency[key] = {
         category: g.gap_category || 'General',
@@ -13072,11 +13072,11 @@ ${(() => {
   }
 
   return sortedGaps.map((g, idx) =>
-    \`\${idx + 1}. **\${g.property}** (\${g.category})
-   - Found in \${g.modelCount}/\${fleetStats.totalModels} models (\${g.percentage}%)
-   - Severity: \${g.severity.toUpperCase()}
-   - 💡 **Recommendation:** \${g.percentage >= 75 ? 'CRITICAL - Appears in most models. Consider updating authoring standards and designer training.' : g.percentage >= 50 ? 'HIGH PRIORITY - Common issue. Add to QA/QC checklist and IDS validation.' : 'Address in future model updates and designer guidance.'}\`
-  ).join('\\n\\n');
+    `${idx + 1}. **${g.property}** (${g.category})
+   - Found in ${g.modelCount}/${fleetStats.totalModels} models (${g.percentage}%)
+   - Severity: ${g.severity.toUpperCase()}
+   - 💡 **Recommendation:** ${g.percentage >= 75 ? 'CRITICAL - Appears in most models. Consider updating authoring standards and designer training.' : g.percentage >= 50 ? 'HIGH PRIORITY - Common issue. Add to QA/QC checklist and IDS validation.' : 'Address in future model updates and designer guidance.'}`
+  ).join('\n\n');
 })()}
 
 ### Portfolio Trends & Insights
@@ -13101,7 +13101,7 @@ ${(() => {
 
   // State-specific insights
   if (stateSpecific) {
-    insights.push(\`📍 **\${fleetStats.stateKey.toUpperCase()} Portfolio:** \${stateModels.length} models from your state provide state-specific benchmark data.\`);
+    insights.push(`📍 **${fleetStats.stateKey.toUpperCase()} Portfolio:** ${stateModels.length} models from your state provide state-specific benchmark data.`);
   }
 
   // Temporal trends
@@ -13111,10 +13111,10 @@ ${(() => {
   const daysDiff = Math.floor((newestDate - oldestDate) / (1000 * 60 * 60 * 24));
 
   if (daysDiff > 30) {
-    insights.push(\`📅 **Data Collection Period:** \${daysDiff} days of model uploads tracked. Longitudinal analysis available for quality improvement trends.\`);
+    insights.push(`📅 **Data Collection Period:** ${daysDiff} days of model uploads tracked. Longitudinal analysis available for quality improvement trends.`);
   }
 
-  return insights.join('\\n\\n');
+  return insights.join('\n\n');
 })()}
 
 ### Actionable Next Steps Based on Fleet Data
@@ -13136,16 +13136,16 @@ ${(() => {
     .slice(0, 3);
 
   if (mostCommonGaps.length > 0 && mostCommonGaps[0].count >= 2) {
-    actions.push(\`1. **Update Design Standards:** The property "\${mostCommonGaps[0].property}" is missing in \${mostCommonGaps[0].count} models. Add this to your BIM authoring templates and designer training.\`);
+    actions.push(`1. **Update Design Standards:** The property "${mostCommonGaps[0].property}" is missing in ${mostCommonGaps[0].count} models. Add this to your BIM authoring templates and designer training.`);
   }
 
   // Priority 2: IDS validation
-  actions.push(\`2. **Implement IDS Validation:** Create an Information Delivery Specification (IDS) file based on these common gaps to catch issues during design review.\`);
+  actions.push(`2. **Implement IDS Validation:** Create an Information Delivery Specification (IDS) file based on these common gaps to catch issues during design review.`);
 
   // Priority 3: Schema consistency
   const schemas = [...new Set(fleetStats.models.map(m => m.ifc_schema))];
   if (schemas.length > 2) {
-    actions.push(\`3. **Standardize IFC Schema:** Your portfolio uses \${schemas.length} different IFC versions. Standardize on IFC4.3 for new projects to ensure consistency.\`);
+    actions.push(`3. **Standardize IFC Schema:** Your portfolio uses ${schemas.length} different IFC versions. Standardize on IFC4.3 for new projects to ensure consistency.`);
   }
 
   // Priority 4: Best practice sharing
@@ -13159,11 +13159,11 @@ ${(() => {
   if (bestModel && bestModel[1] < gaps.length) {
     const bestModelInfo = fleetStats.models.find(m => m.id === bestModel[0]);
     if (bestModelInfo) {
-      actions.push(\`4. **Learn from Best Practices:** Model "\${bestModelInfo.project_name || bestModelInfo.id}" has the fewest gaps (\${bestModel[1]}) in your portfolio. Review it as a template for future projects.\`);
+      actions.push(`4. **Learn from Best Practices:** Model "${bestModelInfo.project_name || bestModelInfo.id}" has the fewest gaps (${bestModel[1]}) in your portfolio. Review it as a template for future projects.`);
     }
   }
 
-  return actions.length > 0 ? actions.join('\\n\\n') : '✅ Continue current practices and monitor new uploads for emerging patterns.';
+  return actions.length > 0 ? actions.join('\n\n') : '✅ Continue current practices and monitor new uploads for emerging patterns.';
 })()}
 
 **📊 Note:** These recommendations will become more refined as you upload additional models. The system learns from your portfolio to provide increasingly tailored guidance.
