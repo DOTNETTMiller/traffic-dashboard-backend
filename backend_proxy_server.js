@@ -18854,46 +18854,17 @@ async function initVendorData() {
   }
 
   try {
-    console.log('\n🔄 Initializing TETC vendor data in PostgreSQL...');
+    console.log('\n🌱 Seeding TETC vendor data in PostgreSQL...');
 
-    const { Pool } = require('pg');
-    const Database = require('better-sqlite3');
-    const fs = require('fs');
-    const path = require('path');
-
-    // Check if vendor tables exist
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    const tableCheck = await pool.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables
-        WHERE table_name = 'tetc_vendors'
-      ) as exists
-    `);
-
-    if (tableCheck.rows[0].exists) {
-      console.log('✅ Vendor tables already exist');
-      await pool.end();
-      return;
-    }
-
-    // Run migration
-    const sqliteDbPath = path.join(__dirname, 'traffic_data.db');
-    if (!fs.existsSync(sqliteDbPath)) {
-      console.log('⚠️  traffic_data.db not found, skipping vendor migration');
-      await pool.end();
-      return;
-    }
-
-    console.log('📦 Running vendor data migration...');
     const { execSync } = require('child_process');
-    execSync('node scripts/migrate_vendor_data_to_postgres.js', {
+    execSync('node scripts/seed_vendor_data.js', {
       stdio: 'inherit',
       env: process.env
     });
 
-    console.log('✅ Vendor data migration completed\n');
+    console.log('✅ Vendor data seeding completed\n');
   } catch (error) {
-    console.error('⚠️  Vendor migration failed:', error.message);
+    console.error('⚠️  Vendor seeding failed:', error.message);
     console.error('   Vendor comparison feature may not work correctly\n');
   }
 }
