@@ -506,6 +506,9 @@ class IFCParser {
       });
     }
 
+    // Temporary storage for all gaps (including duplicates)
+    const allGaps = [];
+
     for (const element of elements) {
       const itsRequirements = this.assessITSRelevance(element.ifc_type);
 
@@ -515,6 +518,7 @@ class IFCParser {
       for (const requiredProp of itsRequirements.properties_needed) {
         const gap = {
           element_ifc_guid: element.ifc_guid,
+          element_ifc_type: element.ifc_type,
           gap_type: 'missing_property',
           gap_category: 'ITS Operations',
           severity: itsRequirements.av ? 'high' : 'medium',
@@ -526,15 +530,16 @@ class IFCParser {
           ids_requirement: this.getIDSRequirement(element.ifc_type, requiredProp)
         };
 
-        gaps.push(gap);
+        allGaps.push(gap);
       }
 
       // Check for alignment-based placement gaps
       if (linearInfraTypes.includes(element.ifc_type)) {
         if (!this.hasAlignments) {
           // No alignments in model at all
-          gaps.push({
+          allGaps.push({
             element_ifc_guid: element.ifc_guid,
+            element_ifc_type: element.ifc_type,
             gap_type: 'missing_alignment',
             gap_category: 'Alignment-Based Positioning',
             severity: 'high',
@@ -547,8 +552,9 @@ class IFCParser {
           });
         } else {
           // Alignments exist but element may not use them (would need to check ObjectPlacement)
-          gaps.push({
+          allGaps.push({
             element_ifc_guid: element.ifc_guid,
+            element_ifc_type: element.ifc_type,
             gap_type: 'absolute_placement',
             gap_category: 'Alignment-Based Positioning',
             severity: 'medium',
@@ -563,7 +569,46 @@ class IFCParser {
       }
     }
 
-    return gaps;
+    // Deduplicate gaps: group by unique combination of gap properties
+    const gapMap = new Map();
+    allGaps.forEach(gap => {
+      const key = `${gap.gap_type}|${gap.missing_property}|${gap.gap_category}|${gap.severity}|${gap.element_ifc_type}`;
+
+      if (!gapMap.has(key)) {
+        // First occurrence - store it with affected elements array
+        gapMap.set(key, {
+          ...gap,
+          affected_element_guids: [gap.element_ifc_guid],
+          affected_element_count: 1
+        });
+      } else {
+        // Duplicate - just add to affected elements
+        const existing = gapMap.get(key);
+        existing.affected_element_guids.push(gap.element_ifc_guid);
+        existing.affected_element_count++;
+      }
+    });
+
+    // Convert map back to array and use first affected element as the representative GUID
+    const deduplicatedGaps = Array.from(gapMap.values()).map(gap => {
+      // Use first affected element as representative
+      return {
+        element_ifc_guid: gap.affected_element_guids[0],
+        gap_type: gap.gap_type,
+        gap_category: gap.gap_category,
+        severity: gap.severity,
+        missing_property: gap.missing_property,
+        required_for: gap.required_for,
+        its_use_case: gap.its_use_case,
+        standards_reference: gap.standards_reference,
+        idm_recommendation: gap.idm_recommendation,
+        ids_requirement: gap.ids_requirement,
+        affected_element_count: gap.affected_element_count,
+        affected_element_guids: gap.affected_element_guids.join(',')
+      };
+    });
+
+    return [...gaps, ...deduplicatedGaps];
   }
 
   getUseCase(property) {
