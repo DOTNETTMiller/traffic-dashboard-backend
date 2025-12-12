@@ -9770,42 +9770,125 @@ app.get('/api/data-quality/votes', async (req, res) => {
   }
 });
 
+
+// Helper function to get vendor database connection
+async function getVendorDb() {
+  if (process.env.DATABASE_URL) {
+    // PostgreSQL (production)
+    const { Pool } = require('pg');
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    return {
+      query: async (sql, params = []) => {
+        const result = await pool.query(sql, params);
+        return result.rows;
+      },
+      queryOne: async (sql, params = []) => {
+        const result = await pool.query(sql, params);
+        return result.rows[0] || null;
+      },
+      execute: async (sql, params = []) => {
+        await pool.query(sql, params);
+      },
+      close: async () => await pool.end(),
+      isPostgres: true
+    };
+  } else {
+    // SQLite (local)
+    const Database = require('better-sqlite3');
+    const path = require('path');
+    const db = new Database(path.join(__dirname, 'traffic_data.db'));
+    return {
+      query: async (sql, params = []) => {
+        return db.prepare(sql).all(...params);
+      },
+      queryOne: async (sql, params = []) => {
+        return db.prepare(sql).get(...params) || null;
+      },
+      execute: async (sql, params = []) => {
+        db.prepare(sql).run(...params);
+      },
+      close: async () => db.close(),
+      isPostgres: false
+    };
+  }
+}
+
 // ==========================================
 // TETC VENDOR DQI SCORING ENDPOINTS
 // ==========================================
 
 // Get all TETC vendor quality scores
 app.get('/api/vendors/quality-scores', async (req, res) => {
-  const Database = require('better-sqlite3');
-  const path = require('path');
-
   try {
-    const DB_PATH = path.join(__dirname, 'traffic_data.db');
-    const trafficDb = new Database(DB_PATH, { readonly: true });
+    let vendors;
 
-    const vendors = trafficDb.prepare(`
-      SELECT
-        vendor_id,
-        vendor_name,
-        vendor_type,
-        data_categories,
-        website_url,
-        tetc_profile_url,
-        evaluation_id,
-        evaluation_name,
-        evaluation_date,
-        methodology_ref,
-        dqi,
-        letter_grade,
-        acc_score,
-        cov_score,
-        tim_score,
-        std_score,
-        gov_score,
-        last_scored
-      FROM vendor_quality_latest
-      ORDER BY dqi DESC
-    `).all();
+    // Check if using PostgreSQL (production) or SQLite (local)
+    if (process.env.DATABASE_URL) {
+      // PostgreSQL
+      const { Pool } = require('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL
+      });
+
+      const result = await pool.query(`
+        SELECT
+          vendor_id,
+          vendor_name,
+          vendor_type,
+          data_categories,
+          website_url,
+          tetc_profile_url,
+          evaluation_id,
+          evaluation_name,
+          evaluation_date,
+          methodology_ref,
+          dqi,
+          letter_grade,
+          acc_score,
+          cov_score,
+          tim_score,
+          std_score,
+          gov_score,
+          last_scored
+        FROM vendor_quality_latest
+        ORDER BY dqi DESC
+      `);
+
+      vendors = result.rows;
+      await pool.end();
+    } else {
+      // SQLite
+      const Database = require('better-sqlite3');
+      const path = require('path');
+      const DB_PATH = path.join(__dirname, 'traffic_data.db');
+      const trafficDb = new Database(DB_PATH, { readonly: true });
+
+      vendors = trafficDb.prepare(`
+        SELECT
+          vendor_id,
+          vendor_name,
+          vendor_type,
+          data_categories,
+          website_url,
+          tetc_profile_url,
+          evaluation_id,
+          evaluation_name,
+          evaluation_date,
+          methodology_ref,
+          dqi,
+          letter_grade,
+          acc_score,
+          cov_score,
+          tim_score,
+          std_score,
+          gov_score,
+          last_scored
+        FROM vendor_quality_latest
+        ORDER BY dqi DESC
+      `).all();
+
+      trafficDb.close();
+    }
 
     // Parse JSON data_categories
     const vendorsWithParsedCategories = vendors.map(v => ({
@@ -9825,8 +9908,6 @@ app.get('/api/vendors/quality-scores', async (req, res) => {
       }
     };
 
-    trafficDb.close();
-
     res.json({
       success: true,
       vendors: vendorsWithParsedCategories,
@@ -9843,15 +9924,12 @@ app.get('/api/vendors/quality-scores', async (req, res) => {
 
 // Get quality score for a specific vendor
 app.get('/api/vendors/:vendorId/quality-score', async (req, res) => {
-  const Database = require('better-sqlite3');
-  const path = require('path');
   const { vendorId } = req.params;
 
   try {
-    const DB_PATH = path.join(__dirname, 'traffic_data.db');
-    const trafficDb = new Database(DB_PATH, { readonly: true });
+    const vdb = await getVendorDb();
 
-    const vendor = trafficDb.prepare(`
+    const vendor = await vdb.queryOne(`
       SELECT
         vendor_id,
         vendor_name,
@@ -9872,10 +9950,10 @@ app.get('/api/vendors/:vendorId/quality-score', async (req, res) => {
         gov_score,
         last_scored
       FROM vendor_quality_latest
-      WHERE vendor_id = ?
-    `).get(vendorId);
+      WHERE vendor_id = ${vdb.isPostgres ? '$1' : '?'}
+    `, [vendorId]);
 
-    trafficDb.close();
+    await vdb.close();
 
     if (!vendor) {
       return res.status(404).json({
@@ -9936,8 +10014,6 @@ app.get('/api/vendors/:vendorId/capabilities', async (req, res) => {
 
 // Submit a vote for a vendor quality score
 app.post('/api/vendors/vote', async (req, res) => {
-  const Database = require('better-sqlite3');
-  const path = require('path');
   const { evaluationId, voteType } = req.body;
 
   // Validation
@@ -9956,16 +10032,14 @@ app.post('/api/vendors/vote', async (req, res) => {
   }
 
   try {
-    const DB_PATH = path.join(__dirname, 'traffic_data.db');
-    const trafficDb = new Database(DB_PATH);
+    const vdb = await getVendorDb();
 
-    // Insert vote
-    trafficDb.prepare(`
+    await vdb.execute(`
       INSERT INTO vendor_score_votes (evaluation_id, vote_type)
-      VALUES (?, ?)
-    `).run(evaluationId, voteType);
+      VALUES (${vdb.isPostgres ? '$1, $2' : '?, ?'})
+    `, [evaluationId, voteType]);
 
-    trafficDb.close();
+    await vdb.close();
 
     res.json({
       success: true,
@@ -9982,33 +10056,27 @@ app.post('/api/vendors/vote', async (req, res) => {
 
 // Get vote counts for all vendor evaluations
 app.get('/api/vendors/votes', async (req, res) => {
-  const Database = require('better-sqlite3');
-  const path = require('path');
-
   try {
-    const DB_PATH = path.join(__dirname, 'traffic_data.db');
-    const trafficDb = new Database(DB_PATH, { readonly: true });
+    const vdb = await getVendorDb();
 
-    const votes = trafficDb.prepare(`
+    const votes = await vdb.query(`
       SELECT
         evaluation_id,
-        COUNT(CASE WHEN vote_type = 'up' THEN 1 END) as upvotes,
-        COUNT(CASE WHEN vote_type = 'down' THEN 1 END) as downvotes,
-        COUNT(*) as total_votes
+        vote_type,
+        COUNT(*) as count
       FROM vendor_score_votes
-      GROUP BY evaluation_id
-    `).all();
+      GROUP BY evaluation_id, vote_type
+    `);
 
-    trafficDb.close();
+    await vdb.close();
 
-    // Convert to object keyed by evaluation_id for easier lookup
+    // Transform to object format
     const votesByEvaluation = {};
     votes.forEach(row => {
-      votesByEvaluation[row.evaluation_id] = {
-        upvotes: row.upvotes,
-        downvotes: row.downvotes,
-        total: row.total_votes
-      };
+      if (!votesByEvaluation[row.evaluation_id]) {
+        votesByEvaluation[row.evaluation_id] = { up: 0, down: 0 };
+      }
+      votesByEvaluation[row.evaluation_id][row.vote_type] = parseInt(row.count);
     });
 
     res.json({
