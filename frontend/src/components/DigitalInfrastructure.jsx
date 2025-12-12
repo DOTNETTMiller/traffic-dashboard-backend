@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { config } from '../config';
 import IFCViewer from './IFCViewer';
+import IFCModelViewer from './IFCModelViewer';
 
 const API_BASE = config.apiUrl;
 
@@ -682,6 +683,14 @@ function DigitalInfrastructure() {
             <h2 style={{ fontSize: '24px', marginBottom: '10px' }}>{modelDetails.filename}</h2>
             <p style={{ color: '#666' }}>{modelDetails.project_name}</p>
           </div>
+
+          {/* 3D Model Viewer */}
+          {modelDetails.filename?.toLowerCase().endsWith('.ifc') && (
+            <div style={{ marginBottom: '30px' }}>
+              <h3 style={{ fontSize: '20px', marginBottom: '15px' }}>3D Model Viewer</h3>
+              <IFCModelViewer modelId={modelDetails.id} filename={modelDetails.filename} />
+            </div>
+          )}
 
           {/* Statistics Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
