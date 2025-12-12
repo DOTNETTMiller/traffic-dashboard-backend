@@ -266,14 +266,16 @@ class CADParser {
    */
   identifyGaps(elements) {
     const gaps = [];
+    const allGaps = [];
 
     // CAD files typically lack semantic data, so we add gaps for all critical properties
     elements.forEach(element => {
       const criticalProperties = this.getCriticalProperties(element.category);
 
       criticalProperties.forEach(prop => {
-        gaps.push({
+        allGaps.push({
           element_ifc_guid: element.ifc_guid,
+          element_category: element.category,
           gap_type: 'missing_property',
           gap_category: 'CAD Data Enrichment',
           severity: prop.severity,
@@ -287,6 +289,46 @@ class CADParser {
       });
     });
 
+    // Deduplicate gaps: group by unique combination of gap properties
+    const gapMap = new Map();
+    allGaps.forEach(gap => {
+      const key = `${gap.gap_type}|${gap.missing_property}|${gap.gap_category}|${gap.severity}|${gap.element_category}`;
+
+      if (!gapMap.has(key)) {
+        // First occurrence - store it with affected elements array
+        gapMap.set(key, {
+          ...gap,
+          affected_element_guids: [gap.element_ifc_guid],
+          affected_element_count: 1
+        });
+      } else {
+        // Duplicate - just add to affected elements
+        const existing = gapMap.get(key);
+        existing.affected_element_guids.push(gap.element_ifc_guid);
+        existing.affected_element_count++;
+      }
+    });
+
+    // Convert map back to array
+    const deduplicatedGaps = Array.from(gapMap.values()).map(gap => {
+      return {
+        element_ifc_guid: gap.affected_element_guids[0],
+        gap_type: gap.gap_type,
+        gap_category: gap.gap_category,
+        severity: gap.severity,
+        missing_property: gap.missing_property,
+        required_for: gap.required_for,
+        its_use_case: gap.its_use_case,
+        standards_reference: gap.standards_reference,
+        idm_recommendation: gap.idm_recommendation,
+        ids_requirement: gap.ids_requirement,
+        affected_element_count: gap.affected_element_count,
+        affected_element_guids: gap.affected_element_guids.join(',')
+      };
+    });
+
+    gaps.push(...deduplicatedGaps);
+
     // Add model-level gap about CAD limitations
     if (elements.length > 0) {
       gaps.push({
@@ -299,7 +341,9 @@ class CADParser {
         its_use_case: 'V2X, AV routing, digital twin, asset management',
         standards_reference: 'buildingSMART IFC4.3, AASHTO BIM standards',
         idm_recommendation: 'CAD files (DXF/DWG/DGN) contain only geometry and layer information, lacking the semantic properties required for ITS operations. Recommend: 1) Convert to IFC format using Autodesk Civil 3D, Bentley OpenRoads, or FME, 2) Enrich with property sets during conversion, 3) Use this gap report to guide which properties to add during conversion.',
-        ids_requirement: '<format required="IFC" purpose="Semantic_Infrastructure_Data" />'
+        ids_requirement: '<format required="IFC" purpose="Semantic_Infrastructure_Data" />',
+        affected_element_count: elements.length,
+        affected_element_guids: elements.map(e => e.ifc_guid).join(',')
       });
     }
 
