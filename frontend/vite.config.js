@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// Vite configuration for Corridor Communicator
 export default defineConfig({
   plugins: [react()],
   server: {
