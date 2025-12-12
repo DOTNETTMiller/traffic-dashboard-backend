@@ -12314,36 +12314,94 @@ app.get('/api/digital-infrastructure/gaps/:modelId', async (req, res) => {
       gaps = db.db.prepare(query).all(...params);
     }
 
-    // Get severity counts
-    const countQuery = db.isPostgres
-      ? 'SELECT severity, COUNT(*) as count FROM infrastructure_gaps WHERE model_id = $1 GROUP BY severity'
-      : 'SELECT severity, COUNT(*) as count FROM infrastructure_gaps WHERE model_id = ? GROUP BY severity';
+    // Summarize gaps to eliminate redundancy
+    // Group by: gap_category, missing_property, severity, required_for
+    const gapMap = new Map();
 
-    let counts;
-    if (db.isPostgres) {
-      const result = await db.db.query(countQuery, [modelId]);
-      counts = result.rows || [];
-    } else {
-      counts = db.db.prepare(countQuery).all(modelId);
-    }
+    gaps.forEach(gap => {
+      const key = `${gap.gap_category || 'General'}|${gap.missing_property}|${gap.severity}`;
 
+      if (!gapMap.has(key)) {
+        gapMap.set(key, {
+          gap_category: gap.gap_category || 'General',
+          missing_property: gap.missing_property,
+          severity: gap.severity,
+          required_for: gap.required_for,
+          its_use_case: gap.its_use_case,
+          standards_reference: gap.standards_reference,
+          idm_recommendation: gap.idm_recommendation,
+          ids_requirement: gap.ids_requirement,
+          affected_elements: new Set()
+        });
+      }
+
+      const existing = gapMap.get(key);
+
+      // Add affected elements (could be comma-separated list or single element)
+      if (gap.affected_element_guids) {
+        gap.affected_element_guids.split(',').forEach(guid => {
+          if (guid && guid.trim()) existing.affected_elements.add(guid.trim());
+        });
+      } else if (gap.element_ifc_guid) {
+        existing.affected_elements.add(gap.element_ifc_guid);
+      }
+
+      existing.affected_element_count = gap.affected_element_count || existing.affected_elements.size;
+    });
+
+    // Convert to array and add summary information
+    const summarizedGaps = Array.from(gapMap.values()).map(gap => ({
+      gap_category: gap.gap_category,
+      missing_property: gap.missing_property,
+      severity: gap.severity,
+      required_for: gap.required_for,
+      its_use_case: gap.its_use_case,
+      standards_reference: gap.standards_reference,
+      idm_recommendation: gap.idm_recommendation,
+      ids_requirement: gap.ids_requirement,
+      affected_element_count: gap.affected_element_count || gap.affected_elements.size,
+      affected_element_guids: Array.from(gap.affected_elements).join(',')
+    }));
+
+    // Sort by severity (high first) then by affected element count (descending)
+    const severityOrder = { high: 0, medium: 1, low: 2 };
+    summarizedGaps.sort((a, b) => {
+      if (severityOrder[a.severity] !== severityOrder[b.severity]) {
+        return severityOrder[a.severity] - severityOrder[b.severity];
+      }
+      return b.affected_element_count - a.affected_element_count;
+    });
+
+    // Group by category for better organization
+    const gapsByCategory = {};
+    summarizedGaps.forEach(gap => {
+      const category = gap.gap_category || 'General';
+      if (!gapsByCategory[category]) {
+        gapsByCategory[category] = [];
+      }
+      gapsByCategory[category].push(gap);
+    });
+
+    // Get severity counts from summarized gaps
     const severityCounts = {
-      high: 0,
-      medium: 0,
-      low: 0
+      high: summarizedGaps.filter(g => g.severity === 'high').length,
+      medium: summarizedGaps.filter(g => g.severity === 'medium').length,
+      low: summarizedGaps.filter(g => g.severity === 'low').length
     };
 
-    counts.forEach(c => {
-      severityCounts[c.severity] = parseInt(c.count);
-    });
+    // Calculate total affected elements
+    const totalAffectedElements = summarizedGaps.reduce((sum, g) => sum + g.affected_element_count, 0);
 
     res.json({
       success: true,
-      total_gaps: gaps.length,
+      total_gaps: summarizedGaps.length,
+      total_affected_elements: totalAffectedElements,
       high_severity: severityCounts.high,
       medium_severity: severityCounts.medium,
       low_severity: severityCounts.low,
-      gaps: gaps
+      gaps: summarizedGaps,
+      gaps_by_category: gapsByCategory,
+      categories: Object.keys(gapsByCategory)
     });
 
   } catch (error) {
