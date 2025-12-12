@@ -1,0 +1,1622 @@
+[
+  {
+    "corridor": "Multi-State",
+    "state_key": "alabama",
+    "state_name": "Alabama",
+    "state_code": "AL",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 22000,
+      "tandem_axle": 44000,
+      "tridem_axle": 66000,
+      "gross_vehicle_weight": 150000
+    },
+    "max_dimensions": {
+      "length_ft": 57,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$100",
+      "single_trip": "$10-$100",
+      "notes": "$10-$30 for 80k-125k lbs; $60 for 125k-150k lbs; $100 for 150k+"
+    },
+    "color": "#FF6B6B",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus clearance",
+      "height_pole": "Required for loads over 15'6\"",
+      "pilot_car_escort": "1 front escort for >12' wide; 1 front and 1 rear for >14' wide; 2 escorts required for blade/bucket equipment at 12' wide",
+      "trip_permits": "Available online; valid for 5 days",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Daylight only (1/2 hour before sunrise to 1/2 hour after sunset) Mon-Sat; no Sunday travel; loads 120-150' long restricted to 9am-3pm Mon-Fri",
+      "holiday_restrictions": "No travel on major holidays (New Year's Day, Memorial Day, Independence Day, Labor Day, Thanksgiving, Christmas)",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required; black letters on yellow background; 7' wide x 18\" high",
+      "flag_regulations": "Red or fluorescent orange flags 18\" square at all extremities",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Standard max: 150,000 lbs GVW; single axle max 22,000 lbs; Superload designation varies",
+      "annual_permit_cost": "$100 for annual permits (modular homes, portable buildings, heavy commodities)",
+      "commodity_specific": "Annual permits available for modular homes, sectional houses, portable buildings, boats; heavy equipment permits available",
+      "route_requirements": "Route approval required for loads >100,000 lbs; advance routing by ALDOT required"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "alaska",
+    "state_name": "Alaska",
+    "state_code": "AK",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42500,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 25000,
+      "tandem_axle": 47500,
+      "tridem_axle": 52500,
+      "gross_vehicle_weight": 100000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$450-$1100",
+      "single_trip": "$35-$60",
+      "notes": "Annual overweight $500; overlength $450; overwidth $500; route-specific $550-$1100; single trip $35 + surcharges"
+    },
+    "color": "#4ECDC4",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads exceeding 15'",
+      "pilot_car_escort": "1 escort for >10'6\" wide up to 12' wide; 1 front and 1 rear for >12' wide up to 14' wide",
+      "trip_permits": "Available online at AKSWOOP.COM; processing varies by load size",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Monday through Saturday noon during daylight hours (1/2 hour before sunrise to 1/2 hour after sunset); loads up to 10'6\" wide, 16' high, 85' long may travel Mon-Sun daylight",
+      "holiday_restrictions": "No travel on Memorial Day, 4th of July, and Labor Day holiday periods",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required; specific size and color requirements apply",
+      "flag_regulations": "Red or orange flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles and wide loads",
+      "permit_dimensions": "Annual max: 10'6\" wide x 15' high x 75' long; 125% of legal weight; Single trip permits for larger dimensions",
+      "annual_permit_cost": "$450-$1100 depending on permit type and route specificity",
+      "commodity_specific": "Special provisions for Alaska-specific industries; mining and resource transport common",
+      "route_requirements": "Route approval required for loads exceeding annual permit limits; advance coordination necessary"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "arizona",
+    "state_name": "Arizona",
+    "state_code": "AZ",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 22000,
+      "tandem_axle": 40000,
+      "tridem_axle": 52500,
+      "gross_vehicle_weight": 250000
+    },
+    "max_dimensions": {
+      "length_ft": 65,
+      "width_ft": 8.5,
+      "height_ft": 14
+    },
+    "permit_costs": {
+      "annual_permit": "$75-$200",
+      "single_trip": "$30-$90",
+      "notes": "Class A: $15 overdimensional, $75 overweight; Class C: $30-$90 depending on dimensions/weight"
+    },
+    "color": "#F4A460",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads over 16'",
+      "pilot_car_escort": "1 escort for >12' wide; 2 escorts for >14' wide; additional escorts for superloads",
+      "trip_permits": "Available online only; valid for 4 days; 10 business days advance notice for superloads",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Daylight hours (1/2 hour before sunrise to 1/2 hour after sunset)",
+      "holiday_restrictions": "No travel on New Year's Day, Memorial Day, Independence Day, Labor Day, Thanksgiving Day, Christmas Day",
+      "banner_regulations": "\"OVERSIZE LOAD\" signs required for loads 9' or wider; 6' long x 1' high; black letters 6\" high with 1\" brushstroke on yellow background",
+      "flag_regulations": "18\" square fluorescent orange or red flags at four corners at extremities of load",
+      "warning_light_regulations": "Amber flashing lights required on escort vehicles and wide loads",
+      "permit_dimensions": "Class A: <120'L x <14'W x <16'H x <250,000 lbs; Class C (Superload): >120'L or >14'W or >16'H or >250,000 lbs",
+      "annual_permit_cost": "Varies by permit class and configuration; Class A permits available annually",
+      "commodity_specific": "Special provisions for mining equipment, construction equipment, and agricultural loads",
+      "route_requirements": "Route approval required for Class C superloads; advance coordination with utilities and law enforcement necessary"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "arkansas",
+    "state_name": "Arkansas",
+    "state_code": "AR",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 22000,
+      "tandem_axle": 40000,
+      "tridem_axle": 52000,
+      "gross_vehicle_weight": 200000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$360-$600",
+      "single_trip": "$17-$125",
+      "notes": "Single trip $17; oversize/overweight $75; superload $125-$400; annual oversize $360; annual oversize/overweight $600"
+    },
+    "color": "#9370DB",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads over 15'6\"",
+      "pilot_car_escort": "1 escort for loads >12' wide; 2 escorts for >14' wide or specific conditions",
+      "trip_permits": "Available through ARDOT system; single trip permits valid for specified period",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Daylight only (1/2 hour before sunrise to 1/2 hour after sunset) 7 days a week; no movement through Little Rock metro 7-9am and 4-6pm; no I-30, I-40, I-630 during rush hours",
+      "holiday_restrictions": "No travel on major holidays for oversize loads",
+      "banner_regulations": "\"OVERSIZE LOAD\" signs required on front and rear for loads exceeding legal width, height or length",
+      "flag_regulations": "Red flags 18\" square required on lower rear corners",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Routine max: 16'6\"W x 15'6\"H x 100'L; Superload: >16'6\"W or >15'6\"H or >100'L or >120,000 lbs",
+      "annual_permit_cost": "$360 oversize only; $600 oversize/overweight combined",
+      "commodity_specific": "Agricultural equipment may have exemptions; special permits for specific commodities available",
+      "route_requirements": "Route approval required for superloads; bridge analysis required for heavy loads; superloads require extensive planning"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "california",
+    "state_name": "California",
+    "state_code": "CA",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 46725,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 200000
+    },
+    "max_dimensions": {
+      "length_ft": 65,
+      "width_ft": 8.5,
+      "height_ft": 14
+    },
+    "permit_costs": {
+      "annual_permit": "$90",
+      "single_trip": "$16",
+      "notes": "Single trip $16 (valid 7 days); annual $90 (valid 1 year)"
+    },
+    "color": "#FFD700",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads over 17'",
+      "pilot_car_escort": "1 escort for >12' wide; 2 escorts for >13' on 2-lane or >14'11\" on Interstate/4-lane; CHP escorts required for >16' wide (>15' on 2-lane); also required for >100' on some routes, >120' length, or >25' overhang",
+      "trip_permits": "Available through Caltrans online system; single trip valid 7 days; 1/2 day to 3 days processing",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Loads >12' wide restricted to 11am-1pm Mon-Fri; no travel 6-9am or 3-6pm in LA, San Diego, Sacramento, San Francisco areas",
+      "holiday_restrictions": "No travel on New Year's Day, Washington's Birthday, Memorial Day, Independence Day, Labor Day, Thanksgiving Day, Christmas Day",
+      "banner_regulations": "\"OVERSIZE LOAD\" signs required for all loads >8'6\" wide or 80' long or >10' overhang",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles; specific requirements for wide loads",
+      "permit_dimensions": "Annual max: 12'W x 14'H (legal) x 40' KPRA; Single trip: 14'W general, 15'W without CHP on certain routes, 16'W on yellow routes; loads >11' wide or overweight require CHP escort",
+      "annual_permit_cost": "$90 for annual permit; cost-effective for >5 trips per year",
+      "commodity_specific": "Special provisions for sea containers, agricultural equipment, and specialized cargo",
+      "route_requirements": "Route survey required for >17' height; utility clearance necessary; extensive coordination for superloads"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "colorado",
+    "state_name": "Colorado",
+    "state_code": "CO",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 22000,
+      "tandem_axle": 40000,
+      "tridem_axle": 54000,
+      "gross_vehicle_weight": 165000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 14.5
+    },
+    "permit_costs": {
+      "annual_permit": "$500",
+      "single_trip": "$15-$45",
+      "notes": "Single trip $15 + $5 per axle if overweight; surcharge applied per SB 09-108; Non-Interstate annual $500"
+    },
+    "color": "#87CEEB",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads exceeding designated height limits",
+      "pilot_car_escort": "1 escort for specified widths; 2 escorts for wider loads or longer lengths per permit map requirements",
+      "trip_permits": "Available online through COOPR system; 2-hour turnaround for single trip permits (applications after 3pm MT not guaranteed same day)",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Daylight hours for oversize loads; specific restrictions may apply based on route",
+      "holiday_restrictions": "No travel on major holidays for oversize loads",
+      "banner_regulations": "\"OVERSIZE LOAD\" signs required front and rear for all oversize loads; NOT required for overweight-only loads",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Max: 17'W (subject to route map limits) x 130'L (four-lane), 120'L (non-mountainous two-lane), 110'L (mountainous two-lane)",
+      "annual_permit_cost": "$500 for Non-Interstate 2/3 Axle Overweight Divisible Annual",
+      "commodity_specific": "Special permits for mining equipment, agricultural loads, and construction equipment",
+      "route_requirements": "Route approval based on Pilot Escort and Oversize Restriction Map; advance coordination may be required"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "connecticut",
+    "state_name": "Connecticut",
+    "state_code": "CT",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 26000,
+      "tandem_axle": 46000,
+      "tridem_axle": 58000,
+      "gross_vehicle_weight": 160000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$9 per 1000 lbs + $12",
+      "single_trip": "$30 + $12",
+      "notes": "Single trip $30 + $12 electronic fee; $2 per 1000 lbs over 200,000 lbs; Annual indivisible $9 per 1000 lbs + $12 electronic fee"
+    },
+    "color": "#FF8C00",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads over 14'",
+      "pilot_car_escort": "1 rear escort for >12' wide, 120' long, or mobile homes <12' wide; 1 front and 1 rear for >13'6\" wide, >120' long, or mobiles >12' wide or >85' long",
+      "trip_permits": "Available through Connecticut CVO WebPortal; valid for 3-day period (one trip and return)",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Daylight only (1/2 hour after sunrise to 1/2 hour before sunset); no weekends or holidays; no moves 6:30-9am or 4-6pm; loads 13'6\" wide or >14' high: Tue-Thu 9am-4pm only",
+      "holiday_restrictions": "No travel on major holidays; no weekend travel",
+      "banner_regulations": "\"OVERSIZE LOAD\" signs required for loads >10' wide or >13'6\" high",
+      "flag_regulations": "Flags required for >4' overhang during day; lighted at night",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Routine max: 16'W x 14'H x 130'L x 160,000 lbs; Superload: >14'W or >14'H or >120'L; >140,000 lbs requires engineering review",
+      "annual_permit_cost": "$9 per 1000 lbs of permitted weight + $12 electronic transmittal fee",
+      "commodity_specific": "Special provisions for construction equipment and indivisible loads",
+      "route_requirements": "Weekend permits available for loads up to 12'W x 13'6\"H x 80'L x 160,000 lbs (Sat-Sun daylight to noon)"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "delaware",
+    "state_name": "Delaware",
+    "state_code": "DE",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 54000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 22400,
+      "tandem_axle": 40000,
+      "tridem_axle": 65000,
+      "gross_vehicle_weight": 120000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$1500-$2500",
+      "single_trip": "$30 + $10 per 8000 lbs",
+      "notes": "Minimum $30; add $10 per 8,000 lbs (or portion) over legal weight; self-propelled cranes annual: $1500 (≤24k lbs) or $2500 (>24k lbs)"
+    },
+    "color": "#6495ED",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads at 15' or higher",
+      "pilot_car_escort": "1 rear or front escort at >12' wide (depends on highway type); 1 front and 1 rear at >14' wide; 1 front and 1 rear at 85' length for rear, 100' for front and rear; 1 front and 1 rear at 15' height",
+      "trip_permits": "Available online through DelDOT OS/OW system; valid for 5 days",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Mon-Fri sunrise to sunset; Sat sunrise to noon; loads ≤75'L x 12'W x 14'6\"H x 120,000 lbs may move 9pm-5am Mon-Fri with prior approval",
+      "holiday_restrictions": "No travel on major holidays for oversize loads",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required for loads exceeding legal dimensions",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Standard max: 120,000 lbs GVW; Superload: ≥15'W or ≥15'H or ≥120'L or >120,000 lbs",
+      "annual_permit_cost": "$1500-$2500 for self-propelled cranes only; no general annual OS/OW permits issued",
+      "commodity_specific": "Special annual permits for self-propelled cranes only; agricultural equipment may have exemptions",
+      "route_requirements": "Route approval required for superloads; bridge analysis may be required for heavy loads"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "florida",
+    "state_name": "Florida",
+    "state_code": "FL",
+    "legal_limits": {
+      "single_axle": 22000,
+      "tandem_axle": 44000,
+      "tridem_axle": 52000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 26000,
+      "tandem_axle": 52000,
+      "tridem_axle": 64000,
+      "gross_vehicle_weight": 200000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$240-$310",
+      "single_trip": "$5-$25",
+      "notes": "7-day trip: $5 (≤12'W x 13'H x 85'L), $15 (≤14'W x 14'H x 95'L), $25 (≤14'W x 18'H x 120'L or >14'W); Overweight: $0.27-$0.36/mile or $0.003/1000 lbs/mile"
+    },
+    "color": "#FF1493",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads exceeding 13'6\"",
+      "pilot_car_escort": "Escort requirements vary by dimensions; specific requirements in permit",
+      "trip_permits": "Self-issue available through PAS system for loads up to 16'W x 18'H x 150'L x 200,000 lbs (140k for self-propelled)",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Varies by permit type and dimensions; some loads have continuous travel, others restricted to daylight",
+      "holiday_restrictions": "Restricted travel on major holidays for oversize loads",
+      "banner_regulations": "\"OVERSIZE LOAD\" signs required for loads exceeding legal dimensions",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles and wide loads",
+      "permit_dimensions": "Self-issue max: 16'W x 18'H x 150'L x 200,000 lbs (140k self-propelled); Florida Turnpike limit: 12'W x 13'6\"H",
+      "annual_permit_cost": "$240 (up to 95k lbs) to $310 (up to 122k lbs) for 12-month permits",
+      "commodity_specific": "Containerized cargo permits available; special provisions for construction and agricultural equipment",
+      "route_requirements": "State Permit Office oversees all state-maintained highways; route approval required for larger loads; penalties up to $1000 for violations or $0.05/lb for weight violations"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "georgia",
+    "state_name": "Georgia",
+    "state_code": "GA",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 29000,
+      "tandem_axle": 50000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 150000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$100",
+      "single_trip": "$30",
+      "notes": "Trip permit $30 + $1 fax fee; Multitrip $100 for loads ≤16'W x 16'H x 150,000 lbs or >100'L within limits"
+    },
+    "color": "#FF4500",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads 15'6\" or greater; vehicle front escort with height sensor required",
+      "pilot_car_escort": "Vehicle front escort and rear escort/amber light required for >12' to ≤14'8\" wide on 2-lane roadway; additional escorts for wider/taller loads",
+      "trip_permits": "Available online at GAMCCD.NET; valid for specified period",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Varies by dimensions; specific restrictions may apply",
+      "holiday_restrictions": "Restricted travel on major holidays for oversize loads",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required for loads exceeding legal dimensions",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Loads >12'W or >13'6\"H or >100'L or >100,000 lbs need routes; loads >15'11\"W or >15'5\"H or >125'L or >100,000 lbs need exact junctions",
+      "annual_permit_cost": "$100 for multitrip permits within specified limits",
+      "commodity_specific": "Special provisions for agricultural equipment and construction loads",
+      "route_requirements": "Route approval required for larger dimensions; insurance required: $300k public liability, $100k per person, $50k property damage"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "idaho",
+    "state_name": "Idaho",
+    "state_code": "ID",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 22000,
+      "tandem_axle": 38500,
+      "tridem_axle": 48000,
+      "gross_vehicle_weight": 129000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 14
+    },
+    "permit_costs": {
+      "annual_permit": "$128 + mileage",
+      "single_trip": "$89",
+      "notes": "Annual non-reducible $128 + quarterly mileage reports; 2-trip within 7 days for loads >16'W or >16'H or >110'L: $89"
+    },
+    "color": "#8B4513",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads over 15'6\"",
+      "pilot_car_escort": "1 escort for >12' wide; 2 escorts for >14' wide or >150' long; requirements vary by route classification",
+      "trip_permits": "Available online through ITD system; valid for 5 days; permit number must be obtained before movement",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Daylight hours for oversize loads; some routes have specific restrictions",
+      "holiday_restrictions": "No travel on major holidays for oversize loads",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required for loads exceeding legal dimensions",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Annual limits vary by route: Black/Interstate: 16'W x 15'6\"H x 120'L; Red routes: 12'6\"W; Overall length limit: 110'",
+      "annual_permit_cost": "$128 plus quarterly mileage reports required",
+      "commodity_specific": "Special permits for implements of husbandry ($150 for book of 10); provisions for agricultural and mining equipment",
+      "route_requirements": "Weight limits vary by route classification (single: 22k-33k; tandem: 38.5k-56k; tridem: 48k-70.5k); quarterly mileage reporting required for annual permits"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "kentucky",
+    "state_name": "Kentucky",
+    "state_code": "KY",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 29000,
+      "tandem_axle": 48000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 160000
+    },
+    "max_dimensions": {
+      "length_ft": 65,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$80-$1250",
+      "single_trip": "$60",
+      "notes": "Single trip $60; Annual: A01 (<14'W) $250, A02 (14-16'W) $500, A03 (Farm <14'W) $80, A04 (Farm 14-16'W) $150, A05 (Metal Commodities) $1250"
+    },
+    "color": "#4169E1",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load + 2 ft clearance each side",
+      "height_pole": "Required for loads over 14'11\"",
+      "pilot_car_escort": "1 lead escort required on 2-lane routes if >12' wide or >75' long or >14'11\" high",
+      "trip_permits": "Available online through DRIVE.KY.GOV system",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "24/7 travel permitted unless specified otherwise on permit; Rush hour restrictions 7-9am and 4-6pm Mon-Fri in Boone, Campbell, Fayette, Jefferson, Kenton Counties",
+      "holiday_restrictions": "NO holiday travel restrictions in Kentucky",
+      "banner_regulations": "\"OVERSIZE LOAD\" signs mandatory for all loads exceeding 10'6\" width",
+      "flag_regulations": "Flags must be displayed on all four corners of any wide load and on extremities",
+      "warning_light_regulations": "Amber flashing lights required on escort vehicles",
+      "permit_dimensions": "Standard max: 16'W x 120'L x 13'6\"H x 160,000 lbs; Superload: >18'W or >160'L or >120,000 lbs",
+      "annual_permit_cost": "$80-$1250 depending on permit type and dimensions",
+      "commodity_specific": "Farm equipment permits available at reduced cost ($80-$150); Metal commodities permit $1250 for 120k lbs weight-only",
+      "route_requirements": "Pre-approval required for loads >90,000 lbs; bridge analysis may be required"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "louisiana",
+    "state_name": "Louisiana",
+    "state_code": "LA",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 26000,
+      "tandem_axle": 46000,
+      "tridem_axle": 58000,
+      "gross_vehicle_weight": 212000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$8 per day valid",
+      "single_trip": "$8-$1080",
+      "notes": "Oversize single trip: $8; Overweight varies by weight/distance: $30-$1080+; Monthly oversize: $8 per day valid; Over 254k lbs: $10 + $0.50 per ton-mile"
+    },
+    "color": "#DA70D6",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads exceeding 14'4\"",
+      "pilot_car_escort": "Requirements vary by dimensions and route type; specific escort requirements in permit",
+      "trip_permits": "Available through Safehaul Permit Manager system at DOTD.LA.GOV",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Sunrise to sunset 7 days/week; overweight-only and ≤65' overall may have continuous travel; restricted hours in metro areas",
+      "holiday_restrictions": "Restricted travel on major holidays for oversize loads",
+      "banner_regulations": "\"OVERSIZE LOAD\" signs required for all loads exceeding 10' wide, >75' long or exceeding legal overhang",
+      "flag_regulations": "Flags required on all overwidth loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles and wide loads",
+      "permit_dimensions": "Monthly permits limited to 12'W x 14'4\"H x 90'L; permit max 14'W; loads >12'W restricted from interstates through major cities 7-9am and 3:30-5pm Mon-Fri",
+      "annual_permit_cost": "No traditional annual permits; monthly permits at $8 per day of validity",
+      "commodity_specific": "Quad-axle max 88,000 lbs (83,000 on interstate); vehicles must be registered for 88,000 to run with overweight permit; 6+ axles required for >108,000 lbs",
+      "route_requirements": "No crossing Mississippi River bridges in New Orleans area or within 2 miles during 6:30-9am and 3:30-6pm Mon-Fri; insurance minimum $100,000 required"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "maine",
+    "state_name": "Maine",
+    "state_code": "ME",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 54000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 22400,
+      "tandem_axle": 40000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 100000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "Varies",
+      "single_trip": "$10+",
+      "notes": "Turnpike permit $10 at toll plaza (not including toll); Bureau of Motor Vehicles permit required for non-Turnpike highways"
+    },
+    "color": "#228B22",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads over 16'",
+      "pilot_car_escort": "Requirements vary by dimensions; specific escort requirements in permit",
+      "trip_permits": "Available from Maine DOT (207-624-9000 ext 52134) and Maine Turnpike toll plazas",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Not routinely permitted 1/2 hour after sunset to 1/2 hour before sunrise; no legal holidays; no weekends in July and August",
+      "holiday_restrictions": "No travel on New Year's Day, Memorial Day, Independence Day, Labor Day, Thanksgiving Day, Christmas Day",
+      "banner_regulations": "\"OVERSIZE LOAD\" warning signs required on front and back; 7' long x 18\" high",
+      "flag_regulations": "Four 18\" square bright red flags on all four corners/extremities of overwidth loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Max: 16'W x 16'H x 125'L; Maine Turnpike limits: 14'6\"W x 13'6\"H; Weight registration: 90k lbs min for up to 90k loads; 100k lbs max registration for >90k loads",
+      "annual_permit_cost": "Varies by permit type",
+      "commodity_specific": "Special provisions for agricultural and forestry equipment",
+      "route_requirements": "Separate permits required for Turnpike and non-Turnpike highways; advance notice may be required"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "maryland",
+    "state_name": "Maryland",
+    "state_code": "MD",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42500,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 27000,
+      "tandem_axle": 52000,
+      "tridem_axle": 63000,
+      "gross_vehicle_weight": 150000
+    },
+    "max_dimensions": {
+      "length_ft": 65,
+      "width_ft": 8,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "Varies",
+      "single_trip": "$30 + structure fees",
+      "notes": "$30 for first 40 tons or less; $8 per structure for 120k-200k lbs; $12 per structure for >200k lbs"
+    },
+    "color": "#B22222",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Pole escort vehicle required when load exceeds 14'6\" height",
+      "pilot_car_escort": "Police escort required for ≥16' wide or >75 tons gross weight; pole escort for >14'6\" high",
+      "trip_permits": "Available through MDOT SHA system",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Loads ≤150k GVW, 13'W, 14'6\"H, 90'L may move 24/7; all other loads: 1/2 hour after sunrise to 1/2 hour before sunset; I-495/I-95 (Capital Beltway) or I-695 (Baltimore Beltway): 9am-3:30pm; ≥14' wide: 9am-3:30pm on any highway",
+      "holiday_restrictions": "No travel on New Year's Day, Good Friday, Memorial Day, Independence Day, Labor Day, Thanksgiving Day, Christmas Day; No Sunday travel",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required for loads exceeding legal dimensions",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Max: 16'W x 14'6\"H x 120'L x 150,000 lbs (Interstate), 120,000 lbs (non-Interstate); Superload: >120,000 lbs on non-Interstate",
+      "annual_permit_cost": "Varies by configuration and usage",
+      "commodity_specific": "Special provisions for construction equipment and agricultural loads",
+      "route_requirements": "Route restrictions on Capital and Baltimore Beltways; extensive coordination for police escorts"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "massachusetts",
+    "state_name": "Massachusetts",
+    "state_code": "MA",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 26000,
+      "tandem_axle": 46000,
+      "tridem_axle": 58000,
+      "gross_vehicle_weight": 130000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$200+",
+      "single_trip": "$40+",
+      "notes": "Turnpike permits up to 12'W x 13'9\"H x 80'L x 99k lbs; Turnpike engineering approval $350 for exceeding these; Single trip permits valid 5 days"
+    },
+    "color": "#DC143C",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads over 13'8\" (height survey required >13'8\")",
+      "pilot_car_escort": "Police escort required for loads >12' wide, >100' long, or >130,000 lbs gross",
+      "trip_permits": "Available through OASIS system (MassDOT Oversize Overweight Permitting and Routing Application); valid for 5 days",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Mon 12:01am through Sat noon; Sun 12:01am until noon; loads 12-14'W, >13'11\"H, 80-114'L: sunrise-sunset Mon-Fri except 7-9am and 3:30-7pm; loads >14'W or >115'L: 9:30am-3:30pm Tue-Wed-Thu only",
+      "holiday_restrictions": "Restricted travel on major holidays; limited weekend travel",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required for loads exceeding legal dimensions",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Annual max: 14'W x 14'H x 115'L; Single trip max: 14'11\"W x 14'11\"H x 115'L x 130,000 lbs; Turnpike: 12'W x 13'9\"H x 80'L x 99,000 lbs",
+      "annual_permit_cost": "Varies by dimensions and configuration",
+      "commodity_specific": "Special provisions for construction equipment; extensive coordination required",
+      "route_requirements": "Police escorts mandatory for larger loads; Turnpike requires special engineering approval >standard limits ($350 fee)"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "michigan",
+    "state_name": "Michigan",
+    "state_code": "MI",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 18000,
+      "tandem_axle": 32000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 164000
+    },
+    "max_dimensions": {
+      "length_ft": 65,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$100-$300",
+      "single_trip": "$50-$100",
+      "notes": "$100 per truck, trailer, and equipment piece; some sources indicate $50 for oversize/overweight valid 5 days; extended permits pro-rated"
+    },
+    "color": "#4682B4",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load + safe clearance",
+      "height_pole": "Required for loads over 14'",
+      "pilot_car_escort": "1 front escort for >14' wide; 1 front and 1 rear for >16' wide; 1 front for >100' long; 1 front and 1 rear for ≥120' long",
+      "trip_permits": "Available through MiTRIP system via MDOT Permit Gateway (MPG); 15-21 business days for extended permits",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Daylight only (1/2 hour before sunrise to 1/2 hour after sunset) Mon-Fri; weekend movement for loads ≤10'W x 14'H x 90'L all day Sat and until 3pm Sun (mobile/modular homes not eligible)",
+      "holiday_restrictions": "No movement from noon day before through daylight after: New Year's Day, Labor Day, Memorial Day, Thanksgiving, Independence Day, Christmas; no travel during spring weight restrictions",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required for oversize movements",
+      "flag_regulations": "Red flag 12\" for overhang >4' during day; red light/lantern at night",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Permits restricted during spring thaw; max 11 axles; no widths >14' during spring; legal overhang: 3' front, up to legal max vehicle length rear",
+      "annual_permit_cost": "$100 per truck, trailer, and equipment piece when loaded overweight/over-dimension",
+      "commodity_specific": "Mobile/modular homes not eligible for weekend movement; agricultural equipment may have exemptions",
+      "route_requirements": "No overweight permits issued during spring weight restriction period except public emergency; seasonal restrictions typically Feb-May"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "mississippi",
+    "state_name": "Mississippi",
+    "state_code": "MS",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 24000,
+      "tandem_axle": 48000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 180000
+    },
+    "max_dimensions": {
+      "length_ft": 99,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$4500 + $100",
+      "single_trip": "$25 + fees",
+      "notes": "Single trip $25 + $10 size fee + $0.05/1000 lbs/mile; Pre-numbered book (50 permits): $500 ($10 ea); Annual heavy haul: $4500/pulling unit; Annual overwidth (>14'): $100"
+    },
+    "color": "#8B008B",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads over 13'6\"",
+      "pilot_car_escort": "1 leading guide and rear amber lights for ≥13' wide on 2-lane roads during daylight; requirements increase for wider/taller loads",
+      "trip_permits": "Available through MDOT system; valid for 3 consecutive days",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "1/2 hour after sunrise to 1/2 hour before sunset Mon-Sat; no Sunday travel; oversize/overweight ≤12'W x 13'6\"H x 99'L x 150k lbs may move at night",
+      "holiday_restrictions": "No travel on New Year's Day, Memorial Day, Independence Day, Labor Day, Thanksgiving, Christmas, Sundays, or after noon on day preceding listed holidays",
+      "banner_regulations": "\"OVERSIZE LOAD\" banners required on front and rear; specific size requirements",
+      "flag_regulations": "Flags required on all corners (mounted ~6' above pavement) for loads >10' wide",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles and wide loads",
+      "permit_dimensions": "Daylight max: 180,000 lbs; 24-hour movement max: 150,000 lbs; standard max overall length 99'",
+      "annual_permit_cost": "$4500 per pulling unit for special heavy haul; $100 annual overwidth blanket for loads >14'",
+      "commodity_specific": "Pre-numbered permit books available for frequent haulers; special provisions for heavy equipment",
+      "route_requirements": "Front and rear banners required; flags mandatory for wide loads; escort requirements vary by dimensions"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "montana",
+    "state_name": "Montana",
+    "state_code": "MT",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 24000,
+      "tandem_axle": 42000,
+      "tridem_axle": 56000,
+      "gross_vehicle_weight": 137800
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 14
+    },
+    "permit_costs": {
+      "annual_permit": "$150-$400",
+      "single_trip": "$25-$75",
+      "notes": "Mileage calculated in 25-mile increments; weight in 5,000-lb increments; specific fees not detailed in sources"
+    },
+    "color": "#2E8B57",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads over 17'",
+      "pilot_car_escort": "Requirements vary by dimensions and route type; specific requirements in permit",
+      "trip_permits": "Available through Montana DOT Motor Carrier Services; valid for 72 hours; contact (406) 444-6130",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Loads ≤10'W x 14'6\"H x 110'L may travel 24/7 on all routes; daylight hours (1/2 hour before sunrise to 1/2 hour after sunset) incl Sat-Sun for loads ≤18'W x 18'H x 120'L except Red Routes",
+      "holiday_restrictions": "Restrictions vary by load size; specific holiday restrictions may apply",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required for loads exceeding legal dimensions",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Routine max: 18'W x 17'H x 150'L; Annual/term permits: up to 16'W x 15'6\"H x 110'L; Superload: >18'W or >17'H or >110'L length",
+      "annual_permit_cost": "$150-$400 depending on configuration; mileage-based calculations apply",
+      "commodity_specific": "Special provisions for agricultural, mining, and construction equipment",
+      "route_requirements": "Extensive review required for superloads; route classifications affect permit requirements"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "newhampshire",
+    "state_name": "New Hampshire",
+    "state_code": "NH",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 33400,
+      "tridem_axle": 47500,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 26000,
+      "tandem_axle": 46000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 160000
+    },
+    "max_dimensions": {
+      "length_ft": 110,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$60-$115",
+      "single_trip": "$40-$80",
+      "notes": "Annual: $115 statewide or $60 within 100-mile radius (NH registered carriers only) for loads <75'L x 10'6\"W x 13'6\"H at legal weight"
+    },
+    "color": "#800080",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads over 14'",
+      "pilot_car_escort": "1 escort required if ≥12' wide and <14' wide, ≥90' long, >14' high, or ≥15' front/rear overhang",
+      "trip_permits": "Available online through NHDOT system at NHDOTPERMITS.ORG",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Daylight hours (1/2 hour before sunrise to 1/2 hour after sunset); overweight-only loads not restricted for travel time",
+      "holiday_restrictions": "No OS/OW permit travel on weekends and NH State Holidays",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required for loads exceeding legal dimensions",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Routine max varies; Superload: >160,000 lbs gross, >110' long, >16' wide, or >16' high",
+      "annual_permit_cost": "$115 statewide haul or $60 for 100-mile radius (NH based/registered carriers only)",
+      "commodity_specific": "Special provisions for construction equipment and agricultural loads",
+      "route_requirements": "Route approval required for superloads; advance coordination necessary"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "newmexico",
+    "state_name": "New Mexico",
+    "state_code": "NM",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 26000,
+      "tandem_axle": 46000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 170000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$250",
+      "single_trip": "$25-$300",
+      "notes": "Single trip oversize/overweight: $25; loads >86,400 lbs: $0.025/ton-mile; State Police escort: +$300/day; Multiple trip: $250"
+    },
+    "color": "#FF6347",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads over 15'",
+      "pilot_car_escort": "Requirements vary by dimensions; 1 or more escorts required for wider/taller loads",
+      "trip_permits": "Available online; self-issue permits available for manufactured homes ($250/book of 10) and implements of husbandry ($150/book of 10)",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "1/2 hour before sunrise to 1/2 hour after sunset Mon-Sat; continuous travel allowed if overweight-only or ≤10'W x 14'6\"H x 120'L x 140k lbs; no movement if visibility <1000' or wind ≥25 mph",
+      "holiday_restrictions": "No travel on New Year's Day, Memorial Day, Independence Day, Labor Day, Christmas Day, Thanksgiving Day",
+      "banner_regulations": "Oversize signs ≥5' wide x 12\" tall; bright yellow background with black lettering; letters ≥1\" wide x 10\" high",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Standard max: 14'W x 15'H x 120'L x 15' front overhang x 25' rear overhang x 140,000 lbs; Manufactured homes max 18'W (6\" roof overhang left, 12\" right); Superload: >170,000 lbs requires engineering review",
+      "annual_permit_cost": "$250 for multiple trip permits within standard limits",
+      "commodity_specific": "Self-issue permits for manufactured home transporters/dealers ($250/book of 10) and implements of husbandry ($150/book of 10)",
+      "route_requirements": "Municipal restrictions 7-9am and 4-6pm in Albuquerque, Santa Fe, Espanola; Santa Fe also 11:30am-1:30pm except SR599; curfews don't apply to I-25 through Santa Fe but do apply to Albuquerque interstates"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "newyork",
+    "state_name": "New York",
+    "state_code": "NY",
+    "legal_limits": {
+      "single_axle": 22400,
+      "tandem_axle": 36000,
+      "tridem_axle": 48000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 28000,
+      "tandem_axle": 50000,
+      "tridem_axle": 64000,
+      "gross_vehicle_weight": 125000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$360-$900",
+      "single_trip": "$40-$60 + $10",
+      "notes": "Single trip $40-$60 + $10 amendment fee; annual $360-$900 depending on load and permit type"
+    },
+    "color": "#1E90FF",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads approaching overhead clearances; loads >13'6\" not permitted on NY Thruway",
+      "pilot_car_escort": "Requirements vary by dimensions and route; specific requirements in permit",
+      "trip_permits": "Available through NYDOT NYPermits system; valid for 5 days; covers one movement point A to point B",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "1/2 hour before sunrise to 1/2 hour after sunset Mon-Fri; Saturday travel until noon if ≤12'W x 85'L x legal height; overweight-only up to 96,000 lbs: 24/7 travel",
+      "holiday_restrictions": "No movement on Saturdays, Sundays, or following holidays or after noon day preceding: New Year's Day, Memorial Day, Independence Day, Labor Day, Thanksgiving, Christmas",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required for loads exceeding legal dimensions",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Standard max varies; NY Thruway (I-87, I-95, I-287, I-90, I-190) requires separate permit; max 13'6\" height on Thruway",
+      "annual_permit_cost": "$360-$900 depending on type; blanket permits available for certain businesses allowing up to 125% of normal limits for 1 month to 1 year",
+      "commodity_specific": "Blanket permits available for certain business types; special provisions for construction and agricultural equipment",
+      "route_requirements": "Separate permit required for NY Thruway; route approval required; no loads >13'6\" on Thruway"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "northcarolina",
+    "state_name": "North Carolina",
+    "state_code": "NC",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 25000,
+      "tandem_axle": 50000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 132000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$185",
+      "single_trip": "$12-$100+",
+      "notes": "$12 per dimension over legal (height, length, width, weight up to 132k lbs); +$3 per 1,000 lbs over 132k lbs; Engineering study: +$100; Temp trip permit: $15 (10 days)"
+    },
+    "color": "#20B2AA",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads exceeding specified height limits",
+      "pilot_car_escort": "Requirements vary by dimensions and route type; specific requirements in permit",
+      "trip_permits": "Available through NCDOT system; single trip permits for specific routes",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Sunrise to sunset Mon-Sun unless otherwise stated on permit; continuous travel (24/7/365) authorized for ≤112,000 lbs gross",
+      "holiday_restrictions": "Restrictions may apply for oversize loads on major holidays",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required for loads exceeding legal dimensions",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Annual max: 15'W x 105'L x no set height (route-determined); Weight allowances: ≤90k lbs unlimited movement on NC highways where permitted by posted limits with 51' minimum wheelbase; 6 axles 108k lbs (120k with 51' wheelbase), 7 axles 122k lbs (132k with 51' wheelbase) - single trip specific route only",
+      "annual_permit_cost": "$185 per vehicle; valid 1 year from issuance",
+      "commodity_specific": "Special provisions for non-divisible loads; agricultural and construction equipment",
+      "route_requirements": "Engineering study required for certain loads ($100 non-refundable); route approval based on pavement/structures analysis"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "northdakota",
+    "state_name": "North Dakota",
+    "state_code": "ND",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 48000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 24000,
+      "tandem_axle": 42000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 150000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 14
+    },
+    "permit_costs": {
+      "annual_permit": "$200-$500",
+      "single_trip": "$20 + $15",
+      "notes": "Single trip $20 + $15 service fee when using electronic system; permits valid for 3 days"
+    },
+    "color": "#FFB6C1",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads exceeding 18'",
+      "pilot_car_escort": "Required for >14'6\" wide, 18' high, and 120' long; no pilot car requirement on 4-lane divided highways for ≤16' wide",
+      "trip_permits": "Available through NDHP online system; valid for 3 days",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Sunrise to sunset including weekends; loads >16' wide or >110' long restricted from Saturday noon through Sunday; overweight-only: continuous travel",
+      "holiday_restrictions": "Restrictions apply for oversize loads on major holidays",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required for loads exceeding legal dimensions",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Routine max varies; Superload: >150,000 lbs or exceeding specified dimensions",
+      "annual_permit_cost": "$200-$500 depending on configuration",
+      "commodity_specific": "Special provisions for agricultural equipment; seasonal considerations for farming operations",
+      "route_requirements": "Spring thaw load restrictions typically Feb-May on non-Interstate highways; restrictions range from legal to 8/7/6 tons depending on axles; superloads require advance coordination"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "oregon",
+    "state_name": "Oregon",
+    "state_code": "OR",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 21500,
+      "tandem_axle": 43000,
+      "tridem_axle": 58000,
+      "gross_vehicle_weight": 105000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 14
+    },
+    "permit_costs": {
+      "annual_permit": "$8 + fees",
+      "single_trip": "$8 + fees",
+      "notes": "State admin fee $8 per truck for annual permits; single trip and continuous trip $8 + county/road use assessment fees"
+    },
+    "color": "#32CD32",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads approaching overhead clearances (route-dependent)",
+      "pilot_car_escort": "Requirements vary by dimensions and route type; specific requirements in permit",
+      "trip_permits": "Available through ORION (Oregon's web-based self-service permitting system); single trip and annual permits available",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Varies by permit type and dimensions; specific restrictions in permit",
+      "holiday_restrictions": "Restrictions may apply for oversize loads on major holidays",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required for loads exceeding legal dimensions",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Max: 16'W x 105'L x route-dependent height x 98,000 lbs (certain annual permits); Multiple weight tables available: Table 2 (Extended Weight 80k-105k), Table 3 (Heavy Haul single trip: 21,500 single axle, 43,000 tandem), Table 4 (shorter wheelbase)",
+      "annual_permit_cost": "$8 state admin fee per truck plus applicable assessments",
+      "commodity_specific": "Special weight tables for different load types; provisions for heavy haul operations",
+      "route_requirements": "Permits must be acquired before movement; ORION system provides route approval; height clearances vary by route"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "pennsylvania",
+    "state_name": "Pennsylvania",
+    "state_code": "PA",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 28000,
+      "tandem_axle": 50000,
+      "tridem_axle": 64000,
+      "gross_vehicle_weight": 201000
+    },
+    "max_dimensions": {
+      "length_ft": 70,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$200-$500",
+      "single_trip": "$73",
+      "notes": "Single trip $73 (valid 5 days); PA Turnpike: $37 flat fee + $0.24/ton-mile for weight >80k lbs"
+    },
+    "color": "#48D1CC",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads approaching overhead clearances (route-dependent)",
+      "pilot_car_escort": "1 front escort for >14' wide; 1 front and 1 rear for >16' wide; 1 front for >100' long; 1 front and 1 rear for ≥120' long",
+      "trip_permits": "Available through PennDOT system; valid for 5 travel days (additional days added if including weekends)",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Sunrise to sunset Mon-Fri; Sat sunrise until noon; overweight-only ≤107,000 lbs and ≤70' at prevailing speeds: continuous travel; no weekend travel for >10' wide and/or ≥85' long",
+      "holiday_restrictions": "No travel on New Year's Day, Memorial Day, Independence Day, Labor Day, Veterans Day, Thanksgiving Day, Christmas Day; no Sunday travel",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required for loads exceeding legal dimensions",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Legal: 70'L x 8'6\"W x 13'6\"H x 80,000 lbs; Superload: >201,000 lbs gross, >160'L, >16'W, height route-dependent; overhang: 4' front, 6' rear",
+      "annual_permit_cost": "$200-$500 depending on configuration",
+      "commodity_specific": "Length limits: 40' single unit/buses; 53' semitrailers (kingpin to rear axle centerline ≤41'); 28'6\" twins/doubles on designated highways; 65' autotransporters; 75' stinger steered",
+      "route_requirements": "Width 8'6\" on designated highways and non-divisible loads on roads with ≥10' lane width; 8' on all other roads; federal bridge formula applies"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "rhodeisland",
+    "state_name": "Rhode Island",
+    "state_code": "RI",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 45200,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 25000,
+      "tandem_axle": 48000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 130000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$400",
+      "single_trip": "$25-$75",
+      "notes": "Annual construction equipment: $400 (for loads <130k lbs, 55-80'L, ≤12'4\"W, max axle 25k); Multi-state permits available"
+    },
+    "color": "#FF69B4",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads approaching overhead clearances",
+      "pilot_car_escort": "1 escort for 12-14'6\" wide; 2 escorts for >14'6\" wide; 1 escort for 80-90' long; 2 escorts for >90' long; 1 escort for ≥15' overhang",
+      "trip_permits": "Available at RI.GOV/DOT/OSOW or DOT.OSOW@DOT.RI.GOV; valid for 5 days; extra large permits require 5 working days advance notice",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "1/2 hour before sunrise to 1/2 hour after sunset; no weekend travel permitted",
+      "holiday_restrictions": "No travel on major holidays and VJ Day (2nd Monday in August); movement may be restricted after noon day before holiday",
+      "banner_regulations": "\"OVERSIZE LOAD\" signs required; 7' long x 18\" high; 10\" high black 1.25\" brushstroke letters on yellow background",
+      "flag_regulations": "Red flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Legal: 53'L x 8'6\"W (8' on other roads) x 13'6\"H x 80' overall; Construction equipment permit: 55-80'L x ≤12'4\"W x 130,000 lbs max x 25,000 lbs max axle; Multi-state (with ME, MA, NH, VT): 5 axles 108k-120k lbs",
+      "annual_permit_cost": "$400 for construction equipment meeting specified criteria",
+      "commodity_specific": "Annual construction equipment permits available for qualifying non-divisible loads; multi-state reciprocal permits with New England states",
+      "route_requirements": "Red routes restrict >12' wide 7-9am and after 3pm; I-195 Washington Bridge #200 restricted to 48 tons max, travel only 11pm-5am Sun/Mon/Wed nights; applications for extra large permits need 5 working days advance"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "southcarolina",
+    "state_name": "South Carolina",
+    "state_code": "SC",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 27000,
+      "tandem_axle": 52000,
+      "tridem_axle": 64000,
+      "gross_vehicle_weight": 180000
+    },
+    "max_dimensions": {
+      "length_ft": 99,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$100-$300",
+      "single_trip": "$25+",
+      "notes": "Single trip varies; megaload impact fee for >500k lbs: $0.05/1000 lbs/mile; fee schedule last revised July 1, 2012"
+    },
+    "color": "#9932CC",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads approaching overhead clearances",
+      "pilot_car_escort": "Requirements vary by dimensions; specific requirements in permit",
+      "trip_permits": "Available through SCDOT system; single trip valid for 7 days; specific to load, route, and date",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "1/2 hour after sunrise to 1/2 hour before sunset Mon-Sat; no Sunday travel; overweight-only ≤130,000 lbs may have continuous travel if maintaining traffic flow speed",
+      "holiday_restrictions": "Restrictions apply for oversize loads on major holidays",
+      "banner_regulations": "\"OVERSIZE LOAD\" banners required on front and rear",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Multi-trip annual for non-divisible loads: up to 14'W x 13'6\"H x 90,000 lbs gross on 5+ axles (max 40,000 lbs per tandem); Legal overall length: 99'",
+      "annual_permit_cost": "$100-$300 depending on type; specific current fees available from SCDOT (803-737-6769)",
+      "commodity_specific": "Annual blanket permits available for qualifying non-divisible loads; special provisions for construction equipment",
+      "route_requirements": "Route approval required; permit office: 803-737-6769; megaload impact fees for extremely heavy loads (>500,000 lbs)"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "southdakota",
+    "state_name": "South Dakota",
+    "state_code": "SD",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 26000,
+      "tandem_axle": 48000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 120000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$60-$200",
+      "single_trip": "$25",
+      "notes": "Single trip $25 or $200/book of 10; +$0.02/ton-mile if exceeding: 40k/2 axles, 60k/3 axles, 80k/4 axles, 85k/5 axles, 90k/6 axles, 95k+/7 axles; Extended period: $60"
+    },
+    "color": "#00CED1",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads approaching specified heights",
+      "pilot_car_escort": "Front escort required for >10' wide on state highways in Black Hills area; escort vehicles required front on 2-lane or rear on divided highways",
+      "trip_permits": "Available online at SDTRUCKINFO.SD.GOV or by phone at (605) 224-SEMI (7364) 7am-7pm Mon-Fri",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "1/2 hour before sunrise to 1/2 hour after sunset including Sat-Sun; loads ≤10'W x 14'6\"H x 110'L may travel continuously on interstates; overweight-only: 24/7",
+      "holiday_restrictions": "No travel on New Year's Day, Memorial Day, Independence Day, Labor Day, Thanksgiving Day, Christmas Day",
+      "banner_regulations": "Warning signs required for >95' long or >12' wide or nighttime operation; acceptable text: 'OVERSIZE LOAD', 'OVERSIZED LOAD', 'WIDE LOAD', 'LONG LOAD'; ≥18\"H x 84\"W; legible at 500'",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Max: 16'W x 15'H x 120,000 lbs; 30' rear overhang, 15' front overhang; Interstate permits allow >80k lbs but not >legal axle/tire weight or Bridge Gross Weight Formula; vehicles >16' on interstate or >20' on state highways require special consideration",
+      "annual_permit_cost": "$60 for extended period permits",
+      "commodity_specific": "Special provisions for agricultural equipment; permit books available for frequent haulers",
+      "route_requirements": "Interstate permits do not allow exceeding legal axle weight, tire weight, or Bridge Gross Weight Formula"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "tennessee",
+    "state_name": "Tennessee",
+    "state_code": "TN",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 23000,
+      "tandem_axle": 46000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 165000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$100-$300",
+      "single_trip": "$100",
+      "notes": "Loads ≤13'10\"H x 90'L x 12'6\"W: $100; Bridge evaluation: $100 (165k-250k lbs), $300 (250k-500k lbs)"
+    },
+    "color": "#CD853F",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads approaching overhead clearances",
+      "pilot_car_escort": "Requirements vary by dimensions; specific requirements in permit",
+      "trip_permits": "Available through TDOT system at TN.GOV/TDOT",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Varies by dimensions; no movement >12'6\"W, 15'H, or 90'L on interstates 7-9am or 4-6pm Mon-Fri in counties >250,000 population",
+      "holiday_restrictions": "No travel on New Year's Day, Good Friday, Memorial Day, Independence Day, Labor Day, Thanksgiving Day, Christmas Day",
+      "banner_regulations": "All movement >10' wide and/or >75' long must bear 'OVERSIZE LOAD' signs ≥7'L x 18\"H",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Max: 16'W x 15'H x 120'L; generally movements >16'W or >15'H not permitted unless proven to be in interests of public welfare/safety/national defense; Super heavy: >165,000 lbs; Extra-overdimensional: >16'W or >15'6\"H",
+      "annual_permit_cost": "$100-$300 depending on configuration",
+      "commodity_specific": "Special provisions for construction equipment and non-divisible loads",
+      "route_requirements": "Max allowable by special permit: single axle 20k lbs, tandem 40k lbs; permit maximums: single 23k, tandem 46k, tridem 60k lbs; bridge evaluation required for heavy loads"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "vermont",
+    "state_name": "Vermont",
+    "state_code": "VT",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 25000,
+      "tandem_axle": 46000,
+      "tridem_axle": 58000,
+      "gross_vehicle_weight": 250000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$800-$10000",
+      "single_trip": "$25-$35",
+      "notes": "Single trip $35; over-length $25; manufactured home $300; Overweight: $800 (<150k lbs) to $10,000 (>250k lbs); engineering review $60/hr for >8 hours"
+    },
+    "color": "#00FA9A",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads approaching overhead clearances",
+      "pilot_car_escort": "Escort vehicles required for ≥12' wide",
+      "trip_permits": "Available through VT DMV at DMV.VERMONT.GOV; valid for 7 business days; new permit required if trip exceeds 7 business days",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "1/2 hour before sunrise to 1/2 hour after sunset; speeds ≤45 mph for loads >90,000 lbs or >10'W or overheight or >75'L",
+      "holiday_restrictions": "No weekend travel for loads >10'6\"W or >100'L or >108,000 lbs on Sat, Sun, or legal holidays; movement may be restricted Fri afternoons Jul 1-Labor Day",
+      "banner_regulations": "Oversize signs required for loads >8'6\"W or >13'6\"H or >75'L or >46' (single vehicles)",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Legal: 53'L x 8'6\"W x 13'6\"H x 80,000 lbs; permits DO NOT supersede road postings",
+      "annual_permit_cost": "$800 for loads under 150,000 lbs; up to $10,000 for loads over 250,000 lbs",
+      "commodity_specific": "Manufactured home permits: $300; special provisions for construction equipment",
+      "route_requirements": "Engineering review required for loads >150,000 lbs; fees start at $60/hour for reviews requiring >8 hours; permits do not override posted road weight limits"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "virginia",
+    "state_name": "Virginia",
+    "state_code": "VA",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 28000,
+      "tandem_axle": 50000,
+      "tridem_axle": 64000,
+      "gross_vehicle_weight": 150000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$200-$500",
+      "single_trip": "$20 + $0.30/mile",
+      "notes": "Single trip $20 + $0.30/mile if exceeding legal weight; Superload $30 + $0.30/mile if >legal weight; +$4 per bridge/structure"
+    },
+    "color": "#7B68EE",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load + 2 ft clearance each side",
+      "height_pole": "Front escort with height pole (adjusted 3\" above load) required for >14'5\" high on all routes",
+      "pilot_car_escort": "1 front and 1 rear on non-interstate for >12'W; 2 front and 1 rear on non-interstate for >14'W; height pole escort for >14'5\"H; loads >18'W or >200'L handled case-by-case",
+      "trip_permits": "Available through VDOT system; valid for specified period",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Sunrise to sunset Mon-Sat; no travel in cities/towns 7-9am or 4-6pm (some exceptions)",
+      "holiday_restrictions": "No travel on state observed holidays: New Year's Day, Memorial Day, Independence Day, Labor Day, Thanksgiving Day, Christmas Day",
+      "banner_regulations": "\"OVERSIZE LOAD\" signs required on front and rear for all overdimensional permit loads",
+      "flag_regulations": "Flags must be displayed on all four corners of all oversize loads, and at widest extremities of vehicle/load on wide loads and extreme rear of overlength loads",
+      "warning_light_regulations": "High intensity amber flashing lights (visible ≥500') required for >12'W or >75'L",
+      "permit_dimensions": "Legal: 53'L x 8'6\"W x 13'6\"H x 80,000 lbs; Axle limits: single 20k, tandem 34k (axles >40\" but ≤96\" spacing)",
+      "annual_permit_cost": "$200-$500 depending on configuration",
+      "commodity_specific": "Special provisions for construction equipment and agricultural loads",
+      "route_requirements": "Bridge/structure fees apply; route approval required; loads >18'W or >200'L require case-by-case evaluation"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "washington",
+    "state_name": "Washington",
+    "state_code": "WA",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 26000,
+      "tandem_axle": 48000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 200000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 14
+    },
+    "permit_costs": {
+      "annual_permit": "$12.50-$50",
+      "single_trip": "$10-$14",
+      "notes": "Dimension-only: $10/trip (up to 3 days); Monthly: $10 (length-only), $20 (height/width), $30 (height/width + length); Annual: $50 (Apr 1-Mar 31), $37.50 (after Jul 1), $25 (after Oct 1), $12.50 (after Jan 1); Overweight: $14 minimum, $4.25 + $0.50 per 5,000 lbs increment >100k lbs"
+    },
+    "color": "#98FB98",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads approaching overhead clearances",
+      "pilot_car_escort": "Requirements vary by dimensions; specific requirements in permit",
+      "trip_permits": "Available online through WSDOT modernized system (launched Feb 2024); dimension-only valid up to 3 days",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "1/2 hour before sunrise to 1/2 hour after sunset including Sat-Sun; loads ≤12'W x 14'6\"H x 105'L (including legal overhangs) may run at night with proper lighting",
+      "holiday_restrictions": "Restricted from noon day preceding through full holiday: New Year's Day, Memorial Day, Independence Day, Labor Day, Thanksgiving, Christmas",
+      "banner_regulations": "\"OVERSIZE LOAD\" banner required for loads exceeding legal dimensions",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles; proper lighting required for night movement of qualifying loads",
+      "permit_dimensions": "May be permitted up to 14'W and/or 15'H and/or 125' trailer/load length; Superload: >16'W or >16'H or >125' load length or >200,000 lbs; overhang: max 3' front (from manufacturer's bumper), 15' rear (from center of rear axle)",
+      "annual_permit_cost": "$50 annual (Apr 1-Mar 31); pro-rated by quarter: $37.50 (after Jul 1), $25 (after Oct 1), $12.50 (after Jan 1)",
+      "commodity_specific": "Collection Truck permits: $252 (2-axle) or $336 (3-axle) annual for limited excess weight; Empty Apple Bins: $20/month or $240/year for heights up to 15'",
+      "route_requirements": "Permits only issued for non-divisible loads; load must be reduced if any part can be reasonably divided; 2024 system modernization improved self-issue capabilities"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "westvirginia",
+    "state_name": "West Virginia",
+    "state_code": "WV",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 28000,
+      "tandem_axle": 45000,
+      "tridem_axle": 50000,
+      "gross_vehicle_weight": 110000
+    },
+    "max_dimensions": {
+      "length_ft": 53,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$200-$500",
+      "single_trip": "$20 + $0.04/ton-mile",
+      "notes": "Single trip/superload $20 + $0.04/ton-mile for overweight (valid 5 days); Blanket annual: regular $200 (oversize) or $500 (oversize/overweight); seagoing $150 (1-15 permits); mobile home $200; manufactured commodity $500"
+    },
+    "color": "#DDA0DD",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads approaching overhead clearances",
+      "pilot_car_escort": "Requirements vary by dimensions; specific requirements in permit",
+      "trip_permits": "Available through WVDOT at TRANSPORTATION.WV.GOV; valid for 5 days",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Sunrise to sunset Mon-Fri; weekend running on interstates and divided routes if dimensions ≤14'6\"H x 14'W x 95'L x 15' total overhang; overweight-only ≤110k lbs: 24/7; overweight-only >110k lbs: sunrise-sunset Mon-Fri",
+      "holiday_restrictions": "Restricted travel on major holidays for oversize loads",
+      "banner_regulations": "\"OVERSIZE LOAD\" signs required on front and rear for all oversize loads",
+      "flag_regulations": "Six flags required: one on each side of front bumper of power unit and one on each top corner of load",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Blanket permit max: 14'6\"H x 14'W x 95'L x 15' overhang x 110,000 lbs gross (single axle 28k, tandem 45k, tridem 50k)",
+      "annual_permit_cost": "$200 (oversize) or $500 (oversize/overweight); seagoing $150 (1-15 permits); mobile home $200; manufactured commodity $500",
+      "commodity_specific": "Special blanket permits for seagoing cargo, mobile homes, and manufactured commodities",
+      "route_requirements": "Weekend interstate travel allowed for qualifying dimensions; separate requirements for overweight-only vs oversize loads"
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "wisconsin",
+    "state_name": "Wisconsin",
+    "state_code": "WI",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 34000,
+      "tridem_axle": 42000,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 24000,
+      "tandem_axle": 46000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 150000
+    },
+    "max_dimensions": {
+      "length_ft": 75,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$100-$300",
+      "single_trip": "$50-$105+",
+      "notes": "Fees vary by permit type, load, and dimensions; loads ≥150k lbs: $105 + $10 per 1,000 lbs (or fraction); +$10 per district for route review; +$10 per weight review"
+    },
+    "color": "#FFA07A",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Required for loads approaching overhead clearances",
+      "pilot_car_escort": "Requirements vary by dimensions; specific requirements in permit",
+      "trip_permits": "Available through WisDOT system at WISCONSINDOT.GOV; single trip and multiple trip permits available",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "Loads ≤12'W x 13'6\"H x 100'L may run 24/7 except 4-11pm on Sundays and 4-11pm between 4th Sunday in May and Labor Day; overweight-only: 24/7 including weekends/holidays unless stated otherwise",
+      "holiday_restrictions": "Limited restrictions; primarily time-of-day restrictions rather than full holiday bans",
+      "banner_regulations": "When vehicle/load >10'W or overlength, 2 warning signs required (front and rear): 'OVERSIZE LOAD' in black letters on yellow background, ≥7'L x 18\"H",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Legal: 75'L x 8'6\"W x 13'6\"H x 80,000 lbs; overhang: 3' front, 4' rear; Superload: >16'W or >150,000 lbs",
+      "annual_permit_cost": "$100-$300 depending on configuration and permit type",
+      "commodity_specific": "Multiple trip permits specify power unit, load, and dimensions; special provisions for construction equipment",
+      "route_requirements": "Route review fees apply when necessitated by size or weight ($10/district); weight review fee $10 when necessary; permits issued per s.348.26 and 348.27 Wis. Stats."
+    }
+  },
+  {
+    "corridor": "Multi-State",
+    "state_key": "wyoming",
+    "state_name": "Wyoming",
+    "state_code": "WY",
+    "legal_limits": {
+      "single_axle": 20000,
+      "tandem_axle": 36000,
+      "tridem_axle": 42500,
+      "gross_vehicle_weight": 80000
+    },
+    "permitted_limits": {
+      "single_axle": 26000,
+      "tandem_axle": 48000,
+      "tridem_axle": 60000,
+      "gross_vehicle_weight": 200000
+    },
+    "max_dimensions": {
+      "length_ft": 85,
+      "width_ft": 8.5,
+      "height_ft": 13.5
+    },
+    "permit_costs": {
+      "annual_permit": "$150-$400",
+      "single_trip": "$25-$40+",
+      "notes": "Oversize single trip: $25 + $0.03/ft/mile for >15'W or >15'H or >75'L; Overweight single trip: min $40 + $0.06/ton (or fraction) of legal weight; Forest products/baled hay/combine headers: $15 single trip, $50 extended period (up to 90 days)"
+    },
+    "color": "#F0E68C",
+    "requirements": {
+      "minimum_road_width": "Road width must accommodate load width plus safe clearance",
+      "height_pole": "Escort vehicle with height-measuring device required for ≥17' high to the front",
+      "pilot_car_escort": "Front escort with height device for ≥17'H; 1 rear escort for ≥25' rear overhang; loads >18'W require 24-hour prior notification",
+      "trip_permits": "Available through WYDOT system at DOT.STATE.WY.US; permit or permission required before travel",
+      "fuel_permits": "IFTA credentials required for interstate carriers",
+      "running_hours": "1/2 hour before sunrise to 1/2 hour after sunset for oversize and overweight shipments",
+      "holiday_restrictions": "No escorted holiday travel on New Year's Day, Memorial Day, Independence Day, Labor Day, Thanksgiving Day, Christmas Day",
+      "banner_regulations": "\"OVERSIZE LOAD\" signs with yellow background, 60\" wide x 10\" high, black letters ≥8\" high",
+      "flag_regulations": "Flags required at extremities for oversize loads",
+      "warning_light_regulations": "Amber warning lights required on escort vehicles",
+      "permit_dimensions": "Legal: 85'L (vehicle combinations) x 53' (single) x 8'6\"W x 13.5'H x 80,000 lbs; axle limits: single 20k, tandem 36k, triple 42.5k",
+      "annual_permit_cost": "$150-$400 depending on configuration; extended period permits available",
+      "commodity_specific": "Special permits for forest products, baled hay, and combine headers: $15 single trip or $50 extended period (up to 90 days)",
+      "route_requirements": "All loads over legal limits must have permit before traveling on Wyoming highways; 24-hour prior notification required for >18'W; height measuring device required for tall loads"
+    }
+  }
+]
