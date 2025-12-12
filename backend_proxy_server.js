@@ -11967,15 +11967,15 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
 
     // Store in database
     const modelInsert = db.isPostgres
-      ? `INSERT INTO ifc_models (filename, file_size, ifc_schema, project_name, uploaded_by,
+      ? `INSERT INTO ifc_models (filename, file_path, file_size, ifc_schema, project_name, uploaded_by,
          state_key, latitude, longitude, route, milepost, extraction_status,
          extraction_log, total_elements, metadata)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
          RETURNING id`
-      : `INSERT INTO ifc_models (filename, file_size, ifc_schema, project_name, uploaded_by,
+      : `INSERT INTO ifc_models (filename, file_path, file_size, ifc_schema, project_name, uploaded_by,
          state_key, latitude, longitude, route, milepost, extraction_status,
          extraction_log, total_elements, metadata)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const metadata = JSON.stringify({
       entity_types: extractionResult.statistics.by_type,
@@ -11987,6 +11987,7 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
     if (db.isPostgres) {
       const result = await db.db.query(modelInsert, [
         req.file.originalname,
+        req.file.path,
         req.file.size,
         extractionResult.schema,
         extractionResult.project,
@@ -12006,6 +12007,7 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
       const stmt = db.db.prepare(modelInsert);
       const result = stmt.run(
         req.file.originalname,
+        req.file.path,
         req.file.size,
         extractionResult.schema,
         extractionResult.project,
