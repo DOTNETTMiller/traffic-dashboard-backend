@@ -12237,6 +12237,46 @@ app.get('/api/digital-infrastructure/models/:modelId', async (req, res) => {
   }
 });
 
+// Serve IFC file for 3D viewer
+app.get('/api/digital-infrastructure/models/:modelId/file', async (req, res) => {
+  try {
+    const { modelId } = req.params;
+
+    // Get model info
+    const modelQuery = db.isPostgres
+      ? 'SELECT * FROM ifc_models WHERE id = $1'
+      : 'SELECT * FROM ifc_models WHERE id = ?';
+
+    let model;
+    if (db.isPostgres) {
+      const result = await db.db.query(modelQuery, [modelId]);
+      model = result.rows?.[0];
+    } else {
+      model = db.db.prepare(modelQuery).get(modelId);
+    }
+
+    if (!model) {
+      return res.status(404).json({ success: false, error: 'Model not found' });
+    }
+
+    // Check if file exists
+    const fs = require('fs');
+    if (!fs.existsSync(model.file_path)) {
+      return res.status(404).json({ success: false, error: 'IFC file not found on disk' });
+    }
+
+    // Serve the file
+    res.setHeader('Content-Type', 'application/x-step');
+    res.setHeader('Content-Disposition', `inline; filename="${model.filename}"`);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.sendFile(path.resolve(model.file_path));
+
+  } catch (error) {
+    console.error('❌ Serve IFC file error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Get infrastructure elements for a model
 app.get('/api/digital-infrastructure/elements/:modelId', async (req, res) => {
   try {

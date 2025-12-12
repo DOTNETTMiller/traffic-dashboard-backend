@@ -22,7 +22,9 @@
     "react-router-dom": "^6.20.0",
     "serve": "^14.2.1",
     "socket.io-client": "^4.7.2",
-    "three": "^0.135.0",
+    "three": "^0.149.0",
+    "web-ifc": "0.0.44",
+    "web-ifc-three": "^0.0.126",
     "web-ifc-viewer": "^1.0.218"
   },
   "devDependencies": {
