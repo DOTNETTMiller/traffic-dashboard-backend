@@ -12041,9 +12041,31 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
   }
 });
 
+// Helper function to check if Digital Infrastructure tables exist
+async function checkDigitalInfraTables(res) {
+  try {
+    if (db.isPostgres) {
+      await db.db.query('SELECT 1 FROM ifc_models LIMIT 1');
+    } else {
+      db.db.prepare('SELECT 1 FROM ifc_models LIMIT 1').get();
+    }
+    return true;
+  } catch (err) {
+    console.warn('Digital Infrastructure tables not initialized:', err.message);
+    res.status(503).json({
+      success: false,
+      error: 'Digital Infrastructure feature not initialized. Tables will be created when you upload your first model.'
+    });
+    return false;
+  }
+}
+
 // List all IFC models
 app.get('/api/digital-infrastructure/models', async (req, res) => {
   try {
+    // Check if tables exist
+    if (!(await checkDigitalInfraTables(res))) return;
+
     const { stateKey } = req.query;
 
     let query = 'SELECT * FROM ifc_models';
@@ -12528,6 +12550,9 @@ function generateGapReportCSV(model, gaps) {
 // Export gap report as CSV
 app.get('/api/digital-infrastructure/gap-report/:modelId', async (req, res) => {
   try {
+    // Check if tables exist
+    if (!(await checkDigitalInfraTables(res))) return;
+
     const { modelId } = req.params;
     const { format = 'csv' } = req.query;
 
@@ -12687,11 +12712,20 @@ app.get('/api/digital-infrastructure/standards-report/:modelId', async (req, res
       : 'SELECT * FROM ifc_models WHERE id = ?';
 
     let model;
-    if (db.isPostgres) {
-      const result = await db.db.query(modelQuery, [modelId]);
-      model = result.rows?.[0];
-    } else {
-      model = db.db.prepare(modelQuery).get(modelId);
+    try {
+      if (db.isPostgres) {
+        const result = await db.db.query(modelQuery, [modelId]);
+        model = result.rows?.[0];
+      } else {
+        model = db.db.prepare(modelQuery).get(modelId);
+      }
+    } catch (tableErr) {
+      // Table doesn't exist
+      console.warn('Digital Infrastructure tables not found:', tableErr.message);
+      return res.status(503).json({
+        success: false,
+        error: 'Digital Infrastructure feature not initialized. Please upload a model first to initialize the database tables.'
+      });
     }
 
     if (!model) {
