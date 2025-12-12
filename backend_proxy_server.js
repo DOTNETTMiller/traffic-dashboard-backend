@@ -12070,38 +12070,46 @@ app.get('/api/digital-infrastructure/models', async (req, res) => {
 
     // Add element type statistics for each model
     for (const model of models) {
-      const statsQuery = db.isPostgres
-        ? 'SELECT ifc_type, category, COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 GROUP BY ifc_type, category ORDER BY count DESC LIMIT 10'
-        : 'SELECT ifc_type, category, COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? GROUP BY ifc_type, category ORDER BY count DESC LIMIT 10';
+      try {
+        const statsQuery = db.isPostgres
+          ? 'SELECT ifc_type, category, COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 GROUP BY ifc_type, category ORDER BY count DESC LIMIT 10'
+          : 'SELECT ifc_type, category, COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? GROUP BY ifc_type, category ORDER BY count DESC LIMIT 10';
 
-      let elementStats;
-      if (db.isPostgres) {
-        const result = await db.db.query(statsQuery, [model.id]);
-        elementStats = result.rows || [];
-      } else {
-        elementStats = db.db.prepare(statsQuery).all(model.id);
-      }
+        let elementStats;
+        if (db.isPostgres) {
+          const result = await db.db.query(statsQuery, [model.id]);
+          elementStats = result.rows || [];
+        } else {
+          elementStats = db.db.prepare(statsQuery).all(model.id);
+        }
 
-      // Convert to object with type counts and get V2X/AV counts
-      model.element_breakdown = elementStats;
+        // Convert to object with type counts and get V2X/AV counts
+        model.element_breakdown = elementStats;
 
-      // Get V2X and AV counts
-      const v2xQuery = db.isPostgres
-        ? 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 AND v2x_applicable = true'
-        : 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? AND v2x_applicable = 1';
+        // Get V2X and AV counts
+        const v2xQuery = db.isPostgres
+          ? 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 AND v2x_applicable = true'
+          : 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? AND v2x_applicable = 1';
 
-      const avQuery = db.isPostgres
-        ? 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 AND av_critical = true'
-        : 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? AND av_critical = 1';
+        const avQuery = db.isPostgres
+          ? 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 AND av_critical = true'
+          : 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? AND av_critical = 1';
 
-      if (db.isPostgres) {
-        const v2xResult = await db.db.query(v2xQuery, [model.id]);
-        const avResult = await db.db.query(avQuery, [model.id]);
-        model.v2x_count = v2xResult.rows[0]?.count || 0;
-        model.av_count = avResult.rows[0]?.count || 0;
-      } else {
-        model.v2x_count = db.db.prepare(v2xQuery).get(model.id)?.count || 0;
-        model.av_count = db.db.prepare(avQuery).get(model.id)?.count || 0;
+        if (db.isPostgres) {
+          const v2xResult = await db.db.query(v2xQuery, [model.id]);
+          const avResult = await db.db.query(avQuery, [model.id]);
+          model.v2x_count = v2xResult.rows[0]?.count || 0;
+          model.av_count = avResult.rows[0]?.count || 0;
+        } else {
+          model.v2x_count = db.db.prepare(v2xQuery).get(model.id)?.count || 0;
+          model.av_count = db.db.prepare(avQuery).get(model.id)?.count || 0;
+        }
+      } catch (err) {
+        // If statistics query fails (e.g., table doesn't exist), set empty defaults
+        console.warn(`Warning: Could not load statistics for model ${model.id}:`, err.message);
+        model.element_breakdown = [];
+        model.v2x_count = 0;
+        model.av_count = 0;
       }
     }
 
