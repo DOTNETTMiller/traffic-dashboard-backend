@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Vite configuration for Corridor Communicator
+// Vite configuration for Corridor Communicator - includes 3D model viewer support
 export default defineConfig({
   plugins: [react()],
   server: {
