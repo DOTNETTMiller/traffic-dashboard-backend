@@ -18871,6 +18871,27 @@ async function initVendorData() {
   }
 }
 
+// ============================================================================
+// STATIC FILE SERVING - Serve built frontend from backend (temporary solution)
+// ============================================================================
+// Serve static files from the built frontend
+app.use(express.static(path.join(__dirname, 'frontend/dist')));
+
+// Fallback route - serve index.html for all non-API routes (SPA support)
+app.get('*', (req, res) => {
+  // Skip if this is an API request
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'API endpoint not found' });
+  }
+
+  const indexPath = path.join(__dirname, 'frontend/dist/index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).send('Frontend not built. Run: cd frontend && npm run build');
+  }
+});
+
 // Start server function - called after database initialization
 function startServer() {
   app.listen(PORT, async () => {
