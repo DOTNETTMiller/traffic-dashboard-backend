@@ -1,12 +1,10 @@
-# Exclude large data files from Railway deployments
-TruckStopsExport/
+# Ignore frontend directory during backend builds
+frontend/
 
-# Also exclude other unnecessary files
-node_modules/
+# Ignore other unnecessary files
 .git/
 .DS_Store
 *.log
+node_modules/
 .env.local
-states.db
-states.db-journal
-messages.json
+.env.*.local
