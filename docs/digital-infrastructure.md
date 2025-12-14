@@ -53,6 +53,30 @@ Topics covered:
 - Custom APIs: 20-60% coverage (4+ states)
 - Overall system: ~55-70% of events include end times
 
+### [Digital Standards Crosswalk](/docs/digital-standards-crosswalk.md)
+
+**Comprehensive mapping of standards across infrastructure lifecycle for data interoperability**
+
+Topics covered:
+- Standards by lifecycle phase (Planning, Survey, Design, Construction, Operations, Maintenance)
+- Data crosswalk examples (Bridge Design→Operations, ITS Equipment Lifecycle, Pavement Management)
+- Interoperability frameworks (IFC↔NTCIP, GIS↔BIM, WZDx↔Traffic Management)
+- Implementation guidance (database schema, API endpoints, gap analysis integration)
+- Standards organizations and resources
+
+**Key Standards Mapped:**
+- Planning: HPMS, TPM, GIS (ISO 19100), MIRE 2.0
+- Design: IFC, NBIMS-US, ISO 19650, LandXML
+- Construction: e-Construction, TransXML, WZDx
+- Operations: NTCIP (1203/1204/1209/1211), SAE J2735, IEEE 1609, TMDD
+- Maintenance: ISO 55000, PAS 55, IRI, CMMS
+
+**Benefits:**
+- Seamless data flow from planning through operations
+- Multi-vendor system interoperability
+- FHWA/USDOT grant compliance (SMART, RAISE, ATCMTD)
+- Digital twin enablement with real-time operational data
+
 ---
 
 ## Digital Infrastructure Features
