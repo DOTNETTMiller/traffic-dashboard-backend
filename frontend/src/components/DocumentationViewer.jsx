@@ -8,6 +8,21 @@ function DocumentationViewer() {
   const [downloading, setDownloading] = useState(false);
 
   const docs = {
+    'digital-infrastructure': {
+      title: 'Digital Infrastructure Overview',
+      url: '/docs/digital-infrastructure.md',
+      description: 'BIM/IFC integration with ITS operations, digital twin workflows, and CAV support'
+    },
+    'arc-its': {
+      title: 'ARC-ITS & IFC Integration',
+      url: '/docs/arc-its-ifc-integration.md',
+      description: 'How IFC BIM models integrate with ARC-ITS operational data (NTCIP, SAE J2735, IEEE 1609)'
+    },
+    'data-quality': {
+      title: 'Event Data Quality Standards',
+      url: '/docs/data-quality.md',
+      description: 'Data quality standards and end time coverage for traffic events across WZDx, FEU-G, and custom feeds'
+    },
     normalization: {
       title: 'Data Normalization Strategy',
       url: '/docs/DATA_NORMALIZATION.md',
