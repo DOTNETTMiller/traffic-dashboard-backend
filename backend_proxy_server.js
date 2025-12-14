@@ -470,40 +470,50 @@ const API_CONFIG = {
   iowa: {
     name: 'Iowa',
     eventsUrl: 'https://ia.carsprogram.org/hub/data/feu-g.xml',
-    username: process.env.CARS_USERNAME || '',
-    password: process.env.CARS_PASSWORD || '',
+    ...(process.env.CARS_USERNAME && process.env.CARS_PASSWORD && {
+      username: process.env.CARS_USERNAME,
+      password: process.env.CARS_PASSWORD
+    }),
     format: 'xml',
     corridor: 'both'
   },
   kansas: {
     name: 'Kansas',
     eventsUrl: 'https://kscars.kandrive.gov/hub/data/feu-g.xml',
-    username: process.env.CARS_USERNAME || '',
-    password: process.env.CARS_PASSWORD || '',
+    ...(process.env.CARS_USERNAME && process.env.CARS_PASSWORD && {
+      username: process.env.CARS_USERNAME,
+      password: process.env.CARS_PASSWORD
+    }),
     format: 'xml',
     corridor: 'I-35'
   },
   nebraska: {
     name: 'Nebraska',
     eventsUrl: 'https://ne.carsprogram.org/hub/data/feu-g.xml',
-    username: process.env.CARS_USERNAME || '',
-    password: process.env.CARS_PASSWORD || '',
+    ...(process.env.CARS_USERNAME && process.env.CARS_PASSWORD && {
+      username: process.env.CARS_USERNAME,
+      password: process.env.CARS_PASSWORD
+    }),
     format: 'xml',
     corridor: 'I-80'
   },
   indiana: {
     name: 'Indiana',
     eventsUrl: 'https://inhub.carsprogram.org/data/feu-g.xml',
-    username: process.env.CARS_USERNAME || '',
-    password: process.env.CARS_PASSWORD || '',
+    ...(process.env.CARS_USERNAME && process.env.CARS_PASSWORD && {
+      username: process.env.CARS_USERNAME,
+      password: process.env.CARS_PASSWORD
+    }),
     format: 'xml',
     corridor: 'I-80'
   },
   minnesota: {
     name: 'Minnesota',
     eventsUrl: 'https://mn.carsprogram.org/hub/data/feu-g.xml',
-    username: process.env.CARS_USERNAME || '',
-    password: process.env.CARS_PASSWORD || '',
+    ...(process.env.CARS_USERNAME && process.env.CARS_PASSWORD && {
+      username: process.env.CARS_USERNAME,
+      password: process.env.CARS_PASSWORD
+    }),
     format: 'xml',
     corridor: 'I-35'
   },
