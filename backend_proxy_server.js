@@ -1248,42 +1248,44 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
       // Handle Nevada
       if (stateName === 'Nevada' && Array.isArray(rawData)) {
         rawData.forEach(item => {
-          const locationText = item.location_description || `I-80 ${item.direction || ''}`;
-          if (item.routes && item.routes.some(r => /I-?\d+/.test(r))) {
-            const startRaw = item.start_time ? item.start_time : null;
-            const eventTypeRaw = item.event_category || item.description || null;
-            const directionRaw = item.direction || null;
-            const lanesRaw = item.lanes_affected || null;
+          const roadwayName = item.RoadwayName || '';
+          const locationText = item.LocationDescription || roadwayName;
+
+          // Filter to only interstate highways
+          if (roadwayName && /I-?\d+/.test(roadwayName)) {
+            const overallStatus = item['Overall Status'] || 'No Report';
+            const startRaw = item.LastUpdated ? new Date(item.LastUpdated * 1000).toISOString() : null;
+
             const normalizedEvent = {
-              id: `NV-${item.id || Math.random().toString(36).substr(2, 9)}`,
+              id: `NV-${item.Id || Math.random().toString(36).substr(2, 9)}`,
               state: 'Nevada',
-              corridor: extractCorridor(locationText),
-              eventType: determineEventType(item.event_category || item.description),
-              description: item.description || item.headline || 'Road condition update',
-              location: locationText,
-              county: item.county || 'Unknown',
-              latitude: parseFloat(item.start_latitude) || 0,
-              longitude: parseFloat(item.start_longitude) || 0,
+              corridor: extractCorridor(roadwayName),
+              eventType: determineEventType(overallStatus),
+              description: `${roadwayName}: ${overallStatus}${item['Secondary Conditions']?.length > 0 ? ' - ' + item['Secondary Conditions'].join(', ') : ''}`,
+              location: `${roadwayName} - ${locationText}`,
+              county: item.AreaName || 'Unknown',
+              // Nevada uses EncodedPolyline - coordinates would need polyline decoding
+              // Don't set lat/lon to 0, leave undefined so coordinate filter allows it through
               startTime: startRaw,
-              endTime: item.end_time || null,
-              lanesAffected: lanesRaw || 'Check conditions',
-              severity: determineSeverity(item),
-              direction: directionRaw || 'Both',
+              endTime: null,
+              lanesAffected: 'Check conditions',
+              severity: determineSeverity({description: overallStatus}),
+              direction: 'Both',
               requiresCollaboration: false
             };
 
             normalized.push(attachRawFields(normalizedEvent, {
               startTime: startRaw,
-              endTime: item.end_time || null,
-              eventType: item.event_category || null,
-              description: item.description || null,
-              lanesAffected: lanesRaw,
-              severity: determineSeverity(item),
-              direction: directionRaw,
-              corridor: extractCorridor(locationText),
-              coordinates: (normalizedEvent.longitude && normalizedEvent.latitude)
-                ? [normalizedEvent.longitude, normalizedEvent.latitude]
-                : null
+              endTime: null,
+              eventType: overallStatus,
+              description: normalizedEvent.description,
+              lanesAffected: 'Check conditions',
+              severity: normalizedEvent.severity,
+              direction: 'Both',
+              corridor: extractCorridor(roadwayName),
+              coordinates: null,
+              rawRoadway: roadwayName,
+              encodedPolyline: item.EncodedPolyline || null
             }));
           }
         });
@@ -2571,7 +2573,15 @@ app.get('/api/events/:state', async (req, res) => {
   }
 
   // Filter out events without valid coordinates (fixes map display issues)
+  // BUT allow events with no coordinates at all (like Nevada which uses EncodedPolyline)
   const validEvents = uniqueEvents.filter(event => {
+    // If event has no coordinate information at all, allow it through
+    // (e.g., Nevada which uses EncodedPolyline instead of lat/lon)
+    const hasNoCoords = !event.coordinates && !event.latitude && !event.longitude && !event.geometry;
+    if (hasNoCoords) {
+      return true;
+    }
+
     // Check for coordinates array [longitude, latitude]
     if (event.coordinates && Array.isArray(event.coordinates) && event.coordinates.length === 2) {
       const [lon, lat] = event.coordinates;
