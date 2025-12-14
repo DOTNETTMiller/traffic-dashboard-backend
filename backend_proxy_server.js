@@ -7785,7 +7785,7 @@ app.post('/api/admin/detour-alerts/:id/resolve', requireAdmin, (req, res) => {
   }
 });
 
-app.get('/api/detour-alerts/active', requireUser, async (req, res) => {
+app.get('/api/detour-alerts/active', async (req, res) => {
   const alerts = await db.getActiveDetourAlerts();
   res.json({ success: true, alerts });
 });
