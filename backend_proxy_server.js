@@ -1105,6 +1105,16 @@ async function initializeDatabase() {
     if (existingStates.length === 0) {
       console.log('🔄 First startup detected - migrating existing states to database...');
       db.migrateFromConfig(API_CONFIG);
+
+      // Auto-import WZDx feeds from USDOT registry
+      console.log('📥 Auto-importing WZDx feeds from USDOT registry...');
+      try {
+        const { importWZDxRegistry } = require('./import_wzdx_registry.js');
+        await importWZDxRegistry();
+      } catch (error) {
+        console.error('⚠️  WZDx import failed:', error.message);
+        console.log('⚠️  Continuing with manually configured states only');
+      }
     }
 
     // Load any additional states from database
