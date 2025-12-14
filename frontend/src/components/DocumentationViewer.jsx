@@ -13,6 +13,11 @@ function DocumentationViewer() {
       url: '/docs/member-state-overview.md',
       description: 'Comprehensive guide for state DOTs: Features, benefits, use cases, technical specs, and getting started (46+ states, real-time operations, digital infrastructure)'
     },
+    'roi-analysis': {
+      title: 'ROI Analysis',
+      url: '/docs/roi-analysis.md',
+      description: 'Comprehensive return on investment analysis: Cost-benefit calculations, payback periods, grant funding multipliers, case studies, and financial justification (300-7,500% 3-year ROI)'
+    },
     'digital-infrastructure': {
       title: 'Digital Infrastructure Overview',
       url: '/docs/digital-infrastructure.md',
