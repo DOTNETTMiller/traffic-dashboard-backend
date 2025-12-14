@@ -17,6 +17,8 @@ function DigitalInfrastructure() {
   const [uploadProgress, setUploadProgress] = useState(null);
   const [liveStats, setLiveStats] = useState(null);
   const [availableStates, setAvailableStates] = useState([]);
+  const [docContent, setDocContent] = useState('');
+  const [docLoading, setDocLoading] = useState(false);
 
   // Upload form state
   const [selectedFile, setSelectedFile] = useState(null);
@@ -100,6 +102,114 @@ function DigitalInfrastructure() {
     } catch (error) {
       console.error('Error loading live stats:', error);
     }
+  };
+
+  const loadDocumentation = async () => {
+    setDocLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/docs/digital-infrastructure.md`);
+      if (response.ok) {
+        const text = await response.text();
+        setDocContent(text);
+      } else {
+        setDocContent('# Documentation Not Found\n\nThe digital infrastructure documentation could not be loaded.');
+      }
+    } catch (error) {
+      setDocContent(`# Error Loading Documentation\n\n${error.message}`);
+    }
+    setDocLoading(false);
+  };
+
+  // Simple markdown to HTML converter (same as DocumentationViewer)
+  const renderMarkdown = (markdown) => {
+    if (!markdown) return '';
+
+    let html = markdown;
+
+    // Headers
+    html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+    html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+    html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+    // Bold
+    html = html.replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>');
+
+    // Italic
+    html = html.replace(/\*(.*?)\*/gim, '<em>$1</em>');
+
+    // Code blocks
+    html = html.replace(/```(\w+)?\n([\s\S]*?)```/gim, '<pre><code>$2</code></pre>');
+
+    // Inline code
+    html = html.replace(/`([^`]+)`/gim, '<code>$1</code>');
+
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/gim, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+    // Tables
+    const lines = html.split('\n');
+    let inTable = false;
+    let tableHTML = '';
+    const processedLines = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.includes('|') && line.trim().startsWith('|')) {
+        if (!inTable) {
+          inTable = true;
+          tableHTML = '<table class="doc-table">';
+
+          const nextLine = lines[i + 1];
+          const isHeader = nextLine && nextLine.includes('|') && nextLine.includes('---');
+
+          if (isHeader) {
+            tableHTML += '<thead><tr>';
+            const headers = line.split('|').filter(cell => cell.trim());
+            headers.forEach(header => {
+              tableHTML += `<th>${header.trim()}</th>`;
+            });
+            tableHTML += '</tr></thead><tbody>';
+            i++;
+            continue;
+          } else {
+            tableHTML += '<tbody>';
+          }
+        }
+
+        tableHTML += '<tr>';
+        const cells = line.split('|').filter(cell => cell.trim());
+        cells.forEach(cell => {
+          tableHTML += `<td>${cell.trim()}</td>`;
+        });
+        tableHTML += '</tr>';
+      } else {
+        if (inTable) {
+          tableHTML += '</tbody></table>';
+          processedLines.push(tableHTML);
+          tableHTML = '';
+          inTable = false;
+        }
+        processedLines.push(line);
+      }
+    }
+
+    if (inTable) {
+      tableHTML += '</tbody></table>';
+      processedLines.push(tableHTML);
+    }
+
+    html = processedLines.join('\n');
+
+    // Lists
+    html = html.replace(/^\* (.*$)/gim, '<li>$1</li>');
+    html = html.replace(/^\- (.*$)/gim, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+
+    // Line breaks
+    html = html.replace(/\n\n/g, '</p><p>');
+    html = '<p>' + html + '</p>';
+
+    return html;
   };
 
   const handleFileSelect = (e) => {
@@ -338,6 +448,7 @@ function DigitalInfrastructure() {
           onClick={() => {
             setActiveTab('documentation');
             if (!liveStats) loadLiveStats();
+            if (!docContent) loadDocumentation();
           }}
           style={{
             padding: '12px 24px',
@@ -931,7 +1042,7 @@ function DigitalInfrastructure() {
         <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
           <h2 style={{ fontSize: '24px', marginBottom: '10px' }}>Digital Infrastructure Documentation</h2>
           <p style={{ color: '#666', marginBottom: '30px' }}>
-            BIM/IFC to ITS Operations - System Overview and Live Statistics
+            Comprehensive guide to BIM/IFC integration with ITS operations, ARC-ITS data, and digital twin workflows
           </p>
 
           {/* Live Statistics */}
@@ -992,155 +1103,134 @@ function DigitalInfrastructure() {
             </div>
           )}
 
-          {/* System Overview */}
-          <div style={{ marginBottom: '40px' }}>
-            <h3 style={{ fontSize: '20px', marginBottom: '15px', borderBottom: '2px solid #e0e0e0', paddingBottom: '10px' }}>
-              System Overview
-            </h3>
-            <p style={{ lineHeight: '1.8', color: '#444', marginBottom: '15px' }}>
-              This system bridges the gap between BIM/CAD design data and ITS operational needs by extracting infrastructure elements
-              from IFC models, analyzing what properties exist versus what ITS operations require, identifying gaps in data for V2X
-              and autonomous vehicle deployments, and generating buildingSMART IDM/IDS recommendations for industry standards.
-            </p>
-            <p style={{ lineHeight: '1.8', color: '#444' }}>
-              This directly informs IDM/IDS development for transportation infrastructure at scale, helping to close the gap between
-              design-phase BIM models and operational ITS requirements.
-            </p>
-          </div>
-
-          {/* Supported IFC Types */}
-          <div style={{ marginBottom: '40px' }}>
-            <h3 style={{ fontSize: '20px', marginBottom: '15px', borderBottom: '2px solid #e0e0e0', paddingBottom: '10px' }}>
-              Supported IFC Types
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
-              {[
-                { type: 'IFCBRIDGE', desc: 'Bridge structures (V2X + AV critical)', critical: true },
-                { type: 'IFCBEAM', desc: 'Girders, beams (clearance verification)', critical: true },
-                { type: 'IFCSIGN', desc: 'Traffic signs (V2X critical)', critical: true },
-                { type: 'IFCPAVEMENT', desc: 'Pavement surfaces', critical: false },
-                { type: 'IFCKERB', desc: 'Lane boundaries', critical: false },
-                { type: 'IFCROAD/IFCROADPART', desc: 'Roadway elements', critical: false },
-                { type: 'IFCCOLUMN', desc: 'Structural columns', critical: false },
-                { type: 'IFCPLATE', desc: 'Deck plates, structural plates', critical: false },
-              ].map(item => (
-                <div key={item.type} style={{
-                  padding: '15px',
-                  backgroundColor: item.critical ? '#fef3c7' : '#f5f5f5',
-                  borderRadius: '4px',
-                  borderLeft: item.critical ? '4px solid #f59e0b' : '4px solid #999'
-                }}>
-                  <div style={{ fontWeight: 'bold', marginBottom: '5px', fontFamily: 'monospace' }}>
-                    {item.type}
-                  </div>
-                  <div style={{ fontSize: '14px', color: '#666' }}>{item.desc}</div>
-                </div>
-              ))}
+          {/* Markdown Documentation Content */}
+          {docLoading ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+              Loading documentation...
             </div>
-          </div>
-
-          {/* ITS Use Cases */}
-          <div style={{ marginBottom: '40px' }}>
-            <h3 style={{ fontSize: '20px', marginBottom: '15px', borderBottom: '2px solid #e0e0e0', paddingBottom: '10px' }}>
-              Industry Impact & Use Cases
-            </h3>
-
-            <div style={{ display: 'grid', gap: '20px' }}>
-              <div style={{ padding: '20px', backgroundColor: '#e3f2fd', borderRadius: '8px' }}>
-                <h4 style={{ fontSize: '18px', marginBottom: '10px', color: '#1976d2' }}>V2X Deployments</h4>
-                <ul style={{ lineHeight: '1.8', color: '#444', margin: '0', paddingLeft: '20px' }}>
-                  <li>Bridge clearance broadcasting to commercial vehicles</li>
-                  <li>Sign message content for V2X-enabled vehicles</li>
-                  <li>Pavement condition for traction control systems</li>
-                </ul>
-              </div>
-
-              <div style={{ padding: '20px', backgroundColor: '#f3e5f5', borderRadius: '8px' }}>
-                <h4 style={{ fontSize: '18px', marginBottom: '10px', color: '#7b1fa2' }}>Autonomous Vehicles</h4>
-                <ul style={{ lineHeight: '1.8', color: '#444', margin: '0', paddingLeft: '20px' }}>
-                  <li>Route planning with vertical clearance verification</li>
-                  <li>Lane boundary detection from pavement markings</li>
-                  <li>Dynamic routing around low-clearance structures</li>
-                </ul>
-              </div>
-
-              <div style={{ padding: '20px', backgroundColor: '#e8f5e9', borderRadius: '8px' }}>
-                <h4 style={{ fontSize: '18px', marginBottom: '10px', color: '#2e7d32' }}>Digital Infrastructure</h4>
-                <ul style={{ lineHeight: '1.8', color: '#444', margin: '0', paddingLeft: '20px' }}>
-                  <li>Real-time infrastructure data feeds</li>
-                  <li>Operational digital twins for asset management</li>
-                  <li>Integration with existing ITS and asset management systems</li>
-                </ul>
-              </div>
-
-              <div style={{ padding: '20px', backgroundColor: '#fff3e0', borderRadius: '8px' }}>
-                <h4 style={{ fontSize: '18px', marginBottom: '10px', color: '#e65100' }}>Grant Applications</h4>
-                <ul style={{ lineHeight: '1.8', color: '#444', margin: '0', paddingLeft: '20px' }}>
-                  <li>SMART grants (data-driven transportation)</li>
-                  <li>RAISE grants (innovative infrastructure)</li>
-                  <li>ATCMTD programs (advanced transportation technologies)</li>
-                  <li>Digital infrastructure modernization initiatives</li>
-                </ul>
-              </div>
+          ) : docContent ? (
+            <div
+              className="markdown-content"
+              style={{
+                fontSize: '15px',
+                lineHeight: '1.7',
+                color: '#1f2937',
+                maxHeight: 'calc(100vh - 400px)',
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                paddingRight: '8px'
+              }}
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(docContent) }}
+            />
+          ) : (
+            <div style={{ padding: '20px', backgroundColor: '#fff3cd', borderRadius: '8px', border: '1px solid #ffc107' }}>
+              <p style={{ margin: 0, color: '#856404' }}>
+                Click the Documentation tab to load the comprehensive digital infrastructure guide.
+              </p>
             </div>
-          </div>
+          )}
 
-          {/* buildingSMART Standards */}
-          <div style={{ marginBottom: '40px' }}>
-            <h3 style={{ fontSize: '20px', marginBottom: '15px', borderBottom: '2px solid #e0e0e0', paddingBottom: '10px' }}>
-              buildingSMART IDM/IDS Development
-            </h3>
-            <p style={{ lineHeight: '1.8', color: '#444', marginBottom: '15px' }}>
-              This system demonstrates the gap between current BIM models and ITS operational requirements, providing concrete
-              data-driven recommendations for buildingSMART standards development:
-            </p>
-            <ul style={{ lineHeight: '1.8', color: '#444', paddingLeft: '20px' }}>
-              <li><strong>Current State:</strong> What BIM models provide today (extracted elements and properties)</li>
-              <li><strong>Operational Needs:</strong> What ITS systems actually require for V2X, AV, and digital infrastructure</li>
-              <li><strong>Gaps:</strong> Specific properties missing for digital infrastructure maturity</li>
-              <li><strong>Standards:</strong> Precise IDM/IDS requirements to close gaps and enable operational data exchange</li>
-            </ul>
-          </div>
-
-          {/* Technical Details */}
-          <div style={{ marginBottom: '40px' }}>
-            <h3 style={{ fontSize: '20px', marginBottom: '15px', borderBottom: '2px solid #e0e0e0', paddingBottom: '10px' }}>
-              Technical Architecture
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-              <div>
-                <h4 style={{ fontSize: '16px', marginBottom: '10px', color: '#1976d2' }}>Backend</h4>
-                <ul style={{ lineHeight: '1.6', color: '#666', fontSize: '14px', margin: '0', paddingLeft: '20px' }}>
-                  <li>Custom IFC parser (IFC2X3, IFC4.3)</li>
-                  <li>Multi-line entity parsing</li>
-                  <li>Gap analysis engine</li>
-                  <li>IDM/IDS recommendation generation</li>
-                  <li>PostgreSQL + SQLite dual support</li>
-                </ul>
-              </div>
-              <div>
-                <h4 style={{ fontSize: '16px', marginBottom: '10px', color: '#1976d2' }}>Database Schema</h4>
-                <ul style={{ lineHeight: '1.6', color: '#666', fontSize: '14px', margin: '0', paddingLeft: '20px' }}>
-                  <li>ifc_models - Uploaded BIM files</li>
-                  <li>infrastructure_elements - Extracted data</li>
-                  <li>infrastructure_gaps - Missing properties</li>
-                  <li>infrastructure_standards - IFC to ITS mapping</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          {/* Getting Started */}
-          <div style={{ padding: '20px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
-            <h3 style={{ fontSize: '18px', marginBottom: '15px' }}>Getting Started</h3>
-            <ol style={{ lineHeight: '1.8', color: '#444', paddingLeft: '20px' }}>
-              <li>Upload your IFC model (IFC2X3 or IFC4.3 format) using the Upload tab</li>
-              <li>System automatically extracts infrastructure elements and analyzes gaps</li>
-              <li>Review extraction results and gap analysis in the Models and Details tabs</li>
-              <li>Download CSV gap reports for review or buildingSMART IDS XML for validation</li>
-              <li>Use findings to inform BIM authoring workflows and standards development</li>
-            </ol>
-          </div>
+          {/* CSS for markdown content */}
+          <style>{`
+            .markdown-content h1 {
+              font-size: 32px;
+              font-weight: 700;
+              margin: 24px 0 16px 0;
+              color: #111827;
+              border-bottom: 2px solid #e5e7eb;
+              padding-bottom: 8px;
+            }
+            .markdown-content h2 {
+              font-size: 24px;
+              font-weight: 600;
+              margin: 20px 0 12px 0;
+              color: #1f2937;
+            }
+            .markdown-content h3 {
+              font-size: 20px;
+              font-weight: 600;
+              margin: 16px 0 8px 0;
+              color: #374151;
+            }
+            .markdown-content p {
+              margin: 12px 0;
+            }
+            .markdown-content code {
+              background-color: #f3f4f6;
+              padding: 2px 6px;
+              border-radius: 3px;
+              font-family: 'Monaco', 'Courier New', monospace;
+              font-size: 13px;
+              color: #be123c;
+            }
+            .markdown-content pre {
+              background-color: #1f2937;
+              color: #f9fafb;
+              padding: 16px;
+              border-radius: 6px;
+              overflow-x: auto;
+              margin: 16px 0;
+            }
+            .markdown-content pre code {
+              background-color: transparent;
+              color: #f9fafb;
+              padding: 0;
+            }
+            .markdown-content strong {
+              font-weight: 600;
+              color: #111827;
+            }
+            .markdown-content ul {
+              margin: 12px 0;
+              padding-left: 24px;
+            }
+            .markdown-content li {
+              margin: 6px 0;
+              list-style-type: disc;
+            }
+            .markdown-content a {
+              color: #2563eb;
+              text-decoration: underline;
+            }
+            .markdown-content a:hover {
+              color: #1d4ed8;
+            }
+            .doc-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 16px 0;
+              font-size: 14px;
+            }
+            .doc-table th {
+              background-color: #f3f4f6;
+              border: 1px solid #d1d5db;
+              padding: 10px;
+              text-align: left;
+              font-weight: 600;
+              color: #111827;
+            }
+            .doc-table td {
+              border: 1px solid #e5e7eb;
+              padding: 10px;
+            }
+            .doc-table tr:nth-child(even) {
+              background-color: #f9fafb;
+            }
+            .markdown-content::-webkit-scrollbar {
+              width: 8px;
+            }
+            .markdown-content::-webkit-scrollbar-track {
+              background: #f1f1f1;
+              border-radius: 10px;
+            }
+            .markdown-content::-webkit-scrollbar-thumb {
+              background: #3b82f6;
+              border-radius: 10px;
+            }
+            .markdown-content::-webkit-scrollbar-thumb:hover {
+              background: #2563eb;
+            }
+          `}</style>
         </div>
       )}
     </div>
