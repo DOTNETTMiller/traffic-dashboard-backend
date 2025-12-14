@@ -542,13 +542,22 @@ async function loadStatesFromDatabase() {
     dbStates.forEach(state => {
       if (state.enabled) {
         // Convert database format to API_CONFIG format
-        API_CONFIG[state.stateKey] = {
+        const config = {
           name: state.stateName,
           eventsUrl: state.apiUrl,
           format: state.format,
           apiType: state.apiType,
           ...(state.credentials || {})
         };
+
+        // Add environment variable-based API keys for states that need them
+        if (state.stateKey === 'nevada' && process.env.NEVADA_API_KEY) {
+          config.apiKey = process.env.NEVADA_API_KEY;
+        } else if (state.stateKey === 'ohio' && process.env.OHIO_API_KEY) {
+          config.apiKey = process.env.OHIO_API_KEY;
+        }
+
+        API_CONFIG[state.stateKey] = config;
 
         console.log(`  ✅ Loaded ${state.stateName} from database`);
       }
