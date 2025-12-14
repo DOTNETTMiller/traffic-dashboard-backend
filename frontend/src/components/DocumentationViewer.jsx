@@ -8,6 +8,11 @@ function DocumentationViewer() {
   const [downloading, setDownloading] = useState(false);
 
   const docs = {
+    'member-state-overview': {
+      title: 'Member State Overview',
+      url: '/docs/member-state-overview.md',
+      description: 'Comprehensive guide for state DOTs: Features, benefits, use cases, technical specs, and getting started (46+ states, real-time operations, digital infrastructure)'
+    },
     'digital-infrastructure': {
       title: 'Digital Infrastructure Overview',
       url: '/docs/digital-infrastructure.md',
