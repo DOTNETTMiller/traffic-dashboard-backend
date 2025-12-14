@@ -18,6 +18,11 @@ function DocumentationViewer() {
       url: '/docs/arc-its-ifc-integration.md',
       description: 'How IFC BIM models integrate with ARC-ITS operational data (NTCIP, SAE J2735, IEEE 1609)'
     },
+    'standards-crosswalk': {
+      title: 'Digital Standards Crosswalk',
+      url: '/docs/digital-standards-crosswalk.md',
+      description: 'Lifecycle standards mapping for infrastructure interoperability (Planning→Survey→Design→Construction→Operations→Maintenance)'
+    },
     'data-quality': {
       title: 'Event Data Quality Standards',
       url: '/docs/data-quality.md',
