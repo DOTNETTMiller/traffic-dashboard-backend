@@ -33,7 +33,13 @@ const STATE_TO_KEY = {
   'nevada': 'nv',
   'new jersey': 'nj',
   'massachusetts': 'ma',
-  'connecticut': 'ct'
+  'connecticut': 'ct',
+  'new mexico': 'nm',
+  'hawaii': 'hi',
+  'kentucky': 'ky',
+  'delaware': 'de',
+  'louisiana': 'la',
+  'idaho': 'id'
 };
 
 async function importWZDxRegistry() {
