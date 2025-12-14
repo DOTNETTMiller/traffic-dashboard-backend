@@ -143,6 +143,28 @@ class IFCParser {
       'IFCSIGNAL',                  // Traffic signals
       'IFCTRAFFICSIGNAL',           // Traffic signal heads
 
+      // ARC-ITS Traffic Monitoring Equipment
+      'IFCCAMERA',                  // CCTV traffic surveillance cameras
+      'IFCTRAFFICSENSOR',           // Loop detectors, radar, video detection
+      'IFCWEATHERSTATION',          // Road weather information systems (RWIS)
+      'IFCTRAVELTIMESENSOR',        // Bluetooth/Wi-Fi readers, probe sensors
+
+      // ARC-ITS Traffic Control Devices
+      'IFCDYNAMICMESSAGESIGN',      // Variable message signs (DMS/VMS)
+      'IFCRAMPMETER',               // Freeway ramp meters
+      'IFCLANECONTROLSIGN',         // Overhead lane use signals
+      'IFCGATEDENTRY',              // Automated gates/barriers
+
+      // ARC-ITS Connected Vehicle Infrastructure
+      'IFCROADSIDEUNIT',            // RSU for V2X/DSRC/C-V2X
+      'IFCCONNECTEDSIGNAL',         // SPaT-enabled traffic signals
+      'IFCBEACON',                  // Bluetooth/DSRC beacons
+
+      // ARC-ITS Communications Infrastructure
+      'IFCFIBEROPTICNETWORK',       // Fiber backbone
+      'IFCCOMMUNICATIONSCABINET',   // ITS equipment cabinets
+      'IFCNETWORKSWITCH',           // Network switches/routers
+
       // Safety Infrastructure
       'IFCRAILING',                 // Guardrail, barriers
       'IFCVEHICLEBARRIER',          // Crash barriers
@@ -151,9 +173,9 @@ class IFCParser {
       'IFCPAVEMENTMARKING',         // Lane lines, arrows, crosswalks
       'IFCMARKING',                 // General markings
 
-      // Sensors & Monitoring
-      'IFCSENSOR',                  // Structural health sensors, traffic sensors
-      'IFCACTUATOR',                // Variable message signs, ramp meters
+      // Sensors & Monitoring (general)
+      'IFCSENSOR',                  // Generic sensors (structural health, etc.)
+      'IFCACTUATOR',                // Generic actuators
 
       // Catch-all for custom types (generic proxy elements from Bentley, etc.)
       'IFCBUILDINGELEMENTPROXY',
@@ -258,6 +280,28 @@ class IFCParser {
       'IFCSIGN': 'Traffic Sign',
       'IFCSIGNAL': 'Traffic Signal',
       'IFCTRAFFICSIGNAL': 'Traffic Signal',
+
+      // ARC-ITS Traffic Monitoring Equipment
+      'IFCCAMERA': 'CCTV Camera',
+      'IFCTRAFFICSENSOR': 'Traffic Sensor',
+      'IFCWEATHERSTATION': 'Weather Station (RWIS)',
+      'IFCTRAVELTIMESENSOR': 'Travel Time Sensor',
+
+      // ARC-ITS Traffic Control Devices
+      'IFCDYNAMICMESSAGESIGN': 'Dynamic Message Sign',
+      'IFCRAMPMETER': 'Ramp Meter',
+      'IFCLANECONTROLSIGN': 'Lane Control Sign',
+      'IFCGATEDENTRY': 'Automated Gate',
+
+      // ARC-ITS Connected Vehicle Infrastructure
+      'IFCROADSIDEUNIT': 'Roadside Unit (RSU)',
+      'IFCCONNECTEDSIGNAL': 'SPaT-Enabled Signal',
+      'IFCBEACON': 'Bluetooth/DSRC Beacon',
+
+      // ARC-ITS Communications Infrastructure
+      'IFCFIBEROPTICNETWORK': 'Fiber Optic Network',
+      'IFCCOMMUNICATIONSCABINET': 'Communications Cabinet',
+      'IFCNETWORKSWITCH': 'Network Switch',
 
       // Safety Infrastructure
       'IFCRAILING': 'Guardrail/Barrier',
