@@ -12222,11 +12222,11 @@ app.get('/api/digital-infrastructure/models', async (req, res) => {
 
         // Get V2X and AV counts
         const v2xQuery = db.isPostgres
-          ? 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 AND v2x_applicable = true'
+          ? 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 AND v2x_applicable = 1'
           : 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? AND v2x_applicable = 1';
 
         const avQuery = db.isPostgres
-          ? 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 AND av_critical = true'
+          ? 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 AND av_critical = 1'
           : 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? AND av_critical = 1';
 
         if (db.isPostgres) {
@@ -12966,8 +12966,8 @@ app.get('/api/digital-infrastructure/standards-report/:modelId', async (req, res
     // Get element statistics
     const elementQuery = db.isPostgres
       ? `SELECT ifc_type, COUNT(*) as count,
-         SUM(CASE WHEN v2x_applicable = true THEN 1 ELSE 0 END) as v2x_count,
-         SUM(CASE WHEN av_critical = true THEN 1 ELSE 0 END) as av_count
+         SUM(CASE WHEN v2x_applicable = 1 THEN 1 ELSE 0 END) as v2x_count,
+         SUM(CASE WHEN av_critical = 1 THEN 1 ELSE 0 END) as av_count
          FROM infrastructure_elements
          WHERE model_id = $1
          GROUP BY ifc_type
