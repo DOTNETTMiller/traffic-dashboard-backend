@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { config } from '../config';
 import IFCViewer from './IFCViewer';
@@ -19,6 +19,9 @@ function DigitalInfrastructure() {
   const [availableStates, setAvailableStates] = useState([]);
   const [docContent, setDocContent] = useState('');
   const [docLoading, setDocLoading] = useState(false);
+  const [crosswalkContent, setCrosswalkContent] = useState('');
+  const [crosswalkLoading, setCrosswalkLoading] = useState(false);
+  const [crosswalkError, setCrosswalkError] = useState(null);
 
   // Upload form state
   const [selectedFile, setSelectedFile] = useState(null);
@@ -33,6 +36,10 @@ function DigitalInfrastructure() {
   useEffect(() => {
     loadModels();
     loadStates();
+  }, []);
+
+  useEffect(() => {
+    loadCrosswalk();
   }, []);
 
   const loadModels = async () => {
@@ -118,6 +125,24 @@ function DigitalInfrastructure() {
       setDocContent(`# Error Loading Documentation\n\n${error.message}`);
     }
     setDocLoading(false);
+  };
+
+  const loadCrosswalk = async () => {
+    setCrosswalkLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/docs/digital-standards-crosswalk.md`);
+      if (!response.ok) {
+        throw new Error('Unable to load lifecycle crosswalk');
+      }
+      const text = await response.text();
+      setCrosswalkContent(text);
+      setCrosswalkError(null);
+    } catch (error) {
+      setCrosswalkError(error.message);
+      setCrosswalkContent('');
+    } finally {
+      setCrosswalkLoading(false);
+    }
   };
 
   // Simple markdown to HTML converter (same as DocumentationViewer)
@@ -211,6 +236,39 @@ function DigitalInfrastructure() {
 
     return html;
   };
+
+  const extractCrosswalkHighlights = (markdown) => {
+    if (!markdown) return [];
+    const lines = markdown.split('\n');
+    const highlights = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].startsWith('### ')) {
+        const title = lines[i].replace('### ', '').trim();
+        const summary = [];
+        for (let j = i + 1; j < lines.length; j++) {
+          const row = lines[j];
+          if (row.startsWith('### ')) break;
+          if (!row.trim()) {
+            if (summary.length > 0) break;
+            continue;
+          }
+          const clean = row.replace(/^[-*]\s*/, '').trim();
+          if (clean) summary.push(clean);
+          if (summary.length >= 2) break;
+        }
+        if (summary.length) {
+          highlights.push({ title, summary: summary.join(' ') });
+        }
+      }
+      if (highlights.length >= 5) break;
+    }
+    return highlights;
+  };
+
+  const crosswalkHighlights = useMemo(
+    () => extractCrosswalkHighlights(crosswalkContent),
+    [crosswalkContent]
+  );
 
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
@@ -1129,6 +1187,61 @@ function DigitalInfrastructure() {
               </p>
             </div>
           )}
+
+          <div style={{ marginTop: '40px', padding: '24px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #dbeafe' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '20px' }}>Digital Standards Lifecycle Crosswalk</h3>
+                <p style={{ margin: '4px 0 0', color: '#475569' }}>
+                  Mapping of HPMS → GIS → CAD/BIM → WZDx/NTCIP handoffs so every data product stays interoperable.
+                </p>
+              </div>
+              <a
+                href={`${API_BASE}/docs/digital-standards-crosswalk.md`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: '14px', color: '#2563eb', textDecoration: 'underline', fontWeight: '500' }}
+              >
+                Open Markdown
+              </a>
+            </div>
+
+            {crosswalkLoading ? (
+              <div style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>Loading lifecycle guidance…</div>
+            ) : crosswalkError ? (
+              <div style={{ padding: '16px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', color: '#b91c1c' }}>
+                {crosswalkError}
+              </div>
+            ) : crosswalkContent ? (
+              <>
+                {crosswalkHighlights.length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+                    {crosswalkHighlights.map(highlight => (
+                      <div key={highlight.title} style={{ padding: '16px', backgroundColor: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontWeight: '600', color: '#0f172a', marginBottom: '6px' }}>{highlight.title}</div>
+                        <div style={{ fontSize: '13px', color: '#475569' }}>{highlight.summary}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '10px',
+                    border: '1px solid #e2e8f0',
+                    padding: '16px',
+                    maxHeight: '320px',
+                    overflowY: 'auto'
+                  }}
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(crosswalkContent) }}
+                />
+              </>
+            ) : (
+              <div style={{ padding: '16px', backgroundColor: '#fefce8', border: '1px solid #fef08a', borderRadius: '10px', color: '#854d0e' }}>
+                Upload the lifecycle mapping document to expose cross-disciplinary data expectations directly inside the BIM workspace.
+              </div>
+            )}
+          </div>
 
           {/* CSS for markdown content */}
           <style>{`
