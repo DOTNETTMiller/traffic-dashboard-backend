@@ -203,12 +203,16 @@ These states use the modern Work Zone Data Exchange format, typically version 4.
   - Map rendering requires decoded polyline coordinates; if the decoder is removed, OH events will disappear from the map despite showing up in `/api/events`.
 
 #### 17. **Oklahoma DOT** (state_key: `ok`)
-- **API Type:** WZDx
-- **Format:** geojson
-- **Detected Version:** v4.x
-- **TMDD Relation:** WZDx-based
-- **Data Structure:** OK Traffic WZDx feed
-- **Deviations:** Generic WZDx handler
+- **API Type:** FEU-G (CARS Program)
+- **Format:** xml
+- **Detected Version:** TMDD / FEU-G
+- **TMDD Relation:** Direct TMDD FEU-G
+- **Data Structure:** OKTraffic CARS feed (`feu:full-event-update`)
+- **Special Handling:** Shares the same FEU-G parser as Iowa/Kansas/Nebraska; requires `CARS_USERNAME` and `CARS_PASSWORD` env vars.
+- **Deviations:**
+  - Microdegree coordinates (`÷ 1,000,000`)
+  - Lane and direction details embedded in descriptive text
+  - Multiple nested namespaces (`feu:`)
 
 #### 18. **Pennsylvania Turnpike Commission** (state_key: `pa`)
 - **API Type:** WZDx
@@ -220,11 +224,12 @@ These states use the modern Work Zone Data Exchange format, typically version 4.
 
 #### 19. **Texas DOT** (state_key: `tx`)
 - **API Type:** WZDx
-- **Format:** geojson
+- **Format:** geojson (Socrata API)
 - **Detected Version:** v4.x
 - **TMDD Relation:** WZDx-based
-- **Data Structure:** Austin open data WZDx
-- **Deviations:** Generic WZDx handler
+- **Data Structure:** Austin open data WZDx (`d9mm-cjw9` Socrata dataset)
+- **Special Handling:** Requires `TXDOT_API_KEY` (Socrata `X-App-Token`) and the GeoJSON API endpoint (`/resource/d9mm-cjw9.geojson`); the downloadable ZIP (`/download/d9mm-cjw9`) cannot be parsed automatically.
+- **Deviations:** Generic WZDx handler once the app token/header is attached
 
 #### 20. **Virginia DOT** (state_key: `va`)
 - **API Type:** WZDx
