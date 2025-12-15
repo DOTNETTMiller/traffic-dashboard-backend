@@ -610,6 +610,8 @@ async function loadStatesFromDatabase() {
           config.apiKey = process.env.NEVADA_API_KEY;
         } else if (state.stateKey === 'ohio' && process.env.OHIO_API_KEY) {
           config.apiKey = process.env.OHIO_API_KEY;
+        } else if (state.stateKey === 'tx' && process.env.TXDOT_API_KEY) {
+          config.apiKey = process.env.TXDOT_API_KEY;
         }
 
         API_CONFIG[state.stateKey] = config;
@@ -2398,6 +2400,10 @@ const fetchStateData = async (stateKey) => {
         // Ohio uses "APIKEY {key}" format in Authorization header
         else if (config.name === 'Ohio') {
           headers['Authorization'] = `APIKEY ${config.apiKey}`;
+        }
+        // Texas (Socata) uses X-App-Token header
+        else if (stateKey === 'tx' || (config.name && config.name.toLowerCase().includes('texas'))) {
+          headers['X-App-Token'] = config.apiKey;
         }
         // Other states use "Bearer {key}" format in Authorization header
         else {
