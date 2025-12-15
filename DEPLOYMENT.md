@@ -19,6 +19,7 @@ Your backend should already be deployed on Railway. If not:
 5. Set environment variables in Railway dashboard:
    - `NEVADA_API_KEY`
    - `OHIO_API_KEY`
+   - `TXDOT_API_KEY`
    - `CARS_USERNAME`
    - `CARS_PASSWORD`
 6. Note your backend URL (e.g., `https://your-app.railway.app`)
@@ -140,6 +141,7 @@ To update your deployed application:
 |----------|----------|-------------|
 | `NEVADA_API_KEY` | Optional | Nevada DOT API key |
 | `OHIO_API_KEY` | Optional | Ohio DOT API key |
+| `TXDOT_API_KEY` | Optional | Texas DOT (Socrata) app token |
 | `CARS_USERNAME` | Optional | CARS Program username (for IA, KS, NE, IN, MN) |
 | `CARS_PASSWORD` | Optional | CARS Program password |
 

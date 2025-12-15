@@ -43,6 +43,7 @@ npm install
 ```bash
 export NEVADA_API_KEY=your_key
 export OHIO_API_KEY=your_key
+export TXDOT_API_KEY=your_key
 export CARS_USERNAME=your_username
 export CARS_PASSWORD=your_password
 ```
