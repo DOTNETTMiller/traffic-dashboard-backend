@@ -114,6 +114,75 @@ Connect static BIM models to live operational data:
 - **IEEE 1609 WAVE** - RSU communications, SCMS certificates
 - **Custom APIs** - State DOT traffic management centers
 
+### CAD-to-IFC Conversion Playbook
+
+Most transportation agencies still hold roadway and bridge designs in CAD-centric formats (Civil 3D, OpenRoads, MicroStation). To ensure those files become operational digital twins:
+
+1. **Normalize the CAD Model**
+   - Flatten xRefs and ensure named layers for ITS devices (DMS, CCTV, RWIS, Signals).
+   - Export alignment baselines and station equations (LandXML or IFC Alignment).
+   - Convert coordinate systems to a documented EPSG code (track units!).
+2. **Export to IFC4x3**
+   - Civil 3D: use Autodesk’s “Publish IFC” with the InfraWorks bridge/road templates.
+   - OpenRoads: leverage the Bentley IFC4x3 extension; ensure `IfcAlignment` entities are included.
+   - Validate that every ITS layer is mapped to an IFC entity (IFCDYNAMICMESSAGESIGN, IFCSIGNAL, etc.).
+3. **Enrich with Property Sets**
+   - Add `Pset_ManufacturerTypeInformation`, `Pset_IFCCommon` with device IDs, controller IDs, firmware, install dates.
+   - Record NTCIP object identifiers and maintenance region tags so ARC-ITS can bind to the same GUIDs.
+4. **Validate with IDS**
+   - Run the provided IDS snippets (see below) to guarantee clearance heights, lane counts, signal phases, and comms links are populated.
+
+> **Conversion Tip:** If the CAD authoring tool cannot emit IFC4x3, export to STEP/DGN and run through FME or BlenderBIM to attach property sets before upload.
+
+### Digital Twin Operations Runbook
+
+Create a closed loop between BIM/CADD and live ITS operations:
+
+1. **GUID Registry**
+   - Every device in ARC-ITS should carry the IFC GUID in its metadata table.
+   - Nightly sync compares IFC GUIDs to active devices and flags orphaned or missing assets.
+2. **Change Detection**
+   - When a contractor delivers updated IFC, parse it automatically; compare element bounding boxes + GUIDs to detect moved or deleted equipment.
+   - Auto-generate work orders when installed equipment drifts from the design record (wrong orientation, missing cabinet, etc.).
+3. **Operational Overlay**
+   - Use `/api/digital-infrastructure/elements/:modelId` to feed the 3D viewer, then stream live NTCIP status (online/offline, active message) alongside the geometry.
+   - Highlight RSUs or SPaT signals that are offline directly in the BIM context so field crews see precise coordinates and mounting heights.
+4. **Lifecycle Feedback**
+   - As maintenance closes work orders, push install dates and firmware versions back into the IFC property sets (either via IDS validation or by patching the `infrastructure_elements` table).
+   - Export updated BIM snapshots quarterly so design, construction, and operations are always referencing the same digital twin.
+
+### IDS / IDM Templates for ITS Assets
+
+Use buildingSMART IDS snippets to make sure every IFC upload satisfies operational requirements:
+
+```
+<requirements>
+  <specification name="DMS Requirements" ifcVersion="IFC4X3">
+    <applicability>
+      <entity name="IFCDYNAMICMESSAGESIGN" />
+    </applicability>
+    <requirements>
+      <propertySet name="Pset_DMSOperational">
+        <property name="ntcipId" datatype="IfcIdentifier" />
+        <property name="controllerIp" datatype="IfcLabel" />
+        <property name="installationDate" datatype="IfcDateTime" />
+      </propertySet>
+      <propertySet name="Pset_LocationCommon">
+        <property name="latitude" datatype="IfcReal" />
+        <property name="longitude" datatype="IfcReal" />
+      </propertySet>
+    </requirements>
+  </specification>
+</requirements>
+```
+
+Recommended starter templates:
+- **IFCSIGNAL / IFCTRAFFICSIGNAL:** enforce SPaT controller IDs, phase plans, cabinet association.
+- **IFCROADSIDEUNIT:** require SCMS certificate IDs, RF channel, backhaul fiber cabinet link.
+- **IFCWEATHERSTATION:** capture NTCIP 1204 sensor groups, elevation, pole type.
+
+Share these IDS files with your designers so they validate before uploading—our parser will surface the exact missing property when an IDS check fails.
+
 ---
 
 ## Integration Architecture

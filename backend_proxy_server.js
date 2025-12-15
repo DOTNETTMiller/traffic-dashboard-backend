@@ -12106,6 +12106,7 @@ app.get('/api/its-equipment/states', async (req, res) => {
 
 // Upload IFC/CAD model and extract infrastructure elements
 app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), async (req, res) => {
+  let storedFilePath = null;
   try {
     const { stateKey, uploadedBy, latitude, longitude, route, milepost } = req.body;
 
@@ -12121,18 +12122,30 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
     console.log(`   State: ${stateKey || 'N/A'}, Uploaded by: ${uploadedBy || 'anonymous'}`);
 
     // Select appropriate parser based on file type
+    const tempFilePath = req.file.path;
+
     let parser, extractionResult;
     if (isCAD) {
       const CADParser = require('./utils/cad-parser');
       parser = new CADParser();
-      extractionResult = await parser.parseFile(req.file.path);
+      extractionResult = await parser.parseFile(tempFilePath);
     } else {
       parser = new IFCParser();
-      extractionResult = await parser.parseFile(req.file.path);
+      extractionResult = await parser.parseFile(tempFilePath);
     }
 
     console.log(`   ✅ Parsed ${extractionResult.statistics.total_entities} IFC entities`);
     console.log(`   ✅ Extracted ${extractionResult.elements.length} infrastructure elements`);
+
+    // Move uploaded file to persistent storage so IFC viewer can access it later
+    const fs = require('fs');
+    const uploadsDir = path.join(__dirname, 'uploads', 'ifc_models');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    const safeName = `${Date.now()}-${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    storedFilePath = path.join(uploadsDir, safeName);
+    fs.renameSync(tempFilePath, storedFilePath);
 
     // Generate gap analysis
     const gaps = parser.identifyGaps(extractionResult.elements);
@@ -12160,7 +12173,7 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
     if (db.isPostgres) {
       const result = await db.db.query(modelInsert, [
         req.file.originalname,
-        req.file.path,
+        storedFilePath,
         req.file.size,
         extractionResult.schema,
         extractionResult.project,
@@ -12180,7 +12193,7 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
       const stmt = db.db.prepare(modelInsert);
       const result = stmt.run(
         req.file.originalname,
-        req.file.path,
+        storedFilePath,
         req.file.size,
         extractionResult.schema,
         extractionResult.project,
@@ -12262,9 +12275,6 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
       }
     }
 
-    // Clean up uploaded file
-    fs.unlinkSync(req.file.path);
-
     console.log(`✅ Successfully stored IFC model ${modelId} with ${extractionResult.elements.length} elements and ${gaps.length} gaps`);
 
     res.json({
@@ -12280,7 +12290,10 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
 
   } catch (error) {
     console.error('❌ IFC upload error:', error);
-    if (req.file && fs.existsSync(req.file.path)) {
+    const fs = require('fs');
+    if (storedFilePath && fs.existsSync(storedFilePath)) {
+      fs.unlinkSync(storedFilePath);
+    } else if (req.file?.path && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
     res.status(500).json({ success: false, error: error.message });
@@ -13179,6 +13192,14 @@ app.get('/api/digital-infrastructure/standards-report/:modelId', async (req, res
 
     // Generate comprehensive standards report
     const report = generateStandardsReport(model, gaps, gapsByCategory, elementStats, fleetStats);
+
+    if (format && format.toLowerCase() === 'pdf') {
+      const pdfBuffer = createStandardsPDF(report);
+      const pdfName = `bim-standardization-requirements-${model.filename.replace('.ifc', '')}-${Date.now()}.pdf`;
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${pdfName}"`);
+      return res.send(pdfBuffer);
+    }
 
     const filename = `bim-standardization-requirements-${model.filename.replace('.ifc', '')}-${Date.now()}.md`;
 
@@ -14365,6 +14386,145 @@ See attached IDS XML file for machine-readable validation rules.
 **System:** DOT Corridor Communicator - Digital Infrastructure Module
 **Analysis Date:** ${new Date().toISOString()}
 `;
+}
+
+function createStandardsPDF(markdown) {
+  const pageWidth = 612;
+  const pageHeight = 792;
+  const marginLeft = 54;
+  const topMargin = 72;
+  const bottomMargin = 72;
+  const lineHeight = 14;
+  const maxChars = 95;
+
+  const sanitized = markdown
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/[*_`]/g, '')
+    .replace(/^>+\s?/gm, '')
+    .replace(/#{1,6}\s*/g, '')
+    .replace(/\r/g, '');
+
+  const wrapLine = (text) => {
+    if (!text) return [''];
+    const words = text.split(' ');
+    const lines = [];
+    let current = '';
+    words.forEach(word => {
+      const candidate = current ? `${current} ${word}` : word;
+      if (candidate.length > maxChars) {
+        if (current) {
+          lines.push(current);
+          current = word;
+        } else {
+          lines.push(word);
+          current = '';
+        }
+      } else {
+        current = candidate;
+      }
+    });
+    if (current) {
+      lines.push(current);
+    }
+    return lines.length > 0 ? lines : [''];
+  };
+
+  const plainLines = [];
+  sanitized.split('\n').forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      plainLines.push('');
+    } else {
+      wrapLine(trimmed).forEach(wrapped => plainLines.push(wrapped));
+    }
+  });
+
+  const maxLinesPerPage = Math.max(
+    1,
+    Math.floor((pageHeight - topMargin - bottomMargin) / lineHeight)
+  );
+
+  const pages = [];
+  for (let i = 0; i < plainLines.length; i += maxLinesPerPage) {
+    pages.push(plainLines.slice(i, i + maxLinesPerPage));
+  }
+  if (pages.length === 0) {
+    pages.push(['']);
+  }
+
+  const escapePDFText = (text) => text
+    .replace(/\\/g, '\\\\')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)');
+
+  const createPageContent = (lines) => {
+    const commands = [];
+    commands.push('BT');
+    commands.push('/F1 10 Tf');
+    commands.push(`${lineHeight} TL`);
+    commands.push(`1 0 0 1 ${marginLeft} ${pageHeight - topMargin} Tm`);
+    lines.forEach(line => {
+      const printable = line || ' ';
+      commands.push(`(${escapePDFText(printable)}) Tj`);
+      commands.push('T*');
+    });
+    commands.push('ET');
+    return commands.join('\n');
+  };
+
+  const pageContents = pages.map(createPageContent);
+  const numPages = pageContents.length;
+  const totalObjects = 2 + (numPages * 2) + 1;
+  const fontObjNum = totalObjects;
+
+  const objects = new Array(totalObjects + 1).fill('');
+  const pageObjNums = [];
+  const contentObjNums = [];
+
+  for (let i = 0; i < numPages; i++) {
+    pageObjNums.push(3 + i);
+    contentObjNums.push(3 + numPages + i);
+  }
+
+  objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+  objects[2] = `<< /Type /Pages /Kids [${pageObjNums.map(n => `${n} 0 R`).join(' ')}] /Count ${numPages} >>`;
+
+  pageObjNums.forEach((pageNum, idx) => {
+    const contentRef = contentObjNums[idx];
+    objects[pageNum] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${fontObjNum} 0 R >> >> /Contents ${contentRef} 0 R >>`;
+  });
+
+  contentObjNums.forEach((contentNum, idx) => {
+    const content = pageContents[idx];
+    const length = Buffer.byteLength(content, 'utf8');
+    objects[contentNum] = `<< /Length ${length} >>\nstream\n${content}\nendstream`;
+  });
+
+  objects[fontObjNum] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+
+  for (let i = 1; i <= totalObjects; i++) {
+    offsets[i] = pdf.length;
+    pdf += `${i} 0 obj\n${objects[i]}\nendobj\n`;
+  }
+
+  const xrefOffset = pdf.length;
+  pdf += 'xref\n';
+  pdf += `0 ${totalObjects + 1}\n`;
+  pdf += '0000000000 65535 f \n';
+  for (let i = 1; i <= totalObjects; i++) {
+    pdf += `${offsets[i].toString().padStart(10, '0')} 00000 n \n`;
+  }
+  pdf += 'trailer\n';
+  pdf += `<< /Size ${totalObjects + 1} /Root 1 0 R >>\n`;
+  pdf += 'startxref\n';
+  pdf += `${xrefOffset}\n`;
+  pdf += '%%EOF';
+
+  return Buffer.from(pdf, 'binary');
 }
 
 // ========================================
