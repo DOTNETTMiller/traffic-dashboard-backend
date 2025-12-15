@@ -417,6 +417,51 @@ const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
   return R * c;
 };
 
+const decodeEncodedPolyline = (encoded) => {
+  if (!encoded || typeof encoded !== 'string') {
+    return [];
+  }
+
+  let index = 0;
+  let latitude = 0;
+  let longitude = 0;
+  const coordinates = [];
+
+  while (index < encoded.length) {
+    let result = 0;
+    let shift = 0;
+    let byte;
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    const deltaLat = (result & 1) ? ~(result >> 1) : (result >> 1);
+    latitude += deltaLat;
+
+    result = 0;
+    shift = 0;
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    const deltaLon = (result & 1) ? ~(result >> 1) : (result >> 1);
+    longitude += deltaLon;
+
+    coordinates.push({
+      latitude: latitude / 1e5,
+      longitude: longitude / 1e5
+    });
+  }
+
+  return coordinates;
+};
+
 // Serve documentation files (before static frontend)
 app.get('/docs/:filename', (req, res) => {
   const { filename } = req.params;
@@ -1258,46 +1303,129 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
       // Handle Nevada
       if (stateName === 'Nevada' && Array.isArray(rawData)) {
         rawData.forEach(item => {
-          const roadwayName = item.RoadwayName || '';
-          const locationText = item.LocationDescription || roadwayName;
+          const toFloat = (value) => {
+            const parsed = parseFloat(value);
+            return Number.isFinite(parsed) ? parsed : null;
+          };
 
-          // Filter to only interstate highways
-          if (roadwayName && /I-?\d+/.test(roadwayName)) {
-            const overallStatus = item['Overall Status'] || 'No Report';
-            const startRaw = item.LastUpdated ? new Date(item.LastUpdated * 1000).toISOString() : null;
+          const roadwayName = item.RoadwayName || item.roadway_name || null;
+          const routes = Array.isArray(item.routes)
+            ? item.routes
+            : Array.isArray(item.Routes)
+              ? item.Routes
+              : roadwayName
+                ? [roadwayName]
+                : [];
 
-            const normalizedEvent = {
-              id: `NV-${item.Id || Math.random().toString(36).substr(2, 9)}`,
-              state: 'Nevada',
-              corridor: extractCorridor(roadwayName),
-              eventType: determineEventType(overallStatus),
-              description: `${roadwayName}: ${overallStatus}${item['Secondary Conditions']?.length > 0 ? ' - ' + item['Secondary Conditions'].join(', ') : ''}`,
-              location: `${roadwayName} - ${locationText}`,
-              county: item.AreaName || 'Unknown',
-              // Nevada uses EncodedPolyline - coordinates would need polyline decoding
-              // Don't set lat/lon to 0, leave undefined so coordinate filter allows it through
-              startTime: startRaw,
-              endTime: null,
-              lanesAffected: 'Check conditions',
-              severity: determineSeverity({description: overallStatus}),
-              direction: 'Both',
-              requiresCollaboration: false
-            };
+          const locationText = (item.location_description ||
+            item.LocationDescription ||
+            roadwayName ||
+            `I-80 ${item.direction || ''}`).trim();
 
-            normalized.push(attachRawFields(normalizedEvent, {
-              startTime: startRaw,
-              endTime: null,
-              eventType: overallStatus,
-              description: normalizedEvent.description,
-              lanesAffected: 'Check conditions',
-              severity: normalizedEvent.severity,
-              direction: 'Both',
-              corridor: extractCorridor(roadwayName),
-              coordinates: null,
-              rawRoadway: roadwayName,
-              encodedPolyline: item.EncodedPolyline || null
-            }));
+          const hasInterstate = routes.some(route => /I-?\d+/.test(route)) ||
+            (roadwayName && /I-?\d+/.test(roadwayName)) ||
+            /I-?\d+/.test(locationText);
+
+          if (!hasInterstate) {
+            return;
           }
+
+          const startRaw = item.start_time ||
+            item.StartTime ||
+            (item.LastUpdated ? new Date(item.LastUpdated * 1000).toISOString() : null);
+          const endRaw = item.end_time || item.EndTime || null;
+          const overallStatus = item['Overall Status'] ||
+            item.event_category ||
+            item.EventCategory ||
+            item.description ||
+            null;
+          const directionRaw = item.direction || item.Direction || null;
+          const secondaryConditions = Array.isArray(item['Secondary Conditions'])
+            ? item['Secondary Conditions']
+            : Array.isArray(item.secondary_conditions)
+              ? item.secondary_conditions
+              : [];
+          const lanesRaw = item.lanes_affected ||
+            item.LanesAffected ||
+            (secondaryConditions.length ? secondaryConditions.join(', ') : null);
+          let latitude = toFloat(
+            item.start_latitude ??
+            item.StartLatitude ??
+            item.latitude ??
+            item.Latitude
+          );
+          let longitude = toFloat(
+            item.start_longitude ??
+            item.StartLongitude ??
+            item.longitude ??
+            item.Longitude
+          );
+          const encodedPolyline = item.EncodedPolyline || item.encoded_polyline || null;
+
+          let decodedPolyline = [];
+          let geometry = null;
+
+          if (encodedPolyline) {
+            decodedPolyline = decodeEncodedPolyline(encodedPolyline);
+            if (decodedPolyline.length > 0) {
+              geometry = {
+                type: 'LineString',
+                coordinates: decodedPolyline.map(point => [point.longitude, point.latitude])
+              };
+            }
+          }
+
+          if ((latitude === null || longitude === null) && decodedPolyline.length > 0) {
+            latitude = decodedPolyline[0].latitude;
+            longitude = decodedPolyline[0].longitude;
+          }
+
+          const descriptionBase = item.description ||
+            item.headline ||
+            (roadwayName && overallStatus ? `${roadwayName}: ${overallStatus}` : overallStatus) ||
+            'Road condition update';
+          const description = secondaryConditions.length > 0
+            ? `${descriptionBase} - ${secondaryConditions.join(', ')}`
+            : descriptionBase;
+
+          const normalizedEvent = {
+            id: `NV-${item.id || item.Id || Math.random().toString(36).substr(2, 9)}`,
+            state: 'Nevada',
+            corridor: extractCorridor(locationText),
+            eventType: determineEventType(overallStatus || descriptionBase),
+            description,
+            location: locationText,
+            county: item.county || item.AreaName || 'Unknown',
+            startTime: startRaw,
+            endTime: endRaw,
+            lanesAffected: lanesRaw || 'Check conditions',
+            severity: determineSeverity(item.event_category || item.EventCategory ? item : { description: overallStatus || description }),
+            direction: directionRaw || 'Both',
+            requiresCollaboration: false,
+            ...(geometry && { geometry })
+          };
+
+          if (latitude !== null && longitude !== null) {
+            normalizedEvent.latitude = latitude;
+            normalizedEvent.longitude = longitude;
+          }
+
+          normalized.push(attachRawFields(normalizedEvent, {
+            startTime: startRaw,
+            endTime: endRaw,
+            eventType: overallStatus,
+            description: normalizedEvent.description,
+            lanesAffected: lanesRaw,
+            severity: normalizedEvent.severity,
+            direction: directionRaw,
+            corridor: extractCorridor(locationText),
+            coordinates: (latitude !== null && longitude !== null)
+              ? [longitude, latitude]
+              : null,
+            rawRoadway: roadwayName || routes[0] || null,
+            encodedPolyline,
+            geometry
+          }));
         });
       }
 

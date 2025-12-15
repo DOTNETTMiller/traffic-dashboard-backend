@@ -192,12 +192,15 @@ These states use the modern Work Zone Data Exchange format, typically version 4.
 - **Detected Version:** **v4.2** (explicitly stated in URL)
 - **TMDD Relation:** WZDx v4.2
 - **Data Structure:** OHGO public API
-- **Special Handling:** Has custom parser (backend_proxy_server.js:257-280)
+- **Special Handling:** 
+  - Custom parser (`backend_proxy_server.js` and `scripts/fetch_ohio_events.js`) fetches both construction and incidents.
+  - Work-zone geometries arrive as encoded polylines; we decode them, attach the full `geometry` LineString, and backfill `latitude`/`longitude` from the first point so the production map always has anchor coordinates.
 - **Deviations:**
   - Custom JSON structure with direct fields (not GeoJSON features)
   - Fields: `route`, `direction`, `milepost`, `latitude`, `longitude`
   - Separate endpoints for incidents vs construction
   - Uses `lanesBlocked` instead of standard lane impact fields
+  - Map rendering requires decoded polyline coordinates; if the decoder is removed, OH events will disappear from the map despite showing up in `/api/events`.
 
 #### 17. **Oklahoma DOT** (state_key: `ok`)
 - **API Type:** WZDx
@@ -357,13 +360,16 @@ These states use the Full Event Update - General format, which is a direct imple
     - `routes` array (contains route names like "I-80")
     - `event_category`, `description`, `headline`
     - `county`
-    - `start_latitude`, `start_longitude` (separate fields)
+    - `start_latitude`, `start_longitude` (string fields; often omitted)
     - `start_time`, `end_time`
     - `lanes_affected`
-- **Special Handling:** Custom Nevada parser (backend_proxy_server.js:231-254)
+- **Special Handling:** 
+  - Custom Nevada parser (`backend_proxy_server.js`) now decodes the NVROADS `EncodedPolyline` field.
+  - When `start_latitude`/`start_longitude` are missing (common in production), we derive `latitude`/`longitude` from the decoded line so the dashboard has coordinates and preserves the full geometry for line rendering.
 - **Deviations:**
   - Not GeoJSON compliant
   - Coordinates as separate string fields (need parseFloat)
+  - API frequently omits lat/lon entirely; without the encoded polyline decoder, Nevada markers will never appear on the production map even though `/api/events` contains the records.
   - Routes array instead of single road_names
   - Event categorization different from WZDx
   - Custom severity determination needed
