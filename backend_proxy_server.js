@@ -568,6 +568,23 @@ const API_CONFIG = {
     format: 'json',
     corridor: 'I-80'
   },
+  oklahoma: {
+    name: 'Oklahoma',
+    eventsUrl: 'https://ok.carsprogram.org/hub/data/feu-g.xml',
+    ...(process.env.CARS_USERNAME && process.env.CARS_PASSWORD && {
+      username: process.env.CARS_USERNAME,
+      password: process.env.CARS_PASSWORD
+    }),
+    format: 'xml',
+    corridor: 'I-35'
+  },
+  texas: {
+    name: 'Texas',
+    eventsUrl: 'https://data.austintexas.gov/resource/d9mm-cjw9.geojson?$limit=50000',
+    apiKey: process.env.TXDOT_API_KEY || '',
+    format: 'geojson',
+    corridor: 'I-35'
+  },
   illinois: {
     name: 'Illinois',
     eventsUrl: 'https://travelmidwest.com/lmiga/incidents.json?path=GATEWAY.IL',
