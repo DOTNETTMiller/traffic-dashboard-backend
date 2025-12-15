@@ -48,6 +48,8 @@ function mapConstructionToEvent(item) {
   const coords = polyline.length > 0
     ? polyline[0]
     : [item.longitude, item.latitude];
+  const longitude = Array.isArray(coords) ? parseFloat(coords[0]) : parseFloat(item.longitude);
+  const latitude = Array.isArray(coords) ? parseFloat(coords[1]) : parseFloat(item.latitude);
 
   return {
     id: `ohio-construction-${item.id}`,
@@ -62,7 +64,9 @@ function mapConstructionToEvent(item) {
     location: item.location,
     direction: item.direction,
     roadStatus: item.status, // Open, Restricted, Closed
-    coordinates: coords,
+    coordinates: Array.isArray(coords) ? coords : [longitude, latitude],
+    latitude,
+    longitude,
     geometry: polyline.length > 1 ? {
       type: 'LineString',
       coordinates: polyline
@@ -82,6 +86,9 @@ function mapIncidentToEvent(item) {
   else if (item.roadStatus === 'Restricted') severity = 'Moderate';
   else if (item.category === 'Crash') severity = 'Moderate';
 
+  const longitude = parseFloat(item.longitude);
+  const latitude = parseFloat(item.latitude);
+
   return {
     id: `ohio-incident-${item.id}`,
     type: item.category === 'Crash' ? 'incident' : 'restriction',
@@ -95,7 +102,9 @@ function mapIncidentToEvent(item) {
     location: item.location,
     direction: item.direction,
     roadStatus: item.roadStatus, // Open, Restricted, Closed
-    coordinates: [item.longitude, item.latitude],
+    coordinates: [longitude, latitude],
+    latitude,
+    longitude,
     created: new Date().toISOString(),
     updated: new Date().toISOString()
   };
