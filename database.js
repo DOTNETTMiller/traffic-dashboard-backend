@@ -1013,7 +1013,7 @@ class StateDatabase {
           apiUrl: state.api_url,
           apiType: state.api_type,
           format: state.format,
-          enabled: state.enabled === 1,
+          enabled: Boolean(state.enabled), // Handle both PostgreSQL boolean and SQLite integer
           createdAt: state.created_at,
           updatedAt: state.updated_at,
           ...(includeCredentials && credentials && { credentials })
