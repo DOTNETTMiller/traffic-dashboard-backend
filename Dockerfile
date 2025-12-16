@@ -16,22 +16,20 @@ RUN apk add --no-cache \
 # Set working directory
 WORKDIR /app
 
-# Copy package files and scripts needed for postinstall
-COPY package*.json ./
-COPY scripts ./scripts
+# Copy all application files FIRST (but frontend will be overridden next)
+COPY . .
 
-# Install Node.js dependencies (skip frontend build in Docker)
+# Copy package files and install backend dependencies
 ENV SKIP_FRONTEND_BUILD=1
 RUN npm ci --only=production
 
-# Copy frontend source and build it
-COPY frontend/package*.json ./frontend/
-RUN cd frontend && npm ci
-COPY frontend ./frontend
-RUN cd frontend && npm run build
+# Now build frontend (this will create frontend/dist)
+WORKDIR /app/frontend
+RUN npm ci
+RUN npm run build
 
-# Copy remaining application files
-COPY . .
+# Switch back to app directory
+WORKDIR /app
 
 # Expose port (Railway will set PORT env variable)
 EXPOSE 3001
