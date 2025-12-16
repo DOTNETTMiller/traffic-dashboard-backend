@@ -16,20 +16,12 @@ RUN apk add --no-cache \
 # Set working directory
 WORKDIR /app
 
-# Copy all application files FIRST (but frontend will be overridden next)
+# Copy all application files (includes pre-built frontend/dist from git)
 COPY . .
 
-# Copy package files and install backend dependencies
+# Install only backend dependencies
 ENV SKIP_FRONTEND_BUILD=1
 RUN npm ci --only=production
-
-# Now build frontend (this will create frontend/dist)
-WORKDIR /app/frontend
-RUN npm ci
-RUN npm run build
-
-# Switch back to app directory
-WORKDIR /app
 
 # Expose port (Railway will set PORT env variable)
 EXPOSE 3001
