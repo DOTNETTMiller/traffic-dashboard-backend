@@ -64,12 +64,12 @@ const IFCModelViewer = ({ modelId, filename }) => {
     directionalLight2.position.set(-100, -100, -50);
     scene.add(directionalLight2);
 
-    // Grid
+    // Grid (will be positioned after model loads)
     const gridHelper = new THREE.GridHelper(200, 50, 0x888888, 0xcccccc);
     scene.add(gridHelper);
 
     // Store references
-    viewerRef.current = { scene, camera, renderer, controls, model: null, ifcLoader: null, originalMaterials: new Map() };
+    viewerRef.current = { scene, camera, renderer, controls, model: null, ifcLoader: null, originalMaterials: new Map(), gridHelper };
 
     // Animation loop
     const animate = () => {
@@ -137,6 +137,11 @@ const IFCModelViewer = ({ modelId, filename }) => {
             const box = new THREE.Box3().setFromObject(ifcModel);
             const center = box.getCenter(new THREE.Vector3());
             const size = box.getSize(new THREE.Vector3());
+
+            // Position grid at the bottom of the model
+            if (viewerRef.current.gridHelper) {
+              viewerRef.current.gridHelper.position.y = box.min.y;
+            }
 
             const maxDim = Math.max(size.x, size.y, size.z);
             const fov = camera.fov * (Math.PI / 180);
@@ -232,80 +237,32 @@ const IFCModelViewer = ({ modelId, filename }) => {
 
     if (highlightMode === 'none') return;
 
-    // Create highlight materials
-    const highlightMaterial = new THREE.MeshLambertMaterial({
-      color: new THREE.Color(0xff0000),
-      transparent: true,
-      opacity: 0.8,
-      depthTest: true
-    });
-
-    const v2xMaterial = new THREE.MeshLambertMaterial({
-      color: new THREE.Color(0x00ff00),
-      transparent: true,
-      opacity: 0.8,
-      depthTest: true
-    });
-
-    const avMaterial = new THREE.MeshLambertMaterial({
-      color: new THREE.Color(0x0000ff),
-      transparent: true,
-      opacity: 0.8,
-      depthTest: true
-    });
-
-    const gapMaterial = new THREE.MeshLambertMaterial({
-      color: new THREE.Color(0xffa500),
-      transparent: true,
-      opacity: 0.8,
-      depthTest: true
-    });
-
-    // Determine which elements to highlight
-    let elementsToHighlight = [];
-
+    // Select color based on highlight mode
+    let highlightColor;
     if (highlightMode === 'gaps') {
-      // Highlight elements with gaps
-      const affectedGuids = new Set();
-      gaps.forEach(gap => {
-        if (gap.affected_element_guids) {
-          gap.affected_element_guids.split(',').forEach(guid => {
-            if (guid && guid.trim()) affectedGuids.add(guid.trim());
-          });
-        }
-      });
-      elementsToHighlight = elements.filter(el => affectedGuids.has(el.ifc_guid));
+      highlightColor = new THREE.Color(0xffa500); // Orange for gaps
     } else if (highlightMode === 'v2x') {
-      elementsToHighlight = elements.filter(el => el.v2x_applicable);
+      highlightColor = new THREE.Color(0x00ff00); // Green for V2X
     } else if (highlightMode === 'av') {
-      elementsToHighlight = elements.filter(el => el.av_critical);
+      highlightColor = new THREE.Color(0x0000ff); // Blue for AV
     }
 
-    // Apply highlighting (simplified - full implementation would need IFC GUID matching)
-    // This is a basic version that highlights by element type
-    if (elementsToHighlight.length > 0) {
-      const typeColors = {};
-      elementsToHighlight.forEach(el => {
-        if (!typeColors[el.ifc_type]) {
-          if (highlightMode === 'gaps') typeColors[el.ifc_type] = gapMaterial;
-          else if (highlightMode === 'v2x') typeColors[el.ifc_type] = v2xMaterial;
-          else if (highlightMode === 'av') typeColors[el.ifc_type] = avMaterial;
-        }
-      });
-
-      // Apply highlight (basic version - highlights all matching types)
-      model.traverse((child) => {
-        if (child.isMesh) {
-          elementsToHighlight.forEach(el => {
-            // Simplified: highlight by checking if element type matches
-            // In production, you'd match by IFC GUID using ifcLoader.ifcManager.getExpressId()
-            if (child.name && child.name.includes(el.ifc_type)) {
-              child.material = typeColors[el.ifc_type];
-            }
+    // Apply color overlay to all meshes
+    model.traverse((child) => {
+      if (child.isMesh) {
+        const originalMat = originalMaterials.get(child.uuid);
+        if (originalMat) {
+          // Create a new material with the highlight color
+          const highlightMaterial = new THREE.MeshLambertMaterial({
+            color: highlightColor,
+            transparent: true,
+            opacity: 0.7,
+            depthTest: true
           });
+          child.material = highlightMaterial;
         }
-      });
-    }
+      }
+    });
   }, [highlightMode, elements, gaps]);
 
   const highlightOptions = [
