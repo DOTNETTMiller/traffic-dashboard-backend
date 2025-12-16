@@ -16,8 +16,11 @@ RUN apk add --no-cache \
 # Set working directory
 WORKDIR /app
 
-# Copy all application files (includes pre-built frontend/dist from git)
+# Copy all application files
 COPY . .
+
+# Explicitly copy frontend/dist to ensure it's included
+COPY frontend/dist /app/frontend/dist
 
 # Install only backend dependencies
 ENV SKIP_FRONTEND_BUILD=1
