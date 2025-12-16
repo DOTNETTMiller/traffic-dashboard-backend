@@ -1120,6 +1120,28 @@ function App() {
                   >
                     💰 Grant Applications
                   </button>
+                  <button
+                    onClick={() => {
+                      setView('digitalInfrastructure');
+                      setStateToolsDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'digitalInfrastructure' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'digitalInfrastructure' ? '600' : '400',
+                      color: view === 'digitalInfrastructure' ? '#059669' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'digitalInfrastructure' ? '#f3f4f6' : 'white'}
+                  >
+                    🏗️ Digital Infrastructure
+                  </button>
 
                   {/* ARC-ITS Export - Only show if state has uploaded equipment */}
                   {hasITSEquipment && (
