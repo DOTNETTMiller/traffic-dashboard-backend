@@ -79,6 +79,115 @@ Topics covered:
 
 ---
 
+## What the Digital Infrastructure Feature Does
+
+The Digital Infrastructure feature provides comprehensive IFC model analysis capabilities that bridge the gap between BIM design data and ITS operational requirements. Here's what it does:
+
+### Core Capabilities
+
+1. **Parses IFC Models to Extract Infrastructure Elements**
+   - Automatically identifies and catalogs infrastructure components: bridges, beams, columns, signs, signals, pavement, guardrails, and ITS equipment
+   - Extracts geometric properties: dimensions, locations, elevations, clearances
+   - Preserves IFC Global IDs (GUIDs) for element tracking and lifecycle management
+   - Supports both IFC2X3 and IFC4.3 schema versions
+
+2. **Identifies Data Present vs. ITS Operational Requirements**
+   - Compares extracted properties against what ITS systems actually need
+   - Assesses geolocation data quality (coordinates, alignments, linear referencing)
+   - Evaluates equipment metadata (manufacturers, models, installation dates)
+   - Checks for operational properties (device IDs, communication protocols, controller information)
+
+3. **Generates Gap Analysis for V2X and AV Systems**
+   - Identifies missing properties required for Vehicle-to-Everything (V2X) communications
+   - Flags elements critical for autonomous vehicle (AV) routing and operations
+   - Highlights gaps in clearance data, lane markings, and surface conditions
+   - Categorizes gaps by severity: high (AV-critical), medium, low
+   - Associates gaps with specific ITS use cases (route planning, dynamic messaging, etc.)
+
+4. **Creates buildingSMART IDM/IDS Recommendations**
+   - Generates Information Delivery Manual (IDM) recommendations for missing properties
+   - Produces Information Delivery Specification (IDS) validation rules
+   - Maps IFC types to industry standards (AASHTO, SAE J2735, SAE J3216, NTCIP)
+   - Provides actionable guidance for BIM authoring workflows
+   - Enables standards-compliant data exchange across the infrastructure lifecycle
+
+5. **Supports Multiple IFC Schemas**
+   - **IFC2X3**: Full support for traditional building and bridge infrastructure
+   - **IFC4.3**: Support for advanced infrastructure (roads, railways, alignment-based positioning)
+   - Schema auto-detection from uploaded files
+   - Handles multi-line IFC entities and complex property sets
+
+### 3D Visualization and Operational Data Overlay
+
+The Digital Infrastructure feature includes a **3D IFC Model Viewer** that:
+- Renders IFC models in an interactive Three.js-based 3D environment
+- Provides orbit controls for model inspection (rotate, pan, zoom)
+- Displays operational data highlighting modes:
+  - **Elements with Gaps**: Highlights infrastructure elements missing critical properties (orange)
+  - **V2X Elements**: Shows elements applicable to V2X communications (green)
+  - **AV Critical Elements**: Displays elements critical for autonomous vehicle operations (blue)
+
+### Current Limitations: IFC 4.3 3D Highlighting
+
+**Important:** The 3D highlighting feature currently has limitations with IFC 4.3 files due to compatibility issues with the web-ifc-three library:
+
+#### What Works
+- ✅ 3D geometry rendering and visualization
+- ✅ Model navigation (rotate, pan, zoom)
+- ✅ Automatic camera positioning and lighting
+- ✅ IFC 4.3 file parsing and element extraction
+- ✅ Gap analysis and operational data tables
+- ✅ Element lists with filtering and search
+
+#### What Doesn't Work (IFC 4.3 Only)
+- ❌ **3D highlighting of individual elements** - The web-ifc-three library does not populate the `expressID` property on mesh objects for IFC 4.3 files, which prevents mapping database GUIDs to rendered 3D geometry
+- ❌ **Interactive element selection** - Cannot highlight specific infrastructure elements (bridges, beams, signs) in the 3D view based on operational data
+
+#### Technical Details
+The web-ifc-three library (version used in production) has partial IFC 4.3 support:
+- Can parse and render IFC 4.3 geometry for visualization
+- Cannot expose element metadata (expressID) needed for GUID-based highlighting
+- Console shows: `Building GUID map for 0 meshes` when loading IFC 4.3 files
+- This prevents matching operational data (gaps, V2X flags, AV criticality) to specific 3D mesh objects
+
+#### Workarounds and Recommendations
+
+**For Full 3D Highlighting Support:**
+1. **Use IFC 2x3 Export**: Export your model from your BIM authoring software (e.g., Allplan, Revit, Civil 3D) using IFC 2x3 schema
+   - IFC 2x3 files work fully with the 3D highlighting feature
+   - All element properties and operational data can be highlighted in 3D
+
+2. **Upload Both Versions**: For projects using IFC 4.3 features (alignments, advanced road modeling):
+   - Upload IFC 4.3 version for gap analysis and element extraction
+   - Upload IFC 2x3 version for 3D visualization with highlighting
+   - Use the IFC 4.3 analysis data with the IFC 2x3 3D viewer
+
+**For IFC 4.3 Files (Current Capability):**
+- View operational data in **table/list format** instead of 3D highlighting
+- Use element filtering and search in the elements table
+- Export gap reports to CSV for offline analysis
+- Access IDS validation rules for property enrichment
+- The 3D viewer still provides valuable model navigation and inspection, just without operational data overlays
+
+**Future Enhancement Path:**
+- Upgrade to a newer IFC 4.3-compatible viewer library when available
+- Implement alternative GUID mapping strategies (spatial queries, property-based matching)
+- Add support for IFC.js or other modern IFC rendering engines with better IFC 4.3 support
+
+### Operational Value Despite Limitations
+
+Even with the 3D highlighting limitation for IFC 4.3, the Digital Infrastructure feature provides significant value:
+- Complete gap analysis showing exactly what properties are missing
+- Identification of V2X-applicable and AV-critical elements
+- buildingSMART IDM/IDS recommendations for standards compliance
+- Detailed element tables with all extracted properties
+- CSV export for integration with other systems
+- Foundation for digital twin workflows and asset management
+
+The gap analysis and IDM/IDS recommendations work identically for both IFC 2x3 and IFC 4.3 files—only the 3D highlighting feature is affected.
+
+---
+
 ## Digital Infrastructure Features
 
 ### BIM/IFC Model Support
@@ -485,8 +594,8 @@ POST /api/infrastructure/device/:guid/link-arc-its
 
 ---
 
-**Last Updated:** 2025-01-15
-**Version:** 1.0
+**Last Updated:** 2025-12-16
+**Version:** 1.1
 **Access:** https://[your-domain]/docs/digital-infrastructure.md
 
 For questions or feedback, contact your DOT Corridor Communicator administrator.
