@@ -86,6 +86,34 @@ Once deployed, verify your frontend:
 
 ## Troubleshooting
 
+### Code changes deployed but not appearing in production
+
+**Symptoms**:
+- You deployed code changes that add/modify state feeds
+- Frontend bundle shows SUCCESS and new JS/CSS files are being served
+- But the new state data doesn't appear (e.g., TX/OK feeds missing)
+- Digital Infrastructure page doesn't show the updates
+
+**Cause**: The production database still has old state configurations that override your code changes
+
+**Fix**:
+```bash
+# Method 1: Run the update script
+railway ssh -s traffic-dashboard-backend -- node scripts/update_state_feeds.js
+railway up
+
+# Method 2: Update database manually
+railway ssh -s traffic-dashboard-backend -- sh
+sqlite3 /app/data/states.db "UPDATE states SET api_url='...', api_type='...', format='...' WHERE state_key='tx';"
+exit
+railway up
+
+# Method 3: Use State Admin UI (no restart needed)
+# Go to production frontend → Login → State Admin → Edit the state
+```
+
+See the "Database-Driven Configuration" section above for detailed explanation.
+
 ### Frontend shows "Error loading events"
 
 **Cause**: Backend URL is incorrect or backend is not running
@@ -119,6 +147,19 @@ Once deployed, verify your frontend:
 **Fix**:
 1. In Railway settings, increase memory limit
 2. Or upgrade Railway plan
+
+### Specific state feed not loading in production
+
+**Symptoms**: State feed works locally but not in production
+
+**Cause**: Database configuration differs from code, or API keys not set
+
+**Fix**:
+1. Check backend logs: `railway logs -s traffic-dashboard-backend`
+2. Look for state loading messages: `✅ Loaded [State] from database`
+3. Verify API keys are set in Railway environment variables
+4. Update database with correct feed URL/credentials
+5. Restart backend service
 
 ## Updating the Application
 
@@ -182,13 +223,122 @@ If you prefer, you can deploy the frontend to Vercel or Netlify (often free):
 5. Publish directory: `frontend/dist`
 6. Add environment variable: `VITE_API_URL`
 
+## Database-Driven Configuration (CRITICAL)
+
+### Understanding Backend Configuration
+
+The backend uses a **database-first configuration system**:
+
+1. At startup, `backend_proxy_server.js` calls `loadStatesFromDatabase()` (line 608)
+2. This function loads state feed configurations from the SQLite database at `/app/data/states.db` (mounted volume in production)
+3. **Database values override any code-based configurations in `API_CONFIG`**
+4. This happens on every server restart/redeploy
+
+**Important**: Changes to state feed configurations in the source code **will not** appear in production until the database is updated. The database is the source of truth for production.
+
+### Updating State Feeds in Production
+
+When you add or modify state feed configurations (like Texas or Oklahoma), you must update the production database:
+
+#### Method 1: Using the Update Script (Recommended)
+
+```bash
+# SSH into the backend container
+railway ssh -s traffic-dashboard-backend -- sh
+
+# Run the update script inside the container
+node scripts/update_state_feeds.js
+
+# Exit the container
+exit
+
+# Restart the backend service to apply changes
+railway up
+```
+
+The `scripts/update_state_feeds.js` script automatically updates both PostgreSQL and SQLite databases with the latest state feed configurations from the code.
+
+#### Method 2: Manual SQL Updates
+
+If you need to update specific states manually:
+
+```bash
+# SSH into the backend container
+railway ssh -s traffic-dashboard-backend -- sh
+
+# Update the database directly
+sqlite3 /app/data/states.db "
+  UPDATE states
+  SET api_url='https://data.austintexas.gov/resource/d9mm-cjw9.geojson?$limit=50000',
+      api_type='WZDx',
+      format='geojson'
+  WHERE state_key='tx';
+
+  UPDATE states
+  SET api_url='https://ok.carsprogram.org/hub/data/feu-g.xml',
+      api_type='FEU-G',
+      format='xml'
+  WHERE state_key='ok';
+"
+
+# Exit
+exit
+
+# Restart/redeploy the backend
+railway up
+```
+
+#### Method 3: Using the State Admin UI
+
+1. Go to your production frontend URL
+2. Login as admin
+3. Navigate to "State Admin"
+4. Click "Edit" on the state you want to update
+5. Modify the feed URL, API type, or other settings
+6. Click "Save"
+7. The changes are immediately applied to the database
+
+**Note**: The State Admin UI directly updates the production database, so no restart is required.
+
+### Database Location
+
+- **Local Development**: `./states.db` (in project root)
+- **Production (Railway)**: `/app/data/states.db` (mounted volume)
+- **Alternative**: PostgreSQL database if `DATABASE_URL` environment variable is set
+
+### Why Database Overrides Code
+
+This design allows:
+- Dynamic state management without code changes
+- Secure credential storage (encrypted in database)
+- State Admin UI to work in production
+- Different configurations per environment
+
+However, it requires that **code-based configuration changes be synchronized to the production database** using one of the methods above.
+
+### Verifying Configuration Changes
+
+After updating the database and restarting:
+
+1. Check backend logs for state loading:
+   ```bash
+   railway logs -s traffic-dashboard-backend
+   ```
+   Look for: `✅ Loaded Texas from database`
+
+2. Visit the frontend and hard-refresh your browser
+3. Check that the new data appears (e.g., TX/OK events on map)
+4. Verify the Digital Infrastructure page reflects new data sources
+
 ## Production Checklist
 
 Before going live:
 
-- [ ] Set all required API keys in backend
+- [ ] Set all required API keys in backend environment variables
+- [ ] Update production database with latest state feed configurations (run `scripts/update_state_feeds.js`)
 - [ ] Set correct backend URL in frontend environment variable
 - [ ] Test all features (map, table, filters, messaging)
+- [ ] Verify all expected state feeds are loading (check backend logs)
 - [ ] Set up custom domain (optional)
 - [ ] Enable HTTPS (Railway does this automatically)
 - [ ] Set up monitoring/alerts
