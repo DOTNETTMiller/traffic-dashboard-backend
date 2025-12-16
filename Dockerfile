@@ -24,6 +24,12 @@ COPY scripts ./scripts
 ENV SKIP_FRONTEND_BUILD=1
 RUN npm ci --only=production
 
+# Copy frontend source and build it
+COPY frontend/package*.json ./frontend/
+RUN cd frontend && npm ci
+COPY frontend ./frontend
+RUN cd frontend && npm run build
+
 # Copy remaining application files
 COPY . .
 
