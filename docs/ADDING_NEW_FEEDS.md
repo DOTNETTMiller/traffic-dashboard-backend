@@ -2,6 +2,19 @@
 
 This guide explains how to add new state DOT or city traffic data feeds to the DOT Corridor Communicator.
 
+## IMPORTANT: Production Deployment
+
+When adding new state feeds, remember that the backend uses **database-driven configuration**. This means:
+
+1. Adding states via code changes **will not** automatically appear in production
+2. You must update the production database after deploying code changes
+3. Use one of these methods to update production:
+   - Run `scripts/update_state_feeds.js` in the production container (recommended)
+   - Use the State Admin UI to add/update states directly in production
+   - Manually update the SQLite database via SSH
+
+See **DEPLOYMENT.md** for detailed instructions on updating production state configurations.
+
 ## Quick Start: Adding a WZDx Feed
 
 Most modern state DOT feeds use the **WZDx (Work Zone Data Exchange)** standard, which makes integration very straightforward.
@@ -266,6 +279,13 @@ After adding:
 - [ ] No duplicate events with existing feeds
 - [ ] Corridor tagging is correct
 - [ ] Auto-refresh works
+
+For production deployment:
+
+- [ ] Update production database using `scripts/update_state_feeds.js`
+- [ ] Restart backend service
+- [ ] Verify state loads in production logs
+- [ ] Check that data appears on production frontend
 
 ## Troubleshooting
 

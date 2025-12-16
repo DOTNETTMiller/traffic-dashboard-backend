@@ -1,8 +1,30 @@
 #!/usr/bin/env node
 
 /**
- * One-off helper script to update Texas and Oklahoma feed configurations
- * in the production PostgreSQL database (Railway).
+ * Update State Feed Configurations
+ *
+ * This script updates Texas and Oklahoma feed configurations in the database.
+ *
+ * WHEN TO USE THIS SCRIPT:
+ * - After deploying code changes that modify state feed configurations
+ * - When you've added new state feed configs to the codebase but they don't appear in production
+ * - To synchronize database configuration with code-based configuration
+ *
+ * WHY THIS IS NEEDED:
+ * - The backend uses database-driven configuration (loadStatesFromDatabase() at startup)
+ * - Database values OVERRIDE any code-based configurations in API_CONFIG
+ * - Code changes to state feeds won't appear until the database is updated
+ *
+ * HOW TO USE:
+ *
+ * Local development:
+ *   node scripts/update_state_feeds.js
+ *
+ * Production (Railway):
+ *   railway ssh -s traffic-dashboard-backend -- node scripts/update_state_feeds.js
+ *   railway up  # Restart to apply changes
+ *
+ * See DEPLOYMENT.md for more details on database-driven configuration.
  */
 
 const path = require('path');
