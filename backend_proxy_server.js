@@ -1181,7 +1181,7 @@ async function initializeDatabase() {
       }
     }
 
-    // Load any additional states from database
+    // Load any additional states from database (overrides code-based configs)
     await loadStatesFromDatabase();
 
     // Ensure grant tables exist
