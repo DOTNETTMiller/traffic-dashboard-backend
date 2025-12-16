@@ -5,7 +5,7 @@ node_modules/
 # Production builds
 dist/
 build/
-*/dist/
+# */dist/ - COMMENTED OUT: We need frontend/dist in production
 */build/
 
 # Environment variables
