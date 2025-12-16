@@ -700,12 +700,6 @@ function App() {
           >
             📊 Dashboard
           </button>
-          <button
-            className={`toggle-btn ${view === 'digitalInfrastructure' ? 'active' : ''}`}
-            onClick={() => setView('digitalInfrastructure')}
-          >
-            🏗️ IFC Viewer
-          </button>
 
           {/* Data Quality Dropdown */}
           <div style={{ position: 'relative' }}>
