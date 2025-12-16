@@ -39,7 +39,7 @@ tmp/
 
 # Frontend build artifacts (if any)
 frontend/node_modules
-frontend/dist
+# frontend/dist - KEEP THIS! Backend serves static files from here
 frontend/build
 
 # OS files
