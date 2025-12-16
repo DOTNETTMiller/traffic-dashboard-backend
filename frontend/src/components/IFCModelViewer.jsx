@@ -119,8 +119,10 @@ const IFCModelViewer = ({ modelId, filename }) => {
             scene.add(ifcModel);
             viewerRef.current.model = ifcModel;
 
-            // Store original materials and build GUID map
+            // Store original materials and collect meshes for GUID mapping
             const guidToMeshMap = new Map();
+            const meshesWithExpressID = [];
+
             ifcModel.traverse((child) => {
               if (child.isMesh && child.material) {
                 // Handle both single materials and arrays of materials
@@ -132,22 +134,36 @@ const IFCModelViewer = ({ modelId, filename }) => {
                   viewerRef.current.originalMaterials.set(child.uuid, child.material);
                 }
 
-                // Try to get GUID for this mesh
+                // Collect meshes that have express IDs
                 if (child.expressID !== undefined) {
-                  (async () => {
-                    try {
-                      const props = await ifcLoader.ifcManager.getItemProperties(ifcModel.modelID, child.expressID);
-                      const globalId = props.GlobalId?.value;
-                      if (globalId) {
-                        guidToMeshMap.set(globalId, child);
-                      }
-                    } catch (err) {
-                      // Silently skip elements that can't be queried
-                    }
-                  })();
+                  meshesWithExpressID.push(child);
                 }
               }
             });
+
+            // Build GUID map asynchronously
+            (async () => {
+              console.log('Building GUID map for', meshesWithExpressID.length, 'meshes');
+              let successCount = 0;
+              let errorCount = 0;
+
+              for (const mesh of meshesWithExpressID) {
+                try {
+                  const props = await ifcLoader.ifcManager.getItemProperties(ifcModel.modelID, mesh.expressID);
+                  const globalId = props.GlobalId?.value;
+                  if (globalId) {
+                    guidToMeshMap.set(globalId, mesh);
+                    successCount++;
+                  }
+                } catch (err) {
+                  errorCount++;
+                  // Silently skip elements that can't be queried
+                }
+              }
+
+              console.log('GUID map built:', successCount, 'successful,', errorCount, 'errors. Total map size:', guidToMeshMap.size);
+            })();
+
             viewerRef.current.guidToMeshMap = guidToMeshMap;
 
             // Center camera on model
