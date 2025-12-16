@@ -21,7 +21,7 @@ async function runPostgres() {
 
   // Texas
   const txResult = await client.query(`
-    INSERT INTO states (state_key, display_name, api_url, api_type, format, enabled, created_at, updated_at)
+    INSERT INTO states (state_key, state_name, api_url, api_type, format, enabled, created_at, updated_at)
     VALUES ('tx', 'Texas', 'https://data.austintexas.gov/resource/d9mm-cjw9.geojson?$limit=50000', 'WZDx', 'geojson', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT (state_key)
     DO UPDATE SET
@@ -36,7 +36,7 @@ async function runPostgres() {
 
   // Oklahoma
   const okResult = await client.query(`
-    INSERT INTO states (state_key, display_name, api_url, api_type, format, enabled, created_at, updated_at)
+    INSERT INTO states (state_key, state_name, api_url, api_type, format, enabled, created_at, updated_at)
     VALUES ('ok', 'Oklahoma', 'https://ok.carsprogram.org/hub/data/feu-g.xml', 'FEU-G', 'xml', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT (state_key)
     DO UPDATE SET
@@ -50,10 +50,10 @@ async function runPostgres() {
   console.log(`✅ Oklahoma: ${okResult.rowCount > 0 ? 'Updated/Inserted' : 'No change'}`);
 
   // Verify
-  const verify = await client.query(`SELECT state_key, display_name, api_url, api_type, enabled FROM states WHERE state_key IN ('tx', 'ok') ORDER BY state_key`);
+  const verify = await client.query(`SELECT state_key, state_name, api_url, api_type, enabled FROM states WHERE state_key IN ('tx', 'ok') ORDER BY state_key`);
   console.log('\n📊 Current state configurations:');
   verify.rows.forEach(row => {
-    console.log(`  ${row.state_key}: ${row.display_name} - ${row.api_type} - ${row.enabled ? 'ENABLED' : 'DISABLED'}`);
+    console.log(`  ${row.state_key}: ${row.state_name} - ${row.api_type} - ${row.enabled ? 'ENABLED' : 'DISABLED'}`);
     console.log(`     URL: ${row.api_url}`);
   });
 
@@ -69,7 +69,7 @@ function runSqlite() {
 
   // Texas
   const txStmt = db.prepare(`
-    INSERT INTO states (state_key, display_name, api_url, api_type, format, enabled)
+    INSERT INTO states (state_key, state_name, api_url, api_type, format, enabled)
     VALUES ('tx', 'Texas', 'https://data.austintexas.gov/resource/d9mm-cjw9.geojson?$limit=50000', 'WZDx', 'geojson', 1)
     ON CONFLICT(state_key) DO UPDATE SET
       api_url = excluded.api_url,
@@ -82,7 +82,7 @@ function runSqlite() {
 
   // Oklahoma
   const okStmt = db.prepare(`
-    INSERT INTO states (state_key, display_name, api_url, api_type, format, enabled)
+    INSERT INTO states (state_key, state_name, api_url, api_type, format, enabled)
     VALUES ('ok', 'Oklahoma', 'https://ok.carsprogram.org/hub/data/feu-g.xml', 'FEU-G', 'xml', 1)
     ON CONFLICT(state_key) DO UPDATE SET
       api_url = excluded.api_url,
@@ -94,10 +94,10 @@ function runSqlite() {
   console.log(`✅ Oklahoma: ${okResult.changes > 0 ? 'Updated/Inserted' : 'No change'}`);
 
   // Verify
-  const verify = db.prepare(`SELECT state_key, display_name, api_url, api_type, enabled FROM states WHERE state_key IN ('tx', 'ok') ORDER BY state_key`).all();
+  const verify = db.prepare(`SELECT state_key, state_name, api_url, api_type, enabled FROM states WHERE state_key IN ('tx', 'ok') ORDER BY state_key`).all();
   console.log('\n📊 Current state configurations:');
   verify.forEach(row => {
-    console.log(`  ${row.state_key}: ${row.display_name} - ${row.api_type} - ${row.enabled ? 'ENABLED' : 'DISABLED'}`);
+    console.log(`  ${row.state_key}: ${row.state_name} - ${row.api_type} - ${row.enabled ? 'ENABLED' : 'DISABLED'}`);
     console.log(`     URL: ${row.api_url}`);
   });
 
