@@ -69,7 +69,7 @@ const IFCModelViewer = ({ modelId, filename }) => {
     scene.add(gridHelper);
 
     // Store references
-    viewerRef.current = { scene, camera, renderer, controls, model: null };
+    viewerRef.current = { scene, camera, renderer, controls, model: null, ifcLoader: null, originalMaterials: new Map() };
 
     // Animation loop
     const animate = () => {
