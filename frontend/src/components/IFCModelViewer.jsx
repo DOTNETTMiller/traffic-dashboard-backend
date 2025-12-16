@@ -122,7 +122,14 @@ const IFCModelViewer = ({ modelId, filename }) => {
             // Store original materials
             ifcModel.traverse((child) => {
               if (child.isMesh && child.material) {
-                viewerRef.current.originalMaterials.set(child.uuid, child.material.clone());
+                // Handle both single materials and arrays of materials
+                if (Array.isArray(child.material)) {
+                  viewerRef.current.originalMaterials.set(child.uuid, child.material.map(m => m.clone ? m.clone() : m));
+                } else if (child.material.clone) {
+                  viewerRef.current.originalMaterials.set(child.uuid, child.material.clone());
+                } else {
+                  viewerRef.current.originalMaterials.set(child.uuid, child.material);
+                }
               }
             });
 
@@ -211,7 +218,15 @@ const IFCModelViewer = ({ modelId, filename }) => {
     // Reset all materials first
     model.traverse((child) => {
       if (child.isMesh && originalMaterials.has(child.uuid)) {
-        child.material = originalMaterials.get(child.uuid).clone();
+        const storedMaterial = originalMaterials.get(child.uuid);
+        // Handle both single materials and arrays of materials
+        if (Array.isArray(storedMaterial)) {
+          child.material = storedMaterial.map(m => m.clone ? m.clone() : m);
+        } else if (storedMaterial.clone) {
+          child.material = storedMaterial.clone();
+        } else {
+          child.material = storedMaterial;
+        }
       }
     });
 
