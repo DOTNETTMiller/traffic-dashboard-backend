@@ -595,8 +595,14 @@ async function loadStatesFromDatabase() {
     console.log('📦 Loading states from database...');
 
     const dbStates = await db.getAllStates(true); // Get all with credentials
+    console.log(`📊 Found ${dbStates.length} states in database`);
+
+    let loadedCount = 0;
+    let skippedCount = 0;
 
     dbStates.forEach(state => {
+      console.log(`🔍 Processing state: ${state.stateKey} (${state.stateName}) - enabled: ${state.enabled}`);
+
       if (state.enabled) {
         // Convert database format to API_CONFIG format
         const config = {
@@ -608,21 +614,31 @@ async function loadStatesFromDatabase() {
         };
 
         // Add environment variable-based API keys for states that need them
-        if (state.stateKey === 'nevada' && process.env.NEVADA_API_KEY) {
+        // Match against state keys in database (nv, oh, tx) not full names
+        if (state.stateKey === 'nv' && process.env.NEVADA_API_KEY) {
           config.apiKey = process.env.NEVADA_API_KEY;
-        } else if (state.stateKey === 'ohio' && process.env.OHIO_API_KEY) {
+          console.log(`  🔑 Added Nevada API key`);
+        } else if (state.stateKey === 'oh' && process.env.OHIO_API_KEY) {
           config.apiKey = process.env.OHIO_API_KEY;
+          console.log(`  🔑 Added Ohio API key`);
         } else if (state.stateKey === 'tx' && process.env.TXDOT_API_KEY) {
           config.apiKey = process.env.TXDOT_API_KEY;
+          console.log(`  🔑 Added Texas API key`);
         }
 
         API_CONFIG[state.stateKey] = config;
+        loadedCount++;
 
-        console.log(`  ✅ Loaded ${state.stateName} from database`);
+        console.log(`  ✅ Loaded ${state.stateName} (${state.stateKey}) from database`);
+      } else {
+        skippedCount++;
+        console.log(`  ⏭️  Skipped ${state.stateName} (disabled)`);
       }
     });
 
+    console.log(`📊 State loading summary: ${loadedCount} loaded, ${skippedCount} skipped`);
     console.log(`📊 Total states configured: ${Object.keys(API_CONFIG).length}`);
+    console.log(`📋 Configured state keys: ${Object.keys(API_CONFIG).sort().join(', ')}`);
   } catch (error) {
     console.error('⚠️  Error loading states from database:', error.message);
     console.log('📊 Using default state configurations');
