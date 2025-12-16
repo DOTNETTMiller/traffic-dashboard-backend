@@ -19,10 +19,11 @@ async function runPostgres() {
   await client.connect();
   console.log('Connected to PostgreSQL database');
 
-  // Texas
+  // Texas - Official statewide Texas DOT WZDx feed
+  // API key will be added by backend from TXDOT_API_KEY env var
   const txResult = await client.query(`
     INSERT INTO states (state_key, state_name, api_url, api_type, format, enabled, created_at, updated_at)
-    VALUES ('tx', 'Texas', 'https://data.austintexas.gov/resource/d9mm-cjw9.geojson?$limit=50000', 'WZDx', 'geojson', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    VALUES ('tx', 'Texas', 'https://api.drivetexas.org/api/conditions.wzdx.geojson', 'WZDx', 'geojson', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT (state_key)
     DO UPDATE SET
       api_url = EXCLUDED.api_url,
@@ -34,10 +35,10 @@ async function runPostgres() {
   `);
   console.log(`✅ Texas: ${txResult.rowCount > 0 ? 'Updated/Inserted' : 'No change'}`);
 
-  // Oklahoma
+  // Oklahoma - Official statewide Oklahoma DOT WZDx feed (includes access token in URL)
   const okResult = await client.query(`
     INSERT INTO states (state_key, state_name, api_url, api_type, format, enabled, created_at, updated_at)
-    VALUES ('ok', 'Oklahoma', 'https://ok.carsprogram.org/hub/data/feu-g.xml', 'FEU-G', 'xml', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    VALUES ('ok', 'Oklahoma', 'https://oktraffic.org/api/Geojsons/workzones?&access_token=feOPynfHRJ5sdx8tf3IN5yOsGz89TAUuzHsN3V0jo1Fg41LcpoLhIRltaTPmDngD', 'WZDx', 'geojson', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT (state_key)
     DO UPDATE SET
       api_url = EXCLUDED.api_url,
@@ -67,10 +68,11 @@ function runSqlite() {
 
   console.log(`Connected to SQLite database at ${dbPath}`);
 
-  // Texas
+  // Texas - Official statewide Texas DOT WZDx feed
+  // API key will be added by backend from TXDOT_API_KEY env var
   const txStmt = db.prepare(`
     INSERT INTO states (state_key, state_name, api_url, api_type, format, enabled)
-    VALUES ('tx', 'Texas', 'https://data.austintexas.gov/resource/d9mm-cjw9.geojson?$limit=50000', 'WZDx', 'geojson', 1)
+    VALUES ('tx', 'Texas', 'https://api.drivetexas.org/api/conditions.wzdx.geojson', 'WZDx', 'geojson', 1)
     ON CONFLICT(state_key) DO UPDATE SET
       api_url = excluded.api_url,
       api_type = excluded.api_type,
@@ -80,10 +82,10 @@ function runSqlite() {
   const txResult = txStmt.run();
   console.log(`✅ Texas: ${txResult.changes > 0 ? 'Updated/Inserted' : 'No change'}`);
 
-  // Oklahoma
+  // Oklahoma - Official statewide Oklahoma DOT WZDx feed (includes access token in URL)
   const okStmt = db.prepare(`
     INSERT INTO states (state_key, state_name, api_url, api_type, format, enabled)
-    VALUES ('ok', 'Oklahoma', 'https://ok.carsprogram.org/hub/data/feu-g.xml', 'FEU-G', 'xml', 1)
+    VALUES ('ok', 'Oklahoma', 'https://oktraffic.org/api/Geojsons/workzones?&access_token=feOPynfHRJ5sdx8tf3IN5yOsGz89TAUuzHsN3V0jo1Fg41LcpoLhIRltaTPmDngD', 'WZDx', 'geojson', 1)
     ON CONFLICT(state_key) DO UPDATE SET
       api_url = excluded.api_url,
       api_type = excluded.api_type,

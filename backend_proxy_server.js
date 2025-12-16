@@ -2410,17 +2410,13 @@ const fetchStateData = async (stateKey) => {
       }
       // Other states use API key authentication
       else if (config.apiKey) {
-        // Nevada uses ?key= query parameter
-        if (config.name === 'Nevada') {
+        // Nevada and Texas use ?key= query parameter
+        if (config.name === 'Nevada' || stateKey === 'tx' || (config.name && config.name.toLowerCase().includes('texas'))) {
           params.key = config.apiKey;
         }
         // Ohio uses "APIKEY {key}" format in Authorization header
         else if (config.name === 'Ohio') {
           headers['Authorization'] = `APIKEY ${config.apiKey}`;
-        }
-        // Texas (Socata) uses X-App-Token header
-        else if (stateKey === 'tx' || (config.name && config.name.toLowerCase().includes('texas'))) {
-          headers['X-App-Token'] = config.apiKey;
         }
         // Other states use "Bearer {key}" format in Authorization header
         else {
