@@ -700,6 +700,12 @@ function App() {
           >
             📊 Dashboard
           </button>
+          <button
+            className={`toggle-btn ${view === 'digitalInfrastructure' ? 'active' : ''}`}
+            onClick={() => setView('digitalInfrastructure')}
+          >
+            🏗️ IFC Viewer
+          </button>
 
           {/* Data Quality Dropdown */}
           <div style={{ position: 'relative' }}>
@@ -1043,10 +1049,10 @@ function App() {
           {authToken && (
             <div style={{ position: 'relative' }}>
               <button
-                className={`toggle-btn ${['feedSubmission', 'grants', 'digitalInfrastructure'].includes(view) ? 'active' : ''}`}
+                className={`toggle-btn ${['feedSubmission', 'grants'].includes(view) ? 'active' : ''}`}
                 onClick={() => setStateToolsDropdownOpen(!stateToolsDropdownOpen)}
                 style={{
-                  backgroundColor: ['feedSubmission', 'grants', 'digitalInfrastructure'].includes(view) ? '#059669' : undefined,
+                  backgroundColor: ['feedSubmission', 'grants'].includes(view) ? '#059669' : undefined,
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px'
@@ -1119,28 +1125,6 @@ function App() {
                     onMouseLeave={(e) => e.currentTarget.style.background = view === 'grants' ? '#f3f4f6' : 'white'}
                   >
                     💰 Grant Applications
-                  </button>
-                  <button
-                    onClick={() => {
-                      setView('digitalInfrastructure');
-                      setStateToolsDropdownOpen(false);
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '10px 16px',
-                      border: 'none',
-                      background: view === 'digitalInfrastructure' ? '#f3f4f6' : 'white',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: view === 'digitalInfrastructure' ? '600' : '400',
-                      color: view === 'digitalInfrastructure' ? '#059669' : '#374151',
-                      transition: 'background 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'digitalInfrastructure' ? '#f3f4f6' : 'white'}
-                  >
-                    🏗️ Digital Infrastructure (BIM/IFC)
                   </button>
 
                   {/* ARC-ITS Export - Only show if state has uploaded equipment */}
