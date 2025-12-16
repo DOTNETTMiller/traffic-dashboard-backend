@@ -219,6 +219,7 @@ const IFCModelViewer = ({ modelId, filename }) => {
 
     const model = viewerRef.current.model;
     const originalMaterials = viewerRef.current.originalMaterials;
+    const ifcLoader = viewerRef.current.ifcLoader;
 
     // Reset all materials first
     model.traverse((child) => {
@@ -237,6 +238,18 @@ const IFCModelViewer = ({ modelId, filename }) => {
 
     if (highlightMode === 'none') return;
 
+    // Build set of GUIDs to highlight based on mode
+    let guidsToHighlight = new Set();
+    if (highlightMode === 'gaps') {
+      gaps.forEach(gap => guidsToHighlight.add(gap.ifc_guid));
+    } else if (highlightMode === 'v2x') {
+      elements.filter(e => e.v2x_applicable).forEach(el => guidsToHighlight.add(el.ifc_guid));
+    } else if (highlightMode === 'av') {
+      elements.filter(e => e.av_critical).forEach(el => guidsToHighlight.add(el.ifc_guid));
+    }
+
+    if (guidsToHighlight.size === 0) return;
+
     // Select color based on highlight mode
     let highlightColor;
     if (highlightMode === 'gaps') {
@@ -247,22 +260,40 @@ const IFCModelViewer = ({ modelId, filename }) => {
       highlightColor = new THREE.Color(0x0000ff); // Blue for AV
     }
 
-    // Apply color overlay to all meshes
+    // Collect all meshes with expressIDs
+    const meshes = [];
     model.traverse((child) => {
-      if (child.isMesh) {
-        const originalMat = originalMaterials.get(child.uuid);
-        if (originalMat) {
-          // Create a new material with the highlight color
-          const highlightMaterial = new THREE.MeshLambertMaterial({
-            color: highlightColor,
-            transparent: true,
-            opacity: 0.7,
-            depthTest: true
-          });
-          child.material = highlightMaterial;
-        }
+      if (child.isMesh && child.expressID !== undefined) {
+        meshes.push(child);
       }
     });
+
+    // Process meshes asynchronously to check their GUIDs
+    (async () => {
+      for (const mesh of meshes) {
+        try {
+          // Get IFC properties for this mesh
+          const props = await ifcLoader.ifcManager.getItemProperties(model.modelID, mesh.expressID);
+
+          // Get GlobalId from properties
+          const globalId = props.GlobalId?.value;
+
+          if (globalId && guidsToHighlight.has(globalId)) {
+            // Create a new material with the highlight color
+            const highlightMaterial = new THREE.MeshLambertMaterial({
+              color: highlightColor,
+              transparent: true,
+              opacity: 0.7,
+              depthTest: true
+            });
+            mesh.material = highlightMaterial;
+          }
+        } catch (err) {
+          // Skip elements that can't be queried
+          console.warn('Could not get properties for element:', mesh.expressID, err);
+        }
+      }
+    })();
   }, [highlightMode, elements, gaps]);
 
   const highlightOptions = [
