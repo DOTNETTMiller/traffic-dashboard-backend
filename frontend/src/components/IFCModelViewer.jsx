@@ -69,7 +69,7 @@ const IFCModelViewer = ({ modelId, filename }) => {
     scene.add(gridHelper);
 
     // Store references
-    viewerRef.current = { scene, camera, renderer, controls, model: null, ifcLoader: null, originalMaterials: new Map(), gridHelper };
+    viewerRef.current = { scene, camera, renderer, controls, model: null, ifcLoader: null, originalMaterials: new Map(), guidToMeshMap: new Map(), gridHelper };
 
     // Animation loop
     const animate = () => {
@@ -119,7 +119,8 @@ const IFCModelViewer = ({ modelId, filename }) => {
             scene.add(ifcModel);
             viewerRef.current.model = ifcModel;
 
-            // Store original materials
+            // Store original materials and build GUID map
+            const guidToMeshMap = new Map();
             ifcModel.traverse((child) => {
               if (child.isMesh && child.material) {
                 // Handle both single materials and arrays of materials
@@ -130,8 +131,24 @@ const IFCModelViewer = ({ modelId, filename }) => {
                 } else {
                   viewerRef.current.originalMaterials.set(child.uuid, child.material);
                 }
+
+                // Try to get GUID for this mesh
+                if (child.expressID !== undefined) {
+                  (async () => {
+                    try {
+                      const props = await ifcLoader.ifcManager.getItemProperties(ifcModel.modelID, child.expressID);
+                      const globalId = props.GlobalId?.value;
+                      if (globalId) {
+                        guidToMeshMap.set(globalId, child);
+                      }
+                    } catch (err) {
+                      // Silently skip elements that can't be queried
+                    }
+                  })();
+                }
               }
             });
+            viewerRef.current.guidToMeshMap = guidToMeshMap;
 
             // Center camera on model
             const box = new THREE.Box3().setFromObject(ifcModel);
@@ -260,40 +277,25 @@ const IFCModelViewer = ({ modelId, filename }) => {
       highlightColor = new THREE.Color(0x0000ff); // Blue for AV
     }
 
-    // Collect all meshes with expressIDs
-    const meshes = [];
-    model.traverse((child) => {
-      if (child.isMesh && child.expressID !== undefined) {
-        meshes.push(child);
+    // Use the pre-built GUID map to highlight elements
+    const guidToMeshMap = viewerRef.current.guidToMeshMap;
+    console.log('GUIDs to highlight:', guidsToHighlight.size, 'Mesh map size:', guidToMeshMap.size);
+
+    guidsToHighlight.forEach(guid => {
+      const mesh = guidToMeshMap.get(guid);
+      if (mesh) {
+        // Create a new material with the highlight color
+        const highlightMaterial = new THREE.MeshLambertMaterial({
+          color: highlightColor,
+          transparent: true,
+          opacity: 0.7,
+          depthTest: true
+        });
+        mesh.material = highlightMaterial;
+      } else {
+        console.warn('Mesh not found for GUID:', guid);
       }
     });
-
-    // Process meshes asynchronously to check their GUIDs
-    (async () => {
-      for (const mesh of meshes) {
-        try {
-          // Get IFC properties for this mesh
-          const props = await ifcLoader.ifcManager.getItemProperties(model.modelID, mesh.expressID);
-
-          // Get GlobalId from properties
-          const globalId = props.GlobalId?.value;
-
-          if (globalId && guidsToHighlight.has(globalId)) {
-            // Create a new material with the highlight color
-            const highlightMaterial = new THREE.MeshLambertMaterial({
-              color: highlightColor,
-              transparent: true,
-              opacity: 0.7,
-              depthTest: true
-            });
-            mesh.material = highlightMaterial;
-          }
-        } catch (err) {
-          // Skip elements that can't be queried
-          console.warn('Could not get properties for element:', mesh.expressID, err);
-        }
-      }
-    })();
   }, [highlightMode, elements, gaps]);
 
   const highlightOptions = [
