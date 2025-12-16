@@ -465,6 +465,7 @@ const decodeEncodedPolyline = (encoded) => {
 // Serve documentation files (before static frontend)
 app.get('/docs/:filename', (req, res) => {
   const { filename } = req.params;
+  const { format } = req.query; // Support ?format=pdf
   const docsPath = path.join(__dirname, 'docs', filename);
 
   // Security: Only allow .md files
@@ -483,6 +484,21 @@ app.get('/docs/:filename', (req, res) => {
       console.error('Error reading documentation file:', err);
       return res.status(500).json({ error: 'Error reading documentation file' });
     }
+
+    // If PDF format requested, convert to PDF
+    if (format && format.toLowerCase() === 'pdf') {
+      try {
+        const pdfBuffer = createStandardsPDF(data);
+        const pdfName = filename.replace('.md', '.pdf');
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${pdfName}"`);
+        return res.send(pdfBuffer);
+      } catch (pdfError) {
+        console.error('Error generating PDF:', pdfError);
+        return res.status(500).json({ error: 'Error generating PDF' });
+      }
+    }
+
     res.type('text/plain').send(data);
   });
 });
@@ -1315,9 +1331,9 @@ const attachRawFields = (event, rawData = {}, extractedData = {}) => {
 };
 
 // Normalize data from different state formats
-const normalizeEventData = (rawData, stateName, format, sourceType = 'events') => {
+const normalizeEventData = (rawData, stateName, format, sourceType = 'events', apiType = null, stateKey = null) => {
   const normalized = [];
-  
+
   try {
     if (format === 'json' || format === 'geojson') {
       // Handle Nevada
@@ -1645,10 +1661,11 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
       }
 
       // Generic WZDx handling for all other states
-      const apiType = API_CONFIG[Object.keys(API_CONFIG).find(k => API_CONFIG[k].name === stateName)]?.apiType;
-      console.log(`${stateName}: apiType=${apiType}, hasFeatures=${!!rawData.features}, featuresLength=${rawData.features?.length}`);
+      // Use passed apiType or try reverse lookup as fallback
+      const detectedApiType = apiType || API_CONFIG[Object.keys(API_CONFIG).find(k => API_CONFIG[k].name === stateName)]?.apiType;
+      console.log(`${stateName} (${stateKey}): apiType=${detectedApiType}, hasFeatures=${!!rawData.features}, featuresLength=${rawData.features?.length}`);
 
-      if (stateName !== 'Utah' && apiType === 'WZDx' && rawData.features) {
+      if (stateName !== 'Utah' && detectedApiType === 'WZDx' && rawData.features) {
         console.log(`${stateName}: Processing ${rawData.features.length} WZDx features`);
 
         rawData.features.forEach(feature => {
@@ -1686,6 +1703,11 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events') =
 
           // Get state abbreviation from stateName
           const stateAbbr = stateName.toUpperCase().substring(0, 2);
+
+          // Debug: Log first few Texas road names to understand format
+          if (stateName === 'Texas' && normalized.length < 5) {
+            console.log(`Texas sample road_names:`, roadNames, `locationText:`, locationText, `isInterstate:`, isInterstateRoute(locationText));
+          }
 
           // Only include events on interstate highways
           if (isInterstateRoute(locationText)) {
@@ -2313,10 +2335,10 @@ const extractDirection = (description, title, corridor = '', latitude = 0, longi
 const isInterstateRoute = (locationText) => {
   if (!locationText) return false;
 
-  // Match patterns like "I-80", "I 80", "Interstate 80", etc.
+  // Match patterns like "I-80", "I 80", "Interstate 80", "IH0010" (Texas format), etc.
   // Avoid state routes like "KS 156", "US 30", "MN 55"
-  const interstatePattern = /\b(I-?\d{1,3}|Interstate\s+\d{1,3})\b/i;
-  const stateRoutePattern = /\b(US|SR|KS|NE|IA|IN|MN|UT|NV|OH|NJ)\s*[-\s]?\d+\b/i;
+  const interstatePattern = /\b(I-?\d{1,3}|IH\d{4}|Interstate\s+\d{1,3})\b/i;
+  const stateRoutePattern = /\b(US|SR|KS|NE|IA|IN|MN|UT|NV|OH|NJ|SH|FM|RM|BU|BI|SL|SS)\s*[-\s]?\d+\b/i;
 
   // Must match interstate pattern and NOT match state route pattern
   return interstatePattern.test(locationText) && !stateRoutePattern.test(locationText);
@@ -2437,7 +2459,7 @@ const fetchStateData = async (stateKey) => {
             timeout: 10000,
             decompress: true // Explicitly enable gzip decompression
           });
-          const normalized = normalizeEventData(response.data, config.name, config.format, 'events');
+          const normalized = normalizeEventData(response.data, config.name, config.format, 'events', config.apiType, stateKey);
           results.events.push(...normalized);
         } catch (error) {
           results.errors.push(`Events: ${error.message}`);
@@ -2455,7 +2477,7 @@ const fetchStateData = async (stateKey) => {
             timeout: 10000,
             decompress: true // Explicitly enable gzip decompression
           });
-          const normalized = normalizeEventData(response.data, config.name, 'json', 'incidents');
+          const normalized = normalizeEventData(response.data, config.name, 'json', 'incidents', config.apiType, stateKey);
           results.events.push(...normalized);
         } catch (error) {
           results.errors.push(`Incidents: ${error.message}`);
@@ -2472,7 +2494,7 @@ const fetchStateData = async (stateKey) => {
             timeout: 10000,
             decompress: true // Explicitly enable gzip decompression
           });
-          const normalized = normalizeEventData(response.data, config.name, 'json', 'wzdx');
+          const normalized = normalizeEventData(response.data, config.name, 'json', 'wzdx', config.apiType, stateKey);
           results.events.push(...normalized);
         } catch (error) {
           results.errors.push(`WZDX: ${error.message}`);
@@ -2500,7 +2522,7 @@ const fetchStateData = async (stateKey) => {
         try {
           const response = await axios.get(config.eventsUrl, axiosConfig);
           const parsed = await parseXML(response.data);
-          const normalized = normalizeEventData(parsed, config.name, 'xml');
+          const normalized = normalizeEventData(parsed, config.name, 'xml', 'events', config.apiType, stateKey);
           results.events.push(...normalized);
         } catch (error) {
           results.errors.push(`Events: ${error.message}`);
@@ -2511,7 +2533,7 @@ const fetchStateData = async (stateKey) => {
         try {
           const response = await axios.get(config.wzdxUrl, axiosConfig);
           const parsed = await parseXML(response.data);
-          const normalized = normalizeEventData(parsed, config.name, 'xml');
+          const normalized = normalizeEventData(parsed, config.name, 'xml', 'wzdx', config.apiType, stateKey);
           results.events.push(...normalized);
         } catch (error) {
           results.errors.push(`WZDX: ${error.message}`);
