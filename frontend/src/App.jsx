@@ -697,9 +697,9 @@ function App() {
       {/* Logo Section */}
       <div style={{
         display: 'flex',
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         alignItems: 'center',
-        padding: '10px 0',
+        padding: '20px',
         backgroundColor: '#ffffff',
         borderBottom: '1px solid #e5e7eb'
       }}>
@@ -708,8 +708,9 @@ function App() {
           alt="Connected Corridor Advancement Initiative Logo"
           className="header-logo"
           style={{
-            height: '60px',
-            objectFit: 'contain'
+            height: '180px',
+            objectFit: 'contain',
+            marginLeft: '20px'
           }}
         />
       </div>
