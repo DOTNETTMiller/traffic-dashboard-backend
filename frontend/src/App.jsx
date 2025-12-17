@@ -561,16 +561,6 @@ function App() {
       {/* Header */}
       <header className="header">
         <div className="header-content">
-          <img
-            src="/assets/ccai-logo.png"
-            alt="Connected Corridor Advancement Initiative Logo"
-            className="header-logo"
-            style={{
-              height: '80px',
-              marginRight: '20px',
-              objectFit: 'contain'
-            }}
-          />
           <h1 className="title">
             DOT Corridor Communicator
             <span style={{
@@ -640,6 +630,27 @@ function App() {
               >
                 🚛 CV-TIM
               </a>
+              <a
+                href={`${config.apiUrl}/api/convert/cifs`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="tim-link"
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: '3px',
+                  border: '1px solid #10b981',
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  textDecoration: 'none',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  display: 'inline-block'
+                }}
+                title="Common Incident Feed Specification"
+              >
+                🚨 CIFS
+              </a>
             </div>
             <div style={{ marginLeft: '12px' }}>
               <DarkModeToggle
@@ -682,6 +693,26 @@ function App() {
           </div>
         </div>
       </header>
+
+      {/* Logo Section */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: '10px 0',
+        backgroundColor: '#ffffff',
+        borderBottom: '1px solid #e5e7eb'
+      }}>
+        <img
+          src="/assets/ccai-logo.png"
+          alt="Connected Corridor Advancement Initiative Logo"
+          className="header-logo"
+          style={{
+            height: '60px',
+            objectFit: 'contain'
+          }}
+        />
+      </div>
 
       {/* Controls */}
       <div className="controls">
