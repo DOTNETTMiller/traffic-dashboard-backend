@@ -43,6 +43,11 @@ function DocumentationViewer() {
       url: '/docs/DATA_NORMALIZATION.md',
       description: 'How we normalize data from 46 different sources into a unified format'
     },
+    'pooled-fund': {
+      title: 'Pooled Fund Enablement',
+      url: '/docs/pooled-fund-enablement.md',
+      description: 'How DOT Corridor Communicator enables the Connected Corridors Advancement Initiative Pooled Fund Study (I-80/I-35 corridors, 8 states, $2M budget)'
+    },
     ohio: {
       title: 'Ohio OHGO API Integration',
       url: '/docs/OHIO_API_INTEGRATION.md',
