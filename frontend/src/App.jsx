@@ -39,6 +39,7 @@ import VendorDQIComparison from './components/VendorDQIComparison';
 import GrantApplications from './components/GrantApplications';
 import NASCOCorridorRegulationsView from './components/NASCOCorridorRegulationsView';
 import DigitalInfrastructure from './components/DigitalInfrastructure';
+import VendorPortal from './components/VendorPortal';
 import './styles/App.css';
 
 function App() {
@@ -1043,10 +1044,10 @@ function App() {
           {authToken && (
             <div style={{ position: 'relative' }}>
               <button
-                className={`toggle-btn ${['feedSubmission', 'grants'].includes(view) ? 'active' : ''}`}
+                className={`toggle-btn ${['feedSubmission', 'grants', 'vendorPortal'].includes(view) ? 'active' : ''}`}
                 onClick={() => setStateToolsDropdownOpen(!stateToolsDropdownOpen)}
                 style={{
-                  backgroundColor: ['feedSubmission', 'grants'].includes(view) ? '#059669' : undefined,
+                  backgroundColor: ['feedSubmission', 'grants', 'vendorPortal'].includes(view) ? '#059669' : undefined,
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px'
@@ -1141,6 +1142,28 @@ function App() {
                     onMouseLeave={(e) => e.currentTarget.style.background = view === 'digitalInfrastructure' ? '#f3f4f6' : 'white'}
                   >
                     🏗️ Digital Infrastructure
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView('vendorPortal');
+                      setStateToolsDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'vendorPortal' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'vendorPortal' ? '600' : '400',
+                      color: view === 'vendorPortal' ? '#059669' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'vendorPortal' ? '#f3f4f6' : 'white'}
+                  >
+                    📦 Vendor Data Portal
                   </button>
 
                   {/* ARC-ITS Export - Only show if state has uploaded equipment */}
@@ -1657,6 +1680,17 @@ function App() {
           </div>
         ) : view === 'digitalInfrastructure' ? (
           <DigitalInfrastructure />
+        ) : view === 'vendorPortal' ? (
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            minHeight: 0,
+            WebkitOverflowScrolling: 'touch',
+            position: 'relative'
+          }}>
+            <VendorPortal />
+          </div>
         ) : view === 'admin' ? (
           <StateAdmin user={currentUser} authToken={authToken} />
         ) : view === 'adminUsers' ? (

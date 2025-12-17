@@ -7622,6 +7622,33 @@ function initScheduler() {
   }
 }
 
+// ============================================================================
+// VENDOR UPLOAD SERVICE
+// ============================================================================
+const VendorUploadService = require('./vendor-upload-service');
+const vendorUploadService = new VendorUploadService(db);
+
+// Configure multer for vendor file uploads
+const uploadVendorData = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [
+      'text/csv',
+      'application/json',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
+    if (allowedTypes.includes(file.mimetype) || file.originalname.match(/\.(csv|json|xlsx|xls)$/)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only CSV, JSON, and Excel files are allowed.'));
+    }
+  }
+});
+
 // Start scheduler after 10 seconds (allows services to initialize)
 setTimeout(() => {
   initScheduler();
@@ -7862,6 +7889,213 @@ app.post('/api/scheduler/trigger/:jobName', async (req, res) => {
   } catch (error) {
     console.error(`Error triggering job ${req.params.jobName}:`, error);
     res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
+// VENDOR UPLOAD API - File uploads for truck parking and segment data
+// ============================================================================
+
+// POST /api/vendors/upload - Upload vendor data file
+app.post('/api/vendors/upload', uploadVendorData.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No file uploaded'
+      });
+    }
+
+    const { provider_id, data_type, uploaded_by } = req.body;
+
+    if (!provider_id || !data_type) {
+      return res.status(400).json({
+        success: false,
+        error: 'provider_id and data_type are required'
+      });
+    }
+
+    // Validate data_type
+    const validDataTypes = ['truck_parking', 'segment_enrichment'];
+    if (!validDataTypes.includes(data_type)) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid data_type. Must be one of: ${validDataTypes.join(', ')}`
+      });
+    }
+
+    const fileInfo = {
+      filename: req.file.originalname,
+      buffer: req.file.buffer,
+      mimetype: req.file.mimetype
+    };
+
+    const result = await vendorUploadService.processUpload(
+      fileInfo,
+      parseInt(provider_id),
+      data_type,
+      uploaded_by || 'API'
+    );
+
+    res.json({
+      success: true,
+      ...result
+    });
+  } catch (error) {
+    console.error('Error processing vendor upload:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/vendors/uploads/:providerId - Get upload history for a provider
+app.get('/api/vendors/uploads/:providerId', async (req, res) => {
+  try {
+    const { providerId } = req.params;
+    const limit = parseInt(req.query.limit) || 50;
+
+    const uploads = await vendorUploadService.getUploadHistory(parseInt(providerId), limit);
+
+    res.json({
+      success: true,
+      provider_id: parseInt(providerId),
+      count: uploads.length,
+      uploads: uploads
+    });
+  } catch (error) {
+    console.error('Error getting upload history:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/vendors/truck-parking - Get truck parking data
+app.get('/api/vendors/truck-parking', async (req, res) => {
+  try {
+    const { facility_id, state_code, limit } = req.query;
+
+    const data = await vendorUploadService.getTruckParkingData(
+      facility_id,
+      state_code,
+      parseInt(limit) || 100
+    );
+
+    res.json({
+      success: true,
+      count: data.length,
+      data: data
+    });
+  } catch (error) {
+    console.error('Error getting truck parking data:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/vendors/truck-parking/:facilityId/latest - Get latest truck parking data for a facility
+app.get('/api/vendors/truck-parking/:facilityId/latest', async (req, res) => {
+  try {
+    const { facilityId } = req.params;
+
+    const data = await vendorUploadService.getTruckParkingData(facilityId, null, 1);
+
+    if (data.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No data found for this facility'
+      });
+    }
+
+    res.json({
+      success: true,
+      facility_id: facilityId,
+      data: data[0]
+    });
+  } catch (error) {
+    console.error('Error getting latest truck parking data:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/vendors/segment-enrichment - Get segment enrichment data
+app.get('/api/vendors/segment-enrichment', async (req, res) => {
+  try {
+    const { segment_id, corridor_id, state_code, limit } = req.query;
+
+    const data = await vendorUploadService.getSegmentEnrichmentData(
+      segment_id,
+      corridor_id,
+      state_code,
+      parseInt(limit) || 100
+    );
+
+    res.json({
+      success: true,
+      count: data.length,
+      data: data
+    });
+  } catch (error) {
+    console.error('Error getting segment enrichment data:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/vendors/truck-parking/predict/:facilityId - Generate AI predictions
+app.post('/api/vendors/truck-parking/predict/:facilityId', async (req, res) => {
+  try {
+    const { facilityId } = req.params;
+    const { horizon_hours } = req.body;
+
+    const horizons = horizon_hours || [1, 2, 4, 8, 24];
+
+    const predictions = await vendorUploadService.generateParkingPredictions(facilityId, horizons);
+
+    res.json({
+      success: true,
+      facility_id: facilityId,
+      predictions: predictions
+    });
+  } catch (error) {
+    console.error('Error generating predictions:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/vendors/api-usage/:providerId - Get API usage statistics
+app.get('/api/vendors/api-usage/:providerId', async (req, res) => {
+  try {
+    const { providerId } = req.params;
+    const days = parseInt(req.query.days) || 30;
+
+    const stats = await vendorUploadService.getAPIUsageStats(parseInt(providerId), days);
+
+    res.json({
+      success: true,
+      provider_id: parseInt(providerId),
+      period_days: days,
+      usage: stats
+    });
+  } catch (error) {
+    console.error('Error getting API usage stats:', error);
+    res.status(500).json({
       success: false,
       error: error.message
     });
