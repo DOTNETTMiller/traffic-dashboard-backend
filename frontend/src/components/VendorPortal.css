@@ -26,6 +26,8 @@
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  position: relative;
+  z-index: 10;
 }
 
 .provider-selector label {
@@ -40,7 +42,9 @@
   border-radius: 6px;
   font-size: 1rem;
   min-width: 300px;
+  max-height: 200px;
   transition: border-color 0.2s;
+  cursor: pointer;
 }
 
 .form-select:focus {

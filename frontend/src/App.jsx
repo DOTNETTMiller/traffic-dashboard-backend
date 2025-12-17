@@ -561,6 +561,16 @@ function App() {
       {/* Header */}
       <header className="header">
         <div className="header-content">
+          <img
+            src="/assets/ccai-logo.png"
+            alt="Connected Corridor Advancement Initiative Logo"
+            className="header-logo"
+            style={{
+              height: '80px',
+              marginRight: '20px',
+              objectFit: 'contain'
+            }}
+          />
           <h1 className="title">
             DOT Corridor Communicator
             <span style={{

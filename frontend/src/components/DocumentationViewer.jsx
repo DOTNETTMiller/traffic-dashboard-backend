@@ -280,10 +280,12 @@ function DocumentationViewer() {
       {/* Document selector */}
       <div style={{
         display: 'flex',
+        flexWrap: 'wrap',
         gap: '12px',
         marginBottom: '24px',
         borderBottom: '2px solid #e5e7eb',
-        paddingBottom: '12px'
+        paddingBottom: '12px',
+        alignItems: 'center'
       }}>
         {Object.entries(docs).map(([key, doc]) => (
           <button
@@ -310,7 +312,6 @@ function DocumentationViewer() {
           onClick={downloadPDF}
           disabled={downloading || loading}
           style={{
-            marginLeft: 'auto',
             padding: '8px 16px',
             borderRadius: '6px',
             border: 'none',
@@ -321,7 +322,8 @@ function DocumentationViewer() {
             fontWeight: '500',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px'
+            gap: '6px',
+            whiteSpace: 'nowrap'
           }}
         >
           {downloading ? '⏳ Generating...' : '📄 Download PDF'}
