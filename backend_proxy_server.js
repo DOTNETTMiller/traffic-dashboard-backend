@@ -7051,6 +7051,220 @@ app.get('/api/events/comments/all', async (req, res) => {
   });
 });
 
+// ============================================================================
+// PLUGIN SYSTEM API - Third-Party Data Provider Integration
+// ============================================================================
+const PluginService = require('./plugin-service');
+const pluginService = new PluginService(db);
+
+// Middleware to verify plugin API key
+const verifyPluginAuth = async (req, res, next) => {
+  const apiKey = req.headers['x-api-key'];
+
+  if (!apiKey) {
+    return res.status(401).json({
+      error: 'Missing API key',
+      message: 'Include X-API-Key header with your request'
+    });
+  }
+
+  const provider = await pluginService.verifyApiKey(apiKey);
+
+  if (!provider) {
+    return res.status(401).json({
+      error: 'Invalid or expired API key',
+      message: 'Your API key is invalid, expired, or your account is not active'
+    });
+  }
+
+  req.provider = provider;
+  next();
+};
+
+// POST /api/plugins/register - Register new plugin provider
+app.post('/api/plugins/register', async (req, res) => {
+  try {
+    const result = await pluginService.registerProvider(req.body);
+
+    res.status(201).json({
+      success: true,
+      message: 'Provider registered successfully',
+      ...result
+    });
+  } catch (error) {
+    console.error('Error registering provider:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/plugins/events - Submit plugin event (requires API key)
+app.post('/api/plugins/events', verifyPluginAuth, async (req, res) => {
+  try {
+    const result = await pluginService.submitEvent(req.provider.provider_id, req.body);
+
+    res.status(201).json({
+      success: true,
+      message: 'Event submitted successfully',
+      ...result
+    });
+  } catch (error) {
+    console.error('Error submitting plugin event:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/plugins/events - Get plugin events (public or authenticated)
+app.get('/api/plugins/events', async (req, res) => {
+  try {
+    const filters = {
+      provider_id: req.query.provider_id ? parseInt(req.query.provider_id) : undefined,
+      state_code: req.query.state_code,
+      event_type: req.query.event_type,
+      start_date: req.query.start_date,
+      end_date: req.query.end_date,
+      limit: req.query.limit ? parseInt(req.query.limit) : 100,
+      offset: req.query.offset ? parseInt(req.query.offset) : 0
+    };
+
+    const events = await pluginService.getEvents(filters);
+
+    res.json({
+      success: true,
+      count: events.length,
+      events
+    });
+  } catch (error) {
+    console.error('Error fetching plugin events:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/plugins/providers - Get all active providers
+app.get('/api/plugins/providers', async (req, res) => {
+  try {
+    const providers = await db.allAsync(
+      `SELECT provider_id, provider_name, display_name, website_url, logo_url,
+              description, data_types, coverage_states, status
+       FROM plugin_providers
+       WHERE status IN ('active', 'trial')
+       ORDER BY display_name`
+    );
+
+    res.json({
+      success: true,
+      count: providers.length,
+      providers: providers.map(p => ({
+        ...p,
+        data_types: JSON.parse(p.data_types || '[]'),
+        coverage_states: JSON.parse(p.coverage_states || '[]')
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching providers:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/corridors/:corridorId/scores - Get corridor performance scores
+app.get('/api/corridors/:corridorId/scores', async (req, res) => {
+  try {
+    const { corridorId } = req.params;
+    const { start_date, end_date } = req.query;
+
+    const scores = await pluginService.getCorridorScores(
+      corridorId,
+      start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+      end_date || new Date().toISOString()
+    );
+
+    res.json({
+      success: true,
+      ...scores
+    });
+  } catch (error) {
+    console.error('Error fetching corridor scores:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/corridors/:corridorId/compare-providers - Compare data providers
+app.get('/api/corridors/:corridorId/compare-providers', async (req, res) => {
+  try {
+    const { corridorId } = req.params;
+    const providerIds = req.query.provider_ids
+      ? req.query.provider_ids.split(',').map(id => parseInt(id))
+      : [];
+
+    const comparison = await pluginService.compareProviders(corridorId, providerIds);
+
+    res.json({
+      success: true,
+      ...comparison
+    });
+  } catch (error) {
+    console.error('Error comparing providers:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/plugins/analytics/:providerId - Get provider analytics (requires API key)
+app.get('/api/plugins/analytics/:providerId', verifyPluginAuth, async (req, res) => {
+  try {
+    const { providerId } = req.params;
+
+    // Verify provider owns this data
+    if (req.provider.provider_id !== parseInt(providerId)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+    }
+
+    const analytics = await db.allAsync(
+      `SELECT metric_type, metric_value, state_code, timestamp, metadata
+       FROM plugin_analytics
+       WHERE provider_id = ?
+       ORDER BY timestamp DESC
+       LIMIT 100`,
+      [providerId]
+    );
+
+    res.json({
+      success: true,
+      provider_id: parseInt(providerId),
+      count: analytics.length,
+      analytics: analytics.map(a => ({
+        ...a,
+        metadata: a.metadata ? JSON.parse(a.metadata) : null
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching analytics:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Get list of states available for messaging
 app.get('/api/states/list', async (req, res) => {
   // Build list from API_CONFIG
