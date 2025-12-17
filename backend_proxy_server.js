@@ -18,6 +18,7 @@ const { fetchPennDOTRCRS } = require('./scripts/fetch_penndot_rcrs');
 const ComplianceAnalyzer = require('./compliance-analyzer');
 const { OpenAI } = require('openai');
 const IFCParser = require('./utils/ifc-parser');
+const multer = require('multer');
 
 // Initialize volume data from bundled sources on startup
 function initVolumeData() {
@@ -7625,11 +7626,10 @@ function initScheduler() {
 // ============================================================================
 // VENDOR UPLOAD SERVICE
 // ============================================================================
-const multer = require('multer');
 const VendorUploadService = require('./vendor-upload-service');
 const vendorUploadService = new VendorUploadService(db);
 
-// Configure multer for vendor file uploads
+// Configure multer for vendor file uploads (multer is required later in the file at line 11601)
 const uploadVendorData = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -11599,11 +11599,10 @@ Write a similar specific briefing for ${corridor} based on the actual events lis
 // ITS EQUIPMENT INVENTORY & V2X DEPLOYMENT
 // ========================================
 
-const multer = require('multer');
 const GISParser = require('./utils/gis-parser');
 const ARCITSConverter = require('./utils/arc-its-converter');
 
-// Configure multer for GIS file uploads
+// Configure multer for GIS file uploads (multer required at top of file)
 const upload = multer({
   dest: path.join(__dirname, 'uploads/gis'),
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
