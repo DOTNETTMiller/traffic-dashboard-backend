@@ -4648,6 +4648,181 @@ app.get('/api/convert/tim-cv', async (req, res) => {
   });
 });
 
+// ==================== CIFS (COMMON INCIDENT FEED SPECIFICATION) ENDPOINT ====================
+// CIFS combines incident data from all sources into a standardized TIM-based feed
+app.get('/api/convert/cifs', async (req, res) => {
+  console.log('Converting events to CIFS (Common Incident Feed Specification) format...');
+
+  // Extract bounding box parameters from query string
+  const { minLat, maxLat, minLon, maxLon } = req.query;
+  const boundingBox = (minLat && maxLat && minLon && maxLon) ? { minLat, maxLat, minLon, maxLon } : null;
+
+  if (boundingBox) {
+    console.log(`📍 Bounding box filter requested: (${minLat},${minLon}) to (${maxLat},${maxLon})`);
+  }
+
+  // Fetch all events from all data sources
+  const allResults = await Promise.all(
+    getAllStateKeys().map(stateKey => fetchStateData(stateKey))
+  );
+
+  const allEvents = [];
+  allResults.forEach(result => allEvents.push(...result.events));
+
+  // Add Ohio OHGO API events
+  try {
+    const ohioEvents = await fetchOhioEvents();
+    if (ohioEvents && ohioEvents.length > 0) {
+      allEvents.push(...ohioEvents);
+      console.log(`Added ${ohioEvents.length} Ohio OHGO events to CIFS conversion`);
+    }
+  } catch (error) {
+    console.error('Error fetching Ohio events for CIFS:', error.message);
+  }
+
+  // Add California Caltrans LCS events
+  try {
+    const caltransEvents = await fetchCaltransLCS();
+    if (caltransEvents && caltransEvents.length > 0) {
+      allEvents.push(...caltransEvents);
+      console.log(`Added ${caltransEvents.length} Caltrans LCS events to CIFS conversion`);
+    }
+  } catch (error) {
+    console.error('Error fetching Caltrans events for CIFS:', error.message);
+  }
+
+  // Deduplicate events by ID (keep first occurrence)
+  const seenIds = new Set();
+  const uniqueEvents = [];
+  let duplicateCount = 0;
+
+  allEvents.forEach(event => {
+    if (!seenIds.has(event.id)) {
+      seenIds.add(event.id);
+      uniqueEvents.push(event);
+    } else {
+      duplicateCount++;
+    }
+  });
+
+  if (duplicateCount > 0) {
+    console.log(`⚠️  Removed ${duplicateCount} duplicate event(s) in CIFS conversion`);
+  }
+
+  console.log(`Total events for CIFS conversion: ${uniqueEvents.length} (${allEvents.length} before dedup)`);
+
+  // Apply bounding box filter if provided
+  const filteredEvents = boundingBox ? filterEventsByBoundingBox(uniqueEvents, boundingBox) : uniqueEvents;
+
+  // Convert to CIFS incident messages (TIM-based structure)
+  const cifsMessages = filteredEvents.map(event => {
+    const vmsMessage = generateVMSMessage(event);
+    const startDateTime = event.startTime || event.startDate;
+    const endDateTime = event.endTime || event.endDate;
+    const latitude = event.latitude || (event.coordinates && event.coordinates[1]);
+    const longitude = event.longitude || (event.coordinates && event.coordinates[0]);
+
+    return {
+      // CIFS Core Fields
+      incident_id: event.id,
+      incident_type: event.eventType,
+      severity: event.severity || 'medium',
+      status: event.roadStatus || 'Active',
+
+      // TIM-compatible structure for V2X broadcast
+      tim_message: {
+        msgCnt: Math.floor(Math.random() * 127),
+        timeStamp: startDateTime ? new Date(startDateTime).toISOString() : new Date().toISOString(),
+        packetID: event.id,
+        urlB: null,
+        dataFrames: [
+          {
+            startTime: startDateTime,
+            durationTime: endDateTime && startDateTime ? Math.floor((new Date(endDateTime) - new Date(startDateTime)) / 60000) : null,
+            priority: event.severity === 'high' ? 0 : event.severity === 'medium' ? 1 : 2,
+            regions: [
+              {
+                name: event.state,
+                anchorPosition: {
+                  lat: latitude,
+                  long: longitude,
+                  elevation: null
+                },
+                laneWidth: null,
+                directionality: event.direction,
+                closedPath: false,
+                direction: event.direction,
+                description: event.corridor
+              }
+            ],
+            content: {
+              advisory: {
+                item: {
+                  itis: getITISCode(event.eventType),
+                  text: vmsMessage
+                }
+              },
+              workZone: event.eventType === 'Construction' ? {
+                workersPresent: true,
+                speedLimit: null
+              } : null,
+              incident: ['Incident', 'Closure'].includes(event.eventType) ? {
+                eventType: event.eventType,
+                description: event.description
+              } : null
+            }
+          }
+        ]
+      },
+
+      // CIFS-specific metadata
+      location: {
+        state: event.state,
+        corridor: event.corridor,
+        direction: event.direction,
+        coordinates: {
+          latitude: latitude,
+          longitude: longitude
+        }
+      },
+
+      // Timing information
+      timing: {
+        start: startDateTime,
+        end: endDateTime,
+        lastUpdated: event.lastUpdated || new Date().toISOString()
+      },
+
+      // Impact information
+      impact: {
+        roadStatus: event.roadStatus,
+        lanesClosed: event.lanesClosed || event.lanesAffected,
+        totalLanes: event.totalLanes,
+        message: vmsMessage
+      },
+
+      // Original event for reference
+      source: {
+        provider: event.source || 'Unknown',
+        originalEvent: event
+      }
+    };
+  });
+
+  res.json({
+    format: 'CIFS (Common Incident Feed Specification)',
+    description: 'Unified incident feed combining TIM messages from multiple DOT sources',
+    timestamp: new Date().toISOString(),
+    incident_count: cifsMessages.length,
+    incidents: cifsMessages,
+    metadata: {
+      sources: ['WZDx', 'Ohio OHGO', 'Caltrans LCS', 'State DOT APIs'],
+      tim_compatible: true,
+      v2x_ready: true
+    }
+  });
+});
+
 // Helper: Generate truck-specific advisories
 const generateTruckAdvisories = (event) => {
   const advisories = [];
