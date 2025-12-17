@@ -19,9 +19,6 @@ WORKDIR /app
 # Copy all application files
 COPY . .
 
-# Explicitly copy frontend/dist to ensure it's included
-COPY frontend/dist /app/frontend/dist
-
 # Install only backend dependencies
 ENV SKIP_FRONTEND_BUILD=1
 RUN npm ci --only=production
