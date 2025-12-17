@@ -694,27 +694,6 @@ function App() {
         </div>
       </header>
 
-      {/* Logo Section */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'flex-start',
-        alignItems: 'center',
-        padding: '20px',
-        backgroundColor: '#ffffff',
-        borderBottom: '1px solid #e5e7eb'
-      }}>
-        <img
-          src="/assets/ccai-logo.png"
-          alt="Connected Corridor Advancement Initiative Logo"
-          className="header-logo"
-          style={{
-            height: '180px',
-            objectFit: 'contain',
-            marginLeft: '20px'
-          }}
-        />
-      </div>
-
       {/* Controls */}
       <div className="controls">
         <div className="view-toggle">
@@ -1771,6 +1750,25 @@ function App() {
                 💬
               </button>
             )}
+
+            {/* CCAI Logo Overlay */}
+            <div style={{
+              position: 'absolute',
+              top: '20px',
+              left: '20px',
+              zIndex: 1000,
+              pointerEvents: 'none'
+            }}>
+              <img
+                src="/assets/ccai-logo.png"
+                alt="Connected Corridor Advancement Initiative Logo"
+                style={{
+                  height: '120px',
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
+                }}
+              />
+            </div>
 
             <div style={{
               flex: 1,
