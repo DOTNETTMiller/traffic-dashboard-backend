@@ -7265,6 +7265,609 @@ app.get('/api/plugins/analytics/:providerId', verifyPluginAuth, async (req, res)
   }
 });
 
+// ============================================================================
+// REPORT CARD SYSTEM API - Monthly State Performance Reports
+// ============================================================================
+const ReportCardService = require('./report-card-service');
+let reportCardService = null;
+
+// Initialize report card service (requires email service)
+function initReportCardService() {
+  if (!reportCardService && typeof sendEmail !== 'undefined') {
+    const emailServiceAdapter = {
+      sendEmail: async (emailData) => {
+        return await sendEmail(emailData.to, emailData.subject, emailData.html || emailData.text);
+      }
+    };
+    reportCardService = new ReportCardService(db, emailServiceAdapter);
+    console.log('✅ Report Card Service initialized');
+  }
+}
+
+// Initialize on startup (after email service is available)
+setTimeout(() => initReportCardService(), 5000);
+
+// POST /api/reports/generate/:month - Generate monthly reports (admin only)
+app.post('/api/reports/generate/:month', async (req, res) => {
+  try {
+    if (!reportCardService) {
+      initReportCardService();
+      if (!reportCardService) {
+        return res.status(503).json({
+          success: false,
+          error: 'Report card service not initialized'
+        });
+      }
+    }
+
+    const { month } = req.params;
+    const monthRegex = /^\d{4}-(0[1-9]|1[0-2])$/;
+    if (!monthRegex.test(month)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid month format. Use YYYY-MM (e.g., 2025-01)'
+      });
+    }
+
+    console.log(`📊 Generating monthly scores for ${month}...`);
+    const results = await reportCardService.generateMonthlyScores(month);
+
+    res.json({
+      success: true,
+      message: `Generated reports for ${month}`,
+      month: month,
+      states_processed: results.length,
+      rankings_calculated: true
+    });
+  } catch (error) {
+    console.error('Error generating reports:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/reports/:stateCode/:month - Get state's report card
+app.get('/api/reports/:stateCode/:month', async (req, res) => {
+  try {
+    if (!reportCardService) {
+      initReportCardService();
+      if (!reportCardService) {
+        return res.status(503).json({
+          success: false,
+          error: 'Report card service not initialized'
+        });
+      }
+    }
+
+    const { stateCode, month } = req.params;
+    const reportData = await reportCardService.getReportCard(stateCode.toUpperCase(), month);
+
+    if (!reportData.scores) {
+      return res.status(404).json({
+        success: false,
+        error: `No report card found for ${stateCode.toUpperCase()} in ${month}`
+      });
+    }
+
+    res.json({
+      success: true,
+      ...reportData
+    });
+  } catch (error) {
+    console.error('Error fetching report card:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/reports/rankings/:month - Get national rankings
+app.get('/api/reports/rankings/:month', async (req, res) => {
+  try {
+    if (!reportCardService) {
+      initReportCardService();
+      if (!reportCardService) {
+        return res.status(503).json({
+          success: false,
+          error: 'Report card service not initialized'
+        });
+      }
+    }
+
+    const { month } = req.params;
+    const limit = parseInt(req.query.limit) || 50;
+    const region = req.query.region || null;
+
+    const rankings = await db.allAsync(
+      `SELECT
+        s.state_code,
+        c.state_name,
+        c.region,
+        c.peer_group,
+        s.overall_score,
+        s.letter_grade,
+        s.national_rank,
+        s.regional_rank,
+        s.rank_change,
+        s.score_change,
+        s.reliability_score,
+        s.safety_score,
+        s.congestion_score,
+        s.data_quality_score
+      FROM state_monthly_scores s
+      JOIN state_contact_info c ON s.state_code = c.state_code
+      WHERE s.month_year = ?
+      ${region ? 'AND c.region = ?' : ''}
+      ORDER BY s.national_rank ASC
+      LIMIT ?`,
+      region ? [month, region, limit] : [month, limit]
+    );
+
+    res.json({
+      success: true,
+      month: month,
+      region: region,
+      count: rankings.length,
+      rankings: rankings
+    });
+  } catch (error) {
+    console.error('Error fetching rankings:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/reports/send/:stateCode - Send report email to state
+app.post('/api/reports/send/:stateCode', async (req, res) => {
+  try {
+    if (!reportCardService) {
+      initReportCardService();
+      if (!reportCardService) {
+        return res.status(503).json({
+          success: false,
+          error: 'Report card service not initialized'
+        });
+      }
+    }
+
+    const { stateCode } = req.params;
+    const month = req.body.month || null;
+
+    const result = await reportCardService.sendReportCard(stateCode.toUpperCase(), month);
+
+    res.json({
+      success: true,
+      message: `Report sent to ${stateCode.toUpperCase()}`,
+      ...result
+    });
+  } catch (error) {
+    console.error('Error sending report:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/reports/send-all - Send reports to all enabled states
+app.post('/api/reports/send-all', async (req, res) => {
+  try {
+    if (!reportCardService) {
+      initReportCardService();
+      if (!reportCardService) {
+        return res.status(503).json({
+          success: false,
+          error: 'Report card service not initialized'
+        });
+      }
+    }
+
+    const month = req.body.month || null;
+
+    // Start background job
+    const results = await reportCardService.sendAllReports(month);
+
+    res.json({
+      success: true,
+      message: 'Reports sent to all enabled states',
+      month: month,
+      results: results
+    });
+  } catch (error) {
+    console.error('Error sending all reports:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/reports/contact/:stateCode - Get state contact info
+app.get('/api/reports/contact/:stateCode', async (req, res) => {
+  try {
+    const { stateCode } = req.params;
+    const contact = await db.getAsync(
+      `SELECT * FROM state_contact_info WHERE state_code = ?`,
+      [stateCode.toUpperCase()]
+    );
+
+    if (!contact) {
+      return res.status(404).json({
+        success: false,
+        error: `State ${stateCode.toUpperCase()} not found`
+      });
+    }
+
+    // Parse JSON fields
+    contact.additional_contacts = contact.additional_contacts
+      ? JSON.parse(contact.additional_contacts)
+      : [];
+
+    res.json({
+      success: true,
+      contact: contact
+    });
+  } catch (error) {
+    console.error('Error fetching contact:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// PUT /api/reports/contact/:stateCode - Update state contact info
+app.put('/api/reports/contact/:stateCode', async (req, res) => {
+  try {
+    const { stateCode } = req.params;
+    const {
+      contact_name,
+      contact_email,
+      contact_title,
+      additional_contacts,
+      report_enabled,
+      report_frequency
+    } = req.body;
+
+    await db.runAsync(
+      `UPDATE state_contact_info
+       SET contact_name = ?,
+           contact_email = ?,
+           contact_title = ?,
+           additional_contacts = ?,
+           report_enabled = ?,
+           report_frequency = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE state_code = ?`,
+      [
+        contact_name || null,
+        contact_email || null,
+        contact_title || null,
+        additional_contacts ? JSON.stringify(additional_contacts) : null,
+        report_enabled !== undefined ? (report_enabled ? 1 : 0) : 1,
+        report_frequency || 'monthly',
+        stateCode.toUpperCase()
+      ]
+    );
+
+    res.json({
+      success: true,
+      message: `Contact info updated for ${stateCode.toUpperCase()}`
+    });
+  } catch (error) {
+    console.error('Error updating contact:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/reports/history/:stateCode - Get report history for state
+app.get('/api/reports/history/:stateCode', async (req, res) => {
+  try {
+    const { stateCode } = req.params;
+    const limit = parseInt(req.query.limit) || 12;
+
+    const history = await db.allAsync(
+      `SELECT * FROM report_card_history
+       WHERE state_code = ?
+       ORDER BY sent_at DESC
+       LIMIT ?`,
+      [stateCode.toUpperCase(), limit]
+    );
+
+    res.json({
+      success: true,
+      state_code: stateCode.toUpperCase(),
+      count: history.length,
+      history: history.map(h => ({
+        ...h,
+        recipients: h.recipients ? JSON.parse(h.recipients) : [],
+        report_data: h.report_data ? JSON.parse(h.report_data) : null
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching history:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
+// CIFS (Connected Infrastructure Feed System) API
+// TIM (Traveler Information Message) & CV-TIM (Connected Vehicle TIM)
+// ============================================================================
+const CIFSService = require('./cifs-service');
+const cifsService = new CIFSService(db);
+
+// ============================================================================
+// SCHEDULER SERVICE
+// ============================================================================
+const SchedulerService = require('./scheduler-service');
+let schedulerService = null;
+
+// Initialize scheduler (after report card and CIFS services are ready)
+function initScheduler() {
+  if (reportCardService && cifsService && !schedulerService) {
+    schedulerService = new SchedulerService(reportCardService, cifsService);
+    schedulerService.start();
+  }
+}
+
+// Start scheduler after 10 seconds (allows services to initialize)
+setTimeout(() => {
+  initScheduler();
+}, 10000);
+
+// POST /api/cifs/tim - Submit TIM message
+app.post('/api/cifs/tim', async (req, res) => {
+  try {
+    const timMessage = req.body;
+
+    // Parse TIM message
+    const parsed = cifsService.parseTIM(timMessage);
+
+    // Store in database
+    const result = await cifsService.storeTIMMessage(parsed, 'TIM');
+
+    res.json({
+      success: true,
+      message: 'TIM message processed successfully',
+      ...result
+    });
+  } catch (error) {
+    console.error('Error processing TIM message:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/cifs/cv-tim - Submit CV-TIM message
+app.post('/api/cifs/cv-tim', async (req, res) => {
+  try {
+    const cvTimMessage = req.body;
+
+    // Parse CV-TIM message
+    const parsed = cifsService.parseCVTIM(cvTimMessage);
+
+    // Store in database
+    const result = await cifsService.storeTIMMessage(parsed, 'CV-TIM');
+
+    res.json({
+      success: true,
+      message: 'CV-TIM message processed successfully',
+      ...result
+    });
+  } catch (error) {
+    console.error('Error processing CV-TIM message:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/cifs/messages - Get TIM/CV-TIM messages
+app.get('/api/cifs/messages', async (req, res) => {
+  try {
+    const filters = {
+      message_type: req.query.message_type,
+      start_date: req.query.start_date,
+      end_date: req.query.end_date,
+      state_code: req.query.state_code,
+      limit: parseInt(req.query.limit) || 100,
+      offset: parseInt(req.query.offset) || 0
+    };
+
+    const messages = await cifsService.getTIMMessages(filters);
+
+    res.json({
+      success: true,
+      count: messages.length,
+      messages: messages
+    });
+  } catch (error) {
+    console.error('Error fetching TIM messages:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/cifs/feed/subscribe - Subscribe to CIFS feed
+app.post('/api/cifs/feed/subscribe', async (req, res) => {
+  try {
+    const feedConfig = req.body;
+
+    const result = await cifsService.subscribeToCIFSFeed(feedConfig);
+
+    res.json({
+      success: true,
+      message: 'Subscribed to CIFS feed successfully',
+      ...result
+    });
+  } catch (error) {
+    console.error('Error subscribing to feed:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/cifs/feed/:feedId/poll - Poll CIFS feed for new messages
+app.post('/api/cifs/feed/:feedId/poll', async (req, res) => {
+  try {
+    const { feedId } = req.params;
+
+    const result = await cifsService.pollCIFSFeed(parseInt(feedId));
+
+    res.json({
+      success: true,
+      ...result
+    });
+  } catch (error) {
+    console.error('Error polling feed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// DELETE /api/cifs/messages/expired - Cleanup expired TIM messages
+app.delete('/api/cifs/messages/expired', async (req, res) => {
+  try {
+    const result = await cifsService.cleanupExpiredTIMMessages();
+
+    res.json({
+      success: true,
+      message: 'Expired messages cleaned up',
+      ...result
+    });
+  } catch (error) {
+    console.error('Error cleaning up messages:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/cifs/convert/wzdx - Convert TIM/CV-TIM to WZDx format
+app.post('/api/cifs/convert/wzdx', async (req, res) => {
+  try {
+    const { message, message_type = 'TIM' } = req.body;
+
+    // Parse message based on type
+    const parsed = message_type === 'CV-TIM' ?
+      cifsService.parseCVTIM(message) :
+      cifsService.parseTIM(message);
+
+    // Convert to WZDx
+    const wzdxFeed = cifsService.convertToWZDx(parsed);
+
+    res.json({
+      success: true,
+      message_type: parsed.message_type,
+      wzdx_feed: wzdxFeed
+    });
+  } catch (error) {
+    console.error('Error converting to WZDx:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/cifs/itis/:code - Lookup ITIS code description
+app.get('/api/cifs/itis/:code', (req, res) => {
+  try {
+    const code = parseInt(req.params.code);
+    const description = cifsService.translateITISCode(code);
+
+    res.json({
+      success: true,
+      itis_code: code,
+      description: description
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
+// SCHEDULER API - Manage automated jobs
+// ============================================================================
+
+// GET /api/scheduler/status - Get scheduler status
+app.get('/api/scheduler/status', (req, res) => {
+  try {
+    if (!schedulerService) {
+      return res.json({
+        success: true,
+        running: false,
+        message: 'Scheduler not initialized yet'
+      });
+    }
+
+    const status = schedulerService.getStatus();
+
+    res.json({
+      success: true,
+      running: true,
+      jobs: status
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/scheduler/trigger/:jobName - Manually trigger a job
+app.post('/api/scheduler/trigger/:jobName', async (req, res) => {
+  try {
+    if (!schedulerService) {
+      return res.status(503).json({
+        success: false,
+        error: 'Scheduler not initialized yet'
+      });
+    }
+
+    const { jobName } = req.params;
+    const result = await schedulerService.triggerJob(jobName);
+
+    res.json({
+      success: true,
+      job: jobName,
+      ...result
+    });
+  } catch (error) {
+    console.error(`Error triggering job ${req.params.jobName}:`, error);
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Get list of states available for messaging
 app.get('/api/states/list', async (req, res) => {
   // Build list from API_CONFIG
