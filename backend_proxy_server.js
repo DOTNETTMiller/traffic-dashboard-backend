@@ -7625,6 +7625,7 @@ function initScheduler() {
 // ============================================================================
 // VENDOR UPLOAD SERVICE
 // ============================================================================
+const multer = require('multer');
 const VendorUploadService = require('./vendor-upload-service');
 const vendorUploadService = new VendorUploadService(db);
 
