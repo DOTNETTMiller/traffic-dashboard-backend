@@ -192,6 +192,39 @@ export default function FederalGrantResources({ darkMode = false }) {
       typicalAward: '$25M - $100M',
       matchRequired: 'Minimum 30%',
       color: '#06b6d4'
+    },
+    {
+      id: 'build',
+      name: 'BUILD Grant',
+      fullName: 'Better Utilizing Investments to Leverage Development (formerly RAISE)',
+      agency: 'USDOT - Office of the Secretary',
+      funding: '$1.5B annually (FY 2022-2026)',
+      eligibility: 'State DOTs, Local Governments, Counties, Tribal Governments, Transit Agencies, Port Authorities',
+      focus: [
+        'Multimodal Infrastructure Projects',
+        'Surface Transportation Projects',
+        'Safety Improvements',
+        'Economic Competitiveness',
+        'Environmental Sustainability',
+        'Quality of Life Enhancements',
+        'State of Good Repair',
+        'Partnership and Collaboration'
+      ],
+      arcItsRelevance: 'MEDIUM - ITS components strengthen multimodal applications',
+      nofoUrl: 'https://www.transportation.gov/BUILDgrants',
+      grantsGovUrl: 'https://www.grants.gov/search-results-detail/356890',
+      applicationPeriod: 'FY2025: Deadline January 30, 2025. Annual solicitations expected.',
+      keyRequirements: [
+        'Benefit-Cost Analysis (BCA)',
+        'Multi-jurisdictional or multimodal impact',
+        'Project readiness documentation',
+        'Community engagement plan',
+        'Merit criteria alignment (safety, equity, climate, economic, mobility)',
+        'Environmental review status'
+      ],
+      typicalAward: '$5M - $25M (rural); $25M+ (urban)',
+      matchRequired: '20% minimum (lower for rural areas)',
+      color: '#14b8a6'
     }
   ];
 
