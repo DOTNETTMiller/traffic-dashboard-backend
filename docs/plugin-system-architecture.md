@@ -400,6 +400,513 @@ Quality Score = (
 ) * 100
 ```
 
+## Road Segment Scoring & Analytics
+
+### Multi-Source Data Fusion
+
+The plugin system enables comprehensive road segment scoring by combining:
+- **State DOT Data**: Work zones, planned closures, official incidents
+- **Commercial Providers**: Real-time speeds, predictive analytics, crowd-sourced data
+- **Historical Patterns**: Traffic trends, recurring congestion, seasonal variations
+
+### Corridor Performance Metrics
+
+#### 1. Reliability Score (0-100)
+Measures travel time consistency and predictability.
+
+```
+Reliability Score = 100 - (travel_time_variance / expected_travel_time * 100)
+
+Components:
+- Planning Time Index (PTI): 95th percentile travel time / free-flow travel time
+- Buffer Time Index (BTI): Extra time needed to arrive on-time 95% of trips
+- Standard Deviation: Variability across time periods
+```
+
+**Data Sources:**
+- Inrix: Real-time travel times
+- Here: Predictive travel time algorithms
+- TomTom: Historical speed patterns
+- State DOT: Construction impact data
+
+#### 2. Safety Score (0-100)
+Evaluates incident frequency, severity, and hazard exposure.
+
+```
+Safety Score = 100 - (
+  (incident_frequency * 0.4) +
+  (severity_weighted_score * 0.35) +
+  (hazard_exposure_time * 0.25)
+)
+
+Severity Weights:
+- Fatal: 100 points
+- Injury: 50 points
+- Property damage: 20 points
+- Minor incident: 5 points
+```
+
+**Data Sources:**
+- State DOT: Official crash reports
+- Waze: Real-time hazard alerts
+- Inrix: Verified incident data
+- Here: Road condition sensors
+
+#### 3. Congestion Score (0-100)
+Quantifies traffic flow efficiency and delay costs.
+
+```
+Congestion Score = 100 - (
+  (speed_reduction_pct * 0.4) +
+  (delay_hours_per_mile * 0.35) +
+  (queue_length_factor * 0.25)
+)
+
+Where:
+- speed_reduction_pct = (free_flow_speed - avg_speed) / free_flow_speed * 100
+- delay_hours = vehicles_affected * avg_delay_minutes / 60
+- queue_length_factor = max_queue_length / segment_length * 100
+```
+
+**Data Sources:**
+- Inrix: Traffic speed data (5-minute intervals)
+- Here: Flow analytics
+- TomTom: Congestion indexing
+- State DOT: Traffic counts, detector data
+
+#### 4. Data Quality Score (0-100)
+Validates provider accuracy and completeness.
+
+```
+Data Quality Score = (
+  wzdx_compliance * 0.25 +
+  temporal_accuracy * 0.25 +
+  spatial_accuracy * 0.20 +
+  completeness * 0.15 +
+  freshness * 0.10 +
+  cross_validation * 0.05
+) * 100
+
+Metrics:
+- WZDx Compliance: Schema validation pass rate
+- Temporal Accuracy: Start/end time accuracy vs ground truth
+- Spatial Accuracy: Coordinate precision (±10m threshold)
+- Completeness: Required fields populated
+- Freshness: Update frequency vs expected
+- Cross-validation: Agreement with other sources
+```
+
+#### 5. Economic Impact Score
+Calculates the dollar cost of delays and disruptions.
+
+```
+Economic Impact = (
+  total_delay_hours *
+  avg_value_of_time *
+  traffic_volume
+) + work_zone_costs + incident_costs
+
+Where:
+- avg_value_of_time = $17.80/hour (USDOT 2023)
+- work_zone_costs = construction_duration * daily_impact
+- incident_costs = clearance_time * congestion_spread_factor
+```
+
+### Database Schema for Scoring
+
+```sql
+-- Store hourly segment scores
+CREATE TABLE corridor_scores (
+  score_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  corridor_id TEXT NOT NULL,           -- "I-80-CA-MP45-MP67"
+  state_code TEXT NOT NULL,
+  timestamp TIMESTAMP NOT NULL,        -- Hourly intervals
+  hour_of_day INTEGER,                 -- 0-23
+  day_of_week INTEGER,                 -- 0=Sun, 6=Sat
+
+  -- Performance Scores (0-100)
+  reliability_score REAL,
+  safety_score REAL,
+  congestion_score REAL,
+  overall_score REAL,
+
+  -- Data Quality by Provider
+  provider_scores TEXT,                -- JSON: {"inrix": 95.2, "here": 93.1, "waze": 88.5}
+
+  -- Economic Metrics
+  delay_hours REAL,
+  economic_impact_usd REAL,
+  vehicles_affected INTEGER,
+
+  -- Event Counts
+  work_zones_active INTEGER,
+  incidents_count INTEGER,
+
+  -- Source Attribution
+  data_sources TEXT,                   -- JSON: ["inrix", "here", "dot_official"]
+
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_corridor_scores_corridor ON corridor_scores(corridor_id, timestamp);
+CREATE INDEX idx_corridor_scores_state ON corridor_scores(state_code, timestamp);
+
+-- Store monthly aggregates for report cards
+CREATE TABLE monthly_corridor_reports (
+  report_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  corridor_id TEXT NOT NULL,
+  state_code TEXT NOT NULL,
+  year INTEGER NOT NULL,
+  month INTEGER NOT NULL,              -- 1-12
+
+  -- Average Scores
+  avg_reliability_score REAL,
+  avg_safety_score REAL,
+  avg_congestion_score REAL,
+  avg_overall_score REAL,
+
+  -- Score Changes (vs previous month)
+  reliability_change REAL,
+  safety_change REAL,
+  congestion_change REAL,
+
+  -- Rankings
+  state_rank INTEGER,                  -- Rank within state
+  national_rank INTEGER,               -- Rank nationally
+
+  -- Notable Events
+  total_work_zones INTEGER,
+  total_incidents INTEGER,
+  peak_congestion_hours INTEGER,
+
+  -- Economic Impact
+  total_delay_hours REAL,
+  total_economic_impact_usd REAL,
+
+  -- Data Quality Assessment
+  provider_quality_scores TEXT,       -- JSON: Average quality by provider
+  data_coverage_pct REAL,              -- % of hours with valid data
+
+  -- Executive Summary
+  top_issues TEXT,                     -- JSON: Array of top 3 issues
+  recommendations TEXT,                -- JSON: Improvement suggestions
+
+  generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+  UNIQUE(corridor_id, year, month)
+);
+
+CREATE INDEX idx_monthly_reports_state ON monthly_corridor_reports(state_code, year, month);
+```
+
+### API Endpoints for Scoring
+
+#### GET /api/corridors/:corridor_id/scores
+Get real-time and historical scores for a corridor.
+
+**Query Parameters:**
+- `start_date` - ISO timestamp
+- `end_date` - ISO timestamp
+- `interval` - hourly, daily, weekly, monthly
+- `metrics` - reliability,safety,congestion,all
+
+**Response:**
+```json
+{
+  "corridor_id": "I-80-CA-MP45-MP67",
+  "state_code": "CA",
+  "interval": "hourly",
+  "scores": [
+    {
+      "timestamp": "2024-12-17T08:00:00Z",
+      "reliability_score": 72.5,
+      "safety_score": 88.3,
+      "congestion_score": 45.2,
+      "overall_score": 68.7,
+      "delay_hours": 234.5,
+      "economic_impact_usd": 4174.10,
+      "data_sources": ["inrix", "here", "ca_dot"],
+      "provider_quality": {
+        "inrix": 94.2,
+        "here": 91.8,
+        "ca_dot": 89.5
+      }
+    }
+  ],
+  "summary": {
+    "avg_overall_score": 68.7,
+    "trend": "improving",
+    "worst_hour": "08:00",
+    "best_hour": "03:00"
+  }
+}
+```
+
+#### GET /api/corridors/:corridor_id/compare-providers
+Compare data quality across providers for a corridor.
+
+**Response:**
+```json
+{
+  "corridor_id": "I-80-CA-MP45-MP67",
+  "comparison_period": "2024-12",
+  "providers": [
+    {
+      "provider_name": "inrix",
+      "data_quality_score": 94.2,
+      "coverage_pct": 99.8,
+      "temporal_accuracy": 96.5,
+      "spatial_accuracy": 95.1,
+      "incidents_detected": 145,
+      "false_positives": 3,
+      "avg_latency_minutes": 2.1
+    },
+    {
+      "provider_name": "here",
+      "data_quality_score": 91.8,
+      "coverage_pct": 98.5,
+      "temporal_accuracy": 94.2,
+      "spatial_accuracy": 93.8,
+      "incidents_detected": 138,
+      "false_positives": 5,
+      "avg_latency_minutes": 3.5
+    }
+  ],
+  "recommendation": "Inrix shows 2.4% higher quality score with better coverage"
+}
+```
+
+## Monthly Executive Report Cards
+
+### Overview
+
+Automated monthly report cards provide state DOT leadership with executive summaries of corridor performance, trends, and actionable insights.
+
+### Report Card Components
+
+#### Executive Summary
+- Overall corridor health grade (A-F)
+- Month-over-month performance changes
+- Top 3 corridors needing attention
+- Economic impact of congestion and incidents
+- Data provider performance comparison
+
+#### Detailed Metrics by Corridor
+1. **Performance Scores**: Reliability, Safety, Congestion
+2. **Rankings**: State-level and national comparisons
+3. **Trends**: 3-month and 12-month trend lines
+4. **Cost Analysis**: Economic impact breakdown
+5. **Recommendations**: Data-driven improvement suggestions
+
+### Report Generation API
+
+#### POST /api/reports/generate
+Generate a monthly report card for a state.
+
+**Request:**
+```json
+{
+  "state_code": "CA",
+  "year": 2024,
+  "month": 12,
+  "corridors": ["I-80", "I-5", "US-101"],
+  "recipients": [
+    {
+      "name": "Director of Transportation",
+      "email": "director@dot.ca.gov",
+      "role": "executive"
+    }
+  ],
+  "format": "pdf"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "report_id": "CA-2024-12-001",
+  "generated_at": "2024-12-17T10:00:00Z",
+  "download_url": "https://corridor-comm.example.com/reports/CA-2024-12-001.pdf",
+  "delivery_status": {
+    "email_sent": true,
+    "recipients_notified": 5
+  }
+}
+```
+
+#### GET /api/reports/:state_code/:year/:month
+Retrieve a generated report card.
+
+**Response:**
+```json
+{
+  "report_id": "CA-2024-12-001",
+  "state_code": "CA",
+  "period": "December 2024",
+  "executive_summary": {
+    "overall_grade": "B+",
+    "state_rank": 12,
+    "national_rank": 45,
+    "total_corridors": 28,
+    "corridors_improved": 18,
+    "corridors_declined": 7,
+    "corridors_stable": 3
+  },
+  "key_findings": [
+    "I-80 reliability improved 8.5% due to completion of bridge work",
+    "US-101 safety score declined 12% from increased incident frequency",
+    "I-5 congestion costs exceeded $2.1M in December"
+  ],
+  "corridor_performance": [
+    {
+      "corridor_id": "I-80",
+      "grade": "A-",
+      "reliability_score": 88.5,
+      "safety_score": 92.1,
+      "congestion_score": 75.3,
+      "overall_score": 85.3,
+      "change_from_last_month": +8.5,
+      "state_rank": 3,
+      "total_delay_hours": 1245,
+      "economic_impact_usd": 22141,
+      "top_issue": "Morning peak congestion at MP 67-72",
+      "recommendation": "Consider ramp metering at MP 68"
+    }
+  ],
+  "provider_performance": {
+    "inrix": {
+      "data_quality_score": 94.2,
+      "coverage_pct": 99.8,
+      "grade": "A"
+    },
+    "here": {
+      "data_quality_score": 91.8,
+      "coverage_pct": 98.5,
+      "grade": "A-"
+    },
+    "waze": {
+      "data_quality_score": 87.3,
+      "coverage_pct": 92.1,
+      "grade": "B+"
+    }
+  },
+  "economic_analysis": {
+    "total_delay_hours": 45230,
+    "total_economic_impact_usd": 805094,
+    "avg_cost_per_mile": 1250,
+    "highest_cost_corridor": "I-5",
+    "cost_trend": "-5.2%"
+  },
+  "recommendations": [
+    {
+      "priority": "high",
+      "corridor": "US-101",
+      "issue": "Incident response time averaging 28 minutes",
+      "recommendation": "Deploy additional FAST Act patrol units",
+      "estimated_savings_usd": 125000
+    }
+  ]
+}
+```
+
+### Report Card Templates
+
+#### Executive Email Template
+```
+Subject: [State] DOT Corridor Report Card - [Month Year] - Grade: [Overall Grade]
+
+Dear [Director Name],
+
+Your monthly corridor performance report card for [State] is now available.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DECEMBER 2024 PERFORMANCE SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Overall Grade: B+ (85.3/100)
+State Rank: #12 of 50
+Trend: ↑ Improving (+3.2 vs November)
+
+TOP PERFORMERS
+✓ I-80: Grade A- (85.3) - Reliability improved 8.5%
+✓ SR-99: Grade B+ (82.1) - Safety score up 6.2%
+✓ I-5: Grade B (78.5) - Congestion reduced 4.1%
+
+CORRIDORS NEEDING ATTENTION
+⚠ US-101: Grade C+ (71.2) - Safety declined 12%
+⚠ I-15: Grade C (68.5) - Congestion costs up 18%
+
+ECONOMIC IMPACT
+Total Delay Hours: 45,230 hours
+Economic Cost: $805,094
+Cost Trend: -5.2% (improving)
+
+DATA PROVIDER PERFORMANCE
+• Inrix: Grade A (94.2) - Best coverage & accuracy
+• Here Technologies: Grade A- (91.8) - Strong reliability data
+• Waze: Grade B+ (87.3) - Good incident detection
+
+RECOMMENDED ACTIONS
+1. Deploy additional FAST Act patrols on US-101 (Est. savings: $125K/month)
+2. Implement ramp metering on I-80 MP 68 (Est. ROI: 340%)
+3. Evaluate Inrix commercial data for I-15 predictive analytics
+
+View Full Report: [Download PDF]
+
+Questions? Contact: corridor-analytics@[state].gov
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Powered by DOT Corridor Communicator
+Multi-source data from: State DOT, Inrix, Here, Waze
+```
+
+#### PDF Report Structure
+1. **Cover Page**: Grade, state seal, period
+2. **Executive Summary**: 1-page highlights
+3. **Corridor Rankings**: Top 10 best/worst
+4. **Detailed Analysis**: Each major corridor (2 pages)
+   - Performance scores with trend charts
+   - Incident heat maps
+   - Economic impact breakdown
+   - Provider data quality comparison
+5. **Provider Comparison**: Side-by-side quality metrics
+6. **Recommendations**: Prioritized action items with ROI
+7. **Appendix**: Methodology, definitions, data sources
+
+### Automated Delivery Schedule
+
+```javascript
+// Monthly report generation cron job
+const schedule = {
+  generation: "1st of month at 6:00 AM",
+  delivery: "1st of month at 8:00 AM",
+  recipients: [
+    "State DOT Director",
+    "Deputy Director of Operations",
+    "Traffic Management Center Director",
+    "Chief Engineer",
+    "Data & Analytics Manager"
+  ],
+  formats: ["PDF", "Interactive Dashboard Link"],
+  retention: "24 months"
+};
+```
+
+### Report Card Metrics
+
+**Success Indicators:**
+- Report open rate: Target >85%
+- Time to review: Track engagement
+- Action item completion: Monitor follow-through
+- ROI of recommendations: Measure impact
+
+**Quality Metrics:**
+- Data completeness: >95% coverage required
+- Cross-validation: Multi-source agreement
+- Statistical significance: Confidence intervals
+- Peer review: Monthly validation process
+
 ## Business Model
 
 ### Revenue Opportunities
