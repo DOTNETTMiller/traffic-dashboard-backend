@@ -48,6 +48,11 @@ function DocumentationViewer() {
       url: '/docs/pooled-fund-enablement.md',
       description: 'How DOT Corridor Communicator enables the Connected Corridors Advancement Initiative Pooled Fund Study (I-80/I-35 corridors, 8 states, $2M budget)'
     },
+    'plugin-system': {
+      title: 'Plugin System & API',
+      url: '/docs/plugin-system-architecture.md',
+      description: 'Third-party data provider integration for Inrix, Here, Waze, TomTom, and other traffic data companies. Complete API documentation, authentication, WZDx standards, and marketplace model.'
+    },
     ohio: {
       title: 'Ohio OHGO API Integration',
       url: '/docs/OHIO_API_INTEGRATION.md',
