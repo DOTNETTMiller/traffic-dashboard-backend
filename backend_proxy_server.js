@@ -4714,13 +4714,13 @@ app.get('/api/convert/cifs', async (req, res) => {
   // Apply bounding box filter if provided
   const filteredEvents = boundingBox ? filterEventsByBoundingBox(uniqueEvents, boundingBox) : uniqueEvents;
 
-  // Helper: Map event types to Waze CIFS types
+  // Helper: Map event types to Waze CIFS types (official spec values only)
   const mapToCIFSType = (eventType) => {
     const typeMap = {
-      'Construction': 'CONSTRUCTION',
+      'Construction': 'ROAD_CLOSED',
       'Incident': 'ACCIDENT',
       'Closure': 'ROAD_CLOSED',
-      'Weather': 'WEATHERHAZARD',
+      'Weather': 'HAZARD',
       'Congestion': 'JAM',
       'Hazard': 'HAZARD'
     };
@@ -4735,49 +4735,38 @@ app.get('/api/convert/cifs', async (req, res) => {
     return 'ONE_DIRECTION';
   };
 
-  // Convert to Waze CIFS format
+  // Convert to Waze CIFS format (official spec-compliant)
   const cifsIncidents = filteredEvents.map(event => {
     const startDateTime = event.startTime || event.startDate;
     const endDateTime = event.endTime || event.endDate;
     const latitude = event.latitude || (event.coordinates && event.coordinates[1]);
     const longitude = event.longitude || (event.coordinates && event.coordinates[0]);
-    const creationTime = event.createdAt || startDateTime || new Date().toISOString();
-    const updateTime = event.lastUpdated || event.updatedAt || new Date().toISOString();
 
+    // Build CIFS incident (official Waze spec format)
     const cifsIncident = {
       // Required fields
       id: event.id,
-      creationtime: creationTime,
-      updatetime: updateTime,
       type: mapToCIFSType(event.eventType),
-
-      // Location (required)
-      location: {
-        street: event.corridor || event.route || 'Unknown',
-        city: event.city || '',
-        state: event.state || '',
-        country: 'US'
-      }
+      street: event.corridor || event.route || 'Unknown'
     };
 
-    // Add polyline or point
+    // Polyline (required) - must be array of [lat, lon] coordinate pairs
     if (latitude && longitude) {
-      cifsIncident.location.polyline = `${latitude},${longitude}`;
+      // Round to 6 decimal places per CIFS spec
+      const lat = parseFloat(latitude.toFixed(6));
+      const lon = parseFloat(longitude.toFixed(6));
+      cifsIncident.polyline = [[lat, lon]];
+    } else {
+      // Fallback to empty polyline if coordinates missing
+      cifsIncident.polyline = [];
     }
 
-    // Optional fields
-    if (event.description) {
-      cifsIncident.description = event.description;
-    }
-
-    if (event.subtype || event.eventSubType) {
-      cifsIncident.subtype = event.subtype || event.eventSubType;
-    }
-
+    // Start time (required for ROAD_CLOSED type)
     if (startDateTime) {
       cifsIncident.starttime = startDateTime;
     }
 
+    // Optional but recommended fields
     if (endDateTime) {
       cifsIncident.endtime = endDateTime;
     }
@@ -4787,9 +4776,26 @@ app.get('/api/convert/cifs', async (req, res) => {
       cifsIncident.direction = direction;
     }
 
-    // Add severity if available
-    if (event.severity) {
-      cifsIncident.severity = event.severity.toUpperCase();
+    if (event.description) {
+      // Truncate to 40 characters as recommended by spec
+      cifsIncident.description = event.description.substring(0, 40);
+    }
+
+    // Map subtype to CIFS-compliant values
+    if (event.subtype || event.eventSubType) {
+      const subtype = event.subtype || event.eventSubType;
+      // Map common subtypes to CIFS format
+      const subtypeMap = {
+        'Construction': 'ROAD_CLOSED_CONSTRUCTION',
+        'Major': 'ACCIDENT_MAJOR',
+        'Minor': 'ACCIDENT_MINOR',
+        'Weather': 'HAZARD_WEATHER',
+        'Ice': 'HAZARD_WEATHER_ICE',
+        'Fog': 'HAZARD_WEATHER_FOG',
+        'Debris': 'HAZARD_ON_ROAD_OBJECT',
+        'Object': 'HAZARD_ON_ROAD_OBJECT'
+      };
+      cifsIncident.subtype = subtypeMap[subtype] || subtype;
     }
 
     return cifsIncident;
@@ -20396,6 +20402,12 @@ app.use((req, res, next) => {
     path: req.path
   });
 });
+
+// ==================== PDF DOCUMENTATION ====================
+
+// Serve pre-generated PDF documentation
+const PDF_DOCS_PATH = '/Users/mattmiller/Downloads/DOT-Documentation';
+app.use('/pdfs', express.static(PDF_DOCS_PATH));
 
 // ==================== STATIC FILES & SPA ====================
 

@@ -1,3 +1,5 @@
+![CCAI Logo](/assets/ccai-logo.png)
+
 # IFC-ARC-ITS Quick Start Guide: From CAD to Digital Twin in 30 Days
 
 ## Overview

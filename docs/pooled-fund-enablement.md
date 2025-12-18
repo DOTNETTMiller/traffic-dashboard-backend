@@ -1,3 +1,5 @@
+![CCAI Logo](/assets/ccai-logo.png)
+
 # How DOT Corridor Communicator Enables the Connected Corridors Advancement Initiative
 
 ## Executive Summary

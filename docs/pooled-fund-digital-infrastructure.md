@@ -1,3 +1,5 @@
+![CCAI Logo](/assets/ccai-logo.png)
+
 # Pooled Fund Study Framework for Multi-State Digital Infrastructure
 
 ## Overview

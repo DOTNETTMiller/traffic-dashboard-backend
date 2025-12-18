@@ -1,3 +1,5 @@
+![CCAI Logo](/assets/ccai-logo.png)
+
 # Return on Investment (ROI) Analysis for DOT Corridor Communicator
 
 ## Executive Summary

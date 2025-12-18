@@ -1,3 +1,5 @@
+![CCAI Logo](/assets/ccai-logo.png)
+
 # DOT Corridor Communicator: Executive Business Plan
 
 ## Executive Summary
