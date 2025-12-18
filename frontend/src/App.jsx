@@ -1733,9 +1733,27 @@ function App() {
             <GroundTruthDashboard authToken={authToken} currentUser={currentUser} />
           </div>
         ) : view === 'digitalInfrastructure' ? (
-          <DigitalInfrastructure />
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            minHeight: 0,
+            WebkitOverflowScrolling: 'touch',
+            position: 'relative'
+          }}>
+            <DigitalInfrastructure />
+          </div>
         ) : view === 'standardsCrosswalk' ? (
-          <DigitalStandardsCrosswalk />
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            minHeight: 0,
+            WebkitOverflowScrolling: 'touch',
+            position: 'relative'
+          }}>
+            <DigitalStandardsCrosswalk />
+          </div>
         ) : view === 'vendorPortal' ? (
           <div style={{
             flex: 1,
