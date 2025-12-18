@@ -1078,7 +1078,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                       color: '#1e40af',
                       marginBottom: '6px'
                     }}>
-                      Total Visible Spaces (optional):
+                      Total Capacity (optional):
                     </label>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <input
@@ -1137,7 +1137,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                       color: '#6b7280',
                       fontStyle: 'italic'
                     }}>
-                      Enter occupied and total visible spaces. AI button fills both fields automatically.
+                      Enter occupied and total capacity. AI button fills both fields automatically.
                     </p>
                   </div>
                 </div>
@@ -1174,8 +1174,8 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
           <li>Review the predicted busy hours graph showing occupancy trends throughout the day</li>
           <li>Compare camera images with the model's current parking predictions</li>
           <li>Click "Get AI Count" to use AI vision to automatically count occupied spaces, total capacity, and available spaces</li>
-          <li>Manually count visible parking spaces (occupied and total) using different camera angles, or adjust the AI count if needed</li>
-          <li>Enter counts for occupied spaces (required) and total visible spaces (optional) - this helps track open stalls</li>
+          <li>Manually count visible parking spaces (occupied and total capacity) using different camera angles, or adjust the AI count if needed</li>
+          <li>Enter counts for occupied spaces (required) and total capacity (optional) - this helps track open stalls</li>
           <li>Use this data to identify patterns where predictions are most/least accurate</li>
         </ol>
       </div>
