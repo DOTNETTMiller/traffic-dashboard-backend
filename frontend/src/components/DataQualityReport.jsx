@@ -812,10 +812,11 @@ export default function DataQualityReport() {
           bottom: 0,
           backgroundColor: 'rgba(0,0,0,0.5)',
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-start',
           justifyContent: 'center',
-          zIndex: 1000,
-          padding: '20px'
+          zIndex: 9999,
+          padding: '40px 20px',
+          overflowY: 'auto'
         }}
         onClick={() => setSelectedState(null)}
         >
@@ -823,11 +824,12 @@ export default function DataQualityReport() {
             style={{
               maxWidth: '900px',
               width: '100%',
-              maxHeight: '90vh',
-              overflow: 'auto',
+              maxHeight: 'none',
+              overflow: 'visible',
               backgroundColor: 'white',
               borderRadius: '12px',
-              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
+              marginBottom: '40px'
             }}
             onClick={(e) => e.stopPropagation()}
           >
