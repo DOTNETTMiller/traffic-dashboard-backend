@@ -1754,9 +1754,9 @@ function App() {
             {/* CCAI Logo Overlay */}
             <div style={{
               position: 'absolute',
-              top: '-80px',
+              top: '80px',
               left: '20px',
-              zIndex: 1000,
+              zIndex: 10000,
               pointerEvents: 'none'
             }}>
               <img
