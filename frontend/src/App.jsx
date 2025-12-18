@@ -39,6 +39,7 @@ import VendorDQIComparison from './components/VendorDQIComparison';
 import GrantApplications from './components/GrantApplications';
 import NASCOCorridorRegulationsView from './components/NASCOCorridorRegulationsView';
 import DigitalInfrastructure from './components/DigitalInfrastructure';
+import DigitalStandardsCrosswalk from './components/DigitalStandardsCrosswalk';
 import VendorPortal from './components/VendorPortal';
 import './styles/App.css';
 
@@ -87,6 +88,7 @@ function App() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showCorridorBriefing, setShowCorridorBriefing] = useState(false);
   const [hasITSEquipment, setHasITSEquipment] = useState(false);
+  const [logoIntroComplete, setLogoIntroComplete] = useState(false);
 
   // Apply dark mode class to document root
   useEffect(() => {
@@ -97,6 +99,15 @@ function App() {
     }
     localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
   }, [isDarkMode]);
+
+  // Logo intro animation - show full screen for 15 seconds then transition to corner
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLogoIntroComplete(true);
+    }, 15000); // 15 seconds
+
+    return () => clearTimeout(timer);
+  }, []);
 
   // Fetch parking data when parking view is active
   useEffect(() => {
@@ -1065,10 +1076,10 @@ function App() {
           {authToken && (
             <div style={{ position: 'relative' }}>
               <button
-                className={`toggle-btn ${['feedSubmission', 'grants', 'vendorPortal'].includes(view) ? 'active' : ''}`}
+                className={`toggle-btn ${['feedSubmission', 'grants', 'digitalInfrastructure', 'standardsCrosswalk', 'vendorPortal'].includes(view) ? 'active' : ''}`}
                 onClick={() => setStateToolsDropdownOpen(!stateToolsDropdownOpen)}
                 style={{
-                  backgroundColor: ['feedSubmission', 'grants', 'vendorPortal'].includes(view) ? '#059669' : undefined,
+                  backgroundColor: ['feedSubmission', 'grants', 'digitalInfrastructure', 'standardsCrosswalk', 'vendorPortal'].includes(view) ? '#059669' : undefined,
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px'
@@ -1163,6 +1174,28 @@ function App() {
                     onMouseLeave={(e) => e.currentTarget.style.background = view === 'digitalInfrastructure' ? '#f3f4f6' : 'white'}
                   >
                     🏗️ Digital Infrastructure
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView('standardsCrosswalk');
+                      setStateToolsDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'standardsCrosswalk' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'standardsCrosswalk' ? '600' : '400',
+                      color: view === 'standardsCrosswalk' ? '#059669' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'standardsCrosswalk' ? '#f3f4f6' : 'white'}
+                  >
+                    📋 Digital Standards Crosswalk
                   </button>
                   <button
                     onClick={() => {
@@ -1701,6 +1734,8 @@ function App() {
           </div>
         ) : view === 'digitalInfrastructure' ? (
           <DigitalInfrastructure />
+        ) : view === 'standardsCrosswalk' ? (
+          <DigitalStandardsCrosswalk />
         ) : view === 'vendorPortal' ? (
           <div style={{
             flex: 1,
@@ -1753,19 +1788,30 @@ function App() {
 
             {/* CCAI Logo Overlay */}
             <div style={{
-              position: 'absolute',
-              top: '80px',
-              left: '20px',
-              zIndex: 10000,
-              pointerEvents: 'none'
+              position: logoIntroComplete ? 'absolute' : 'fixed',
+              top: logoIntroComplete ? '80px' : '50%',
+              left: logoIntroComplete ? '20px' : '50%',
+              transform: logoIntroComplete ? 'none' : 'translate(-50%, -50%)',
+              zIndex: logoIntroComplete ? 10000 : 20000,
+              pointerEvents: 'none',
+              transition: 'all 1.5s ease-in-out',
+              backgroundColor: logoIntroComplete ? 'transparent' : 'white',
+              width: logoIntroComplete ? 'auto' : '100vw',
+              height: logoIntroComplete ? 'auto' : '100vh',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
             }}>
               <img
                 src="/assets/ccai-logo.png"
                 alt="Connected Corridor Advancement Initiative Logo"
                 style={{
-                  height: '120px',
+                  height: logoIntroComplete ? '120px' : '60vh',
+                  maxHeight: logoIntroComplete ? '120px' : '80vh',
+                  maxWidth: logoIntroComplete ? 'none' : '90vw',
                   objectFit: 'contain',
-                  filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
+                  filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
+                  transition: 'all 1.5s ease-in-out'
                 }}
               />
             </div>

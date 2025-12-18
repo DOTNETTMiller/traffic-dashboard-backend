@@ -1,3 +1,5 @@
+![CCAI Logo](/assets/ccai-logo.png)
+
 # Using the Digital Lifecycle Crosswalk: Practical Guide
 
 ## Overview

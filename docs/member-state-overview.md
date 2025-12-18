@@ -1,3 +1,10 @@
+![CCAI Logo](/assets/ccai-logo.png)
+
+# Member State Overview
+
+**Comprehensive guide for state DOTs: Features, benefits, use cases, technical specs, and getting started**
+*(46+ states, real-time operations, digital infrastructure)*
+
 # DOT Corridor Communicator: Comprehensive Overview for Member States
 
 ## Executive Summary
@@ -31,29 +38,29 @@ This system:
 ### Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    State DOT Data Sources                        │
-│  WZDx Feeds (30+ states) │ FEU-G (5 states) │ Custom APIs (10+)  │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│              Data Normalization & Quality Engine                 │
-│  • Schema mapping   • Validation   • Deduplication   • Scoring   │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   Unified Event Database                         │
-│    PostgreSQL (Production) / SQLite (Development)                │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-           ┌─────────────┼─────────────┬───────────────┐
-           ▼             ▼             ▼               ▼
-    ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐
-    │   Web    │  │ REST API │  │  TIM     │  │   Digital    │
-    │Dashboard │  │          │  │ Messages │  │Infrastructure│
-    └──────────┘  └──────────┘  └──────────┘  └──────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                    State DOT Data Sources                         │
+│   WZDx Feeds (30+ states) | FEU-G (5 states) | Custom APIs (10+) │
+└───────────────────────────┬──────────────────────────────────────┘
+                            │
+                            ▼
+┌──────────────────────────────────────────────────────────────────┐
+│              Data Normalization & Quality Engine                  │
+│   • Schema mapping   • Validation   • Deduplication   • Scoring  │
+└───────────────────────────┬──────────────────────────────────────┘
+                            │
+                            ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                    Unified Event Database                         │
+│     PostgreSQL (Production) / SQLite (Development)                │
+└───────────────────────────┬──────────────────────────────────────┘
+                            │
+            ┌───────────────┼───────────────┬──────────────┐
+            ▼               ▼               ▼              ▼
+    ┌───────────┐   ┌───────────┐   ┌───────────┐   ┌──────────────┐
+    │    Web    │   │ REST API  │   │    TIM    │   │   Digital    │
+    │ Dashboard │   │           │   │ Messages  │   │Infrastructure│
+    └───────────┘   └───────────┘   └───────────┘   └──────────────┘
 ```
 
 ---
@@ -268,24 +275,22 @@ IDM Recommendation: Add Pset_DistributionElementCommon.DeviceID property
 
 Links static BIM models to dynamic operational data:
 
-```
-IFC Static Model          ARC-ITS Live Data         Integration
-─────────────────         ─────────────────         ───────────
-IFCDYNAMICMESSAGESIGN  →  NTCIP 1203 DMS Data    →  Device ID mapping
-├─ device_id              ├─ Message content         Link via GUID
-├─ Latitude/longitude     ├─ Device health           Real-time status
-└─ Installation date      └─ Communication status    Digital twin
-
-IFCCAMERA              →  NTCIP 1209 CCTV        →  Video feeds
-├─ camera_id              ├─ PTZ position            Pan/tilt/zoom
-├─ Coverage area          ├─ Video stream URL        Live monitoring
-└─ Field of view          └─ Recording status        Incident verification
-
-IFCWEATHERSTATION      →  NTCIP 1204 ESS/RWIS    →  Weather data
-├─ station_id             ├─ Air temperature         Real-time conditions
-├─ Sensor types           ├─ Surface conditions      Road treatment
-└─ Location               └─ Visibility              Travel advisories
-```
+| IFC Static Model | ARC-ITS Live Data | Integration |
+|------------------|-------------------|-------------|
+| **IFCDYNAMICMESSAGESIGN** | **NTCIP 1203 DMS Data** | **Device ID mapping** |
+| • device_id | • Message content | Link via GUID |
+| • Latitude/longitude | • Device health | Real-time status |
+| • Installation date | • Communication status | Digital twin |
+| | | |
+| **IFCCAMERA** | **NTCIP 1209 CCTV** | **Video feeds** |
+| • camera_id | • PTZ position | Pan/tilt/zoom |
+| • Coverage area | • Video stream URL | Live monitoring |
+| • Field of view | • Recording status | Incident verification |
+| | | |
+| **IFCWEATHERSTATION** | **NTCIP 1204 ESS/RWIS** | **Weather data** |
+| • station_id | • Air temperature | Real-time conditions |
+| • Sensor types | • Surface conditions | Road treatment |
+| • Location | • Visibility | Travel advisories |
 
 **Digital Twin Capabilities:**
 - 3D visualization of infrastructure with real-time operational overlays

@@ -1,3 +1,5 @@
+![CCAI Logo](/assets/ccai-logo.png)
+
 # Digital Infrastructure Documentation
 
 ## Overview
