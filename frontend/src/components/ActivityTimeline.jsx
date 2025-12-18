@@ -4,41 +4,9 @@ import { config } from '../config';
 import { theme } from '../styles/theme';
 
 export default function ActivityTimeline({ events, messages = {} }) {
-  const [filter, setFilter] = useState('all'); // 'all', 'events', 'messages', 'projects', 'biweeklys'
+  const [filter, setFilter] = useState('all'); // 'all', 'events', 'messages'
   const [timeRange, setTimeRange] = useState('24h'); // '1h', '6h', '24h', '7d', 'all'
   const [expanded, setExpanded] = useState({});
-  const [projects, setProjects] = useState([]);
-  const [biweeklyReports, setBiweeklyReports] = useState([]);
-
-  // Load projects and biweekly reports
-  useEffect(() => {
-    const loadProjects = async () => {
-      try {
-        const response = await fetch(`${config.apiUrl}/api/projects`);
-        const data = await response.json();
-        if (data.success && Array.isArray(data.projects)) {
-          setProjects(data.projects);
-        }
-      } catch (error) {
-        console.error('Failed to load projects:', error);
-      }
-    };
-
-    const loadBiweeklyReports = async () => {
-      try {
-        const response = await fetch(`${config.apiUrl}/api/biweekly-reports`);
-        const data = await response.json();
-        if (data.success && Array.isArray(data.reports)) {
-          setBiweeklyReports(data.reports);
-        }
-      } catch (error) {
-        console.error('Failed to load biweekly reports:', error);
-      }
-    };
-
-    loadProjects();
-    loadBiweeklyReports();
-  }, []);
 
   // Generate activity items from events and messages
   const activityItems = useMemo(() => {
@@ -92,55 +60,9 @@ export default function ActivityTimeline({ events, messages = {} }) {
       }
     });
 
-    // Add projects as activity items
-    if (Array.isArray(projects)) {
-      projects.forEach(project => {
-        if (project.created_at) {
-          items.push({
-            id: `project-${project.id}`,
-            type: 'project',
-            timestamp: new Date(project.created_at),
-            icon: '📋',
-            color: theme.colors.accentBlue,
-            title: `Project: ${project.title}`,
-            description: project.location_name || `${project.latitude.toFixed(4)}, ${project.longitude.toFixed(4)}`,
-            details: project.description,
-            metadata: {
-              status: project.status,
-              priority: project.priority,
-              startDate: project.start_date,
-              endDate: project.end_date
-            }
-          });
-        }
-      });
-    }
-
-    // Add biweekly reports as activity items
-    if (Array.isArray(biweeklyReports)) {
-      biweeklyReports.forEach(report => {
-        if (report.report_date) {
-          items.push({
-            id: `biweekly-${report.id}`,
-            type: 'biweekly',
-            timestamp: new Date(report.report_date),
-            icon: '📝',
-            color: theme.colors.accentPurple,
-            title: `Biweekly Report: ${report.title}`,
-            description: report.location_name || (report.latitude ? `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}` : 'No location'),
-            details: report.content,
-            metadata: {
-              reportDate: report.report_date,
-              projectId: report.project_id
-            }
-          });
-        }
-      });
-    }
-
     // Sort by timestamp (most recent first)
     return items.sort((a, b) => b.timestamp - a.timestamp);
-  }, [events, messages, projects, biweeklyReports]);
+  }, [events, messages]);
 
   // Filter by time range
   const timeFilteredItems = useMemo(() => {
@@ -162,8 +84,6 @@ export default function ActivityTimeline({ events, messages = {} }) {
     if (filter === 'all') return timeFilteredItems;
     if (filter === 'events') return timeFilteredItems.filter(item => item.type === 'event_created');
     if (filter === 'messages') return timeFilteredItems.filter(item => item.type === 'message');
-    if (filter === 'projects') return timeFilteredItems.filter(item => item.type === 'project');
-    if (filter === 'biweeklys') return timeFilteredItems.filter(item => item.type === 'biweekly');
     return timeFilteredItems;
   }, [timeFilteredItems, filter]);
 
@@ -225,9 +145,7 @@ export default function ActivityTimeline({ events, messages = {} }) {
             {[
               { value: 'all', label: 'All', icon: '🔍' },
               { value: 'events', label: 'Events', icon: '📍' },
-              { value: 'messages', label: 'Messages', icon: '💬' },
-              { value: 'projects', label: 'Projects', icon: '📋' },
-              { value: 'biweeklys', label: 'Biweeklys', icon: '📝' }
+              { value: 'messages', label: 'Messages', icon: '💬' }
             ].map(({ value, label, icon }) => (
               <button
                 key={value}
