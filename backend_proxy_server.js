@@ -4649,9 +4649,9 @@ app.get('/api/convert/tim-cv', async (req, res) => {
 });
 
 // ==================== CIFS (COMMON INCIDENT FEED SPECIFICATION) ENDPOINT ====================
-// CIFS combines incident data from all sources into a standardized TIM-based feed
+// Google Waze CIFS format: https://developers.google.com/waze/data-feed/cifs-specification
 app.get('/api/convert/cifs', async (req, res) => {
-  console.log('Converting events to CIFS (Common Incident Feed Specification) format...');
+  console.log('Converting events to Waze CIFS (Common Incident Feed Specification) format...');
 
   // Extract bounding box parameters from query string
   const { minLat, maxLat, minLon, maxLon } = req.query;
@@ -4714,112 +4714,90 @@ app.get('/api/convert/cifs', async (req, res) => {
   // Apply bounding box filter if provided
   const filteredEvents = boundingBox ? filterEventsByBoundingBox(uniqueEvents, boundingBox) : uniqueEvents;
 
-  // Convert to CIFS incident messages (TIM-based structure)
-  const cifsMessages = filteredEvents.map(event => {
-    const vmsMessage = generateVMSMessage(event);
+  // Helper: Map event types to Waze CIFS types
+  const mapToCIFSType = (eventType) => {
+    const typeMap = {
+      'Construction': 'CONSTRUCTION',
+      'Incident': 'ACCIDENT',
+      'Closure': 'ROAD_CLOSED',
+      'Weather': 'WEATHERHAZARD',
+      'Congestion': 'JAM',
+      'Hazard': 'HAZARD'
+    };
+    return typeMap[eventType] || 'HAZARD';
+  };
+
+  // Helper: Determine direction
+  const mapDirection = (direction) => {
+    if (!direction) return null;
+    const dir = direction.toLowerCase();
+    if (dir.includes('both') || dir.includes('all')) return 'BOTH_DIRECTIONS';
+    return 'ONE_DIRECTION';
+  };
+
+  // Convert to Waze CIFS format
+  const cifsIncidents = filteredEvents.map(event => {
     const startDateTime = event.startTime || event.startDate;
     const endDateTime = event.endTime || event.endDate;
     const latitude = event.latitude || (event.coordinates && event.coordinates[1]);
     const longitude = event.longitude || (event.coordinates && event.coordinates[0]);
+    const creationTime = event.createdAt || startDateTime || new Date().toISOString();
+    const updateTime = event.lastUpdated || event.updatedAt || new Date().toISOString();
 
-    return {
-      // CIFS Core Fields
-      incident_id: event.id,
-      incident_type: event.eventType,
-      severity: event.severity || 'medium',
-      status: event.roadStatus || 'Active',
+    const cifsIncident = {
+      // Required fields
+      id: event.id,
+      creationtime: creationTime,
+      updatetime: updateTime,
+      type: mapToCIFSType(event.eventType),
 
-      // TIM-compatible structure for V2X broadcast
-      tim_message: {
-        msgCnt: Math.floor(Math.random() * 127),
-        timeStamp: startDateTime ? new Date(startDateTime).toISOString() : new Date().toISOString(),
-        packetID: event.id,
-        urlB: null,
-        dataFrames: [
-          {
-            startTime: startDateTime,
-            durationTime: endDateTime && startDateTime ? Math.floor((new Date(endDateTime) - new Date(startDateTime)) / 60000) : null,
-            priority: event.severity === 'high' ? 0 : event.severity === 'medium' ? 1 : 2,
-            regions: [
-              {
-                name: event.state,
-                anchorPosition: {
-                  lat: latitude,
-                  long: longitude,
-                  elevation: null
-                },
-                laneWidth: null,
-                directionality: event.direction,
-                closedPath: false,
-                direction: event.direction,
-                description: event.corridor
-              }
-            ],
-            content: {
-              advisory: {
-                item: {
-                  itis: getITISCode(event.eventType),
-                  text: vmsMessage
-                }
-              },
-              workZone: event.eventType === 'Construction' ? {
-                workersPresent: true,
-                speedLimit: null
-              } : null,
-              incident: ['Incident', 'Closure'].includes(event.eventType) ? {
-                eventType: event.eventType,
-                description: event.description
-              } : null
-            }
-          }
-        ]
-      },
-
-      // CIFS-specific metadata
+      // Location (required)
       location: {
-        state: event.state,
-        corridor: event.corridor,
-        direction: event.direction,
-        coordinates: {
-          latitude: latitude,
-          longitude: longitude
-        }
-      },
-
-      // Timing information
-      timing: {
-        start: startDateTime,
-        end: endDateTime,
-        lastUpdated: event.lastUpdated || new Date().toISOString()
-      },
-
-      // Impact information
-      impact: {
-        roadStatus: event.roadStatus,
-        lanesClosed: event.lanesClosed || event.lanesAffected,
-        totalLanes: event.totalLanes,
-        message: vmsMessage
-      },
-
-      // Original event for reference
-      source: {
-        provider: event.source || 'Unknown',
-        originalEvent: event
+        street: event.corridor || event.route || 'Unknown',
+        city: event.city || '',
+        state: event.state || '',
+        country: 'US'
       }
     };
+
+    // Add polyline or point
+    if (latitude && longitude) {
+      cifsIncident.location.polyline = `${latitude},${longitude}`;
+    }
+
+    // Optional fields
+    if (event.description) {
+      cifsIncident.description = event.description;
+    }
+
+    if (event.subtype || event.eventSubType) {
+      cifsIncident.subtype = event.subtype || event.eventSubType;
+    }
+
+    if (startDateTime) {
+      cifsIncident.starttime = startDateTime;
+    }
+
+    if (endDateTime) {
+      cifsIncident.endtime = endDateTime;
+    }
+
+    const direction = mapDirection(event.direction);
+    if (direction) {
+      cifsIncident.direction = direction;
+    }
+
+    // Add severity if available
+    if (event.severity) {
+      cifsIncident.severity = event.severity.toUpperCase();
+    }
+
+    return cifsIncident;
   });
 
+  // Return in Waze CIFS format
   res.json({
-    format: 'CIFS (Common Incident Feed Specification)',
-    description: 'Unified incident feed combining TIM messages from multiple DOT sources',
-    timestamp: new Date().toISOString(),
-    incident_count: cifsMessages.length,
-    incidents: cifsMessages,
-    metadata: {
-      sources: ['WZDx', 'Ohio OHGO', 'Caltrans LCS', 'State DOT APIs'],
-      tim_compatible: true,
-      v2x_ready: true
-    }
+    incidents: cifsIncidents
   });
 });
 
