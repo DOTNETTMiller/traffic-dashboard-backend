@@ -100,11 +100,11 @@ function App() {
     localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
   }, [isDarkMode]);
 
-  // Logo intro animation - show full screen for 15 seconds then transition to corner
+  // Logo intro animation - show full screen for 5 seconds then transition to corner
   useEffect(() => {
     const timer = setTimeout(() => {
       setLogoIntroComplete(true);
-    }, 15000); // 15 seconds
+    }, 5000); // 5 seconds
 
     return () => clearTimeout(timer);
   }, []);
