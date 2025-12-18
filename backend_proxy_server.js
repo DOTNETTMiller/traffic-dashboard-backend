@@ -19314,34 +19314,36 @@ app.post('/api/parking/ground-truth/ai-count-consensus', async (req, res) => {
       try {
         const response = await openai.chat.completions.create({
           model: 'gpt-4o',
+          response_format: { type: "json_object" },
           messages: [
+            {
+              role: 'system',
+              content: 'You analyze truck parking lot camera images and return counts in JSON format. Respond with ONLY valid JSON.'
+            },
             {
               role: 'user',
               content: [
                 {
                   type: 'text',
-                  text: `You are analyzing one camera view of a truck parking lot. Your task is to count trucks and identify visible parking areas.
+                  text: `Analyze this ${viewName} camera view of a truck parking lot.
 
-Instructions:
-1. Count the TOTAL number of truck parking spaces visible in THIS camera view
-2. Count how many spaces are OCCUPIED (have a semi-truck, tractor-trailer, or large commercial vehicle)
-3. Describe what PART of the parking lot this camera shows (e.g., "main parking area", "entrance", "exit area", "left section", "right section")
-4. Note if you can see any trucks that might be PARTIALLY visible (could be seen from another angle too)
+Count:
+1. TOTAL truck parking spaces visible in THIS camera view
+2. OCCUPIED spaces (semi-trucks, tractor-trailers, large commercial vehicles)
+3. Trucks that might be PARTIALLY visible from other angles
 
-Camera view name: ${viewName}
-
-Return your answer as a JSON object with this exact format:
+Return ONLY this JSON (no other text):
 {
   "occupied": <number>,
   "total": <number>,
-  "viewDescription": "<brief description>",
-  "partialTrucksVisible": <number of trucks that might be visible from other cameras>,
+  "viewDescription": "<brief description of what part of lot this shows>",
+  "partialTrucksVisible": <number>,
   "confidence": "<high|medium|low>"
 }
 
-For example: {"occupied": 8, "total": 12, "viewDescription": "main central parking area", "partialTrucksVisible": 2, "confidence": "high"}
+Example: {"occupied": 8, "total": 12, "viewDescription": "main central parking area", "partialTrucksVisible": 2, "confidence": "high"}
 
-If image quality is too poor or no parking lot is visible, return {"occupied": 0, "total": 0, "viewDescription": "unclear", "partialTrucksVisible": 0, "confidence": "low"}`
+If image unclear: {"occupied": 0, "total": 0, "viewDescription": "unclear", "partialTrucksVisible": 0, "confidence": "low"}`
                 },
                 {
                   type: 'image_url',
@@ -19359,13 +19361,22 @@ If image quality is too poor or no parking lot is visible, return {"occupied": 0
         let parsedResponse;
 
         try {
-          const cleanedResponse = extractJSON(aiResponse);
-          console.log(`    Extracted JSON for ${viewName}:`, cleanedResponse.substring(0, 100));
-          parsedResponse = JSON.parse(cleanedResponse);
+          // With response_format json_object, should already be valid JSON
+          parsedResponse = JSON.parse(aiResponse);
+          console.log(`    ✅ ${viewName}: ${parsedResponse.occupied}/${parsedResponse.total} (${parsedResponse.confidence})`);
         } catch (parseError) {
           console.error(`    ❌ JSON parse error for ${viewName}:`, parseError.message);
-          console.error(`    AI response:`, aiResponse.substring(0, 200));
-          throw new Error(`Failed to parse JSON: ${parseError.message}`);
+          console.error(`    AI response (first 200):`, aiResponse.substring(0, 200));
+
+          // Try extractJSON as fallback
+          try {
+            const cleanedResponse = extractJSON(aiResponse);
+            parsedResponse = JSON.parse(cleanedResponse);
+            console.log(`    ✅ ${viewName} fallback succeeded`);
+          } catch (fallbackError) {
+            console.error(`    ❌ Fallback also failed for ${viewName}`);
+            throw new Error(`Failed to parse JSON from ${viewName}: ${parseError.message}`);
+          }
         }
 
         cameraAnalyses.push({
@@ -19377,8 +19388,6 @@ If image quality is too poor or no parking lot is visible, return {"occupied": 0
           partialTrucksVisible: parseInt(parsedResponse.partialTrucksVisible) || 0,
           confidence: parsedResponse.confidence
         });
-
-        console.log(`    ✅ ${viewName}: ${parsedResponse.occupied}/${parsedResponse.total} occupied (${parsedResponse.confidence} confidence)`);
       } catch (error) {
         console.error(`    ❌ Error analyzing ${viewName}:`, error.message);
         cameraAnalyses.push({
@@ -19399,39 +19408,34 @@ If image quality is too poor or no parking lot is visible, return {"occupied": 0
 
     const consensusResponse = await openai.chat.completions.create({
       model: 'gpt-4o',
+      response_format: { type: "json_object" },
       messages: [
         {
+          role: 'system',
+          content: 'You are an expert at analyzing multiple camera views of truck parking lots. You MUST respond with ONLY valid JSON, no additional text or explanation outside the JSON.'
+        },
+        {
           role: 'user',
-          content: `You are an expert at analyzing multiple camera views of the same truck parking lot to create an accurate count.
-
-I have ${cameraAnalyses.length} different camera views of the same parking facility, each with their own truck counts. Your job is to create a CONSENSUS estimate that:
-1. Avoids double-counting trucks that appear in multiple views
-2. Identifies overlapping coverage areas
-3. Provides the most accurate total count
-4. Estimates the actual total parking capacity of the facility
+          content: `Analyze these ${cameraAnalyses.length} camera views of the same parking facility and create a consensus estimate.
 
 Camera Analysis Data:
 ${JSON.stringify(cameraAnalyses, null, 2)}
 
-Analysis Instructions:
-1. Look for overlaps - cameras may show the same trucks from different angles
-2. Consider the viewDescription to understand what each camera covers
-3. Use partialTrucksVisible counts to estimate overlap
-4. High confidence views should be weighted more heavily
-5. The CENTER/main view typically has the most complete coverage
-6. ENTRY and EXIT views often overlap with CENTER
-7. For I-35 facilities: truckParking1 and truckParking2 usually show DIFFERENT sections
+Tasks:
+1. Avoid double-counting trucks visible in multiple views
+2. Identify overlapping coverage areas
+3. Estimate actual total parking capacity
+4. Consider: CENTER views have most complete coverage, ENTRY/EXIT often overlap with CENTER, I-35 truckParking1/2 show different sections
+5. Weight high-confidence views more heavily
 
-Return your consensus estimate as a JSON object:
+Return ONLY this JSON structure (no other text):
 {
-  "consensusOccupied": <best estimate of actual occupied trucks>,
-  "consensusTotalCapacity": <best estimate of total parking spaces>,
-  "confidence": "<high|medium|low>",
-  "reasoning": "<brief explanation of how you reconciled the counts>",
-  "estimatedOverlapPercentage": <percentage of double-counting detected, 0-100>
-}
-
-Example: {"consensusOccupied": 25, "consensusTotalCapacity": 40, "confidence": "high", "reasoning": "Center camera shows 20 trucks, entry shows 8 with 3 overlapping with center, exit shows 5 with 2 overlapping. Total unique trucks: 25.", "estimatedOverlapPercentage": 20}`
+  "consensusOccupied": <number: best estimate of occupied trucks>,
+  "consensusTotalCapacity": <number: best estimate of total parking spaces>,
+  "confidence": "<string: high|medium|low>",
+  "reasoning": "<string: brief explanation of how you reconciled counts>",
+  "estimatedOverlapPercentage": <number: 0-100>
+}`
         }
       ],
       max_tokens: 400
@@ -19441,18 +19445,29 @@ Example: {"consensusOccupied": 25, "consensusTotalCapacity": 40, "confidence": "
     let consensus;
 
     try {
-      const cleanedConsensus = extractJSON(consensusAI);
-      console.log('  Consensus extracted JSON:', cleanedConsensus.substring(0, 150));
-      consensus = JSON.parse(cleanedConsensus);
+      // With response_format json_object, should already be valid JSON
+      console.log('  Consensus AI response (first 200 chars):', consensusAI.substring(0, 200));
+      consensus = JSON.parse(consensusAI);
+      console.log('  ✅ Successfully parsed consensus JSON');
     } catch (parseError) {
-      console.error('❌ Consensus AI returned non-JSON response:', consensusAI);
-      console.error('  Parse error:', parseError.message);
-      return res.status(500).json({
-        success: false,
-        error: 'Consensus AI returned invalid JSON. Try again or check image quality.',
-        details: parseError.message,
-        aiResponse: consensusAI.substring(0, 200)
-      });
+      console.error('❌ Failed to parse consensus response:', parseError.message);
+      console.error('  Full AI response:', consensusAI);
+
+      // Try extractJSON as fallback
+      try {
+        const cleanedConsensus = extractJSON(consensusAI);
+        console.log('  Attempting extractJSON fallback...');
+        consensus = JSON.parse(cleanedConsensus);
+        console.log('  ✅ extractJSON fallback succeeded');
+      } catch (fallbackError) {
+        console.error('  ❌ extractJSON fallback also failed:', fallbackError.message);
+        return res.status(500).json({
+          success: false,
+          error: 'AI returned invalid JSON format. Please try again.',
+          details: parseError.message,
+          aiResponse: consensusAI.substring(0, 300)
+        });
+      }
     }
 
     const consensusOccupied = parseInt(consensus.consensusOccupied);
