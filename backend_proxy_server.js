@@ -8826,6 +8826,12 @@ app.get('/api/compliance/summary', async (req, res) => {
       if (caltransEvents && caltransEvents.length > 0) {
         const analysis = analyzer.analyzeState('CA', 'California', caltransEvents);
 
+        // Remove standard California if it exists (replace with enhanced version)
+        const californiaIndex = states.findIndex(s => s.stateKey === 'california' || s.stateKey === 'ca');
+        if (californiaIndex !== -1) {
+          states.splice(californiaIndex, 1);
+        }
+
         states.push({
           name: 'California',
           stateKey: 'ca',
@@ -8843,13 +8849,23 @@ app.get('/api/compliance/summary', async (req, res) => {
       console.error('Error adding California to compliance summary:', error.message);
     }
 
-    // Sort by overall score (descending)
-    states.sort((a, b) => b.overallScore.percentage - a.overallScore.percentage);
+    // Final deduplication pass (in case of any edge cases)
+    const uniqueStates = [];
+    const seenStateKeys = new Set();
+    for (const state of states) {
+      if (!seenStateKeys.has(state.stateKey)) {
+        seenStateKeys.add(state.stateKey);
+        uniqueStates.push(state);
+      }
+    }
 
-    console.log(`Compliance summary generated for ${states.length} states`);
+    // Sort by overall score (descending)
+    uniqueStates.sort((a, b) => b.overallScore.percentage - a.overallScore.percentage);
+
+    console.log(`Compliance summary generated for ${uniqueStates.length} states (${states.length - uniqueStates.length} duplicates removed)`);
     res.json({
       generatedAt: new Date().toISOString(),
-      states: states
+      states: uniqueStates
     });
   } catch (error) {
     console.error('Error generating compliance summary:', error);
