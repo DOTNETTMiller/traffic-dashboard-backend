@@ -235,17 +235,22 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
           [facility.facilityId]: consensus.occupied
         }));
 
+        // Use consensus totalCapacity if available, otherwise fallback to prediction capacity
+        const pred = predictions[facility.facilityId];
+        const capacityToUse = consensus.totalCapacity || (pred ? pred.capacity : null);
+
         setTotalCapacityCounts(prev => ({
           ...prev,
-          [facility.facilityId]: consensus.totalCapacity
+          [facility.facilityId]: capacityToUse
         }));
 
         // Show success message
+        const capacitySource = consensus.totalCapacity ? '' : ' (capacity from prediction)';
         setSubmitStatus(prev => ({
           ...prev,
           [facility.facilityId]: {
             type: 'success',
-            message: `Multi-camera consensus: ${consensus.occupied}/${consensus.totalCapacity} (${consensus.confidence} confidence, ${consensus.estimatedOverlapPercentage}% overlap detected)`
+            message: `Multi-camera consensus: ${consensus.occupied}/${capacityToUse} (${consensus.confidence} confidence, ${consensus.estimatedOverlapPercentage}% overlap detected)${capacitySource}`
           }
         }));
 
