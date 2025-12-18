@@ -179,6 +179,17 @@ function DocumentationViewer() {
     // Inline code
     html = html.replace(/`([^`]+)`/gim, '<code>$1</code>');
 
+    // Images (must come before links since images use similar syntax)
+    html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/gim, (match, alt, src) => {
+      // Convert relative paths to absolute API URLs
+      const imageSrc = src.startsWith('./')
+        ? `${config.apiUrl}/docs/${src.substring(2)}`
+        : src.startsWith('/')
+        ? `${config.apiUrl}${src}`
+        : src;
+      return `<img src="${imageSrc}" alt="${alt}" style="max-width: 200px; height: auto; margin: 10px 0;" />`;
+    });
+
     // Links
     html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/gim, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 

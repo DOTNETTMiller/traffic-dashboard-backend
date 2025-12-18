@@ -469,9 +469,12 @@ app.get('/docs/:filename', (req, res) => {
   const { format } = req.query; // Support ?format=pdf
   const docsPath = path.join(__dirname, 'docs', filename);
 
-  // Security: Only allow .md files
-  if (!filename.endsWith('.md')) {
-    return res.status(400).json({ error: 'Only markdown files are allowed' });
+  // Security: Only allow specific file types
+  const allowedExtensions = ['.md', '.png', '.jpg', '.jpeg', '.gif', '.svg'];
+  const fileExtension = path.extname(filename).toLowerCase();
+
+  if (!allowedExtensions.includes(fileExtension)) {
+    return res.status(400).json({ error: 'File type not allowed' });
   }
 
   // Check if file exists
@@ -479,7 +482,12 @@ app.get('/docs/:filename', (req, res) => {
     return res.status(404).json({ error: 'Documentation file not found' });
   }
 
-  // Read and send the file
+  // Handle image files
+  if (['.png', '.jpg', '.jpeg', '.gif', '.svg'].includes(fileExtension)) {
+    return res.sendFile(docsPath);
+  }
+
+  // Handle markdown files
   fs.readFile(docsPath, 'utf8', (err, data) => {
     if (err) {
       console.error('Error reading documentation file:', err);
