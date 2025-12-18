@@ -401,23 +401,83 @@ function DigitalInfrastructure() {
 
   const downloadStandardsReport = async (modelId, filename) => {
     try {
+      // Fetch the markdown report
       const response = await axios.get(
         `${API_BASE}/api/digital-infrastructure/standards-report/${modelId}`,
-        { responseType: 'blob' }
+        { responseType: 'text' }
       );
 
-      // Create blob with explicit markdown MIME type
-      const blob = new Blob([response.data], { type: 'text/markdown' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `bim-standardization-requirements-${filename}-${Date.now()}.md`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      const markdownContent = response.data;
 
-      console.log('✅ Standards report downloaded successfully');
+      // Simple markdown to HTML converter
+      const convertMarkdownToHTML = (markdown) => {
+        let html = markdown;
+
+        // Headers
+        html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+        html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+        html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+        // Bold and italic
+        html = html.replace(/\*\*\*([^*]+)\*\*\*/gim, '<strong><em>$1</em></strong>');
+        html = html.replace(/\*\*([^*]+)\*\*/gim, '<strong>$1</strong>');
+        html = html.replace(/\*([^*]+)\*/gim, '<em>$1</em>');
+
+        // Code blocks
+        html = html.replace(/```([^`]+)```/gim, '<pre style="background: #f5f5f5; padding: 10px; border-radius: 4px;">$1</pre>');
+        html = html.replace(/`([^`]+)`/gim, '<code style="background: #f5f5f5; padding: 2px 4px;">$1</code>');
+
+        // Lists
+        html = html.replace(/^\- (.*$)/gim, '<li>$1</li>');
+        html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+
+        // Line breaks
+        html = html.replace(/\n\n/g, '</p><p>');
+        html = '<p>' + html + '</p>';
+
+        return html;
+      };
+
+      // Convert markdown to HTML
+      const htmlContent = convertMarkdownToHTML(markdownContent);
+
+      // Create a temporary div to render the HTML
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = htmlContent;
+      tempDiv.style.padding = '20px';
+      tempDiv.style.fontFamily = 'Arial, sans-serif';
+      tempDiv.style.fontSize = '12px';
+      tempDiv.style.lineHeight = '1.6';
+      document.body.appendChild(tempDiv);
+
+      // Import jsPDF dynamically
+      const { jsPDF } = await import('jspdf');
+
+      // Create PDF
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'letter'
+      });
+
+      // Add content to PDF
+      await pdf.html(tempDiv, {
+        callback: function (doc) {
+          // Clean up
+          document.body.removeChild(tempDiv);
+
+          // Save PDF
+          doc.save(`BIM-Standardization-Report-${filename}-${Date.now()}.pdf`);
+
+          console.log('✅ Standards report PDF downloaded successfully');
+        },
+        x: 10,
+        y: 10,
+        width: 190,
+        windowWidth: 800,
+        margin: [10, 10, 10, 10]
+      });
+
     } catch (error) {
       console.error('Error downloading standards report:', error);
       alert(`Failed to download standards report: ${error.response?.data?.error || error.message}`);
