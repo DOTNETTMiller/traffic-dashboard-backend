@@ -19168,6 +19168,21 @@ function extractJSON(text) {
     return codeBlockMatch[1].trim();
   }
 
+  // Try to find JSON object using first { to last }
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    const extracted = text.substring(firstBrace, lastBrace + 1);
+    // Validate it's parseable
+    try {
+      JSON.parse(extracted);
+      return extracted;
+    } catch (e) {
+      // Fall through to other methods
+    }
+  }
+
   // Try to find JSON object by looking for balanced braces
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (jsonMatch) {
