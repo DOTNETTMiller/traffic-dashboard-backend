@@ -1,4 +1,4 @@
-![CCAI Logo](/assets/ccai-logo.png)
+![CCAI Logo](./ccai-logo.png)
 
 # CIFS Compliance Guide: Creating Waze-Compatible State DOT Data Feeds
 
