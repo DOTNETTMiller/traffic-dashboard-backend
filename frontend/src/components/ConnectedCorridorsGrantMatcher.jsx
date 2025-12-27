@@ -16,7 +16,31 @@ export default function ConnectedCorridorsGrantMatcher({ user, darkMode = false 
   const [searchingLive, setSearchingLive] = useState(false);
   const [monitoringDeadlines, setMonitoringDeadlines] = useState(false);
   const [activeView, setActiveView] = useState('matcher'); // 'matcher', 'live', 'deadlines'
-  const [liveSearchKeyword, setLiveSearchKeyword] = useState(''); // Keyword for live grant search
+  const [selectedKeywords, setSelectedKeywords] = useState(['BUILD', 'RAISE']);
+
+  // Predefined grant keywords for better search results
+  const grantKeywords = [
+    { id: 'BUILD', label: 'BUILD', description: 'Better Utilizing Investments to Leverage Development' },
+    { id: 'RAISE', label: 'RAISE', description: 'Rebuilding American Infrastructure with Sustainability and Equity' },
+    { id: 'INFRA', label: 'INFRA', description: 'Infrastructure for Rebuilding America' },
+    { id: 'ATCMTD', label: 'ATCMTD', description: 'Advanced Transportation Technologies' },
+    { id: 'ITS', label: 'ITS', description: 'Intelligent Transportation Systems' },
+    { id: 'V2X', label: 'V2X / V2I', description: 'Connected Vehicle Infrastructure' },
+    { id: 'SAFETY', label: 'Safety', description: 'Highway Safety Programs' },
+    { id: 'BRIDGE', label: 'Bridge', description: 'Bridge Infrastructure' },
+    { id: 'RURAL', label: 'Rural', description: 'Rural Transportation' },
+    { id: 'MULTIMODAL', label: 'Multimodal', description: 'Multimodal Transportation' },
+    { id: 'FREIGHT', label: 'Freight', description: 'Freight and Logistics' },
+    { id: 'CONGESTION', label: 'Congestion', description: 'Congestion Management' },
+  ];
+
+  const toggleKeyword = (keywordId) => {
+    setSelectedKeywords(prev =>
+      prev.includes(keywordId)
+        ? prev.filter(k => k !== keywordId)
+        : [...prev, keywordId]
+    );
+  }; // Keyword for live grant search
 
   const theme = {
     bg: darkMode ? '#0f172a' : '#ffffff',
@@ -64,14 +88,17 @@ export default function ConnectedCorridorsGrantMatcher({ user, darkMode = false 
     }
   };
 
-  const searchLiveGrants = async (customKeyword = null) => {
+  const searchLiveGrants = async () => {
     setSearchingLive(true);
 
     try {
-      // Priority: custom keyword > liveSearchKeyword > project description > default
-      const searchKeyword = customKeyword || liveSearchKeyword || projectData.description || 'transportation';
+      // Use selected keywords, fallback to defaults if none selected
+      const keywords = selectedKeywords.length > 0 ? selectedKeywords : ['BUILD', 'RAISE'];
 
-      console.log('Searching Grants.gov with keyword:', searchKeyword);
+      console.log('Searching Grants.gov with keywords:', keywords);
+
+      // Search with all selected keywords combined
+      const searchKeyword = keywords.join(' OR ');
 
       const response = await api.post('/api/grants/search-live', {
         keyword: searchKeyword,
@@ -281,6 +308,9 @@ export default function ConnectedCorridorsGrantMatcher({ user, darkMode = false 
             opportunities={liveOpportunities}
             searching={searchingLive}
             onSearch={searchLiveGrants}
+            selectedKeywords={selectedKeywords}
+            grantKeywords={grantKeywords}
+            onToggleKeyword={toggleKeyword}
             theme={theme}
             styles={styles}
           />
@@ -555,7 +585,7 @@ function MatcherView({ projectData, setProjectData, results, loading, handleSubm
 }
 
 // Live Opportunities View
-function LiveOpportunitiesView({ opportunities, searching, onSearch, theme, styles }) {
+function LiveOpportunitiesView({ opportunities, searching, onSearch, selectedKeywords, grantKeywords, onToggleKeyword, theme, styles }) {
   return (
     <div style={styles.card}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -564,15 +594,93 @@ function LiveOpportunitiesView({ opportunities, searching, onSearch, theme, styl
         </h2>
         <button
           onClick={onSearch}
-          disabled={searching}
+          disabled={searching || selectedKeywords.length === 0}
           style={{
             ...styles.button,
-            opacity: searching ? 0.6 : 1,
-            cursor: searching ? 'not-allowed' : 'pointer',
+            opacity: searching || selectedKeywords.length === 0 ? 0.6 : 1,
+            cursor: searching || selectedKeywords.length === 0 ? 'not-allowed' : 'pointer',
           }}
         >
-          {searching ? '🔄 Searching...' : '🔍 Search Now'}
+          {searching ? '🔄 Searching...' : `🔍 Search ${selectedKeywords.length} Keyword${selectedKeywords.length !== 1 ? 's' : ''}`}
         </button>
+      </div>
+
+      {/* Keyword Selector */}
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{
+          fontSize: '14px',
+          fontWeight: '600',
+          color: theme.text,
+          marginBottom: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          🎯 Select Grant Keywords to Search:
+          <span style={{
+            fontSize: '12px',
+            fontWeight: '400',
+            color: theme.textMuted
+          }}>
+            ({selectedKeywords.length} selected)
+          </span>
+        </div>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+          gap: '10px'
+        }}>
+          {grantKeywords.map(keyword => {
+            const isSelected = selectedKeywords.includes(keyword.id);
+            return (
+              <button
+                key={keyword.id}
+                onClick={() => onToggleKeyword(keyword.id)}
+                title={keyword.description}
+                style={{
+                  padding: '10px 14px',
+                  border: `2px solid ${isSelected ? theme.primary : theme.border}`,
+                  background: isSelected ? theme.primaryLight : theme.bgTertiary,
+                  color: isSelected ? theme.primary : theme.text,
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: isSelected ? '600' : '500',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isSelected) {
+                    e.target.style.borderColor = theme.primary;
+                    e.target.style.background = theme.primaryLight;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSelected) {
+                    e.target.style.borderColor = theme.border;
+                    e.target.style.background = theme.bgTertiary;
+                  }
+                }}
+              >
+                <span style={{ fontSize: '16px' }}>
+                  {isSelected ? '✓' : '○'}
+                </span>
+                <span>{keyword.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div style={{
+          fontSize: '12px',
+          color: theme.textMuted,
+          marginTop: '8px',
+          fontStyle: 'italic'
+        }}>
+          💡 Tip: Select multiple keywords to broaden your search. Common combinations: BUILD + RAISE, ITS + V2X, Safety + Bridge
+        </div>
       </div>
 
       {opportunities.length === 0 ? (
@@ -588,7 +696,7 @@ function LiveOpportunitiesView({ opportunities, searching, onSearch, theme, styl
             No live opportunities loaded yet
           </div>
           <div style={{ fontSize: '14px' }}>
-            Click "Search Now" to fetch current opportunities from Grants.gov
+            Select keywords above and click "Search" to fetch current opportunities from Grants.gov
           </div>
         </div>
       ) : (
