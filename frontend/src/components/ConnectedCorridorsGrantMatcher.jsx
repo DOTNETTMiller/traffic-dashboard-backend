@@ -16,6 +16,7 @@ export default function ConnectedCorridorsGrantMatcher({ user, darkMode = false 
   const [searchingLive, setSearchingLive] = useState(false);
   const [monitoringDeadlines, setMonitoringDeadlines] = useState(false);
   const [activeView, setActiveView] = useState('matcher'); // 'matcher', 'live', 'deadlines'
+  const [liveSearchKeyword, setLiveSearchKeyword] = useState(''); // Keyword for live grant search
 
   const theme = {
     bg: darkMode ? '#0f172a' : '#ffffff',
@@ -63,23 +64,34 @@ export default function ConnectedCorridorsGrantMatcher({ user, darkMode = false 
     }
   };
 
-  const searchLiveGrants = async () => {
+  const searchLiveGrants = async (customKeyword = null) => {
     setSearchingLive(true);
 
     try {
+      // Priority: custom keyword > liveSearchKeyword > project description > default
+      const searchKeyword = customKeyword || liveSearchKeyword || projectData.description || 'transportation';
+
+      console.log('Searching Grants.gov with keyword:', searchKeyword);
+
       const response = await api.post('/api/grants/search-live', {
-        keyword: projectData.description || 'intelligent transportation systems connected vehicles',
+        keyword: searchKeyword,
         fundingAgency: 'DOT',
         status: 'forecasted,posted'
       });
 
+      console.log('Grants.gov response:', response.data);
+
       if (response.data.success) {
-        setLiveOpportunities(response.data.opportunities);
+        setLiveOpportunities(response.data.opportunities || []);
         setActiveView('live');
+        console.log('Found opportunities:', response.data.opportunities?.length || 0);
+      } else {
+        console.error('Search failed:', response.data);
+        alert('Failed to search Grants.gov. Please try again.');
       }
     } catch (error) {
       console.error('Error searching live grants:', error);
-      alert('Failed to search Grants.gov. Please try again.');
+      alert(`Failed to search Grants.gov: ${error.message}`);
     } finally {
       setSearchingLive(false);
     }
