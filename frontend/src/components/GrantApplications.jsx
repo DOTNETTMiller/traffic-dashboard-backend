@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import React from 'react';
 import api from '../services/api';
 import FederalGrantResources from './FederalGrantResources';
+import ConnectedCorridorsGrantMatcher from './ConnectedCorridorsGrantMatcher';
+import GrantProposalAnalyzer from './GrantProposalAnalyzer';
 
 export default function GrantApplications({ user }) {
   const [applications, setApplications] = useState([]);
@@ -11,7 +13,7 @@ export default function GrantApplications({ user }) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedApp, setSelectedApp] = useState(null);
   const [viewMode, setViewMode] = useState('list');
-  const [activeTab, setActiveTab] = useState('applications'); // 'applications', 'resources', 'recommend'
+  const [activeTab, setActiveTab] = useState('applications'); // 'applications', 'resources', 'matcher', 'analyzer'
   const [recommendations, setRecommendations] = useState(null);
   const [darkMode, setDarkMode] = useState(window.matchMedia('(prefers-color-scheme: dark)').matches);
 
@@ -514,6 +516,60 @@ export default function GrantApplications({ user }) {
             >
               💰 Browse Programs & NOFOs
             </button>
+
+            <button
+              onClick={() => setActiveTab('matcher')}
+              style={{
+                padding: '12px 24px',
+                border: 'none',
+                background: activeTab === 'matcher' ? theme.primary : 'transparent',
+                color: activeTab === 'matcher' ? '#ffffff' : theme.text,
+                borderBottom: activeTab === 'matcher' ? `3px solid ${theme.primary}` : 'none',
+                fontWeight: activeTab === 'matcher' ? '600' : '400',
+                cursor: 'pointer',
+                fontSize: '15px',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseOver={(e) => {
+                if (activeTab !== 'matcher') {
+                  e.currentTarget.style.background = theme.bgTertiary;
+                }
+              }}
+              onMouseOut={(e) => {
+                if (activeTab !== 'matcher') {
+                  e.currentTarget.style.background = 'transparent';
+                }
+              }}
+            >
+              🛣️ Connected Corridors Matcher
+            </button>
+
+            <button
+              onClick={() => setActiveTab('analyzer')}
+              style={{
+                padding: '12px 24px',
+                border: 'none',
+                background: activeTab === 'analyzer' ? theme.primary : 'transparent',
+                color: activeTab === 'analyzer' ? '#ffffff' : theme.text,
+                borderBottom: activeTab === 'analyzer' ? `3px solid ${theme.primary}` : 'none',
+                fontWeight: activeTab === 'analyzer' ? '600' : '400',
+                cursor: 'pointer',
+                fontSize: '15px',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseOver={(e) => {
+                if (activeTab !== 'analyzer') {
+                  e.currentTarget.style.background = theme.bgTertiary;
+                }
+              }}
+              onMouseOut={(e) => {
+                if (activeTab !== 'analyzer') {
+                  e.currentTarget.style.background = 'transparent';
+                }
+              }}
+            >
+              📊 Proposal Analyzer & Scorer
+            </button>
           </div>
         )}
 
@@ -632,6 +688,16 @@ export default function GrantApplications({ user }) {
         {/* Tab Content - Browse Programs & NOFOs */}
         {activeTab === 'resources' && viewMode === 'list' && (
           <FederalGrantResources darkMode={darkMode} />
+        )}
+
+        {/* Tab Content - Connected Corridors Matcher */}
+        {activeTab === 'matcher' && viewMode === 'list' && (
+          <ConnectedCorridorsGrantMatcher user={user} darkMode={darkMode} />
+        )}
+
+        {/* Tab Content - Proposal Analyzer & Scorer */}
+        {activeTab === 'analyzer' && viewMode === 'list' && (
+          <GrantProposalAnalyzer user={user} darkMode={darkMode} />
         )}
       </div>
 
