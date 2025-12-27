@@ -21,6 +21,16 @@ DOCS=(
   "member-state-overview:Member-State-Overview"
   "digital-standards-crosswalk:Digital-Standards-Crosswalk"
   "using-digital-lifecycle-crosswalk:Using-Digital-Lifecycle-Crosswalk"
+  "TMC_511_INTEGRATION_GUIDE:TMC-511-Integration-Guide"
+  "BIM_IFC_ALIGNMENT_BASED_VIEW_GUIDE:BIM-IFC-Alignment-Based-View-Guide"
+)
+
+# Documents in root directory
+ROOT_DOCS=(
+  "../JSTAN_INTEGRATION_GUIDE:JSTAN-Integration-Guide"
+  "../JSTAN_QUICK_REFERENCE:JSTAN-Quick-Reference"
+  "../CONNECTED_CORRIDORS_GRANTS_INTEGRATION:Connected-Corridors-Grants-Integration"
+  "../GRANT_PROPOSAL_ANALYZER_DOCUMENTATION:Grant-Proposal-Analyzer-Documentation"
 )
 
 # Custom CSS for better table formatting and text rendering
@@ -196,6 +206,52 @@ EOF
 cd "/Users/mattmiller/Projects/DOT/DOT Corridor Communicator/docs"
 
 for doc in "${DOCS[@]}"; do
+  IFS=":" read -r source_file output_name <<< "$doc"
+
+  if [ -f "$source_file.md" ]; then
+    echo "Converting $source_file.md to PDF..."
+
+    md-to-pdf \
+      --config-file <(cat << MDCONFIG
+{
+  "stylesheet": "$CSS_FILE",
+  "body_class": "markdown-body",
+  "marked_options": {
+    "headerIds": false,
+    "smartypants": true
+  },
+  "pdf_options": {
+    "format": "Letter",
+    "margin": {
+      "top": "0.75in",
+      "right": "0.75in",
+      "bottom": "0.75in",
+      "left": "0.75in"
+    },
+    "printBackground": true,
+    "preferCSSPageSize": true
+  },
+  "launch_options": {
+    "args": ["--no-sandbox", "--disable-setuid-sandbox"]
+  }
+}
+MDCONFIG
+) \
+      "$source_file.md"
+
+    if [ $? -eq 0 ] && [ -f "$source_file.pdf" ]; then
+      mv "$source_file.pdf" "/Users/mattmiller/Downloads/DOT-Documentation/${output_name}.pdf"
+      echo "✓ Generated: /Users/mattmiller/Downloads/DOT-Documentation/${output_name}.pdf"
+    else
+      echo "✗ Failed to generate: $source_file.md"
+    fi
+  else
+    echo "✗ File not found: $source_file.md"
+  fi
+done
+
+# Generate PDFs from root directory documents
+for doc in "${ROOT_DOCS[@]}"; do
   IFS=":" read -r source_file output_name <<< "$doc"
 
   if [ -f "$source_file.md" ]; then
