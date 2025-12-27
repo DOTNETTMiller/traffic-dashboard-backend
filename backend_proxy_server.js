@@ -17521,6 +17521,848 @@ app.post('/api/grants/recommend', async (req, res) => {
 });
 
 /**
+ * Search live Grants.gov opportunities
+ * Integrates with Grants.gov API to find current funding opportunities
+ */
+app.post('/api/grants/search-live', async (req, res) => {
+  try {
+    const {
+      keyword = 'transportation',
+      fundingAgency = 'DOT',
+      category,
+      eligibility = 'State governments',
+      status = 'forecasted,posted'  // Only active opportunities
+    } = req.body;
+
+    console.log(`🔍 Searching Grants.gov for: ${keyword} (Agency: ${fundingAgency})`);
+
+    const searchPayload = {
+      keyword,
+      oppStatus: status
+    };
+
+    // Add optional filters
+    // Note: Don't filter by agency code here as Grants.gov uses codes like "DOT-FHWA" not "DOT"
+    // We'll filter results after fetching
+    if (category) {
+      searchPayload.category = category;
+    }
+    if (eligibility) {
+      searchPayload.eligibility = eligibility;
+    }
+
+    const response = await axios.post(
+      'https://api.grants.gov/v1/api/search2',
+      searchPayload,
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      }
+    );
+
+    // Transform and enrich the response
+    // Grants.gov API nests data: response.data.data.oppHits
+    const grantsData = response.data.data || response.data;
+    let opportunities = (grantsData.oppHits || []).map(opp => ({
+      opportunityId: opp.id,
+      opportunityNumber: opp.number,
+      title: opp.title,
+      agency: opp.agency || opp.agencyName || '', // API returns 'agency' field
+      agencyCode: opp.agencyCode || '',
+      description: opp.description,
+      openDate: opp.openDate,
+      closeDate: opp.closeDate,
+      lastUpdated: opp.lastUpdatedDate,
+      estimatedFunding: opp.estimatedFunding,
+      awardCeiling: opp.awardCeiling,
+      awardFloor: opp.awardFloor,
+      closingSoon: opp.closeDate ? isClosingSoon(opp.closeDate) : false,
+      daysUntilClose: opp.closeDate ? calculateDaysUntilClose(opp.closeDate) : null,
+      status: opp.oppStatus,
+      category: opp.category,
+      grantsGovLink: `https://www.grants.gov/search-results-detail/${opp.id}`
+    }));
+
+    // Filter by agency if specified (filter by agency code prefix)
+    if (fundingAgency) {
+      opportunities = opportunities.filter(opp =>
+        opp.agencyCode && opp.agencyCode.toUpperCase().startsWith(fundingAgency.toUpperCase())
+      );
+    }
+
+    res.json({
+      success: true,
+      opportunities,
+      totalResults: grantsData.hitCount || grantsData.totalHits || opportunities.length,
+      fetchedAt: new Date().toISOString(),
+      searchCriteria: { keyword, fundingAgency, category, status }
+    });
+
+  } catch (error) {
+    console.error('❌ Grants.gov API error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch live grant opportunities',
+      details: error.response?.data || error.message
+    });
+  }
+});
+
+// Helper function to check if closing soon (within 30 days)
+function isClosingSoon(closeDate) {
+  if (!closeDate) return false;
+  const daysUntilClose = calculateDaysUntilClose(closeDate);
+  return daysUntilClose !== null && daysUntilClose <= 30 && daysUntilClose >= 0;
+}
+
+// Helper function to calculate days until close
+function calculateDaysUntilClose(closeDate) {
+  if (!closeDate) return null;
+  const close = new Date(closeDate);
+  const now = new Date();
+  const diffTime = close - now;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+}
+
+/**
+ * Fetch specific opportunity details from Grants.gov
+ */
+app.get('/api/grants/opportunity/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    console.log(`📄 Fetching opportunity details for ID: ${id}`);
+
+    const response = await axios.post(
+      'https://api.grants.gov/v1/api/fetchOpportunity',
+      { oppId: id },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      }
+    );
+
+    res.json({
+      success: true,
+      opportunity: response.data,
+      fetchedAt: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Grants.gov opportunity fetch error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch opportunity details',
+      details: error.response?.data || error.message
+    });
+  }
+});
+
+/**
+ * Connected Corridors Grant Matcher
+ * Combines curated grant knowledge with live Grants.gov data
+ * Filters for grants aligned with connected corridors strategy
+ */
+app.post('/api/grants/connected-corridors-match', async (req, res) => {
+  try {
+    const {
+      description,
+      primaryCorridor,
+      requestedAmount,
+      geographicScope,
+      stateKey
+    } = req.body;
+
+    console.log(`🛣️  Finding Connected Corridors grants for: ${primaryCorridor || 'unspecified corridor'}`);
+
+    // Get context from existing recommender
+    let hasITSEquipment = false;
+    let hasV2XGaps = false;
+    let hasTruckParkingData = false;
+    let isFreightCorridor = false;
+
+    if (stateKey) {
+      try {
+        const itsCount = db.db.prepare('SELECT COUNT(*) as count FROM its_equipment WHERE state_key = ?').get(stateKey);
+        hasITSEquipment = itsCount?.count > 0;
+
+        const v2xGaps = db.db.prepare(`
+          SELECT COUNT(*) as count FROM its_equipment
+          WHERE state_key = ? AND equipment_type != 'rsu'
+        `).get(stateKey);
+        hasV2XGaps = v2xGaps?.count > 10;
+      } catch (error) {
+        console.log('ITS equipment table not available');
+      }
+
+      try {
+        const parkingCount = db.db.prepare('SELECT COUNT(*) as count FROM truck_parking_facilities WHERE state = ?').get(stateKey);
+        hasTruckParkingData = parkingCount?.count > 0;
+      } catch (error) {
+        console.log('Truck parking table not available');
+      }
+    }
+
+    isFreightCorridor = /I-\d+|freight|truck|commercial/i.test(primaryCorridor || description);
+
+    // 1. Get curated recommendations
+    const grantRecommender = require('./utils/grant-recommender');
+    const curatedRecommendations = grantRecommender.recommendGrants({
+      description,
+      primaryCorridor,
+      requestedAmount: parseFloat(requestedAmount) || 0,
+      geographicScope,
+      hasITSEquipment,
+      hasV2XGaps,
+      hasTruckParkingData,
+      isFreightCorridor,
+      hasIncidentData: /incident|crash|accident|safety/i.test(description),
+      hasBridgeData: /bridge|clearance/i.test(description)
+    });
+
+    // 2. Search live Grants.gov for connected corridors keywords
+    const connectedCorridorsKeywords = [
+      'connected vehicles',
+      'intelligent transportation',
+      'V2X',
+      'vehicle to infrastructure',
+      'smart corridors',
+      'ITS deployment',
+      'connected infrastructure'
+    ];
+
+    let liveOpportunities = [];
+    try {
+      // Search for ITS/connected corridors opportunities
+      const searchResponse = await axios.post(
+        'https://api.grants.gov/v1/api/search2',
+        {
+          keyword: 'intelligent transportation systems connected vehicles',
+          agencies: 'DOT',
+          oppStatus: 'forecasted,posted',
+          eligibility: 'State governments'
+        },
+        {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 10000
+        }
+      );
+
+      const liveGrantsData = searchResponse.data.data || searchResponse.data;
+      liveOpportunities = (liveGrantsData.oppHits || []).map(opp => ({
+        opportunityId: opp.id,
+        opportunityNumber: opp.number,
+        title: opp.title,
+        agency: opp.agency || opp.agencyName || '',
+        agencyCode: opp.agencyCode || '',
+        description: opp.description,
+        openDate: opp.openDate,
+        closeDate: opp.closeDate,
+        estimatedFunding: opp.estimatedFunding,
+        awardCeiling: opp.awardCeiling,
+        awardFloor: opp.awardFloor,
+        closingSoon: isClosingSoon(opp.closeDate),
+        daysUntilClose: calculateDaysUntilClose(opp.closeDate),
+        status: opp.oppStatus,
+        grantsGovLink: `https://www.grants.gov/search-results-detail/${opp.id}`,
+        matchScore: calculateConnectedCorridorsMatch(opp, description, connectedCorridorsKeywords)
+      })).filter(opp => opp.matchScore >= 40) // Only include relevant matches
+        .sort((a, b) => b.matchScore - a.matchScore)
+        .slice(0, 5); // Top 5 live opportunities
+
+    } catch (error) {
+      console.log('⚠️  Could not fetch live opportunities:', error.message);
+      // Continue without live data
+    }
+
+    // 3. Combine and rank all opportunities
+    const combined = {
+      curatedGrants: curatedRecommendations.topMatches.map(match => ({
+        ...match,
+        source: 'curated',
+        explanation: grantRecommender.explainRecommendation(match, { description, fundingRange: requestedAmount })
+      })),
+      liveOpportunities: liveOpportunities.map(opp => ({
+        ...opp,
+        source: 'grants.gov',
+        explanation: generateLiveOpportunityExplanation(opp)
+      })),
+      blockGrants: curatedRecommendations.blockGrants,
+      connectedCorridorsStrategy: {
+        alignmentScore: calculateStrategyAlignment(description, primaryCorridor, hasITSEquipment, hasV2XGaps),
+        recommendations: generateStrategyRecommendations(hasITSEquipment, hasV2XGaps, isFreightCorridor),
+        keyFocusAreas: [
+          'V2X Infrastructure Deployment',
+          'Connected Vehicle Systems',
+          'Real-time Traffic Management',
+          'Multi-State Coordination',
+          'Data Sharing & Interoperability'
+        ]
+      },
+      context: {
+        hasITSEquipment,
+        hasV2XGaps,
+        hasTruckParkingData,
+        isFreightCorridor,
+        searchPerformed: true
+      }
+    };
+
+    res.json({
+      success: true,
+      ...combined,
+      fetchedAt: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Connected Corridors match error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Helper: Calculate match score for connected corridors strategy
+function calculateConnectedCorridorsMatch(opportunity, projectDescription, keywords) {
+  let score = 0;
+  const oppText = `${opportunity.title} ${opportunity.description}`.toLowerCase();
+  const projText = projectDescription.toLowerCase();
+
+  // Check for connected corridors keywords
+  keywords.forEach(keyword => {
+    if (oppText.includes(keyword.toLowerCase())) {
+      score += 15;
+    }
+  });
+
+  // Check for ITS/technology focus
+  if (/its|intelligent transportation|smart|technology|automated|connected/.test(oppText)) {
+    score += 20;
+  }
+
+  // Check for V2X/connected vehicles
+  if (/v2x|v2i|connected vehicle|vehicle.{0,10}infrastructure/.test(oppText)) {
+    score += 25;
+  }
+
+  // Check for corridor/infrastructure
+  if (/corridor|highway|interstate|infrastructure/.test(oppText)) {
+    score += 15;
+  }
+
+  // Funding alignment (if within reasonable range)
+  if (opportunity.awardCeiling && opportunity.awardFloor) {
+    score += 10;
+  }
+
+  // Bonus for currently open
+  if (opportunity.oppStatus === 'posted') {
+    score += 15;
+  }
+
+  return Math.min(score, 100);
+}
+
+// Helper: Generate explanation for live opportunity
+function generateLiveOpportunityExplanation(opportunity) {
+  const reasons = [];
+
+  if (opportunity.status === 'posted') {
+    reasons.push('✅ Currently accepting applications');
+  } else if (opportunity.status === 'forecasted') {
+    reasons.push('📅 Opening soon (forecasted)');
+  }
+
+  if (opportunity.closingSoon) {
+    reasons.push(`⏰ Closes in ${opportunity.daysUntilClose} days`);
+  }
+
+  if (opportunity.awardCeiling) {
+    reasons.push(`💰 Award ceiling: $${(opportunity.awardCeiling / 1000000).toFixed(1)}M`);
+  }
+
+  reasons.push(`Match score: ${opportunity.matchScore}%`);
+
+  return reasons;
+}
+
+// Helper: Calculate alignment with connected corridors strategy
+function calculateStrategyAlignment(description, corridor, hasITS, hasV2X) {
+  let score = 0;
+  const text = `${description} ${corridor}`.toLowerCase();
+
+  // Technology deployment
+  if (/connected|v2x|its|smart|automated/.test(text)) score += 25;
+
+  // Corridor focus
+  if (/corridor|interstate|highway|i-\d+/.test(text)) score += 20;
+
+  // Multi-state/regional
+  if (/multi-state|regional|interstate/.test(text)) score += 20;
+
+  // Existing infrastructure
+  if (hasITS) score += 15;
+
+  // V2X gaps (opportunity for funding)
+  if (hasV2X) score += 20;
+
+  return Math.min(score, 100);
+}
+
+// Helper: Generate strategy recommendations
+function generateStrategyRecommendations(hasITS, hasV2X, isFreight) {
+  const recommendations = [];
+
+  if (hasV2X) {
+    recommendations.push({
+      area: 'V2X Infrastructure',
+      priority: 'HIGH',
+      suggestion: 'SMART and ATCMTD grants prioritize V2X deployment. Highlight existing ITS infrastructure and V2X expansion plans.'
+    });
+  }
+
+  if (isFreight) {
+    recommendations.push({
+      area: 'Freight Corridors',
+      priority: 'MEDIUM',
+      suggestion: 'INFRA and FMCSA IT-D grants focus on freight. Emphasize truck parking, CMV safety data, and economic impact.'
+    });
+  }
+
+  if (hasITS) {
+    recommendations.push({
+      area: 'ITS Integration',
+      priority: 'HIGH',
+      suggestion: 'Leverage existing ITS assets. Show how new funding builds on deployed infrastructure for better ROI.'
+    });
+  }
+
+  recommendations.push({
+    area: 'Data Sharing',
+    priority: 'CRITICAL',
+    suggestion: 'All connected corridors grants require data sharing commitments. Prepare data sharing agreements and interoperability plans.'
+  });
+
+  recommendations.push({
+    area: 'Multi-State Coordination',
+    priority: 'HIGH',
+    suggestion: 'Regional/multi-state projects score higher. Develop partnerships with neighboring states along the corridor.'
+  });
+
+  return recommendations;
+}
+
+/**
+ * Monitor grant deadlines and send alerts
+ */
+app.get('/api/grants/monitor-deadlines', async (req, res) => {
+  try {
+    const { stateKey, daysAhead = 60 } = req.query;
+
+    console.log(`⏰ Monitoring grant deadlines for the next ${daysAhead} days`);
+
+    // Search for upcoming opportunities
+    const response = await axios.post(
+      'https://api.grants.gov/v1/api/search2',
+      {
+        keyword: 'transportation intelligent systems connected vehicles infrastructure',
+        agencies: 'DOT',
+        oppStatus: 'posted',
+        eligibility: 'State governments'
+      },
+      {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 10000
+      }
+    );
+
+    const deadlineGrantsData = response.data.data || response.data;
+    const opportunities = (deadlineGrantsData.oppHits || [])
+      .map(opp => {
+        const daysUntilClose = calculateDaysUntilClose(opp.closeDate);
+        return {
+          opportunityId: opp.id,
+          opportunityNumber: opp.number,
+          title: opp.title,
+          agency: opp.agency || opp.agencyName || '',
+          agencyCode: opp.agencyCode || '',
+          closeDate: opp.closeDate,
+          daysUntilClose,
+          urgency: daysUntilClose <= 14 ? 'CRITICAL' : daysUntilClose <= 30 ? 'HIGH' : 'MEDIUM',
+          grantsGovLink: `https://www.grants.gov/search-results-detail/${opp.id}`
+        };
+      })
+      .filter(opp => opp.daysUntilClose !== null && opp.daysUntilClose >= 0 && opp.daysUntilClose <= parseInt(daysAhead))
+      .sort((a, b) => a.daysUntilClose - b.daysUntilClose);
+
+    const deadlineAlerts = {
+      critical: opportunities.filter(o => o.urgency === 'CRITICAL'),
+      high: opportunities.filter(o => o.urgency === 'HIGH'),
+      medium: opportunities.filter(o => o.urgency === 'MEDIUM'),
+      total: opportunities.length
+    };
+
+    res.json({
+      success: true,
+      deadlineAlerts,
+      monitoredDays: parseInt(daysAhead),
+      fetchedAt: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Deadline monitoring error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to monitor grant deadlines',
+      details: error.response?.data || error.message
+    });
+  }
+});
+
+/**
+ * Analyze a grant proposal and provide improvement suggestions
+ * Uses AI to evaluate proposal against grant requirements and scoring criteria
+ */
+app.post('/api/grants/analyze-proposal', async (req, res) => {
+  try {
+    const {
+      proposalText,
+      grantProgram,
+      projectTitle,
+      requestedAmount,
+      stateKey
+    } = req.body;
+
+    if (!proposalText || !grantProgram) {
+      return res.status(400).json({
+        success: false,
+        error: 'proposalText and grantProgram are required'
+      });
+    }
+
+    console.log(`📊 Analyzing proposal for ${grantProgram}...`);
+
+    // Get grant program details
+    const grantRecommender = require('./utils/grant-recommender');
+    const allPrograms = { ...grantRecommender.GRANT_PROGRAMS, ...grantRecommender.BLOCK_GRANT_PROGRAMS };
+    const grantInfo = allPrograms[grantProgram];
+
+    if (!grantInfo) {
+      return res.status(404).json({
+        success: false,
+        error: `Grant program '${grantProgram}' not found`
+      });
+    }
+
+    // Get project context
+    let hasITSEquipment = false;
+    let itsCount = 0;
+    let hasV2XGaps = false;
+    if (stateKey) {
+      try {
+        const itsResult = db.db.prepare('SELECT COUNT(*) as count FROM its_equipment WHERE state_key = ?').get(stateKey);
+        itsCount = itsResult?.count || 0;
+        hasITSEquipment = itsCount > 0;
+
+        const v2xGaps = db.db.prepare(`
+          SELECT COUNT(*) as count FROM its_equipment
+          WHERE state_key = ? AND equipment_type != 'rsu'
+        `).get(stateKey);
+        hasV2XGaps = v2xGaps?.count > 10;
+      } catch (error) {
+        console.log('ITS equipment table not available for analysis');
+      }
+    }
+
+    // Use OpenAI to analyze the proposal
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const analysisPrompt = `You are an expert federal grant proposal reviewer for the ${grantInfo.name} (${grantInfo.fullName}) program.
+
+GRANT PROGRAM DETAILS:
+- Award Range: $${grantInfo.minAward?.toLocaleString() || 'varies'} - $${grantInfo.maxAward?.toLocaleString() || 'varies'}
+- Match Required: ${grantInfo.matchRequired ? (grantInfo.matchRequired * 100) + '%' : 'varies'}
+- Key Focus Areas: ${grantInfo.keyIndicators.join(', ')}
+
+PROJECT PROPOSAL:
+Title: ${projectTitle || 'Untitled Project'}
+Requested Amount: $${requestedAmount?.toLocaleString() || 'Not specified'}
+
+Proposal Text:
+${proposalText}
+
+PROJECT DATA:
+- ITS Equipment Inventory: ${hasITSEquipment ? `${itsCount} devices deployed` : 'Not available'}
+- V2X Infrastructure Gaps: ${hasV2XGaps ? 'Identified' : 'Not identified'}
+
+TASK:
+Analyze this proposal and provide a comprehensive evaluation with:
+
+1. **Overall Score** (0-100): Rate the proposal's competitiveness
+2. **Strengths** (3-5 bullet points): What the proposal does well
+3. **Weaknesses** (3-5 bullet points): Critical gaps or issues
+4. **Improvement Suggestions** (5-7 actionable items): Specific changes to strengthen the proposal
+5. **Alignment Analysis**: How well the proposal aligns with grant priorities
+6. **Risk Assessment**: Potential red flags or concerns reviewers might have
+7. **Missing Elements**: Required components not addressed in the proposal
+
+Focus on:
+- Grant-specific requirements and priorities
+- Technical merit and innovation
+- Project readiness and feasibility
+- Cost reasonableness
+- Impact and benefits
+- Partnerships and coordination
+- Data sharing and sustainability
+
+Provide specific, actionable feedback that will directly improve the application's competitiveness.
+
+Format your response as JSON with this structure:
+{
+  "overallScore": 75,
+  "competitivenessRating": "Strong" | "Moderate" | "Weak",
+  "strengths": ["...", "..."],
+  "weaknesses": ["...", "..."],
+  "improvementSuggestions": ["...", "..."],
+  "alignmentAnalysis": "...",
+  "riskAssessment": "...",
+  "missingElements": ["...", "..."],
+  "recommendedActions": {
+    "immediate": ["...", "..."],
+    "beforeSubmission": ["...", "..."],
+    "optional": ["...", "..."]
+  }
+}`;
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert federal grant proposal reviewer with deep knowledge of USDOT funding programs. Provide detailed, actionable feedback in JSON format.'
+        },
+        {
+          role: 'user',
+          content: analysisPrompt
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 2000,
+      response_format: { type: 'json_object' }
+    });
+
+    const analysis = JSON.parse(completion.choices[0].message.content);
+
+    // Calculate additional metrics
+    const wordCount = proposalText.split(/\s+/).length;
+    const hasKeywords = grantInfo.keyIndicators.filter(indicator =>
+      proposalText.toLowerCase().includes(indicator.toLowerCase())
+    );
+
+    res.json({
+      success: true,
+      analysis: {
+        ...analysis,
+        grantProgram: grantInfo.name,
+        grantFullName: grantInfo.fullName,
+        metrics: {
+          wordCount,
+          keywordsMatched: hasKeywords.length,
+          totalKeywords: grantInfo.keyIndicators.length,
+          keywordCoverage: Math.round((hasKeywords.length / grantInfo.keyIndicators.length) * 100),
+          fundingAlignment: requestedAmount && grantInfo.minAward && grantInfo.maxAward
+            ? requestedAmount >= grantInfo.minAward && requestedAmount <= grantInfo.maxAward
+            : null
+        },
+        contextData: {
+          hasITSEquipment,
+          itsCount,
+          hasV2XGaps
+        }
+      },
+      usage: completion.usage
+    });
+
+  } catch (error) {
+    console.error('❌ Proposal analysis error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: error.response?.data || null
+    });
+  }
+});
+
+/**
+ * Score a complete grant application against program criteria
+ * Provides detailed scoring breakdown by category
+ */
+app.post('/api/grants/score-application', async (req, res) => {
+  try {
+    const {
+      grantProgram,
+      applicationData,
+      stateKey
+    } = req.body;
+
+    if (!grantProgram || !applicationData) {
+      return res.status(400).json({
+        success: false,
+        error: 'grantProgram and applicationData are required'
+      });
+    }
+
+    console.log(`🎯 Scoring application for ${grantProgram}...`);
+
+    // Get grant program details
+    const grantRecommender = require('./utils/grant-recommender');
+    const allPrograms = { ...grantRecommender.GRANT_PROGRAMS, ...grantRecommender.BLOCK_GRANT_PROGRAMS };
+    const grantInfo = allPrograms[grantProgram];
+
+    if (!grantInfo) {
+      return res.status(404).json({
+        success: false,
+        error: `Grant program '${grantProgram}' not found`
+      });
+    }
+
+    // Get project context
+    let projectContext = {
+      hasITSEquipment: false,
+      hasIncidentData: false,
+      hasBridgeData: false,
+      isFreightCorridor: false,
+      hasV2XGaps: false,
+      hasTruckParkingData: false
+    };
+
+    if (stateKey) {
+      try {
+        const itsCount = db.db.prepare('SELECT COUNT(*) as count FROM its_equipment WHERE state_key = ?').get(stateKey);
+        projectContext.hasITSEquipment = itsCount?.count > 0;
+
+        const v2xGaps = db.db.prepare('SELECT COUNT(*) as count FROM its_equipment WHERE state_key = ? AND equipment_type != \'rsu\'').get(stateKey);
+        projectContext.hasV2XGaps = v2xGaps?.count > 10;
+      } catch (error) {
+        console.log('ITS data not available for scoring');
+      }
+
+      projectContext.isFreightCorridor = /I-\d+|freight|truck|commercial/i.test(applicationData.description || '');
+      projectContext.hasIncidentData = /incident|crash|accident|safety/i.test(applicationData.description || '');
+      projectContext.hasBridgeData = /bridge|clearance/i.test(applicationData.description || '');
+    }
+
+    // Calculate base match score from recommender
+    const baseScore = grantInfo.matchScore ? grantInfo.matchScore({
+      description: applicationData.description || '',
+      primaryCorridor: applicationData.primaryCorridor || '',
+      fundingRange: applicationData.requestedAmount || 0,
+      geographicScope: applicationData.geographicScope || 'state',
+      ...projectContext
+    }) : 50;
+
+    // Use OpenAI for detailed scoring
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const scoringPrompt = `You are a federal grant review panel member scoring applications for the ${grantInfo.name} program.
+
+GRANT PROGRAM: ${grantInfo.fullName}
+KEY FOCUS AREAS: ${grantInfo.keyIndicators.join(', ')}
+
+APPLICATION SUMMARY:
+${JSON.stringify(applicationData, null, 2)}
+
+PROJECT CONTEXT:
+- ITS Equipment: ${projectContext.hasITSEquipment ? 'Yes' : 'No'}
+- V2X Infrastructure Gaps: ${projectContext.hasV2XGaps ? 'Identified' : 'None'}
+- Freight Corridor: ${projectContext.isFreightCorridor ? 'Yes' : 'No'}
+
+SCORING TASK:
+Score this application using standard federal grant criteria. Provide scores (0-100) for each category:
+
+1. **Technical Merit** (25 points): Innovation, feasibility, approach
+2. **Project Impact** (25 points): Benefits, outcomes, performance measures
+3. **Organizational Capacity** (15 points): Experience, partnerships, readiness
+4. **Budget & Cost** (15 points): Reasonableness, cost-effectiveness, matching funds
+5. **Sustainability** (10 points): Long-term viability, data sharing, maintenance
+6. **Equity & Inclusion** (10 points): Community engagement, accessibility, equity
+
+Provide detailed justification for each score and identify the top 3 improvements needed.
+
+Return JSON:
+{
+  "scores": {
+    "technicalMerit": {"score": 0-100, "weight": 25, "justification": "..."},
+    "projectImpact": {"score": 0-100, "weight": 25, "justification": "..."},
+    "organizationalCapacity": {"score": 0-100, "weight": 15, "justification": "..."},
+    "budgetAndCost": {"score": 0-100, "weight": 15, "justification": "..."},
+    "sustainability": {"score": 0-100, "weight": 10, "justification": "..."},
+    "equityAndInclusion": {"score": 0-100, "weight": 10, "justification": "..."}
+  },
+  "totalScore": 0-100,
+  "ranking": "Highly Competitive" | "Competitive" | "Moderately Competitive" | "Not Competitive",
+  "topImprovements": ["...", "...", "..."],
+  "competitivePosition": "...",
+  "likelihood": "High" | "Medium" | "Low"
+}`;
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an experienced federal grant reviewer. Score applications objectively and provide constructive feedback.'
+        },
+        {
+          role: 'user',
+          content: scoringPrompt
+        }
+      ],
+      temperature: 0.5,
+      max_tokens: 1500,
+      response_format: { type: 'json_object' }
+    });
+
+    const scoringResult = JSON.parse(completion.choices[0].message.content);
+
+    // Calculate weighted total
+    let weightedTotal = 0;
+    Object.values(scoringResult.scores).forEach(category => {
+      weightedTotal += (category.score / 100) * category.weight;
+    });
+
+    res.json({
+      success: true,
+      scoring: {
+        ...scoringResult,
+        weightedTotal: Math.round(weightedTotal),
+        baseMatchScore: baseScore,
+        grantProgram: grantInfo.name,
+        grantFullName: grantInfo.fullName,
+        scoringDate: new Date().toISOString(),
+        applicationSummary: {
+          title: applicationData.title,
+          requestedAmount: applicationData.requestedAmount,
+          geographicScope: applicationData.geographicScope
+        }
+      },
+      usage: completion.usage
+    });
+
+  } catch (error) {
+    console.error('❌ Application scoring error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: error.response?.data || null
+    });
+  }
+});
+
+/**
  * Get available support letter templates
  */
 app.get('/api/grants/letter-templates', async (req, res) => {
