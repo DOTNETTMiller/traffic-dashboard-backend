@@ -26,8 +26,38 @@
 
 - **Founded**: February 2020
 - **Established By**: AASHTO Strategic Management Committee
-- **Current Chair**: Trisha Stafanski, Minnesota DOT (MnDOT)
+- **Current Chair**: Trisha Stefanski, Minnesota DOT (MnDOT)
+- **Vice Chair**: Will Holmes, Kentucky Transportation Cabinet
 - **Purpose**: Coordinate adoption of standardized data schemas across transportation agencies
+
+### Current Focus: Primarily IFC/BIM Standardization
+
+JSTAN's **primary accomplishments and current focus** have been in the IFC/BIM domain:
+- ✅ **AASHTO Resolution AR-1-19 (2019)**: Adopted IFC Schema as national standard for electronic engineering data
+- ✅ **buildingSMART Principal Membership (2023)**: AASHTO joined buildingSMART International
+- ✅ **IDS for Bridges (2023)**: Published Information Delivery Specification for highway bridge design-to-construction exchange
+- 🔄 **Ongoing**: Continued IFC implementation guidance and BIM adoption support
+
+### The Interoperability Gap: Need for Broader Standards Support
+
+While IFC/BIM standardization is essential, **achieving true multi-state interoperability requires coordinating ALL transportation data standards** across the complete asset lifecycle:
+
+**Missing Coverage:**
+- **Real-time Operations**: NTCIP, TMDD for traffic management; WZDx for work zone data
+- **Connected Vehicles**: SAE J2735 (BSM, SPaT, MAP, TIM messages); IEEE 1609 family
+- **Traffic Signal Systems**: CTI (Connected Traveler Intermodal) for cross-vendor interoperability
+- **Linear Referencing**: FHWA ARNOLD/HPMS for milepost-based asset location
+- **Planning & Survey**: LandXML, GeoJSON, Shapefile integration with IFC
+- **Operations to Design Feedback**: Closing the loop from ITS operations back to design standards
+
+**DOT Corridor Communicator's Contribution**: The **Digital Standards Crosswalk** demonstrates this comprehensive lifecycle approach, mapping standards across:
+- Planning (HPMS, ARNOLD, LandXML) →
+- Design (IFC, Civil 3D, OpenRoads) →
+- Construction (WZDx, IFC) →
+- Operations (NTCIP, SAE J2735, TMDD) →
+- Maintenance (CMMS, IFC)
+
+This crosswalk serves as a **model for what JSTAN could become**: a coordination body for ALL transportation data standards, not just BIM/IFC.
 
 ### Organizational Structure & Role
 
