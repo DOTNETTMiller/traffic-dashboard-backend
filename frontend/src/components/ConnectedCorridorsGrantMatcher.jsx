@@ -16,7 +16,7 @@ export default function ConnectedCorridorsGrantMatcher({ user, darkMode = false 
   const [searchingLive, setSearchingLive] = useState(false);
   const [monitoringDeadlines, setMonitoringDeadlines] = useState(false);
   const [activeView, setActiveView] = useState('matcher'); // 'matcher', 'live', 'deadlines'
-  const [selectedKeywords, setSelectedKeywords] = useState(['BUILD', 'RAISE']);
+  const [selectedKeywords, setSelectedKeywords] = useState(['BUILD', 'RAISE', 'INFRA', 'ATCMTD', 'ITS', 'V2X', 'SAFETY']);
 
   // Predefined grant keywords for better search results
   const grantKeywords = [
@@ -62,9 +62,11 @@ export default function ConnectedCorridorsGrantMatcher({ user, darkMode = false 
       : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
   };
 
-  // Auto-load deadline alerts on mount
+  // Auto-load deadline alerts and live grants on mount
   useEffect(() => {
     fetchDeadlineAlerts();
+    // Auto-load live grants with pre-selected keywords
+    searchLiveGrants();
   }, []);
 
   const handleConnectedCorridorsMatch = async (e) => {
@@ -92,8 +94,10 @@ export default function ConnectedCorridorsGrantMatcher({ user, darkMode = false 
     setSearchingLive(true);
 
     try {
-      // Use selected keywords, fallback to defaults if none selected
-      const keywords = selectedKeywords.length > 0 ? selectedKeywords : ['BUILD', 'RAISE'];
+      // Use selected keywords, fallback to broad transportation search if none selected
+      const keywords = selectedKeywords.length > 0
+        ? selectedKeywords
+        : ['transportation', 'infrastructure', 'highway', 'safety', 'ITS'];
 
       console.log('Searching Grants.gov with keywords:', keywords);
 
@@ -594,14 +598,14 @@ function LiveOpportunitiesView({ opportunities, searching, onSearch, selectedKey
         </h2>
         <button
           onClick={onSearch}
-          disabled={searching || selectedKeywords.length === 0}
+          disabled={searching}
           style={{
             ...styles.button,
-            opacity: searching || selectedKeywords.length === 0 ? 0.6 : 1,
-            cursor: searching || selectedKeywords.length === 0 ? 'not-allowed' : 'pointer',
+            opacity: searching ? 0.6 : 1,
+            cursor: searching ? 'not-allowed' : 'pointer',
           }}
         >
-          {searching ? '🔄 Searching...' : `🔍 Search ${selectedKeywords.length} Keyword${selectedKeywords.length !== 1 ? 's' : ''}`}
+          {searching ? '🔄 Searching...' : selectedKeywords.length === 0 ? '🔍 Search All Transportation Grants' : `🔍 Search ${selectedKeywords.length} Keyword${selectedKeywords.length !== 1 ? 's' : ''}`}
         </button>
       </div>
 
@@ -679,7 +683,7 @@ function LiveOpportunitiesView({ opportunities, searching, onSearch, selectedKey
           marginTop: '8px',
           fontStyle: 'italic'
         }}>
-          💡 Tip: Select multiple keywords to broaden your search. Common combinations: BUILD + RAISE, ITS + V2X, Safety + Bridge
+          💡 Tip: Multiple keywords are pre-selected to show all major transportation grants. Deselect keywords to narrow your search, or leave as-is for comprehensive results.
         </div>
       </div>
 
@@ -693,10 +697,10 @@ function LiveOpportunitiesView({ opportunities, searching, onSearch, selectedKey
         }}>
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔍</div>
           <div style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px' }}>
-            No live opportunities loaded yet
+            Ready to search for grants
           </div>
           <div style={{ fontSize: '14px' }}>
-            Select keywords above and click "Search" to fetch current opportunities from Grants.gov
+            Click "Search" above to fetch all current transportation opportunities from Grants.gov (pre-selected keywords will find all relevant DOT grants)
           </div>
         </div>
       ) : (

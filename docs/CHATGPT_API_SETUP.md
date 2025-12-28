@@ -29,7 +29,7 @@ API Key: 5523f4afb9cf5ce52cf6232c966b56810873305b770dbe8e55b6dcd6946fa639
 ## Step 2: Get Your Production URL
 
 Find your production URL where the API is hosted:
-- **Railway**: `https://your-app.railway.app`
+- **Railway**: `https://[your-railway-app-name].railway.app` (Replace with your actual Railway app URL)
 - **Other hosting**: Your custom domain
 
 You can also test locally at `http://localhost:3001`
@@ -61,7 +61,7 @@ You can also test locally at `http://localhost:3001`
   },
   "servers": [
     {
-      "url": "https://your-production-url.com"
+      "url": "https://[your-production-domain].com"
     }
   ],
   "paths": {
@@ -334,7 +334,7 @@ Try these sample queries in your ChatGPT:
 
 ```bash
 curl -H "X-API-Key: YOUR_API_KEY" \
-  https://your-domain.com/api/chatgpt/events
+  https://[your-production-domain].com/api/chatgpt/events
 ```
 
 ## Example curl Commands

@@ -122,7 +122,7 @@ function DocumentationViewer() {
     {
       key: 'jstan-integration',
       title: 'JSTAN Integration Guide',
-      url: '/JSTAN_INTEGRATION_GUIDE.md',
+      url: '/docs/JSTAN_INTEGRATION_GUIDE.md',
       pdfUrl: `${config.apiUrl}/pdfs/JSTAN-Integration-Guide.pdf`,
       description: 'Complete guide to AASHTO JSTAN data standards integration including IFC/BIM, V2X messaging (SAE J2735), TMDD, WZDx, and CTI standards. Shows how to export compliant data feeds for multi-state interoperability.',
       icon: '🔌'
@@ -130,7 +130,7 @@ function DocumentationViewer() {
     {
       key: 'jstan-quick-reference',
       title: 'JSTAN Quick Reference Card',
-      url: '/JSTAN_QUICK_REFERENCE.md',
+      url: '/docs/JSTAN_QUICK_REFERENCE.md',
       pdfUrl: `${config.apiUrl}/pdfs/JSTAN-Quick-Reference.pdf`,
       description: 'Quick reference card for DOT users covering key JSTAN standards (IFC, IDS, SAE J2735, TMDD, WZDx, CTI), grant application buzzwords, common scenarios, and troubleshooting tips. Print and keep handy!',
       icon: '📇'

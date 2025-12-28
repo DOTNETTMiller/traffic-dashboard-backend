@@ -269,7 +269,7 @@ Example: inrix_live_a1b2c3d4e5f6
 const axios = require('axios');
 
 const INRIX_API_KEY = 'inrix_live_abc123';
-const DOT_COMM_API = 'https://corridor-comm.example.com';
+const DOT_COMM_API = 'https://[your-corridor-comm-domain].com';
 
 async function submitInrixData() {
   const events = await fetchInrixIncidents(); // Get from Inrix API
@@ -310,7 +310,7 @@ async function submitInrixData() {
 import requests
 
 HERE_API_KEY = "here_live_xyz789"
-DOT_COMM_API = "https://corridor-comm.example.com"
+DOT_COMM_API = "https://[your-corridor-comm-domain].com"
 
 def submit_here_traffic_data():
     # Fetch from Here Traffic API
@@ -905,7 +905,7 @@ Generate a monthly report card for a state.
   "success": true,
   "report_id": "CA-2024-12-001",
   "generated_at": "2024-12-17T10:00:00Z",
-  "download_url": "https://corridor-comm.example.com/reports/CA-2024-12-001.pdf",
+  "download_url": "https://[your-corridor-comm-domain].com/reports/CA-2024-12-001.pdf",
   "delivery_status": {
     "email_sent": true,
     "recipients_notified": 5

@@ -7,9 +7,45 @@
 
 **JSTAN** = Joint Subcommittee on Data Standardization (AASHTO)
 
+**Chair**: Trisha Stafanski, Minnesota DOT (MnDOT)
+
 **Purpose**: Coordinate transportation data standards across state DOTs
 
+**Role**: JSTAN is a **recommendations and coordination body** (not a traditional technical standards group) that:
+- Makes standards recommendations to AASHTO for official adoption
+- Works across all AASHTO committees to coordinate efforts
+- Seeks official endorsement from AASHTO and other governing bodies
+- Champions practical adoption by state DOTs
+
+**Innovation**: JSTAN is proposing an **official AASHTO GitHub** to maintain living standards that stay current with rapidly changing technology (V2X, AI integration, cloud-based systems) outside traditional publication cycles.
+
 **Website**: https://transportation.org/data/jstan/
+
+---
+
+## How Corridor Communicator Serves JSTAN
+
+**This tool both implements and informs JSTAN standards:**
+
+### Implementation Platform ✅
+- **Live testing** of JSTAN standards across multiple states (I-80, I-35 corridors)
+- **Reference code** showing how to integrate IFC, SAE J2735, WZDx, TMDD
+- **Multi-state interoperability** proof that standards work in practice
+
+### Feedback to JSTAN 📊
+- **Gap identification**: Reveals missing standards and inconsistencies
+- **Adoption metrics**: Shows which standards are easy vs. hard to deploy
+- **Real-world data**: Provides evidence for JSTAN recommendations to AASHTO
+- **Use case validation**: Tests if standards actually solve operational problems
+
+### Value for JSTAN Members
+✅ **See your standards work in action** across real DOT deployments
+✅ **Collect data** to support AASHTO adoption recommendations
+✅ **Test new ideas** before committing to full state implementation
+✅ **Build case studies** for grant applications and peer states
+✅ **Base recommendations on evidence**, not just theory
+
+**Feedback Loop**: Implement → Measure → Report to JSTAN → Refine Standard → Re-implement
 
 ---
 
@@ -208,11 +244,29 @@ Before sharing data externally:
 
 ---
 
+## Being an Effective JSTAN Member
+
+**As a Member, Your Role Is To**:
+- Focus on **technical adoption** and practical implementation
+- Ensure standards recommendations **serve states effectively**
+- Bridge the gap between **standards development** and **operational needs**
+- Provide feedback on **real-world deployment challenges**
+- Help JSTAN function effectively within the AASHTO environment
+
+**How to Contribute**:
+1. **Test standards** in your state's environment and report back
+2. **Share implementation examples** with other states
+3. **Identify gaps** where existing standards don't meet operational needs
+4. **Coordinate with your state's committees** to align JSTAN recommendations with local needs
+5. **Advocate for streamlined adoption** that balances rigor with technological agility
+
+---
+
 ## Contact for JSTAN Questions
 
 **AASHTO JSTAN Committee**
 - Email: jstan@aashto.org
-- Chair: Mike Bousliman (Montana DOT)
+- Chair: Trisha Stafanski (Minnesota DOT / MnDOT)
 - Web: https://transportation.org/data/jstan/
 
 **Your State DOT BIM Coordinator**

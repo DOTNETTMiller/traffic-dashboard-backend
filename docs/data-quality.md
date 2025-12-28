@@ -274,4 +274,4 @@ For questions about data quality or to report feed issues:
 
 **Document Version:** 1.0
 **Last Updated:** 2025-01-15
-**Access URL:** https://[your-domain]/docs/data-quality.md
+**Access:** Available in the app under "📚 Docs" → Data Quality Standards

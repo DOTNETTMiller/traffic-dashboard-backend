@@ -26,14 +26,202 @@
 
 - **Founded**: February 2020
 - **Established By**: AASHTO Strategic Management Committee
-- **Chair**: Mike Bousliman, Montana DOT
+- **Current Chair**: Trisha Stafanski, Minnesota DOT (MnDOT)
 - **Purpose**: Coordinate adoption of standardized data schemas across transportation agencies
+
+### Organizational Structure & Role
+
+JSTAN is **not a traditional standards technical development group**. Instead, JSTAN serves as a **recommendations and coordination body** that:
+
+- **Makes standards recommendations** to AASHTO for official adoption
+- **Works across all AASHTO committees** to coordinate standardization efforts
+- **Seeks official endorsement** from AASHTO and other governing bodies
+- **Bridges technical implementation** with organizational adoption processes
+- **Champions practical adoption** by state DOTs to ensure standards serve agencies effectively
+
+### Key Challenges & Innovations
+
+**Current Challenge**: Traditional AASHTO publishing cycles can't keep pace with rapidly changing technology, particularly in areas like:
+- Connected and automated vehicles (V2X)
+- Artificial intelligence integration
+- Cloud-based data exchange
+- Real-time systems integration
+
+**Proposed Solution**: JSTAN is exploring an **official AASHTO GitHub repository** to:
+- Maintain living standards that stay current with technology changes
+- Enable version-controlled collaboration across agencies
+- Provide AI integration guidance and recommendations
+- Support rapid updates outside traditional publication cycles
+- Allow states to contribute improvements and extensions
+
+### Effective Function in AASHTO Environment
+
+For groups like JSTAN to function effectively within AASHTO:
+1. **Clear coordination pathways** with all relevant technical committees
+2. **Streamlined adoption processes** that balance rigor with agility
+3. **Member engagement** from practitioners focused on technical adoption
+4. **Practical implementation support** to help states deploy standards
+5. **Regular communication** between standards development and operational needs
 
 ### Official Resources
 
 - **Website**: https://transportation.org/data/jstan/
 - **Data Portal**: https://data.transportation.org/jstan/
 - **Parent Committee**: AASHTO Committee on Data Management and Analytics
+
+---
+
+## How Corridor Communicator Serves and Informs JSTAN
+
+The DOT Corridor Communicator serves as both an **implementation platform** for JSTAN standards and a **feedback mechanism** to inform JSTAN's ongoing work. This bidirectional relationship creates a practical testing ground for standards while generating real-world insights.
+
+### As an Implementation Platform
+
+**1. Live Standards Testing Environment**
+- Deploys JSTAN standards (IFC, SAE J2735, WZDx, TMDD) in production across multiple states
+- Validates multi-state interoperability in real corridor operations
+- Tests standards compatibility with existing state DOT systems
+- Demonstrates practical integration patterns for other states to follow
+
+**2. Reference Implementation**
+- Provides working code examples for JSTAN standards integration
+- Documents common implementation challenges and solutions
+- Serves as a template for other state DOT deployments
+- Demonstrates how standards work together in a complete system
+
+**3. Multi-State Data Exchange Proof of Concept**
+- Shows how different states can share data using common standards
+- Tests cross-border coordination scenarios (I-80, I-35 corridors)
+- Validates that standards enable true interoperability, not just theoretical compatibility
+- Identifies where standards need refinement for real-world use
+
+### As a Feedback Mechanism to JSTAN
+
+**1. Gap Identification**
+- **Real-time operational data reveals missing standards**: When the Corridor Communicator encounters data that doesn't fit existing schemas, it highlights gaps JSTAN should address
+- **Cross-standard conflicts surface during integration**: Attempting to use multiple standards together reveals inconsistencies that JSTAN can resolve
+- **State-specific variations become visible**: Shows where states interpret standards differently, indicating need for clarification
+
+**2. Practical Adoption Insights**
+- **Implementation difficulty metrics**: Tracks which standards are easy vs. hard for states to adopt
+- **Resource requirements**: Documents staff time, training, and infrastructure needed
+- **Vendor compatibility issues**: Identifies which vendor systems struggle with standard compliance
+- **Cost-benefit analysis**: Shows which standards deliver the most value for state DOT operations
+
+**3. Use Case Validation**
+- **Confirms standards solve real problems**: Demonstrates whether JSTAN standards actually address the operational challenges they're designed for
+- **Identifies overlooked scenarios**: Reveals edge cases and special situations JSTAN standards should cover
+- **Multi-state coordination patterns**: Shows how states actually collaborate, informing future standards development
+
+**4. Data for JSTAN Decision-Making**
+
+The Corridor Communicator generates actionable data that JSTAN can use:
+
+| Data Type | How JSTAN Can Use It | Example |
+|-----------|---------------------|---------|
+| **Standards Adoption Rates** | Prioritize which standards to promote | "85% of states can integrate WZDx, only 30% use IFC for bridges" |
+| **Integration Time** | Estimate deployment timelines | "Average state takes 3 months to implement SAE J2735 messaging" |
+| **Interoperability Metrics** | Validate cross-vendor compatibility | "IFC models from Vendor A work seamlessly with Vendor B's software" |
+| **Error Patterns** | Identify common implementation mistakes | "60% of states incorrectly encode TMDD coordinates in first deployment" |
+| **Feature Usage Analytics** | Guide standards evolution | "States primarily use 40% of IFC bridge properties - simplify the rest" |
+
+**5. Real-World Testing for Proposed Standards**
+
+Before JSTAN recommends a new standard to AASHTO:
+- **Pilot in Corridor Communicator**: Deploy the proposed standard across 2-3 states
+- **Measure impact**: Quantify improvements in data quality, interoperability, or operational efficiency
+- **Collect state feedback**: Get practitioner input on usability and value
+- **Refine before adoption**: Use insights to improve the standard before AASHTO endorsement
+- **Demonstrate ROI**: Show AASHTO concrete benefits from actual deployments
+
+### Informing the AASHTO GitHub Proposal
+
+The Corridor Communicator directly supports JSTAN's proposed AASHTO GitHub repository by:
+
+**1. Demonstrating Agile Standards Management**
+- Shows how standards need rapid iteration based on real-world feedback
+- Documents version control requirements for transportation standards
+- Illustrates how states can contribute improvements to living standards
+
+**2. Generating Use Cases for AI Integration**
+- Collects data on how AI could assist with:
+  - Automated standards compliance checking
+  - Intelligent data transformation between formats
+  - Predictive gap analysis for future standards needs
+- Provides training data for AI-powered standards tools
+
+**3. Model for State Collaboration**
+- Demonstrates how states can jointly develop and refine standards
+- Shows value of continuous improvement vs. fixed publication cycles
+- Illustrates how to balance innovation with standardization
+
+### Feedback Loop: Implementation → Insights → Refinement
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  1. JSTAN Recommends Standard                           │
+│     (e.g., "Use IFC 4.3 for bridge data exchange")     │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────┐
+│  2. Corridor Communicator Implements Standard           │
+│     - Integrates IFC 4.3 across Iowa, Nebraska, Ohio   │
+│     - Encounters real-world challenges                  │
+│     - Documents what works and what doesn't             │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────┐
+│  3. Generate Implementation Data                         │
+│     - "IFC property X missing from 40% of state models" │
+│     - "Vendor software Y can't parse IFC geometry"      │
+│     - "States need simplified IFC export templates"     │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────┐
+│  4. Feed Insights Back to JSTAN                         │
+│     - Present findings at JSTAN meetings                │
+│     - Recommend standard refinements                     │
+│     - Propose implementation guidance additions          │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────┐
+│  5. JSTAN Refines Standard                              │
+│     - Updates IFC guidance based on feedback            │
+│     - Creates simplified templates for states           │
+│     - Works with vendors to improve compatibility       │
+└────────────────┬────────────────────────────────────────┘
+                 │
+                 └─────► (Loop back to Step 2 with improved standard)
+```
+
+### Value Proposition for JSTAN Members
+
+As a JSTAN member using the Corridor Communicator, you can:
+
+✅ **See your standards work in action** - Watch how your recommendations perform in real deployments
+✅ **Collect evidence for AASHTO** - Bring concrete data to support standards adoption
+✅ **Identify issues early** - Find problems before standards are widely deployed
+✅ **Test new ideas quickly** - Prototype proposed standards without requiring full state commitment
+✅ **Build case studies** - Document successful implementations for grant applications and peer states
+✅ **Inform your JSTAN contributions** - Base recommendations on actual operational experience, not just theory
+
+### Making JSTAN More Effective
+
+Tools like the Corridor Communicator help JSTAN function more effectively in the AASHTO environment by:
+
+1. **Providing Evidence-Based Recommendations**: Replace "we think this standard would help" with "we deployed this standard across 5 states and measured 30% improvement"
+
+2. **Accelerating Adoption Cycles**: Test → Refine → Deploy faster than traditional publication cycles allow
+
+3. **Demonstrating Multi-Committee Coordination**: Show how JSTAN standards support goals of structures committees, ITS committees, and data committees simultaneously
+
+4. **Building State Buy-In**: When states see standards working in production, they're more likely to support AASHTO adoption
+
+5. **Creating Living Documentation**: Generate up-to-date implementation guides based on actual deployments, complementing formal AASHTO publications
 
 ---
 
@@ -967,16 +1155,16 @@ await syncBridgeInspections(inspections);
 
 **JSTAN Committee:**
 - Email: jstan@aashto.org
-- Chair: Mike Bousliman (Montana DOT)
+- Chair: Trisha Stafanski (Minnesota DOT / MnDOT)
 
 **AASHTO:**
 - Phone: (202) 624-5800
 - Address: 555 12th Street NW, Suite 1000, Washington, DC 20004
 
 **DOT Corridor Communicator Support:**
-- Issues: https://github.com/your-repo/issues
-- Documentation: See `/docs` folder
-- Email: support@dot-corridor.gov
+- For technical issues: Contact your system administrator
+- Documentation: Available in the app under "📚 Docs"
+- For JSTAN-related questions: jstan@aashto.org
 
 ---
 

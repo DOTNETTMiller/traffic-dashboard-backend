@@ -10,6 +10,14 @@ export default defineConfig({
       '/api': {
         target: process.env.VITE_API_URL || 'http://localhost:3001',
         changeOrigin: true
+      },
+      '/docs': {
+        target: process.env.VITE_API_URL || 'http://localhost:3001',
+        changeOrigin: true
+      },
+      '/pdfs': {
+        target: process.env.VITE_API_URL || 'http://localhost:3001',
+        changeOrigin: true
       }
     }
   }

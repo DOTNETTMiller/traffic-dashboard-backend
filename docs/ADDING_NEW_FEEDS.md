@@ -156,7 +156,7 @@ Examples:
 
 1. **Login as Admin**:
    ```
-   Email: admin@example.com
+   Email: [state-admin@yourdot.gov]
    Password: admin123
    ```
 
@@ -241,7 +241,7 @@ The system supports multiple authentication methods:
 
 1. **URL Parameter**:
    ```
-   https://api.example.com/wzdx?api_key={API_KEY}
+   https://[state-api-domain].com/wzdx?api_key={API_KEY}
    ```
 
 2. **Header Authentication**:

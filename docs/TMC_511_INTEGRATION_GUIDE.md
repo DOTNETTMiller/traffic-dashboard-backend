@@ -2648,7 +2648,7 @@ Subscribe to event notifications.
 {
   "subscriber_id": "user-123",
   "subscription_type": "email",
-  "delivery_target": "user@example.com",
+  "delivery_target": "recipient@yourdot.gov",
   "filters": {
     "corridors": ["I-80"],
     "min_severity": "major"
@@ -3377,8 +3377,8 @@ This TMC & 511 System Integration Guide provides a comprehensive framework for c
 - Connected Corridors Grants: `CONNECTED_CORRIDORS_GRANTS_INTEGRATION.md`
 
 **Support & Questions:**
-- GitHub Issues: https://github.com/your-org/corridor-communicator/issues
-- Email: corridor-support@dot.gov
+- For technical issues: Contact your system administrator
+- Documentation: Available in the app under "📚 Docs"
 - AASHTO JSTAN Committee: jstan@aashto.org
 
 ---

@@ -890,6 +890,6 @@ POST /api/infrastructure/device/:guid/link-arc-its
 
 **Last Updated:** 2025-12-16
 **Version:** 1.1
-**Access:** https://[your-domain]/docs/digital-infrastructure.md
+**Access:** Available in the app under "Digital Infrastructure" section
 
 For questions or feedback, contact your DOT Corridor Communicator administrator.
