@@ -2946,6 +2946,365 @@ class StateDatabase {
     }
   }
 
+  // =========================================================================
+  // NODE (National Operations Dataset Exchange) Methods
+  // =========================================================================
+
+  /**
+   * Generate a new API key for external consumers
+   * @param {Object} params - API key parameters
+   * @returns {Object} Generated API key and metadata
+   */
+  async createAPIKey(params) {
+    const {
+      name,
+      organization = null,
+      contact_email = null,
+      key_type = 'public',
+      tier = 'basic',
+      rate_limit_per_hour = 1000,
+      allowed_endpoints = ['*'],
+      expires_in_days = null
+    } = params;
+
+    // Generate random API key
+    const apiKey = 'node_' + crypto.randomBytes(32).toString('hex');
+    const keyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
+    const keyPrefix = apiKey.substring(0, 8);
+
+    const expiresAt = expires_in_days
+      ? new Date(Date.now() + expires_in_days * 24 * 60 * 60 * 1000).toISOString()
+      : null;
+
+    try {
+      if (this.isPostgres) {
+        await this.db.prepare(`
+          INSERT INTO api_keys (
+            key_hash, key_prefix, name, organization, contact_email,
+            key_type, tier, rate_limit_per_hour, allowed_endpoints, expires_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(keyHash, keyPrefix, name, organization, contact_email, key_type, tier,
+              rate_limit_per_hour, JSON.stringify(allowed_endpoints), expiresAt);
+      } else {
+        this.db.prepare(`
+          INSERT INTO api_keys (
+            key_hash, key_prefix, name, organization, contact_email,
+            key_type, tier, rate_limit_per_hour, allowed_endpoints, expires_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(keyHash, keyPrefix, name, organization, contact_email, key_type, tier,
+              rate_limit_per_hour, JSON.stringify(allowed_endpoints), expiresAt);
+      }
+
+      console.log(`✅ Created API key for ${name} (${key_type})`);
+
+      return {
+        success: true,
+        api_key: apiKey,  // ONLY TIME THIS IS SHOWN - store securely!
+        key_prefix: keyPrefix,
+        name,
+        tier,
+        rate_limit_per_hour,
+        expires_at: expiresAt
+      };
+    } catch (error) {
+      console.error('Error creating API key:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Verify an API key and check permissions
+   * @param {string} apiKey - The API key to verify
+   * @param {string} endpoint - The endpoint being accessed
+   * @returns {Object} Verification result with key metadata
+   */
+  async verifyAPIKey(apiKey, endpoint = null) {
+    const keyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
+
+    try {
+      let keyData;
+      if (this.isPostgres) {
+        keyData = await this.db.prepare(`
+          SELECT * FROM api_keys WHERE key_hash = ? AND active = TRUE
+        `).get(keyHash);
+      } else {
+        keyData = this.db.prepare(`
+          SELECT * FROM api_keys WHERE key_hash = ? AND active = 1
+        `).get(keyHash);
+      }
+
+      if (!keyData) {
+        return { valid: false, reason: 'Invalid API key' };
+      }
+
+      // Check expiration
+      if (keyData.expires_at) {
+        const expiresAt = new Date(keyData.expires_at);
+        if (expiresAt < new Date()) {
+          return { valid: false, reason: 'API key expired' };
+        }
+      }
+
+      // Check endpoint permissions
+      if (endpoint) {
+        const allowedEndpoints = JSON.parse(keyData.allowed_endpoints || '["*"]');
+        const isAllowed = allowedEndpoints.includes('*') ||
+                         allowedEndpoints.some(pattern =>
+                           endpoint.startsWith(pattern.replace('*', ''))
+                         );
+
+        if (!isAllowed) {
+          return { valid: false, reason: 'Endpoint not allowed for this API key' };
+        }
+      }
+
+      // Update last used timestamp
+      if (this.isPostgres) {
+        await this.db.prepare(`
+          UPDATE api_keys
+          SET last_used = CURRENT_TIMESTAMP, usage_count = usage_count + 1
+          WHERE key_hash = ?
+        `).run(keyHash);
+      } else {
+        this.db.prepare(`
+          UPDATE api_keys
+          SET last_used = CURRENT_TIMESTAMP, usage_count = usage_count + 1
+          WHERE key_hash = ?
+        `).run(keyHash);
+      }
+
+      return {
+        valid: true,
+        key_id: keyData.id,
+        name: keyData.name,
+        organization: keyData.organization,
+        key_type: keyData.key_type,
+        tier: keyData.tier,
+        rate_limit_per_hour: keyData.rate_limit_per_hour
+      };
+    } catch (error) {
+      console.error('Error verifying API key:', error);
+      return { valid: false, reason: 'Verification error' };
+    }
+  }
+
+  /**
+   * Log API usage for analytics and rate limiting
+   */
+  async logAPIUsage(apiKeyId, endpoint, method, statusCode, responseTimeMs, ipAddress = null, userAgent = null, errorMessage = null) {
+    try {
+      if (this.isPostgres) {
+        await this.db.prepare(`
+          INSERT INTO api_usage_logs (
+            api_key_id, endpoint, method, status_code, response_time_ms,
+            ip_address, user_agent, error_message
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(apiKeyId, endpoint, method, statusCode, responseTimeMs, ipAddress, userAgent, errorMessage);
+      } else {
+        this.db.prepare(`
+          INSERT INTO api_usage_logs (
+            api_key_id, endpoint, method, status_code, response_time_ms,
+            ip_address, user_agent, error_message
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(apiKeyId, endpoint, method, statusCode, responseTimeMs, ipAddress, userAgent, errorMessage);
+      }
+    } catch (error) {
+      console.error('Error logging API usage:', error);
+    }
+  }
+
+  /**
+   * Cache event data with provenance metadata
+   */
+  async cacheEvent(eventData) {
+    const {
+      event_id,
+      event_data,
+      source_type,
+      source_id,
+      source_name,
+      confidence_score = 0.5,
+      latitude,
+      longitude,
+      corridor,
+      state_key,
+      event_type,
+      severity,
+      start_time,
+      end_time,
+      data_provenance = null,
+      expires_in_hours = 24
+    } = eventData;
+
+    const expiresAt = new Date(Date.now() + expires_in_hours * 60 * 60 * 1000).toISOString();
+    const provenanceJSON = data_provenance ? JSON.stringify(data_provenance) : null;
+
+    try {
+      if (this.isPostgres) {
+        await this.db.prepare(`
+          INSERT INTO cached_events (
+            event_id, event_data, source_type, source_id, source_name,
+            confidence_score, latitude, longitude, corridor, state_key,
+            event_type, severity, start_time, end_time, data_provenance,
+            expires_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT (event_id) DO UPDATE SET
+            event_data = EXCLUDED.event_data,
+            confidence_score = EXCLUDED.confidence_score,
+            latitude = EXCLUDED.latitude,
+            longitude = EXCLUDED.longitude,
+            updated_at = CURRENT_TIMESTAMP
+        `).run(event_id, JSON.stringify(event_data), source_type, source_id, source_name,
+              confidence_score, latitude, longitude, corridor, state_key,
+              event_type, severity, start_time, end_time, provenanceJSON, expiresAt);
+      } else {
+        this.db.prepare(`
+          INSERT INTO cached_events (
+            event_id, event_data, source_type, source_id, source_name,
+            confidence_score, latitude, longitude, corridor, state_key,
+            event_type, severity, start_time, end_time, data_provenance,
+            expires_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(event_id) DO UPDATE SET
+            event_data = excluded.event_data,
+            confidence_score = excluded.confidence_score,
+            latitude = excluded.latitude,
+            longitude = excluded.longitude,
+            updated_at = CURRENT_TIMESTAMP
+        `).run(event_id, JSON.stringify(event_data), source_type, source_id, source_name,
+              confidence_score, latitude, longitude, corridor, state_key,
+              event_type, severity, start_time, end_time, provenanceJSON, expiresAt);
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error caching event:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get cached events with provenance metadata
+   */
+  async getCachedEvents(filters = {}) {
+    const { corridor, state_key, source_type, min_confidence = 0, limit = 1000 } = filters;
+
+    try {
+      let query = `
+        SELECT * FROM cached_events
+        WHERE expires_at > CURRENT_TIMESTAMP
+        AND confidence_score >= ?
+      `;
+      const params = [min_confidence];
+
+      if (corridor) {
+        query += ' AND corridor = ?';
+        params.push(corridor);
+      }
+
+      if (state_key) {
+        query += ' AND state_key = ?';
+        params.push(state_key);
+      }
+
+      if (source_type) {
+        query += ' AND source_type = ?';
+        params.push(source_type);
+      }
+
+      query += ' ORDER BY created_at DESC LIMIT ?';
+      params.push(limit);
+
+      let events;
+      if (this.isPostgres) {
+        events = await this.db.prepare(query).all(...params);
+      } else {
+        events = this.db.prepare(query).all(...params);
+      }
+
+      // Parse JSON fields
+      return events.map(event => ({
+        ...event,
+        event_data: JSON.parse(event.event_data),
+        data_provenance: event.data_provenance ? JSON.parse(event.data_provenance) : null
+      }));
+    } catch (error) {
+      console.error('Error getting cached events:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Accept external data contribution
+   */
+  async createContribution(contributionData) {
+    const {
+      contributor_id,
+      contribution_type,
+      data,
+      latitude,
+      longitude,
+      location_accuracy_meters = null,
+      confidence_score = 0.3
+    } = contributionData;
+
+    try {
+      if (this.isPostgres) {
+        const result = await this.db.prepare(`
+          INSERT INTO external_contributions (
+            contributor_id, contribution_type, data, latitude, longitude,
+            location_accuracy_meters, confidence_score
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          RETURNING id
+        `).get(contributor_id, contribution_type, JSON.stringify(data), latitude,
+              longitude, location_accuracy_meters, confidence_score);
+
+        return { success: true, contribution_id: result.id };
+      } else {
+        const result = this.db.prepare(`
+          INSERT INTO external_contributions (
+            contributor_id, contribution_type, data, latitude, longitude,
+            location_accuracy_meters, confidence_score
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(contributor_id, contribution_type, JSON.stringify(data), latitude,
+              longitude, location_accuracy_meters, confidence_score);
+
+        return { success: true, contribution_id: result.lastInsertRowid };
+      }
+    } catch (error) {
+      console.error('Error creating contribution:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get API keys (admin function)
+   */
+  async getAllAPIKeys() {
+    try {
+      let keys;
+      if (this.isPostgres) {
+        keys = await this.db.prepare(`
+          SELECT id, key_prefix, name, organization, key_type, tier,
+                 rate_limit_per_hour, active, created_at, last_used, usage_count
+          FROM api_keys
+          ORDER BY created_at DESC
+        `).all();
+      } else {
+        keys = this.db.prepare(`
+          SELECT id, key_prefix, name, organization, key_type, tier,
+                 rate_limit_per_hour, active, created_at, last_used, usage_count
+          FROM api_keys
+          ORDER BY created_at DESC
+        `).all();
+      }
+      return keys;
+    } catch (error) {
+      console.error('Error getting API keys:', error);
+      return [];
+    }
+  }
+
   close() {
     this.db.close();
   }

@@ -1,0 +1,649 @@
+openapi: 3.0.3
+info:
+  title: NODE (National Operations Dataset Exchange) API
+  description: |
+    Bidirectional operational data exchange API aligned with FHWA NODE framework principles.
+
+    ## Features
+    - **WZDx v4.2** feed publishing
+    - **Data contribution** from commercial and crowdsource providers
+    - **Data provenance** tracking with confidence scores
+    - **API key authentication** with role-based access
+    - **Rate limiting** by tier
+
+    ## Authentication
+    All endpoints require an API key provided via:
+    - `X-API-Key` header (recommended)
+    - `api_key` query parameter
+
+    Contact your system administrator to request an API key.
+
+  version: 1.0.0
+  contact:
+    name: NODE Integration Team
+    email: node@corridor-communicator.org
+  license:
+    name: Creative Commons Zero v1.0 Universal
+    url: https://creativecommons.org/publicdomain/zero/1.0/
+
+servers:
+  - url: https://{domain}/api/v1
+    description: Production server
+    variables:
+      domain:
+        default: corridor-communicator.org
+        description: Your Corridor Communicator domain
+  - url: http://localhost:3001/api/v1
+    description: Development server
+
+tags:
+  - name: Data Publishing
+    description: Consume aggregated operational data
+  - name: Data Contribution
+    description: Submit data from external sources
+  - name: Administration
+    description: API key management (admin only)
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+  /node:
+    get:
+      tags:
+        - Data Publishing
+      summary: Get NODE implementation info
+      description: Returns capabilities and documentation links for this NODE implementation
+      security: []
+      responses:
+        '200':
+          description: NODE implementation information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeInfo'
+
+  /wzdx:
+    get:
+      tags:
+        - Data Publishing
+      summary: Get WZDx v4.2 feed
+      description: |
+        Retrieve aggregated traffic events in WZDx v4.2 format with data provenance metadata.
+
+        This is the core NODE data publishing endpoint. Events are cached with confidence scores
+        and source attribution to enable data quality assessment.
+      parameters:
+        - name: corridor
+          in: query
+          description: Filter events by corridor (e.g., I-80, I-35)
+          schema:
+            type: string
+            example: I-80
+        - name: state
+          in: query
+          description: Filter events by state key (e.g., iowa, nebraska)
+          schema:
+            type: string
+            example: iowa
+        - name: bbox
+          in: query
+          description: Bounding box filter (minLon,minLat,maxLon,maxLat)
+          schema:
+            type: string
+            example: "-94.0,41.0,-93.0,42.0"
+      responses:
+        '200':
+          description: WZDx v4.2 feed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WZDxFeed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /contribute/probe-data:
+    post:
+      tags:
+        - Data Contribution
+      summary: Submit probe data
+      description: |
+        Submit vehicle probe data from commercial fleets or navigation apps.
+
+        **Use cases:**
+        - Truck GPS speed data
+        - Hard braking events
+        - Traffic flow observations
+
+        Submitted data is queued for validation before appearing in public feeds.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProbeDataContribution'
+      responses:
+        '201':
+          description: Contribution accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContributionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /contribute/incident:
+    post:
+      tags:
+        - Data Contribution
+      summary: Submit incident report
+      description: |
+        Submit incident reports from crowdsource or official sources.
+
+        **Examples:**
+        - Disabled vehicles
+        - Debris in roadway
+        - Weather hazards
+        - Crashes (from verified sources only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncidentContribution'
+      responses:
+        '201':
+          description: Contribution accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContributionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /contribute/parking-status:
+    post:
+      tags:
+        - Data Contribution
+      summary: Submit truck parking status
+      description: |
+        Submit truck parking availability updates from rest area operators or fleet managers.
+
+        Updates are typically published immediately as facility operators are trusted sources.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParkingStatusContribution'
+      responses:
+        '201':
+          description: Parking status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContributionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/api-keys:
+    post:
+      tags:
+        - Administration
+      summary: Create API key
+      description: |
+        Generate a new API key for external consumers (admin only).
+
+        **⚠️ Important:** The full API key is only returned once. Store it securely.
+      security:
+        - AdminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAPIKeyRequest'
+      responses:
+        '201':
+          description: API key created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      tags:
+        - Administration
+      summary: List API keys
+      description: List all API keys (admin only, without revealing actual keys)
+      security:
+        - AdminAuth: []
+      responses:
+        '200':
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  api_keys:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/APIKeyInfo'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for NODE access. Include as `X-API-Key` header or `api_key` query parameter.
+    AdminAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    NodeInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          example: DOT Corridor Communicator NODE Implementation
+        version:
+          type: string
+          example: 1.0.0
+        description:
+          type: string
+        capabilities:
+          type: object
+          properties:
+            data_publishing:
+              type: object
+            data_contribution:
+              type: object
+            data_provenance:
+              type: object
+
+    WZDxFeed:
+      type: object
+      required:
+        - road_event_feed_info
+        - type
+        - features
+      properties:
+        road_event_feed_info:
+          type: object
+          properties:
+            update_date:
+              type: string
+              format: date-time
+            publisher:
+              type: string
+            version:
+              type: string
+              example: "4.2"
+        type:
+          type: string
+          enum: [FeatureCollection]
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/WZDxFeature'
+
+    WZDxFeature:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [Feature]
+        properties:
+          type: object
+          properties:
+            core_details:
+              type: object
+            data_quality:
+              $ref: '#/components/schemas/DataQuality'
+        geometry:
+          type: object
+          properties:
+            type:
+              type: string
+            coordinates:
+              type: array
+              items:
+                type: number
+
+    DataQuality:
+      type: object
+      description: NODE-specific data provenance and quality metadata
+      properties:
+        confidence_score:
+          type: number
+          minimum: 0.0
+          maximum: 1.0
+          description: Confidence in data accuracy (0.0 to 1.0)
+          example: 0.95
+        source_type:
+          type: string
+          enum:
+            - official_dot
+            - commercial_fleet
+            - crowdsource
+            - sensor
+          description: Type of data source
+        source_name:
+          type: string
+          description: Human-readable source name
+          example: Iowa DOT
+        validation_status:
+          type: string
+          enum:
+            - validated
+            - unvalidated
+            - suspicious
+            - rejected
+        last_verified:
+          type: string
+          format: date-time
+
+    Location:
+      type: object
+      required:
+        - lat
+        - lon
+      properties:
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+          example: 41.5868
+        lon:
+          type: number
+          minimum: -180
+          maximum: 180
+          example: -93.6091
+        accuracy:
+          type: number
+          description: Location accuracy in meters
+          example: 10
+
+    ProbeDataContribution:
+      type: object
+      required:
+        - vehicle_type
+        - timestamp
+        - location
+      properties:
+        vehicle_type:
+          type: string
+          enum:
+            - commercial_truck
+            - passenger_car
+            - bus
+            - other
+        timestamp:
+          type: string
+          format: date-time
+        location:
+          $ref: '#/components/schemas/Location'
+        speed:
+          type: number
+          description: Speed in MPH
+          example: 45
+        event_type:
+          type: string
+          enum:
+            - hard_braking
+            - sudden_stop
+            - slow_traffic
+            - normal
+        metadata:
+          type: object
+          additionalProperties: true
+
+    IncidentContribution:
+      type: object
+      required:
+        - description
+        - location
+      properties:
+        description:
+          type: string
+          example: Disabled vehicle blocking right lane
+        location:
+          $ref: '#/components/schemas/Location'
+        incident_type:
+          type: string
+          enum:
+            - disabled_vehicle
+            - debris
+            - weather_hazard
+            - crash
+            - other
+        severity:
+          type: string
+          enum:
+            - low
+            - medium
+            - high
+        timestamp:
+          type: string
+          format: date-time
+        source_confidence:
+          type: number
+          minimum: 0.0
+          maximum: 1.0
+          description: Reporter's confidence in accuracy
+          example: 0.8
+
+    ParkingStatusContribution:
+      type: object
+      required:
+        - facility_id
+        - location
+        - spaces_available
+      properties:
+        facility_id:
+          type: string
+          example: IA-I80-MM142
+        location:
+          $ref: '#/components/schemas/Location'
+        spaces_available:
+          type: integer
+          minimum: 0
+          example: 25
+        total_spaces:
+          type: integer
+          minimum: 1
+          example: 50
+        timestamp:
+          type: string
+          format: date-time
+        amenities:
+          type: array
+          items:
+            type: string
+            enum:
+              - restrooms
+              - fuel
+              - food
+              - showers
+              - wifi
+
+    ContributionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        contribution_id:
+          type: integer
+          example: 12345
+        message:
+          type: string
+          example: Probe data received and queued for validation
+
+    CreateAPIKeyRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          example: TomTom Fleet Integration
+        organization:
+          type: string
+          example: TomTom
+        contact_email:
+          type: string
+          format: email
+        key_type:
+          type: string
+          enum:
+            - public
+            - commercial
+            - research
+            - government
+        tier:
+          type: string
+          enum:
+            - basic
+            - standard
+            - premium
+            - unlimited
+        rate_limit_per_hour:
+          type: integer
+        allowed_endpoints:
+          type: array
+          items:
+            type: string
+        expires_in_days:
+          type: integer
+
+    APIKeyResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        api_key:
+          type: string
+          example: node_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+        key_prefix:
+          type: string
+        name:
+          type: string
+        tier:
+          type: string
+        rate_limit_per_hour:
+          type: integer
+        warning:
+          type: string
+
+    APIKeyInfo:
+      type: object
+      properties:
+        id:
+          type: integer
+        key_prefix:
+          type: string
+        name:
+          type: string
+        organization:
+          type: string
+        key_type:
+          type: string
+        tier:
+          type: string
+        rate_limit_per_hour:
+          type: integer
+        active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        last_used:
+          type: string
+          format: date-time
+        usage_count:
+          type: integer
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        reason:
+          type: string
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid API key
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: API key required
+            message: Include API key in X-API-Key header or api_key query parameter
+
+    Forbidden:
+      description: API key expired or endpoint not allowed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Invalid or expired API key
+            reason: API key expired
+
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Missing required fields
+            message: Location and description required
+
+    RateLimitExceeded:
+      description: Too many requests
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+          description: Requests allowed per hour
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+          description: Requests remaining in current window
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+          description: Unix timestamp when rate limit resets
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Rate limit exceeded
+            message: You have exceeded your hourly rate limit. Please try again later.

@@ -256,6 +256,22 @@ app.use((req, res, next) => {
   next();
 });
 
+// ============================================================================
+// NODE (National Operations Dataset Exchange) Routes
+// ============================================================================
+// Mount NODE API routes for bidirectional data exchange
+const nodeRoutes = require('./node_routes');
+app.use('/api/v1', nodeRoutes);
+console.log('✅ NODE routes mounted at /api/v1');
+
+// ============================================================================
+// CIVIC (Civil Infrastructure Verification & Interoperability Coalition) Routes
+// ============================================================================
+// Mount CIVIC API routes for Matter-like infrastructure IoT
+const civicRoutes = require('./civic_routes');
+app.use('/civic/v1', civicRoutes);
+console.log('✅ CIVIC routes mounted at /civic/v1');
+
 // Admin authentication middleware - accepts legacy tokens or user JWT with admin role
 const requireAdmin = async (req, res, next) => {
   const authHeader = req.headers.authorization;
