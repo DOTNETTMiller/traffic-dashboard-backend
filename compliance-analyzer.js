@@ -30,18 +30,19 @@ const STANDARD_REQUIREMENTS = {
     requiredFields: [
       { field: 'id', specField: 'TravelerInformation.packetID', description: 'TIM packet identifier', severity: 'critical' },
       { field: 'startTime', fallbackFields: ['startDate', 'start_date', 'start_time', 'created_at', 'event-update-time', 'eventUpdateTime'], specField: 'TravelerDataFrame.startTime', description: 'Start time (ISO 8601)', severity: 'critical', format: 'ISO8601' },
-      { field: 'endTime', fallbackFields: ['endDate'], specField: 'TravelerDataFrame.endTime', description: 'End time', severity: 'high', format: 'ISO8601', optional: true },
       { field: 'coordinates', specField: 'Position3D', description: 'Latitude/longitude', severity: 'critical', validator: 'coordinates' },
-      { field: 'eventType', fallbackFields: ['type'], specField: 'Content.itis', description: 'ITIS-compatible event type', severity: 'high' },
-      { field: 'severity', specField: 'TravelerDataFrame.priority', description: 'Priority (0-7 -> high/medium/low)', severity: 'high', enum: ['high','medium','low','major','moderate','minor'] },
-      { field: 'description', specField: 'TravelerDataFrame.content', description: 'Advisory text', severity: 'high', minLength: 15 },
-      { field: 'direction', specField: 'GeographicalPath.direction', description: 'Direction of travel', severity: 'medium', enum: ['northbound','southbound','eastbound','westbound','both','unknown','n','s','e','w','nb','sb','eb','wb'] },
-      { field: 'lanesClosed', fallbackFields: ['lanesAffected'], specField: 'WorkZone.lanes', description: 'Lane closure details', severity: 'medium' },
-      { field: 'roadStatus', fallbackFields: ['status'], specField: 'RoadClosure.status', description: 'Open/closed/restricted state', severity: 'medium', enum: ['open','closed','restricted','Open','Closed','Restricted'] }
+      { field: 'eventType', fallbackFields: ['type'], specField: 'Content.itis', description: 'ITIS-compatible event type', severity: 'critical' },
+      { field: 'corridor', fallbackFields: ['location'], specField: 'GeographicalPath.name', description: 'Roadway name', severity: 'high', minLength: 3 },
+      { field: 'direction', specField: 'GeographicalPath.direction', description: 'Direction of travel', severity: 'high', enum: ['northbound','southbound','eastbound','westbound','both','unknown','n','s','e','w','nb','sb','eb','wb'] },
+      { field: 'lanesAffected', fallbackFields: ['lanesClosed'], specField: 'WorkZone.lanes', description: 'Lane closure details', severity: 'high' },
+      { field: 'description', specField: 'TravelerDataFrame.content', description: 'Advisory text', severity: 'medium', minLength: 15 },
+      { field: 'endTime', fallbackFields: ['endDate'], specField: 'TravelerDataFrame.endTime', description: 'End time', severity: 'medium', format: 'ISO8601', optional: true },
+      { field: 'severity', specField: 'TravelerDataFrame.priority', description: 'Priority (0-7 -> high/medium/low)', severity: 'medium', enum: ['high','medium','low','major','moderate','minor'] }
     ],
     optionalEnhancements: [
       { field: 'detourRoute', description: 'Linked detour guidance', benefit: 'Enhances traveler routing' },
-      { field: 'speedLimit', description: 'Regulatory/advisory speed', benefit: 'Improves CV applications' }
+      { field: 'speedLimit', description: 'Regulatory/advisory speed', benefit: 'Improves CV applications' },
+      { field: 'roadStatus', description: 'Open/closed/restricted state', benefit: 'Supports traffic management' }
     ]
   },
   TMDD_ngC2C: {
@@ -51,17 +52,19 @@ const STANDARD_REQUIREMENTS = {
       { field: 'id', fallbackFields: ['eventId'], specField: 'tmdd:eventID', description: 'Event identifier', severity: 'critical' },
       { field: 'state', specField: 'tmdd:organization-id', description: 'Owning organization/state', severity: 'critical', minLength: 2 },
       { field: 'startTime', fallbackFields: ['startDate', 'start_date', 'start_time', 'created_at', 'event-update-time', 'eventUpdateTime'], specField: 'tmdd:event-update-time', description: 'Event update/start time', severity: 'critical', format: 'ISO8601' },
-      { field: 'roadStatus', specField: 'tmdd:event-status', description: 'Event status (open/closed/planned)', severity: 'high', enum: ['open','closed','planned','restricted','Active','active','Planned','Closed'] },
+      { field: 'coordinates', specField: 'tmdd:point', description: 'Spatial reference', severity: 'critical', validator: 'coordinates' },
       { field: 'corridor', fallbackFields: ['location'], specField: 'tmdd:roadway-name', description: 'Roadway identifier', severity: 'high', minLength: 3 },
       { field: 'direction', specField: 'tmdd:direction', description: 'Direction of travel', severity: 'high', enum: ['northbound','southbound','eastbound','westbound','both','unknown','n','s','e','w','nb','sb','eb','wb'] },
       { field: 'lanesAffected', fallbackFields: ['lanesClosed'], specField: 'tmdd:lane-closure-status', description: 'Lane impact details', severity: 'high' },
-      { field: 'severity', specField: 'tmdd:event-impact-level', description: 'Impact severity level', severity: 'medium', enum: ['high','medium','low','major','moderate','minor'] },
       { field: 'description', specField: 'tmdd:event-description', description: 'Narrative description', severity: 'medium', minLength: 10 },
-      { field: 'coordinates', specField: 'tmdd:point', description: 'Spatial reference', severity: 'medium', validator: 'coordinates' }
+      { field: 'severity', specField: 'tmdd:event-impact-level', description: 'Impact severity level', severity: 'medium', enum: ['high','medium','low','major','moderate','minor'] }
     ],
     optionalEnhancements: [
       { field: 'detourRoute', description: 'Structured detour routing', benefit: 'Improves C2C coordination' },
-      { field: 'contact', description: 'Incident command contact', benefit: 'Supports center-to-center escalation' }
+      { field: 'contact', description: 'Incident command contact', benefit: 'Supports center-to-center escalation' },
+      { field: 'endTime', description: 'Event end time', benefit: 'Improves planning and scheduling' },
+      { field: 'roadStatus', description: 'Event status (open/closed/planned)', benefit: 'Supports real-time traffic management' },
+      { field: 'eventType', description: 'Event type/classification', benefit: 'Improves event categorization' }
     ]
   }
 };

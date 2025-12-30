@@ -272,6 +272,38 @@ const civicRoutes = require('./civic_routes');
 app.use('/civic/v1', civicRoutes);
 console.log('✅ CIVIC routes mounted at /civic/v1');
 
+// ============================================================================
+// V2X Routes - ITS JPO ODE Integration
+// ============================================================================
+// Mount V2X API routes for connected vehicle data (BSM, TIM, SPaT, MAP)
+const v2xRoutes = require('./routes/v2x');
+app.use('/api/v2x', v2xRoutes);
+console.log('✅ V2X routes mounted at /api/v2x');
+
+// ============================================================================
+// ITS Architecture Routes - RAD-IT-like Functionality
+// ============================================================================
+// Mount ITS Architecture routes for regional architecture documentation
+const architectureRoutes = require('./routes/architecture');
+app.use('/api/architecture', architectureRoutes);
+console.log('✅ ITS Architecture routes mounted at /api/architecture');
+
+// ============================================================================
+// WZDx Routes - Work Zone Data Exchange
+// ============================================================================
+// Mount WZDx API routes for work zone data (consume/produce WZDx v4.2 feeds)
+const wzdxRoutes = require('./routes/wzdx');
+app.use('/api/wzdx', wzdxRoutes);
+console.log('✅ WZDx routes mounted at /api/wzdx');
+
+// ============================================================================
+// Sensor Routes - RWIS, Traffic, Bridge sensor management
+// ============================================================================
+// Mount Sensor API routes for sensor inventory and readings
+const sensorRoutes = require('./routes/sensors');
+app.use('/api/sensors', sensorRoutes);
+console.log('✅ Sensor routes mounted at /api/sensors');
+
 // Admin authentication middleware - accepts legacy tokens or user JWT with admin role
 const requireAdmin = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -8865,12 +8897,49 @@ app.get('/api/compliance/summary', async (req, res) => {
       console.error('Error adding California to compliance summary:', error.message);
     }
 
-    // Final deduplication pass (in case of any edge cases)
+    // State key normalization map (maps variants to canonical 2-letter codes)
+    const STATE_KEY_NORMALIZATION = {
+      'illinois': 'il',
+      'nebraska': 'ne',
+      'nevada': 'nv',
+      'newjersey': 'nj',
+      'newyork': 'ny',
+      'california': 'ca',
+      'texas': 'tx',
+      'ohio': 'oh',
+      'pennsylvania': 'pa',
+      'florida': 'fl',
+      'georgia': 'ga',
+      'northcarolina': 'nc',
+      'southcarolina': 'sc',
+      'virginia': 'va',
+      'westvirginia': 'wv',
+      'maryland': 'md',
+      'delaware': 'de',
+      'newjersey': 'nj',
+      'connecticut': 'ct',
+      'rhodeisland': 'ri',
+      'massachusetts': 'ma',
+      'vermont': 'vt',
+      'newhampshire': 'nh',
+      'maine': 'me'
+    };
+
+    // Normalize a state key to its canonical form (prefer 2-letter codes)
+    const normalizeStateKey = (key) => {
+      const lowerKey = key.toLowerCase();
+      return STATE_KEY_NORMALIZATION[lowerKey] || lowerKey;
+    };
+
+    // Final deduplication pass with state key normalization
     const uniqueStates = [];
     const seenStateKeys = new Set();
     for (const state of states) {
-      if (!seenStateKeys.has(state.stateKey)) {
-        seenStateKeys.add(state.stateKey);
+      const normalizedKey = normalizeStateKey(state.stateKey);
+      if (!seenStateKeys.has(normalizedKey)) {
+        seenStateKeys.add(normalizedKey);
+        // Use normalized key for consistency
+        state.stateKey = normalizedKey;
         uniqueStates.push(state);
       }
     }
@@ -21471,6 +21540,31 @@ function startServer() {
 
   // Schedule periodic updates every 15 minutes
   setInterval(fetchTPIMSDataScheduled, 15 * 60 * 1000);
+
+  // Start WZDx feed updates
+  console.log(`\n🚧 Work Zone Data Exchange (WZDx):`);
+  console.log(`   📡 WZDx v4.2 feed consumer/producer`);
+  console.log(`   🔄 Auto-refresh: Every 15 minutes`);
+  console.log(`   🏗️  State DOT feeds: Auto-populated from registry`);
+
+  const wzdxConsumer = require('./utils/wzdx-consumer');
+
+  // Scheduled WZDx feed update function
+  async function updateWZDxFeeds() {
+    try {
+      console.log('🕐 Scheduled WZDx feed update starting...');
+      await wzdxConsumer.updateAllFeeds();
+      console.log('✅ Scheduled WZDx feed update completed');
+    } catch (error) {
+      console.error('❌ Error in scheduled WZDx update:', error);
+    }
+  }
+
+  // Initial fetch
+  setTimeout(() => updateWZDxFeeds(), 10000); // Wait 10 seconds after startup
+
+  // Schedule periodic updates every 15 minutes
+  setInterval(updateWZDxFeeds, 15 * 60 * 1000);
 
   // Diagnostic: Check truck parking JSON file
   console.log(`\n🔍 Diagnostic: Checking truck parking JSON file...`);
