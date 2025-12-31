@@ -40,9 +40,9 @@ WORKDIR /app
 # Copy all application files
 COPY . .
 
-# Install backend dependencies (skip postinstall hook entirely in Docker)
+# Install backend dependencies (postinstall script will exit gracefully)
 ENV SKIP_FRONTEND_BUILD=1
-RUN npm ci --only=production --ignore-scripts && npm rebuild better-sqlite3
+RUN npm ci --only=production
 
 # Expose port (Railway will set PORT env variable)
 EXPOSE 3001
