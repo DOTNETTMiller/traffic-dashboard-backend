@@ -42,7 +42,9 @@ COPY . .
 
 # Install backend dependencies (postinstall script will exit gracefully)
 ENV SKIP_FRONTEND_BUILD=1
-RUN npm ci --only=production
+RUN npm ci --only=production && \
+    echo "📦 Verifying critical dependencies..." && \
+    node -e "const deps = ['ajv', 'pdfkit', 'express', 'cors', 'better-sqlite3']; deps.forEach(d => { try { require(d); console.log('✅', d); } catch(e) { console.log('❌', d, 'MISSING'); } });"
 
 # Expose port (Railway will set PORT env variable)
 EXPOSE 3001

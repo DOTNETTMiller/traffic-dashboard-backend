@@ -7,11 +7,20 @@
  * Official WZDx Spec: https://github.com/usdot-jpo-ode/wzdx
  */
 
-const Ajv = require('ajv');
-const addFormats = require('ajv-formats');
 const axios = require('axios');
 const fs = require('fs').promises;
 const path = require('path');
+
+// Optional dependencies - gracefully handle if not installed
+let Ajv, addFormats;
+try {
+  Ajv = require('ajv');
+  addFormats = require('ajv-formats');
+} catch (error) {
+  console.warn('⚠️  ajv/ajv-formats not available - WZDx validation disabled');
+  Ajv = null;
+  addFormats = null;
+}
 
 // WZDx v4.2 Schema URLs
 const WZDX_VERSION = '4.2';
@@ -28,6 +37,7 @@ const CACHE_DIR = path.join(__dirname, '../.cache/wzdx-schemas');
 
 class WZDxValidator {
   constructor() {
+    this.validationAvailable = Ajv !== null;
     this.ajv = new Ajv({
       allErrors: true,
       verbose: true,
