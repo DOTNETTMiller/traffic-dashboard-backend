@@ -5,9 +5,17 @@
  * Similar to traditional RAD-IT PDF outputs
  */
 
-const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
+
+// Optional dependency - gracefully handle if not installed
+let PDFDocument;
+try {
+  PDFDocument = require('pdfkit');
+} catch (error) {
+  console.warn('⚠️  pdfkit not available - PDF generation disabled');
+  PDFDocument = null;
+}
 
 class ArchitecturePDFGenerator {
   constructor() {
@@ -16,6 +24,7 @@ class ArchitecturePDFGenerator {
     this.margin = 50;
     this.pageWidth = 612; // Letter size
     this.pageHeight = 792;
+    this.pdfAvailable = PDFDocument !== null;
   }
 
   /**
@@ -23,6 +32,10 @@ class ArchitecturePDFGenerator {
    */
   async generatePDF(architectureData, outputPath) {
     return new Promise((resolve, reject) => {
+      if (!this.pdfAvailable) {
+        return reject(new Error('PDF generation not available - pdfkit module not installed'));
+      }
+
       try {
         this.doc = new PDFDocument({
           size: 'letter',
