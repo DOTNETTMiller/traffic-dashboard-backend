@@ -1,0 +1,21 @@
+/**
+ * ARC-IT Integration Styles
+ * Minimal styling - component uses inline styles for embedded ARC-IT tool
+ */
+
+/* Ensure full height for iframe container */
+.its-architecture-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Loading state */
+.its-architecture-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  font-size: 16px;
+  color: #6b7280;
+}
