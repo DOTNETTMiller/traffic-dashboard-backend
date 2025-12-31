@@ -37,12 +37,12 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
 # Set working directory
 WORKDIR /app
 
-# Copy all application files (needed for postinstall script)
+# Copy all application files
 COPY . .
 
-# Install only backend dependencies
+# Install backend dependencies (skip postinstall hook entirely in Docker)
 ENV SKIP_FRONTEND_BUILD=1
-RUN npm ci --only=production
+RUN npm ci --only=production --ignore-scripts && npm rebuild better-sqlite3
 
 # Expose port (Railway will set PORT env variable)
 EXPOSE 3001
