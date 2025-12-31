@@ -21460,9 +21460,10 @@ app.get('*', (req, res) => {
 
 // Start server function - called after database initialization
 function startServer() {
-  app.listen(PORT, async () => {
+  const HOST = process.env.RAILWAY_ENVIRONMENT ? '0.0.0.0' : 'localhost';
+  app.listen(PORT, HOST, async () => {
   console.log(`\n🚀 Traffic Dashboard Backend Server (Email Login Enabled)`);
-  console.log(`✅ Server running on http://localhost:${PORT}`);
+  console.log(`✅ Server running on http://${HOST}:${PORT}`);
   console.log(`📊 API Endpoints:`);
   console.log(`   GET http://localhost:${PORT}/api/events - Get all events`);
   console.log(`   GET http://localhost:${PORT}/api/events/:state - Get events by state`);

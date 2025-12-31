@@ -26,5 +26,5 @@ RUN npm ci --only=production
 # Expose port (Railway will set PORT env variable)
 EXPOSE 3001
 
-# Start the application
-CMD ["node", "backend_proxy_server.js"]
+# Start the application via start.js wrapper (handles volume initialization)
+CMD ["node", "start.js"]
