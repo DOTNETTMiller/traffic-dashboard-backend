@@ -37,15 +37,12 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
 # Set working directory
 WORKDIR /app
 
-# Copy package files first for better layer caching
-COPY package*.json ./
+# Copy all application files (needed for postinstall script)
+COPY . .
 
 # Install only backend dependencies
 ENV SKIP_FRONTEND_BUILD=1
 RUN npm ci --only=production
-
-# Copy application files
-COPY . .
 
 # Expose port (Railway will set PORT env variable)
 EXPOSE 3001
