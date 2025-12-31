@@ -1,8 +1,25 @@
 # Use Node.js 20 with Alpine Linux for smaller image size
 FROM node:20-alpine
 
-# Install GDAL and required dependencies
+# Install build dependencies for native modules (better-sqlite3, puppeteer)
 RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    cairo-dev \
+    jpeg-dev \
+    pango-dev \
+    giflib-dev \
+    pixman-dev \
+    pangomm-dev \
+    libjpeg-turbo-dev \
+    freetype-dev \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
     gdal \
     gdal-tools \
     gdal-dev \
@@ -13,15 +30,22 @@ RUN apk add --no-cache \
     sqlite \
     sqlite-dev
 
+# Tell Puppeteer to skip downloading Chromium (use system Chromium)
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
 # Set working directory
 WORKDIR /app
 
-# Copy all application files
-COPY . .
+# Copy package files first for better layer caching
+COPY package*.json ./
 
 # Install only backend dependencies
 ENV SKIP_FRONTEND_BUILD=1
 RUN npm ci --only=production
+
+# Copy application files
+COPY . .
 
 # Expose port (Railway will set PORT env variable)
 EXPOSE 3001
