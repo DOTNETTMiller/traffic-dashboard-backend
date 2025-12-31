@@ -41,10 +41,13 @@ import NASCOCorridorRegulationsView from './components/NASCOCorridorRegulationsV
 import DigitalInfrastructure from './components/DigitalInfrastructure';
 import DigitalStandardsCrosswalk from './components/DigitalStandardsCrosswalk';
 import VendorPortal from './components/VendorPortal';
+import ITSArchitecture from './components/ITSArchitecture';
+import WZDxView from './components/WZDxView';
+import SensorDashboard from './components/SensorDashboard';
 import './styles/App.css';
 
 function App() {
-  const [view, setView] = useState('map'); // 'map', 'table', 'report', 'alignment', 'messages', 'docs', or 'admin'
+  const [view, setView] = useState('map'); // 'map', 'table', 'report', 'alignment', 'messages', 'docs', 'admin', 'architecture', etc.
   const [filters, setFilters] = useState({
     state: '',
     corridor: '',
@@ -733,6 +736,12 @@ function App() {
           >
             📊 Dashboard
           </button>
+          <button
+            className={`toggle-btn ${view === 'sensors' ? 'active' : ''}`}
+            onClick={() => setView('sensors')}
+          >
+            🛰️ Sensors & V2X
+          </button>
 
           {/* Data Quality Dropdown */}
           <div style={{ position: 'relative' }}>
@@ -1174,6 +1183,50 @@ function App() {
                     onMouseLeave={(e) => e.currentTarget.style.background = view === 'digitalInfrastructure' ? '#f3f4f6' : 'white'}
                   >
                     🏗️ Digital Infrastructure
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView('architecture');
+                      setStateToolsDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'architecture' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'architecture' ? '600' : '400',
+                      color: view === 'architecture' ? '#059669' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'architecture' ? '#f3f4f6' : 'white'}
+                  >
+                    🏛️ ITS Architecture
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView('wzdx');
+                      setStateToolsDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'wzdx' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'wzdx' ? '600' : '400',
+                      color: view === 'wzdx' ? '#f59e0b' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'wzdx' ? '#f3f4f6' : 'white'}
+                  >
+                    🚧 WZDx Work Zones
                   </button>
                   <button
                     onClick={() => {
@@ -1765,6 +1818,22 @@ function App() {
           }}>
             <VendorPortal />
           </div>
+        ) : view === 'architecture' ? (
+          <div style={{
+            height: 'calc(100vh - 120px)',
+            overflow: 'auto',
+            padding: '0'
+          }}>
+            <ITSArchitecture />
+          </div>
+        ) : view === 'wzdx' ? (
+          <div style={{
+            height: 'calc(100vh - 120px)',
+            overflow: 'auto',
+            padding: '0'
+          }}>
+            <WZDxView />
+          </div>
         ) : view === 'admin' ? (
           <StateAdmin user={currentUser} authToken={authToken} />
         ) : view === 'adminUsers' ? (
@@ -1945,6 +2014,8 @@ function App() {
               <TETCDataGrading />
             ) : view === 'vendorComparison' ? (
               <VendorDQIComparison />
+            ) : view === 'sensors' ? (
+              <SensorDashboard />
             ) : null}
           </div>
         )}
