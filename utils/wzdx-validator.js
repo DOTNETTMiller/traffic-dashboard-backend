@@ -38,13 +38,18 @@ const CACHE_DIR = path.join(__dirname, '../.cache/wzdx-schemas');
 class WZDxValidator {
   constructor() {
     this.validationAvailable = Ajv !== null;
-    this.ajv = new Ajv({
-      allErrors: true,
-      verbose: true,
-      strict: false,
-      allowUnionTypes: true
-    });
-    addFormats(this.ajv);
+
+    if (this.validationAvailable) {
+      this.ajv = new Ajv({
+        allErrors: true,
+        verbose: true,
+        strict: false,
+        allowUnionTypes: true
+      });
+      addFormats(this.ajv);
+    } else {
+      this.ajv = null;
+    }
 
     this.validators = {};
     this.schemasLoaded = false;
