@@ -48,6 +48,37 @@ async function initSensorData() {
   try {
     const db = require('../database');
 
+    // First, ensure sensor and ITS equipment tables exist
+    console.log('📋 Ensuring sensor and ITS equipment tables exist...\n');
+
+    // Create sensor tables
+    const { createSensorTables } = require('./create_sensor_tables');
+    await createSensorTables();
+
+    // Create its_equipment table (inline to avoid module loading issues)
+    await db.runAsync(`
+      CREATE TABLE IF NOT EXISTS its_equipment (
+        id TEXT PRIMARY KEY,
+        state_key TEXT NOT NULL,
+        equipment_type TEXT NOT NULL,
+        equipment_subtype TEXT,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        location_description TEXT,
+        route TEXT,
+        milepost REAL,
+        status TEXT DEFAULT 'active',
+        sensor_type TEXT,
+        measurement_types TEXT,
+        data_source TEXT,
+        uploaded_by TEXT,
+        notes TEXT,
+        created_at TEXT,
+        updated_at TEXT
+      )
+    `);
+    console.log('✅ Created its_equipment table');
+
     // Check if sensor inventory is already populated
     const sensorCount = await db.all('SELECT COUNT(*) as count FROM sensor_inventory', []);
     const count = parseInt(sensorCount[0]?.count || 0);
