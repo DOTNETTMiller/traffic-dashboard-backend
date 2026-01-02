@@ -8,8 +8,8 @@ const { spawn } = require('child_process');
 
 async function start() {
   try {
-    // Initialize volume data first
-    initVolumeData();
+    // Initialize volume data first (includes sensor data)
+    await initVolumeData();
 
     // Start the main server
     console.log('🚀 Starting backend server...\n');
