@@ -19,6 +19,11 @@ const ComplianceAnalyzer = require('./compliance-analyzer');
 const { OpenAI } = require('openai');
 const IFCParser = require('./utils/ifc-parser');
 const multer = require('multer');
+const { analyzeEquipment, analyzeRegionalArchitecture } = require('./utils/arcit-service-packages');
+const { generateQuickArchitectureReport } = require('./utils/architecture-pdf-generator');
+const { analyzeV2XDeployment } = require('./utils/v2x-gap-analysis');
+const { analyzeStandardsCompliance, calculateEquipmentCompliance } = require('./utils/standards-compliance-tracker');
+const { generateGrantApplication, getGrantRequirements, GRANT_PROGRAMS } = require('./utils/grant-wizard');
 
 // Initialize volume data from bundled sources on startup
 function initVolumeData() {
@@ -13406,6 +13411,342 @@ app.get('/api/its-equipment/summary', async (req, res) => {
   } catch (error) {
     console.error('❌ Summary error:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Architecture Analysis - ARC-IT Service Package Mapping
+app.get('/api/architecture/analyze', async (req, res) => {
+  try {
+    const { stateKey } = req.query;
+
+    // Build query to fetch equipment
+    let query = 'SELECT * FROM its_equipment';
+    const params = [];
+
+    if (stateKey && stateKey !== 'all') {
+      if (db.isPostgres) {
+        query += ' WHERE state_key = $1';
+      } else {
+        query += ' WHERE state_key = ?';
+      }
+      params.push(stateKey);
+    }
+
+    // Fetch equipment
+    let equipment;
+    if (db.isPostgres) {
+      const result = await db.db.query(query, params);
+      equipment = result.rows || [];
+    } else {
+      equipment = db.db.prepare(query).all(...params);
+    }
+
+    console.log(`🏗️ Analyzing ${equipment.length} equipment items for state: ${stateKey || 'all'}`);
+
+    // Analyze regional architecture
+    const analysis = analyzeRegionalArchitecture(equipment);
+
+    // Add metadata
+    const response = {
+      success: true,
+      state: stateKey || 'all',
+      analyzed_at: new Date().toISOString(),
+      ...analysis
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('❌ Architecture analysis error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Architecture PDF Export
+app.get('/api/architecture/export/pdf', async (req, res) => {
+  try {
+    const { stateKey } = req.query;
+
+    // Build query to fetch equipment
+    let query = 'SELECT * FROM its_equipment';
+    const params = [];
+
+    if (stateKey && stateKey !== 'all') {
+      if (db.isPostgres) {
+        query += ' WHERE state_key = $1';
+      } else {
+        query += ' WHERE state_key = ?';
+      }
+      params.push(stateKey);
+    }
+
+    // Fetch equipment
+    let equipment;
+    if (db.isPostgres) {
+      const result = await db.db.query(query, params);
+      equipment = result.rows || [];
+    } else {
+      equipment = db.db.prepare(query).all(...params);
+    }
+
+    console.log(`📄 Generating PDF for ${equipment.length} equipment items (state: ${stateKey || 'all'})`);
+
+    // Analyze regional architecture
+    const analysis = analyzeRegionalArchitecture(equipment);
+
+    // Get state name
+    let stateName = 'Regional';
+    if (stateKey && stateKey !== 'all') {
+      const stateRecord = db.db.prepare('SELECT state_name FROM states WHERE state_key = ?').get(stateKey);
+      stateName = stateRecord?.state_name || stateKey.toUpperCase();
+    }
+
+    // Generate PDF
+    const pdfBuffer = await generateQuickArchitectureReport(analysis, { stateName });
+
+    // Send PDF
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${stateName.replace(/\s+/g, '_')}_ITS_Architecture_Report.pdf"`);
+    res.send(pdfBuffer);
+
+    console.log(`✅ PDF generated successfully for ${stateName}`);
+  } catch (error) {
+    console.error('❌ PDF generation error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// V2X Deployment Gap Analysis
+app.get('/api/architecture/v2x-gaps', async (req, res) => {
+  try {
+    const { stateKey, rsuRange, targetCoverage } = req.query;
+
+    // Build query to fetch equipment
+    let query = 'SELECT * FROM its_equipment';
+    const params = [];
+
+    if (stateKey && stateKey !== 'all') {
+      if (db.isPostgres) {
+        query += ' WHERE state_key = $1';
+      } else {
+        query += ' WHERE state_key = ?';
+      }
+      params.push(stateKey);
+    }
+
+    // Fetch equipment
+    let equipment;
+    if (db.isPostgres) {
+      const result = await db.db.query(query, params);
+      equipment = result.rows || [];
+    } else {
+      equipment = db.db.prepare(query).all(...params);
+    }
+
+    console.log(`📡 Analyzing V2X coverage for ${equipment.length} equipment items (state: ${stateKey || 'all'})`);
+
+    // Analyze V2X deployment
+    const options = {};
+    if (rsuRange) options.rsuRange = parseInt(rsuRange);
+    if (targetCoverage) options.targetCoveragePercent = parseInt(targetCoverage);
+
+    const analysis = analyzeV2XDeployment(equipment, options);
+
+    res.json({
+      success: true,
+      state: stateKey || 'all',
+      analyzed_at: new Date().toISOString(),
+      ...analysis
+    });
+  } catch (error) {
+    console.error('❌ V2X gap analysis error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Standards Compliance Analysis
+app.get('/api/architecture/compliance', async (req, res) => {
+  try {
+    const { stateKey, equipmentType } = req.query;
+
+    // Build query to fetch equipment
+    let query = 'SELECT * FROM its_equipment';
+    const params = [];
+    const conditions = [];
+
+    if (stateKey && stateKey !== 'all') {
+      if (db.isPostgres) {
+        conditions.push(`state_key = $${params.length + 1}`);
+      } else {
+        conditions.push('state_key = ?');
+      }
+      params.push(stateKey);
+    }
+
+    if (equipmentType) {
+      if (db.isPostgres) {
+        conditions.push(`equipment_type = $${params.length + 1}`);
+      } else {
+        conditions.push('equipment_type = ?');
+      }
+      params.push(equipmentType);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    // Fetch equipment
+    let equipment;
+    if (db.isPostgres) {
+      const result = await db.db.query(query, params);
+      equipment = result.rows || [];
+    } else {
+      equipment = db.db.prepare(query).all(...params);
+    }
+
+    console.log(`📋 Analyzing standards compliance for ${equipment.length} equipment items (state: ${stateKey || 'all'})`);
+
+    // Analyze standards compliance
+    const analysis = analyzeStandardsCompliance(equipment);
+
+    res.json({
+      success: true,
+      state: stateKey || 'all',
+      equipment_type: equipmentType || 'all',
+      analyzed_at: new Date().toISOString(),
+      ...analysis
+    });
+  } catch (error) {
+    console.error('❌ Standards compliance analysis error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Stakeholder Management Endpoints
+app.get('/api/stakeholders', async (req, res) => {
+  try {
+    const stakeholders = db.db.prepare('SELECT * FROM stakeholders ORDER BY organization_name').all();
+    res.json({ success: true, stakeholders });
+  } catch (error) {
+    console.error('Error fetching stakeholders:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/stakeholders/:id/engagements', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const engagements = db.db.prepare(`
+      SELECT * FROM stakeholder_engagements
+      WHERE stakeholder_id = ?
+      ORDER BY engagement_date DESC
+    `).all(id);
+    res.json({ success: true, engagements });
+  } catch (error) {
+    console.error('Error fetching engagements:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Grant Application Wizard
+app.post('/api/grants/generate', async (req, res) => {
+  try {
+    const { grantType, stateKey, projectTitle, applicant } = req.body;
+
+    if (!grantType || !GRANT_PROGRAMS[grantType]) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid grant type. Must be one of: SMART, RAISE, ATCMTD, SS4A'
+      });
+    }
+
+    console.log(`📝 Generating ${grantType} grant application for ${stateKey || 'all'}...`);
+
+    // Fetch equipment data
+    let query = 'SELECT * FROM its_equipment';
+    const params = [];
+
+    if (stateKey && stateKey !== 'all') {
+      if (db.isPostgres) {
+        query += ' WHERE state_key = $1';
+      } else {
+        query += ' WHERE state_key = ?';
+      }
+      params.push(stateKey);
+    }
+
+    let equipment;
+    if (db.isPostgres) {
+      const result = await db.db.query(query, params);
+      equipment = result.rows || [];
+    } else {
+      equipment = db.db.prepare(query).all(...params);
+    }
+
+    // Run all analyses
+    const architectureAnalysis = analyzeRegionalArchitecture(equipment);
+    const v2xGaps = analyzeV2XDeployment(equipment);
+    const complianceData = analyzeStandardsCompliance(equipment);
+
+    // Generate grant application
+    const application = generateGrantApplication(grantType, architectureAnalysis, {
+      projectTitle: projectTitle || 'Regional ITS Enhancement Project',
+      applicant: applicant || 'State Department of Transportation',
+      stateKey: stateKey || 'state',
+      v2xGaps,
+      complianceData
+    });
+
+    console.log(`✅ Generated ${grantType} grant application successfully`);
+
+    res.json({
+      success: true,
+      grant_type: grantType,
+      application
+    });
+  } catch (error) {
+    console.error('❌ Grant generation error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+app.get('/api/grants/programs', (req, res) => {
+  res.json({
+    success: true,
+    programs: Object.keys(GRANT_PROGRAMS).map(key => ({
+      id: key,
+      ...GRANT_PROGRAMS[key]
+    }))
+  });
+});
+
+app.get('/api/grants/requirements/:grantType', (req, res) => {
+  try {
+    const { grantType } = req.params;
+    const requirements = getGrantRequirements(grantType);
+    res.json({ success: true, requirements });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
   }
 });
 
