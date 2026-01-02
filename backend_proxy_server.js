@@ -13382,8 +13382,27 @@ function generateV2XRecommendations(rsus, gaps) {
 // Equipment summary by state
 app.get('/api/its-equipment/summary', async (req, res) => {
   try {
-    const summary = db.db.prepare('SELECT * FROM v_equipment_summary_by_state').all();
-    res.json({ success: true, summary });
+    // Get aggregate statistics
+    const stats = db.db.prepare(`
+      SELECT
+        COUNT(*) as total_equipment,
+        COUNT(DISTINCT state_key) as states,
+        SUM(CASE WHEN equipment_type = 'camera' THEN 1 ELSE 0 END) as cameras,
+        SUM(CASE WHEN equipment_type = 'dms' THEN 1 ELSE 0 END) as dms,
+        SUM(CASE WHEN equipment_type = 'rsu' THEN 1 ELSE 0 END) as rsus,
+        SUM(CASE WHEN equipment_type = 'sensor' THEN 1 ELSE 0 END) as sensors
+      FROM its_equipment
+    `).get();
+
+    // Return the stats object directly (not wrapped in another object)
+    res.json(stats || {
+      total_equipment: 0,
+      states: 0,
+      cameras: 0,
+      dms: 0,
+      rsus: 0,
+      sensors: 0
+    });
   } catch (error) {
     console.error('❌ Summary error:', error);
     res.status(500).json({ success: false, error: error.message });

@@ -42,6 +42,7 @@ import DigitalInfrastructure from './components/DigitalInfrastructure';
 import DigitalStandardsCrosswalk from './components/DigitalStandardsCrosswalk';
 import VendorPortal from './components/VendorPortal';
 import ITSArchitecture from './components/ITSArchitecture';
+import ITSEquipmentViewer from './components/ITSEquipmentViewer';
 import WZDxView from './components/WZDxView';
 import SensorDashboard from './components/SensorDashboard';
 import './styles/App.css';
@@ -1208,6 +1209,28 @@ function App() {
                   </button>
                   <button
                     onClick={() => {
+                      setView('equipment');
+                      setStateToolsDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'equipment' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'equipment' ? '600' : '400',
+                      color: view === 'equipment' ? '#667eea' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'equipment' ? '#f3f4f6' : 'white'}
+                  >
+                    🏗️ ITS Equipment Inventory
+                  </button>
+                  <button
+                    onClick={() => {
                       setView('wzdx');
                       setStateToolsDropdownOpen(false);
                     }}
@@ -1825,6 +1848,14 @@ function App() {
             padding: '0'
           }}>
             <ITSArchitecture />
+          </div>
+        ) : view === 'equipment' ? (
+          <div style={{
+            height: 'calc(100vh - 120px)',
+            overflow: 'auto',
+            padding: '0'
+          }}>
+            <ITSEquipmentViewer />
           </div>
         ) : view === 'wzdx' ? (
           <div style={{
