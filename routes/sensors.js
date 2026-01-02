@@ -178,46 +178,87 @@ router.get('/alerts', async (req, res) => {
 router.get('/dashboard', async (req, res) => {
   try {
     // Total sensors by type
-    const sensorsByType = await db.db.prepare(`
+    const sensorsByType = await db.all(`
       SELECT sensor_type, COUNT(*) as count
       FROM sensor_inventory
       GROUP BY sensor_type
-    `).all();
+    `, []);
 
     // Active warnings
-    const activeWarnings = await db.db.prepare(`
+    const activeWarnings = await db.all(`
       SELECT alert_type, severity, COUNT(*) as count
       FROM sensor_alerts
       WHERE status = 'active'
       GROUP BY alert_type, severity
       ORDER BY severity DESC
-    `).all();
+    `, []);
 
     // Sensor health
-    const healthSummary = await db.db.prepare(`
+    const healthSummary = await db.all(`
       SELECT
         status,
         COUNT(*) as count
       FROM sensor_inventory
       GROUP BY status
-    `).all();
+    `, []);
 
-    // Recent critical readings
-    const criticalReadings = await db.db.prepare(`
+    // Recent critical readings (PostgreSQL compatible datetime)
+    const criticalReadings = await db.all(`
       SELECT r.*, s.sensor_name, s.roadway, s.location_description
       FROM rwis_readings r
       JOIN sensor_inventory s ON r.sensor_id = s.sensor_id
       WHERE r.warning_level >= 2
-        AND r.reading_timestamp > datetime('now', '-1 hour')
+        AND r.reading_timestamp > NOW() - INTERVAL '1 hour'
       ORDER BY r.warning_level DESC, r.reading_timestamp DESC
       LIMIT 10
-    `).all();
+    `, []);
+
+    // Calculate summary statistics
+    const totalSensors = sensorsByType.reduce((sum, type) => sum + parseInt(type.count), 0);
+    const activeSensors = healthSummary.find(h => h.status === 'active')?.count || 0;
+    const activeAlerts = activeWarnings.reduce((sum, alert) => sum + parseInt(alert.count), 0);
+    const criticalAlerts = activeWarnings.filter(a => a.severity === 'critical').reduce((sum, a) => sum + parseInt(a.count), 0);
+
+    // Get TIM broadcast count from last 24h (PostgreSQL compatible)
+    const timResult = await db.all(`
+      SELECT COUNT(*) as count
+      FROM tim_broadcast_log
+      WHERE created_at > NOW() - INTERVAL '24 hours'
+    `, []);
+    const timBroadcasts24h = timResult[0] || { count: 0 };
+
+    // Get recent readings count (PostgreSQL compatible)
+    const readingsResult = await db.all(`
+      SELECT COUNT(*) as count
+      FROM rwis_readings
+      WHERE reading_timestamp > NOW() - INTERVAL '1 hour'
+    `, []);
+    const recentReadingsCount = readingsResult[0] || { count: 0 };
+
+    // Get recent alerts for dashboard
+    const recentAlerts = await db.all(`
+      SELECT sa.*, si.sensor_name, si.roadway, si.milepost
+      FROM sensor_alerts sa
+      JOIN sensor_inventory si ON sa.sensor_id = si.sensor_id
+      WHERE sa.status = 'active'
+      ORDER BY sa.started_at DESC
+      LIMIT 5
+    `, []);
 
     res.json({
-      sensors_by_type: sensorsByType,
+      summary: {
+        total_sensors: totalSensors,
+        active_sensors: parseInt(activeSensors) || 0,
+        active_alerts: activeAlerts,
+        critical_alerts: criticalAlerts,
+        tim_broadcasts_24h: parseInt(timBroadcasts24h.count) || 0,
+        recent_readings: parseInt(recentReadingsCount.count) || 0
+      },
+      sensor_types: sensorsByType,
       active_warnings: activeWarnings,
       health_summary: healthSummary,
-      critical_readings: criticalReadings
+      critical_readings: criticalReadings,
+      recent_alerts: recentAlerts
     });
 
   } catch (error) {
