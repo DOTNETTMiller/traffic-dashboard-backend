@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 import '../styles/sensor-dashboard.css';
+
+// Fix Leaflet icon issues
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 const SensorDashboard = () => {
   const [sensors, setSensors] = useState([]);
@@ -160,7 +171,7 @@ const SensorDashboard = () => {
     return date.toLocaleDateString();
   };
 
-  if (loading || !dashboardData) {
+  if (loading || !dashboardData || !dashboardData.summary) {
     return (
       <div className="sensor-dashboard loading">
         <div className="loading-spinner"></div>
@@ -223,6 +234,12 @@ const SensorDashboard = () => {
           🛰️ Sensors ({sensors.length})
         </button>
         <button
+          className={`tab ${activeTab === 'map' ? 'active' : ''}`}
+          onClick={() => setActiveTab('map')}
+        >
+          🗺️ Map
+        </button>
+        <button
           className={`tab ${activeTab === 'tim' ? 'active' : ''}`}
           onClick={() => setActiveTab('tim')}
         >
@@ -231,7 +248,7 @@ const SensorDashboard = () => {
       </div>
 
       {/* Overview Tab */}
-      {activeTab === 'overview' && dashboardData && (
+      {activeTab === 'overview' && dashboardData && dashboardData.summary && (
         <div className="overview-tab">
           {/* Stats Cards */}
           <div className="stats-grid">
@@ -239,9 +256,9 @@ const SensorDashboard = () => {
               <div className="stat-icon">🛰️</div>
               <div className="stat-content">
                 <div className="stat-label">Total Sensors</div>
-                <div className="stat-value">{dashboardData.summary.total_sensors}</div>
+                <div className="stat-value">{dashboardData.summary.total_sensors || 0}</div>
                 <div className="stat-detail">
-                  {dashboardData.summary.active_sensors} active
+                  {dashboardData.summary.active_sensors || 0} active
                 </div>
               </div>
             </div>
@@ -250,9 +267,9 @@ const SensorDashboard = () => {
               <div className="stat-icon">🚨</div>
               <div className="stat-content">
                 <div className="stat-label">Active Alerts</div>
-                <div className="stat-value">{dashboardData.summary.active_alerts}</div>
+                <div className="stat-value">{dashboardData.summary.active_alerts || 0}</div>
                 <div className="stat-detail">
-                  {dashboardData.summary.critical_alerts} critical
+                  {dashboardData.summary.critical_alerts || 0} critical
                 </div>
               </div>
             </div>
@@ -261,7 +278,7 @@ const SensorDashboard = () => {
               <div className="stat-icon">📡</div>
               <div className="stat-content">
                 <div className="stat-label">TIM Broadcasts</div>
-                <div className="stat-value">{dashboardData.summary.tim_broadcasts_24h}</div>
+                <div className="stat-value">{dashboardData.summary.tim_broadcasts_24h || 0}</div>
                 <div className="stat-detail">Last 24 hours</div>
               </div>
             </div>
@@ -270,7 +287,7 @@ const SensorDashboard = () => {
               <div className="stat-icon">📊</div>
               <div className="stat-content">
                 <div className="stat-label">Readings</div>
-                <div className="stat-value">{dashboardData.summary.recent_readings}</div>
+                <div className="stat-value">{dashboardData.summary.recent_readings || 0}</div>
                 <div className="stat-detail">Last hour</div>
               </div>
             </div>
@@ -280,7 +297,7 @@ const SensorDashboard = () => {
           <div className="sensor-types">
             <h3>Sensor Types</h3>
             <div className="types-grid">
-              {dashboardData.sensor_types.map(type => (
+              {(dashboardData.sensor_types || []).map(type => (
                 <div key={type.sensor_type} className="type-card">
                   <div className="type-icon">
                     {type.sensor_type === 'rwis' && '❄️'}
@@ -297,9 +314,9 @@ const SensorDashboard = () => {
           {/* Recent Alerts */}
           <div className="recent-alerts">
             <h3>Recent Alerts</h3>
-            {dashboardData.recent_alerts.length > 0 ? (
+            {(dashboardData.recent_alerts || []).length > 0 ? (
               <div className="alerts-list">
-                {dashboardData.recent_alerts.slice(0, 5).map(alert => (
+                {(dashboardData.recent_alerts || []).slice(0, 5).map(alert => (
                   <div key={alert.id} className="alert-item">
                     <div className="alert-icon">{getAlertTypeIcon(alert.alert_type)}</div>
                     <div className="alert-content">
@@ -518,6 +535,71 @@ const SensorDashboard = () => {
                 <div className="no-data">No readings available</div>
               )}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Map Tab */}
+      {activeTab === 'map' && (
+        <div className="map-tab">
+          <div className="tab-header">
+            <h3>🗺️ Sensor Map</h3>
+            <div className="map-legend">
+              <span><span style={{color: '#2563eb'}}>●</span> RWIS (150)</span>
+              <span><span style={{color: '#dc2626'}}>●</span> Traffic (1700)</span>
+              <span><span style={{color: '#ea580c'}}>●</span> Unknown</span>
+            </div>
+          </div>
+
+          {sensors.length > 0 ? (
+            <div className="map-container" style={{ height: '700px', width: '100%' }}>
+              <MapContainer
+                center={[42.0, -93.5]}
+                zoom={7}
+                style={{ height: '100%', width: '100%' }}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+
+                {sensors.map(sensor => {
+                  if (!sensor.latitude || !sensor.longitude) return null;
+
+                  const color = sensor.sensor_type === 'rwis' ? '#2563eb' :
+                                sensor.sensor_type === 'traffic' ? '#dc2626' : '#ea580c';
+
+                  return (
+                    <CircleMarker
+                      key={sensor.id}
+                      center={[sensor.latitude, sensor.longitude]}
+                      radius={5}
+                      fillColor={color}
+                      color={color}
+                      weight={1}
+                      opacity={0.8}
+                      fillOpacity={0.6}
+                    >
+                      <Popup>
+                        <div style={{ minWidth: '200px' }}>
+                          <h4 style={{ margin: '0 0 8px 0', fontSize: '14px' }}>{sensor.sensor_name}</h4>
+                          <div style={{ fontSize: '12px', lineHeight: '1.6' }}>
+                            <div><strong>Type:</strong> {sensor.sensor_type?.toUpperCase()}</div>
+                            <div><strong>ID:</strong> {sensor.sensor_id}</div>
+                            <div><strong>Status:</strong> {sensor.status}</div>
+                            {sensor.roadway && <div><strong>Route:</strong> {sensor.roadway}</div>}
+                            {sensor.milepost && <div><strong>Milepost:</strong> {sensor.milepost}</div>}
+                            <div><strong>Coordinates:</strong> {sensor.latitude.toFixed(4)}, {sensor.longitude.toFixed(4)}</div>
+                          </div>
+                        </div>
+                      </Popup>
+                    </CircleMarker>
+                  );
+                })}
+              </MapContainer>
+            </div>
+          ) : (
+            <div className="no-data">No sensors with location data available</div>
           )}
         </div>
       )}

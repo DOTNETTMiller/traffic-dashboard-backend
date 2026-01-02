@@ -12152,6 +12152,89 @@ app.post('/api/its-equipment/upload', upload.single('gisFile'), async (req, res)
       console.log(`📍 Primary state detected: ${primaryState}`);
     }
 
+    // Auto-sync to sensor_inventory for sensor dashboard
+    try {
+      console.log('🔄 Auto-syncing to sensor inventory...');
+
+      // Get newly uploaded sensor equipment
+      const sensorEquipment = db.db.prepare(`
+        SELECT
+          id,
+          equipment_type,
+          equipment_subtype,
+          latitude,
+          longitude,
+          route,
+          milepost,
+          location_description,
+          status,
+          sensor_type,
+          measurement_types,
+          notes
+        FROM its_equipment
+        WHERE state_key = ?
+          AND (
+            equipment_type = 'sensor'
+            OR sensor_type IS NOT NULL
+            OR equipment_subtype IN ('rwis', 'traffic', 'bridge', 'weather')
+          )
+      `).all(stateKey);
+
+      // Clear existing sensor inventory for this state
+      db.db.prepare('DELETE FROM sensor_inventory WHERE sensor_id LIKE ?').run(`${stateKey.toUpperCase()}-%`);
+
+      // Insert into sensor_inventory
+      const insertStmt = db.db.prepare(`
+        INSERT INTO sensor_inventory (
+          sensor_id,
+          sensor_name,
+          sensor_type,
+          latitude,
+          longitude,
+          roadway,
+          milepost,
+          location_description,
+          status,
+          capabilities
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      let synced = 0;
+      sensorEquipment.forEach(eq => {
+        const sensorType = eq.sensor_type || eq.equipment_subtype || eq.equipment_type || 'unknown';
+        const sensorName = eq.notes?.match(/Detector ID: (.+)/)?.[1] || eq.id;
+
+        let capabilities = null;
+        if (eq.measurement_types) {
+          try {
+            const measurements = JSON.parse(eq.measurement_types);
+            capabilities = JSON.stringify({ measurements });
+          } catch (e) {
+            // ignore parse errors
+          }
+        }
+
+        insertStmt.run(
+          eq.id,
+          sensorName,
+          sensorType,
+          eq.latitude,
+          eq.longitude,
+          eq.route || eq.location_description,
+          eq.milepost,
+          eq.location_description,
+          eq.status || 'active',
+          capabilities
+        );
+        synced++;
+      });
+
+      console.log(`✅ Synced ${synced} sensors to sensor inventory`);
+    } catch (syncError) {
+      console.error('⚠️  Sensor sync warning:', syncError.message);
+      // Don't fail the upload if sync fails
+    }
+
     res.json({
       success: true,
       imported,
@@ -21749,6 +21832,9 @@ app.use((req, res, next) => {
 // Serve pre-generated PDF documentation
 const PDF_DOCS_PATH = '/Users/mattmiller/Downloads/DOT-Documentation';
 app.use('/pdfs', express.static(PDF_DOCS_PATH));
+
+// Serve uploaded IFC models and GIS files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ==================== STATIC FILES & SPA ====================
 

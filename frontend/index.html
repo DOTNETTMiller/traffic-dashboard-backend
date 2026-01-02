@@ -5,6 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DOT Corridor Communicator</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script>
+      // Suppress errors from external iframes (ARC-IT, etc.)
+      window.addEventListener('error', function(e) {
+        // Suppress errors from arc-it.net iframe
+        if (e.filename && e.filename.includes('arc-it.net')) {
+          e.preventDefault();
+          return true;
+        }
+        // Suppress jQuery twolevel errors from external sites
+        if (e.message && e.message.includes('twolevel')) {
+          e.preventDefault();
+          return true;
+        }
+      }, true);
+    </script>
   </head>
   <body>
     <div id="root"></div>
