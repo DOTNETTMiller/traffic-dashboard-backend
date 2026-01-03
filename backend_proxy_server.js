@@ -1291,6 +1291,17 @@ initializeDatabase()
     // Initialize vendor data in PostgreSQL (if needed)
     await initVendorData();
 
+    // Initialize sensor data from bundled sources
+    try {
+      const { initVolumeData } = require('./scripts/init_volume_data');
+      console.log('\n🛰️  Starting sensor initialization...');
+      await initVolumeData();
+      console.log('✅ Sensor initialization complete\n');
+    } catch (error) {
+      console.error('⚠️  Sensor initialization error:', error.message);
+      console.log('⚠️  Sensor dashboard may have limited functionality\n');
+    }
+
     // Start server after database is ready
     startServer();
   })
