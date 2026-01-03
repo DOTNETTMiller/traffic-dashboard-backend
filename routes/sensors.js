@@ -303,4 +303,35 @@ router.post('/poll', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/sensors/initialize - Manually initialize sensor system
+ * (One-time setup for production deployment)
+ */
+router.post('/initialize', async (req, res) => {
+  try {
+    console.log('\n🛰️  Manual sensor initialization requested...\n');
+
+    const { initVolumeData } = require('../scripts/init_volume_data');
+    await initVolumeData();
+
+    console.log('\n✅ Sensor initialization complete!\n');
+
+    // Get sensor count
+    const sensors = await db.all('SELECT COUNT(*) as count FROM sensor_inventory', []);
+    const sensorCount = sensors[0]?.count || 0;
+
+    res.json({
+      success: true,
+      message: 'Sensor system initialized successfully',
+      sensors_loaded: sensorCount
+    });
+  } catch (error) {
+    console.error('❌ Sensor initialization failed:', error);
+    res.status(500).json({
+      error: 'Failed to initialize sensors',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;
