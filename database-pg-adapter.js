@@ -141,6 +141,33 @@ class PostgreSQLAdapter {
     return await this.pool.query(sql, params);
   }
 
+  // Direct all() method for SELECT queries (used by sensor routes)
+  async all(sql, params = []) {
+    await this.init();
+    // Convert SQLite placeholders (?) to PostgreSQL placeholders ($1, $2, etc.)
+    let pgSql = sql;
+    let paramIndex = 1;
+    pgSql = pgSql.replace(/\?/g, () => `$${paramIndex++}`);
+
+    const res = await this.pool.query(pgSql, params);
+    return res.rows;
+  }
+
+  // Direct runAsync() method for INSERT/UPDATE/DELETE (used by init scripts)
+  async runAsync(sql, params = []) {
+    await this.init();
+    // Convert SQLite placeholders (?) to PostgreSQL placeholders ($1, $2, etc.)
+    let pgSql = sql;
+    let paramIndex = 1;
+    pgSql = pgSql.replace(/\?/g, () => `$${paramIndex++}`);
+
+    const res = await this.pool.query(pgSql, params);
+    return {
+      changes: res.rowCount,
+      lastInsertRowid: res.rows[0]?.id
+    };
+  }
+
   // Close the connection
   async close() {
     await this.pool.end();
