@@ -177,6 +177,9 @@ router.get('/alerts', async (req, res) => {
  */
 router.get('/dashboard', async (req, res) => {
   try {
+    // Ensure database is initialized
+    await db.init();
+
     // Total sensors by type
     const sensorsByType = await db.all(`
       SELECT sensor_type, COUNT(*) as count
