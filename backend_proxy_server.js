@@ -1292,13 +1292,19 @@ initializeDatabase()
     await initVendorData();
 
     // Initialize sensor data from bundled sources
+    console.log('\n=======================================');
+    console.log('🛰️  INITIALIZING SENSOR SYSTEM...');
+    console.log('=======================================\n');
     try {
       const { initVolumeData } = require('./scripts/init_volume_data');
-      console.log('\n🛰️  Starting sensor initialization...');
       await initVolumeData();
-      console.log('✅ Sensor initialization complete\n');
+      console.log('\n=======================================');
+      console.log('✅ SENSOR INITIALIZATION COMPLETE');
+      console.log('=======================================\n');
     } catch (error) {
-      console.error('⚠️  Sensor initialization error:', error.message);
+      console.error('\n❌ SENSOR INITIALIZATION FAILED');
+      console.error('Error:', error.message);
+      console.error('Stack:', error.stack);
       console.log('⚠️  Sensor dashboard may have limited functionality\n');
     }
 
