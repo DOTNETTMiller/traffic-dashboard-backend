@@ -43,6 +43,7 @@ import DigitalStandardsCrosswalk from './components/DigitalStandardsCrosswalk';
 import VendorPortal from './components/VendorPortal';
 import ITSArchitecture from './components/ITSArchitecture';
 import ITSEquipmentViewer from './components/ITSEquipmentViewer';
+import ArchitectureViewer from './components/ArchitectureViewer';
 import WZDxView from './components/WZDxView';
 import SensorDashboard from './components/SensorDashboard';
 import './styles/App.css';
@@ -1231,6 +1232,28 @@ function App() {
                   </button>
                   <button
                     onClick={() => {
+                      setView('architecture');
+                      setStateToolsDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'architecture' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'architecture' ? '600' : '400',
+                      color: view === 'architecture' ? '#667eea' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'architecture' ? '#f3f4f6' : 'white'}
+                  >
+                    🗺️ Regional ITS Architecture
+                  </button>
+                  <button
+                    onClick={() => {
                       setView('wzdx');
                       setStateToolsDropdownOpen(false);
                     }}
@@ -1856,6 +1879,14 @@ function App() {
             padding: '0'
           }}>
             <ITSEquipmentViewer />
+          </div>
+        ) : view === 'architecture' ? (
+          <div style={{
+            height: 'calc(100vh - 120px)',
+            overflow: 'auto',
+            padding: '0'
+          }}>
+            <ArchitectureViewer />
           </div>
         ) : view === 'wzdx' ? (
           <div style={{

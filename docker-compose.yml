@@ -10,12 +10,14 @@ services:
     environment:
       - NODE_ENV=production
       - ML_SERVICE_URL=http://ml-service:8001
+      - KAFKA_BROKER=kafka:9092
       - DATABASE_URL=${DATABASE_URL}
       - JWT_SECRET=${JWT_SECRET}
       - SENDGRID_API_KEY=${SENDGRID_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
       - ml-service
+      - kafka
     volumes:
       - ./data:/app/data
     restart: unless-stopped
@@ -40,7 +42,120 @@ services:
       retries: 3
       start_period: 40s
 
+  # ITS JPO ODE Integration Services
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    hostname: kafka
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9101:9101"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME:-ode}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-odepassword}
+      MONGO_INITDB_DATABASE: ode
+    volumes:
+      - mongodb-data:/data/db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  ode:
+    image: usdotjpoode/jpo-ode:latest
+    container_name: ode
+    depends_on:
+      - kafka
+      - mongodb
+    ports:
+      - "8080:8080"
+    environment:
+      DOCKER_HOST_IP: ${DOCKER_HOST_IP:-127.0.0.1}
+      KAFKA_BROKER_IP: kafka:29092
+      ODE_DDS_CAS_URL: ${ODE_DDS_CAS_URL:-}
+      ODE_DDS_CAS_USERNAME: ${ODE_DDS_CAS_USERNAME:-}
+      ODE_DDS_CAS_PASSWORD: ${ODE_DDS_CAS_PASSWORD:-}
+      MONGO_IP: mongodb:27017
+      MONGO_DB_NAME: ode
+      MONGO_USERNAME: ${MONGO_USERNAME:-ode}
+      MONGO_PASSWORD: ${MONGO_PASSWORD:-odepassword}
+    volumes:
+      - ode-data:/ode-data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  v2x-consumer:
+    build:
+      context: ./v2x-consumer
+      dockerfile: Dockerfile
+    container_name: v2x-consumer
+    depends_on:
+      - kafka
+      - backend
+    environment:
+      - NODE_ENV=production
+      - KAFKA_BROKER=kafka:29092
+      - BACKEND_API_URL=http://backend:3001
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - ./v2x-consumer:/app
+      - /app/node_modules
+    restart: unless-stopped
+
 volumes:
   data:
   models:
   federated_rounds:
+  zookeeper-data:
+  zookeeper-logs:
+  kafka-data:
+  mongodb-data:
+  ode-data:

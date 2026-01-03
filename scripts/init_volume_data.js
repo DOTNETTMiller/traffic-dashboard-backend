@@ -119,16 +119,31 @@ async function initSensorData() {
 
       const [lon, lat] = coords;
 
-      // Detect equipment type from properties
+      // Detect equipment type from properties and detector_id patterns
       let equipmentType = 'sensor';
       let sensorType = props.detector_type || 'unknown';
 
+      // Iowa DOT detector_id patterns reveal actual sensor types
       if (detectorId.includes('RWIS') || detectorId.includes('WX')) {
         sensorType = 'rwis';
+        equipmentType = 'sensor';
       } else if (detectorId.includes('CAM')) {
         equipmentType = 'camera';
+        sensorType = 'camera';
       } else if (detectorId.includes('DMS')) {
         equipmentType = 'dms';
+        sensorType = 'dms';
+      } else if (detectorId.match(/^(DMDS|CBDS|SCDS|CRDS|ICDS|QCDS|WLDS|AMDS|NWDS)/)) {
+        // District traffic stations (Des Moines, Council Bluffs, Sioux City, etc.)
+        sensorType = 'traffic';
+        equipmentType = 'sensor';
+      } else if (detectorId.startsWith('IWZ')) {
+        // Iowa Workzone sensors
+        sensorType = 'workzone';
+        equipmentType = 'sensor';
+      } else if (detectorId && sensorType === 'unknown') {
+        // Default to traffic if we have a detector_id but no specific pattern match
+        sensorType = 'traffic';
       }
 
       // Build measurement types array

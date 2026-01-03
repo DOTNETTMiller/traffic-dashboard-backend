@@ -3305,6 +3305,42 @@ class StateDatabase {
     }
   }
 
+  // Async wrapper for synchronous better-sqlite3 operations
+  async runAsync(sql, params = []) {
+    if (this.isPostgres) {
+      return await this.db.prepare(sql).run(...params);
+    } else {
+      // For SQLite (better-sqlite3), wrap synchronous operations
+      return new Promise((resolve, reject) => {
+        try {
+          const stmt = this.db.prepare(sql);
+          const result = stmt.run(...params);
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    }
+  }
+
+  // Async wrapper for .all() operations
+  async all(sql, params = []) {
+    if (this.isPostgres) {
+      return await this.db.prepare(sql).all(...params);
+    } else {
+      // For SQLite (better-sqlite3), wrap synchronous operations
+      return new Promise((resolve, reject) => {
+        try {
+          const stmt = this.db.prepare(sql);
+          const result = stmt.all(...params);
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    }
+  }
+
   close() {
     this.db.close();
   }
