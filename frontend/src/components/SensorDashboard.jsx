@@ -22,7 +22,7 @@ const SensorDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
