@@ -211,7 +211,7 @@ router.get('/dashboard', async (req, res) => {
       FROM rwis_readings r
       JOIN sensor_inventory s ON r.sensor_id = s.sensor_id
       WHERE r.warning_level >= 2
-        AND r.reading_timestamp > NOW() - INTERVAL '1 hour'
+        AND r.reading_timestamp::timestamp > NOW() - INTERVAL '1 hour'
       ORDER BY r.warning_level DESC, r.reading_timestamp DESC
       LIMIT 10
     `, []);
@@ -226,7 +226,7 @@ router.get('/dashboard', async (req, res) => {
     const timResult = await db.all(`
       SELECT COUNT(*) as count
       FROM tim_broadcast_log
-      WHERE created_at > NOW() - INTERVAL '24 hours'
+      WHERE created_at::timestamp > NOW() - INTERVAL '24 hours'
     `, []);
     const timBroadcasts24h = timResult[0] || { count: 0 };
 
@@ -234,7 +234,7 @@ router.get('/dashboard', async (req, res) => {
     const readingsResult = await db.all(`
       SELECT COUNT(*) as count
       FROM rwis_readings
-      WHERE reading_timestamp > NOW() - INTERVAL '1 hour'
+      WHERE reading_timestamp::timestamp > NOW() - INTERVAL '1 hour'
     `, []);
     const recentReadingsCount = readingsResult[0] || { count: 0 };
 
