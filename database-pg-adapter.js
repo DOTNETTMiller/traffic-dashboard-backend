@@ -103,8 +103,10 @@ class PostgreSQLAdapter {
   // Prepare a statement (returns an object with async run, get, all methods)
   prepare(sql) {
     const self = this;
+    // Convert SQLite syntax to PostgreSQL first
+    let pgSql = this.convertSQLiteToPostgreSQL(sql);
+
     // Convert SQLite placeholders (?) to PostgreSQL placeholders ($1, $2, etc.)
-    let pgSql = sql;
     let paramIndex = 1;
     pgSql = pgSql.replace(/\?/g, () => `$${paramIndex++}`);
 
