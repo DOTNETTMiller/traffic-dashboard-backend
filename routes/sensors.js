@@ -223,20 +223,31 @@ router.get('/dashboard', async (req, res) => {
     const criticalAlerts = activeWarnings.filter(a => a.severity === 'critical').reduce((sum, a) => sum + parseInt(a.count), 0);
 
     // Get TIM broadcast count from last 24h (PostgreSQL compatible)
-    const timResult = await db.all(`
-      SELECT COUNT(*) as count
-      FROM tim_broadcast_log
-      WHERE created_at::timestamp > NOW() - INTERVAL '24 hours'
-    `, []);
-    const timBroadcasts24h = timResult[0] || { count: 0 };
+    // Gracefully handle if table doesn't exist yet
+    let timBroadcasts24h = { count: 0 };
+    try {
+      const timResult = await db.all(`
+        SELECT COUNT(*) as count
+        FROM tim_broadcast_log
+        WHERE created_at::timestamp > NOW() - INTERVAL '24 hours'
+      `, []);
+      timBroadcasts24h = timResult[0] || { count: 0 };
+    } catch (err) {
+      console.log('TIM broadcast log table not yet created:', err.message);
+    }
 
     // Get recent readings count (PostgreSQL compatible)
-    const readingsResult = await db.all(`
-      SELECT COUNT(*) as count
-      FROM rwis_readings
-      WHERE reading_timestamp::timestamp > NOW() - INTERVAL '1 hour'
-    `, []);
-    const recentReadingsCount = readingsResult[0] || { count: 0 };
+    let recentReadingsCount = { count: 0 };
+    try {
+      const readingsResult = await db.all(`
+        SELECT COUNT(*) as count
+        FROM rwis_readings
+        WHERE reading_timestamp::timestamp > NOW() - INTERVAL '1 hour'
+      `, []);
+      recentReadingsCount = readingsResult[0] || { count: 0 };
+    } catch (err) {
+      console.log('RWIS readings table query error:', err.message);
+    }
 
     // Get recent alerts for dashboard
     const recentAlerts = await db.all(`
