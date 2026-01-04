@@ -156,8 +156,10 @@ class PostgreSQLAdapter {
   // Direct runAsync() method for INSERT/UPDATE/DELETE (used by init scripts)
   async runAsync(sql, params = []) {
     await this.init();
+    // Convert SQLite syntax to PostgreSQL
+    let pgSql = this.convertSQLiteToPostgreSQL(sql);
+
     // Convert SQLite placeholders (?) to PostgreSQL placeholders ($1, $2, etc.)
-    let pgSql = sql;
     let paramIndex = 1;
     pgSql = pgSql.replace(/\?/g, () => `$${paramIndex++}`);
 
