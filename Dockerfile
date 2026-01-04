@@ -47,8 +47,11 @@ RUN npm ci --only=production && \
     echo "📦 Verifying critical dependencies..." && \
     node -e "const deps = ['ajv', 'pdfkit', 'express', 'cors', 'better-sqlite3']; deps.forEach(d => { try { require(d); console.log('✅', d); } catch(e) { console.log('❌', d, 'MISSING'); } });"
 
+# Copy and set executable permissions for startup script
+RUN chmod +x railway-start.sh
+
 # Expose port (Railway will set PORT env variable)
 EXPOSE 3001
 
-# Start the application directly (initialization happens in backend_proxy_server.js)
-CMD ["node", "backend_proxy_server.js"]
+# Start using Railway initialization script (ensures sensors are loaded)
+CMD ["./railway-start.sh"]
