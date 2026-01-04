@@ -103,6 +103,14 @@ class PostgreSQLAdapter {
     // BOOLEAN DEFAULT 1 -> BOOLEAN DEFAULT TRUE
     converted = converted.replace(/BOOLEAN\s+DEFAULT\s+1/gi, 'BOOLEAN DEFAULT TRUE');
 
+    // INSERT OR REPLACE INTO -> INSERT INTO ... ON CONFLICT DO NOTHING
+    // This is a simplified conversion - works for most cases
+    converted = converted.replace(/INSERT\s+OR\s+REPLACE\s+INTO/gi, 'INSERT INTO');
+    // Add ON CONFLICT clause if not already present
+    if (converted.match(/INSERT INTO.*VALUES/i) && !converted.match(/ON CONFLICT/i)) {
+      converted = converted.replace(/(\))\s*$/i, '$1 ON CONFLICT DO NOTHING');
+    }
+
     return converted;
   }
 
