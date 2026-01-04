@@ -97,6 +97,12 @@ class PostgreSQLAdapter {
     // REAL -> DOUBLE PRECISION
     converted = converted.replace(/\bREAL\b/gi, 'DOUBLE PRECISION');
 
+    // BOOLEAN DEFAULT 0 -> BOOLEAN DEFAULT FALSE
+    converted = converted.replace(/BOOLEAN\s+DEFAULT\s+0/gi, 'BOOLEAN DEFAULT FALSE');
+
+    // BOOLEAN DEFAULT 1 -> BOOLEAN DEFAULT TRUE
+    converted = converted.replace(/BOOLEAN\s+DEFAULT\s+1/gi, 'BOOLEAN DEFAULT TRUE');
+
     return converted;
   }
 
