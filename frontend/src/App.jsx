@@ -42,7 +42,7 @@ import DigitalInfrastructure from './components/DigitalInfrastructure';
 import DigitalStandardsCrosswalk from './components/DigitalStandardsCrosswalk';
 import VendorPortal from './components/VendorPortal';
 import ITSArchitecture from './components/ITSArchitecture';
-import WZDxView from './components/WZDxView';
+// import WZDxView from './components/WZDxView'; // Component removed in rollback
 import SensorDashboard from './components/SensorDashboard';
 import './styles/App.css';
 
@@ -1206,6 +1206,7 @@ function App() {
                   >
                     🏛️ ITS Architecture
                   </button>
+                  {/* WZDx component removed in rollback - disabled temporarily
                   <button
                     onClick={() => {
                       setView('wzdx');
@@ -1228,6 +1229,7 @@ function App() {
                   >
                     🚧 WZDx Work Zones
                   </button>
+                  */}
                   <button
                     onClick={() => {
                       setView('standardsCrosswalk');
@@ -1830,9 +1832,17 @@ function App() {
           <div style={{
             height: 'calc(100vh - 120px)',
             overflow: 'auto',
-            padding: '0'
+            padding: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#6b7280'
           }}>
-            <WZDxView />
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '48px', marginBottom: '20px' }}>🚧</div>
+              <div style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>WZDx Work Zones</div>
+              <div>This feature is temporarily unavailable</div>
+            </div>
           </div>
         ) : view === 'admin' ? (
           <StateAdmin user={currentUser} authToken={authToken} />
