@@ -1284,14 +1284,20 @@ async function initializeDatabase() {
 initializeDatabase()
   .then(async () => {
     // Initialize vendor data in PostgreSQL (if needed)
-    await initVendorData();
+    try {
+      await initVendorData();
+    } catch (vendorErr) {
+      console.error('⚠️  Vendor data initialization failed:', vendorErr.message);
+      console.log('⚠️  Starting server anyway...\n');
+    }
 
     // Start server after database is ready
     startServer();
   })
   .catch(err => {
     console.error('❌ Failed to initialize database:', err);
-    process.exit(1);
+    console.error('⚠️  STARTING SERVER ANYWAY WITH LIMITED FUNCTIONALITY');
+    startServer();
   });
 
 // Helper function to parse XML
