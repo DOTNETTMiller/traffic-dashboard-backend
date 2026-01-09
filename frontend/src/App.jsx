@@ -43,7 +43,7 @@ import DigitalStandardsCrosswalk from './components/DigitalStandardsCrosswalk';
 import VendorPortal from './components/VendorPortal';
 import ITSArchitecture from './components/ITSArchitecture';
 // import WZDxView from './components/WZDxView'; // Component removed in rollback
-import SensorDashboard from './components/SensorDashboard';
+// import SensorDashboard from './components/SensorDashboard'; // Component removed in rollback
 import './styles/App.css';
 
 function App() {
@@ -736,12 +736,14 @@ function App() {
           >
             📊 Dashboard
           </button>
+          {/* Sensors component removed in rollback - disabled temporarily
           <button
             className={`toggle-btn ${view === 'sensors' ? 'active' : ''}`}
             onClick={() => setView('sensors')}
           >
             🛰️ Sensors & V2X
           </button>
+          */}
 
           {/* Data Quality Dropdown */}
           <div style={{ position: 'relative' }}>
@@ -2025,7 +2027,15 @@ function App() {
             ) : view === 'vendorComparison' ? (
               <VendorDQIComparison />
             ) : view === 'sensors' ? (
-              <SensorDashboard />
+              <div style={{
+                padding: '40px',
+                textAlign: 'center',
+                color: '#6b7280'
+              }}>
+                <div style={{ fontSize: '48px', marginBottom: '20px' }}>🛰️</div>
+                <div style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>Sensors & V2X</div>
+                <div>This feature is temporarily unavailable</div>
+              </div>
             ) : null}
           </div>
         )}
