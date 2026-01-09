@@ -8,8 +8,13 @@ const { spawn } = require('child_process');
 
 async function start() {
   try {
-    // Initialize volume data first
-    initVolumeData();
+    // Initialize volume data first (optional - don't fail if it errors)
+    try {
+      await initVolumeData();
+    } catch (volError) {
+      console.error('⚠️  Volume data initialization failed:', volError.message);
+      console.log('⚠️  Starting server anyway...\n');
+    }
 
     // Start the main server
     console.log('🚀 Starting backend server...\n');
