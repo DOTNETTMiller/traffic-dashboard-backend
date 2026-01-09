@@ -3,16 +3,30 @@ const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 
-// Detect database type
-const IS_POSTGRES = !!process.env.DATABASE_URL;
+// Detect database type - but allow fallback to SQLite if PostgreSQL fails
+let IS_POSTGRES = !!process.env.DATABASE_URL;
+let POSTGRES_FAILED = false;
 
 let Database;
 if (IS_POSTGRES) {
-  console.log('🐘 Using PostgreSQL database');
-  const PostgreSQLAdapter = require('./database-pg-adapter');
-  Database = PostgreSQLAdapter;
-} else {
-  console.log('📁 Using SQLite database');
+  try {
+    console.log('🐘 Attempting to use PostgreSQL database...');
+    const PostgreSQLAdapter = require('./database-pg-adapter');
+    Database = PostgreSQLAdapter;
+    console.log('🐘 PostgreSQL adapter loaded');
+  } catch (error) {
+    console.error('⚠️  PostgreSQL adapter failed to load:', error.message);
+    console.log('⚠️  Falling back to SQLite database');
+    IS_POSTGRES = false;
+    POSTGRES_FAILED = true;
+    Database = require('better-sqlite3');
+  }
+}
+
+if (!IS_POSTGRES) {
+  if (!POSTGRES_FAILED) {
+    console.log('📁 Using SQLite database');
+  }
   Database = require('better-sqlite3');
 
   // Database file location (SQLite only)
@@ -52,16 +66,33 @@ const serializeStateList = (list = []) => {
 
 class StateDatabase {
   constructor() {
+    let useSQLiteFallback = false;
+
     if (IS_POSTGRES) {
-      this.db = new Database(process.env.DATABASE_URL);
-      this.isPostgres = true;
+      try {
+        this.db = new Database(process.env.DATABASE_URL);
+        this.isPostgres = true;
+        console.log('🐘 PostgreSQL database instance created');
+      } catch (error) {
+        console.error('⚠️  PostgreSQL database creation failed:', error.message);
+        console.log('⚠️  Falling back to SQLite database');
+        useSQLiteFallback = true;
+        this.isPostgres = false;
+      }
     } else {
+      useSQLiteFallback = true;
+      this.isPostgres = false;
+    }
+
+    if (useSQLiteFallback || !this.isPostgres) {
       const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'states.db');
-      this.db = new Database(DB_PATH);
+      const BetterSQLite3 = require('better-sqlite3');
+      this.db = new BetterSQLite3(DB_PATH);
       this.isPostgres = false;
       // Initialize schema immediately for SQLite
       this.initSchema();
     }
+
     this.initialized = false;
     this.initPromise = null;
   }
@@ -73,16 +104,33 @@ class StateDatabase {
 
     this.initPromise = (async () => {
       if (this.isPostgres) {
-        // Initialize PostgreSQL connection first
-        await this.db.init();
+        try {
+          // Initialize PostgreSQL connection first
+          await this.db.init();
 
-        // Then create schema (using async exec)
-        await this.initSchemaAsync();
+          // Then create schema (using async exec)
+          await this.initSchemaAsync();
 
-        console.log('✅ PostgreSQL database initialized');
+          console.log('✅ PostgreSQL database initialized');
 
-        // Run health checks
-        await this.healthCheck();
+          // Run health checks
+          await this.healthCheck();
+        } catch (error) {
+          console.error('⚠️  PostgreSQL initialization failed:', error.message);
+          console.log('⚠️  Falling back to SQLite database');
+
+          // Fall back to SQLite
+          const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'states.db');
+          const BetterSQLite3 = require('better-sqlite3');
+          this.db = new BetterSQLite3(DB_PATH);
+          this.isPostgres = false;
+
+          // Initialize SQLite schema
+          this.initSchema();
+
+          // Run health checks for SQLite
+          await this.healthCheck();
+        }
       } else {
         // Run health checks for SQLite
         await this.healthCheck();
