@@ -21306,14 +21306,7 @@ const PDF_DOCS_PATH = '/Users/mattmiller/Downloads/DOT-Documentation';
 app.use('/pdfs', express.static(PDF_DOCS_PATH));
 
 // ==================== STATIC FILES & SPA ====================
-
-// Serve static frontend files
-app.use(express.static(FRONTEND_DIST_PATH));
-
-// Catch-all route for SPA - serve index.html for any unmatched routes
-app.get('*', (req, res) => {
-  res.sendFile(path.join(FRONTEND_DIST_PATH, 'index.html'));
-});
+// Note: Static file serving is configured at the end of the file
 
 // Scheduled TPIMS data fetch
 async function fetchTPIMSDataScheduled() {
