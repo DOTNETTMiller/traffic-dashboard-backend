@@ -24,7 +24,7 @@ async function fixTexasAPI() {
       console.log('🔧 Updating Texas API URL in PostgreSQL...');
       await client.query(`
         UPDATE states
-        SET api_url = 'https://data.austintexas.gov/download/d9mm-cjw9/application%2Fvnd.geo%2Bjson',
+        SET api_url = 'https://data.austintexas.gov/download/d9mm-cjw9',
             state_name = 'Texas (Austin)'
         WHERE state_key = 'tx'
       `);
@@ -44,7 +44,7 @@ async function fixTexasAPI() {
       console.log('🔧 Updating Texas API URL in SQLite...');
       db.prepare(`
         UPDATE states
-        SET api_url = 'https://data.austintexas.gov/download/d9mm-cjw9/application%2Fvnd.geo%2Bjson',
+        SET api_url = 'https://data.austintexas.gov/download/d9mm-cjw9',
             state_name = 'Texas (Austin)'
         WHERE state_key = 'tx'
       `).run();
