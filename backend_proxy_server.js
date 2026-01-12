@@ -593,7 +593,13 @@ const API_CONFIG = {
     format: 'json',
     corridor: 'I-80'
   },
-  // Oklahoma and Texas configs now loaded from database
+  tx: {
+    name: 'Texas DOT',
+    wzdxUrl: 'https://api.drivetexas.org/api/conditions.wzdx.geojson',
+    format: 'geojson',
+    corridor: 'I-10, I-20, I-30, I-35, I-45'
+  },
+  // Oklahoma config now loaded from database
   // See loadStatesFromDatabase() and scripts/fix_production_feeds.js
   illinois: {
     name: 'Illinois',
@@ -605,6 +611,18 @@ const API_CONFIG = {
   // The API expects ?api_key=... but we don't have a Turnpike API key
   // Pennsylvania statewide data is provided by PennDOT RCRS via fetchPennDOTRCRS()
 };
+
+// Add API keys from environment variables to hardcoded configs
+if (process.env.TXDOT_API_KEY && API_CONFIG.tx) {
+  API_CONFIG.tx.apiKey = process.env.TXDOT_API_KEY;
+  console.log('🔑 TxDOT API key loaded from environment');
+}
+if (process.env.NEVADA_API_KEY && API_CONFIG.nevada) {
+  API_CONFIG.nevada.apiKey = process.env.NEVADA_API_KEY;
+}
+if (process.env.OHIO_API_KEY && API_CONFIG.ohio) {
+  API_CONFIG.ohio.apiKey = process.env.OHIO_API_KEY;
+}
 
 const getAllStateKeys = () => {
   const keys = Object.keys(API_CONFIG).map(key => key.toLowerCase());
