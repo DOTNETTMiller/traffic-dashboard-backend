@@ -1,5 +1,7 @@
-# Ignore frontend directory during backend builds
-frontend/
+# Ignore frontend source files (but keep the built dist/)
+frontend/src/
+frontend/node_modules/
+frontend/public/
 
 # Ignore other unnecessary files
 .git/
