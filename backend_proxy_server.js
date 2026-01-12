@@ -632,11 +632,18 @@ async function loadStatesFromDatabase() {
         // Convert database format to API_CONFIG format
         const config = {
           name: state.stateName,
-          eventsUrl: state.apiUrl,
           format: state.format,
           apiType: state.apiType,
           ...(state.credentials || {})
         };
+
+        // Put URL in the correct property based on apiType
+        if (state.apiType === 'WZDx') {
+          config.wzdxUrl = state.apiUrl;
+          console.log(`  📊 WZDx feed: ${state.apiUrl}`);
+        } else {
+          config.eventsUrl = state.apiUrl;
+        }
 
         // Add environment variable-based API keys for states that need them
         // Match against state keys in database (nv, oh, tx) not full names
@@ -1714,7 +1721,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events', a
           const stateAbbr = stateName.toUpperCase().substring(0, 2);
 
           // Debug: Log first few Texas road names to understand format
-          if (stateName === 'Texas' && normalized.length < 5) {
+          if (stateName.includes('Texas') && normalized.length < 5) {
             console.log(`Texas sample road_names:`, roadNames, `locationText:`, locationText, `isInterstate:`, isInterstateRoute(locationText));
           }
 
