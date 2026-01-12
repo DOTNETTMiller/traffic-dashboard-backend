@@ -388,6 +388,7 @@ export default function TrafficMap({
   showCorridorRegulations = false,
   showITSEquipment = false,
   itsEquipmentRoute = null,
+  itsEquipmentType = null,
   heatMapActive = false,
   heatMapMode = 'density',
   onHeatMapToggle,
@@ -681,7 +682,7 @@ export default function TrafficMap({
 
         {/* ITS Equipment Layer */}
         {showITSEquipment && (
-          <ITSEquipmentLayer route={itsEquipmentRoute} />
+          <ITSEquipmentLayer route={itsEquipmentRoute} equipmentType={itsEquipmentType} />
         )}
 
         {/* Heat Map Visualization */}
