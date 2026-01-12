@@ -852,7 +852,8 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                               const height = occupancyRate !== null ? occupancyRate * 100 : 0;
                               const color = occupancyRate === null ? '#e5e7eb' :
                                 occupancyRate > 0.8 ? '#ef4444' :
-                                occupancyRate > 0.5 ? '#f59e0b' : '#22c55e';
+                                occupancyRate > 0.6 ? '#f59e0b' :
+                                occupancyRate > 0.3 ? '#fbbf24' : '#22c55e';
 
                               return (
                                 <div
@@ -898,20 +899,34 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                           </div>
 
                           <div style={{
-                            fontSize: '10px',
+                            display: 'flex',
+                            gap: '12px',
+                            justifyContent: 'center',
+                            fontSize: '9px',
                             color: '#6b7280',
                             marginTop: '6px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px'
+                            flexWrap: 'wrap'
                           }}>
-                            <div style={{
-                              width: '8px',
-                              height: '8px',
-                              backgroundColor: '#3b82f6',
-                              borderRadius: '50%'
-                            }} />
-                            <span>Current hour: {new Date().getHours()}:00</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              <div style={{ width: '8px', height: '8px', backgroundColor: '#22c55e', borderRadius: '1px' }} />
+                              <span>Low (&lt;30%)</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              <div style={{ width: '8px', height: '8px', backgroundColor: '#fbbf24', borderRadius: '1px' }} />
+                              <span>Med (30-60%)</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              <div style={{ width: '8px', height: '8px', backgroundColor: '#f59e0b', borderRadius: '1px' }} />
+                              <span>High (60-80%)</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              <div style={{ width: '8px', height: '8px', backgroundColor: '#ef4444', borderRadius: '1px' }} />
+                              <span>Full (&gt;80%)</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              <div style={{ width: '2px', height: '8px', backgroundColor: '#3b82f6', borderRadius: '1px' }} />
+                              <span>Now ({new Date().getHours()}:00)</span>
+                            </div>
                           </div>
                         </div>
                       )}
