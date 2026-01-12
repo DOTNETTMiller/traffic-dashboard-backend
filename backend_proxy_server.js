@@ -596,6 +596,7 @@ const API_CONFIG = {
   tx: {
     name: 'Texas DOT',
     wzdxUrl: 'https://api.drivetexas.org/api/conditions.wzdx.geojson',
+    apiType: 'WZDx',
     format: 'geojson',
     corridor: 'I-10, I-20, I-30, I-35, I-45'
   },
