@@ -110,8 +110,7 @@ const IFCModelViewer = ({ modelId, filename }) => {
         await ifcLoader.ifcManager.setWasmPath('/wasm/');
 
         // Load the model
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-        const modelUrl = `${apiUrl}/api/digital-infrastructure/models/${modelId}/file`;
+        const modelUrl = `${API_BASE}/api/digital-infrastructure/models/${modelId}/file`;
 
         ifcLoader.load(
           modelUrl,
