@@ -2606,8 +2606,22 @@ const fetchStateData = async (stateKey) => {
   return results;
 };
 
+// Cache for /api/events endpoint (60 second TTL)
+let eventsCache = {
+  data: null,
+  timestamp: null,
+  ttl: 60000 // 60 seconds
+};
+
 // Main endpoint to fetch all events
 app.get('/api/events', async (req, res) => {
+  // Check cache first
+  const now = Date.now();
+  if (eventsCache.data && eventsCache.timestamp && (now - eventsCache.timestamp) < eventsCache.ttl) {
+    console.log('✅ Returning cached events (age: ' + Math.round((now - eventsCache.timestamp) / 1000) + 's)');
+    return res.json(eventsCache.data);
+  }
+
   console.log('Fetching events from all states...');
 
   const allResults = await Promise.all(
@@ -2692,13 +2706,30 @@ app.get('/api/events', async (req, res) => {
     console.log(`Filtered to ${filteredEvents.length} events for state: ${stateFilter}`);
   }
 
-  res.json({
+  // Prepare response
+  const response = {
     success: true,
     timestamp: new Date().toISOString(),
     totalEvents: filteredEvents.length,
     events: filteredEvents,
     errors: allErrors
-  });
+  };
+
+  // Cache the FULL response (before filtering) for reuse
+  // Only cache if no state filter was applied
+  if (!stateFilter) {
+    eventsCache.data = {
+      success: true,
+      timestamp: response.timestamp,
+      totalEvents: uniqueEvents.length,
+      events: uniqueEvents,
+      errors: allErrors
+    };
+    eventsCache.timestamp = Date.now();
+    console.log('✅ Cached full event list for 60 seconds');
+  }
+
+  res.json(response);
 });
 
 // Endpoint to fetch from a specific state
