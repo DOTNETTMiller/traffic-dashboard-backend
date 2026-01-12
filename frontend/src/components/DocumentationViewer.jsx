@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { config } from '../config';
+import html2pdf from 'html2pdf.js';
 
 function DocumentationViewer() {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeDoc, setActiveDoc] = useState(null);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const contentRef = useRef(null);
 
   const docs = [
     {
@@ -144,15 +147,27 @@ function DocumentationViewer() {
     setLoading(false);
   };
 
-  const downloadPDF = (pdfUrl, title) => {
-    // Create a temporary link and trigger download
-    const link = document.createElement('a');
-    link.href = pdfUrl;
-    link.download = `${title.replace(/\s+/g, '_')}.pdf`;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const downloadPDF = async (title) => {
+    if (!contentRef.current || generatingPdf) return;
+
+    setGeneratingPdf(true);
+    try {
+      const element = contentRef.current;
+      const opt = {
+        margin: [0.5, 0.5],
+        filename: `${title.replace(/\s+/g, '_')}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      };
+
+      await html2pdf().set(opt).from(element).save();
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+    } finally {
+      setGeneratingPdf(false);
+    }
   };
 
   // Simple markdown to HTML converter for basic formatting
@@ -264,7 +279,7 @@ function DocumentationViewer() {
   if (activeDoc) {
     const doc = docs.find(d => d.key === activeDoc);
     return (
-      <div className="documentation-viewer" style={{
+      <div ref={contentRef} className="documentation-viewer" style={{
         backgroundColor: 'white',
         borderRadius: '8px',
         padding: '24px',
@@ -315,27 +330,27 @@ function DocumentationViewer() {
               {doc.icon} {doc.title}
             </h1>
 
-            {/* PDF download disabled - PDFs not yet generated
             <button
-              onClick={() => downloadPDF(doc.pdfUrl, doc.title)}
+              onClick={() => downloadPDF(doc.title)}
+              disabled={generatingPdf}
               style={{
                 padding: '10px 20px',
                 borderRadius: '6px',
                 border: 'none',
-                backgroundColor: '#10b981',
+                backgroundColor: generatingPdf ? '#9ca3af' : '#10b981',
                 color: 'white',
-                cursor: 'pointer',
+                cursor: generatingPdf ? 'wait' : 'pointer',
                 fontSize: '14px',
                 fontWeight: '500',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                whiteSpace: 'nowrap'
+                whiteSpace: 'nowrap',
+                opacity: generatingPdf ? 0.7 : 1
               }}
             >
-              📥 Download PDF
+              {generatingPdf ? '⏳ Generating...' : '📥 Download PDF'}
             </button>
-            */}
           </div>
 
           <p style={{
