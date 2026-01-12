@@ -60,6 +60,7 @@ function App() {
   const [parkingContext, setParkingContext] = useState(null);
   const [showITSEquipment, setShowITSEquipment] = useState(false);
   const [itsEquipmentRoute, setItsEquipmentRoute] = useState(''); // Route filter for ITS equipment
+  const [itsEquipmentType, setItsEquipmentType] = useState(''); // Equipment type filter (camera, dms, sensor, rsu)
   const [availableRoutes, setAvailableRoutes] = useState([]);
   const [showInterchanges, setShowInterchanges] = useState(false); // Hidden by default - toggle to show
   const [showBridgeClearances, setShowBridgeClearances] = useState(false); // Hidden by default - toggle to show
@@ -991,13 +992,19 @@ function App() {
                 <div style={{ height: '1px', background: '#e5e7eb', margin: '4px 0' }}></div>
 
                 {/* ITS Equipment Toggle */}
-                <div style={{ padding: '10px 16px' }}>
+                <div style={{
+                  padding: '12px 16px',
+                  backgroundColor: showITSEquipment ? '#f0fdf4' : 'transparent',
+                  borderLeft: showITSEquipment ? '3px solid #10b981' : '3px solid transparent',
+                  transition: 'all 0.2s'
+                }}>
                   <label style={{
                     display: 'flex',
                     alignItems: 'center',
                     cursor: 'pointer',
                     fontSize: '14px',
-                    color: '#374151'
+                    fontWeight: showITSEquipment ? '600' : 'normal',
+                    color: showITSEquipment ? '#059669' : '#374151'
                   }}>
                     <input
                       type="checkbox"
@@ -1008,12 +1015,53 @@ function App() {
                       }}
                       style={{ marginRight: '8px' }}
                     />
-                    📡 ITS Equipment (ARC-ITS)
+                    📡 ITS Assets Layer
                   </label>
+                  {showITSEquipment && (
+                    <div style={{
+                      fontSize: '10px',
+                      color: '#059669',
+                      marginTop: '4px',
+                      marginLeft: '24px'
+                    }}>
+                      Shows: Cameras • DMS Signs • Sensors • RSUs
+                    </div>
+                  )}
+
+                  {/* Equipment Type Filter */}
+                  {showITSEquipment && (
+                    <div style={{ marginTop: '8px', marginLeft: '24px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '4px' }}>
+                        Filter by Type:
+                      </div>
+                      <select
+                        value={itsEquipmentType}
+                        onChange={(e) => setItsEquipmentType(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '6px',
+                          fontSize: '12px',
+                          border: '1px solid #d1fae5',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          backgroundColor: 'white'
+                        }}
+                      >
+                        <option value="">All Equipment Types</option>
+                        <option value="camera">📹 Cameras Only</option>
+                        <option value="dms">🚏 DMS Signs Only</option>
+                        <option value="sensor">🌡️ Sensors Only</option>
+                        <option value="rsu">📡 RSUs Only</option>
+                      </select>
+                    </div>
+                  )}
 
                   {/* Route Dropdown - only show when ITS Equipment is active */}
                   {showITSEquipment && availableRoutes.length > 0 && (
                     <div style={{ marginTop: '8px', marginLeft: '24px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '4px' }}>
+                        Filter by Route:
+                      </div>
                       <select
                         value={itsEquipmentRoute}
                         onChange={(e) => setItsEquipmentRoute(e.target.value)}
@@ -1021,19 +1069,20 @@ function App() {
                           width: '100%',
                           padding: '6px',
                           fontSize: '12px',
-                          border: '1px solid #e5e7eb',
+                          border: '1px solid #d1fae5',
                           borderRadius: '4px',
-                          cursor: 'pointer'
+                          cursor: 'pointer',
+                          backgroundColor: 'white'
                         }}
                       >
-                        <option value="">Select Route (recommended)</option>
+                        <option value="">All Routes</option>
                         {availableRoutes.map(route => (
                           <option key={route} value={route}>{route}</option>
                         ))}
                       </select>
-                      {!itsEquipmentRoute && (
+                      {!itsEquipmentRoute && !itsEquipmentType && (
                         <div style={{ fontSize: '10px', color: '#f59e0b', marginTop: '4px' }}>
-                          ⚠️ Selecting a route improves performance
+                          💡 Tip: Filter by route or type for better performance
                         </div>
                       )}
                     </div>
@@ -1897,6 +1946,7 @@ function App() {
                   showCorridorRegulations={showCorridorRegulations}
                   showITSEquipment={showITSEquipment}
                   itsEquipmentRoute={itsEquipmentRoute}
+                  itsEquipmentType={itsEquipmentType}
                   heatMapActive={heatMapActive}
                   heatMapMode={heatMapMode}
                   onHeatMapToggle={setHeatMapActive}
