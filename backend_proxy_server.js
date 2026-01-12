@@ -676,8 +676,13 @@ async function loadStatesFromDatabase() {
           console.log(`  🔑 Added Texas API key`);
         }
 
-        API_CONFIG[state.stateKey] = config;
-        loadedCount++;
+        // Don't override hardcoded configs (they take precedence over database)
+        if (API_CONFIG[state.stateKey]) {
+          console.log(`  ⏭️  Skipping ${state.stateName} - using hardcoded config`);
+        } else {
+          API_CONFIG[state.stateKey] = config;
+          loadedCount++;
+        }
 
         console.log(`  ✅ Loaded ${state.stateName} (${state.stateKey}) from database`);
       } else {
