@@ -11831,14 +11831,27 @@ app.post('/api/corridor/generate-summary', async (req, res) => {
       apiKey: process.env.OPENAI_API_KEY
     });
 
-    // Get bridge clearances for this corridor
-    const bridges = await db.getAllBridgeClearances();
-    const corridorBridges = bridges.filter(b =>
-      b.route && b.route.toLowerCase().includes(corridor.toLowerCase())
-    );
+    // Get bridge clearances for this corridor (optional - returns empty array if table doesn't exist)
+    let bridges = [];
+    let corridorBridges = [];
+    try {
+      bridges = await db.getAllBridgeClearances() || [];
+      corridorBridges = bridges.filter(b =>
+        b.route && b.route.toLowerCase().includes(corridor.toLowerCase())
+      );
+    } catch (error) {
+      console.log('Bridge clearances not available:', error.message);
+      corridorBridges = [];
+    }
 
-    // Get corridor regulations
-    const regulations = await db.getCorridorRegulations(corridor);
+    // Get corridor regulations (optional - returns empty array if table doesn't exist)
+    let regulations = [];
+    try {
+      regulations = await db.getCorridorRegulations(corridor) || [];
+    } catch (error) {
+      console.log('Corridor regulations not available:', error.message);
+      regulations = [];
+    }
 
     // Prepare event summary for the prompt
     const eventSummary = events.map((event, idx) => {
