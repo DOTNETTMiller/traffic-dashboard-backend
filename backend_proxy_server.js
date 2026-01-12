@@ -18203,6 +18203,14 @@ app.post('/api/grants/analyze-proposal', async (req, res) => {
       });
     }
 
+    // Check if OpenAI API key is configured
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(503).json({
+        success: false,
+        error: 'OpenAI API key not configured. Set OPENAI_API_KEY environment variable.'
+      });
+    }
+
     console.log(`📊 Analyzing proposal for ${grantProgram}...`);
 
     // Get grant program details
@@ -18372,6 +18380,14 @@ app.post('/api/grants/score-application', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: 'grantProgram and applicationData are required'
+      });
+    }
+
+    // Check if OpenAI API key is configured
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(503).json({
+        success: false,
+        error: 'OpenAI API key not configured. Set OPENAI_API_KEY environment variable.'
       });
     }
 
