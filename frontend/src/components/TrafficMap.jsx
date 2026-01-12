@@ -17,6 +17,7 @@ import HeatMapControl from './HeatMapControl';
 import HeatMapLayer from './HeatMapLayer';
 import MiniMapControl from './MiniMapControl';
 import NASCOAIAnalysis from './NASCOAIAnalysis';
+import NearbyITSEquipment from './NearbyITSEquipment';
 
 // Component to center map on selected event
 function MapCenterController({ selectedEvent }) {
@@ -574,6 +575,7 @@ export default function TrafficMap({
               <p style={{ margin: '4px 0' }}>
                 <strong>Direction:</strong> {event.direction}
               </p>
+              <NearbyITSEquipment event={event} />
               <button
                 onClick={() => onEventSelect && onEventSelect(event)}
                 style={{
