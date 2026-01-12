@@ -4,12 +4,16 @@
 // Initializes volume data before starting the server
 
 const { initVolumeData } = require('./scripts/init_volume_data.js');
+const { fixTexasAPI } = require('./scripts/fix_texas_api.js');
 const { spawn } = require('child_process');
 
 async function start() {
   try {
     // Initialize volume data first
     initVolumeData();
+
+    // Fix Texas API URL (one-time migration)
+    await fixTexasAPI();
 
     // Start the main server
     console.log('🚀 Starting backend server...\n');
