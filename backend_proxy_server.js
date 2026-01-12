@@ -2606,130 +2606,183 @@ const fetchStateData = async (stateKey) => {
   return results;
 };
 
-// Cache for /api/events endpoint (60 second TTL)
+// Cache for /api/events endpoint with background refresh
 let eventsCache = {
   data: null,
   timestamp: null,
-  ttl: 60000 // 60 seconds
+  ttl: 300000, // 5 minutes (serve stale data up to this age)
+  refreshAfter: 45000, // 45 seconds (trigger background refresh after this)
+  isRefreshing: false
 };
 
-// Main endpoint to fetch all events
-app.get('/api/events', async (req, res) => {
-  // Check cache first
-  const now = Date.now();
-  if (eventsCache.data && eventsCache.timestamp && (now - eventsCache.timestamp) < eventsCache.ttl) {
-    console.log('✅ Returning cached events (age: ' + Math.round((now - eventsCache.timestamp) / 1000) + 's)');
-    return res.json(eventsCache.data);
+// Function to fetch and cache events (used by endpoint and background refresh)
+async function fetchAndCacheEvents() {
+  if (eventsCache.isRefreshing) {
+    console.log('⏳ Cache refresh already in progress, skipping...');
+    return eventsCache.data;
   }
 
-  console.log('Fetching events from all states...');
+  eventsCache.isRefreshing = true;
+  console.log('🔄 Fetching events from all states...');
 
-  const allResults = await Promise.all(
-    getAllStateKeys().map(stateKey => fetchStateData(stateKey))
-  );
-
-  const allEvents = [];
-  const allErrors = [];
-
-  allResults.forEach(result => {
-    allEvents.push(...result.events);
-    if (result.errors.length > 0) {
-      allErrors.push({ state: result.state, errors: result.errors });
-    }
-  });
-
-  // Add Ohio API events (construction + incidents)
   try {
-    console.log('Fetching enhanced Ohio events from OHGO API...');
-    const ohioEvents = await fetchOhioEvents();
-    if (ohioEvents && ohioEvents.length > 0) {
-      allEvents.push(...ohioEvents);
-      console.log(`Added ${ohioEvents.length} Ohio API events`);
-    }
-  } catch (error) {
-    console.error('Error fetching Ohio API events:', error.message);
-    allErrors.push({ state: 'OH (API)', errors: [error.message] });
-  }
+    const allResults = await Promise.all(
+      getAllStateKeys().map(stateKey => fetchStateData(stateKey))
+    );
 
-  // Add California Caltrans LCS events (lane closures from all 12 districts)
-  try {
-    console.log('Fetching Caltrans LCS events from all districts...');
-    const caltransEvents = await fetchCaltransLCS();
-    if (caltransEvents && caltransEvents.length > 0) {
-      allEvents.push(...caltransEvents);
-      console.log(`Added ${caltransEvents.length} Caltrans LCS events`);
-    }
-  } catch (error) {
-    console.error('Error fetching Caltrans LCS events:', error.message);
-    allErrors.push({ state: 'CA (LCS)', errors: [error.message] });
-  }
+    const allEvents = [];
+    const allErrors = [];
 
-  // Deduplicate events by ID (keep first occurrence)
-  const seenIds = new Set();
-  const uniqueEvents = [];
-  let duplicateCount = 0;
-
-  allEvents.forEach(event => {
-    if (!seenIds.has(event.id)) {
-      seenIds.add(event.id);
-      uniqueEvents.push(event);
-    } else {
-      duplicateCount++;
-    }
-  });
-
-  if (duplicateCount > 0) {
-    console.log(`⚠️  Removed ${duplicateCount} duplicate event(s)`);
-  }
-
-  console.log(`Fetched ${uniqueEvents.length} unique events (${allEvents.length} total, ${duplicateCount} duplicates removed)`);
-  console.log(`Errors from ${allErrors.length} state(s)`);
-
-  // Filter by state query parameter if provided
-  let filteredEvents = uniqueEvents;
-  const stateFilter = req.query.state;
-
-  if (stateFilter) {
-    const stateFilterLower = stateFilter.toLowerCase();
-    const stateFilterNormalized = stateFilter.substring(0, 2).toUpperCase(); // e.g., "pa" -> "PA", "ohio" -> "OH"
-
-    filteredEvents = uniqueEvents.filter(event => {
-      const eventState = event.state || '';
-      const eventStateLower = eventState.toLowerCase();
-
-      // Match by full name (e.g., "Pennsylvania") or abbreviation (e.g., "PA")
-      return eventStateLower === stateFilterLower ||
-             eventStateLower.startsWith(stateFilterLower) ||
-             eventState === stateFilterNormalized;
+    allResults.forEach(result => {
+      allEvents.push(...result.events);
+      if (result.errors.length > 0) {
+        allErrors.push({ state: result.state, errors: result.errors });
+      }
     });
 
-    console.log(`Filtered to ${filteredEvents.length} events for state: ${stateFilter}`);
-  }
+    // Add Ohio API events
+    try {
+      const ohioEvents = await fetchOhioEvents();
+      if (ohioEvents && ohioEvents.length > 0) {
+        allEvents.push(...ohioEvents);
+      }
+    } catch (error) {
+      allErrors.push({ state: 'OH (API)', errors: [error.message] });
+    }
 
-  // Prepare response
-  const response = {
-    success: true,
-    timestamp: new Date().toISOString(),
-    totalEvents: filteredEvents.length,
-    events: filteredEvents,
-    errors: allErrors
-  };
+    // Add California Caltrans LCS events
+    try {
+      const caltransEvents = await fetchCaltransLCS();
+      if (caltransEvents && caltransEvents.length > 0) {
+        allEvents.push(...caltransEvents);
+      }
+    } catch (error) {
+      allErrors.push({ state: 'CA (LCS)', errors: [error.message] });
+    }
 
-  // Cache the FULL response (before filtering) for reuse
-  // Only cache if no state filter was applied
-  if (!stateFilter) {
-    eventsCache.data = {
+    // Deduplicate events
+    const seenIds = new Set();
+    const uniqueEvents = [];
+    let duplicateCount = 0;
+
+    allEvents.forEach(event => {
+      if (!seenIds.has(event.id)) {
+        seenIds.add(event.id);
+        uniqueEvents.push(event);
+      } else {
+        duplicateCount++;
+      }
+    });
+
+    if (duplicateCount > 0) {
+      console.log(`⚠️  Removed ${duplicateCount} duplicate event(s)`);
+    }
+
+    console.log(`✅ Fetched ${uniqueEvents.length} unique events (${allEvents.length} total, ${duplicateCount} duplicates removed)`);
+
+    // Update cache
+    const cacheData = {
       success: true,
-      timestamp: response.timestamp,
+      timestamp: new Date().toISOString(),
       totalEvents: uniqueEvents.length,
       events: uniqueEvents,
       errors: allErrors
     };
+
+    eventsCache.data = cacheData;
     eventsCache.timestamp = Date.now();
-    console.log('✅ Cached full event list for 60 seconds');
+    console.log('✅ Cache updated successfully');
+
+    return cacheData;
+  } catch (error) {
+    console.error('❌ Error fetching events:', error.message);
+    // Keep serving stale cache on error
+    return eventsCache.data;
+  } finally {
+    eventsCache.isRefreshing = false;
+  }
+}
+
+// Background refresh interval (runs every 50 seconds)
+setInterval(async () => {
+  const now = Date.now();
+  const cacheAge = eventsCache.timestamp ? now - eventsCache.timestamp : Infinity;
+
+  if (cacheAge > eventsCache.refreshAfter) {
+    console.log('⏰ Background refresh triggered (cache age: ' + Math.round(cacheAge / 1000) + 's)');
+    await fetchAndCacheEvents();
+  }
+}, 50000); // Check every 50 seconds
+
+// Initial cache population on startup
+console.log('🚀 Pre-warming cache on startup...');
+fetchAndCacheEvents().then(() => {
+  console.log('✅ Initial cache population complete');
+}).catch(err => {
+  console.error('❌ Initial cache population failed:', err.message);
+});
+
+// Main endpoint to fetch all events
+app.get('/api/events', async (req, res) => {
+  const now = Date.now();
+  const cacheAge = eventsCache.timestamp ? now - eventsCache.timestamp : Infinity;
+
+  // If cache exists and is not too stale, return it immediately
+  if (eventsCache.data && cacheAge < eventsCache.ttl) {
+    console.log('✅ Returning cached events (age: ' + Math.round(cacheAge / 1000) + 's)');
+
+    // Trigger background refresh if cache is getting old
+    if (cacheAge > eventsCache.refreshAfter && !eventsCache.isRefreshing) {
+      console.log('🔄 Triggering background refresh (cache age: ' + Math.round(cacheAge / 1000) + 's)');
+      fetchAndCacheEvents().catch(err => {
+        console.error('Background refresh error:', err.message);
+      });
+    }
+
+    // Filter by state if requested
+    const stateFilter = req.query.state;
+    if (stateFilter) {
+      const stateFilterLower = stateFilter.toLowerCase();
+      const filteredEvents = eventsCache.data.events.filter(event => {
+        const eventState = (event.state || '').toLowerCase();
+        return eventState.includes(stateFilterLower) || stateFilterLower.includes(eventState);
+      });
+
+      return res.json({
+        success: true,
+        timestamp: eventsCache.data.timestamp,
+        totalEvents: filteredEvents.length,
+        events: filteredEvents,
+        errors: eventsCache.data.errors
+      });
+    }
+
+    return res.json(eventsCache.data);
   }
 
-  res.json(response);
+  // Cache is empty or too stale, fetch synchronously
+  console.log('⚠️  Cache empty or too stale, fetching synchronously...');
+  const data = await fetchAndCacheEvents();
+
+  // Filter by state if requested
+  const stateFilter = req.query.state;
+  if (stateFilter) {
+    const stateFilterLower = stateFilter.toLowerCase();
+    const filteredEvents = data.events.filter(event => {
+      const eventState = (event.state || '').toLowerCase();
+      return eventState.includes(stateFilterLower) || stateFilterLower.includes(eventState);
+    });
+
+    return res.json({
+      success: true,
+      timestamp: data.timestamp,
+      totalEvents: filteredEvents.length,
+      events: filteredEvents,
+      errors: data.errors
+    });
+  }
+
+  res.json(data);
 });
 
 // Endpoint to fetch from a specific state
