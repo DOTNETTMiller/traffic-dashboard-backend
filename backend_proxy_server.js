@@ -7140,7 +7140,13 @@ app.post('/api/events/:eventId/comments', requireUserOrStateAuth, async (req, re
 
         if (eventDetails) {
           // Get users who should be notified about messages for this state
-          const usersToNotify = db.getUsersForMessageNotification(eventDetails.state);
+          const usersToNotify = await db.getUsersForMessageNotification(eventDetails.state);
+
+          // Safety check: ensure usersToNotify is an array
+          if (!Array.isArray(usersToNotify)) {
+            console.error('⚠️  usersToNotify is not an array, skipping message notifications');
+            return res.status(201).json({ success: true, comment });
+          }
 
           console.log(`📧 Sending message notifications to ${usersToNotify.length} users for ${eventDetails.state}`);
 
@@ -10657,7 +10663,13 @@ async function checkHighSeverityEvents() {
         console.log(`🚨 Found ${highSeverityEvents.length} high-severity events in ${result.state}`);
 
         // Get users who should be notified for this state
-        const usersToNotify = db.getUsersForHighSeverityNotification(result.state);
+        const usersToNotify = await db.getUsersForHighSeverityNotification(result.state);
+
+        // Safety check: ensure usersToNotify is an array
+        if (!Array.isArray(usersToNotify)) {
+          console.error('⚠️  usersToNotify is not an array, skipping notifications');
+          continue;
+        }
 
         // Send notifications for each high-severity event
         for (const event of highSeverityEvents) {
