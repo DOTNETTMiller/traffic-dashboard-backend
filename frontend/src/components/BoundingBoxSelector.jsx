@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { Rectangle, useMapEvents } from 'react-leaflet';
 import { Download, Square, X, Save, Upload } from 'lucide-react';
 import { theme } from '../styles/theme';
+import { config } from '../config';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = config.apiUrl;
 const STORAGE_KEY = 'boundingBoxPreference';
 
 function BoundingBoxSelector({ isDarkMode }) {
