@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { config } from '../config';
-import html2pdf from 'html2pdf.js';
 
 function DocumentationViewer() {
   const [content, setContent] = useState('');
@@ -152,16 +151,121 @@ function DocumentationViewer() {
 
     setGeneratingPdf(true);
     try {
+      // Create a printable version of the content
+      const printWindow = window.open('', '_blank');
       const element = contentRef.current;
-      const opt = {
-        margin: [0.5, 0.5],
-        filename: `${title.replace(/\s+/g, '_')}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-      };
 
-      await html2pdf().set(opt).from(element).save();
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>${title}</title>
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                line-height: 1.6;
+                color: #1f2937;
+                max-width: 8.5in;
+                margin: 0.5in auto;
+                padding: 0.5in;
+              }
+              h1 {
+                font-size: 28px;
+                font-weight: 700;
+                margin: 24px 0 16px 0;
+                color: #111827;
+                border-bottom: 2px solid #e5e7eb;
+                padding-bottom: 8px;
+              }
+              h2 {
+                font-size: 22px;
+                font-weight: 600;
+                margin: 20px 0 12px 0;
+                color: #1f2937;
+              }
+              h3 {
+                font-size: 18px;
+                font-weight: 600;
+                margin: 16px 0 8px 0;
+                color: #374151;
+              }
+              p {
+                margin: 12px 0;
+              }
+              code {
+                background: #f3f4f6;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-family: 'Courier New', monospace;
+                font-size: 0.9em;
+              }
+              pre {
+                background: #1f2937;
+                color: #f9fafb;
+                padding: 16px;
+                border-radius: 6px;
+                overflow-x: auto;
+                margin: 16px 0;
+              }
+              pre code {
+                background: transparent;
+                color: inherit;
+                padding: 0;
+              }
+              ul, ol {
+                margin: 12px 0;
+                padding-left: 24px;
+              }
+              li {
+                margin: 6px 0;
+              }
+              table {
+                border-collapse: collapse;
+                width: 100%;
+                margin: 16px 0;
+              }
+              th, td {
+                border: 1px solid #e5e7eb;
+                padding: 8px 12px;
+                text-align: left;
+              }
+              th {
+                background: #f3f4f6;
+                font-weight: 600;
+              }
+              a {
+                color: #2563eb;
+                text-decoration: underline;
+              }
+              img {
+                max-width: 100%;
+                height: auto;
+                margin: 10px 0;
+              }
+              @media print {
+                body {
+                  margin: 0;
+                  padding: 0.5in;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            ${element.innerHTML}
+            <script>
+              window.onload = function() {
+                setTimeout(function() {
+                  window.print();
+                  window.onafterprint = function() {
+                    window.close();
+                  };
+                }, 250);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Failed to generate PDF. Please try again.');
@@ -349,7 +453,7 @@ function DocumentationViewer() {
                 opacity: generatingPdf ? 0.7 : 1
               }}
             >
-              {generatingPdf ? '⏳ Generating...' : '📥 Download PDF'}
+              {generatingPdf ? '⏳ Opening...' : '🖨️ Print/Save PDF'}
             </button>
           </div>
 
