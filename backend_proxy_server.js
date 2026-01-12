@@ -2536,8 +2536,10 @@ const fetchStateData = async (stateKey) => {
         try {
           const response = await axios.get(config.wzdxUrl, {
             headers: {
+              ...headers,
               'Accept-Encoding': 'gzip, deflate'
             },
+            params,
             timeout: 10000,
             decompress: true // Explicitly enable gzip decompression
           });
