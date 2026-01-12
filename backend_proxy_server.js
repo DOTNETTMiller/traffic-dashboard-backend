@@ -12290,6 +12290,105 @@ app.get('/api/its-equipment', async (req, res) => {
   }
 });
 
+// Get ITS equipment near an event location
+app.get('/api/its-equipment/nearby', async (req, res) => {
+  try {
+    const { latitude, longitude, radius = 5, stateKey } = req.query;
+
+    if (!latitude || !longitude) {
+      return res.status(400).json({
+        success: false,
+        error: 'latitude and longitude are required'
+      });
+    }
+
+    const lat = parseFloat(latitude);
+    const lon = parseFloat(longitude);
+    const radiusMiles = parseFloat(radius);
+
+    if (isNaN(lat) || isNaN(lon) || isNaN(radiusMiles)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid latitude, longitude, or radius'
+      });
+    }
+
+    // Calculate bounding box for efficient query (1 degree ≈ 69 miles)
+    const latOffset = radiusMiles / 69;
+    const lonOffset = radiusMiles / (69 * Math.cos(lat * Math.PI / 180));
+
+    let query = `
+      SELECT *,
+        (
+          3959 * acos(
+            cos(radians(?)) * cos(radians(latitude)) *
+            cos(radians(longitude) - radians(?)) +
+            sin(radians(?)) * sin(radians(latitude))
+          )
+        ) AS distance_miles
+      FROM its_equipment
+      WHERE latitude BETWEEN ? AND ?
+        AND longitude BETWEEN ? AND ?
+        AND status = 'active'
+    `;
+
+    const params = [
+      lat, lon, lat,
+      lat - latOffset, lat + latOffset,
+      lon - lonOffset, lon + lonOffset
+    ];
+
+    if (stateKey) {
+      query += ' AND state_key = ?';
+      params.push(stateKey);
+    }
+
+    query += ` HAVING distance_miles <= ?
+               ORDER BY distance_miles ASC
+               LIMIT 50`;
+
+    params.push(radiusMiles);
+
+    let equipment;
+    if (db.isPostgres) {
+      let pgQuery = query;
+      let paramIndex = 1;
+      pgQuery = pgQuery.replace(/\?/g, () => `$${paramIndex++}`);
+      const result = await db.db.query(pgQuery, params);
+      equipment = result.rows || [];
+    } else {
+      equipment = db.db.prepare(query).all(...params);
+    }
+
+    // Group by equipment type for easy recommendations
+    const grouped = {
+      cameras: equipment.filter(e => e.equipment_type === 'camera'),
+      dms: equipment.filter(e => e.equipment_type === 'dms'),
+      sensors: equipment.filter(e => e.equipment_type === 'sensor'),
+      rsu: equipment.filter(e => e.equipment_type === 'rsu')
+    };
+
+    res.json({
+      success: true,
+      location: { latitude: lat, longitude: lon },
+      radius: radiusMiles,
+      equipment: Array.isArray(equipment) ? equipment : [],
+      total: Array.isArray(equipment) ? equipment.length : 0,
+      byType: {
+        cameras: grouped.cameras.length,
+        dms: grouped.dms.length,
+        sensors: grouped.sensors.length,
+        rsu: grouped.rsu.length
+      },
+      grouped: grouped
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching nearby equipment:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Export ARC-ITS compliant inventory
 app.get('/api/its-equipment/export', async (req, res) => {
   try {
