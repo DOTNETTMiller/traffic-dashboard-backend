@@ -2838,6 +2838,28 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// One-time fix for Texas API URL
+app.get('/api/fix-texas', async (req, res) => {
+  try {
+    const { fixTexasAPI } = require('./scripts/fix_texas_api.js');
+    await fixTexasAPI();
+
+    // Reload states from database
+    await loadStatesFromDatabase();
+
+    res.json({
+      success: true,
+      message: 'Texas API URL updated successfully',
+      newUrl: 'https://data.austintexas.gov/download/d9mm-cjw9/application%2Fvnd.geo%2Bjson'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // ========================================
 // Traffic Impact Warning Endpoints
 // ========================================
