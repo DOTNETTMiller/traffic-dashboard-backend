@@ -1234,9 +1234,8 @@ async function initializeDatabase() {
 
     // Run Texas API migration (updates database to use DriveTexas WZDx API)
     try {
-      require('./migrate_texas.js');
-      // Wait for migration to complete
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const { migrateTexas } = require('./migrate_texas.js');
+      await migrateTexas();
     } catch (error) {
       console.log('⚠️  Texas migration skipped:', error.message);
     }
