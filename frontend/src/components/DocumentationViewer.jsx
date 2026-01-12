@@ -315,6 +315,7 @@ function DocumentationViewer() {
               {doc.icon} {doc.title}
             </h1>
 
+            {/* PDF download disabled - PDFs not yet generated
             <button
               onClick={() => downloadPDF(doc.pdfUrl, doc.title)}
               style={{
@@ -334,6 +335,7 @@ function DocumentationViewer() {
             >
               📥 Download PDF
             </button>
+            */}
           </div>
 
           <p style={{
