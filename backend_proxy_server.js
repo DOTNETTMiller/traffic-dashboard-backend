@@ -14169,20 +14169,41 @@ app.get('/api/digital-infrastructure/models/:modelId/file', async (req, res) => 
     }
 
     if (!model) {
-      return res.status(404).json({ success: false, error: 'Model not found' });
+      return res.status(404).json({ success: false, error: 'Model not found in database' });
     }
 
-    // Check if file exists
+    // Try multiple possible file paths (local dev vs production)
     const fs = require('fs');
-    if (!fs.existsSync(model.file_path)) {
-      return res.status(404).json({ success: false, error: 'IFC file not found on disk' });
+    let filePath = null;
+    const possiblePaths = [
+      model.file_path, // Original path from database
+      path.join(__dirname, 'uploads', 'ifc_models', path.basename(model.file_path)), // Relative path 1
+      path.join(__dirname, 'uploads', 'ifc', path.basename(model.file_path)), // Relative path 2
+      path.join(__dirname, 'uploads', path.basename(model.file_path)) // Relative path 3
+    ];
+
+    for (const testPath of possiblePaths) {
+      if (testPath && fs.existsSync(testPath)) {
+        filePath = testPath;
+        break;
+      }
+    }
+
+    if (!filePath) {
+      console.error(`❌ IFC file not found for model ${modelId}. Tried paths:`, possiblePaths);
+      return res.status(404).json({
+        success: false,
+        error: 'IFC file not found on server. File may need to be re-uploaded.',
+        filename: model.filename,
+        hint: 'The file exists in the database but the actual .ifc file is missing from the server.'
+      });
     }
 
     // Serve the file
     res.setHeader('Content-Type', 'application/x-step');
     res.setHeader('Content-Disposition', `inline; filename="${model.filename}"`);
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.sendFile(path.resolve(model.file_path));
+    res.sendFile(path.resolve(filePath));
 
   } catch (error) {
     console.error('❌ Serve IFC file error:', error);
