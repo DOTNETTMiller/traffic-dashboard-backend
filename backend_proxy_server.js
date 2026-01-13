@@ -12303,7 +12303,7 @@ app.get('/api/its-equipment', async (req, res) => {
   }
 });
 
-// Get ITS equipment near an event location
+// Get ITS equipment near an event location (with JS distance calculation)
 app.get('/api/its-equipment/nearby', async (req, res) => {
   try {
     const { latitude, longitude, radius = 5, stateKey } = req.query;
