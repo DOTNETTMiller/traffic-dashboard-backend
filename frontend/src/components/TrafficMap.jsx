@@ -389,6 +389,7 @@ export default function TrafficMap({
   showITSEquipment = false,
   itsEquipmentRoute = null,
   itsEquipmentType = null,
+  interstateOnly = true,
   heatMapActive = false,
   heatMapMode = 'density',
   onHeatMapToggle,
@@ -422,10 +423,10 @@ export default function TrafficMap({
     );
   });
 
-  // Focus on interstate events while still leveraging clustering for performance
-  const displayEvents = validEvents.filter(isInterstateEvent);
+  // Optionally filter to interstate events only
+  const displayEvents = interstateOnly ? validEvents.filter(isInterstateEvent) : validEvents;
 
-  console.log(`📍 Map: ${displayEvents.length} mapped events out of ${validEvents.length} valid events (${events.length} total)`);
+  console.log(`📍 Map: ${displayEvents.length} mapped events out of ${validEvents.length} valid events (${events.length} total)${interstateOnly ? ' [Interstate Only]' : ' [All Routes]'}`);
 
   // Sort events so those with messages appear on top (render last)
   const sortedEvents = [...displayEvents].sort((a, b) => {

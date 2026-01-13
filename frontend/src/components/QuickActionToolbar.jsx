@@ -6,12 +6,14 @@ export default function QuickActionToolbar({
   onClearFilters,
   onToggleParking,
   onToggleInterchanges,
+  onToggleInterstateOnly,
   onOpenCommandPalette,
   onFilterSeverity,
   onExport,
   autoRefresh,
   showParking,
   showInterchanges,
+  interstateOnly,
   currentSeverityFilter,
   eventCount
 }) {
@@ -93,6 +95,14 @@ export default function QuickActionToolbar({
       onClick: onToggleInterchanges,
       color: theme.colors.accentPurple,
       active: showInterchanges
+    },
+    {
+      id: 'toggle-interstate',
+      icon: '🛣️',
+      label: interstateOnly ? 'Show All Routes' : 'Interstate Only',
+      onClick: onToggleInterstateOnly,
+      color: theme.colors.accentBlue,
+      active: interstateOnly
     }
   ];
 
