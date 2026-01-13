@@ -8428,41 +8428,70 @@ app.get('/api/vendors/api-usage/:providerId', async (req, res) => {
 app.get('/api/states/list', async (req, res) => {
   // Build list from API_CONFIG
   const states = [];
+  const stateMap = new Map(); // Track unique states by their 2-letter abbreviation
+
+  // Helper to get 2-letter state abbreviation from state key
+  const getStateAbbr = (stateKey) => {
+    const abbrevMap = {
+      'iowa': 'ia', 'illinois': 'il', 'indiana': 'in', 'ohio': 'oh',
+      'kansas': 'ks', 'nebraska': 'ne', 'nevada': 'nv', 'newjersey': 'nj',
+      'minnesota': 'mn', 'utah': 'ut', 'pennsylvania': 'pa', 'california': 'ca',
+      'colorado': 'co', 'florida': 'fl', 'kentucky': 'ky', 'massachusetts': 'ma',
+      'washington': 'wa', 'wisconsin': 'wi', 'texas': 'tx', 'newyork': 'ny',
+      'northcarolina': 'nc', 'virginia': 'va', 'georgia': 'ga', 'michigan': 'mi',
+      'louisiana': 'la', 'newmexico': 'nm', 'delaware': 'de', 'hawaii': 'hi',
+      'idaho': 'id', 'missouri': 'mo', 'maryland': 'md', 'arizona': 'az',
+      'oklahoma': 'ok', 'wyoming': 'wy'
+    };
+    return abbrevMap[stateKey.toLowerCase()] || stateKey.toLowerCase().substring(0, 2);
+  };
 
   // Add all configured states from API_CONFIG
   for (const [stateKey, config] of Object.entries(API_CONFIG)) {
-    states.push({
-      stateKey: stateKey.toLowerCase(),
-      stateName: config.name,
-      format: config.format || 'xml',
-      apiType: config.apiType || 'TMDD/CARS',
-      enabled: true,
-      apiUrl: config.eventsUrl || config.wzdxUrl || 'Multiple Sources'
-    });
+    const abbr = getStateAbbr(stateKey);
+
+    // Only add if we haven't seen this state abbreviation yet
+    if (!stateMap.has(abbr)) {
+      const state = {
+        stateKey: abbr, // Use standardized 2-letter abbreviation
+        stateName: config.name,
+        format: config.format || 'xml',
+        apiType: config.apiType || 'TMDD/CARS',
+        enabled: true,
+        apiUrl: config.eventsUrl || config.wzdxUrl || 'Multiple Sources'
+      };
+      states.push(state);
+      stateMap.set(abbr, state);
+    }
   }
 
-  // Add Pennsylvania (PennDOT RCRS)
-  states.push({
-    stateKey: 'pa',
-    stateName: 'Pennsylvania DOT (RCRS)',
-    format: 'json',
-    apiType: 'RCRS',
-    enabled: true,
-    apiUrl: 'https://rcrs.transportation.org/api/v2/pa/incidents'
-  });
+  // Add Pennsylvania (PennDOT RCRS) only if not already added
+  if (!stateMap.has('pa')) {
+    const paState = {
+      stateKey: 'pa',
+      stateName: 'Pennsylvania DOT (RCRS)',
+      format: 'json',
+      apiType: 'RCRS',
+      enabled: true,
+      apiUrl: 'https://rcrs.transportation.org/api/v2/pa/incidents'
+    };
+    states.push(paState);
+    stateMap.set('pa', paState);
+  }
 
-  // Add California (Caltrans LCS)
-  states.push({
-    stateKey: 'ca',
-    stateName: 'California DOT (Caltrans LCS)',
-    format: 'json',
-    apiType: 'Caltrans LCS',
-    enabled: true,
-    apiUrl: 'Multiple District APIs (1-12)'
-  });
-
-  // Add Ohio OHGO API (already in API_CONFIG but has both constructions and incidents)
-  // No need to add separately - it's already in API_CONFIG
+  // Add California (Caltrans LCS) only if not already added
+  if (!stateMap.has('ca')) {
+    const caState = {
+      stateKey: 'ca',
+      stateName: 'California DOT (Caltrans LCS)',
+      format: 'json',
+      apiType: 'Caltrans LCS',
+      enabled: true,
+      apiUrl: 'Multiple District APIs (1-12)'
+    };
+    states.push(caState);
+    stateMap.set('ca', caState);
+  }
 
   // Sort by state name
   states.sort((a, b) => a.stateName.localeCompare(b.stateName));
