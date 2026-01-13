@@ -12330,23 +12330,16 @@ app.get('/api/its-equipment/nearby', async (req, res) => {
     const latOffset = radiusMiles / 69;
     const lonOffset = radiusMiles / (69 * Math.cos(lat * Math.PI / 180));
 
+    // Simplified query without HAVING clause to avoid SQL errors
     let query = `
-      SELECT *,
-        (
-          3959 * acos(
-            cos(radians(?)) * cos(radians(latitude)) *
-            cos(radians(longitude) - radians(?)) +
-            sin(radians(?)) * sin(radians(latitude))
-          )
-        ) AS distance_miles
+      SELECT *
       FROM its_equipment
       WHERE latitude BETWEEN ? AND ?
         AND longitude BETWEEN ? AND ?
-        AND status = 'active'
+        AND (status = 'active' OR status = 'OK')
     `;
 
     const params = [
-      lat, lon, lat,
       lat - latOffset, lat + latOffset,
       lon - lonOffset, lon + lonOffset
     ];
@@ -12356,11 +12349,7 @@ app.get('/api/its-equipment/nearby', async (req, res) => {
       params.push(stateKey);
     }
 
-    query += ` HAVING distance_miles <= ?
-               ORDER BY distance_miles ASC
-               LIMIT 50`;
-
-    params.push(radiusMiles);
+    query += ' ORDER BY id LIMIT 50';
 
     let equipment;
     if (db.isPostgres) {
@@ -12372,6 +12361,23 @@ app.get('/api/its-equipment/nearby', async (req, res) => {
     } else {
       equipment = db.db.prepare(query).all(...params);
     }
+
+    // Calculate distances in JavaScript after fetching
+    equipment = equipment.map(e => {
+      const R = 3959; // Earth radius in miles
+      const dLat = (e.latitude - lat) * Math.PI / 180;
+      const dLon = (e.longitude - lon) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat * Math.PI / 180) * Math.cos(e.latitude * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const distance_miles = R * c;
+
+      return { ...e, distance_miles };
+    })
+    .filter(e => e.distance_miles <= radiusMiles)
+    .sort((a, b) => a.distance_miles - b.distance_miles)
+    .slice(0, 50);
 
     // Group by equipment type for easy recommendations
     const grouped = {
