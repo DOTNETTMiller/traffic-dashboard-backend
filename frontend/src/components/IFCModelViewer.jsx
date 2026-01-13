@@ -195,7 +195,15 @@ const IFCModelViewer = ({ modelId, filename }) => {
           },
           (err) => {
             console.error('Error loading IFC model:', err);
-            setError('Failed to load IFC model. The file may be corrupted or incompatible.');
+
+            // Check if it's a 404 error (file not found on server)
+            if (err.message && err.message.includes('404')) {
+              setError('IFC file not found on server. The file may need to be re-uploaded. Please contact an administrator.');
+            } else if (err.message && err.message.includes('WASM')) {
+              setError('Failed to load IFC viewer components. Please refresh the page.');
+            } else {
+              setError('Failed to load IFC model. The file may be corrupted or incompatible.');
+            }
             setLoading(false);
           }
         );
