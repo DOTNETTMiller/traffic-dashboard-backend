@@ -21701,9 +21701,13 @@ app.use((req, res, next) => {
 
 // ==================== PDF DOCUMENTATION ====================
 
-// Serve pre-generated PDF documentation
-const PDF_DOCS_PATH = '/Users/mattmiller/Downloads/DOT-Documentation';
-app.use('/pdfs', express.static(PDF_DOCS_PATH));
+// Serve pre-generated PDF documentation from docs directory if PDFs exist
+const PDF_DOCS_PATH = path.join(__dirname, 'docs', 'pdfs');
+if (fs.existsSync(PDF_DOCS_PATH)) {
+  app.use('/pdfs', express.static(PDF_DOCS_PATH));
+} else {
+  console.log('PDF docs directory not found, PDFs will be generated on-demand');
+}
 
 // ==================== STATIC FILES & SPA ====================
 // Note: Static file serving is configured at the end of the file
