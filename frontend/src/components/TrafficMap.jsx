@@ -422,8 +422,8 @@ export default function TrafficMap({
     );
   });
 
-  // Focus on interstate events while still leveraging clustering for performance
-  const displayEvents = validEvents.filter(isInterstateEvent);
+  // Show all valid events (removed interstate-only filter to display all events)
+  const displayEvents = validEvents;
 
   console.log(`📍 Map: ${displayEvents.length} mapped events out of ${validEvents.length} valid events (${events.length} total)`);
 

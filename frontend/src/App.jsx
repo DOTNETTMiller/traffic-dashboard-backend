@@ -353,12 +353,13 @@ function App() {
 
     for (const event of events) {
       // Create a key based on location, type, and time proximity
-      const lat = event.latitude ? Math.round(event.latitude * 100) / 100 : 'no-lat';
-      const lng = event.longitude ? Math.round(event.longitude * 100) / 100 : 'no-lng';
+      // Use 4 decimal places (~11 meters) to only dedupe true duplicates, not nearby events
+      const lat = event.latitude ? Math.round(event.latitude * 10000) / 10000 : 'no-lat';
+      const lng = event.longitude ? Math.round(event.longitude * 10000) / 10000 : 'no-lng';
       const type = event.eventType || 'unknown';
       const corridor = normalizeCorridorKey(event.corridor);
 
-      // Key combines location (rounded to ~1km), type, and corridor
+      // Key combines location (rounded to ~11m), type, and corridor
       const key = `${lat},${lng}|${type}|${corridor}`;
 
       if (seen.has(key)) {
