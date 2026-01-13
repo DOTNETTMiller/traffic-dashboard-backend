@@ -120,6 +120,46 @@ function DocumentationViewer() {
       pdfUrl: `${config.apiUrl}/pdfs/CIFS-Compliance-Guide.pdf`,
       description: 'Step-by-step guide for state DOTs to create CIFS-compliant data feeds using SAE J2735 TIM/CV-TIM formats, ITIS codes, and WZDx interoperability. Includes Python and Node.js implementation examples.',
       icon: '📡'
+    },
+    {
+      key: 'jstan-overview',
+      title: 'AASHTO JSTAN Overview',
+      url: '/docs/AASHTO_JSTAN_OVERVIEW.md',
+      pdfUrl: `${config.apiUrl}/docs/AASHTO_JSTAN_OVERVIEW.md?format=pdf`,
+      description: 'Overview of AASHTO Joint Standards for Technology Applications Notice (JSTAN) program, governance model, and how it enables multi-state technology coordination.',
+      icon: '📋'
+    },
+    {
+      key: 'grant-writing-toolkit',
+      title: 'Grant Writing Toolkit',
+      url: '/docs/GRANT_WRITING_TOOLKIT_README.md',
+      pdfUrl: `${config.apiUrl}/docs/GRANT_WRITING_TOOLKIT_README.md?format=pdf`,
+      description: 'Complete toolkit for federal grant applications based on SAAFIR lessons learned. Includes comprehensive guide, executive summary, working checklist, and templates.',
+      icon: '💰'
+    },
+    {
+      key: 'grant-application-guide',
+      title: 'Federal Grant Application Guide',
+      url: '/docs/FEDERAL_GRANT_APPLICATION_GUIDE.md',
+      pdfUrl: `${config.apiUrl}/docs/FEDERAL_GRANT_APPLICATION_GUIDE.md?format=pdf`,
+      description: '60+ page comprehensive manual for developing competitive federal transportation grant applications. Section-by-section templates, BCA methodology, grant program alignment, and Corridor Communicator-specific guidance.',
+      icon: '📝'
+    },
+    {
+      key: 'saafir-lessons',
+      title: 'SAAFIR Lessons Learned',
+      url: '/docs/SAAFIR_LESSONS_LEARNED_SUMMARY.md',
+      pdfUrl: `${config.apiUrl}/docs/SAAFIR_LESSONS_LEARNED_SUMMARY.md?format=pdf`,
+      description: 'Executive summary analyzing the 2019 SAAFIR INFRA grant application. What worked (B/C ratio 13.3), what failed (not in state plans), and direct comparison to Corridor Communicator advantages.',
+      icon: '📊'
+    },
+    {
+      key: 'grant-checklist',
+      title: 'Grant Application Checklist',
+      url: '/docs/GRANT_APPLICATION_CHECKLIST.md',
+      pdfUrl: `${config.apiUrl}/docs/GRANT_APPLICATION_CHECKLIST.md?format=pdf`,
+      description: 'Working document for tracking grant application development through 8 phases. Partnership tracking, budget tracking, quality control checklists, and post-award implementation guide.',
+      icon: '✅'
     }
   ];
 
@@ -146,129 +186,47 @@ function DocumentationViewer() {
     setLoading(false);
   };
 
-  const downloadPDF = async (title) => {
-    if (!contentRef.current || generatingPdf) return;
+  const downloadPDF = async (urlOrTitle, titleOverride = null) => {
+    if (generatingPdf) return;
 
     setGeneratingPdf(true);
     try {
-      // Create a printable version of the content
-      const printWindow = window.open('', '_blank');
-      const element = contentRef.current;
+      let pdfUrl;
+      let docTitle;
 
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>${title}</title>
-            <style>
-              body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                line-height: 1.6;
-                color: #1f2937;
-                max-width: 8.5in;
-                margin: 0.5in auto;
-                padding: 0.5in;
-              }
-              h1 {
-                font-size: 28px;
-                font-weight: 700;
-                margin: 24px 0 16px 0;
-                color: #111827;
-                border-bottom: 2px solid #e5e7eb;
-                padding-bottom: 8px;
-              }
-              h2 {
-                font-size: 22px;
-                font-weight: 600;
-                margin: 20px 0 12px 0;
-                color: #1f2937;
-              }
-              h3 {
-                font-size: 18px;
-                font-weight: 600;
-                margin: 16px 0 8px 0;
-                color: #374151;
-              }
-              p {
-                margin: 12px 0;
-              }
-              code {
-                background: #f3f4f6;
-                padding: 2px 6px;
-                border-radius: 3px;
-                font-family: 'Courier New', monospace;
-                font-size: 0.9em;
-              }
-              pre {
-                background: #1f2937;
-                color: #f9fafb;
-                padding: 16px;
-                border-radius: 6px;
-                overflow-x: auto;
-                margin: 16px 0;
-              }
-              pre code {
-                background: transparent;
-                color: inherit;
-                padding: 0;
-              }
-              ul, ol {
-                margin: 12px 0;
-                padding-left: 24px;
-              }
-              li {
-                margin: 6px 0;
-              }
-              table {
-                border-collapse: collapse;
-                width: 100%;
-                margin: 16px 0;
-              }
-              th, td {
-                border: 1px solid #e5e7eb;
-                padding: 8px 12px;
-                text-align: left;
-              }
-              th {
-                background: #f3f4f6;
-                font-weight: 600;
-              }
-              a {
-                color: #2563eb;
-                text-decoration: underline;
-              }
-              img {
-                max-width: 100%;
-                height: auto;
-                margin: 10px 0;
-              }
-              @media print {
-                body {
-                  margin: 0;
-                  padding: 0.5in;
-                }
-              }
-            </style>
-          </head>
-          <body>
-            ${element.innerHTML}
-            <script>
-              window.onload = function() {
-                setTimeout(function() {
-                  window.print();
-                  window.onafterprint = function() {
-                    window.close();
-                  };
-                }, 250);
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
+      // Check if first parameter is a URL (pdfUrl from card) or title (from preview)
+      if (urlOrTitle && (urlOrTitle.startsWith('http') || urlOrTitle.startsWith('/'))) {
+        pdfUrl = urlOrTitle;
+        docTitle = titleOverride || 'document';
+      } else {
+        // It's a title from the preview view, need to find the doc
+        const doc = docs.find(d => d.key === activeDoc);
+        if (!doc) {
+          throw new Error('Document not found');
+        }
+        // Use backend PDF generation endpoint
+        pdfUrl = `${config.apiUrl}${doc.url}?format=pdf`;
+        docTitle = doc.title;
+      }
+
+      // Download the PDF
+      const response = await fetch(pdfUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${docTitle.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
     } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF. Please try again.');
+      console.error('Error downloading PDF:', error);
+      alert('Failed to download PDF. Please try again.');
     } finally {
       setGeneratingPdf(false);
     }
