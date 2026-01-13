@@ -37,6 +37,7 @@ import CorridorDataQuality from './components/CorridorDataQuality';
 import TETCDataGrading from './components/TETCDataGrading';
 import VendorDQIComparison from './components/VendorDQIComparison';
 import GrantApplications from './components/GrantApplications';
+import FundingOpportunities from './components/FundingOpportunities';
 import NASCOCorridorRegulationsView from './components/NASCOCorridorRegulationsView';
 import DigitalInfrastructure from './components/DigitalInfrastructure';
 import DigitalStandardsCrosswalk from './components/DigitalStandardsCrosswalk';
@@ -1200,7 +1201,7 @@ function App() {
                     onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
                     onMouseLeave={(e) => e.currentTarget.style.background = view === 'grants' ? '#f3f4f6' : 'white'}
                   >
-                    💰 Grant Applications
+                    💰 Funding Opportunities
                   </button>
                   <button
                     onClick={() => {
@@ -1751,7 +1752,7 @@ function App() {
             WebkitOverflowScrolling: 'touch',
             position: 'relative'
           }}>
-            <GrantApplications user={currentUser} authToken={authToken} />
+            <FundingOpportunities />
           </div>
         ) : view === 'nasco-regulations' ? (
           <div style={{
