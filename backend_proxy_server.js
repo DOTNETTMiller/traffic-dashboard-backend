@@ -1669,6 +1669,13 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events', a
       if (stateName === 'Utah' && rawData.features) {
         rawData.features.forEach(feature => {
           const props = feature.properties;
+
+          // Filter out cancelled events (WZDx v4.0 and earlier)
+          const eventStatus = props.event_status || props.core_details?.event_status;
+          if (eventStatus && eventStatus.toLowerCase() === 'cancelled') {
+            return; // Skip cancelled events
+          }
+
           let lat = 0;
           let lng = 0;
 
@@ -1749,6 +1756,12 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events', a
 
           // WZDx v4+ uses core_details, older versions have fields directly on properties
           const coreDetails = props.core_details || props;
+
+          // Filter out cancelled events (WZDx v4.0 and earlier)
+          const eventStatus = coreDetails.event_status || props.event_status;
+          if (eventStatus && eventStatus.toLowerCase() === 'cancelled') {
+            return; // Skip cancelled events
+          }
 
           let lat = 0;
           let lng = 0;

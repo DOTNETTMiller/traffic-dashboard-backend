@@ -142,6 +142,11 @@ function extractCorridor(routeName) {
 
 // Check if closure is currently active
 function isClosureActive(closure) {
+  // Filter out completed/cancelled closures (CHP code 1098)
+  if (closure.code1098 && closure.code1098.isCode1098 === 'true') {
+    return false; // Closure has been marked as completed by CHP
+  }
+
   const now = Math.floor(Date.now() / 1000); // Current time in epoch seconds
   const startEpoch = parseInt(closure.closureTimestamp.closureStartEpoch);
   const endEpoch = parseInt(closure.closureTimestamp.closureEndEpoch);
