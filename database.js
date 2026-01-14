@@ -825,6 +825,47 @@ class StateDatabase {
       CREATE INDEX IF NOT EXISTS idx_occupancy_patterns_time ON parking_occupancy_patterns(day_of_week, hour_of_day);
       CREATE INDEX IF NOT EXISTS idx_prediction_accuracy_facility ON parking_prediction_accuracy(facility_id);
       CREATE INDEX IF NOT EXISTS idx_prediction_accuracy_timestamp ON parking_prediction_accuracy(timestamp);
+
+      -- Bridge and route restrictions for commercial vehicles
+      CREATE TABLE IF NOT EXISTS bridge_restrictions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bridge_id TEXT UNIQUE NOT NULL,
+        bridge_name TEXT NOT NULL,
+        state TEXT NOT NULL,
+        corridor TEXT NOT NULL,
+        milepost REAL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        weight_limit_kg INTEGER,
+        height_limit_cm INTEGER,
+        clearance_feet REAL,
+        restriction_notes TEXT,
+        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS route_restrictions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        restriction_id TEXT UNIQUE NOT NULL,
+        state TEXT NOT NULL,
+        corridor TEXT NOT NULL,
+        milepost_start REAL,
+        milepost_end REAL,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        restriction_type TEXT NOT NULL,
+        length_limit_cm INTEGER,
+        weight_limit_kg INTEGER,
+        height_limit_cm INTEGER,
+        hazmat_restricted BOOLEAN DEFAULT 0,
+        oversize_restricted BOOLEAN DEFAULT 0,
+        restriction_notes TEXT,
+        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_bridge_state_corridor ON bridge_restrictions(state, corridor);
+      CREATE INDEX IF NOT EXISTS idx_bridge_location ON bridge_restrictions(latitude, longitude);
+      CREATE INDEX IF NOT EXISTS idx_route_state_corridor ON route_restrictions(state, corridor);
+      CREATE INDEX IF NOT EXISTS idx_route_location ON route_restrictions(latitude, longitude);
     `);
 
     console.log('✅ Database schema initialized');
@@ -2599,6 +2640,148 @@ class StateDatabase {
     } catch (error) {
       console.error('Error getting prediction accuracy stats:', error);
       return [];
+    }
+  }
+
+  // ==================== Bridge & Route Restrictions Methods ====================
+
+  addBridgeRestriction(data) {
+    const {
+      bridgeId,
+      bridgeName,
+      state,
+      corridor,
+      milepost = null,
+      latitude,
+      longitude,
+      weightLimitKg = null,
+      heightLimitCm = null,
+      clearanceFeet = null,
+      restrictionNotes = null
+    } = data;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO bridge_restrictions (
+          bridge_id, bridge_name, state, corridor, milepost,
+          latitude, longitude, weight_limit_kg, height_limit_cm,
+          clearance_feet, restriction_notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(bridge_id) DO UPDATE SET
+          bridge_name = excluded.bridge_name,
+          latitude = excluded.latitude,
+          longitude = excluded.longitude,
+          weight_limit_kg = excluded.weight_limit_kg,
+          height_limit_cm = excluded.height_limit_cm,
+          clearance_feet = excluded.clearance_feet,
+          restriction_notes = excluded.restriction_notes,
+          last_updated = CURRENT_TIMESTAMP
+      `);
+      stmt.run(bridgeId, bridgeName, state, corridor, milepost, latitude, longitude,
+               weightLimitKg, heightLimitCm, clearanceFeet, restrictionNotes);
+      return { success: true };
+    } catch (error) {
+      console.error('Error adding bridge restriction:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  addRouteRestriction(data) {
+    const {
+      restrictionId,
+      state,
+      corridor,
+      milepostStart = null,
+      milepostEnd = null,
+      latitude,
+      longitude,
+      restrictionType,
+      lengthLimitCm = null,
+      weightLimitKg = null,
+      heightLimitCm = null,
+      hazmatRestricted = false,
+      oversizeRestricted = false,
+      restrictionNotes = null
+    } = data;
+
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO route_restrictions (
+          restriction_id, state, corridor, milepost_start, milepost_end,
+          latitude, longitude, restriction_type, length_limit_cm,
+          weight_limit_kg, height_limit_cm, hazmat_restricted,
+          oversize_restricted, restriction_notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(restriction_id) DO UPDATE SET
+          latitude = excluded.latitude,
+          longitude = excluded.longitude,
+          length_limit_cm = excluded.length_limit_cm,
+          weight_limit_kg = excluded.weight_limit_kg,
+          height_limit_cm = excluded.height_limit_cm,
+          hazmat_restricted = excluded.hazmat_restricted,
+          oversize_restricted = excluded.oversize_restricted,
+          restriction_notes = excluded.restriction_notes,
+          last_updated = CURRENT_TIMESTAMP
+      `);
+      stmt.run(restrictionId, state, corridor, milepostStart, milepostEnd, latitude, longitude,
+               restrictionType, lengthLimitCm, weightLimitKg, heightLimitCm,
+               hazmatRestricted ? 1 : 0, oversizeRestricted ? 1 : 0, restrictionNotes);
+      return { success: true };
+    } catch (error) {
+      console.error('Error adding route restriction:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async getRestrictionsByLocation(latitude, longitude, maxDistanceKm = 50) {
+    try {
+      // Get all restrictions (both bridge and route)
+      const bridges = this.db.prepare(`
+        SELECT * FROM bridge_restrictions
+      `).all();
+
+      const routes = this.db.prepare(`
+        SELECT * FROM route_restrictions
+      `).all();
+
+      // Helper function to calculate distance
+      const calculateDistance = (lat1, lon1, lat2, lon2) => {
+        const R = 6371; // Earth's radius in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a =
+          Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+          Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+      };
+
+      // Filter and format bridge restrictions
+      const nearbyBridges = bridges
+        .map(b => ({
+          ...b,
+          distance: calculateDistance(latitude, longitude, b.latitude, b.longitude)
+        }))
+        .filter(b => b.distance <= maxDistanceKm)
+        .sort((a, b) => a.distance - b.distance);
+
+      // Filter and format route restrictions
+      const nearbyRoutes = routes
+        .map(r => ({
+          ...r,
+          distance: calculateDistance(latitude, longitude, r.latitude, r.longitude)
+        }))
+        .filter(r => r.distance <= maxDistanceKm)
+        .sort((a, b) => a.distance - b.distance);
+
+      return {
+        bridges: nearbyBridges,
+        routes: nearbyRoutes
+      };
+    } catch (error) {
+      console.error('Error getting restrictions by location:', error);
+      return { bridges: [], routes: [] };
     }
   }
 
