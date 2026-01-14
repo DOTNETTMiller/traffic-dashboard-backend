@@ -1717,7 +1717,9 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events', a
               lanesAffected: lanesRaw || 'Check conditions',
               severity: severityRaw === 'active' ? 'medium' : 'low',
               direction: directionRaw || 'Both',
-              requiresCollaboration: false
+              requiresCollaboration: false,
+              // Preserve GeoJSON geometry for CIFS polyline generation
+              geometry: feature.geometry || null
             };
 
             normalized.push(attachRawFields(normalizedEvent, {
@@ -1809,7 +1811,9 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events', a
               lanesAffected: lanesRaw || 'Check conditions',
               severity: (lanesRaw === 'all-lanes-open') ? 'low' : 'medium',
               direction: directionRaw || 'Both',
-              requiresCollaboration: false
+              requiresCollaboration: false,
+              // Preserve GeoJSON geometry for CIFS polyline generation
+              geometry: feature.geometry || null
             };
 
             normalized.push(attachRawFields(normalizedEvent, {
@@ -4713,7 +4717,7 @@ app.get('/api/convert/tim-cv', async (req, res) => {
   const filteredEvents = boundingBox ? filterEventsByBoundingBox(uniqueEvents, boundingBox) : uniqueEvents;
 
   // Convert to Commercial Vehicle TIM messages (J2540)
-  const cvTimMessages = filteredEvents.map(event => {
+  const cvTimMessages = await Promise.all(filteredEvents.map(async (event) => {
     const vmsMessage = generateVMSMessage(event);
     const startDateTime = event.startTime || event.startDate;
     const endDateTime = event.endTime || event.endDate;
@@ -4769,17 +4773,22 @@ app.get('/api/convert/tim-cv', async (req, res) => {
       original_event: event
     };
 
+    // Lookup commercial vehicle restrictions from database
+    const cvRestrictions = latitude && longitude
+      ? await findCommercialVehicleRestrictions(latitude, longitude)
+      : { weightLimit: null, heightLimit: null, lengthLimit: null, hazmatRestricted: false, oversizeRestricted: false, restrictionNotes: [] };
+
     // SAE J2540 Commercial Vehicle Extensions
     baseTIM.commercialVehicle = {
-      // Truck-specific restrictions
+      // Truck-specific restrictions (from database + event analysis)
       restrictions: {
         truckRestricted: event.roadStatus === 'Closed' || (event.lanesClosed && parseInt(event.lanesClosed) > 0),
-        hazmatRestricted: event.category && event.category.toLowerCase().includes('hazmat'),
-        oversizeRestricted: event.category && (event.category.toLowerCase().includes('bridge') || event.category.toLowerCase().includes('oversize')),
-        // Weight/height restrictions would come from additional data sources
-        weightLimit: null, // kg - would need bridge/route data
-        heightLimit: null, // cm - would need clearance data
-        lengthLimit: null  // cm - would need route data
+        hazmatRestricted: cvRestrictions.hazmatRestricted || (event.category && event.category.toLowerCase().includes('hazmat')),
+        oversizeRestricted: cvRestrictions.oversizeRestricted || (event.category && (event.category.toLowerCase().includes('bridge') || event.category.toLowerCase().includes('oversize'))),
+        weightLimit: cvRestrictions.weightLimit, // kg - from bridge/route database
+        heightLimit: cvRestrictions.heightLimit, // cm - from bridge clearance database
+        lengthLimit: cvRestrictions.lengthLimit, // cm - from route restriction database
+        restrictionNotes: cvRestrictions.restrictionNotes
       },
 
       // Lane impact for trucks
@@ -4793,10 +4802,11 @@ app.get('/api/convert/tim-cv', async (req, res) => {
       // Advisory messages for truck drivers
       advisories: generateTruckAdvisories(event),
 
-      // Parking information (if available)
+      // Parking information (from TPIMS data)
       parking: {
-        hasNearbyParking: false, // Would check TPIMS data for nearby facilities
-        parkingFacilities: [], // Would list nearby truck parking from TPIMS
+        ...(latitude && longitude
+          ? await findNearbyParkingFacilities(latitude, longitude)
+          : { hasNearbyParking: false, parkingFacilities: [] }),
         estimatedDelay: estimateTruckDelay(event)
       },
 
@@ -4932,8 +4942,17 @@ app.get('/api/convert/cifs', async (req, res) => {
     };
 
     // Polyline (required) - must be array of [lat, lon] coordinate pairs
-    if (latitude && longitude) {
-      // Round to 6 decimal places per CIFS spec
+    // Prefer full LineString geometry if available from WZDx/GeoJSON feeds
+    if (event.geometry && event.geometry.type === 'LineString' && Array.isArray(event.geometry.coordinates)) {
+      // Use full incident extent from WZDx LineString geometry
+      cifsIncident.polyline = event.geometry.coordinates.map(coord => {
+        // coord is [longitude, latitude] in GeoJSON format
+        const lon = parseFloat(coord[0].toFixed(6));
+        const lat = parseFloat(coord[1].toFixed(6));
+        return [lat, lon]; // CIFS expects [lat, lon] format
+      });
+    } else if (latitude && longitude) {
+      // Fall back to single point if no LineString geometry
       const lat = parseFloat(latitude.toFixed(6));
       const lon = parseFloat(longitude.toFixed(6));
       cifsIncident.polyline = [[lat, lon]];
@@ -5069,6 +5088,158 @@ const estimateTruckDelay = (event) => {
   }
 
   return delayMinutes > 0 ? `${delayMinutes} minutes` : 'Minimal';
+};
+
+// Helper: Calculate distance between two coordinates using Haversine formula
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c; // Distance in kilometers
+};
+
+// Helper: Find nearby parking facilities for CV-TIM
+const findNearbyParkingFacilities = async (eventLat, eventLon, maxDistanceKm = 80) => {
+  try {
+    // Get all parking facilities from database
+    const allFacilities = await db.getParkingFacilities();
+
+    if (!allFacilities || allFacilities.length === 0) {
+      return { hasNearbyParking: false, parkingFacilities: [] };
+    }
+
+    // Calculate distance to each facility and filter by max distance
+    const nearbyFacilities = allFacilities
+      .map(facility => {
+        if (!facility.latitude || !facility.longitude) return null;
+
+        const distance = calculateDistance(
+          eventLat,
+          eventLon,
+          facility.latitude,
+          facility.longitude
+        );
+
+        return {
+          ...facility,
+          distanceKm: Math.round(distance * 10) / 10, // Round to 1 decimal
+          distanceMiles: Math.round(distance * 0.621371 * 10) / 10 // Convert to miles
+        };
+      })
+      .filter(f => f !== null && f.distanceKm <= maxDistanceKm)
+      .sort((a, b) => a.distanceKm - b.distanceKm) // Sort by distance
+      .slice(0, 5); // Return top 5 closest facilities
+
+    // Format for CV-TIM output
+    const formattedFacilities = nearbyFacilities.map(f => ({
+      facilityId: f.facilityId || f.facility_id,
+      name: f.facilityName || f.facility_name || 'Unknown',
+      state: f.state,
+      distanceKm: f.distanceKm,
+      distanceMiles: f.distanceMiles,
+      latitude: f.latitude,
+      longitude: f.longitude,
+      totalSpaces: f.capacity || f.truck_spaces || f.total_spaces || 0,
+      amenities: f.amenities ? f.amenities.split(',') : [],
+      facilityType: f.facilityType || f.facility_type || 'rest_area'
+    }));
+
+    return {
+      hasNearbyParking: formattedFacilities.length > 0,
+      parkingFacilities: formattedFacilities
+    };
+  } catch (error) {
+    console.error('Error finding nearby parking facilities:', error);
+    return { hasNearbyParking: false, parkingFacilities: [] };
+  }
+};
+
+// Helper: Find commercial vehicle restrictions near event
+const findCommercialVehicleRestrictions = async (eventLat, eventLon, maxDistanceKm = 50) => {
+  try {
+    // Get restrictions from database
+    const restrictions = await db.getRestrictionsByLocation(eventLat, eventLon, maxDistanceKm);
+
+    if (!restrictions || (restrictions.bridges.length === 0 && restrictions.routes.length === 0)) {
+      return {
+        weightLimit: null,
+        heightLimit: null,
+        lengthLimit: null,
+        hazmatRestricted: false,
+        oversizeRestricted: false,
+        restrictionNotes: []
+      };
+    }
+
+    // Find the most restrictive limits from nearby restrictions
+    let minWeightKg = null;
+    let minHeightCm = null;
+    let minLengthCm = null;
+    let hazmat = false;
+    let oversize = false;
+    const notes = [];
+
+    // Check bridge restrictions
+    restrictions.bridges.forEach(bridge => {
+      if (bridge.weight_limit_kg && (minWeightKg === null || bridge.weight_limit_kg < minWeightKg)) {
+        minWeightKg = bridge.weight_limit_kg;
+        notes.push(`${bridge.bridge_name}: ${Math.round(bridge.weight_limit_kg / 1000)} ton limit`);
+      }
+      if (bridge.height_limit_cm && (minHeightCm === null || bridge.height_limit_cm < minHeightCm)) {
+        minHeightCm = bridge.height_limit_cm;
+        notes.push(`${bridge.bridge_name}: ${(bridge.height_limit_cm / 100).toFixed(1)}m clearance`);
+      }
+      if (bridge.restriction_notes) {
+        notes.push(`${bridge.bridge_name}: ${bridge.restriction_notes}`);
+      }
+    });
+
+    // Check route restrictions
+    restrictions.routes.forEach(route => {
+      if (route.weight_limit_kg && (minWeightKg === null || route.weight_limit_kg < minWeightKg)) {
+        minWeightKg = route.weight_limit_kg;
+      }
+      if (route.height_limit_cm && (minHeightCm === null || route.height_limit_cm < minHeightCm)) {
+        minHeightCm = route.height_limit_cm;
+      }
+      if (route.length_limit_cm && (minLengthCm === null || route.length_limit_cm < minLengthCm)) {
+        minLengthCm = route.length_limit_cm;
+      }
+      if (route.hazmat_restricted) {
+        hazmat = true;
+      }
+      if (route.oversize_restricted) {
+        oversize = true;
+      }
+      if (route.restriction_notes) {
+        notes.push(`${route.corridor}: ${route.restriction_notes}`);
+      }
+    });
+
+    return {
+      weightLimit: minWeightKg,
+      heightLimit: minHeightCm,
+      lengthLimit: minLengthCm,
+      hazmatRestricted: hazmat,
+      oversizeRestricted: oversize,
+      restrictionNotes: notes
+    };
+  } catch (error) {
+    console.error('Error finding commercial vehicle restrictions:', error);
+    return {
+      weightLimit: null,
+      heightLimit: null,
+      lengthLimit: null,
+      hazmatRestricted: false,
+      oversizeRestricted: false,
+      restrictionNotes: []
+    };
+  }
 };
 
 // Helper: Generate VMS-style message text (for highway signs)
