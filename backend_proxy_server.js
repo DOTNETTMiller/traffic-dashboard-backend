@@ -1321,6 +1321,31 @@ const extractCorridor = (locationText) => {
   return 'Unknown';
 };
 
+// Helper to strip HTML tags from descriptions
+const stripHtmlTags = (text) => {
+  if (!text || typeof text !== 'string') return text;
+
+  // Replace <br/>, <br>, <br /> with space to preserve readability
+  let cleaned = text.replace(/<br\s*\/?>/gi, ' ');
+
+  // Remove all other HTML tags
+  cleaned = cleaned.replace(/<[^>]+>/g, '');
+
+  // Decode common HTML entities
+  cleaned = cleaned
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+
+  // Clean up multiple spaces and trim
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+  return cleaned;
+};
+
 const attachRawFields = (event, rawData = {}, extractedData = {}) => {
   // rawData = what actually exists in the feed structure
   // extractedData = what we can infer from text parsing
@@ -1682,7 +1707,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events', a
               state: 'Utah',
               corridor,
               eventType: props.event_type || 'Construction',
-              description: descriptionRaw || 'Work zone',
+              description: stripHtmlTags(descriptionRaw) || 'Work zone',
               location: locationText,
               county: props.county || 'Unknown',
               latitude: lat,
@@ -1774,7 +1799,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events', a
               state: stateName,
               corridor,
               eventType: coreDetails.event_type || props.event_type || 'work-zone',
-              description: descriptionRaw || 'Work zone',
+              description: stripHtmlTags(descriptionRaw) || 'Work zone',
               location: locationText,
               county: props.county || 'Unknown',
               latitude: lat,
