@@ -28,9 +28,23 @@ const equipmentStyles = {
   }
 };
 
-// Create custom marker icon
-const createEquipmentIcon = (type) => {
+// Health status colors
+const healthColors = {
+  excellent: '#10b981',  // green
+  good: '#3b82f6',       // blue
+  fair: '#f59e0b',       // orange
+  poor: '#ef4444',       // red
+  critical: '#dc2626',   // dark red
+  offline: '#6b7280'     // gray
+};
+
+// Create custom marker icon with health indicator
+const createEquipmentIcon = (type, healthCategory, isOnline) => {
   const style = equipmentStyles[type] || equipmentStyles.sensor;
+
+  // Determine health indicator color
+  const healthColor = isOnline === false ? healthColors.offline :
+                     (healthColors[healthCategory] || '#9ca3af');
 
   return L.divIcon({
     html: `
@@ -45,11 +59,25 @@ const createEquipmentIcon = (type) => {
         justify-content: center;
         border: 2px solid white;
         box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        position: relative;
       ">
         <span style="
           transform: rotate(45deg);
           font-size: 16px;
         ">${style.icon}</span>
+        ${healthCategory || isOnline !== undefined ? `
+          <div style="
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: ${healthColor};
+            border: 2px solid white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+          "></div>
+        ` : ''}
       </div>
     `,
     className: '',
@@ -74,14 +102,31 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
       setLoading(true);
       const params = {};
       if (stateKey) params.stateKey = stateKey;
-      if (equipmentType) params.equipmentType = equipmentType;
-      if (route) params.route = route;
 
-      const response = await api.get('/api/its-equipment', { params });
+      // Try to fetch equipment with health data first, fall back to basic equipment
+      let response;
+      try {
+        response = await api.get('/api/equipment/health', { params });
+      } catch (healthError) {
+        console.warn('Health data unavailable, falling back to basic equipment:', healthError);
+        response = await api.get('/api/its-equipment', { params });
+      }
 
       if (response.data.success && Array.isArray(response.data.equipment)) {
-        setEquipment(response.data.equipment);
-        console.log(`📡 Loaded ${response.data.equipment.length} ITS equipment items${route ? ` for route ${route}` : ''}`);
+        let filtered = response.data.equipment;
+
+        // Filter by equipment type if specified
+        if (equipmentType) {
+          filtered = filtered.filter(e => e.equipment_type === equipmentType);
+        }
+
+        // Filter by route if specified
+        if (route) {
+          filtered = filtered.filter(e => e.route === route);
+        }
+
+        setEquipment(filtered);
+        console.log(`📡 Loaded ${filtered.length} ITS equipment items${route ? ` for route ${route}` : ''}`);
       }
     } catch (error) {
       console.error('Error fetching ITS equipment:', error);
@@ -130,7 +175,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
           <Marker
             key={item.id}
             position={[item.latitude, item.longitude]}
-            icon={createEquipmentIcon(item.equipment_type)}
+            icon={createEquipmentIcon(item.equipment_type, item.health_category, item.is_online)}
           >
             <Popup maxWidth={400}>
               <div style={{ padding: '8px' }}>
@@ -144,7 +189,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
                   borderBottom: '2px solid #e5e7eb'
                 }}>
                   <span style={{ fontSize: '24px' }}>{style.icon}</span>
-                  <div>
+                  <div style={{ flex: 1 }}>
                     <div style={{
                       fontWeight: 'bold',
                       fontSize: '14px',
@@ -158,7 +203,81 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
                       </div>
                     )}
                   </div>
+                  {/* Health indicator badge */}
+                  {(item.health_category || item.is_online !== undefined) && (
+                    <div style={{
+                      padding: '4px 8px',
+                      borderRadius: '12px',
+                      fontSize: '10px',
+                      fontWeight: '600',
+                      backgroundColor: item.is_online === false ? '#fee2e2' :
+                                     item.health_category === 'excellent' ? '#d1fae5' :
+                                     item.health_category === 'good' ? '#dbeafe' :
+                                     item.health_category === 'fair' ? '#fed7aa' :
+                                     item.health_category === 'poor' ? '#fecaca' :
+                                     item.health_category === 'critical' ? '#fee2e2' : '#f3f4f6',
+                      color: item.is_online === false ? '#991b1b' :
+                            item.health_category === 'excellent' ? '#065f46' :
+                            item.health_category === 'good' ? '#1e40af' :
+                            item.health_category === 'fair' ? '#9a3412' :
+                            item.health_category === 'poor' ? '#991b1b' :
+                            item.health_category === 'critical' ? '#991b1b' : '#6b7280'
+                    }}>
+                      {item.is_online === false ? 'Offline' :
+                       item.health_category ? item.health_category.charAt(0).toUpperCase() + item.health_category.slice(1) :
+                       'Unknown'}
+                    </div>
+                  )}
                 </div>
+
+                {/* Health metrics (if available) */}
+                {(item.health_score !== undefined || item.operational_status) && (
+                  <div style={{
+                    marginBottom: '12px',
+                    padding: '8px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '6px',
+                    border: '1px solid #e5e7eb'
+                  }}>
+                    <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', marginBottom: '6px' }}>
+                      Health Status
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '11px' }}>
+                      {item.health_score !== undefined && (
+                        <div>
+                          <span style={{ color: '#6b7280' }}>Score:</span>
+                          <span style={{ fontWeight: '600', marginLeft: '4px' }}>
+                            {Math.round(item.health_score)}%
+                          </span>
+                        </div>
+                      )}
+                      {item.operational_status && (
+                        <div>
+                          <span style={{ color: '#6b7280' }}>Status:</span>
+                          <span style={{ fontWeight: '600', marginLeft: '4px', textTransform: 'capitalize' }}>
+                            {item.operational_status}
+                          </span>
+                        </div>
+                      )}
+                      {item.uptime_percent_24h !== undefined && (
+                        <div>
+                          <span style={{ color: '#6b7280' }}>Uptime (24h):</span>
+                          <span style={{ fontWeight: '600', marginLeft: '4px' }}>
+                            {Math.round(item.uptime_percent_24h)}%
+                          </span>
+                        </div>
+                      )}
+                      {item.data_quality_score !== undefined && (
+                        <div>
+                          <span style={{ color: '#6b7280' }}>Data Quality:</span>
+                          <span style={{ fontWeight: '600', marginLeft: '4px' }}>
+                            {Math.round(item.data_quality_score)}%
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Location */}
                 {item.location_description && (

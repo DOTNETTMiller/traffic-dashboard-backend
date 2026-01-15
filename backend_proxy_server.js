@@ -12635,6 +12635,135 @@ app.get('/api/its-equipment', async (req, res) => {
   }
 });
 
+// Get equipment health dashboard
+app.get('/api/equipment/health', async (req, res) => {
+  try {
+    const { stateKey } = req.query;
+    const health = db.getEquipmentHealthDashboard(stateKey);
+
+    res.json({
+      success: true,
+      equipment: health,
+      total: health.length
+    });
+  } catch (error) {
+    console.error('❌ Error fetching equipment health:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get latest telemetry for equipment
+app.get('/api/equipment/:equipmentId/telemetry', async (req, res) => {
+  try {
+    const { equipmentId } = req.params;
+    const { hours = 24 } = req.query;
+
+    const telemetry = db.getTelemetryHistory(equipmentId, parseInt(hours));
+
+    res.json({
+      success: true,
+      telemetry: telemetry,
+      equipmentId,
+      hours: parseInt(hours)
+    });
+  } catch (error) {
+    console.error('❌ Error fetching telemetry:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get offline equipment
+app.get('/api/equipment/offline', async (req, res) => {
+  try {
+    const { stateKey } = req.query;
+    const offline = db.getOfflineEquipment(stateKey);
+
+    res.json({
+      success: true,
+      equipment: offline,
+      total: offline.length
+    });
+  } catch (error) {
+    console.error('❌ Error fetching offline equipment:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get network topology (connections between devices)
+app.get('/api/network/topology', async (req, res) => {
+  try {
+    const { stateKey } = req.query;
+    const topology = db.getNetworkTopology(stateKey);
+
+    res.json({
+      success: true,
+      connections: topology,
+      total: topology.length
+    });
+  } catch (error) {
+    console.error('❌ Error fetching network topology:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get connections for specific device
+app.get('/api/network/connections/:deviceId', async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    const connections = db.getNetworkConnectionsByDevice(deviceId);
+
+    res.json({
+      success: true,
+      connections: connections,
+      deviceId,
+      total: connections.length
+    });
+  } catch (error) {
+    console.error('❌ Error fetching device connections:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get unresolved issues
+app.get('/api/equipment/issues', async (req, res) => {
+  try {
+    const { equipmentId, severity } = req.query;
+    let issues = db.getUnresolvedIssues(equipmentId);
+
+    // Filter by severity if specified
+    if (severity) {
+      issues = issues.filter(i => i.severity === severity);
+    }
+
+    res.json({
+      success: true,
+      issues: issues,
+      total: issues.length
+    });
+  } catch (error) {
+    console.error('❌ Error fetching issues:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get recent outages
+app.get('/api/equipment/outages', async (req, res) => {
+  try {
+    const { days = 30 } = req.query;
+    const outages = db.getRecentOutages(parseInt(days));
+
+    res.json({
+      success: true,
+      outages: outages,
+      days: parseInt(days),
+      total: outages.length
+    });
+  } catch (error) {
+    console.error('❌ Error fetching outages:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Get ITS equipment near an event location (with JS distance calculation)
 app.get('/api/its-equipment/nearby', async (req, res) => {
   try {

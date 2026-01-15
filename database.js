@@ -3129,6 +3129,362 @@ class StateDatabase {
     }
   }
 
+  // ==========================================
+  // Network Connections Methods
+  // ==========================================
+
+  addNetworkConnection(data) {
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO network_connections (
+          id, connection_id, device_from_id, device_to_id, connection_type, connection_subtype,
+          is_physical, is_bidirectional, is_redundant, geometry, geometry_type, distance_meters,
+          bandwidth_mbps, latency_ms, fiber_type, frequency_mhz, operational_status, health_status,
+          owner, provider, notes, installation_date, data_source
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(connection_id) DO UPDATE SET
+          device_from_id = excluded.device_from_id,
+          device_to_id = excluded.device_to_id,
+          connection_type = excluded.connection_type,
+          operational_status = excluded.operational_status,
+          updated_at = CURRENT_TIMESTAMP
+      `);
+
+      stmt.run(
+        data.id,
+        data.connection_id,
+        data.device_from_id,
+        data.device_to_id,
+        data.connection_type,
+        data.connection_subtype || null,
+        data.is_physical !== undefined ? (data.is_physical ? 1 : 0) : 1,
+        data.is_bidirectional !== undefined ? (data.is_bidirectional ? 1 : 0) : 1,
+        data.is_redundant !== undefined ? (data.is_redundant ? 1 : 0) : 0,
+        data.geometry || null,
+        data.geometry_type || null,
+        data.distance_meters || null,
+        data.bandwidth_mbps || null,
+        data.latency_ms || null,
+        data.fiber_type || null,
+        data.frequency_mhz || null,
+        data.operational_status || 'active',
+        data.health_status || 'healthy',
+        data.owner || null,
+        data.provider || null,
+        data.notes || null,
+        data.installation_date || null,
+        data.data_source || null
+      );
+
+      return { success: true, connectionId: data.connection_id };
+    } catch (error) {
+      console.error('Error adding network connection:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  getNetworkConnectionsByDevice(deviceId) {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM network_connections
+        WHERE device_from_id = ? OR device_to_id = ?
+        ORDER BY connection_type, operational_status
+      `);
+      return stmt.all(deviceId, deviceId);
+    } catch (error) {
+      console.error('Error getting network connections:', error);
+      return [];
+    }
+  }
+
+  getNetworkTopology(stateKey = null) {
+    try {
+      let query = `
+        SELECT * FROM v_network_topology
+      `;
+
+      if (stateKey) {
+        // Need to join with its_equipment to filter by state
+        query = `
+          SELECT vnt.* FROM v_network_topology vnt
+          JOIN its_equipment e ON vnt.from_device_id = e.id
+          WHERE e.state_key = ?
+        `;
+        return this.db.prepare(query).all(stateKey);
+      } else {
+        return this.db.prepare(query).all();
+      }
+    } catch (error) {
+      console.error('Error getting network topology:', error);
+      return [];
+    }
+  }
+
+  findNetworkPath(fromDeviceId, toDeviceId, pathType = 'shortest') {
+    try {
+      // Check cache first
+      const cached = this.db.prepare(`
+        SELECT * FROM network_path_cache
+        WHERE device_from_id = ? AND device_to_id = ? AND path_type = ?
+          AND (expires_at IS NULL OR expires_at > datetime('now'))
+      `).get(fromDeviceId, toDeviceId, pathType);
+
+      if (cached) {
+        return {
+          ...cached,
+          connection_path: JSON.parse(cached.connection_path),
+          device_path: JSON.parse(cached.device_path),
+          cached: true
+        };
+      }
+
+      // TODO: Implement pathfinding algorithm (Dijkstra's or A*)
+      // For now, return null (requires graph traversal implementation)
+      return null;
+    } catch (error) {
+      console.error('Error finding network path:', error);
+      return null;
+    }
+  }
+
+  updateConnectionStatus(connectionId, status, healthStatus = null) {
+    try {
+      let sql = `UPDATE network_connections SET operational_status = ?, updated_at = CURRENT_TIMESTAMP`;
+      const params = [status];
+
+      if (healthStatus) {
+        sql += `, health_status = ?`;
+        params.push(healthStatus);
+      }
+
+      sql += ` WHERE connection_id = ?`;
+      params.push(connectionId);
+
+      const stmt = this.db.prepare(sql);
+      stmt.run(...params);
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating connection status:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // ==========================================
+  // Sensor Health Telemetry Methods
+  // ==========================================
+
+  addTelemetryData(data) {
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO sensor_health_telemetry (
+          id, equipment_id, timestamp, operational_status, health_score, is_online,
+          last_heartbeat, uptime_hours, uptime_percent_24h, cpu_usage_percent,
+          memory_usage_percent, temperature_celsius, network_latency_ms,
+          data_quality_score, measurement_error_rate, calibration_status,
+          video_stream_status, sensor_readings_per_minute, battery_level_percent,
+          power_source, active_alerts, error_log, firmware_version, reported_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      stmt.run(
+        data.id,
+        data.equipment_id,
+        data.timestamp || new Date().toISOString(),
+        data.operational_status,
+        data.health_score || null,
+        data.is_online !== undefined ? (data.is_online ? 1 : 0) : 1,
+        data.last_heartbeat || null,
+        data.uptime_hours || null,
+        data.uptime_percent_24h || null,
+        data.cpu_usage_percent || null,
+        data.memory_usage_percent || null,
+        data.temperature_celsius || null,
+        data.network_latency_ms || null,
+        data.data_quality_score || null,
+        data.measurement_error_rate || null,
+        data.calibration_status || null,
+        data.video_stream_status || null,
+        data.sensor_readings_per_minute || null,
+        data.battery_level_percent || null,
+        data.power_source || null,
+        data.active_alerts || null,
+        data.error_log || null,
+        data.firmware_version || null,
+        data.reported_by || 'device_self_report'
+      );
+
+      return { success: true, telemetryId: data.id };
+    } catch (error) {
+      console.error('Error adding telemetry data:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  getLatestTelemetry(equipmentId) {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM sensor_health_telemetry
+        WHERE equipment_id = ?
+        ORDER BY timestamp DESC
+        LIMIT 1
+      `);
+      return stmt.get(equipmentId);
+    } catch (error) {
+      console.error('Error getting latest telemetry:', error);
+      return null;
+    }
+  }
+
+  getTelemetryHistory(equipmentId, hours = 24) {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM sensor_health_telemetry
+        WHERE equipment_id = ?
+          AND timestamp >= datetime('now', '-' || ? || ' hours')
+        ORDER BY timestamp DESC
+      `);
+      return stmt.all(equipmentId, hours);
+    } catch (error) {
+      console.error('Error getting telemetry history:', error);
+      return [];
+    }
+  }
+
+  getEquipmentHealthDashboard(stateKey = null) {
+    try {
+      let query = `SELECT * FROM v_equipment_health_dashboard`;
+
+      if (stateKey) {
+        query += ` WHERE state_key = ?`;
+        return this.db.prepare(query).all(stateKey);
+      } else {
+        return this.db.prepare(query).all();
+      }
+    } catch (error) {
+      console.error('Error getting equipment health dashboard:', error);
+      return [];
+    }
+  }
+
+  getOfflineEquipment(stateKey = null) {
+    try {
+      let query = `
+        SELECT e.*, t.operational_status, t.last_heartbeat, t.timestamp as last_telemetry
+        FROM its_equipment e
+        LEFT JOIN (
+          SELECT equipment_id, operational_status, last_heartbeat, timestamp,
+                 ROW_NUMBER() OVER (PARTITION BY equipment_id ORDER BY timestamp DESC) as rn
+          FROM sensor_health_telemetry
+        ) t ON e.id = t.equipment_id AND t.rn = 1
+        WHERE (t.is_online = 0 OR t.operational_status = 'offline')
+      `;
+
+      if (stateKey) {
+        query += ` AND e.state_key = ?`;
+        return this.db.prepare(query).all(stateKey);
+      } else {
+        return this.db.prepare(query).all();
+      }
+    } catch (error) {
+      console.error('Error getting offline equipment:', error);
+      return [];
+    }
+  }
+
+  // ==========================================
+  // Equipment Health History Methods
+  // ==========================================
+
+  addHealthEvent(data) {
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO equipment_health_history (
+          id, equipment_id, timestamp, old_status, new_status, status_category,
+          event_type, severity, title, description, affected_services,
+          impact_duration_minutes, root_cause, maintenance_ticket_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      stmt.run(
+        data.id,
+        data.equipment_id,
+        data.timestamp || new Date().toISOString(),
+        data.old_status || null,
+        data.new_status,
+        data.status_category,
+        data.event_type,
+        data.severity,
+        data.title,
+        data.description || null,
+        data.affected_services || null,
+        data.impact_duration_minutes || null,
+        data.root_cause || null,
+        data.maintenance_ticket_id || null
+      );
+
+      return { success: true, eventId: data.id };
+    } catch (error) {
+      console.error('Error adding health event:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  resolveHealthEvent(eventId, resolvedBy, resolutionNotes) {
+    try {
+      const stmt = this.db.prepare(`
+        UPDATE equipment_health_history
+        SET resolved = 1,
+            resolved_at = datetime('now'),
+            resolved_by = ?,
+            resolution_notes = ?
+        WHERE id = ?
+      `);
+
+      stmt.run(resolvedBy, resolutionNotes, eventId);
+      return { success: true };
+    } catch (error) {
+      console.error('Error resolving health event:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  getUnresolvedIssues(equipmentId = null) {
+    try {
+      let query = `
+        SELECT h.*, e.equipment_type, e.location_description
+        FROM equipment_health_history h
+        JOIN its_equipment e ON h.equipment_id = e.id
+        WHERE h.resolved = 0
+      `;
+
+      if (equipmentId) {
+        query += ` AND h.equipment_id = ?`;
+        return this.db.prepare(query).all(equipmentId);
+      } else {
+        query += ` ORDER BY h.severity DESC, h.timestamp DESC`;
+        return this.db.prepare(query).all();
+      }
+    } catch (error) {
+      console.error('Error getting unresolved issues:', error);
+      return [];
+    }
+  }
+
+  getRecentOutages(days = 30) {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM v_recent_outages
+        WHERE outage_start >= datetime('now', '-' || ? || ' days')
+        ORDER BY outage_start DESC
+      `);
+      return stmt.all(days);
+    } catch (error) {
+      console.error('Error getting recent outages:', error);
+      return [];
+    }
+  }
+
   close() {
     this.db.close();
   }

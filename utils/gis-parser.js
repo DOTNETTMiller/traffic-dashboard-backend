@@ -575,6 +575,132 @@ class GISParser {
   }
 
   /**
+   * Convert LineString feature to network connection record
+   * Used for fiber optic cables, radio links, and other connections between equipment
+   * @param {Object} feature - GeoJSON feature with LineString geometry
+   * @param {Array} equipmentList - List of existing equipment to match connection endpoints
+   * @param {string} stateKey - State identifier
+   * @returns {Object|null} Network connection record or null if invalid
+   */
+  convertFeatureToConnection(feature, equipmentList, stateKey) {
+    if (!feature.geometry || (feature.geometry.type !== 'LineString' && feature.geometry.type !== 'MultiLineString')) {
+      return null;
+    }
+
+    const props = feature.properties || {};
+    const coords = feature.geometry.type === 'LineString'
+      ? feature.geometry.coordinates
+      : feature.geometry.coordinates[0]; // Use first line of MultiLineString
+
+    if (!coords || coords.length < 2) {
+      console.warn('   ⚠️  LineString has fewer than 2 coordinates, skipping');
+      return null;
+    }
+
+    // Extract start and end points
+    const [startLon, startLat] = coords[0];
+    const [endLon, endLat] = coords[coords.length - 1];
+
+    // Helper: Calculate distance between two points (Haversine)
+    const calculateDistance = (lat1, lon1, lat2, lon2) => {
+      const R = 6371000; // Earth radius in meters
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    };
+
+    // Find nearest equipment to start and end points (within 100m tolerance)
+    const findNearestEquipment = (lat, lon) => {
+      let nearest = null;
+      let minDist = 100; // 100m tolerance
+      for (const eq of equipmentList) {
+        const dist = calculateDistance(lat, lon, eq.latitude, eq.longitude);
+        if (dist < minDist) {
+          nearest = eq;
+          minDist = dist;
+        }
+      }
+      return nearest;
+    };
+
+    const fromDevice = findNearestEquipment(startLat, startLon);
+    const toDevice = findNearestEquipment(endLat, endLon);
+
+    if (!fromDevice || !toDevice) {
+      console.warn(`   ⚠️  Could not match LineString endpoints to equipment (start: ${startLat},${startLon}, end: ${endLat},${endLon})`);
+      return null;
+    }
+
+    if (fromDevice.id === toDevice.id) {
+      console.warn(`   ⚠️  LineString connects device to itself, skipping`);
+      return null;
+    }
+
+    // Convert GeoJSON coordinates to WKT LineString format
+    const wktCoords = coords.map(coord => `${coord[0]} ${coord[1]}`).join(', ');
+    const geometryWKT = `LINESTRING(${wktCoords})`;
+
+    // Calculate total line distance
+    let totalDistance = 0;
+    for (let i = 0; i < coords.length - 1; i++) {
+      const [lon1, lat1] = coords[i];
+      const [lon2, lat2] = coords[i + 1];
+      totalDistance += calculateDistance(lat1, lon1, lat2, lon2);
+    }
+
+    // Generate connection ID
+    const connectionId = props.connection_id || props.circuit_id || props.id ||
+                         `conn-${stateKey}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Detect connection type from properties or geometry
+    const detectConnectionType = (props) => {
+      const typeField = (props.type || props.connection_type || props.link_type || '').toLowerCase();
+      if (typeField.includes('fiber') || typeField.includes('fibre')) return 'fiber';
+      if (typeField.includes('radio') || typeField.includes('wireless')) return 'radio';
+      if (typeField.includes('microwave')) return 'microwave';
+      if (typeField.includes('cellular') || typeField.includes('5g') || typeField.includes('lte')) return 'cellular';
+      if (typeField.includes('ethernet')) return 'ethernet';
+      return 'fiber'; // Default to fiber for physical lines
+    };
+
+    const connectionType = detectConnectionType(props);
+    const isPhysical = connectionType === 'fiber' || connectionType === 'ethernet';
+
+    return {
+      id: props.object_id || connectionId,
+      connection_id: connectionId,
+      device_from_id: fromDevice.id,
+      device_to_id: toDevice.id,
+      connection_type: connectionType,
+      connection_subtype: props.subtype || props.fiber_type || null,
+      is_physical: isPhysical,
+      is_bidirectional: props.bidirectional !== undefined ? Boolean(props.bidirectional) : true,
+      is_redundant: props.redundant !== undefined ? Boolean(props.redundant) : false,
+      geometry: geometryWKT,
+      geometry_type: 'LineString',
+      distance_meters: Math.round(totalDistance),
+      bandwidth_mbps: props.bandwidth || props.bandwidth_mbps || props.capacity || null,
+      latency_ms: props.latency || props.latency_ms || null,
+      fiber_type: props.fiber_type || props.cable_type || null,
+      fiber_strand_count: props.strand_count || props.fiber_count || null,
+      frequency_mhz: props.frequency || props.frequency_mhz || null,
+      operational_status: props.status || props.operational_status || 'active',
+      health_status: props.health_status || props.health || 'healthy',
+      owner: props.owner || props.maintained_by || null,
+      provider: props.provider || props.telecom_provider || null,
+      circuit_id: props.circuit_id || props.circuit_number || null,
+      notes: props.notes || props.description || null,
+      installation_date: props.install_date || props.installation_date || null,
+      data_source: 'shapefile_upload',
+      rawProperties: props
+    };
+  }
+
+  /**
    * Convert CSV row to equipment record
    */
   convertCSVRowToEquipment(row, lat, lon, stateKey) {

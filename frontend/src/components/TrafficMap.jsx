@@ -12,6 +12,8 @@ import BridgeClearanceLayer from './BridgeClearanceLayer';
 import OSWRegulationsLayer from './OSWRegulationsLayer';
 import StateOSWRegulationsLayer from './StateOSWRegulationsLayer';
 import ITSEquipmentLayer from './ITSEquipmentLayer';
+import NetworkTopologyLayer from './NetworkTopologyLayer';
+import TIMZonesLayer from './TIMZonesLayer';
 import BoundingBoxSelector from './BoundingBoxSelector';
 import HeatMapControl from './HeatMapControl';
 import HeatMapLayer from './HeatMapLayer';
@@ -389,6 +391,7 @@ export default function TrafficMap({
   showITSEquipment = false,
   itsEquipmentRoute = null,
   itsEquipmentType = null,
+  showTIMZones = false,
   interstateOnly = true,
   heatMapActive = false,
   heatMapMode = 'density',
@@ -685,6 +688,18 @@ export default function TrafficMap({
         {showITSEquipment && (
           <ITSEquipmentLayer route={itsEquipmentRoute} equipmentType={itsEquipmentType} />
         )}
+
+        {/* Network Topology Layer */}
+        {showITSEquipment && (
+          <NetworkTopologyLayer visible={showITSEquipment} />
+        )}
+
+        {/* TIM/CV-TIM/CIFS Zones Layer */}
+        <TIMZonesLayer
+          visible={showTIMZones}
+          formatType="all"
+          showLabels={true}
+        />
 
         {/* Heat Map Visualization */}
         <HeatMapLayer
