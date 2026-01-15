@@ -32,7 +32,7 @@ export default function EventFormatPopup({
   ];
 
   return (
-    <div style={{ padding: '0', width: '450px', maxWidth: '90vw' }}>
+    <div style={{ padding: '0', width: '450px', maxWidth: '90vw', backgroundColor: 'white' }}>
       {/* Tab Navigation */}
       <div style={{
         display: 'flex',
@@ -66,7 +66,7 @@ export default function EventFormatPopup({
       </div>
 
       {/* Tab Content */}
-      <div style={{ padding: '8px 12px' }}>
+      <div style={{ padding: '8px 12px', backgroundColor: 'white' }}>
         {activeTab === 'raw' && (
           <RawFormatView
             event={event}
@@ -90,7 +90,7 @@ export default function EventFormatPopup({
       </div>
 
       {/* Nearby ITS Equipment (shown in all tabs) */}
-      <div style={{ padding: '0 12px 8px 12px' }}>
+      <div style={{ padding: '0 12px 8px 12px', backgroundColor: 'white' }}>
         <NearbyITSEquipment event={event} />
       </div>
 
