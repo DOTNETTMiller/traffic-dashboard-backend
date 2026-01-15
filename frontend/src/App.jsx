@@ -63,7 +63,6 @@ function App() {
   const [itsEquipmentRoute, setItsEquipmentRoute] = useState(''); // Route filter for ITS equipment
   const [itsEquipmentType, setItsEquipmentType] = useState(''); // Equipment type filter (camera, dms, sensor, rsu)
   const [availableRoutes, setAvailableRoutes] = useState([]);
-  const [showTIMZones, setShowTIMZones] = useState(false); // Show TIM/CV-TIM/CIFS zone overlays
   const [showInterchanges, setShowInterchanges] = useState(false); // Hidden by default - toggle to show
   const [showBridgeClearances, setShowBridgeClearances] = useState(false); // Hidden by default - toggle to show
   const [showCorridorRegulations, setShowCorridorRegulations] = useState(false); // Hidden by default - toggle to show
@@ -1092,41 +1091,6 @@ function App() {
                     </div>
                   )}
                 </div>
-
-                {/* TIM/CV-TIM/CIFS Zones Toggle */}
-                <div style={{
-                  padding: '12px 16px',
-                  backgroundColor: showTIMZones ? '#eff6ff' : 'transparent',
-                  borderLeft: showTIMZones ? '3px solid #3b82f6' : '3px solid transparent',
-                  transition: 'all 0.2s'
-                }}>
-                  <label style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: showTIMZones ? '600' : 'normal',
-                    color: showTIMZones ? '#2563eb' : '#374151'
-                  }}>
-                    <input
-                      type="checkbox"
-                      checked={showTIMZones}
-                      onChange={(e) => setShowTIMZones(e.target.checked)}
-                      style={{ marginRight: '8px' }}
-                    />
-                    📡 TIM/CIFS Message Zones
-                  </label>
-                  {showTIMZones && (
-                    <div style={{
-                      fontSize: '10px',
-                      color: '#3b82f6',
-                      marginTop: '4px',
-                      marginLeft: '24px'
-                    }}>
-                      Shows: TIM • CV-TIM • CIFS zone overlays
-                    </div>
-                  )}
-                </div>
               </div>
             )}
           </div>
@@ -1957,7 +1921,6 @@ function App() {
                   showITSEquipment={showITSEquipment}
                   itsEquipmentRoute={itsEquipmentRoute}
                   itsEquipmentType={itsEquipmentType}
-                  showTIMZones={showTIMZones}
                   interstateOnly={interstateOnly}
                   heatMapActive={heatMapActive}
                   heatMapMode={heatMapMode}

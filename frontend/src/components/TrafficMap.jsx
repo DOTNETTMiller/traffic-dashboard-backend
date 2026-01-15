@@ -13,7 +13,7 @@ import OSWRegulationsLayer from './OSWRegulationsLayer';
 import StateOSWRegulationsLayer from './StateOSWRegulationsLayer';
 import ITSEquipmentLayer from './ITSEquipmentLayer';
 import NetworkTopologyLayer from './NetworkTopologyLayer';
-import TIMZonesLayer from './TIMZonesLayer';
+import EventFormatPopup from './EventFormatPopup';
 import BoundingBoxSelector from './BoundingBoxSelector';
 import HeatMapControl from './HeatMapControl';
 import HeatMapLayer from './HeatMapLayer';
@@ -391,7 +391,6 @@ export default function TrafficMap({
   showITSEquipment = false,
   itsEquipmentRoute = null,
   itsEquipmentType = null,
-  showTIMZones = false,
   interstateOnly = true,
   heatMapActive = false,
   heatMapMode = 'density',
@@ -538,64 +537,15 @@ export default function TrafficMap({
             </div>
           );
 
-          // Popup content (shared between marker and polyline)
+          // Popup content with format tabs (shared between marker and polyline)
           const popupContent = (
-            <div style={{ padding: '8px' }}>
-              <h3 style={{
-                margin: '0 0 8px 0',
-                fontSize: '16px',
-                fontWeight: 'bold'
-              }}>
-                {event.eventType}
-              </h3>
-              <p style={{ margin: '4px 0' }}>
-                <strong>Location:</strong> {event.location}
-              </p>
-              <p style={{ margin: '4px 0' }}>
-                <strong>State:</strong> {event.state}
-              </p>
-              <p style={{ margin: '4px 0' }}>
-                <strong>Description:</strong> {event.description}
-              </p>
-              {borderInfo && borderInfo.nearBorder && (
-                <p style={{ margin: '8px 0', padding: '6px', backgroundColor: '#e0e7ff', borderRadius: '4px', borderLeft: '3px solid #6366f1' }}>
-                  <strong>🔵 Border Event</strong><br/>
-                  <span style={{ fontSize: '13px' }}>
-                    {borderInfo.distance} miles from {borderInfo.borderName}
-                  </span>
-                  <br/>
-                  <span style={{ fontSize: '12px', fontStyle: 'italic', color: '#4338ca' }}>
-                    May require {borderInfo.borderStates.join('-')} coordination
-                  </span>
-                </p>
-              )}
-              {hasMessages && (
-                <p style={{ margin: '8px 0', padding: '6px', backgroundColor: '#dbeafe', borderRadius: '4px' }}>
-                  <strong>💬 {messageCount} Message{messageCount !== 1 ? 's' : ''}</strong>
-                </p>
-              )}
-              <p style={{ margin: '4px 0' }}>
-                <strong>Lanes:</strong> {event.lanesAffected}
-              </p>
-              <p style={{ margin: '4px 0' }}>
-                <strong>Direction:</strong> {event.direction}
-              </p>
-              <NearbyITSEquipment event={event} />
-              <button
-                onClick={() => onEventSelect && onEventSelect(event)}
-                style={{
-                  marginTop: '8px',
-                  padding: '6px 12px',
-                  backgroundColor: '#3b82f6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
-              >
-                {hasMessages ? 'View Messages' : 'Add Message'}
-              </button>
-            </div>
+            <EventFormatPopup
+              event={event}
+              onEventSelect={onEventSelect}
+              hasMessages={hasMessages}
+              messageCount={messageCount}
+              borderInfo={borderInfo}
+            />
           );
 
           return (
@@ -693,13 +643,6 @@ export default function TrafficMap({
         {showITSEquipment && (
           <NetworkTopologyLayer visible={showITSEquipment} />
         )}
-
-        {/* TIM/CV-TIM/CIFS Zones Layer */}
-        <TIMZonesLayer
-          visible={showTIMZones}
-          formatType="all"
-          showLabels={true}
-        />
 
         {/* Heat Map Visualization */}
         <HeatMapLayer
