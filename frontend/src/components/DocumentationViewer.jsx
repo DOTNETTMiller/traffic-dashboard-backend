@@ -10,6 +10,14 @@ function DocumentationViewer() {
 
   const docs = [
     {
+      key: 'one-pager',
+      title: 'Platform One-Pager',
+      url: '/docs/one-pager.md',
+      pdfUrl: `${config.apiUrl}/docs/one-pager.md?format=pdf`,
+      description: 'Executive summary showcasing current production capabilities (46 states, real-time coordination) and future vision (vendor data scoring, sensor health, predictive analytics). Perfect for presentations and grant applications.',
+      icon: '📄'
+    },
+    {
       key: 'member-state-overview',
       title: 'Member State Overview',
       url: '/docs/member-state-overview.md',
