@@ -160,6 +160,14 @@ function DocumentationViewer() {
       pdfUrl: `${config.apiUrl}/docs/GRANT_APPLICATION_CHECKLIST.md?format=pdf`,
       description: 'Working document for tracking grant application development through 8 phases. Partnership tracking, budget tracking, quality control checklists, and post-award implementation guide.',
       icon: '✅'
+    },
+    {
+      key: 'pooled-fund-study',
+      title: 'TPF-5(566) Pooled Fund Study',
+      url: 'https://pooledfund.org/Details/Study/1799',
+      external: true,
+      description: 'Official FHWA Pooled Fund Study TPF-5(566): Connected Corridors Advancement Initiative (CCAI). Multi-state collaboration for I-80/I-35 corridors with participating states, funding details, and study objectives.',
+      icon: '🏛️'
     }
   ];
 
@@ -660,44 +668,69 @@ function DocumentationViewer() {
               gap: '8px',
               marginTop: 'auto'
             }}>
-              <button
-                onClick={() => setActiveDoc(doc.key)}
-                style={{
-                  flex: 1,
-                  padding: '10px 16px',
-                  borderRadius: '6px',
-                  border: '1px solid #3b82f6',
-                  backgroundColor: '#3b82f6',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  transition: 'background-color 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3b82f6'}
-              >
-                👁️ Preview
-              </button>
-              <button
-                onClick={() => downloadPDF(doc.pdfUrl, doc.title)}
-                style={{
-                  flex: 1,
-                  padding: '10px 16px',
-                  borderRadius: '6px',
-                  border: '1px solid #10b981',
-                  backgroundColor: '#10b981',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  transition: 'background-color 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#059669'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#10b981'}
-              >
-                📥 PDF
-              </button>
+              {doc.external ? (
+                // For external links, open in new tab
+                <button
+                  onClick={() => window.open(doc.url, '_blank', 'noopener,noreferrer')}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    borderRadius: '6px',
+                    border: '1px solid #3b82f6',
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    transition: 'background-color 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3b82f6'}
+                >
+                  🔗 Visit External Site
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setActiveDoc(doc.key)}
+                    style={{
+                      flex: 1,
+                      padding: '10px 16px',
+                      borderRadius: '6px',
+                      border: '1px solid #3b82f6',
+                      backgroundColor: '#3b82f6',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3b82f6'}
+                  >
+                    👁️ Preview
+                  </button>
+                  <button
+                    onClick={() => downloadPDF(doc.pdfUrl, doc.title)}
+                    style={{
+                      flex: 1,
+                      padding: '10px 16px',
+                      borderRadius: '6px',
+                      border: '1px solid #10b981',
+                      backgroundColor: '#10b981',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#059669'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#10b981'}
+                  >
+                    📥 PDF
+                  </button>
+                </>
+              )}
             </div>
           </div>
         ))}
