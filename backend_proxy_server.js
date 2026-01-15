@@ -10297,11 +10297,31 @@ app.get('/api/nasco-corridor-summary', async (req, res) => {
   }
 });
 
+// Cache for AI analysis results (24 hour expiry)
+let nascoAnalysisCache = {
+  data: null,
+  timestamp: null,
+  expiryMs: 24 * 60 * 60 * 1000 // 24 hours
+};
+
 /**
  * AI-powered analysis of NASCO corridor regulations for harmonization
  */
 app.post('/api/nasco-corridor-ai-analysis', async (req, res) => {
   try {
+    // Check cache first (avoid expensive OpenAI calls)
+    if (nascoAnalysisCache.data && nascoAnalysisCache.timestamp) {
+      const age = Date.now() - nascoAnalysisCache.timestamp;
+      if (age < nascoAnalysisCache.expiryMs) {
+        console.log('📦 Returning cached NASCO AI analysis (age: ' + Math.round(age / 1000 / 60) + ' minutes)');
+        return res.json({
+          ...nascoAnalysisCache.data,
+          cached: true,
+          cacheAge: Math.round(age / 1000 / 60) + ' minutes'
+        });
+      }
+    }
+
     // Check if OpenAI API key is configured
     if (!process.env.OPENAI_API_KEY) {
       return res.status(503).json({
@@ -10309,6 +10329,10 @@ app.post('/api/nasco-corridor-ai-analysis', async (req, res) => {
         error: 'AI analysis requires OpenAI API key configuration'
       });
     }
+
+    // Set a longer timeout for this request
+    req.setTimeout(120000); // 120 seconds
+    res.setTimeout(120000);
 
     // Fetch all NASCO corridor state regulations
     let nascoStates;
@@ -10469,7 +10493,7 @@ Format your response as a professional policy analysis document with concrete ac
 
     console.log('✅ AI analysis completed');
 
-    res.json({
+    const response = {
       success: true,
       analysis,
       statesAnalyzed: nascoStates.map(s => ({
@@ -10478,7 +10502,16 @@ Format your response as a professional policy analysis document with concrete ac
       })),
       timestamp: new Date().toISOString(),
       model: 'gpt-4-turbo-preview'
-    });
+    };
+
+    // Cache the result
+    nascoAnalysisCache = {
+      data: response,
+      timestamp: Date.now(),
+      expiryMs: 24 * 60 * 60 * 1000
+    };
+
+    res.json(response);
 
   } catch (error) {
     console.error('❌ NASCO corridor AI analysis error:', error);
