@@ -12226,21 +12226,21 @@ app.get('/api/funding-opportunities/evidence', async (req, res) => {
     // Gather platform statistics
     const stats = {};
 
-    // Count total states
+    // Count total states from states table
     if (db.isPostgres) {
-      const stateCount = await db.db.query('SELECT COUNT(DISTINCT state_key) as count FROM events');
+      const stateCount = await db.db.query('SELECT COUNT(*) as count FROM states WHERE enabled = true');
       stats.totalStates = stateCount.rows[0]?.count || 46;
     } else {
-      const stateCount = db.db.prepare('SELECT COUNT(DISTINCT state_key) as count FROM events').get();
+      const stateCount = db.db.prepare('SELECT COUNT(*) as count FROM states WHERE enabled = 1').get();
       stats.totalStates = stateCount?.count || 46;
     }
 
-    // Count total events
+    // Count total events from cached_events table
     if (db.isPostgres) {
-      const eventCount = await db.db.query('SELECT COUNT(*) as count FROM events WHERE end_time > NOW()');
+      const eventCount = await db.db.query('SELECT COUNT(*) as count FROM cached_events WHERE end_time > NOW()');
       stats.totalEvents = eventCount.rows[0]?.count || 10000;
     } else {
-      const eventCount = db.db.prepare("SELECT COUNT(*) as count FROM events WHERE end_time > datetime('now')").get();
+      const eventCount = db.db.prepare("SELECT COUNT(*) as count FROM cached_events WHERE end_time > datetime('now')").get();
       stats.totalEvents = eventCount?.count || 10000;
     }
 
