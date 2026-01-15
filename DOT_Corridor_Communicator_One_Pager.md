@@ -73,7 +73,7 @@ The DOT Corridor Communicator is a **production-ready platform** serving **46 st
 ✅ **No Vendor Lock-In** - Open architecture, your data stays yours
 ✅ **Proven at Scale** - Serving 46 states in production today
 ✅ **Standards-Based** - WZDx, SAE J2735, TMDD, CIFS compliance
-✅ **Pooled Fund Support** - TPF-5(536) collaborative procurement
+✅ **Pooled Fund Support** - TPF-5(566) collaborative procurement
 ✅ **Rapid Deployment** - Add your state in hours, not months
 ✅ **Cost-Effective** - Shared infrastructure reduces per-state costs
 ✅ **Future-Proof** - Built for connected/automated vehicles and V2X
@@ -114,7 +114,7 @@ The DOT Corridor Communicator is a **production-ready platform** serving **46 st
 **Support:** Pooled fund consortium model
 
 **Get Your State Connected:**
-📧 Contact TPF-5(536) Pooled Fund Study
+📧 Contact TPF-5(566) Pooled Fund Study
 🌐 [Live Platform Demo](https://corridor-communication-dashboard-production.up.railway.app)
 📊 **Cost:** Shared consortium pricing - significantly lower than individual procurement
 
@@ -128,4 +128,4 @@ Stop managing traffic events in isolation. Join 46 states already coordinating i
 
 ---
 
-*Built by transportation professionals, for transportation professionals. Funded through TPF-5(536) Pooled Fund Study. Standards-compliant. Production-proven. Your data, your control.*
+*Built by transportation professionals, for transportation professionals. Funded through TPF-5(566) Pooled Fund Study. Standards-compliant. Production-proven. Your data, your control.*
