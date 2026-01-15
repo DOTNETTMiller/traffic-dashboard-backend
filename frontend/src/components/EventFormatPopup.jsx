@@ -32,7 +32,7 @@ export default function EventFormatPopup({
   ];
 
   return (
-    <div style={{ padding: '0', minWidth: '320px', maxWidth: '420px' }}>
+    <div style={{ padding: '0', width: '450px', maxWidth: '90vw' }}>
       {/* Tab Navigation */}
       <div style={{
         display: 'flex',
