@@ -53,7 +53,7 @@ const PRIORITY_PROGRAMS = [
 
 class GrantsService {
   constructor() {
-    this.baseUrl = 'https://www.grants.gov/grantsws/rest/opportunities/search';
+    this.baseUrl = 'https://api.grants.gov/v1/api/search2';
     this.cache = new Map();
     this.cacheExpiry = 6 * 60 * 60 * 1000; // 6 hours
   }
@@ -97,21 +97,24 @@ class GrantsService {
 
       let opportunities = [];
 
-      if (response.data && response.data.oppHits) {
-        opportunities = response.data.oppHits.map(opp => ({
+      // Handle new API response format (nested under data)
+      const oppHits = response.data?.data?.oppHits || response.data?.oppHits || [];
+
+      if (oppHits.length > 0) {
+        opportunities = oppHits.map(opp => ({
           id: opp.number,
           title: opp.title,
-          agency: opp.agencyName,
-          category: opp.categoryExplanation,
-          description: opp.description,
+          agency: opp.agency || opp.agencyName,
+          category: opp.categoryExplanation || opp.category,
+          description: opp.description || opp.synopsis || '',
           openDate: opp.openDate,
           closeDate: opp.closeDate,
           awardCeiling: opp.awardCeiling,
           awardFloor: opp.awardFloor,
           estimatedFunding: opp.estimatedFunding,
-          eligibility: opp.applicantEligibilityDesc,
-          cfda: opp.cfdaList,
-          url: `https://www.grants.gov/web/grants/view-opportunity.html?oppId=${opp.id}`,
+          eligibility: opp.applicantEligibilityDesc || opp.eligibility,
+          cfda: opp.cfdaList || [],
+          url: `https://www.grants.gov/search-grants?oppNum=${opp.number}`,
           rawData: opp
         }));
       }
