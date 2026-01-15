@@ -742,7 +742,12 @@ function App() {
           <div style={{ position: 'relative' }}>
             <button
               className={`toggle-btn ${['report', 'tetcGrading', 'vendorComparison', 'alignment'].includes(view) ? 'active' : ''}`}
-              onClick={() => setDataQualityDropdownOpen(!dataQualityDropdownOpen)}
+              onClick={() => {
+                setDataQualityDropdownOpen(!dataQualityDropdownOpen);
+                setCommunicationsDropdownOpen(false);
+                setStateToolsDropdownOpen(false);
+                setCommercialFreightDropdownOpen(false);
+              }}
               style={{
                 backgroundColor: ['report', 'tetcGrading', 'vendorComparison', 'alignment'].includes(view) ? '#3b82f6' : undefined,
                 display: 'flex',
@@ -870,7 +875,12 @@ function App() {
           <div style={{ position: 'relative' }}>
             <button
               className={`toggle-btn ${['messages', 'adminInterchanges'].includes(view) ? 'active' : ''}`}
-              onClick={() => setCommunicationsDropdownOpen(!communicationsDropdownOpen)}
+              onClick={() => {
+                setCommunicationsDropdownOpen(!communicationsDropdownOpen);
+                setDataQualityDropdownOpen(false);
+                setStateToolsDropdownOpen(false);
+                setCommercialFreightDropdownOpen(false);
+              }}
               style={{
                 backgroundColor: ['messages', 'adminInterchanges'].includes(view) ? '#10b981' : undefined,
                 display: 'flex',
@@ -1100,7 +1110,12 @@ function App() {
             <div style={{ position: 'relative' }}>
               <button
                 className={`toggle-btn ${['feedSubmission', 'grants', 'digitalInfrastructure', 'standardsCrosswalk', 'vendorPortal'].includes(view) ? 'active' : ''}`}
-                onClick={() => setStateToolsDropdownOpen(!stateToolsDropdownOpen)}
+                onClick={() => {
+                  setStateToolsDropdownOpen(!stateToolsDropdownOpen);
+                  setDataQualityDropdownOpen(false);
+                  setCommunicationsDropdownOpen(false);
+                  setCommercialFreightDropdownOpen(false);
+                }}
                 style={{
                   backgroundColor: ['feedSubmission', 'grants', 'digitalInfrastructure', 'standardsCrosswalk', 'vendorPortal'].includes(view) ? '#059669' : undefined,
                   display: 'flex',
@@ -1371,7 +1386,12 @@ function App() {
           <div style={{ position: 'relative' }}>
             <button
               className={`toggle-btn ${view === 'groundTruth' || showParking || showBridgeClearances || showCorridorRegulations ? 'active' : ''}`}
-              onClick={() => setCommercialFreightDropdownOpen(!commercialFreightDropdownOpen)}
+              onClick={() => {
+                setCommercialFreightDropdownOpen(!commercialFreightDropdownOpen);
+                setDataQualityDropdownOpen(false);
+                setCommunicationsDropdownOpen(false);
+                setStateToolsDropdownOpen(false);
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
