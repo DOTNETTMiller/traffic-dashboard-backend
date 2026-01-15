@@ -63,6 +63,7 @@ function App() {
   const [itsEquipmentRoute, setItsEquipmentRoute] = useState(''); // Route filter for ITS equipment
   const [itsEquipmentType, setItsEquipmentType] = useState(''); // Equipment type filter (camera, dms, sensor, rsu)
   const [availableRoutes, setAvailableRoutes] = useState([]);
+  const [showTIMZones, setShowTIMZones] = useState(false); // Show TIM/CV-TIM/CIFS zone overlays
   const [showInterchanges, setShowInterchanges] = useState(false); // Hidden by default - toggle to show
   const [showBridgeClearances, setShowBridgeClearances] = useState(false); // Hidden by default - toggle to show
   const [showCorridorRegulations, setShowCorridorRegulations] = useState(false); // Hidden by default - toggle to show
@@ -1092,34 +1093,40 @@ function App() {
                   )}
                 </div>
 
-                {/* Admin: Manage Detours */}
-                {currentUser?.role === 'admin' && (
-                  <>
-                    <div style={{ height: '1px', background: '#e5e7eb', margin: '4px 0' }}></div>
-                    <button
-                      onClick={() => {
-                        setView('adminInterchanges');
-                        setCommunicationsDropdownOpen(false);
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '10px 16px',
-                        border: 'none',
-                        background: view === 'adminInterchanges' ? '#f3f4f6' : 'white',
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        fontWeight: view === 'adminInterchanges' ? '600' : '400',
-                        color: view === 'adminInterchanges' ? '#dc3545' : '#374151',
-                        transition: 'background 0.15s ease'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = view === 'adminInterchanges' ? '#f3f4f6' : 'white'}
-                    >
-                      ⚙️ Manage Detours (Admin)
-                    </button>
-                  </>
-                )}
+                {/* TIM/CV-TIM/CIFS Zones Toggle */}
+                <div style={{
+                  padding: '12px 16px',
+                  backgroundColor: showTIMZones ? '#eff6ff' : 'transparent',
+                  borderLeft: showTIMZones ? '3px solid #3b82f6' : '3px solid transparent',
+                  transition: 'all 0.2s'
+                }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: showTIMZones ? '600' : 'normal',
+                    color: showTIMZones ? '#2563eb' : '#374151'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={showTIMZones}
+                      onChange={(e) => setShowTIMZones(e.target.checked)}
+                      style={{ marginRight: '8px' }}
+                    />
+                    📡 TIM/CIFS Message Zones
+                  </label>
+                  {showTIMZones && (
+                    <div style={{
+                      fontSize: '10px',
+                      color: '#3b82f6',
+                      marginTop: '4px',
+                      marginLeft: '24px'
+                    }}>
+                      Shows: TIM • CV-TIM • CIFS zone overlays
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -1950,6 +1957,7 @@ function App() {
                   showITSEquipment={showITSEquipment}
                   itsEquipmentRoute={itsEquipmentRoute}
                   itsEquipmentType={itsEquipmentType}
+                  showTIMZones={showTIMZones}
                   interstateOnly={interstateOnly}
                   heatMapActive={heatMapActive}
                   heatMapMode={heatMapMode}
