@@ -241,93 +241,46 @@ function TIMFormatView({ event, timFormat, showCVTIM }) {
         borderLeft: '3px solid #3b82f6'
       }}>
         <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '600', marginBottom: '2px' }}>
-          SAE J2735 TRAVELER INFORMATION MESSAGE
+          SAE J2735 TIM
         </div>
         <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e40af' }}>
           {timFormat.data.msgType}
-        </div>
-        <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
-          {timFormat.data.msgCode} • ITIS Code: {timFormat.data.msgCode.split('-')[1] ?
-            parseInt(timFormat.data.msgCode.split('-')[1]) * 256 + 1 :
-            timFormat.data.itis || 'N/A'}
         </div>
       </div>
 
       {showCVTIM && (
         <div style={{
           padding: '6px 8px',
-          backgroundColor: '#f3e8ff',
+          backgroundColor: '#fef3c7',
           borderRadius: '4px',
-          marginBottom: '10px',
+          marginBottom: '8px',
           fontSize: '11px',
-          color: '#7c3aed',
-          fontWeight: '600',
-          borderLeft: '3px solid #a855f7'
+          color: '#92400e',
+          fontWeight: '600'
         }}>
-          🚛 SAE J2540 CV-TIM: Commercial Vehicle Advisory
+          🚛 Commercial Vehicle Relevant
         </div>
       )}
 
-      {/* TIM Fields */}
+      {/* TIM Fields - Clean list format */}
       <Field label="Message ID" value={timFormat.data.msgID} />
       <Field label="Message Type" value={timFormat.data.msgType} />
+      <Field label="ITIS Code" value={timFormat.data.itis || 'N/A'} />
       <Field
         label="Priority"
         value={`${timFormat.data.priority} (${timFormat.data.severity})`}
       />
-
-      <div style={{
-        margin: '10px 0',
-        padding: '8px',
-        backgroundColor: '#f9fafb',
-        borderRadius: '4px',
-        borderLeft: '2px solid #3b82f6'
-      }}>
-        <div style={{ fontSize: '11px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>
-          Route Information
-        </div>
-        <Field label="Road Name" value={timFormat.data.route.roadName} compact />
-        <Field label="Direction" value={timFormat.data.route.direction} compact />
-      </div>
-
-      <div style={{
-        margin: '10px 0',
-        padding: '8px',
-        backgroundColor: '#f9fafb',
-        borderRadius: '4px',
-        borderLeft: '2px solid #3b82f6'
-      }}>
-        <div style={{ fontSize: '11px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>
-          Location
-        </div>
-        <Field label="Description" value={timFormat.data.location.description} compact />
-        <Field
-          label="Coordinates"
-          value={`${parseFloat(timFormat.data.location.latitude).toFixed(4)}, ${parseFloat(timFormat.data.location.longitude).toFixed(4)}`}
-          compact
-        />
-      </div>
-
-      <div style={{
-        margin: '10px 0',
-        padding: '8px',
-        backgroundColor: '#f9fafb',
-        borderRadius: '4px',
-        borderLeft: '2px solid #3b82f6'
-      }}>
-        <div style={{ fontSize: '11px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>
-          Content
-        </div>
-        <Field label="Headline" value={timFormat.data.content.headline} compact />
-        <Field label="Description" value={timFormat.data.content.description} compact multiline />
-        <Field label="Lanes Affected" value={timFormat.data.content.lanesAffected} compact />
-      </div>
+      <Field label="Road Name" value={timFormat.data.route.roadName} />
+      <Field label="Direction" value={timFormat.data.route.direction} />
+      <Field label="Location" value={timFormat.data.location.description} />
+      <Field label="Description" value={timFormat.data.content.description} multiline />
+      <Field label="Lanes Affected" value={timFormat.data.content.lanesAffected} />
 
       {timFormat.data.validity.startTime && (
-        <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '8px' }}>
-          <strong>Valid From:</strong> {new Date(timFormat.data.validity.startTime).toLocaleString()}
-          {timFormat.data.validity.ongoing && ' (Ongoing)'}
-        </div>
+        <Field
+          label="Valid From"
+          value={new Date(timFormat.data.validity.startTime).toLocaleString() + (timFormat.data.validity.ongoing ? ' (Ongoing)' : '')}
+        />
       )}
     </div>
   );
@@ -384,62 +337,35 @@ function CIFSFormatView({ event, cifsFormat }) {
         </span>
       </div>
 
-      {/* CIFS Fields */}
+      {/* CIFS Fields - Clean list format */}
       <Field label="Incident ID" value={cifsFormat.data.id} />
       <Field label="Type" value={`${cifsFormat.data.type} - ${cifsFormat.data.subtype}`} />
       <Field label="Severity" value={cifsFormat.data.severity} />
       <Field label="Status" value={cifsFormat.data.status} />
-
-      <div style={{
-        margin: '10px 0',
-        padding: '8px',
-        backgroundColor: '#f9fafb',
-        borderRadius: '4px',
-        borderLeft: '2px solid #10b981'
-      }}>
-        <div style={{ fontSize: '11px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>
-          Location Information
-        </div>
-        <Field label="Street" value={cifsFormat.data.location.street} compact />
-        <Field label="State" value={cifsFormat.data.location.state} compact />
-        <Field label="Direction" value={cifsFormat.data.direction} compact />
+      <Field label="Street" value={cifsFormat.data.location.street} />
+      <Field label="State" value={cifsFormat.data.location.state} />
+      <Field label="Direction" value={cifsFormat.data.direction} />
+      <Field
+        label="Coordinates"
+        value={`${cifsFormat.data.location.latitude.toFixed(4)}, ${cifsFormat.data.location.longitude.toFixed(4)}`}
+      />
+      <Field label="Description" value={cifsFormat.data.description} multiline />
+      {cifsFormat.data.lanesAffected && (cifsFormat.data.lanesAffected.blocked || cifsFormat.data.lanesAffected.description) && (
         <Field
-          label="Coordinates"
-          value={`${cifsFormat.data.location.latitude.toFixed(4)}, ${cifsFormat.data.location.longitude.toFixed(4)}`}
-          compact
+          label="Lanes Affected"
+          value={
+            cifsFormat.data.lanesAffected.blocked
+              ? `${cifsFormat.data.lanesAffected.blocked} of ${cifsFormat.data.lanesAffected.total} blocked`
+              : cifsFormat.data.lanesAffected.description
+          }
         />
-      </div>
-
-      <div style={{
-        margin: '10px 0',
-        padding: '8px',
-        backgroundColor: '#f9fafb',
-        borderRadius: '4px',
-        borderLeft: '2px solid #10b981'
-      }}>
-        <div style={{ fontSize: '11px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>
-          Incident Details
-        </div>
-        <Field label="Description" value={cifsFormat.data.description} compact multiline />
-        {cifsFormat.data.lanesAffected && (cifsFormat.data.lanesAffected.blocked || cifsFormat.data.lanesAffected.description) && (
-          <Field
-            label="Lanes Affected"
-            value={
-              cifsFormat.data.lanesAffected.blocked
-                ? `${cifsFormat.data.lanesAffected.blocked} of ${cifsFormat.data.lanesAffected.total} blocked`
-                : cifsFormat.data.lanesAffected.description
-            }
-            compact
-          />
-        )}
-      </div>
-
-      {/* Metadata */}
-      <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '8px' }}>
-        <div><strong>Reported:</strong> {new Date(cifsFormat.data.reportedAt).toLocaleString()}</div>
-        <div><strong>Source:</strong> {cifsFormat.data.source}</div>
-        <div><strong>Verified:</strong> {cifsFormat.data.verified ? 'Yes' : 'No'}</div>
-      </div>
+      )}
+      <Field
+        label="Reported"
+        value={new Date(cifsFormat.data.reportedAt).toLocaleString()}
+      />
+      <Field label="Source" value={cifsFormat.data.source} />
+      <Field label="Verified" value={cifsFormat.data.verified ? 'Yes' : 'No'} />
     </div>
   );
 }
