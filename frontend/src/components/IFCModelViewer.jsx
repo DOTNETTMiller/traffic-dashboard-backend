@@ -22,7 +22,8 @@ const IFCModelViewer = ({ modelId, filename }) => {
     controls: null,
     model: null,
     ifcLoader: null,
-    originalMaterials: new Map()
+    originalMaterials: new Map(),
+    animationFrameId: null
   });
 
   useEffect(() => {
@@ -73,7 +74,7 @@ const IFCModelViewer = ({ modelId, filename }) => {
 
     // Animation loop
     const animate = () => {
-      requestAnimationFrame(animate);
+      viewerRef.current.animationFrameId = requestAnimationFrame(animate);
       controls.update();
       renderer.render(scene, camera);
     };
@@ -237,19 +238,118 @@ const IFCModelViewer = ({ modelId, filename }) => {
 
     // Cleanup
     return () => {
+      console.log('IFCModelViewer: Starting cleanup');
+
+      // Cancel animation loop
+      if (viewerRef.current.animationFrameId) {
+        cancelAnimationFrame(viewerRef.current.animationFrameId);
+        viewerRef.current.animationFrameId = null;
+      }
+
+      // Remove event listener
       window.removeEventListener('resize', handleResize);
 
+      // Dispose controls
+      if (viewerRef.current.controls) {
+        viewerRef.current.controls.dispose();
+      }
+
+      // Dispose model and all its children
+      if (viewerRef.current.model) {
+        viewerRef.current.model.traverse((child) => {
+          if (child.geometry) {
+            child.geometry.dispose();
+          }
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach(material => {
+                if (material.map) material.map.dispose();
+                if (material.lightMap) material.lightMap.dispose();
+                if (material.bumpMap) material.bumpMap.dispose();
+                if (material.normalMap) material.normalMap.dispose();
+                if (material.specularMap) material.specularMap.dispose();
+                if (material.envMap) material.envMap.dispose();
+                material.dispose();
+              });
+            } else {
+              if (child.material.map) child.material.map.dispose();
+              if (child.material.lightMap) child.material.lightMap.dispose();
+              if (child.material.bumpMap) child.material.bumpMap.dispose();
+              if (child.material.normalMap) child.material.normalMap.dispose();
+              if (child.material.specularMap) child.material.specularMap.dispose();
+              if (child.material.envMap) child.material.envMap.dispose();
+              child.material.dispose();
+            }
+          }
+        });
+
+        if (viewerRef.current.scene) {
+          viewerRef.current.scene.remove(viewerRef.current.model);
+        }
+        viewerRef.current.model = null;
+      }
+
+      // Dispose scene objects
+      if (viewerRef.current.scene) {
+        while(viewerRef.current.scene.children.length > 0) {
+          const object = viewerRef.current.scene.children[0];
+          if (object.geometry) object.geometry.dispose();
+          if (object.material) {
+            if (Array.isArray(object.material)) {
+              object.material.forEach(m => m.dispose());
+            } else {
+              object.material.dispose();
+            }
+          }
+          viewerRef.current.scene.remove(object);
+        }
+      }
+
+      // Dispose IFC loader
+      if (viewerRef.current.ifcLoader) {
+        try {
+          // Close the IFC model if it was loaded
+          if (viewerRef.current.model && viewerRef.current.model.modelID !== undefined) {
+            viewerRef.current.ifcLoader.ifcManager.close(viewerRef.current.model.modelID);
+          }
+          // Dispose the IFC manager
+          if (viewerRef.current.ifcLoader.ifcManager) {
+            viewerRef.current.ifcLoader.ifcManager.dispose();
+          }
+        } catch (err) {
+          console.warn('Error disposing IFC loader:', err);
+        }
+        viewerRef.current.ifcLoader = null;
+      }
+
+      // Dispose renderer
       if (viewerRef.current.renderer) {
         viewerRef.current.renderer.dispose();
+        viewerRef.current.renderer.forceContextLoss();
+        viewerRef.current.renderer.domElement = null;
+        viewerRef.current.renderer = null;
       }
 
-      if (viewerRef.current.model) {
-        scene.remove(viewerRef.current.model);
+      // Remove canvas from DOM
+      if (container && container.firstChild && container.firstChild.tagName === 'CANVAS') {
+        container.removeChild(container.firstChild);
       }
 
-      if (container && renderer.domElement) {
-        container.removeChild(renderer.domElement);
+      // Clear maps
+      if (viewerRef.current.originalMaterials) {
+        viewerRef.current.originalMaterials.clear();
       }
+      if (viewerRef.current.guidToMeshMap) {
+        viewerRef.current.guidToMeshMap.clear();
+      }
+
+      // Clear all references
+      viewerRef.current.scene = null;
+      viewerRef.current.camera = null;
+      viewerRef.current.controls = null;
+      viewerRef.current.gridHelper = null;
+
+      console.log('IFCModelViewer: Cleanup complete');
     };
   }, [modelId, filename]);
 
