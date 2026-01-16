@@ -11364,6 +11364,19 @@ app.post('/api/data-quality/migrate', async (req, res) => {
 
     console.log('🔧 Starting TETC Data Quality migrations...');
 
+    // Check if DATABASE_URL is configured
+    if (!process.env.DATABASE_URL) {
+      console.error('❌ DATABASE_URL environment variable not set');
+      return res.status(500).json({
+        success: false,
+        error: 'DATABASE_URL not configured',
+        details: 'PostgreSQL database not found. Add PostgreSQL service in Railway dashboard.',
+        fix: 'Go to Railway dashboard → New → Database → Add PostgreSQL'
+      });
+    }
+
+    console.log('✅ DATABASE_URL found, attempting connection...');
+
     // Use PostgreSQL client for production
     const client = new Client({
       connectionString: process.env.DATABASE_URL,
@@ -11414,8 +11427,69 @@ app.post('/api/data-quality/migrate', async (req, res) => {
     console.error('❌ Migration failed:', error);
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: error.message || 'Unknown error',
+      errorCode: error.code,
+      errorStack: error.stack ? error.stack.split('\n').slice(0, 3).join('\n') : 'No stack trace',
       details: 'Check server logs for full error details'
+    });
+  }
+});
+
+// Diagnostic endpoint to check PostgreSQL configuration
+app.get('/api/data-quality/check-postgres', async (req, res) => {
+  const { Client } = require('pg');
+
+  try {
+    // Check if DATABASE_URL exists
+    if (!process.env.DATABASE_URL) {
+      return res.json({
+        configured: false,
+        message: 'DATABASE_URL environment variable not set',
+        action: 'Add PostgreSQL service in Railway dashboard'
+      });
+    }
+
+    // Try to connect
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    // Check if tables exist
+    const tablesQuery = `
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+      AND table_name IN ('corridors', 'data_feeds', 'service_types', 'validation_runs', 'quality_scores')
+    `;
+    const result = await client.query(tablesQuery);
+    const existingTables = result.rows.map(row => row.table_name);
+
+    await client.end();
+
+    return res.json({
+      configured: true,
+      connected: true,
+      tables: {
+        required: ['corridors', 'data_feeds', 'service_types', 'validation_runs', 'quality_scores'],
+        existing: existingTables,
+        missing: ['corridors', 'data_feeds', 'service_types', 'validation_runs', 'quality_scores']
+          .filter(t => !existingTables.includes(t))
+      },
+      ready: existingTables.length === 5,
+      action: existingTables.length === 5
+        ? 'TETC tables ready'
+        : 'Run /api/data-quality/migrate to create tables'
+    });
+  } catch (error) {
+    return res.json({
+      configured: !!process.env.DATABASE_URL,
+      connected: false,
+      error: error.message,
+      errorCode: error.code,
+      action: 'Check PostgreSQL service status in Railway dashboard'
     });
   }
 });
