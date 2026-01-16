@@ -18449,7 +18449,7 @@ app.post('/api/grants/search-live', async (req, res) => {
       daysUntilClose: opp.closeDate ? calculateDaysUntilClose(opp.closeDate) : null,
       status: opp.oppStatus,
       category: opp.category,
-      grantsGovLink: `https://www.grants.gov/search-results-detail/${opp.id}`
+      grantsGovLink: `https://www.grants.gov/web/grants/view-opportunity.html?oppId=${opp.id}`
     }));
 
     // Filter by agency if specified (filter by agency code prefix)
@@ -18636,7 +18636,7 @@ app.post('/api/grants/connected-corridors-match', async (req, res) => {
         closingSoon: isClosingSoon(opp.closeDate),
         daysUntilClose: calculateDaysUntilClose(opp.closeDate),
         status: opp.oppStatus,
-        grantsGovLink: `https://www.grants.gov/search-results-detail/${opp.id}`,
+        grantsGovLink: `https://www.grants.gov/web/grants/view-opportunity.html?oppId=${opp.id}`,
         matchScore: calculateConnectedCorridorsMatch(opp, description, connectedCorridorsKeywords)
       })).filter(opp => opp.matchScore >= 40) // Only include relevant matches
         .sort((a, b) => b.matchScore - a.matchScore)
@@ -18859,7 +18859,7 @@ app.get('/api/grants/monitor-deadlines', async (req, res) => {
           closeDate: opp.closeDate,
           daysUntilClose,
           urgency: daysUntilClose <= 14 ? 'CRITICAL' : daysUntilClose <= 30 ? 'HIGH' : 'MEDIUM',
-          grantsGovLink: `https://www.grants.gov/search-results-detail/${opp.id}`
+          grantsGovLink: `https://www.grants.gov/web/grants/view-opportunity.html?oppId=${opp.id}`
         };
       })
       .filter(opp => opp.daysUntilClose !== null && opp.daysUntilClose >= 0 && opp.daysUntilClose <= parseInt(daysAhead))
