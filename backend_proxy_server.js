@@ -22373,3 +22373,4 @@ function startServer() {
   });
 }
 // Force redeploy Mon Nov  3 02:54:25 PST 2025
+// Trigger deployment to pick up DATABASE_URL - Sun Jan 18 10:26:19 CST 2026
