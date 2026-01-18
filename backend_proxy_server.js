@@ -11435,6 +11435,19 @@ app.post('/api/data-quality/migrate', async (req, res) => {
   }
 });
 
+// Diagnostic endpoint to list environment variables (keys only)
+app.get('/api/data-quality/env-check', (req, res) => {
+  const envKeys = Object.keys(process.env).sort();
+  const hasDatabase = envKeys.filter(k => k.includes('DATABASE') || k.includes('POSTGRES'));
+
+  res.json({
+    totalEnvVars: envKeys.length,
+    databaseRelated: hasDatabase,
+    hasDATABASE_URL: !!process.env.DATABASE_URL,
+    allEnvKeys: envKeys
+  });
+});
+
 // Diagnostic endpoint to check PostgreSQL configuration
 app.get('/api/data-quality/check-postgres', async (req, res) => {
   const { Client } = require('pg');
