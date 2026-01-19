@@ -11307,7 +11307,13 @@ app.get('/api/data-quality/corridors', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching corridors:', error);
-    res.status(500).json({ error: 'Failed to fetch corridors' });
+    console.error('Error stack:', error.stack);
+    console.error('Error message:', error.message);
+    res.status(500).json({
+      error: 'Failed to fetch corridors',
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
