@@ -114,7 +114,7 @@ class GrantsService {
           estimatedFunding: opp.estimatedFunding,
           eligibility: opp.applicantEligibilityDesc || opp.eligibility,
           cfda: opp.cfdaList || [],
-          url: `https://www.grants.gov/web/grants/view-opportunity.html?oppId=${opp.id}`,
+          url: `https://www.grants.gov/search-grants?keywords=${encodeURIComponent(opp.oppNumber || opp.id)}`,
           rawData: opp
         }));
       }

@@ -12570,51 +12570,32 @@ app.post('/api/admin/fix-tetc-urls', async (req, res) => {
 
     const results = [];
 
-    if (process.env.DATABASE_URL) {
-      // PostgreSQL version (production)
-      const client = new Client({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false }
-      });
+    const connectionString = process.env.DATABASE_URL ||
+      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
 
-      await client.connect();
+    const client = new Client({
+      connectionString: connectionString,
+      ssl: { rejectUnauthorized: false }
+    });
 
-      for (const update of updates) {
-        const result = await client.query(
-          'UPDATE validation_runs SET methodology_ref = $1 WHERE id = $2 RETURNING id, run_name',
-          [update.url, update.id]
-        );
+    await client.connect();
 
-        if (result.rowCount > 0) {
-          results.push({ id: update.id, status: 'updated', name: result.rows[0].run_name });
-          console.log(`✅ Updated ${result.rows[0].run_name}`);
-        } else {
-          results.push({ id: update.id, status: 'not_found' });
-          console.log(`⚠️  Record not found: ${update.id}`);
-        }
+    for (const update of updates) {
+      const result = await client.query(
+        'UPDATE validation_runs SET methodology_ref = $1 WHERE id = $2 RETURNING id, run_name',
+        [update.url, update.id]
+      );
+
+      if (result.rowCount > 0) {
+        results.push({ id: update.id, status: 'updated', name: result.rows[0].run_name });
+        console.log(`✅ Updated ${result.rows[0].run_name}`);
+      } else {
+        results.push({ id: update.id, status: 'not_found' });
+        console.log(`⚠️  Record not found: ${update.id}`);
       }
-
-      await client.end();
-    } else {
-      // SQLite version (local development)
-      const trafficDb = new Database(TRAFFIC_DB_PATH);
-
-      for (const update of updates) {
-        const stmt = trafficDb.prepare('UPDATE validation_runs SET methodology_ref = ? WHERE id = ?');
-        const result = stmt.run(update.url, update.id);
-
-        if (result.changes > 0) {
-          const row = trafficDb.prepare('SELECT run_name FROM validation_runs WHERE id = ?').get(update.id);
-          results.push({ id: update.id, status: 'updated', name: row.run_name });
-          console.log(`✅ Updated ${row.run_name}`);
-        } else {
-          results.push({ id: update.id, status: 'not_found' });
-          console.log(`⚠️  Record not found: ${update.id}`);
-        }
-      }
-
-      trafficDb.close();
     }
+
+    await client.end();
 
     console.log('✨ TETC URL fix complete!');
 
@@ -12626,51 +12607,6 @@ app.post('/api/admin/fix-tetc-urls', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error fixing TETC URLs:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// Fix broken grants.gov URLs in funding_opportunities table
-app.post('/api/admin/fix-grant-urls', async (req, res) => {
-  const { Client } = require('pg');
-
-  try {
-    console.log('🔧 Fixing broken grants.gov URLs...');
-
-    const connectionString = process.env.DATABASE_URL ||
-      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
-
-    const client = new Client({
-      connectionString: connectionString,
-      ssl: { rejectUnauthorized: false }
-    });
-
-    await client.connect();
-
-    // Delete any funding opportunities with broken URLs
-    const deleteResult = await client.query(`
-      DELETE FROM funding_opportunities
-      WHERE url LIKE '%page-not-found%'
-         OR url LIKE '%error%'
-         OR url IS NULL
-      RETURNING id, title
-    `);
-
-    await client.end();
-
-    console.log(`✅ Removed ${deleteResult.rowCount} funding opportunities with broken URLs`);
-
-    res.json({
-      success: true,
-      message: `Removed ${deleteResult.rowCount} funding opportunities with broken URLs`,
-      removed: deleteResult.rows
-    });
-
-  } catch (error) {
-    console.error('❌ Error fixing grant URLs:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -18988,7 +18924,7 @@ app.post('/api/grants/search-live', async (req, res) => {
       daysUntilClose: opp.closeDate ? calculateDaysUntilClose(opp.closeDate) : null,
       status: opp.oppStatus,
       category: opp.category,
-      grantsGovLink: `https://www.grants.gov/web/grants/view-opportunity.html?oppId=${opp.id}`
+      grantsGovLink: `https://www.grants.gov/search-grants?keywords=${encodeURIComponent(opp.oppNumber || opp.id)}`
     }));
 
     // Filter by agency if specified (filter by agency code prefix)
@@ -19175,7 +19111,7 @@ app.post('/api/grants/connected-corridors-match', async (req, res) => {
         closingSoon: isClosingSoon(opp.closeDate),
         daysUntilClose: calculateDaysUntilClose(opp.closeDate),
         status: opp.oppStatus,
-        grantsGovLink: `https://www.grants.gov/web/grants/view-opportunity.html?oppId=${opp.id}`,
+        grantsGovLink: `https://www.grants.gov/search-grants?keywords=${encodeURIComponent(opp.oppNumber || opp.id)}`,
         matchScore: calculateConnectedCorridorsMatch(opp, description, connectedCorridorsKeywords)
       })).filter(opp => opp.matchScore >= 40) // Only include relevant matches
         .sort((a, b) => b.matchScore - a.matchScore)
@@ -19398,7 +19334,7 @@ app.get('/api/grants/monitor-deadlines', async (req, res) => {
           closeDate: opp.closeDate,
           daysUntilClose,
           urgency: daysUntilClose <= 14 ? 'CRITICAL' : daysUntilClose <= 30 ? 'HIGH' : 'MEDIUM',
-          grantsGovLink: `https://www.grants.gov/web/grants/view-opportunity.html?oppId=${opp.id}`
+          grantsGovLink: `https://www.grants.gov/search-grants?keywords=${encodeURIComponent(opp.oppNumber || opp.id)}`
         };
       })
       .filter(opp => opp.daysUntilClose !== null && opp.daysUntilClose >= 0 && opp.daysUntilClose <= parseInt(daysAhead))
