@@ -11509,8 +11509,11 @@ app.get('/api/data-quality/summary', async (req, res) => {
   const { Client } = require('pg');
 
   try {
+    const connectionString = process.env.DATABASE_URL ||
+      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+
     const client = new Client({
-      connectionString: process.env.DATABASE_URL,
+      connectionString: connectionString,
       ssl: { rejectUnauthorized: false }
     });
 
