@@ -11214,17 +11214,96 @@ app.get('/api/quality/anomalies', (req, res) => {
 // ========================================
 
 // Get all corridors with quality scores
+// Helper function to get approximate corridor bounds
+function getCorridorBounds(corridorId) {
+  const bounds = {
+    'I80_IA': { north: 42.5, south: 41.3, west: -96.5, east: -90.3 },
+    'I35_IA': { north: 43.5, south: 40.6, west: -94.0, east: -93.5 },
+    'I29_IA': { north: 43.5, south: 40.4, west: -96.5, east: -95.9 },
+    'I95_CORRIDOR': { north: 47.5, south: 25.8, west: -78.0, east: -69.0 },
+    'I95_ME': { north: 47.5, south: 43.1, west: -71.0, east: -66.9 },
+    'I95_NH': { north: 43.1, south: 42.7, west: -71.5, east: -70.7 },
+    'I95_MA': { north: 42.9, south: 41.5, west: -71.8, east: -70.8 },
+    'I95_RI': { north: 42.0, south: 41.3, west: -71.9, east: -71.1 },
+    'I95_CT': { north: 42.0, south: 40.9, west: -73.7, east: -71.8 },
+    'I95_NY': { north: 41.5, south: 40.5, west: -74.2, east: -73.5 },
+    'I95_NJ': { north: 41.4, south: 38.9, west: -75.6, east: -73.9 },
+    'I95_PA': { north: 40.1, south: 39.7, west: -75.3, east: -74.9 },
+    'I95_DE': { north: 39.8, south: 38.4, west: -75.8, east: -75.0 },
+    'I95_MD': { north: 39.7, south: 38.0, west: -77.0, east: -75.5 },
+    'I95_VA': { north: 39.0, south: 36.5, west: -78.0, east: -76.3 },
+    'I95_NC': { north: 36.5, south: 33.8, west: -79.0, east: -77.0 },
+    'I81_CORRIDOR': { north: 43.0, south: 36.6, west: -82.0, east: -76.0 },
+    'I81_VA': { north: 39.5, south: 36.6, west: -82.0, east: -76.5 },
+    'I81_MD': { north: 39.7, south: 39.5, west: -77.9, east: -77.5 },
+    'I81_PA': { north: 42.2, south: 39.7, west: -78.0, east: -76.0 }
+  };
+  return bounds[corridorId] || null;
+}
+
+// Create a simple LineString from bounds
+function createCorridorLineString(bounds) {
+  if (!bounds) return null;
+  // Create a simplified north-south line through the corridor
+  const midLon = (bounds.west + bounds.east) / 2;
+  return {
+    type: 'LineString',
+    coordinates: [
+      [midLon, bounds.south],
+      [midLon, bounds.north]
+    ]
+  };
+}
+
 app.get('/api/data-quality/corridors', async (req, res) => {
+  const { Client } = require('pg');
+
   try {
-    const corridors = await db.allAsync(
-      `SELECT DISTINCT corridor_id, corridor_name
-       FROM corridor_service_quality_latest
-       ORDER BY corridor_name`
-    );
+    const connectionString = process.env.DATABASE_URL ||
+      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+
+    const client = new Client({
+      connectionString: connectionString,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    // Get corridors with their average quality scores
+    const query = `
+      SELECT
+        c.id,
+        c.name,
+        c.description,
+        COUNT(DISTINCT df.id) as feed_count,
+        ROUND(AVG(qs.dqi), 1) as avg_dqi,
+        MIN(qs.dqi) as min_dqi,
+        MAX(qs.dqi) as max_dqi
+      FROM corridors c
+      LEFT JOIN data_feeds df ON c.id = df.corridor_id
+      LEFT JOIN validation_runs vr ON df.id = vr.data_feed_id
+      LEFT JOIN quality_scores qs ON vr.id = qs.validation_run_id
+      GROUP BY c.id, c.name, c.description
+      HAVING COUNT(DISTINCT df.id) > 0
+      ORDER BY c.name
+    `;
+
+    const result = await client.query(query);
+    await client.end();
+
+    // Add approximate geographic bounds for map visualization
+    const corridorsWithBounds = result.rows.map(corridor => {
+      const bounds = getCorridorBounds(corridor.id);
+      return {
+        ...corridor,
+        bounds,
+        geometry: bounds ? createCorridorLineString(bounds) : null
+      };
+    });
 
     res.json({
       success: true,
-      corridors
+      corridors: corridorsWithBounds
     });
   } catch (error) {
     console.error('Error fetching corridors:', error);
