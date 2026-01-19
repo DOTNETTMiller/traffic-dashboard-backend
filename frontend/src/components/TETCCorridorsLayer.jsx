@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Polyline, Popup, CircleMarker, useMap } from 'react-leaflet';
 import { DomEvent } from 'leaflet';
 import api from '../services/api';
@@ -46,6 +46,7 @@ const TETCCorridorsLayer = ({ events = [] }) => {
   const [error, setError] = useState(null);
   const [viewMode, setViewMode] = useState('dqi'); // 'dqi' or 'opportunity'
   const map = useMap();
+  const toggleButtonRef = useRef(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -154,10 +155,10 @@ const TETCCorridorsLayer = ({ events = [] }) => {
     return null;
   };
 
-  // Create toggle button once and update its text when viewMode changes
+  // Create toggle button once on mount
   useEffect(() => {
     const button = document.createElement('div');
-    button.className = 'leaflet-bar leaflet-control';
+    button.className = 'leaflet-bar leaflet-control tetc-toggle-button';
     button.style.background = 'white';
     button.style.padding = '8px 12px';
     button.style.borderRadius = '4px';
@@ -179,24 +180,24 @@ const TETCCorridorsLayer = ({ events = [] }) => {
 
     const container = map.getContainer();
     container.appendChild(button);
+    toggleButtonRef.current = button;
 
     return () => {
       if (button.parentNode) {
         button.parentNode.removeChild(button);
       }
+      toggleButtonRef.current = null;
     };
-  }, [map]);
+  }, []); // Empty array - only run once on mount
 
   // Update button text when viewMode changes
   useEffect(() => {
-    const container = map.getContainer();
-    const button = container.querySelector('.leaflet-bar.leaflet-control');
-    if (button) {
-      button.innerHTML = viewMode === 'dqi'
+    if (toggleButtonRef.current) {
+      toggleButtonRef.current.innerHTML = viewMode === 'dqi'
         ? '📊 Show Market Opportunities'
         : '🎯 Show Data Quality';
     }
-  }, [viewMode, map]);
+  }, [viewMode]); // Only depend on viewMode
 
   return (
     <>
