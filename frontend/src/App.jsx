@@ -41,6 +41,9 @@ import CoverageGapAnalysis from './components/CoverageGapAnalysis';
 import VendorLeaderboard from './components/VendorLeaderboard';
 import StateQualityDashboard from './components/StateQualityDashboard';
 import PredictiveAnalyticsDashboard from './components/PredictiveAnalyticsDashboard';
+import EventConfidenceDashboard from './components/EventConfidenceDashboard';
+import ProcurementDashboard from './components/ProcurementDashboard';
+import AssetHealthDashboard from './components/AssetHealthDashboard';
 import APIDocumentationViewer from './components/APIDocumentationViewer';
 import GrantApplications from './components/GrantApplications';
 import FundingOpportunities from './components/FundingOpportunities';
@@ -984,6 +987,78 @@ function App() {
                   onMouseLeave={(e) => e.currentTarget.style.background = view === 'predictiveAnalytics' ? '#f3f4f6' : 'white'}
                 >
                   🤖 Predictive Analytics (Phase 6)
+                </button>
+
+                {/* Phase 1 & 2 Dashboards */}
+                <div style={{ height: '1px', background: '#e5e7eb', margin: '4px 0' }}></div>
+
+                <button
+                  onClick={() => {
+                    setView('eventConfidence');
+                    setDataQualityDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'eventConfidence' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'eventConfidence' ? '600' : '400',
+                    color: view === 'eventConfidence' ? '#3b82f6' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'eventConfidence' ? '#f3f4f6' : 'white'}
+                >
+                  ✓ Event Confidence Scoring (Phase 1.2)
+                </button>
+
+                <button
+                  onClick={() => {
+                    setView('procurement');
+                    setDataQualityDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'procurement' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'procurement' ? '600' : '400',
+                    color: view === 'procurement' ? '#3b82f6' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'procurement' ? '#f3f4f6' : 'white'}
+                >
+                  💰 Procurement Transparency (Phase 1.3)
+                </button>
+
+                <button
+                  onClick={() => {
+                    setView('assetHealth');
+                    setDataQualityDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'assetHealth' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'assetHealth' ? '600' : '400',
+                    color: view === 'assetHealth' ? '#3b82f6' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'assetHealth' ? '#f3f4f6' : 'white'}
+                >
+                  🔧 Asset Health & Maintenance (Phase 2)
                 </button>
               </div>
             )}
@@ -2120,6 +2195,12 @@ function App() {
               <StateQualityDashboard />
             ) : view === 'predictiveAnalytics' ? (
               <PredictiveAnalyticsDashboard />
+            ) : view === 'eventConfidence' ? (
+              <EventConfidenceDashboard />
+            ) : view === 'procurement' ? (
+              <ProcurementDashboard />
+            ) : view === 'assetHealth' ? (
+              <AssetHealthDashboard />
             ) : null}
           </div>
         )}
