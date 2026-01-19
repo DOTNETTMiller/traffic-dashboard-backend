@@ -18,7 +18,7 @@ const VendorGapAnalysis = () => {
       if (filter.provider) params.append('provider', filter.provider);
       if (filter.maxDQI) params.append('maxDQI', filter.maxDQI);
 
-      const response = await api.get(`/data-quality/gap-analysis?${params}`);
+      const response = await api.get(`/api/data-quality/gap-analysis?${params}`);
 
       if (response.data.success) {
         setGaps(response.data.feeds);
