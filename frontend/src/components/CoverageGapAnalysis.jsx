@@ -15,7 +15,7 @@ const CoverageGapAnalysis = () => {
   const fetchCoverageGaps = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/data-quality/coverage-gaps');
+      const response = await api.get('/api/data-quality/coverage-gaps');
 
       if (response.data.success) {
         setCorridors(response.data.corridors);

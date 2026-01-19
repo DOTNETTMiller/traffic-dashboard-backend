@@ -15,7 +15,7 @@ const StateQualityDashboard = () => {
   const fetchStateRankings = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/data-quality/state-rankings');
+      const response = await api.get('/api/data-quality/state-rankings');
 
       if (response.data.success) {
         setRankings(response.data.rankings);

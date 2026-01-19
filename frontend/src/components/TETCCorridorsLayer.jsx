@@ -54,8 +54,8 @@ const TETCCorridorsLayer = ({ events = [] }) => {
 
         // Fetch both corridors and coverage gaps in parallel
         const [corridorsRes, gapsRes] = await Promise.all([
-          api.get('/data-quality/corridors'),
-          api.get('/data-quality/coverage-gaps')
+          api.get('/api/data-quality/corridors'),
+          api.get('/api/data-quality/coverage-gaps')
         ]);
 
         if (corridorsRes.data.success) {
