@@ -11309,9 +11309,9 @@ app.get('/api/data-quality/corridors', async (req, res) => {
         c.name,
         c.description,
         COUNT(DISTINCT df.id) as feed_count,
-        ROUND(AVG(qs.dqi), 1) as avg_dqi,
-        MIN(qs.dqi) as min_dqi,
-        MAX(qs.dqi) as max_dqi
+        ROUND(AVG(qs.dqi)::numeric, 1) as avg_dqi,
+        ROUND(MIN(qs.dqi)::numeric, 1) as min_dqi,
+        ROUND(MAX(qs.dqi)::numeric, 1) as max_dqi
       FROM corridors c
       LEFT JOIN data_feeds df ON c.id = df.corridor_id
       LEFT JOIN validation_runs vr ON df.id = vr.data_feed_id
