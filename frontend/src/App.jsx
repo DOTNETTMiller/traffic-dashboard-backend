@@ -36,6 +36,7 @@ import GroundTruthDashboard from './components/GroundTruthDashboard';
 import CorridorDataQuality from './components/CorridorDataQuality';
 import TETCDataGrading from './components/TETCDataGrading';
 import VendorDQIComparison from './components/VendorDQIComparison';
+import VendorGapAnalysis from './components/VendorGapAnalysis';
 import GrantApplications from './components/GrantApplications';
 import FundingOpportunities from './components/FundingOpportunities';
 import NASCOCorridorRegulationsView from './components/NASCOCorridorRegulationsView';
@@ -866,6 +867,28 @@ function App() {
                   onMouseLeave={(e) => e.currentTarget.style.background = view === 'alignment' ? '#f3f4f6' : 'white'}
                 >
                   🔗 Feed Alignment
+                </button>
+                <button
+                  onClick={() => {
+                    setView('gapAnalysis');
+                    setDataQualityDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'gapAnalysis' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'gapAnalysis' ? '600' : '400',
+                    color: view === 'gapAnalysis' ? '#3b82f6' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'gapAnalysis' ? '#f3f4f6' : 'white'}
+                >
+                  📊 Vendor Gap Analysis
                 </button>
               </div>
             )}
@@ -1992,6 +2015,8 @@ function App() {
               <TETCDataGrading />
             ) : view === 'vendorComparison' ? (
               <VendorDQIComparison />
+            ) : view === 'gapAnalysis' ? (
+              <VendorGapAnalysis />
             ) : null}
           </div>
         )}
