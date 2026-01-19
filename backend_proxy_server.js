@@ -3003,6 +3003,28 @@ app.get('/api/documentation', (req, res) => {
   }
 });
 
+app.get('/api/documentation/roadmap', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+
+  try {
+    const roadmapPath = path.join(__dirname, 'docs', 'NAPCORE_KILLER_ROADMAP.md');
+    const documentation = fs.readFileSync(roadmapPath, 'utf8');
+
+    res.json({
+      success: true,
+      documentation,
+      lastUpdated: '2026-01-19'
+    });
+  } catch (error) {
+    console.error('Error reading roadmap documentation:', error);
+    res.status(500).json({
+      error: 'Failed to load roadmap documentation',
+      details: error.message
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   console.log('✅ /api/health endpoint hit!');
@@ -12142,6 +12164,434 @@ app.get('/api/data-quality/trending-summary', async (req, res) => {
     console.error('Error fetching trending summary:', error);
     res.status(500).json({
       error: 'Failed to fetch trending summary',
+      details: error.message
+    });
+  }
+});
+
+// ============================================
+// PHASE 6: AI-POWERED PREDICTIVE ANALYTICS
+// ============================================
+
+// 6.1 Predictive Congestion Modeling
+// Returns 4-hour traffic forecasts for corridors
+app.get('/api/predictive/congestion-forecast', async (req, res) => {
+  try {
+    const { corridorId, horizonMinutes } = req.query;
+
+    // Phase 6 MVP: Return sample predictions
+    // Future: Query congestion_predictions table with ML model outputs
+    const now = new Date();
+    const forecasts = [];
+
+    const sampleCorridors = corridorId ? [corridorId] : ['I80_IA', 'I80_PA', 'I76_PA', 'I64_VA'];
+    const horizons = [15, 30, 60, 120, 240]; // minutes ahead
+
+    sampleCorridors.forEach(corridor => {
+      horizons.forEach(horizon => {
+        const forecastTime = new Date(now.getTime() + horizon * 60000);
+
+        // Simulate varying congestion levels based on time and horizon
+        const baseSpeed = 65;
+        const congestionFactor = Math.max(0, 1 - (horizon / 300)); // more uncertain further out
+        const predictedSpeed = baseSpeed * (0.7 + Math.random() * 0.3 * congestionFactor);
+
+        let congestionLevel = 'FREE_FLOW';
+        if (predictedSpeed < 45) congestionLevel = 'SEVERE';
+        else if (predictedSpeed < 55) congestionLevel = 'HEAVY';
+        else if (predictedSpeed < 60) congestionLevel = 'MODERATE';
+
+        forecasts.push({
+          corridor_id: corridor,
+          prediction_time: now.toISOString(),
+          forecast_time: forecastTime.toISOString(),
+          forecast_horizon_minutes: horizon,
+          predicted_speed_mph: Math.round(predictedSpeed),
+          predicted_volume_vph: Math.round(1500 + Math.random() * 1000),
+          predicted_density_vpm: Math.round(30 + Math.random() * 20),
+          congestion_level: congestionLevel,
+          confidence_score: Math.round(95 - (horizon / 10)), // confidence decreases with time
+          work_zone_impact: Math.random() > 0.7,
+          incident_impact: Math.random() > 0.85,
+          weather_impact: Math.random() > 0.8,
+          recommended_alternate_routes: congestionLevel === 'SEVERE' ? ['US30_IA', 'US6_IA'] : [],
+          recommended_departure_window: congestionLevel === 'SEVERE' ? 'Depart 30 mins earlier or later' : null,
+          estimated_delay_minutes: congestionLevel === 'SEVERE' ? Math.round(20 + Math.random() * 30) : 0,
+          model_version: 'v1.0-mvp',
+          model_confidence: congestionLevel === 'SEVERE' ? 'MEDIUM' : 'HIGH'
+        });
+      });
+    });
+
+    res.json({
+      success: true,
+      forecasts: corridorId ? forecasts.filter(f => f.corridor_id === corridorId) : forecasts,
+      summary: {
+        total_forecasts: forecasts.length,
+        corridors_monitored: sampleCorridors.length,
+        prediction_time: now.toISOString(),
+        max_horizon_minutes: 240
+      },
+      note: 'Phase 6 MVP - Sample congestion predictions. ML models ready for training.'
+    });
+
+  } catch (error) {
+    console.error('Error fetching congestion forecast:', error);
+    res.status(500).json({
+      error: 'Failed to fetch congestion forecast',
+      details: error.message
+    });
+  }
+});
+
+// 6.2 Incident Impact Forecasting
+// Predicts queue length, clearance time, and economic impact
+app.get('/api/predictive/incident-impact', async (req, res) => {
+  try {
+    const { eventId } = req.query;
+
+    // Phase 6 MVP: Return sample incident predictions
+    // Future: Query incident_impact_predictions table with ML outputs
+    const now = new Date();
+
+    const samplePredictions = [
+      {
+        event_id: 'INCIDENT_001',
+        event_type: 'CRASH',
+        corridor_id: 'I80_PA',
+        prediction_time: now.toISOString(),
+        predicted_queue_length_miles: 2.8,
+        predicted_max_delay_minutes: 35,
+        affected_volume_vehicles: 1250,
+        predicted_clearance_time: new Date(now.getTime() + 45 * 60000).toISOString(),
+        predicted_duration_minutes: 45,
+        clearance_confidence_score: 78,
+        estimated_economic_cost_usd: 87500,
+        estimated_fuel_wasted_gallons: 625,
+        estimated_emissions_kg_co2: 5500,
+        evacuation_timeline_minutes: 12,
+        critical_decision_point: new Date(now.getTime() + 10 * 60000).toISOString(),
+        recommended_diversion_routes: ['US22_PA', 'PA283_PA'],
+        dms_message_recommendations: [
+          'CRASH AHEAD - USE ALT ROUTE',
+          'EXPECT 35 MIN DELAY',
+          'EXIT 247 TO US-22 EAST'
+        ],
+        estimated_diversion_benefit_minutes: 20,
+        model_version: 'v1.0-mvp',
+        confidence_level: 'MEDIUM'
+      },
+      {
+        event_id: 'WORKZONE_042',
+        event_type: 'CONSTRUCTION',
+        corridor_id: 'I64_VA',
+        prediction_time: now.toISOString(),
+        predicted_queue_length_miles: 1.2,
+        predicted_max_delay_minutes: 15,
+        affected_volume_vehicles: 800,
+        predicted_clearance_time: new Date(now.getTime() + 180 * 60000).toISOString(),
+        predicted_duration_minutes: 180,
+        clearance_confidence_score: 92,
+        estimated_economic_cost_usd: 24000,
+        estimated_fuel_wasted_gallons: 180,
+        estimated_emissions_kg_co2: 1600,
+        recommended_diversion_routes: ['US60_VA'],
+        dms_message_recommendations: [
+          'WORK ZONE AHEAD - LANE CLOSED',
+          'EXPECT 15 MIN DELAY'
+        ],
+        estimated_diversion_benefit_minutes: 8,
+        model_version: 'v1.0-mvp',
+        confidence_level: 'HIGH'
+      }
+    ];
+
+    res.json({
+      success: true,
+      predictions: eventId ? samplePredictions.filter(p => p.event_id === eventId) : samplePredictions,
+      summary: {
+        total_predictions: samplePredictions.length,
+        avg_clearance_time_minutes: Math.round(samplePredictions.reduce((sum, p) => sum + p.predicted_duration_minutes, 0) / samplePredictions.length),
+        total_economic_impact_usd: samplePredictions.reduce((sum, p) => sum + p.estimated_economic_cost_usd, 0),
+        prediction_time: now.toISOString()
+      },
+      note: 'Phase 6 MVP - Sample incident impact predictions. ML models ready for training.'
+    });
+
+  } catch (error) {
+    console.error('Error fetching incident impact:', error);
+    res.status(500).json({
+      error: 'Failed to fetch incident impact predictions',
+      details: error.message
+    });
+  }
+});
+
+// 6.3 Work Zone Safety Risk Scoring
+// Analyzes historical crash rates and current conditions
+app.get('/api/predictive/safety-risk', async (req, res) => {
+  try {
+    const { eventId, riskLevel } = req.query;
+
+    // Phase 6 MVP: Return sample safety risk scores
+    // Future: Query work_zone_safety_scores table with ML risk assessments
+    const now = new Date();
+
+    const sampleScores = [
+      {
+        event_id: 'WORKZONE_042',
+        corridor_id: 'I64_VA',
+        description: 'Bridge Rehabilitation - 2 lanes closed',
+        assessment_time: now.toISOString(),
+        risk_score: 78,
+        risk_level: 'HIGH',
+        historical_crash_rate: 2.8,
+        similar_site_crash_rate: 1.5,
+        crash_rate_percentile: 85,
+        lane_closure_risk_score: 82,
+        speed_differential_risk_score: 75,
+        visibility_risk_score: 45,
+        geometry_risk_score: 68,
+        duration_risk_score: 72,
+        current_weather_risk: 'MODERATE',
+        time_of_day_risk: 'HIGH',
+        traffic_volume_risk: 'HIGH',
+        recommended_countermeasures: [
+          'Add advanced warning signs at 2 miles',
+          'Deploy law enforcement presence',
+          'Increase lighting in work zone',
+          'Install rumble strips approaching taper'
+        ],
+        countermeasure_costs: {
+          'Additional signage': 5000,
+          'Law enforcement (per shift)': 1200,
+          'Temporary lighting': 8000,
+          'Rumble strips': 3500
+        },
+        estimated_crash_reduction_pct: 35,
+        estimated_roi_ratio: 8.2,
+        predicted_crash_probability: 0.18,
+        predicted_severity_level: 'INJURY'
+      },
+      {
+        event_id: 'WORKZONE_015',
+        corridor_id: 'I80_IA',
+        description: 'Pavement resurfacing - rolling closures',
+        assessment_time: now.toISOString(),
+        risk_score: 35,
+        risk_level: 'LOW',
+        historical_crash_rate: 0.8,
+        similar_site_crash_rate: 1.2,
+        crash_rate_percentile: 35,
+        lane_closure_risk_score: 40,
+        speed_differential_risk_score: 35,
+        visibility_risk_score: 25,
+        geometry_risk_score: 30,
+        duration_risk_score: 45,
+        current_weather_risk: 'LOW',
+        time_of_day_risk: 'LOW',
+        traffic_volume_risk: 'MODERATE',
+        recommended_countermeasures: [
+          'Maintain current safety protocols'
+        ],
+        countermeasure_costs: {},
+        estimated_crash_reduction_pct: 10,
+        estimated_roi_ratio: 2.1,
+        predicted_crash_probability: 0.04,
+        predicted_severity_level: 'PDO'
+      },
+      {
+        event_id: 'WORKZONE_088',
+        corridor_id: 'I80_PA',
+        description: 'Full reconstruction - 24/7 operations',
+        assessment_time: now.toISOString(),
+        risk_score: 92,
+        risk_level: 'CRITICAL',
+        historical_crash_rate: 4.2,
+        similar_site_crash_rate: 2.1,
+        crash_rate_percentile: 95,
+        lane_closure_risk_score: 95,
+        speed_differential_risk_score: 88,
+        visibility_risk_score: 85,
+        geometry_risk_score: 90,
+        duration_risk_score: 85,
+        current_weather_risk: 'HIGH',
+        time_of_day_risk: 'CRITICAL',
+        traffic_volume_risk: 'CRITICAL',
+        recommended_countermeasures: [
+          'URGENT: Deploy immediate speed enforcement',
+          'Install concrete barriers (replace delineators)',
+          'Add camera monitoring system',
+          'Increase sign retroreflectivity',
+          'Deploy incident response team on-site'
+        ],
+        countermeasure_costs: {
+          'Speed enforcement (30 days)': 36000,
+          'Concrete barriers': 125000,
+          'Camera system': 45000,
+          'Enhanced signage': 12000,
+          'Incident response team': 80000
+        },
+        estimated_crash_reduction_pct: 55,
+        estimated_roi_ratio: 12.5,
+        predicted_crash_probability: 0.32,
+        predicted_severity_level: 'FATAL'
+      }
+    ];
+
+    let filtered = sampleScores;
+    if (eventId) filtered = filtered.filter(s => s.event_id === eventId);
+    if (riskLevel) filtered = filtered.filter(s => s.risk_level === riskLevel);
+
+    res.json({
+      success: true,
+      safety_scores: filtered,
+      summary: {
+        total_work_zones_assessed: sampleScores.length,
+        high_risk_count: sampleScores.filter(s => s.risk_level === 'HIGH' || s.risk_level === 'CRITICAL').length,
+        critical_risk_count: sampleScores.filter(s => s.risk_level === 'CRITICAL').length,
+        avg_risk_score: Math.round(sampleScores.reduce((sum, s) => sum + s.risk_score, 0) / sampleScores.length),
+        assessment_time: now.toISOString()
+      },
+      note: 'Phase 6 MVP - Sample work zone safety risk scores. ML models ready for training on historical crash data.'
+    });
+
+  } catch (error) {
+    console.error('Error fetching safety risk scores:', error);
+    res.status(500).json({
+      error: 'Failed to fetch safety risk scores',
+      details: error.message
+    });
+  }
+});
+
+// 6.4 Demand-Based Dynamic Routing
+// Calculates optimal routes with load balancing
+app.get('/api/predictive/dynamic-routing', async (req, res) => {
+  try {
+    const { originLat, originLon, destLat, destLon, vehicleType } = req.query;
+
+    // Phase 6 MVP: Return sample route recommendations
+    // Future: Query dynamic_route_recommendations table with real-time routing engine
+    const now = new Date();
+
+    const sampleRoute = {
+      origin: {
+        lat: parseFloat(originLat) || 41.6,
+        lon: parseFloat(originLon) || -93.6
+      },
+      destination: {
+        lat: parseFloat(destLat) || 41.8,
+        lon: parseFloat(destLon) || -80.2
+      },
+      calculation_time: now.toISOString(),
+      vehicle_type: vehicleType || 'PASSENGER',
+
+      routes: [
+        {
+          route_id: 1,
+          name: 'I-80 Direct (Recommended)',
+          corridors: ['I80_IA', 'I80_IL', 'I80_IN', 'I80_OH', 'I80_PA'],
+          distance_miles: 687,
+          estimated_time_minutes: 625,
+          estimated_time_display: '10h 25m',
+          reliability_score: 88,
+          recommended: true,
+          load_balanced: true,
+          highlights: [
+            'Fastest route under current conditions',
+            'Good weather forecast entire route',
+            'Minimal construction impacts'
+          ],
+          incidents_enroute: 2,
+          work_zones_enroute: 5,
+          traffic_level: 'MODERATE'
+        },
+        {
+          route_id: 2,
+          name: 'I-80 + I-76 via PA Turnpike',
+          corridors: ['I80_IA', 'I80_IL', 'I80_IN', 'I80_OH', 'I76_PA'],
+          distance_miles: 698,
+          estimated_time_minutes: 645,
+          estimated_time_display: '10h 45m',
+          reliability_score: 92,
+          recommended: false,
+          load_balanced: false,
+          highlights: [
+            'Most reliable route (toll road)',
+            '20 min slower but more predictable',
+            'Better rest area availability'
+          ],
+          incidents_enroute: 0,
+          work_zones_enroute: 2,
+          traffic_level: 'LIGHT'
+        },
+        {
+          route_id: 3,
+          name: 'US-30 Alternate (Avoid Tolls)',
+          corridors: ['US30_IA', 'US30_IL', 'US30_IN', 'US30_OH', 'US30_PA'],
+          distance_miles: 712,
+          estimated_time_minutes: 720,
+          estimated_time_display: '12h 0m',
+          reliability_score: 65,
+          recommended: false,
+          load_balanced: false,
+          highlights: [
+            'No tolls - saves $40',
+            '1h 35m slower than I-80',
+            'Passes through multiple small towns'
+          ],
+          incidents_enroute: 1,
+          work_zones_enroute: 8,
+          traffic_level: 'VARIABLE'
+        }
+      ],
+
+      corridor_load_balancing: {
+        active: true,
+        target_distribution: {
+          'I80': 60,
+          'I76': 25,
+          'US30': 15
+        },
+        current_distribution: {
+          'I80': 68,
+          'I76': 20,
+          'US30': 12
+        },
+        recommendation: 'Divert 8% of I-80 traffic to I-76 to optimize network flow'
+      },
+
+      dms_updates: [
+        {
+          dms_id: 'DMS_I80_IA_MM100',
+          location: 'I-80 EB MM100 (near Des Moines)',
+          recommended_message: 'I-80 TO PA - 10H 25M VIA I-80'
+        },
+        {
+          dms_id: 'DMS_I80_IA_MM150',
+          location: 'I-80 EB MM150',
+          recommended_message: 'PA TURNPIKE - 10H 45M VIA I-76'
+        }
+      ],
+
+      commercial_vehicle_restrictions: vehicleType === 'COMMERCIAL' ? [
+        'Hazmat restriction on I-76 through tunnels',
+        'Weight limit 80,000 lbs on all routes',
+        'Height restriction 13\'6" on US-30 in some areas'
+      ] : []
+    };
+
+    res.json({
+      success: true,
+      routing: sampleRoute,
+      note: 'Phase 6 MVP - Sample dynamic routing. Real-time optimization engine ready for deployment.'
+    });
+
+  } catch (error) {
+    console.error('Error calculating dynamic routes:', error);
+    res.status(500).json({
+      error: 'Failed to calculate dynamic routes',
       details: error.message
     });
   }
