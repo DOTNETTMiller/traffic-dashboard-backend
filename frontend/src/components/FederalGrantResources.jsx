@@ -32,7 +32,7 @@ export default function FederalGrantResources({ darkMode = false }) {
       ],
       arcItsRelevance: 'HIGH - Requires ARC-ITS compliant ITS inventory',
       nofoUrl: 'https://www.transportation.gov/grants/SMART',
-      grantsGovUrl: 'https://www.grants.gov/web/grants/view-opportunity.html?oppId=355389',
+      grantsGovUrl: 'https://www.grants.gov/search-grants?keywords=SMART',
       applicationPeriod: 'FY24 Stage 2 closed. FY25 Stage 2 expected Fall 2025',
       keyRequirements: [
         'Technology deployment plan',
@@ -62,7 +62,7 @@ export default function FederalGrantResources({ darkMode = false }) {
       ],
       arcItsRelevance: 'MEDIUM - ITS components strengthen applications',
       nofoUrl: 'https://www.transportation.gov/RAISEgrants/raise-nofo',
-      grantsGovUrl: 'https://www.grants.gov/web/grants/view-opportunity.html?oppId=356890',
+      grantsGovUrl: 'https://www.grants.gov/search-grants?keywords=RAISE',
       applicationPeriod: 'FY2025: Deadline January 30, 2025 (CFDA 20.933)',
       keyRequirements: [
         'Benefit-Cost Analysis (BCA)',
@@ -121,7 +121,7 @@ export default function FederalGrantResources({ darkMode = false }) {
       ],
       arcItsRelevance: 'MEDIUM - ITS for emergency management and monitoring',
       nofoUrl: 'https://www.fhwa.dot.gov/environment/protect/discretionary/',
-      grantsGovUrl: 'https://www.grants.gov/web/grants/view-opportunity.html?oppId=356840',
+      grantsGovUrl: 'https://www.grants.gov/search-grants?keywords=PROTECT',
       applicationPeriod: 'NOFO under review by FHWA. Check grants.gov for re-posting',
       keyRequirements: [
         'Resilience improvement plan',
@@ -151,7 +151,7 @@ export default function FederalGrantResources({ darkMode = false }) {
       ],
       arcItsRelevance: 'VERY HIGH - Core ITS technology deployment',
       nofoUrl: 'https://www.fhwa.dot.gov/infrastructure-investment-and-jobs-act/attain.cfm',
-      grantsGovUrl: 'https://www.grants.gov/web/grants/view-opportunity.html?oppId=343624',
+      grantsGovUrl: 'https://www.grants.gov/search-grants?keywords=ATTAIN',
       applicationPeriod: '$60M annually (FY22-26). Check grants.gov for current NOFO',
       keyRequirements: [
         'Technology deployment plan',
@@ -212,7 +212,7 @@ export default function FederalGrantResources({ darkMode = false }) {
       ],
       arcItsRelevance: 'MEDIUM - ITS components strengthen multimodal applications',
       nofoUrl: 'https://www.transportation.gov/BUILDgrants',
-      grantsGovUrl: 'https://www.grants.gov/web/grants/view-opportunity.html?oppId=356890',
+      grantsGovUrl: 'https://www.grants.gov/search-grants?keywords=BUILD',
       applicationPeriod: 'FY2025: Deadline January 30, 2025. Annual solicitations expected.',
       keyRequirements: [
         'Benefit-Cost Analysis (BCA)',
