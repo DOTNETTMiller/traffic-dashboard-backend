@@ -37,6 +37,7 @@ import CorridorDataQuality from './components/CorridorDataQuality';
 import TETCDataGrading from './components/TETCDataGrading';
 import VendorDQIComparison from './components/VendorDQIComparison';
 import VendorGapAnalysis from './components/VendorGapAnalysis';
+import CoverageGapAnalysis from './components/CoverageGapAnalysis';
 import GrantApplications from './components/GrantApplications';
 import FundingOpportunities from './components/FundingOpportunities';
 import NASCOCorridorRegulationsView from './components/NASCOCorridorRegulationsView';
@@ -889,6 +890,28 @@ function App() {
                   onMouseLeave={(e) => e.currentTarget.style.background = view === 'gapAnalysis' ? '#f3f4f6' : 'white'}
                 >
                   📊 Vendor Gap Analysis
+                </button>
+                <button
+                  onClick={() => {
+                    setView('coverageGaps');
+                    setDataQualityDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'coverageGaps' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'coverageGaps' ? '600' : '400',
+                    color: view === 'coverageGaps' ? '#3b82f6' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'coverageGaps' ? '#f3f4f6' : 'white'}
+                >
+                  🗺️ Coverage Gap Analysis
                 </button>
               </div>
             )}
@@ -2017,6 +2040,8 @@ function App() {
               <VendorDQIComparison />
             ) : view === 'gapAnalysis' ? (
               <VendorGapAnalysis />
+            ) : view === 'coverageGaps' ? (
+              <CoverageGapAnalysis />
             ) : null}
           </div>
         )}

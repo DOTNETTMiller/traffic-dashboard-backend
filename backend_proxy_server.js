@@ -11484,6 +11484,235 @@ app.get('/api/data-quality/gap-analysis', async (req, res) => {
   }
 });
 
+// Get coverage gap analysis - identifies market opportunities for vendors
+// Shows corridors with insufficient vendor coverage, low quality, or missing service types
+app.get('/api/data-quality/coverage-gaps', async (req, res) => {
+  const { Client } = require('pg');
+
+  try {
+    const connectionString = process.env.DATABASE_URL ||
+      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+
+    const client = new Client({
+      connectionString: connectionString,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    // Get corridor quality statistics with vendor diversity
+    const corridorQuery = `
+      WITH corridor_stats AS (
+        SELECT
+          c.id as corridor_id,
+          c.name as corridor_name,
+          c.description,
+          COUNT(DISTINCT df.provider_name) as vendor_count,
+          COUNT(DISTINCT df.service_type_id) as service_type_count,
+          COUNT(df.id) as feed_count,
+          AVG(qs.dqi) as avg_dqi,
+          MIN(qs.dqi) as min_dqi,
+          MAX(qs.dqi) as max_dqi,
+          STDDEV(qs.dqi) as dqi_stddev,
+          STRING_AGG(DISTINCT df.provider_name, ', ' ORDER BY df.provider_name) as providers,
+          STRING_AGG(DISTINCT df.service_type_id, ', ' ORDER BY df.service_type_id) as service_types
+        FROM corridors c
+        LEFT JOIN data_feeds df ON c.id = df.corridor_id AND df.is_active = true
+        LEFT JOIN validation_runs vr ON df.id = vr.data_feed_id
+        LEFT JOIN quality_scores qs ON vr.id = qs.validation_run_id
+        GROUP BY c.id, c.name, c.description
+      )
+      SELECT * FROM corridor_stats
+      ORDER BY corridor_name
+    `;
+
+    const result = await client.query(corridorQuery);
+    await client.end();
+
+    // Analyze each corridor for coverage gaps
+    const TARGET_VENDOR_COUNT = 3; // Ideal minimum vendors per corridor
+    const TARGET_SERVICE_TYPES = 4; // Ideal service type diversity
+    const TARGET_DQI = 85; // Target average quality
+    const HIGH_VARIANCE_THRESHOLD = 15; // DQI standard deviation indicating inconsistent quality
+
+    const corridorGaps = result.rows.map(corridor => {
+      const gaps = [];
+      const opportunities = [];
+
+      // Gap 1: Low vendor diversity
+      if (corridor.vendor_count < TARGET_VENDOR_COUNT) {
+        const vendorGap = TARGET_VENDOR_COUNT - corridor.vendor_count;
+        gaps.push({
+          type: 'vendor_diversity',
+          severity: corridor.vendor_count === 0 ? 'critical' : corridor.vendor_count === 1 ? 'high' : 'medium',
+          current: corridor.vendor_count,
+          target: TARGET_VENDOR_COUNT,
+          gap: vendorGap,
+          description: corridor.vendor_count === 0
+            ? 'No vendor coverage - critical market opportunity'
+            : corridor.vendor_count === 1
+            ? 'Single vendor - no redundancy or competition'
+            : 'Limited vendor diversity - opportunity for additional providers'
+        });
+
+        opportunities.push({
+          for: 'vendors',
+          action: `Expand into ${corridor.corridor_name}`,
+          reason: corridor.vendor_count === 0
+            ? 'Untapped market - no current competition'
+            : 'Limited competition - opportunity to capture market share',
+          priority: corridor.vendor_count === 0 ? 'critical' : 'high'
+        });
+      }
+
+      // Gap 2: Low average quality
+      if (corridor.avg_dqi && corridor.avg_dqi < TARGET_DQI) {
+        const qualityGap = TARGET_DQI - corridor.avg_dqi;
+        gaps.push({
+          type: 'quality',
+          severity: corridor.avg_dqi < 70 ? 'high' : 'medium',
+          current: Math.round(corridor.avg_dqi * 10) / 10,
+          target: TARGET_DQI,
+          gap: Math.round(qualityGap * 10) / 10,
+          description: `Average DQI below target - current providers not meeting quality standards`
+        });
+
+        opportunities.push({
+          for: 'vendors',
+          action: `Offer premium quality data for ${corridor.corridor_name}`,
+          reason: 'Existing vendors below quality targets - opportunity to differentiate with higher-quality offering',
+          priority: 'high'
+        });
+
+        opportunities.push({
+          for: 'states',
+          action: `Request quality improvements from ${corridor.corridor_name} data providers`,
+          reason: `Current average DQI is ${Math.round(corridor.avg_dqi)}, below target of ${TARGET_DQI}`,
+          priority: 'high'
+        });
+      }
+
+      // Gap 3: High quality variance (inconsistent vendor performance)
+      if (corridor.dqi_stddev && corridor.dqi_stddev > HIGH_VARIANCE_THRESHOLD) {
+        gaps.push({
+          type: 'consistency',
+          severity: 'medium',
+          current: Math.round(corridor.dqi_stddev * 10) / 10,
+          target: HIGH_VARIANCE_THRESHOLD,
+          gap: Math.round((corridor.dqi_stddev - HIGH_VARIANCE_THRESHOLD) * 10) / 10,
+          description: `High variance in data quality (${Math.round(corridor.min_dqi)} to ${Math.round(corridor.max_dqi)}) - inconsistent vendor performance`
+        });
+
+        opportunities.push({
+          for: 'states',
+          action: `Establish consistent quality standards for ${corridor.corridor_name}`,
+          reason: `Quality varies significantly between vendors (${Math.round(corridor.min_dqi)}-${Math.round(corridor.max_dqi)} DQI)`,
+          priority: 'medium'
+        });
+      }
+
+      // Gap 4: Limited service type coverage
+      if (corridor.service_type_count < TARGET_SERVICE_TYPES) {
+        const serviceGap = TARGET_SERVICE_TYPES - corridor.service_type_count;
+        gaps.push({
+          type: 'service_diversity',
+          severity: corridor.service_type_count < 2 ? 'high' : 'medium',
+          current: corridor.service_type_count,
+          target: TARGET_SERVICE_TYPES,
+          gap: serviceGap,
+          description: corridor.service_type_count === 0
+            ? 'No services available'
+            : `Limited service types - only ${corridor.service_types || 'none'}`
+        });
+
+        opportunities.push({
+          for: 'vendors',
+          action: `Provide additional service types for ${corridor.corridor_name}`,
+          reason: `Only ${corridor.service_type_count} service type(s) currently available`,
+          priority: 'medium'
+        });
+      }
+
+      // Calculate opportunity score (0-100)
+      let opportunityScore = 0;
+
+      // Vendor diversity contribution (40 points max)
+      const vendorScore = Math.min(40, (TARGET_VENDOR_COUNT - corridor.vendor_count) * 13.3);
+      opportunityScore += Math.max(0, vendorScore);
+
+      // Quality gap contribution (30 points max)
+      if (corridor.avg_dqi) {
+        const qualityScore = Math.min(30, Math.max(0, (TARGET_DQI - corridor.avg_dqi) * 2));
+        opportunityScore += qualityScore;
+      }
+
+      // Service diversity contribution (20 points max)
+      const serviceScore = Math.min(20, (TARGET_SERVICE_TYPES - corridor.service_type_count) * 5);
+      opportunityScore += Math.max(0, serviceScore);
+
+      // Consistency contribution (10 points max)
+      if (corridor.dqi_stddev) {
+        const consistencyScore = Math.min(10, Math.max(0, (corridor.dqi_stddev - HIGH_VARIANCE_THRESHOLD) * 0.67));
+        opportunityScore += consistencyScore;
+      }
+
+      return {
+        corridor_id: corridor.corridor_id,
+        corridor_name: corridor.corridor_name,
+        description: corridor.description,
+        current_state: {
+          vendor_count: corridor.vendor_count,
+          service_type_count: corridor.service_type_count,
+          feed_count: corridor.feed_count,
+          avg_dqi: corridor.avg_dqi ? Math.round(corridor.avg_dqi * 10) / 10 : null,
+          dqi_range: corridor.min_dqi && corridor.max_dqi ? {
+            min: Math.round(corridor.min_dqi * 10) / 10,
+            max: Math.round(corridor.max_dqi * 10) / 10
+          } : null,
+          providers: corridor.providers || 'None',
+          service_types: corridor.service_types || 'None'
+        },
+        gaps: gaps,
+        opportunities: opportunities,
+        opportunity_score: Math.round(opportunityScore),
+        market_assessment: opportunityScore > 60 ? 'High-priority market opportunity' :
+                          opportunityScore > 30 ? 'Moderate market opportunity' :
+                          opportunityScore > 0 ? 'Incremental improvement opportunity' :
+                          'Well-served market'
+      };
+    });
+
+    // Sort by opportunity score (highest first)
+    corridorGaps.sort((a, b) => b.opportunity_score - a.opportunity_score);
+
+    // Filter to only corridors with gaps
+    const corridorsWithGaps = corridorGaps.filter(c => c.gaps.length > 0);
+
+    res.json({
+      success: true,
+      total_corridors: corridorGaps.length,
+      corridors_with_gaps: corridorsWithGaps.length,
+      avg_opportunity_score: corridorsWithGaps.length > 0
+        ? Math.round(corridorsWithGaps.reduce((sum, c) => sum + c.opportunity_score, 0) / corridorsWithGaps.length)
+        : 0,
+      corridors: corridorsWithGaps,
+      summary: {
+        critical_gaps: corridorsWithGaps.filter(c => c.gaps.some(g => g.severity === 'critical')).length,
+        high_priority: corridorsWithGaps.filter(c => c.opportunity_score > 60).length,
+        moderate_priority: corridorsWithGaps.filter(c => c.opportunity_score > 30 && c.opportunity_score <= 60).length,
+        low_priority: corridorsWithGaps.filter(c => c.opportunity_score > 0 && c.opportunity_score <= 30).length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching coverage gap analysis:', error);
+    res.status(500).json({
+      error: 'Failed to fetch coverage gap analysis',
+      details: error.message
+    });
+  }
+});
+
 // Get quality scores for a specific corridor (all services)
 app.get('/api/data-quality/corridor/:corridorId', async (req, res) => {
   try {
