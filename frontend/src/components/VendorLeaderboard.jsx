@@ -125,7 +125,7 @@ const VendorLeaderboard = () => {
           <div style={{
             padding: '16px',
             background: '#fef3c7',
-            border: '1px solid '#fde68a',
+            border: '1px solid #fde68a',
             borderRadius: '8px'
           }}>
             <div style={{ fontSize: '12px', color: '#92400e', fontWeight: '500' }}>90+ CLUB</div>
