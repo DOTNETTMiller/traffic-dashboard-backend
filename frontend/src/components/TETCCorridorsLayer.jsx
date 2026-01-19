@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Polyline, Popup, CircleMarker } from 'react-leaflet';
+import { Polyline, Popup, CircleMarker, useMap } from 'react-leaflet';
+import { DomEvent } from 'leaflet';
 import api from '../services/api';
 
 // DQI score to color mapping
@@ -10,6 +11,14 @@ const getDQIColor = (dqi) => {
   if (dqi >= 70) return '#f59e0b'; // orange (C+/C/C-)
   if (dqi >= 60) return '#f97316'; // dark orange (D+/D)
   return '#ef4444'; // red (F/D-)
+};
+
+// Opportunity score to color mapping
+const getOpportunityColor = (score) => {
+  if (score > 60) return '#dc2626'; // Red - High priority
+  if (score > 30) return '#f59e0b'; // Orange - Moderate
+  if (score > 0) return '#3b82f6'; // Blue - Low priority
+  return '#10b981'; // Green - Well-served
 };
 
 // Get letter grade from DQI
@@ -32,19 +41,36 @@ const getDQIGrade = (dqi) => {
 
 const TETCCorridorsLayer = ({ events = [] }) => {
   const [corridors, setCorridors] = useState([]);
+  const [coverageGaps, setCoverageGaps] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [viewMode, setViewMode] = useState('dqi'); // 'dqi' or 'opportunity'
+  const map = useMap();
 
   useEffect(() => {
-    const fetchCorridors = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await api.get('/data-quality/corridors');
 
-        if (response.data.success) {
-          setCorridors(response.data.corridors);
+        // Fetch both corridors and coverage gaps in parallel
+        const [corridorsRes, gapsRes] = await Promise.all([
+          api.get('/data-quality/corridors'),
+          api.get('/data-quality/coverage-gaps')
+        ]);
+
+        if (corridorsRes.data.success) {
+          setCorridors(corridorsRes.data.corridors);
         } else {
           setError('Failed to load corridor data');
+        }
+
+        if (gapsRes.data.success) {
+          // Convert gaps array to map by corridor_id for quick lookup
+          const gapsMap = {};
+          gapsRes.data.corridors.forEach(gap => {
+            gapsMap[gap.corridor_id] = gap;
+          });
+          setCoverageGaps(gapsMap);
         }
       } catch (err) {
         console.error('Error fetching TETC corridors:', err);
@@ -54,7 +80,7 @@ const TETCCorridorsLayer = ({ events = [] }) => {
       }
     };
 
-    fetchCorridors();
+    fetchData();
   }, []);
 
   // Calculate event density for a corridor (events per 100 miles)
@@ -99,15 +125,91 @@ const TETCCorridorsLayer = ({ events = [] }) => {
     return null;
   }
 
+  // Map Legend Component
+  const MapLegend = () => {
+    useEffect(() => {
+      const legend = DomEvent.disableClickPropagation(
+        DomEvent.disableScrollPropagation(document.createElement('div'))
+      );
+      legend.className = 'leaflet-bar leaflet-control';
+      legend.style.background = 'white';
+      legend.style.padding = '10px';
+      legend.style.borderRadius = '4px';
+      legend.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+
+      const container = map.getContainer();
+      container.appendChild(legend);
+      legend.style.position = 'absolute';
+      legend.style.top = '10px';
+      legend.style.right = '10px';
+      legend.style.zIndex = '1000';
+
+      return () => {
+        if (legend.parentNode) {
+          legend.parentNode.removeChild(legend);
+        }
+      };
+    }, []);
+
+    return null;
+  };
+
   return (
     <>
+      {/* Toggle button */}
+      {(() => {
+        useEffect(() => {
+          const button = document.createElement('div');
+          button.className = 'leaflet-bar leaflet-control';
+          button.style.background = 'white';
+          button.style.padding = '8px 12px';
+          button.style.borderRadius = '4px';
+          button.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+          button.style.cursor = 'pointer';
+          button.style.fontWeight = '600';
+          button.style.fontSize = '12px';
+          button.style.position = 'absolute';
+          button.style.top = '10px';
+          button.style.left = '60px';
+          button.style.zIndex = '1000';
+          button.innerHTML = viewMode === 'dqi'
+            ? '📊 Show Market Opportunities'
+            : '🎯 Show Data Quality';
+
+          button.onclick = () => {
+            setViewMode(prev => prev === 'dqi' ? 'opportunity' : 'dqi');
+          };
+
+          DomEvent.disableClickPropagation(button);
+          DomEvent.disableScrollPropagation(button);
+
+          const container = map.getContainer();
+          container.appendChild(button);
+
+          return () => {
+            if (button.parentNode) {
+              button.parentNode.removeChild(button);
+            }
+          };
+        }, [viewMode]);
+
+        return null;
+      })()}
+
       {corridors.map(corridor => {
         if (!corridor.geometry) return null;
 
-        const color = getDQIColor(corridor.avg_dqi);
+        const dqiColor = getDQIColor(corridor.avg_dqi);
         const grade = getDQIGrade(corridor.avg_dqi);
         const hasGap = hasCoverageGap(corridor);
         const eventDensity = getEventDensity(corridor);
+        const gapData = coverageGaps[corridor.id];
+        const opportunityScore = gapData?.opportunity_score || 0;
+        const opportunityColor = getOpportunityColor(opportunityScore);
+
+        // Determine color based on view mode
+        const color = viewMode === 'opportunity' ? opportunityColor : dqiColor;
+        const weight = (viewMode === 'dqi' && hasGap) ? 6 : (viewMode === 'opportunity' && opportunityScore > 30) ? 6 : 4;
 
         // Convert LineString to Leaflet coordinates [[lat, lng], ...]
         const positions = corridor.geometry.coordinates.map(coord => [coord[1], coord[0]]);
@@ -117,10 +219,10 @@ const TETCCorridorsLayer = ({ events = [] }) => {
             key={corridor.id}
             positions={positions}
             pathOptions={{
-              color: hasGap ? '#ef4444' : color,
-              weight: hasGap ? 6 : 4,
+              color: color,
+              weight: weight,
               opacity: 0.8,
-              dashArray: hasGap ? '10, 10' : null
+              dashArray: null
             }}
           >
             <Popup>
@@ -141,56 +243,176 @@ const TETCCorridorsLayer = ({ events = [] }) => {
                 </div>
 
                 <div style={{ padding: '0 4px' }}>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    marginBottom: '12px',
-                    gap: '12px'
-                  }}>
-                    <div style={{ flex: 1, textAlign: 'center' }}>
+                  {viewMode === 'opportunity' && gapData ? (
+                    <>
+                      {/* Opportunity View */}
                       <div style={{
-                        fontSize: '32px',
-                        fontWeight: 'bold',
-                        color: color,
-                        lineHeight: 1
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginBottom: '12px',
+                        gap: '12px'
                       }}>
-                        {grade}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-                        Letter Grade
-                      </div>
-                    </div>
+                        <div style={{ flex: 1, textAlign: 'center' }}>
+                          <div style={{
+                            fontSize: '32px',
+                            fontWeight: 'bold',
+                            color: opportunityColor,
+                            lineHeight: 1
+                          }}>
+                            {opportunityScore}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                            Opportunity Score
+                          </div>
+                        </div>
 
-                    <div style={{ flex: 1, textAlign: 'center' }}>
+                        <div style={{ flex: 1, textAlign: 'center' }}>
+                          <div style={{
+                            fontSize: '24px',
+                            fontWeight: 'bold',
+                            color: '#1f2937',
+                            lineHeight: 1.2
+                          }}>
+                            {gapData.current_state.vendor_count}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                            Vendors
+                          </div>
+                        </div>
+
+                        <div style={{ flex: 1, textAlign: 'center' }}>
+                          <div style={{
+                            fontSize: '24px',
+                            fontWeight: 'bold',
+                            color: '#1f2937',
+                            lineHeight: 1.2
+                          }}>
+                            {gapData.current_state.avg_dqi?.toFixed(0) || 'N/A'}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                            Avg DQI
+                          </div>
+                        </div>
+                      </div>
+
                       <div style={{
-                        fontSize: '24px',
-                        fontWeight: 'bold',
-                        color: '#1f2937',
-                        lineHeight: 1.2
+                        padding: '10px',
+                        background: '#f9fafb',
+                        borderRadius: '6px',
+                        marginBottom: '12px',
+                        borderLeft: `3px solid ${opportunityColor}`
                       }}>
-                        {corridor.avg_dqi?.toFixed(1) || 'N/A'}
+                        <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#374151' }}>
+                          {gapData.market_assessment}
+                        </div>
                       </div>
-                      <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-                        Avg DQI Score
-                      </div>
-                    </div>
 
-                    <div style={{ flex: 1, textAlign: 'center' }}>
+                      {gapData.gaps && gapData.gaps.length > 0 && (
+                        <div style={{ marginBottom: '12px' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', color: '#374151' }}>
+                            Gaps ({gapData.gaps.length})
+                          </div>
+                          {gapData.gaps.slice(0, 2).map((gap, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                fontSize: '11px',
+                                padding: '6px',
+                                background: '#fff',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '4px',
+                                marginBottom: '4px'
+                              }}
+                            >
+                              <div style={{ fontWeight: '600', color: '#1f2937', marginBottom: '2px' }}>
+                                {gap.type.replace(/_/g, ' ').toUpperCase()}
+                              </div>
+                              <div style={{ color: '#6b7280' }}>
+                                {gap.description.substring(0, 80)}{gap.description.length > 80 ? '...' : ''}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {gapData.opportunities && gapData.opportunities.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', color: '#374151' }}>
+                            Top Opportunity
+                          </div>
+                          <div style={{
+                            fontSize: '12px',
+                            padding: '8px',
+                            background: '#ecfdf5',
+                            border: '1px solid #a7f3d0',
+                            borderRadius: '4px',
+                            color: '#065f46'
+                          }}>
+                            <div style={{ fontWeight: '600', marginBottom: '4px' }}>
+                              {gapData.opportunities[0].action}
+                            </div>
+                            <div style={{ fontSize: '11px', fontStyle: 'italic' }}>
+                              {gapData.opportunities[0].reason}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {/* DQI View */}
                       <div style={{
-                        fontSize: '24px',
-                        fontWeight: 'bold',
-                        color: '#1f2937',
-                        lineHeight: 1.2
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginBottom: '12px',
+                        gap: '12px'
                       }}>
-                        {corridor.feed_count}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-                        Data Feeds
-                      </div>
-                    </div>
-                  </div>
+                        <div style={{ flex: 1, textAlign: 'center' }}>
+                          <div style={{
+                            fontSize: '32px',
+                            fontWeight: 'bold',
+                            color: dqiColor,
+                            lineHeight: 1
+                          }}>
+                            {grade}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                            Letter Grade
+                          </div>
+                        </div>
 
-                  {hasGap && (
+                        <div style={{ flex: 1, textAlign: 'center' }}>
+                          <div style={{
+                            fontSize: '24px',
+                            fontWeight: 'bold',
+                            color: '#1f2937',
+                            lineHeight: 1.2
+                          }}>
+                            {corridor.avg_dqi?.toFixed(1) || 'N/A'}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                            Avg DQI Score
+                          </div>
+                        </div>
+
+                        <div style={{ flex: 1, textAlign: 'center' }}>
+                          <div style={{
+                            fontSize: '24px',
+                            fontWeight: 'bold',
+                            color: '#1f2937',
+                            lineHeight: 1.2
+                          }}>
+                            {corridor.feed_count}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                            Data Feeds
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {viewMode === 'dqi' && hasGap && (
                     <div style={{
                       background: '#fef2f2',
                       border: '1px solid #fecaca',
@@ -214,85 +436,53 @@ const TETCCorridorsLayer = ({ events = [] }) => {
                     </div>
                   )}
 
-                  <div style={{
-                    background: '#f9fafb',
-                    borderRadius: '6px',
-                    padding: '8px',
-                    marginTop: '8px'
-                  }}>
-                    <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '6px' }}>
-                      Quality Range
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ fontSize: '13px', color: '#1f2937' }}>
-                        <strong>{corridor.min_dqi?.toFixed(0) || 'N/A'}</strong>
-                        <span style={{ color: '#9ca3af', margin: '0 4px' }}>to</span>
-                        <strong>{corridor.max_dqi?.toFixed(0) || 'N/A'}</strong>
+                  {viewMode === 'dqi' && corridor.min_dqi && corridor.max_dqi && (
+                    <div style={{
+                      background: '#f9fafb',
+                      borderRadius: '6px',
+                      padding: '8px',
+                      marginTop: '8px'
+                    }}>
+                      <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '6px' }}>
+                        Quality Range
                       </div>
-                      <div style={{
-                        flex: 1,
-                        height: '6px',
-                        background: `linear-gradient(to right,
-                          ${getDQIColor(corridor.min_dqi)},
-                          ${getDQIColor(corridor.max_dqi)})`,
-                        borderRadius: '3px'
-                      }}></div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ fontSize: '13px', color: '#1f2937' }}>
+                          <strong>{corridor.min_dqi.toFixed(0)}</strong>
+                          <span style={{ color: '#9ca3af', margin: '0 4px' }}>to</span>
+                          <strong>{corridor.max_dqi.toFixed(0)}</strong>
+                        </div>
+                        <div style={{
+                          flex: 1,
+                          height: '6px',
+                          background: `linear-gradient(to right,
+                            ${getDQIColor(corridor.min_dqi)},
+                            ${getDQIColor(corridor.max_dqi)})`,
+                          borderRadius: '3px'
+                        }}></div>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
-                  <div style={{
-                    fontSize: '11px',
-                    color: '#9ca3af',
-                    marginTop: '12px',
-                    padding: '8px',
-                    background: '#f9fafb',
-                    borderRadius: '4px'
-                  }}>
-                    <div style={{ marginBottom: '4px', color: '#6b7280', fontWeight: '500' }}>
-                      Event Density
+                  {viewMode === 'dqi' && (
+                    <div style={{
+                      fontSize: '11px',
+                      color: '#9ca3af',
+                      marginTop: '12px',
+                      padding: '8px',
+                      background: '#f9fafb',
+                      borderRadius: '4px'
+                    }}>
+                      <div style={{ marginBottom: '4px', color: '#6b7280', fontWeight: '500' }}>
+                        Event Density
+                      </div>
+                      {eventDensity.toFixed(1)} events per 100 miles
                     </div>
-                    {eventDensity.toFixed(1)} events per 100 miles
-                  </div>
+                  )}
                 </div>
               </div>
             </Popup>
           </Polyline>
-        );
-      })}
-
-      {/* Add legend markers for coverage gaps */}
-      {corridors.filter(hasCoverageGap).map(corridor => {
-        if (!corridor.bounds) return null;
-
-        // Place marker at midpoint
-        const midLat = (corridor.bounds.north + corridor.bounds.south) / 2;
-        const midLng = (corridor.bounds.west + corridor.bounds.east) / 2;
-
-        return (
-          <CircleMarker
-            key={`gap-${corridor.id}`}
-            center={[midLat, midLng]}
-            radius={8}
-            pathOptions={{
-              fillColor: '#ef4444',
-              color: 'white',
-              weight: 2,
-              opacity: 1,
-              fillOpacity: 0.9
-            }}
-          >
-            <Popup>
-              <div style={{ minWidth: '200px' }}>
-                <strong style={{ color: '#dc2626' }}>Coverage Gap</strong>
-                <p style={{ margin: '8px 0 4px 0', fontSize: '13px' }}>
-                  {corridor.name} has high event activity but needs improved vendor data quality.
-                </p>
-                <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
-                  Vendors: Consider providing enhanced data coverage for this corridor.
-                </div>
-              </div>
-            </Popup>
-          </CircleMarker>
         );
       })}
     </>
