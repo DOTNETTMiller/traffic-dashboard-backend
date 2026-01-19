@@ -39,6 +39,8 @@ import VendorDQIComparison from './components/VendorDQIComparison';
 import VendorGapAnalysis from './components/VendorGapAnalysis';
 import CoverageGapAnalysis from './components/CoverageGapAnalysis';
 import VendorLeaderboard from './components/VendorLeaderboard';
+import StateQualityDashboard from './components/StateQualityDashboard';
+import APIDocumentationViewer from './components/APIDocumentationViewer';
 import GrantApplications from './components/GrantApplications';
 import FundingOpportunities from './components/FundingOpportunities';
 import NASCOCorridorRegulationsView from './components/NASCOCorridorRegulationsView';
@@ -935,6 +937,29 @@ function App() {
                   onMouseLeave={(e) => e.currentTarget.style.background = view === 'vendorLeaderboard' ? '#f3f4f6' : 'white'}
                 >
                   🏆 Vendor Leaderboard
+                </button>
+
+                <button
+                  onClick={() => {
+                    setView('stateQualityRankings');
+                    setDataQualityDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'stateQualityRankings' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'stateQualityRankings' ? '600' : '400',
+                    color: view === 'stateQualityRankings' ? '#3b82f6' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'stateQualityRankings' ? '#f3f4f6' : 'white'}
+                >
+                  🎖️ State Quality Rankings
                 </button>
               </div>
             )}
@@ -1898,7 +1923,7 @@ function App() {
             WebkitOverflowScrolling: 'touch',
             position: 'relative'
           }}>
-            <DocumentationViewer />
+            <APIDocumentationViewer />
           </div>
         ) : view === 'map' ? (
           <>
@@ -2067,6 +2092,8 @@ function App() {
               <CoverageGapAnalysis />
             ) : view === 'vendorLeaderboard' ? (
               <VendorLeaderboard />
+            ) : view === 'stateQualityRankings' ? (
+              <StateQualityDashboard />
             ) : null}
           </div>
         )}
