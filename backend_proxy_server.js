@@ -12536,35 +12536,35 @@ app.post('/api/admin/fix-tetc-urls', async (req, res) => {
     const updates = [
       {
         id: 'vr_probe_tt_2025q1',
-        url: 'https://tetcoalition.org/data-marketplace/validation/TETC_TT_2025Q1.pdf'
+        url: 'https://tetcoalition.org/tdm/'
       },
       {
         id: 'vr_od_personal_2025q1',
-        url: 'https://tetcoalition.org/data-marketplace/validation/OD_Personal_2025Q1.pdf'
+        url: 'https://tetcoalition.org/tdm/'
       },
       {
         id: 'vr_od_freight_2025q1',
-        url: 'https://tetcoalition.org/data-marketplace/validation/OD_Freight_2025Q1.pdf'
+        url: 'https://tetcoalition.org/tdm/'
       },
       {
         id: 'vr_i95_corr_probe_inrix_2025q1',
-        url: 'https://tetcoalition.org/data-marketplace/validation/2025Q1_I95_INRIX.pdf'
+        url: 'https://tetcoalition.org/tdm/'
       },
       {
         id: 'vr_i95_corr_probe_here_2025q1',
-        url: 'https://tetcoalition.org/data-marketplace/validation/2025Q1_I95_HERE.pdf'
+        url: 'https://tetcoalition.org/tdm/'
       },
       {
         id: 'vr_i95_corr_od_personal_replica_2025q1',
-        url: 'https://tetcoalition.org/data-marketplace/validation/2025Q1_I95_Replica.pdf'
+        url: 'https://tetcoalition.org/tdm/'
       },
       {
         id: 'vr_i95_corr_od_personal_streetlight_2025q1',
-        url: 'https://tetcoalition.org/data-marketplace/validation/2025Q1_I95_StreetLight.pdf'
+        url: 'https://tetcoalition.org/tdm/'
       },
       {
         id: 'vr_i95_corr_od_freight_atri_2025q1',
-        url: 'https://tetcoalition.org/data-marketplace/validation/2025Q1_I95_ATRI.pdf'
+        url: 'https://tetcoalition.org/tdm/'
       }
     ];
 
@@ -12626,6 +12626,51 @@ app.post('/api/admin/fix-tetc-urls', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error fixing TETC URLs:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Fix broken grants.gov URLs in funding_opportunities table
+app.post('/api/admin/fix-grant-urls', async (req, res) => {
+  const { Client } = require('pg');
+
+  try {
+    console.log('🔧 Fixing broken grants.gov URLs...');
+
+    const connectionString = process.env.DATABASE_URL ||
+      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+
+    const client = new Client({
+      connectionString: connectionString,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    // Delete any funding opportunities with broken URLs
+    const deleteResult = await client.query(`
+      DELETE FROM funding_opportunities
+      WHERE url LIKE '%page-not-found%'
+         OR url LIKE '%error%'
+         OR url IS NULL
+      RETURNING id, title
+    `);
+
+    await client.end();
+
+    console.log(`✅ Removed ${deleteResult.rowCount} funding opportunities with broken URLs`);
+
+    res.json({
+      success: true,
+      message: `Removed ${deleteResult.rowCount} funding opportunities with broken URLs`,
+      removed: deleteResult.rows
+    });
+
+  } catch (error) {
+    console.error('❌ Error fixing grant URLs:', error);
     res.status(500).json({
       success: false,
       error: error.message
