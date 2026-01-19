@@ -40,6 +40,7 @@ import VendorGapAnalysis from './components/VendorGapAnalysis';
 import CoverageGapAnalysis from './components/CoverageGapAnalysis';
 import VendorLeaderboard from './components/VendorLeaderboard';
 import StateQualityDashboard from './components/StateQualityDashboard';
+import PredictiveAnalyticsDashboard from './components/PredictiveAnalyticsDashboard';
 import APIDocumentationViewer from './components/APIDocumentationViewer';
 import GrantApplications from './components/GrantApplications';
 import FundingOpportunities from './components/FundingOpportunities';
@@ -960,6 +961,29 @@ function App() {
                   onMouseLeave={(e) => e.currentTarget.style.background = view === 'stateQualityRankings' ? '#f3f4f6' : 'white'}
                 >
                   🎖️ State Quality Rankings
+                </button>
+
+                <button
+                  onClick={() => {
+                    setView('predictiveAnalytics');
+                    setDataQualityDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'predictiveAnalytics' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'predictiveAnalytics' ? '600' : '400',
+                    color: view === 'predictiveAnalytics' ? '#3b82f6' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'predictiveAnalytics' ? '#f3f4f6' : 'white'}
+                >
+                  🤖 Predictive Analytics (Phase 6)
                 </button>
               </div>
             )}
@@ -2094,6 +2118,8 @@ function App() {
               <VendorLeaderboard />
             ) : view === 'stateQualityRankings' ? (
               <StateQualityDashboard />
+            ) : view === 'predictiveAnalytics' ? (
+              <PredictiveAnalyticsDashboard />
             ) : null}
           </div>
         )}

@@ -6,20 +6,23 @@ const APIDocumentationViewer = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentDoc, setCurrentDoc] = useState('api'); // 'api' or 'roadmap'
 
   useEffect(() => {
     fetchDocumentation();
-  }, []);
+  }, [currentDoc]);
 
   const fetchDocumentation = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/documentation');
+      setSearchTerm(''); // Clear search when switching docs
+      const endpoint = currentDoc === 'api' ? '/documentation' : '/documentation/roadmap';
+      const response = await api.get(endpoint);
 
       if (response.data.success) {
         setDocumentation(response.data.documentation);
       } else {
-        setError('Failed to load API documentation');
+        setError('Failed to load documentation');
       }
     } catch (err) {
       console.error('Error fetching documentation:', err);
@@ -133,11 +136,51 @@ const APIDocumentationViewer = () => {
       {/* Header */}
       <div style={{ marginBottom: '32px' }}>
         <h1 style={{ margin: '0 0 8px 0', fontSize: '32px', fontWeight: 'bold', color: '#111827' }}>
-          API Documentation
+          Documentation
         </h1>
         <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>
-          Complete reference for all 200+ API endpoints in the Corridor Communicator platform
+          {currentDoc === 'api'
+            ? 'Complete reference for all 200+ API endpoints in the Corridor Communicator platform'
+            : 'Strategic roadmap for building the world\'s most advanced transportation data platform'}
         </p>
+      </div>
+
+      {/* Document Selector Tabs */}
+      <div style={{ marginBottom: '24px', display: 'flex', gap: '12px', borderBottom: '2px solid #e5e7eb' }}>
+        <button
+          onClick={() => setCurrentDoc('api')}
+          style={{
+            padding: '12px 24px',
+            fontSize: '15px',
+            fontWeight: '600',
+            background: 'none',
+            border: 'none',
+            borderBottom: currentDoc === 'api' ? '3px solid #3b82f6' : '3px solid transparent',
+            color: currentDoc === 'api' ? '#3b82f6' : '#6b7280',
+            cursor: 'pointer',
+            marginBottom: '-2px',
+            transition: 'all 0.2s'
+          }}
+        >
+          API Reference
+        </button>
+        <button
+          onClick={() => setCurrentDoc('roadmap')}
+          style={{
+            padding: '12px 24px',
+            fontSize: '15px',
+            fontWeight: '600',
+            background: 'none',
+            border: 'none',
+            borderBottom: currentDoc === 'roadmap' ? '3px solid #3b82f6' : '3px solid transparent',
+            color: currentDoc === 'roadmap' ? '#3b82f6' : '#6b7280',
+            cursor: 'pointer',
+            marginBottom: '-2px',
+            transition: 'all 0.2s'
+          }}
+        >
+          Strategic Roadmap
+        </button>
       </div>
 
       {/* Search Box */}
