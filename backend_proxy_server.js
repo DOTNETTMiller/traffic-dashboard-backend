@@ -11255,6 +11255,39 @@ function createCorridorLineString(bounds) {
   };
 }
 
+// Diagnostic endpoint to test corridors table (must come before /corridors route)
+app.get('/api/data-quality/corridors/test', async (req, res) => {
+  const { Client } = require('pg');
+
+  try {
+    const connectionString = process.env.DATABASE_URL ||
+      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+
+    const client = new Client({
+      connectionString: connectionString,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    // Test simple query
+    const result = await client.query('SELECT * FROM corridors LIMIT 5');
+    await client.end();
+
+    res.json({
+      success: true,
+      rowCount: result.rows.length,
+      sample: result.rows
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Test query failed',
+      details: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 app.get('/api/data-quality/corridors', async (req, res) => {
   const { Client } = require('pg');
 
@@ -11313,39 +11346,6 @@ app.get('/api/data-quality/corridors', async (req, res) => {
       error: 'Failed to fetch corridors',
       details: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
-  }
-});
-
-// Diagnostic endpoint to test corridors table
-app.get('/api/data-quality/corridors/test', async (req, res) => {
-  const { Client } = require('pg');
-
-  try {
-    const connectionString = process.env.DATABASE_URL ||
-      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
-
-    const client = new Client({
-      connectionString: connectionString,
-      ssl: { rejectUnauthorized: false }
-    });
-
-    await client.connect();
-
-    // Test simple query
-    const result = await client.query('SELECT * FROM corridors LIMIT 5');
-    await client.end();
-
-    res.json({
-      success: true,
-      rowCount: result.rows.length,
-      sample: result.rows
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: 'Test query failed',
-      details: error.message,
-      stack: error.stack
     });
   }
 });
