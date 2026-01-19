@@ -11713,6 +11713,148 @@ app.get('/api/data-quality/coverage-gaps', async (req, res) => {
   }
 });
 
+// Get vendor leaderboard with rankings and achievements
+app.get('/api/data-quality/leaderboard', async (req, res) => {
+  try {
+    const { Client } = require('pg');
+    const connectionString = process.env.DATABASE_URL ||
+      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+
+    const client = new Client({
+      connectionString: connectionString,
+      ssl: { rejectUnauthorized: false }
+    });
+    await client.connect();
+
+    // Get all providers with aggregated metrics
+    const providersQuery = await client.query(`
+      SELECT
+        p.id as provider_id,
+        p.name as provider_name,
+        COUNT(DISTINCT df.id) as total_feeds,
+        COUNT(DISTINCT df.corridor_id) as corridor_count,
+        COUNT(DISTINCT df.service_type_id) as service_type_count,
+        AVG(qs.dqi) as avg_dqi,
+        MIN(qs.dqi) as min_dqi,
+        MAX(qs.dqi) as max_dqi,
+        STDDEV(qs.dqi) as dqi_stddev,
+        COUNT(CASE WHEN qs.dqi >= 90 THEN 1 END) as a_grade_count,
+        COUNT(CASE WHEN qs.dqi >= 80 THEN 1 END) as b_plus_count
+      FROM providers p
+      JOIN data_feeds df ON p.id = df.provider_id AND df.status = 'active'
+      LEFT JOIN validation_runs vr ON df.id = vr.data_feed_id
+      LEFT JOIN quality_scores qs ON vr.id = qs.validation_run_id
+      WHERE vr.id IN (
+        SELECT MAX(vr2.id)
+        FROM validation_runs vr2
+        WHERE vr2.data_feed_id = df.id
+      )
+      GROUP BY p.id, p.name
+      HAVING AVG(qs.dqi) IS NOT NULL
+      ORDER BY avg_dqi DESC
+    `);
+
+    const providers = providersQuery.rows;
+
+    // Calculate rankings and assign badges
+    const leaderboard = providers.map((provider, index) => {
+      const rank = index + 1;
+      const consistency_score = provider.dqi_stddev ? Math.max(0, 100 - (provider.dqi_stddev * 2)) : 100;
+
+      // Determine badges/achievements
+      const badges = [];
+
+      // Medal based on rank
+      if (rank === 1) badges.push({ type: 'medal', value: 'gold', label: 'Top Provider' });
+      else if (rank === 2) badges.push({ type: 'medal', value: 'silver', label: '2nd Place' });
+      else if (rank === 3) badges.push({ type: 'medal', value: 'bronze', label: '3rd Place' });
+
+      // Quality badges
+      if (provider.avg_dqi >= 90) {
+        badges.push({ type: 'quality', value: '90_club', label: '90+ Club' });
+      }
+      if (provider.a_grade_count === provider.total_feeds && provider.total_feeds > 0) {
+        badges.push({ type: 'quality', value: 'perfect', label: 'All A-Grades' });
+      }
+
+      // Coverage badges
+      if (provider.corridor_count >= 5) {
+        badges.push({ type: 'coverage', value: 'multi_corridor', label: '5+ Corridors' });
+      }
+      if (provider.service_type_count >= 5) {
+        badges.push({ type: 'coverage', value: 'diverse', label: '5+ Service Types' });
+      }
+
+      // Consistency badge
+      if (consistency_score >= 95) {
+        badges.push({ type: 'consistency', value: 'reliable', label: 'Highly Consistent' });
+      }
+
+      return {
+        rank,
+        provider_id: provider.provider_id,
+        provider_name: provider.provider_name,
+        avg_dqi: Math.round(provider.avg_dqi * 10) / 10,
+        letter_grade: calculateLetterGrade(provider.avg_dqi),
+        total_feeds: parseInt(provider.total_feeds),
+        metrics: {
+          corridor_coverage: parseInt(provider.corridor_count),
+          service_diversity: parseInt(provider.service_type_count),
+          consistency_score: Math.round(consistency_score * 10) / 10,
+          quality_range: {
+            min: Math.round(provider.min_dqi * 10) / 10,
+            max: Math.round(provider.max_dqi * 10) / 10
+          },
+          a_grade_feeds: parseInt(provider.a_grade_count),
+          b_plus_feeds: parseInt(provider.b_plus_count)
+        },
+        badges
+      };
+    });
+
+    // Helper function for letter grade
+    function calculateLetterGrade(dqi) {
+      if (dqi >= 97) return 'A+';
+      if (dqi >= 93) return 'A';
+      if (dqi >= 90) return 'A-';
+      if (dqi >= 87) return 'B+';
+      if (dqi >= 83) return 'B';
+      if (dqi >= 80) return 'B-';
+      if (dqi >= 77) return 'C+';
+      if (dqi >= 73) return 'C';
+      if (dqi >= 70) return 'C-';
+      if (dqi >= 67) return 'D+';
+      if (dqi >= 63) return 'D';
+      if (dqi >= 60) return 'D-';
+      return 'F';
+    }
+
+    // Calculate summary statistics
+    const summary = {
+      total_providers: leaderboard.length,
+      avg_market_dqi: Math.round((leaderboard.reduce((sum, p) => sum + p.avg_dqi, 0) / leaderboard.length) * 10) / 10,
+      providers_above_90: leaderboard.filter(p => p.avg_dqi >= 90).length,
+      providers_above_80: leaderboard.filter(p => p.avg_dqi >= 80).length,
+      total_feeds: leaderboard.reduce((sum, p) => sum + p.total_feeds, 0)
+    };
+
+    await client.end();
+
+    res.json({
+      success: true,
+      leaderboard,
+      summary
+    });
+
+  } catch (error) {
+    console.error('Error fetching vendor leaderboard:', error);
+    res.status(500).json({
+      error: 'Failed to fetch vendor leaderboard',
+      details: error.message
+    });
+  }
+});
+
 // Get quality scores for a specific corridor (all services)
 app.get('/api/data-quality/corridor/:corridorId', async (req, res) => {
   try {

@@ -38,6 +38,7 @@ import TETCDataGrading from './components/TETCDataGrading';
 import VendorDQIComparison from './components/VendorDQIComparison';
 import VendorGapAnalysis from './components/VendorGapAnalysis';
 import CoverageGapAnalysis from './components/CoverageGapAnalysis';
+import VendorLeaderboard from './components/VendorLeaderboard';
 import GrantApplications from './components/GrantApplications';
 import FundingOpportunities from './components/FundingOpportunities';
 import NASCOCorridorRegulationsView from './components/NASCOCorridorRegulationsView';
@@ -912,6 +913,28 @@ function App() {
                   onMouseLeave={(e) => e.currentTarget.style.background = view === 'coverageGaps' ? '#f3f4f6' : 'white'}
                 >
                   🗺️ Coverage Gap Analysis
+                </button>
+                <button
+                  onClick={() => {
+                    setView('vendorLeaderboard');
+                    setDataQualityDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'vendorLeaderboard' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'vendorLeaderboard' ? '600' : '400',
+                    color: view === 'vendorLeaderboard' ? '#3b82f6' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'vendorLeaderboard' ? '#f3f4f6' : 'white'}
+                >
+                  🏆 Vendor Leaderboard
                 </button>
               </div>
             )}
@@ -2042,6 +2065,8 @@ function App() {
               <VendorGapAnalysis />
             ) : view === 'coverageGaps' ? (
               <CoverageGapAnalysis />
+            ) : view === 'vendorLeaderboard' ? (
+              <VendorLeaderboard />
             ) : null}
           </div>
         )}
