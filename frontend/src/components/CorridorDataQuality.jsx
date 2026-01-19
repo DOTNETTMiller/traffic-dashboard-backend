@@ -35,9 +35,10 @@ export default function CorridorDataQuality() {
     try {
       const response = await axios.get(`${config.apiUrl}/api/data-quality/corridors`);
       setCorridors(response.data.corridors);
-      if (response.data.corridors.length > 0) {
-        setSelectedCorridor(response.data.corridors[0]);
-      }
+      // Don't auto-select first corridor - let user click to load details
+      // if (response.data.corridors.length > 0) {
+      //   setSelectedCorridor(response.data.corridors[0]);
+      // }
     } catch (err) {
       setError('Failed to load corridors');
       console.error(err);
@@ -48,9 +49,11 @@ export default function CorridorDataQuality() {
     try {
       const response = await axios.get(`${config.apiUrl}/api/data-quality/corridor/${corridorId}`);
       setCorridorData(response.data);
+      setError(null); // Clear any previous errors
     } catch (err) {
-      setError('Failed to load corridor data');
-      console.error(err);
+      // Don't set error state - just log and set corridorData to null
+      console.warn('Corridor detail data not available:', err);
+      setCorridorData(null);
     }
   };
 
@@ -60,9 +63,11 @@ export default function CorridorDataQuality() {
         `${config.apiUrl}/api/data-quality/corridor/${corridorId}/service/${serviceTypeId}`
       );
       setServiceDetails(response.data);
+      setError(null); // Clear any previous errors
     } catch (err) {
-      setError('Failed to load service details');
-      console.error(err);
+      // Don't set error state - just log and set serviceDetails to null
+      console.warn('Service detail data not available:', err);
+      setServiceDetails(null);
     }
   };
 
