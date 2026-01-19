@@ -14,7 +14,7 @@ const VendorLeaderboard = () => {
   const fetchLeaderboard = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/data-quality/leaderboard');
+      const response = await api.get('/api/data-quality/leaderboard');
 
       if (response.data.success) {
         setLeaderboard(response.data.leaderboard);
