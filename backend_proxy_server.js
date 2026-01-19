@@ -2980,6 +2980,29 @@ app.get('/api/events/:state', async (req, res) => {
   });
 });
 
+// API Documentation endpoint
+app.get('/api/documentation', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+
+  try {
+    const docPath = path.join(__dirname, 'API_DOCUMENTATION.md');
+    const documentation = fs.readFileSync(docPath, 'utf8');
+
+    res.json({
+      success: true,
+      documentation,
+      lastUpdated: '2026-01-19'
+    });
+  } catch (error) {
+    console.error('Error reading API documentation:', error);
+    res.status(500).json({
+      error: 'Failed to load API documentation',
+      details: error.message
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   console.log('✅ /api/health endpoint hit!');
@@ -11850,6 +11873,234 @@ app.get('/api/data-quality/leaderboard', async (req, res) => {
     console.error('Error fetching vendor leaderboard:', error);
     res.status(500).json({
       error: 'Failed to fetch vendor leaderboard',
+      details: error.message
+    });
+  }
+});
+
+// State Quality Dashboards - Phase 4 of "Better than NAPCORE"
+// Aggregates data quality metrics by state for competitive state rankings
+app.get('/api/data-quality/state-rankings', async (req, res) => {
+  try {
+    const { Client } = require('pg');
+    const connectionString = process.env.DATABASE_URL ||
+      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+
+    const client = new Client({
+      connectionString: connectionString,
+      ssl: { rejectUnauthorized: false }
+    });
+    await client.connect();
+
+    // Get all feeds with their quality scores, extracting state from corridor_id
+    const feedsQuery = await client.query(`
+      SELECT
+        c.id as corridor_id,
+        c.name as corridor_name,
+        df.id as feed_id,
+        df.provider_name,
+        df.service_type_id,
+        st.display_name as service_display_name,
+        qs.dqi,
+        qs.letter_grade,
+        qs.acc_score,
+        qs.cov_score,
+        qs.tim_score,
+        qs.std_score,
+        qs.gov_score
+      FROM data_feeds df
+      JOIN corridors c ON df.corridor_id = c.id
+      JOIN service_types st ON df.service_type_id = st.id
+      JOIN validation_runs vr ON df.id = vr.data_feed_id
+      JOIN quality_scores qs ON vr.id = qs.validation_run_id
+      WHERE df.is_active = true
+        AND vr.id IN (
+          SELECT MAX(vr2.id)
+          FROM validation_runs vr2
+          WHERE vr2.data_feed_id = df.id
+        )
+      ORDER BY qs.dqi DESC
+    `);
+
+    // Group feeds by state (extract from corridor_id suffix)
+    const stateData = {};
+    const stateNames = {
+      'IA': 'Iowa', 'OH': 'Ohio', 'PA': 'Pennsylvania', 'NV': 'Nevada',
+      'TX': 'Texas', 'CA': 'California', 'DE': 'Delaware', 'MD': 'Maryland',
+      'VA': 'Virginia', 'NJ': 'New Jersey', 'NY': 'New York', 'CT': 'Connecticut',
+      'RI': 'Rhode Island', 'MA': 'Massachusetts', 'NH': 'New Hampshire', 'ME': 'Maine',
+      'NC': 'North Carolina', 'FL': 'Florida', 'GA': 'Georgia', 'SC': 'South Carolina'
+    };
+
+    feedsQuery.rows.forEach(feed => {
+      // Extract state abbreviation from corridor_id (e.g., "I80_IA" -> "IA")
+      const match = feed.corridor_id.match(/_([A-Z]{2})$/);
+      if (!match) return; // Skip multi-state corridors like "I95_CORRIDOR"
+
+      const stateAbbr = match[1];
+      const stateName = stateNames[stateAbbr] || stateAbbr;
+
+      if (!stateData[stateAbbr]) {
+        stateData[stateAbbr] = {
+          state_abbr: stateAbbr,
+          state_name: stateName,
+          feeds: [],
+          corridors: new Set(),
+          providers: new Set(),
+          service_types: new Set()
+        };
+      }
+
+      stateData[stateAbbr].feeds.push({
+        feed_id: feed.feed_id,
+        corridor_name: feed.corridor_name,
+        provider_name: feed.provider_name,
+        service_display_name: feed.service_display_name,
+        dqi: feed.dqi,
+        letter_grade: feed.letter_grade,
+        acc_score: feed.acc_score,
+        cov_score: feed.cov_score,
+        tim_score: feed.tim_score,
+        std_score: feed.std_score,
+        gov_score: feed.gov_score
+      });
+
+      stateData[stateAbbr].corridors.add(feed.corridor_id);
+      stateData[stateAbbr].providers.add(feed.provider_name);
+      stateData[stateAbbr].service_types.add(feed.service_type_id);
+    });
+
+    // Calculate state-level metrics and rankings
+    const stateRankings = Object.values(stateData).map(state => {
+      const feeds = state.feeds;
+      const avgDQI = feeds.reduce((sum, f) => sum + f.dqi, 0) / feeds.length;
+      const minDQI = Math.min(...feeds.map(f => f.dqi));
+      const maxDQI = Math.max(...feeds.map(f => f.dqi));
+
+      // Calculate standard deviation for consistency
+      const variance = feeds.reduce((sum, f) => sum + Math.pow(f.dqi - avgDQI, 2), 0) / feeds.length;
+      const stddev = Math.sqrt(variance);
+      const consistencyScore = Math.max(0, 100 - (stddev * 2));
+
+      // Calculate dimension averages
+      const avgAcc = feeds.reduce((sum, f) => sum + (f.acc_score || 0), 0) / feeds.length;
+      const avgCov = feeds.reduce((sum, f) => sum + (f.cov_score || 0), 0) / feeds.length;
+      const avgTim = feeds.reduce((sum, f) => sum + (f.tim_score || 0), 0) / feeds.length;
+      const avgStd = feeds.reduce((sum, f) => sum + (f.std_score || 0), 0) / feeds.length;
+      const avgGov = feeds.reduce((sum, f) => sum + (f.gov_score || 0), 0) / feeds.length;
+
+      // Count A-grade and B+ feeds
+      const aGradeCount = feeds.filter(f => f.dqi >= 90).length;
+      const bPlusCount = feeds.filter(f => f.dqi >= 87).length;
+
+      return {
+        state_abbr: state.state_abbr,
+        state_name: state.state_name,
+        total_feeds: feeds.length,
+        corridor_count: state.corridors.size,
+        provider_count: state.providers.size,
+        service_type_count: state.service_types.size,
+        avg_dqi: Math.round(avgDQI * 10) / 10,
+        min_dqi: Math.round(minDQI * 10) / 10,
+        max_dqi: Math.round(maxDQI * 10) / 10,
+        letter_grade: calculateLetterGrade(avgDQI),
+        consistency_score: Math.round(consistencyScore * 10) / 10,
+        dimension_scores: {
+          accuracy: Math.round(avgAcc * 10) / 10,
+          coverage: Math.round(avgCov * 10) / 10,
+          timeliness: Math.round(avgTim * 10) / 10,
+          standards: Math.round(avgStd * 10) / 10,
+          governance: Math.round(avgGov * 10) / 10
+        },
+        a_grade_feeds: aGradeCount,
+        b_plus_feeds: bPlusCount,
+        a_grade_percentage: Math.round((aGradeCount / feeds.length) * 100),
+        feeds: feeds // Include full feed details
+      };
+    });
+
+    // Sort by average DQI
+    stateRankings.sort((a, b) => b.avg_dqi - a.avg_dqi);
+
+    // Assign ranks and badges
+    const rankedStates = stateRankings.map((state, index) => {
+      const rank = index + 1;
+      const badges = [];
+
+      // Medal badges
+      if (rank === 1) badges.push({ type: 'medal', value: 'gold', label: 'Top State' });
+      else if (rank === 2) badges.push({ type: 'medal', value: 'silver', label: '2nd Place' });
+      else if (rank === 3) badges.push({ type: 'medal', value: 'bronze', label: '3rd Place' });
+
+      // Quality badges
+      if (state.avg_dqi >= 90) {
+        badges.push({ type: 'quality', value: '90_club', label: '90+ Club' });
+      }
+      if (state.avg_dqi >= 95) {
+        badges.push({ type: 'quality', value: 'excellence', label: 'Excellence Award' });
+      }
+
+      // Consistency badge
+      if (state.consistency_score >= 90) {
+        badges.push({ type: 'consistency', value: 'consistent', label: 'Highly Consistent' });
+      }
+
+      // Coverage badge
+      if (state.service_type_count >= 5) {
+        badges.push({ type: 'coverage', value: 'diverse', label: '5+ Service Types' });
+      }
+
+      // A-grade percentage badge
+      if (state.a_grade_percentage >= 75) {
+        badges.push({ type: 'performance', value: 'high_performer', label: '75%+ A-Grade' });
+      }
+
+      return {
+        rank,
+        ...state,
+        badges
+      };
+    });
+
+    // Helper function for letter grade
+    function calculateLetterGrade(dqi) {
+      if (dqi >= 97) return 'A+';
+      if (dqi >= 93) return 'A';
+      if (dqi >= 90) return 'A-';
+      if (dqi >= 87) return 'B+';
+      if (dqi >= 83) return 'B';
+      if (dqi >= 80) return 'B-';
+      if (dqi >= 77) return 'C+';
+      if (dqi >= 73) return 'C';
+      if (dqi >= 70) return 'C-';
+      if (dqi >= 67) return 'D+';
+      if (dqi >= 63) return 'D';
+      if (dqi >= 60) return 'D-';
+      return 'F';
+    }
+
+    // Calculate summary statistics
+    const summary = {
+      total_states: rankedStates.length,
+      avg_national_dqi: Math.round((rankedStates.reduce((sum, s) => sum + s.avg_dqi, 0) / rankedStates.length) * 10) / 10,
+      states_above_90: rankedStates.filter(s => s.avg_dqi >= 90).length,
+      states_above_80: rankedStates.filter(s => s.avg_dqi >= 80).length,
+      total_feeds: rankedStates.reduce((sum, s) => sum + s.total_feeds, 0),
+      total_corridors: rankedStates.reduce((sum, s) => sum + s.corridor_count, 0)
+    };
+
+    await client.end();
+
+    res.json({
+      success: true,
+      rankings: rankedStates,
+      summary
+    });
+
+  } catch (error) {
+    console.error('Error fetching state quality rankings:', error);
+    res.status(500).json({
+      error: 'Failed to fetch state quality rankings',
       details: error.message
     });
   }
