@@ -154,47 +154,52 @@ const TETCCorridorsLayer = ({ events = [] }) => {
     return null;
   };
 
+  // Create toggle button once and update its text when viewMode changes
+  useEffect(() => {
+    const button = document.createElement('div');
+    button.className = 'leaflet-bar leaflet-control';
+    button.style.background = 'white';
+    button.style.padding = '8px 12px';
+    button.style.borderRadius = '4px';
+    button.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
+    button.style.cursor = 'pointer';
+    button.style.fontWeight = '600';
+    button.style.fontSize = '12px';
+    button.style.position = 'absolute';
+    button.style.top = '10px';
+    button.style.left = '60px';
+    button.style.zIndex = '1000';
+
+    button.onclick = () => {
+      setViewMode(prev => prev === 'dqi' ? 'opportunity' : 'dqi');
+    };
+
+    DomEvent.disableClickPropagation(button);
+    DomEvent.disableScrollPropagation(button);
+
+    const container = map.getContainer();
+    container.appendChild(button);
+
+    return () => {
+      if (button.parentNode) {
+        button.parentNode.removeChild(button);
+      }
+    };
+  }, [map]);
+
+  // Update button text when viewMode changes
+  useEffect(() => {
+    const container = map.getContainer();
+    const button = container.querySelector('.leaflet-bar.leaflet-control');
+    if (button) {
+      button.innerHTML = viewMode === 'dqi'
+        ? '📊 Show Market Opportunities'
+        : '🎯 Show Data Quality';
+    }
+  }, [viewMode, map]);
+
   return (
     <>
-      {/* Toggle button */}
-      {(() => {
-        useEffect(() => {
-          const button = document.createElement('div');
-          button.className = 'leaflet-bar leaflet-control';
-          button.style.background = 'white';
-          button.style.padding = '8px 12px';
-          button.style.borderRadius = '4px';
-          button.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
-          button.style.cursor = 'pointer';
-          button.style.fontWeight = '600';
-          button.style.fontSize = '12px';
-          button.style.position = 'absolute';
-          button.style.top = '10px';
-          button.style.left = '60px';
-          button.style.zIndex = '1000';
-          button.innerHTML = viewMode === 'dqi'
-            ? '📊 Show Market Opportunities'
-            : '🎯 Show Data Quality';
-
-          button.onclick = () => {
-            setViewMode(prev => prev === 'dqi' ? 'opportunity' : 'dqi');
-          };
-
-          DomEvent.disableClickPropagation(button);
-          DomEvent.disableScrollPropagation(button);
-
-          const container = map.getContainer();
-          container.appendChild(button);
-
-          return () => {
-            if (button.parentNode) {
-              button.parentNode.removeChild(button);
-            }
-          };
-        }, [viewMode]);
-
-        return null;
-      })()}
 
       {corridors.map(corridor => {
         if (!corridor.geometry) return null;
