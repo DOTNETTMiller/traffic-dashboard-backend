@@ -13,6 +13,7 @@ import OSWRegulationsLayer from './OSWRegulationsLayer';
 import StateOSWRegulationsLayer from './StateOSWRegulationsLayer';
 import ITSEquipmentLayer from './ITSEquipmentLayer';
 import NetworkTopologyLayer from './NetworkTopologyLayer';
+import TETCCorridorsLayer from './TETCCorridorsLayer';
 import EventFormatPopup from './EventFormatPopup';
 import BoundingBoxSelector from './BoundingBoxSelector';
 import HeatMapControl from './HeatMapControl';
@@ -618,6 +619,9 @@ export default function TrafficMap({
 
         <ParkingLayer showParking={showParking} predictionHoursAhead={parkingPredictionHours} />
         <InterchangeLayer showInterchanges={showInterchanges} />
+
+        {/* TETC Vendor Coverage Corridors - shows data quality scores overlaid with events */}
+        <TETCCorridorsLayer events={events} />
 
         {/* Bridge Clearance Layer */}
         {showBridgeClearances && (
