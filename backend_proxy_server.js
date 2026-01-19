@@ -11350,6 +11350,140 @@ app.get('/api/data-quality/corridors', async (req, res) => {
   }
 });
 
+// Get field-level gap analysis for data feeds
+// Shows vendors exactly what dimensions need improvement and potential DQI increase
+app.get('/api/data-quality/gap-analysis', async (req, res) => {
+  const { Client } = require('pg');
+
+  try {
+    const { provider, minDQI, maxDQI } = req.query;
+
+    const connectionString = process.env.DATABASE_URL ||
+      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+
+    const client = new Client({
+      connectionString: connectionString,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    // Get all feeds with their dimension scores
+    let query = `
+      SELECT
+        df.id as feed_id,
+        df.provider_name,
+        df.service_type_id,
+        c.name as corridor_name,
+        vr.run_name,
+        qs.dqi,
+        qs.letter_grade,
+        qs.acc_score,
+        qs.cov_score,
+        qs.tim_score,
+        qs.std_score,
+        qs.gov_score
+      FROM data_feeds df
+      JOIN validation_runs vr ON df.id = vr.data_feed_id
+      JOIN quality_scores qs ON vr.id = qs.validation_run_id
+      JOIN corridors c ON df.corridor_id = c.id
+      WHERE df.is_active = true
+    `;
+
+    const params = [];
+
+    if (provider) {
+      query += ` AND df.provider_name ILIKE $${params.length + 1}`;
+      params.push(`%${provider}%`);
+    }
+
+    if (minDQI) {
+      query += ` AND qs.dqi >= $${params.length + 1}`;
+      params.push(parseFloat(minDQI));
+    }
+
+    if (maxDQI) {
+      query += ` AND qs.dqi <= $${params.length + 1}`;
+      params.push(parseFloat(maxDQI));
+    }
+
+    query += ` ORDER BY qs.dqi ASC, df.provider_name`;
+
+    const result = await client.query(query, params);
+    await client.end();
+
+    // Analyze gaps for each feed
+    const TARGET_GRADE_A = 90; // A- threshold
+    const TARGET_EXCELLENT = 95; // Near-perfect score
+
+    const feedGaps = result.rows.map(feed => {
+      const gaps = [];
+      const dimensions = [
+        { name: 'accuracy', score: feed.acc_score, field: 'Data Accuracy', recommendation: 'Improve spatial/temporal accuracy through better collection methods or validation against ground truth' },
+        { name: 'coverage', score: feed.cov_score, field: 'Geographic/Temporal Coverage', recommendation: 'Expand coverage area or increase temporal resolution/frequency' },
+        { name: 'timeliness', score: feed.tim_score, field: 'Data Timeliness', recommendation: 'Reduce latency between data collection and publication; increase update frequency' },
+        { name: 'standards', score: feed.std_score, field: 'Standards Compliance', recommendation: 'Adopt TMDD, WZDx, GTFS, or other relevant standards; improve metadata completeness' },
+        { name: 'governance', score: feed.gov_score, field: 'Data Governance', recommendation: 'Add clear data license, usage terms, SLAs, support contacts, and documentation' }
+      ];
+
+      // Find weakest dimensions
+      dimensions.forEach(dim => {
+        if (dim.score < TARGET_GRADE_A) {
+          const gapToA = TARGET_GRADE_A - dim.score;
+          const potentialIncrease = gapToA * 0.2; // Each dimension is ~20% of overall DQI
+
+          gaps.push({
+            dimension: dim.name,
+            field: dim.field,
+            currentScore: dim.score,
+            targetScore: TARGET_GRADE_A,
+            gap: gapToA,
+            potentialDQIIncrease: Math.round(potentialIncrease * 10) / 10,
+            recommendation: dim.recommendation,
+            priority: dim.score < 80 ? 'high' : dim.score < 85 ? 'medium' : 'low'
+          });
+        }
+      });
+
+      // Sort gaps by potential impact (largest gaps first)
+      gaps.sort((a, b) => b.gap - a.gap);
+
+      // Calculate max potential DQI if all gaps closed
+      const maxPotentialDQI = Math.min(100, feed.dqi + gaps.reduce((sum, g) => sum + g.potentialDQIIncrease, 0));
+      const nextGradeThreshold = feed.dqi < 90 ? 90 : feed.dqi < 93 ? 93 : feed.dqi < 97 ? 97 : 100;
+      const pointsToNextGrade = Math.max(0, nextGradeThreshold - feed.dqi);
+
+      return {
+        feed_id: feed.feed_id,
+        provider_name: feed.provider_name,
+        service_type: feed.service_type_id,
+        corridor_name: feed.corridor_name,
+        current_dqi: feed.dqi,
+        current_grade: feed.letter_grade,
+        max_potential_dqi: maxPotentialDQI,
+        points_to_next_grade: pointsToNextGrade,
+        next_grade_threshold: nextGradeThreshold,
+        gaps: gaps,
+        top_priority_action: gaps[0]?.field || 'All dimensions meet target'
+      };
+    });
+
+    res.json({
+      success: true,
+      total_feeds: feedGaps.length,
+      avg_current_dqi: (result.rows.reduce((sum, f) => sum + f.dqi, 0) / result.rows.length).toFixed(1),
+      feeds: feedGaps
+    });
+
+  } catch (error) {
+    console.error('Error fetching gap analysis:', error);
+    res.status(500).json({
+      error: 'Failed to fetch gap analysis',
+      details: error.message
+    });
+  }
+});
+
 // Get quality scores for a specific corridor (all services)
 app.get('/api/data-quality/corridor/:corridorId', async (req, res) => {
   try {
