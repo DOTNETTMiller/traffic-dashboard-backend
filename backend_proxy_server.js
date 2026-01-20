@@ -11577,6 +11577,65 @@ app.post('/api/data-quality/populate-geometries', async (req, res) => {
   }
 });
 
+// Check corridor geometry status
+app.get('/api/data-quality/check-geometries', async (req, res) => {
+  const { Client } = require('pg');
+
+  try {
+    const connectionString = process.env.DATABASE_URL ||
+      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+
+    const client = new Client({
+      connectionString: connectionString,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    // Check corridors table
+    const corridorsResult = await client.query(`
+      SELECT id, name,
+             geometry IS NOT NULL as has_geometry,
+             bounds IS NOT NULL as has_bounds,
+             CASE
+               WHEN geometry IS NOT NULL THEN jsonb_array_length(geometry->'coordinates')
+               ELSE NULL
+             END as coord_count
+      FROM corridors
+      ORDER BY id
+    `);
+
+    // Check VIEW
+    const viewResult = await client.query(`
+      SELECT DISTINCT corridor_id, corridor_name,
+             geometry IS NOT NULL as has_geometry,
+             bounds IS NOT NULL as has_bounds
+      FROM corridor_service_quality_latest
+      ORDER BY corridor_id
+    `);
+
+    await client.end();
+
+    res.json({
+      corridors_table: corridorsResult.rows,
+      view: viewResult.rows,
+      summary: {
+        total_corridors: corridorsResult.rows.length,
+        with_geometry: corridorsResult.rows.filter(r => r.has_geometry).length,
+        without_geometry: corridorsResult.rows.filter(r => !r.has_geometry).length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error checking geometries:', error);
+    res.status(500).json({
+      error: 'Failed to check geometries',
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
 // Get field-level gap analysis for data feeds
 // Shows vendors exactly what dimensions need improvement and potential DQI increase
 app.get('/api/data-quality/gap-analysis', async (req, res) => {
