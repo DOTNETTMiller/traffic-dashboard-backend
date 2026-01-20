@@ -13420,7 +13420,16 @@ app.post('/api/data-quality/migrate', async (req, res) => {
     await client.query(geometrySQL);
     console.log('✅ Geometry columns added');
 
-    // Step 4: Verify data
+    // Step 4: Insert sample geometries for demonstration
+    console.log('📍 Inserting sample corridor geometries...');
+    const sampleGeometriesSQL = fs.readFileSync(
+      path.join(__dirname, 'migrations/insert_sample_geometries_pg.sql'),
+      'utf8'
+    );
+    await client.query(sampleGeometriesSQL);
+    console.log('✅ Sample geometries inserted');
+
+    // Step 5: Verify data
     console.log('🔍 Verifying data...');
     const corridorCount = await client.query('SELECT COUNT(*) as count FROM corridors');
     const feedCount = await client.query('SELECT COUNT(*) as count FROM data_feeds');
