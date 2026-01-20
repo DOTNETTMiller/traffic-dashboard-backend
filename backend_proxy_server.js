@@ -11458,6 +11458,70 @@ app.post('/api/data-quality/populate-geometries', async (req, res) => {
       }
     };
 
+    // Douglas-Peucker line simplification algorithm
+    function simplifyLineString(coords, tolerance) {
+      if (coords.length <= 2) return coords;
+
+      function perpendicularDistance(point, lineStart, lineEnd) {
+        const [x, y] = point;
+        const [x1, y1] = lineStart;
+        const [x2, y2] = lineEnd;
+
+        const A = x - x1;
+        const B = y - y1;
+        const C = x2 - x1;
+        const D = y2 - y1;
+
+        const dot = A * C + B * D;
+        const lenSq = C * C + D * D;
+        let param = -1;
+
+        if (lenSq !== 0) param = dot / lenSq;
+
+        let xx, yy;
+
+        if (param < 0) {
+          xx = x1;
+          yy = y1;
+        } else if (param > 1) {
+          xx = x2;
+          yy = y2;
+        } else {
+          xx = x1 + param * C;
+          yy = y1 + param * D;
+        }
+
+        const dx = x - xx;
+        const dy = y - yy;
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+
+      function douglasPeucker(coords, tolerance) {
+        if (coords.length <= 2) return coords;
+
+        let maxDistance = 0;
+        let index = 0;
+
+        for (let i = 1; i < coords.length - 1; i++) {
+          const distance = perpendicularDistance(coords[i], coords[0], coords[coords.length - 1]);
+          if (distance > maxDistance) {
+            maxDistance = distance;
+            index = i;
+          }
+        }
+
+        if (maxDistance > tolerance) {
+          const left = douglasPeucker(coords.slice(0, index + 1), tolerance);
+          const right = douglasPeucker(coords.slice(index), tolerance);
+          return left.slice(0, -1).concat(right);
+        } else {
+          return [coords[0], coords[coords.length - 1]];
+        }
+      }
+
+      return douglasPeucker(coords, tolerance);
+    }
+
     async function fetchOSMGeometry(query) {
       const overpassUrl = 'https://overpass-api.de/api/interpreter';
       const overpassQuery = `[out:json][timeout:60];(${query});out geom;`;
@@ -11501,15 +11565,19 @@ app.post('/api/data-quality/populate-geometries', async (req, res) => {
         return coord[0] !== prev[0] || coord[1] !== prev[1];
       });
 
-      // Create GeoJSON LineString
+      // Simplify geometry using Douglas-Peucker algorithm
+      // Tolerance of 0.001 degrees (~100m) maintains accuracy while reducing points
+      const simplifiedCoords = simplifyLineString(dedupedCoords, 0.001);
+
+      // Create GeoJSON LineString with simplified coordinates
       const geometry = {
         type: 'LineString',
-        coordinates: dedupedCoords
+        coordinates: simplifiedCoords
       };
 
       // Calculate bounding box
-      const lons = dedupedCoords.map(c => c[0]);
-      const lats = dedupedCoords.map(c => c[1]);
+      const lons = simplifiedCoords.map(c => c[0]);
+      const lats = simplifiedCoords.map(c => c[1]);
 
       const bounds = {
         west: Math.min(...lons),
@@ -11518,7 +11586,12 @@ app.post('/api/data-quality/populate-geometries', async (req, res) => {
         north: Math.max(...lats)
       };
 
-      return { geometry, bounds, pointCount: dedupedCoords.length };
+      return {
+        geometry,
+        bounds,
+        pointCount: simplifiedCoords.length,
+        originalPointCount: dedupedCoords.length
+      };
     }
 
     const results = [];
@@ -11539,11 +11612,11 @@ app.post('/api/data-quality/populate-geometries', async (req, res) => {
           continue;
         }
 
-        // Update database
+        // Update corridors table (not the VIEW)
         await client.query(
-          `UPDATE corridor_service_quality_latest
+          `UPDATE corridors
            SET geometry = $1::jsonb, bounds = $2::jsonb
-           WHERE corridor_id = $3`,
+           WHERE id = $3`,
           [JSON.stringify(result.geometry), JSON.stringify(result.bounds), corridorId]
         );
 
@@ -11551,7 +11624,9 @@ app.post('/api/data-quality/populate-geometries', async (req, res) => {
           corridor_id: corridorId,
           status: 'success',
           description: config.description,
-          point_count: result.pointCount
+          point_count: result.pointCount,
+          original_point_count: result.originalPointCount,
+          simplification_ratio: `${Math.round((1 - result.pointCount / result.originalPointCount) * 100)}%`
         });
         successCount++;
 
