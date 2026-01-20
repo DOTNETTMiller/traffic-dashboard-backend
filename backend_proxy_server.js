@@ -25081,12 +25081,12 @@ app.get('/api/community/gaps', async (req, res) => {
   }
 });
 
-// Fix fragmented TETC corridor geometries
+// Fix fragmented TETC corridor geometries by sorting coordinates geographically
 app.post('/api/data-quality/fix-corridor-geometries', async (req, res) => {
   const { Client } = require('pg');
 
   try {
-    console.log('🔧 Starting corridor geometry simplification...');
+    console.log('🔧 Starting corridor geometry fix (sorting + simplification)...');
 
     const client = new Client({
       connectionString: process.env.DATABASE_URL,
@@ -25105,13 +25105,59 @@ app.post('/api/data-quality/fix-corridor-geometries', async (req, res) => {
     let fixedCount = 0;
     const details = [];
 
+    // Helper: Calculate distance between two points (Haversine formula)
+    function distance(coord1, coord2) {
+      const [lon1, lat1] = coord1;
+      const [lon2, lat2] = coord2;
+      const R = 6371; // Earth's radius in km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    // Helper: Sort coordinates along corridor using nearest-neighbor
+    function sortCoordinates(coords) {
+      if (coords.length <= 2) return coords;
+
+      const sorted = [coords[0]];
+      const remaining = coords.slice(1);
+
+      while (remaining.length > 0) {
+        const current = sorted[sorted.length - 1];
+        let nearestIdx = 0;
+        let nearestDist = distance(current, remaining[0]);
+
+        for (let i = 1; i < remaining.length; i++) {
+          const dist = distance(current, remaining[i]);
+          if (dist < nearestDist) {
+            nearestDist = dist;
+            nearestIdx = i;
+          }
+        }
+
+        sorted.push(remaining[nearestIdx]);
+        remaining.splice(nearestIdx, 1);
+      }
+
+      return sorted;
+    }
+
     for (const corridor of corridorsToFix.rows) {
       const coords = corridor.geometry.coordinates;
-      if (coords && coords.length > 50) {
-        // Keep every 3rd point to reduce density (plus first and last)
-        const simplified = coords.filter((_, index) =>
-          index % 3 === 0 || index === 0 || index === coords.length - 1
-        );
+      if (coords && coords.length > 10) {
+        // Step 1: Sort coordinates to follow corridor path
+        const sortedCoords = sortCoordinates(coords);
+
+        // Step 2: Simplify by keeping every 3rd point (for corridors with many points)
+        const simplified = sortedCoords.length > 50
+          ? sortedCoords.filter((_, index) =>
+              index % 3 === 0 || index === 0 || index === sortedCoords.length - 1
+            )
+          : sortedCoords;
 
         const newGeometry = {
           type: 'LineString',
@@ -25127,11 +25173,12 @@ app.post('/api/data-quality/fix-corridor-geometries', async (req, res) => {
         details.push({
           name: corridor.name,
           before: coords.length,
+          sorted: sortedCoords.length,
           after: simplified.length,
           reduction: ((1 - simplified.length / coords.length) * 100).toFixed(1) + '%'
         });
 
-        console.log(`   ✓ ${corridor.name}: ${coords.length} → ${simplified.length} points`);
+        console.log(`   ✓ ${corridor.name}: ${coords.length} → ${sortedCoords.length} (sorted) → ${simplified.length} points`);
       }
     }
 
@@ -25139,7 +25186,7 @@ app.post('/api/data-quality/fix-corridor-geometries', async (req, res) => {
 
     res.json({
       success: true,
-      message: `Simplified ${fixedCount} corridor geometries`,
+      message: `Fixed ${fixedCount} corridor geometries (sorted + simplified)`,
       fixed: fixedCount,
       total: corridorsToFix.rows.length,
       details
