@@ -25081,6 +25081,81 @@ app.get('/api/community/gaps', async (req, res) => {
   }
 });
 
+// Fix fragmented TETC corridor geometries
+app.post('/api/data-quality/fix-corridor-geometries', async (req, res) => {
+  const { Client } = require('pg');
+
+  try {
+    console.log('🔧 Starting corridor geometry simplification...');
+
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    // Get all corridors with geometry
+    const corridorsToFix = await client.query(`
+      SELECT id, name, geometry
+      FROM corridors
+      WHERE geometry IS NOT NULL
+    `);
+
+    let fixedCount = 0;
+    const details = [];
+
+    for (const corridor of corridorsToFix.rows) {
+      const coords = corridor.geometry.coordinates;
+      if (coords && coords.length > 50) {
+        // Keep every 3rd point to reduce density (plus first and last)
+        const simplified = coords.filter((_, index) =>
+          index % 3 === 0 || index === 0 || index === coords.length - 1
+        );
+
+        const newGeometry = {
+          type: 'LineString',
+          coordinates: simplified
+        };
+
+        await client.query(
+          `UPDATE corridors SET geometry = $1::jsonb WHERE id = $2`,
+          [JSON.stringify(newGeometry), corridor.id]
+        );
+
+        fixedCount++;
+        details.push({
+          name: corridor.name,
+          before: coords.length,
+          after: simplified.length,
+          reduction: ((1 - simplified.length / coords.length) * 100).toFixed(1) + '%'
+        });
+
+        console.log(`   ✓ ${corridor.name}: ${coords.length} → ${simplified.length} points`);
+      }
+    }
+
+    await client.end();
+
+    res.json({
+      success: true,
+      message: `Simplified ${fixedCount} corridor geometries`,
+      fixed: fixedCount,
+      total: corridorsToFix.rows.length,
+      details
+    });
+
+    console.log(`✅ Fixed ${fixedCount} corridor geometries`);
+
+  } catch (error) {
+    console.error('❌ Error fixing corridor geometries:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // ============================================================================
 // STATIC FILE SERVING - Serve built frontend from backend (temporary solution)
 // ============================================================================
