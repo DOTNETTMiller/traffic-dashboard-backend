@@ -408,7 +408,7 @@ const TETCCorridorsLayer = ({ events = [] }) => {
                         ⚠️ Coverage Gap Detected
                       </div>
                       <div style={{ fontSize: '12px', color: '#991b1b' }}>
-                        High event activity ({(eventDensity || 0).toFixed(1)} events/100mi) but
+                        High event activity ({Number(eventDensity || 0).toFixed(1)} events/100mi) but
                         below-target vendor quality (DQI {corridor.avg_dqi != null ? Number(corridor.avg_dqi || 0).toFixed(0) : 'N/A'}).
                         Consider additional vendor data sources.
                       </div>
@@ -455,7 +455,7 @@ const TETCCorridorsLayer = ({ events = [] }) => {
                       <div style={{ marginBottom: '4px', color: '#6b7280', fontWeight: '500' }}>
                         Event Density
                       </div>
-                      {(eventDensity || 0).toFixed(1)} events per 100 miles
+                      {Number(eventDensity || 0).toFixed(1)} events per 100 miles
                     </div>
                   )}
                 </div>
