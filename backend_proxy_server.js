@@ -11408,8 +11408,10 @@ app.get('/api/data-quality/corridors', async (req, res) => {
 });
 
 // Populate TETC corridor geometries from OpenStreetMap
+// Optional body parameter: corridor_id - if provided, only process that corridor
 app.post('/api/data-quality/populate-geometries', async (req, res) => {
   const { Client } = require('pg');
+  const { corridor_id } = req.body || {};
 
   try {
     const connectionString = process.env.DATABASE_URL ||
@@ -11592,11 +11594,27 @@ app.post('/api/data-quality/populate-geometries', async (req, res) => {
       };
     }
 
+    // Filter corridors if specific corridor_id requested
+    const corridorsToProcess = corridor_id
+      ? (CORRIDOR_OSM_QUERIES[corridor_id]
+          ? { [corridor_id]: CORRIDOR_OSM_QUERIES[corridor_id] }
+          : {})
+      : CORRIDOR_OSM_QUERIES;
+
+    if (corridor_id && !CORRIDOR_OSM_QUERIES[corridor_id]) {
+      await client.end();
+      return res.status(400).json({
+        success: false,
+        error: `Invalid corridor_id: ${corridor_id}`,
+        available_corridors: Object.keys(CORRIDOR_OSM_QUERIES)
+      });
+    }
+
     const results = [];
     let successCount = 0;
     let failCount = 0;
 
-    for (const [corridorId, config] of Object.entries(CORRIDOR_OSM_QUERIES)) {
+    for (const [corridorId, config] of Object.entries(corridorsToProcess)) {
       try {
         const result = await fetchOSMGeometry(config.query);
 
