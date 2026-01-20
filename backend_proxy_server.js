@@ -13411,7 +13411,16 @@ app.post('/api/data-quality/migrate', async (req, res) => {
     await client.query(tetcSQL);
     console.log('✅ TETC data migration applied');
 
-    // Step 3: Verify data
+    // Step 3: Add geometry columns
+    console.log('🗺️  Adding corridor geometry columns...');
+    const geometrySQL = fs.readFileSync(
+      path.join(__dirname, 'migrations/add_corridor_geometries_pg.sql'),
+      'utf8'
+    );
+    await client.query(geometrySQL);
+    console.log('✅ Geometry columns added');
+
+    // Step 4: Verify data
     console.log('🔍 Verifying data...');
     const corridorCount = await client.query('SELECT COUNT(*) as count FROM corridors');
     const feedCount = await client.query('SELECT COUNT(*) as count FROM data_feeds');
