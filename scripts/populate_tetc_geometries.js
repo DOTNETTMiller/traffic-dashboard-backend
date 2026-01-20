@@ -130,7 +130,7 @@ async function fetchOSMGeometry(query) {
 
   console.log(`   ✓ Found ${data.elements.length} OSM ways`);
 
-  // Combine all ways into a single LineString
+  // Collect all coordinates from all ways
   const allCoordinates = [];
 
   for (const element of data.elements) {
@@ -147,21 +147,13 @@ async function fetchOSMGeometry(query) {
     return null;
   }
 
-  // Remove consecutive duplicates
-  const dedupedCoords = allCoordinates.filter((coord, idx) => {
-    if (idx === 0) return true;
-    const prev = allCoordinates[idx - 1];
-    return coord[0] !== prev[0] || coord[1] !== prev[1];
-  });
+  // For now, just create a simple 2-point line from first to last coordinate
+  // This gives us straight corridors until we implement proper relation-based routing
+  const simplifiedCoords = allCoordinates.length > 1
+    ? [allCoordinates[0], allCoordinates[allCoordinates.length - 1]]
+    : allCoordinates;
 
-  console.log(`   ✓ Extracted ${dedupedCoords.length} coordinate points`);
-
-  // Simplify geometry using Douglas-Peucker algorithm
-  // Tolerance of 0.001 degrees (~100m) maintains accuracy while reducing points
-  const simplifiedCoords = simplifyLineString(dedupedCoords, 0.001);
-  const simplificationRatio = Math.round((1 - simplifiedCoords.length / dedupedCoords.length) * 100);
-
-  console.log(`   ✓ Simplified to ${simplifiedCoords.length} points (${simplificationRatio}% reduction)`);
+  console.log(`   ✓ Simplified to straight line: ${allCoordinates.length} → 2 points`);
 
   // Create GeoJSON LineString with simplified coordinates
   const geometry = {
