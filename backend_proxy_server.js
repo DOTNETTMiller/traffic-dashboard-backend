@@ -11395,6 +11395,188 @@ app.get('/api/data-quality/corridors', async (req, res) => {
   }
 });
 
+// Populate TETC corridor geometries from OpenStreetMap
+app.post('/api/data-quality/populate-geometries', async (req, res) => {
+  const { Client } = require('pg');
+
+  try {
+    const connectionString = process.env.DATABASE_URL ||
+      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+
+    const client = new Client({
+      connectionString: connectionString,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    // Map corridor IDs to OSM query parameters
+    const CORRIDOR_OSM_QUERIES = {
+      'I95_Eastern': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?95$"](37,-80,45,-66);',
+        description: 'I-95 Eastern Corridor (ME to FL)'
+      },
+      'I10_Southern': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?10$"](-90,25,-75,35);',
+        description: 'I-10 Southern Corridor (FL to TX)'
+      },
+      'I80_Northern': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?80$"](35,-125,43,-70);',
+        description: 'I-80 Northern Corridor (CA to NJ)'
+      },
+      'I5_West_Coast': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?5$"](32,-125,49,-120);',
+        description: 'I-5 West Coast (CA to WA)'
+      },
+      'I76_PA': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?76$"](39.7,-80.5,41.5,-74.5);',
+        description: 'I-76 Pennsylvania Turnpike'
+      },
+      'I70_Midwest': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?70$"](38,-105,40,-75);',
+        description: 'I-70 Midwest Corridor (UT to MD)'
+      },
+      'I90_Northern': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?90$"](41,-125,48,-70);',
+        description: 'I-90 Northern Corridor (WA to MA)'
+      },
+      'I35_Central': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?35$"](25,-100,49,-92);',
+        description: 'I-35 Central Corridor (TX to MN)'
+      }
+    };
+
+    async function fetchOSMGeometry(query) {
+      const overpassUrl = 'https://overpass-api.de/api/interpreter';
+      const overpassQuery = `[out:json][timeout:60];(${query});out geom;`;
+
+      const response = await fetch(overpassUrl, {
+        method: 'POST',
+        body: overpassQuery,
+        headers: { 'Content-Type': 'text/plain' }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Overpass API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.elements || data.elements.length === 0) {
+        return null;
+      }
+
+      // Combine all ways into a single LineString
+      const allCoordinates = [];
+
+      for (const element of data.elements) {
+        if (element.type === 'way' && element.geometry) {
+          for (const node of element.geometry) {
+            // OSM returns [lat, lon], we need [lon, lat] for GeoJSON
+            allCoordinates.push([node.lon, node.lat]);
+          }
+        }
+      }
+
+      if (allCoordinates.length === 0) {
+        return null;
+      }
+
+      // Remove consecutive duplicates
+      const dedupedCoords = allCoordinates.filter((coord, idx) => {
+        if (idx === 0) return true;
+        const prev = allCoordinates[idx - 1];
+        return coord[0] !== prev[0] || coord[1] !== prev[1];
+      });
+
+      // Create GeoJSON LineString
+      const geometry = {
+        type: 'LineString',
+        coordinates: dedupedCoords
+      };
+
+      // Calculate bounding box
+      const lons = dedupedCoords.map(c => c[0]);
+      const lats = dedupedCoords.map(c => c[1]);
+
+      const bounds = {
+        west: Math.min(...lons),
+        east: Math.max(...lons),
+        south: Math.min(...lats),
+        north: Math.max(...lats)
+      };
+
+      return { geometry, bounds, pointCount: dedupedCoords.length };
+    }
+
+    const results = [];
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const [corridorId, config] of Object.entries(CORRIDOR_OSM_QUERIES)) {
+      try {
+        const result = await fetchOSMGeometry(config.query);
+
+        if (!result) {
+          results.push({
+            corridor_id: corridorId,
+            status: 'no_data',
+            description: config.description
+          });
+          failCount++;
+          continue;
+        }
+
+        // Update database
+        await client.query(
+          `UPDATE corridor_service_quality_latest
+           SET geometry = $1::jsonb, bounds = $2::jsonb
+           WHERE corridor_id = $3`,
+          [JSON.stringify(result.geometry), JSON.stringify(result.bounds), corridorId]
+        );
+
+        results.push({
+          corridor_id: corridorId,
+          status: 'success',
+          description: config.description,
+          point_count: result.pointCount
+        });
+        successCount++;
+
+        // Rate limiting: wait 2 seconds between requests
+        if (Object.keys(CORRIDOR_OSM_QUERIES).indexOf(corridorId) < Object.keys(CORRIDOR_OSM_QUERIES).length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+
+      } catch (error) {
+        results.push({
+          corridor_id: corridorId,
+          status: 'error',
+          description: config.description,
+          error: error.message
+        });
+        failCount++;
+      }
+    }
+
+    await client.end();
+
+    res.json({
+      success: true,
+      message: `Populated ${successCount} corridors, ${failCount} failed`,
+      results: results
+    });
+
+  } catch (error) {
+    console.error('Error populating geometries:', error);
+    res.status(500).json({
+      error: 'Failed to populate geometries',
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
 // Get field-level gap analysis for data feeds
 // Shows vendors exactly what dimensions need improvement and potential DQI increase
 app.get('/api/data-quality/gap-analysis', async (req, res) => {
