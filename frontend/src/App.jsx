@@ -42,6 +42,7 @@ import CommunityContribution from './components/CommunityContribution';
 import VendorLeaderboard from './components/VendorLeaderboard';
 import StateQualityDashboard from './components/StateQualityDashboard';
 import PredictiveAnalyticsDashboard from './components/PredictiveAnalyticsDashboard';
+import AdvancedAnalyticsDashboard from './components/AdvancedAnalyticsDashboard';
 import EventConfidenceDashboard from './components/EventConfidenceDashboard';
 import ProcurementDashboard from './components/ProcurementDashboard';
 import AssetHealthDashboard from './components/AssetHealthDashboard';
@@ -2192,6 +2193,8 @@ function App() {
               <CoverageGapAnalysis />
             ) : view === 'community' ? (
               <CommunityContribution />
+            ) : view === 'advancedAnalytics' ? (
+              <AdvancedAnalyticsDashboard />
             ) : view === 'vendorLeaderboard' ? (
               <VendorLeaderboard />
             ) : view === 'stateQualityRankings' ? (
