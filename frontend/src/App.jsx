@@ -2054,7 +2054,7 @@ function App() {
               position: logoIntroComplete ? 'absolute' : 'fixed',
               top: logoIntroComplete ? '80px' : '50%',
               left: logoIntroComplete ? '20px' : '50%',
-              transform: logoIntroComplete ? 'none' : 'translate(-50%, -50%)',
+              transform: logoIntroComplete ? 'translate(0, 0)' : 'translate(-50%, -50%)',
               zIndex: logoIntroComplete ? 10000 : 20000,
               pointerEvents: 'none',
               transition: 'all 1.5s ease-in-out',
