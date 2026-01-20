@@ -209,7 +209,7 @@ export default function CorridorDataQuality() {
               fontWeight: '700',
               color: getDQIColor(summary.avgDQI)
             }}>
-              {summary.avgDQI.toFixed(1)}
+              {(summary.avgDQI || 0).toFixed(1)}
             </div>
           </div>
 
@@ -308,7 +308,7 @@ export default function CorridorDataQuality() {
               {corridorData.corridor.name}
             </h3>
             <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}>
-              {corridorData.services.length} services • Avg DQI: {corridorData.summary.avgDQI.toFixed(1)}
+              {corridorData.services.length} services • Avg DQI: {(corridorData.summary.avgDQI || 0).toFixed(1)}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
