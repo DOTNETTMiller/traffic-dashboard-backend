@@ -427,9 +427,9 @@ const TETCCorridorsLayer = ({ events = [] }) => {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <div style={{ fontSize: '13px', color: '#1f2937' }}>
-                          <strong>{corridor.min_dqi.toFixed(0)}</strong>
+                          <strong>{(corridor.min_dqi || 0).toFixed(0)}</strong>
                           <span style={{ color: '#9ca3af', margin: '0 4px' }}>to</span>
-                          <strong>{corridor.max_dqi.toFixed(0)}</strong>
+                          <strong>{(corridor.max_dqi || 0).toFixed(0)}</strong>
                         </div>
                         <div style={{
                           flex: 1,
