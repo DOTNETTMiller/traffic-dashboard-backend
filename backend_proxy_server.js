@@ -24621,6 +24621,467 @@ async function initVendorData() {
 }
 
 // ============================================================================
+// COMMUNITY CONTRIBUTION ENDPOINTS - Public service gap filling
+// ============================================================================
+
+// Submit a community contribution (missing state feed, data source, etc.)
+app.post('/api/community/contribute', async (req, res) => {
+  const { Client } = require('pg');
+
+  try {
+    const {
+      contribution_type,
+      state_code,
+      feed_url,
+      feed_name,
+      feed_description,
+      contact_email,
+      contact_name
+    } = req.body;
+
+    // Basic validation
+    if (!contribution_type) {
+      return res.status(400).json({
+        success: false,
+        error: 'contribution_type is required'
+      });
+    }
+
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    // Get IP address for tracking
+    const ipAddress = req.ip || req.connection.remoteAddress;
+
+    // Insert contribution
+    const result = await client.query(`
+      INSERT INTO community_contributions (
+        contribution_type,
+        state_code,
+        feed_url,
+        feed_name,
+        feed_description,
+        contact_email,
+        contact_name,
+        submitter_ip,
+        status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
+      RETURNING id, created_at
+    `, [
+      contribution_type,
+      state_code,
+      feed_url,
+      feed_name,
+      feed_description,
+      contact_email,
+      contact_name,
+      ipAddress
+    ]);
+
+    await client.end();
+
+    res.json({
+      success: true,
+      message: 'Thank you for your contribution! We will review it shortly.',
+      contribution_id: result.rows[0].id,
+      submitted_at: result.rows[0].created_at
+    });
+
+  } catch (error) {
+    console.error('Error recording contribution:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Vote on state priority (which states should be added next)
+app.post('/api/community/vote', async (req, res) => {
+  const { Client } = require('pg');
+
+  try {
+    const { state_code, corridor_id } = req.body;
+
+    if (!state_code) {
+      return res.status(400).json({
+        success: false,
+        error: 'state_code is required'
+      });
+    }
+
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    // Get IP address for duplicate prevention
+    const ipAddress = req.ip || req.connection.remoteAddress;
+
+    // Check if already voted for this state
+    const existing = await client.query(`
+      SELECT id FROM gap_priority_votes
+      WHERE state_code = $1 AND voter_ip = $2
+    `, [state_code, ipAddress]);
+
+    if (existing.rows.length > 0) {
+      // Already voted - remove vote (toggle)
+      await client.query(`
+        DELETE FROM gap_priority_votes
+        WHERE state_code = $1 AND voter_ip = $2
+      `, [state_code, ipAddress]);
+
+      // Decrement priority score
+      await client.query(`
+        UPDATE implementation_status
+        SET priority_score = GREATEST(0, priority_score - 1),
+            last_updated = NOW()
+        WHERE state_code = $1
+      `, [state_code]);
+
+      await client.end();
+
+      return res.json({
+        success: true,
+        action: 'removed',
+        message: 'Vote removed'
+      });
+    }
+
+    // Insert new vote
+    await client.query(`
+      INSERT INTO gap_priority_votes (state_code, corridor_id, voter_ip)
+      VALUES ($1, $2, $3)
+    `, [state_code, corridor_id, ipAddress]);
+
+    // Increment priority score
+    await client.query(`
+      UPDATE implementation_status
+      SET priority_score = priority_score + 1,
+          last_updated = NOW()
+      WHERE state_code = $1
+    `, [state_code]);
+
+    await client.end();
+
+    res.json({
+      success: true,
+      action: 'added',
+      message: 'Vote recorded'
+    });
+
+  } catch (error) {
+    console.error('Error recording vote:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get implementation status for all states
+app.get('/api/community/status', async (req, res) => {
+  const { Client } = require('pg');
+
+  try {
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    // Get all states with their status and vote counts
+    const result = await client.query(`
+      SELECT
+        s.state_code,
+        s.status,
+        s.priority_score,
+        s.last_updated,
+        s.notes,
+        COUNT(v.id) as vote_count
+      FROM implementation_status s
+      LEFT JOIN gap_priority_votes v ON s.state_code = v.state_code
+      GROUP BY s.state_code, s.status, s.priority_score, s.last_updated, s.notes
+      ORDER BY s.priority_score DESC, s.state_code ASC
+    `);
+
+    await client.end();
+
+    // Group by status
+    const byStatus = {
+      completed: [],
+      in_progress: [],
+      not_started: []
+    };
+
+    result.rows.forEach(row => {
+      byStatus[row.status].push({
+        state_code: row.state_code,
+        priority_score: row.priority_score,
+        vote_count: parseInt(row.vote_count),
+        last_updated: row.last_updated,
+        notes: row.notes
+      });
+    });
+
+    res.json({
+      success: true,
+      summary: {
+        total: result.rows.length,
+        completed: byStatus.completed.length,
+        in_progress: byStatus.in_progress.length,
+        not_started: byStatus.not_started.length
+      },
+      states: byStatus,
+      all_states: result.rows
+    });
+
+  } catch (error) {
+    console.error('Error fetching status:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get pending contributions (for admin review)
+app.get('/api/community/contributions', async (req, res) => {
+  const { Client } = require('pg');
+
+  try {
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    const result = await client.query(`
+      SELECT
+        id,
+        contribution_type,
+        state_code,
+        feed_url,
+        feed_name,
+        feed_description,
+        contact_email,
+        contact_name,
+        status,
+        created_at,
+        reviewed_at,
+        admin_notes
+      FROM community_contributions
+      ORDER BY created_at DESC
+      LIMIT 100
+    `);
+
+    await client.end();
+
+    res.json({
+      success: true,
+      contributions: result.rows,
+      total: result.rows.length
+    });
+
+  } catch (error) {
+    console.error('Error fetching contributions:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Create community contribution tables (one-time setup)
+app.post('/api/community/migrate', async (req, res) => {
+  const { Client } = require('pg');
+
+  try {
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    console.log('Creating community contributions tables...');
+
+    // Community contributions table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS community_contributions (
+        id SERIAL PRIMARY KEY,
+        contribution_type TEXT NOT NULL,
+        state_code TEXT,
+        feed_url TEXT,
+        feed_name TEXT,
+        feed_description TEXT,
+        contact_email TEXT,
+        contact_name TEXT,
+        submitter_ip TEXT,
+        status TEXT DEFAULT 'pending',
+        admin_notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        reviewed_at TIMESTAMP,
+        reviewed_by TEXT
+      )
+    `);
+
+    // Coverage gap votes table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS gap_priority_votes (
+        id SERIAL PRIMARY KEY,
+        state_code TEXT NOT NULL,
+        corridor_id TEXT,
+        voter_ip TEXT NOT NULL,
+        vote_weight INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(state_code, voter_ip)
+      )
+    `);
+
+    // Implementation status tracking
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS implementation_status (
+        id SERIAL PRIMARY KEY,
+        state_code TEXT NOT NULL UNIQUE,
+        status TEXT DEFAULT 'not_started',
+        priority_score INTEGER DEFAULT 0,
+        last_updated TIMESTAMP DEFAULT NOW(),
+        notes TEXT
+      )
+    `);
+
+    // Insert initial status for all 50 states
+    const states = [
+      'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+      'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+      'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+      'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+      'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
+    ];
+
+    // Mark states with existing coverage as completed
+    const completedStates = ['AZ', 'CA', 'FL', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY',
+      'MD', 'MA', 'MN', 'NE', 'NV', 'NJ', 'NY', 'NC', 'OH', 'OK', 'TX', 'UT', 'WI'];
+
+    for (const state of states) {
+      const status = completedStates.includes(state) ? 'completed' : 'not_started';
+      const notes = completedStates.includes(state)
+        ? 'Live data available'
+        : 'Awaiting community contribution';
+
+      await client.query(`
+        INSERT INTO implementation_status (state_code, status, notes)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (state_code) DO NOTHING
+      `, [state, status, notes]);
+    }
+
+    await client.end();
+
+    res.json({
+      success: true,
+      message: 'Community contribution tables created successfully',
+      tables: [
+        'community_contributions',
+        'gap_priority_votes',
+        'implementation_status'
+      ],
+      states_initialized: states.length
+    });
+
+  } catch (error) {
+    console.error('Error creating tables:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get coverage gaps (missing states with priority)
+app.get('/api/community/gaps', async (req, res) => {
+  const { Client } = require('pg');
+
+  try {
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    // Get states that are not started or in progress, with vote counts
+    const result = await client.query(`
+      SELECT
+        s.state_code,
+        s.status,
+        s.priority_score,
+        s.notes,
+        COUNT(v.id) as vote_count
+      FROM implementation_status s
+      LEFT JOIN gap_priority_votes v ON s.state_code = v.state_code
+      WHERE s.status IN ('not_started', 'in_progress')
+      GROUP BY s.state_code, s.status, s.priority_score, s.notes
+      ORDER BY s.priority_score DESC, vote_count DESC, s.state_code ASC
+    `);
+
+    await client.end();
+
+    // State names mapping
+    const stateNames = {
+      'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas',
+      'CA': 'California', 'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware',
+      'FL': 'Florida', 'GA': 'Georgia', 'HI': 'Hawaii', 'ID': 'Idaho',
+      'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa', 'KS': 'Kansas',
+      'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine', 'MD': 'Maryland',
+      'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota', 'MS': 'Mississippi',
+      'MO': 'Missouri', 'MT': 'Montana', 'NE': 'Nebraska', 'NV': 'Nevada',
+      'NH': 'New Hampshire', 'NJ': 'New Jersey', 'NM': 'New Mexico', 'NY': 'New York',
+      'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio', 'OK': 'Oklahoma',
+      'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island', 'SC': 'South Carolina',
+      'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas', 'UT': 'Utah',
+      'VT': 'Vermont', 'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia',
+      'WI': 'Wisconsin', 'WY': 'Wyoming'
+    };
+
+    const gaps = result.rows.map(row => ({
+      state_code: row.state_code,
+      state_name: stateNames[row.state_code] || row.state_code,
+      status: row.status,
+      priority_score: row.priority_score,
+      vote_count: parseInt(row.vote_count),
+      notes: row.notes
+    }));
+
+    res.json({
+      success: true,
+      gaps,
+      total: gaps.length,
+      summary: {
+        not_started: gaps.filter(g => g.status === 'not_started').length,
+        in_progress: gaps.filter(g => g.status === 'in_progress').length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching gaps:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
 // STATIC FILE SERVING - Serve built frontend from backend (temporary solution)
 // ============================================================================
 // Serve static files from the built frontend
