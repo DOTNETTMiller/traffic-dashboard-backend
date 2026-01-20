@@ -266,7 +266,7 @@ const TETCCorridorsLayer = ({ events = [] }) => {
                             color: '#1f2937',
                             lineHeight: 1.2
                           }}>
-                            {gapData.current_state.avg_dqi?.toFixed(0) || 'N/A'}
+                            {gapData.current_state.avg_dqi != null ? Number(gapData.current_state.avg_dqi || 0).toFixed(0) : 'N/A'}
                           </div>
                           <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
                             Avg DQI
@@ -367,7 +367,7 @@ const TETCCorridorsLayer = ({ events = [] }) => {
                             color: '#1f2937',
                             lineHeight: 1.2
                           }}>
-                            {corridor.avg_dqi?.toFixed(1) || 'N/A'}
+                            {corridor.avg_dqi != null ? Number(corridor.avg_dqi || 0).toFixed(1) : 'N/A'}
                           </div>
                           <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
                             Avg DQI Score
@@ -409,7 +409,7 @@ const TETCCorridorsLayer = ({ events = [] }) => {
                       </div>
                       <div style={{ fontSize: '12px', color: '#991b1b' }}>
                         High event activity ({(eventDensity || 0).toFixed(1)} events/100mi) but
-                        below-target vendor quality (DQI {corridor.avg_dqi?.toFixed(0)}).
+                        below-target vendor quality (DQI {corridor.avg_dqi != null ? Number(corridor.avg_dqi || 0).toFixed(0) : 'N/A'}).
                         Consider additional vendor data sources.
                       </div>
                     </div>
