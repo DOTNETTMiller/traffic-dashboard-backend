@@ -11680,6 +11680,207 @@ app.post('/api/data-quality/populate-geometries', async (req, res) => {
   }
 });
 
+// Cron job endpoint: Process one corridor geometry at a time
+// Called by Railway cron every 10 minutes to gradually populate all corridor geometries
+app.post('/api/data-quality/cron/update-corridor-geometry', async (req, res) => {
+  const { Client } = require('pg');
+
+  try {
+    const connectionString = process.env.DATABASE_URL ||
+      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+
+    const client = new Client({
+      connectionString: connectionString,
+      ssl: { rejectUnauthorized: false }
+    });
+
+    await client.connect();
+
+    // Find one corridor that needs geometry update (NULL or has < 10 points)
+    const needsUpdateQuery = await client.query(`
+      SELECT id, name FROM corridors
+      WHERE geometry IS NULL
+         OR jsonb_array_length(geometry->'coordinates') < 10
+      ORDER BY id
+      LIMIT 1
+    `);
+
+    if (needsUpdateQuery.rows.length === 0) {
+      await client.end();
+      return res.json({
+        success: true,
+        message: 'All corridors have geometry',
+        action: 'none'
+      });
+    }
+
+    const corridor = needsUpdateQuery.rows[0];
+    const corridorId = corridor.id;
+
+    // Map corridor ID to OSM query (reuse from populate-geometries)
+    const CORRIDOR_OSM_QUERIES = {
+      'I95_CORRIDOR': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?95$"](37,-80,45,-66);',
+        description: 'I-95 Eastern Corridor (ME to FL)'
+      },
+      'I95_MD': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?95$"](38,-77,39.7,-75.5);',
+        description: 'I-95 Maryland'
+      },
+      'I95_VA': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?95$"](36.5,-78,39,-76.3);',
+        description: 'I-95 Virginia'
+      },
+      'I95_DE': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?95$"](38.4,-75.8,39.8,-75);',
+        description: 'I-95 Delaware'
+      },
+      'I95_NJ': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?95$"](38.9,-75.6,41.4,-73.9);',
+        description: 'I-95 New Jersey (NJ Turnpike)'
+      },
+      'I95_PA': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?95$"](39.7,-75.3,40.1,-74.9);',
+        description: 'I-95 Pennsylvania'
+      },
+      'I80_IA': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?80$"](41.3,-96.5,42.5,-90.3);',
+        description: 'I-80 Iowa Segment'
+      }
+    };
+
+    const config = CORRIDOR_OSM_QUERIES[corridorId];
+
+    if (!config) {
+      await client.end();
+      return res.json({
+        success: false,
+        message: `No OSM config for corridor ${corridorId}`,
+        corridor_id: corridorId
+      });
+    }
+
+    // Fetch OSM geometry (inline simplified version)
+    const overpassUrl = 'https://overpass-api.de/api/interpreter';
+    const overpassQuery = `[out:json][timeout:60];(${config.query});out geom;`;
+
+    const response = await fetch(overpassUrl, {
+      method: 'POST',
+      body: overpassQuery,
+      headers: { 'Content-Type': 'text/plain' }
+    });
+
+    if (!response.ok) {
+      await client.end();
+      return res.status(500).json({
+        success: false,
+        error: `Overpass API error: ${response.status}`,
+        corridor_id: corridorId
+      });
+    }
+
+    const data = await response.json();
+
+    if (!data.elements || data.elements.length === 0) {
+      await client.end();
+      return res.json({
+        success: false,
+        message: 'No OSM data found',
+        corridor_id: corridorId
+      });
+    }
+
+    // Extract coordinates
+    const allCoordinates = [];
+    for (const element of data.elements) {
+      if (element.type === 'way' && element.geometry) {
+        for (const node of element.geometry) {
+          allCoordinates.push([node.lon, node.lat]);
+        }
+      }
+    }
+
+    // Remove consecutive duplicates
+    const dedupedCoords = allCoordinates.filter((coord, idx) => {
+      if (idx === 0) return true;
+      const prev = allCoordinates[idx - 1];
+      return coord[0] !== prev[0] || coord[1] !== prev[1];
+    });
+
+    // Simplify using Douglas-Peucker (copy from existing function)
+    function simplifyLineString(coords, tolerance) {
+      if (coords.length <= 2) return coords;
+      function perpendicularDistance(point, lineStart, lineEnd) {
+        const [x, y] = point;
+        const [x1, y1] = lineStart;
+        const [x2, y2] = lineEnd;
+        const A = x - x1, B = y - y1, C = x2 - x1, D = y2 - y1;
+        const dot = A * C + B * D, lenSq = C * C + D * D;
+        let param = lenSq !== 0 ? dot / lenSq : -1;
+        let xx, yy;
+        if (param < 0) { xx = x1; yy = y1; }
+        else if (param > 1) { xx = x2; yy = y2; }
+        else { xx = x1 + param * C; yy = y1 + param * D; }
+        const dx = x - xx, dy = y - yy;
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+      function douglasPeucker(coords, tolerance) {
+        if (coords.length <= 2) return coords;
+        let maxDistance = 0, index = 0;
+        for (let i = 1; i < coords.length - 1; i++) {
+          const distance = perpendicularDistance(coords[i], coords[0], coords[coords.length - 1]);
+          if (distance > maxDistance) { maxDistance = distance; index = i; }
+        }
+        if (maxDistance > tolerance) {
+          const left = douglasPeucker(coords.slice(0, index + 1), tolerance);
+          const right = douglasPeucker(coords.slice(index), tolerance);
+          return left.slice(0, -1).concat(right);
+        }
+        return [coords[0], coords[coords.length - 1]];
+      }
+      return douglasPeucker(coords, tolerance);
+    }
+
+    const simplifiedCoords = simplifyLineString(dedupedCoords, 0.001);
+    const geometry = { type: 'LineString', coordinates: simplifiedCoords };
+
+    // Calculate bounds
+    const lons = simplifiedCoords.map(c => c[0]);
+    const lats = simplifiedCoords.map(c => c[1]);
+    const bounds = {
+      west: Math.min(...lons),
+      east: Math.max(...lons),
+      south: Math.min(...lats),
+      north: Math.max(...lats)
+    };
+
+    // Update corridor
+    await client.query(
+      `UPDATE corridors SET geometry = $1::jsonb, bounds = $2::jsonb WHERE id = $3`,
+      [JSON.stringify(geometry), JSON.stringify(bounds), corridorId]
+    );
+
+    await client.end();
+
+    res.json({
+      success: true,
+      corridor_id: corridorId,
+      corridor_name: corridor.name,
+      description: config.description,
+      point_count: simplifiedCoords.length,
+      original_point_count: dedupedCoords.length,
+      simplification_ratio: `${Math.round((1 - simplifiedCoords.length / dedupedCoords.length) * 100)}%`
+    });
+
+  } catch (error) {
+    console.error('Cron geometry update error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Check corridor geometry status
 app.get('/api/data-quality/check-geometries', async (req, res) => {
   const { Client } = require('pg');
