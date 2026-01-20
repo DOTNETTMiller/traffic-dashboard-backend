@@ -11423,38 +11423,36 @@ app.post('/api/data-quality/populate-geometries', async (req, res) => {
     await client.connect();
 
     // Map corridor IDs to OSM query parameters
+    // These IDs match the production database corridors table
+    // Skipping I76_PA as it already has detailed geometry (275 points)
     const CORRIDOR_OSM_QUERIES = {
-      'I95_Eastern': {
+      'I95_CORRIDOR': {
         query: 'way["highway"="motorway"]["ref"~"^I ?95$"](37,-80,45,-66);',
         description: 'I-95 Eastern Corridor (ME to FL)'
       },
-      'I10_Southern': {
-        query: 'way["highway"="motorway"]["ref"~"^I ?10$"](-90,25,-75,35);',
-        description: 'I-10 Southern Corridor (FL to TX)'
+      'I95_MD': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?95$"](38,-77,39.7,-75.5);',
+        description: 'I-95 Maryland'
       },
-      'I80_Northern': {
-        query: 'way["highway"="motorway"]["ref"~"^I ?80$"](35,-125,43,-70);',
-        description: 'I-80 Northern Corridor (CA to NJ)'
+      'I95_VA': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?95$"](36.5,-78,39,-76.3);',
+        description: 'I-95 Virginia'
       },
-      'I5_West_Coast': {
-        query: 'way["highway"="motorway"]["ref"~"^I ?5$"](32,-125,49,-120);',
-        description: 'I-5 West Coast (CA to WA)'
+      'I95_DE': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?95$"](38.4,-75.8,39.8,-75);',
+        description: 'I-95 Delaware'
       },
-      'I76_PA': {
-        query: 'way["highway"="motorway"]["ref"~"^I ?76$"](39.7,-80.5,41.5,-74.5);',
-        description: 'I-76 Pennsylvania Turnpike'
+      'I95_NJ': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?95$"](38.9,-75.6,41.4,-73.9);',
+        description: 'I-95 New Jersey (NJ Turnpike)'
       },
-      'I70_Midwest': {
-        query: 'way["highway"="motorway"]["ref"~"^I ?70$"](38,-105,40,-75);',
-        description: 'I-70 Midwest Corridor (UT to MD)'
+      'I95_PA': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?95$"](39.7,-75.3,40.1,-74.9);',
+        description: 'I-95 Pennsylvania'
       },
-      'I90_Northern': {
-        query: 'way["highway"="motorway"]["ref"~"^I ?90$"](41,-125,48,-70);',
-        description: 'I-90 Northern Corridor (WA to MA)'
-      },
-      'I35_Central': {
-        query: 'way["highway"="motorway"]["ref"~"^I ?35$"](25,-100,49,-92);',
-        description: 'I-35 Central Corridor (TX to MN)'
+      'I80_IA': {
+        query: 'way["highway"="motorway"]["ref"~"^I ?80$"](41.3,-96.5,42.5,-90.3);',
+        description: 'I-80 Iowa Segment'
       }
     };
 
