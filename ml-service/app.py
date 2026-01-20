@@ -360,5 +360,6 @@ async def root():
     }
 
 if __name__ == "__main__":
-    port = int(os.getenv("ML_SERVICE_PORT", 8001))
+    # Railway provides PORT env var, fall back to ML_SERVICE_PORT, then 8001
+    port = int(os.getenv("PORT", os.getenv("ML_SERVICE_PORT", 8001)))
     uvicorn.run(app, host="0.0.0.0", port=port)
