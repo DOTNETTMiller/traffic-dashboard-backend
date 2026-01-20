@@ -11347,12 +11347,14 @@ app.get('/api/data-quality/corridors', async (req, res) => {
 
     await client.connect();
 
-    // Get corridors with their average quality scores
+    // Get corridors with their average quality scores and geometry
     const query = `
       SELECT
         c.id,
         c.name,
         c.description,
+        c.geometry,
+        c.bounds,
         COUNT(DISTINCT df.id) as feed_count,
         ROUND(AVG(qs.dqi)::numeric, 1) as avg_dqi,
         ROUND(MIN(qs.dqi)::numeric, 1) as min_dqi,
@@ -11361,7 +11363,7 @@ app.get('/api/data-quality/corridors', async (req, res) => {
       LEFT JOIN data_feeds df ON c.id = df.corridor_id
       LEFT JOIN validation_runs vr ON df.id = vr.data_feed_id
       LEFT JOIN quality_scores qs ON vr.id = qs.validation_run_id
-      GROUP BY c.id, c.name, c.description
+      GROUP BY c.id, c.name, c.description, c.geometry, c.bounds
       HAVING COUNT(DISTINCT df.id) > 0
       ORDER BY c.name
     `;
@@ -11369,8 +11371,18 @@ app.get('/api/data-quality/corridors', async (req, res) => {
     const result = await client.query(query);
     await client.end();
 
-    // Add approximate geographic bounds for map visualization
+    // Use database geometry if available, otherwise fall back to hardcoded bounds
     const corridorsWithBounds = result.rows.map(corridor => {
+      // If corridor has geometry in database, use it
+      if (corridor.geometry && corridor.bounds) {
+        return {
+          ...corridor,
+          bounds: corridor.bounds,
+          geometry: corridor.geometry
+        };
+      }
+
+      // Fall back to hardcoded bounds for corridors without geometry
       const bounds = getCorridorBounds(corridor.id);
       return {
         ...corridor,
