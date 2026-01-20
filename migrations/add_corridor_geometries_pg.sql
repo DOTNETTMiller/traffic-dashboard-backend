@@ -7,8 +7,9 @@ ALTER TABLE corridors ADD COLUMN IF NOT EXISTS geometry JSONB;
 -- Add bounds column (bounding box for map viewport)
 ALTER TABLE corridors ADD COLUMN IF NOT EXISTS bounds JSONB;
 
--- Recreate the corridor_service_quality_latest view to include new columns
-CREATE OR REPLACE VIEW corridor_service_quality_latest AS
+-- Drop and recreate the corridor_service_quality_latest view to include new columns
+DROP VIEW IF EXISTS corridor_service_quality_latest;
+CREATE VIEW corridor_service_quality_latest AS
 SELECT
     c.id as corridor_id,
     c.name as corridor_name,
