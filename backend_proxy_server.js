@@ -11699,11 +11699,12 @@ app.post('/api/data-quality/cron/update-corridor-geometry', async (req, res) => 
     // List of corridors that have OSM configurations
     const configuredCorridorIds = ['I95_CORRIDOR', 'I95_MD', 'I95_VA', 'I95_DE', 'I95_NJ', 'I95_PA', 'I80_IA'];
 
-    // Find one corridor that needs geometry update (NULL or has < 10 points)
+    // Find one corridor that needs geometry update (NULL or has < 100 points)
     // Only select corridors that have OSM configs to avoid processing unconfigured corridors
+    // Threshold of 100 ensures even large corridors with incomplete data get updated
     const needsUpdateQuery = await client.query(`
       SELECT id, name FROM corridors
-      WHERE (geometry IS NULL OR jsonb_array_length(geometry->'coordinates') < 10)
+      WHERE (geometry IS NULL OR jsonb_array_length(geometry->'coordinates') < 100)
         AND id = ANY($1::text[])
       ORDER BY id
       LIMIT 1
