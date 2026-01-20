@@ -256,7 +256,7 @@ const CoverageGapAnalysis = () => {
               <div>
                 <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>AVG DQI</div>
                 <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#1f2937' }}>
-                  {corridor.current_state.avg_dqi?.toFixed(1) || 'N/A'}
+                  {corridor.current_state.avg_dqi != null ? Number(corridor.current_state.avg_dqi || 0).toFixed(1) : 'N/A'}
                 </div>
                 {corridor.current_state.dqi_range && (
                   <div style={{ fontSize: '11px', color: '#6b7280' }}>
