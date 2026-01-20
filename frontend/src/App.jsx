@@ -38,6 +38,7 @@ import TETCDataGrading from './components/TETCDataGrading';
 import VendorDQIComparison from './components/VendorDQIComparison';
 import VendorGapAnalysis from './components/VendorGapAnalysis';
 import CoverageGapAnalysis from './components/CoverageGapAnalysis';
+import CommunityContribution from './components/CommunityContribution';
 import VendorLeaderboard from './components/VendorLeaderboard';
 import StateQualityDashboard from './components/StateQualityDashboard';
 import PredictiveAnalyticsDashboard from './components/PredictiveAnalyticsDashboard';
@@ -2189,6 +2190,8 @@ function App() {
               <VendorGapAnalysis />
             ) : view === 'coverageGaps' ? (
               <CoverageGapAnalysis />
+            ) : view === 'community' ? (
+              <CommunityContribution />
             ) : view === 'vendorLeaderboard' ? (
               <VendorLeaderboard />
             ) : view === 'stateQualityRankings' ? (
