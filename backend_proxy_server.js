@@ -12024,11 +12024,10 @@ app.get('/api/data-quality/leaderboard', async (req, res) => {
     });
     await client.connect();
 
-    // Get all providers with aggregated metrics
+    // Get all providers with aggregated metrics (grouped by provider_name from data_feeds)
     const providersQuery = await client.query(`
       SELECT
-        p.id as provider_id,
-        p.name as provider_name,
+        df.provider_name,
         COUNT(DISTINCT df.id) as total_feeds,
         COUNT(DISTINCT df.corridor_id) as corridor_count,
         COUNT(DISTINCT df.service_type_id) as service_type_count,
@@ -12038,16 +12037,16 @@ app.get('/api/data-quality/leaderboard', async (req, res) => {
         STDDEV(qs.dqi) as dqi_stddev,
         COUNT(CASE WHEN qs.dqi >= 90 THEN 1 END) as a_grade_count,
         COUNT(CASE WHEN qs.dqi >= 80 THEN 1 END) as b_plus_count
-      FROM providers p
-      JOIN data_feeds df ON p.id = df.provider_id AND df.status = 'active'
+      FROM data_feeds df
       LEFT JOIN validation_runs vr ON df.id = vr.data_feed_id
       LEFT JOIN quality_scores qs ON vr.id = qs.validation_run_id
-      WHERE vr.id IN (
-        SELECT MAX(vr2.id)
-        FROM validation_runs vr2
-        WHERE vr2.data_feed_id = df.id
-      )
-      GROUP BY p.id, p.name
+      WHERE df.is_active = true
+        AND vr.id IN (
+          SELECT MAX(vr2.id)
+          FROM validation_runs vr2
+          WHERE vr2.data_feed_id = df.id
+        )
+      GROUP BY df.provider_name
       HAVING AVG(qs.dqi) IS NOT NULL
       ORDER BY avg_dqi DESC
     `);
@@ -12090,7 +12089,6 @@ app.get('/api/data-quality/leaderboard', async (req, res) => {
 
       return {
         rank,
-        provider_id: provider.provider_id,
         provider_name: provider.provider_name,
         avg_dqi: Math.round(provider.avg_dqi * 10) / 10,
         letter_grade: calculateLetterGrade(provider.avg_dqi),
