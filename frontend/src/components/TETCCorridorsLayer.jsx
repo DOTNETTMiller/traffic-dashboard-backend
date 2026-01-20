@@ -116,47 +116,10 @@ const TETCCorridorsLayer = ({ events = [] }) => {
     return eventDensity > 1.0 && avgDqi < 80;
   };
 
-  if (loading) {
-    console.log('Loading TETC corridors...');
-    return null;
-  }
-
-  if (error) {
-    console.error('TETC corridors error:', error);
-    return null;
-  }
-
-  // Map Legend Component
-  const MapLegend = () => {
-    useEffect(() => {
-      const legend = DomEvent.disableClickPropagation(
-        DomEvent.disableScrollPropagation(document.createElement('div'))
-      );
-      legend.className = 'leaflet-bar leaflet-control';
-      legend.style.background = 'white';
-      legend.style.padding = '10px';
-      legend.style.borderRadius = '4px';
-      legend.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
-
-      const container = map.getContainer();
-      container.appendChild(legend);
-      legend.style.position = 'absolute';
-      legend.style.top = '10px';
-      legend.style.right = '10px';
-      legend.style.zIndex = '1000';
-
-      return () => {
-        if (legend.parentNode) {
-          legend.parentNode.removeChild(legend);
-        }
-      };
-    }, []);
-
-    return null;
-  };
-
-  // Create toggle button once on mount
+  // Create toggle button once on mount (MUST be before early returns)
   useEffect(() => {
+    if (loading || error) return; // Don't create button while loading/error
+
     const button = document.createElement('div');
     button.className = 'leaflet-bar leaflet-control tetc-toggle-button';
     button.style.background = 'white';
@@ -188,9 +151,9 @@ const TETCCorridorsLayer = ({ events = [] }) => {
       }
       toggleButtonRef.current = null;
     };
-  }, []); // Empty array - only run once on mount
+  }, [loading, error]); // Re-run when loading/error changes
 
-  // Update button text when viewMode changes
+  // Update button text when viewMode changes (MUST be before early returns)
   useEffect(() => {
     if (toggleButtonRef.current) {
       toggleButtonRef.current.innerHTML = viewMode === 'dqi'
@@ -198,6 +161,16 @@ const TETCCorridorsLayer = ({ events = [] }) => {
         : '🎯 Show Data Quality';
     }
   }, [viewMode]); // Only depend on viewMode
+
+  if (loading) {
+    console.log('Loading TETC corridors...');
+    return null;
+  }
+
+  if (error) {
+    console.error('TETC corridors error:', error);
+    return null;
+  }
 
   return (
     <>
