@@ -15,9 +15,12 @@ const APIDocumentationViewer = () => {
   const fetchDocumentation = async () => {
     try {
       setLoading(true);
+      setError(null); // Clear previous errors
       setSearchTerm(''); // Clear search when switching docs
-      const endpoint = currentDoc === 'api' ? '/documentation' : '/documentation/roadmap';
+      const endpoint = currentDoc === 'api' ? '/api/documentation' : '/api/documentation/roadmap';
+      console.log('Fetching documentation from:', endpoint);
       const response = await api.get(endpoint);
+      console.log('Documentation response:', response.data);
 
       if (response.data.success) {
         setDocumentation(response.data.documentation);
@@ -26,7 +29,7 @@ const APIDocumentationViewer = () => {
       }
     } catch (err) {
       console.error('Error fetching documentation:', err);
-      setError(err.message);
+      setError(err.message || 'Failed to load documentation');
     } finally {
       setLoading(false);
     }
