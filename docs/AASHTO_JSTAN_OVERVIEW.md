@@ -8,18 +8,21 @@ The **DOT Corridor Communicator** serves as a **reference implementation** for A
 
 ---
 
-## What is AASHTO JSTAN?
+## What is AASHTO J-Stan?
 
-**JSTAN** = Joint Subcommittee on Data Standardization
+**J-Stan** = Joint Subcommittee on Data Standardization
 
-**Established**: February 2020 by AASHTO Strategic Management Committee
-**Chair**: Mike Bousliman, Montana DOT
-**Mission**: Champion and coordinate efficient information flow throughout the lifecycle of all assets through open data standards, data governance, and collaborative partnerships.
+**Established**: October 2019 (Administrative Resolution AR-1-19 approved by AASHTO Board of Directors)
+**Chair**: Trisha Stefanski, Minnesota DOT
+**Vice Chair**: Will Holmes, Kentucky Transportation Cabinet
+**Mission**: Champion and coordinate efficient information flow throughout the lifecycle of all assets and related information that comprise our transportation systems. This is achieved through open data standards, data governance, schema development, and collaborative public/private partnerships.
+
+**Purpose**: J-Stan is an internal, cross-committee, multi-discipline group within AASHTO that coordinates schema development, identifies gaps, resolves conflicts, and avoids duplication of efforts across multiple AASHTO committees.
 
 **Official Resources**:
 - Website: https://transportation.org/data/jstan/
-- Data Portal: https://data.transportation.org/jstan/
-- Contact: jstan@aashto.org
+- AASHTO ShareIT: https://shareit.transportation.org/
+- Parent Committee: Committee on Data Management and Analytics (CDMA)
 
 ---
 
