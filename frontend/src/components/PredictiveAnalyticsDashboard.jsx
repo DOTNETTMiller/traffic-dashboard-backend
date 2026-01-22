@@ -222,21 +222,31 @@ const PredictiveAnalyticsDashboard = () => {
             </h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
               <div>
-                <div style={{ fontSize: '12px', color: '#991b1b', marginBottom: '4px' }}>Total Economic Impact</div>
+                <div style={{ fontSize: '12px', color: '#991b1b', marginBottom: '4px' }}>Total Predictions</div>
                 <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc2626' }}>
-                  ${(incidentData.summary.total_economic_impact_usd / 1000).toFixed(0)}K
+                  {incidentData?.predictions?.length || 0}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: '#991b1b', marginBottom: '4px' }}>Avg Economic Impact</div>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc2626' }}>
+                  ${incidentData?.predictions?.length > 0
+                    ? ((incidentData.predictions.reduce((sum, p) => sum + (p.economic_impact_usd || 0), 0) / incidentData.predictions.length) / 1000).toFixed(0)
+                    : 0}K
                 </div>
               </div>
               <div>
                 <div style={{ fontSize: '12px', color: '#991b1b', marginBottom: '4px' }}>Avg Clearance Time</div>
                 <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc2626' }}>
-                  {incidentData.summary.avg_clearance_time_minutes} min
+                  {incidentData?.predictions?.length > 0
+                    ? Math.round(incidentData.predictions.reduce((sum, p) => sum + (p.predicted_clearance_minutes || 0), 0) / incidentData.predictions.length)
+                    : 0} min
                 </div>
               </div>
             </div>
           </div>
 
-          {incidentData.predictions.map((prediction, idx) => (
+          {(incidentData?.predictions || []).map((prediction, idx) => (
             <div
               key={idx}
               style={{
