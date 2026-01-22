@@ -252,7 +252,7 @@ const APIDocumentationViewer = () => {
           {/* Special Sections */}
           <div style={{ marginBottom: '20px' }}>
             <div style={{ fontSize: '12px', fontWeight: '600', color: '#6b7280', marginBottom: '8px', textTransform: 'uppercase' }}>
-              Platform Docs
+              PLATFORM DOCS
             </div>
             <button
               onClick={() => setCurrentDoc('api')}
@@ -267,10 +267,13 @@ const APIDocumentationViewer = () => {
                 borderRadius: '6px',
                 cursor: 'pointer',
                 marginBottom: '4px',
-                fontSize: '13px'
+                fontSize: '12px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.3px',
+                fontWeight: '500'
               }}
             >
-              📘 API Reference (291 endpoints)
+              📘 API REFERENCE (291 ENDPOINTS)
             </button>
             <button
               onClick={() => setCurrentDoc('roadmap')}
@@ -285,17 +288,20 @@ const APIDocumentationViewer = () => {
                 borderRadius: '6px',
                 cursor: 'pointer',
                 marginBottom: '4px',
-                fontSize: '13px'
+                fontSize: '12px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.3px',
+                fontWeight: '500'
               }}
             >
-              🗺️ Strategic Roadmap
+              🗺️ STRATEGIC ROADMAP
             </button>
           </div>
 
-          {/* All Documentation Files */}
+          {/* All Documentation Files - Organized by Category */}
           <div>
             <div style={{ fontSize: '12px', fontWeight: '600', color: '#6b7280', marginBottom: '8px', textTransform: 'uppercase' }}>
-              Guides & Resources ({documentList.length})
+              GUIDES & RESOURCES ({documentList.length})
             </div>
             {documentList.map(doc => (
               <button
@@ -315,11 +321,14 @@ const APIDocumentationViewer = () => {
                   fontSize: '12px',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.3px',
+                  fontWeight: '500'
                 }}
-                title={doc.title}
+                title={doc.title.toUpperCase()}
               >
-                {doc.title}
+                {doc.title.toUpperCase()}
               </button>
             ))}
           </div>

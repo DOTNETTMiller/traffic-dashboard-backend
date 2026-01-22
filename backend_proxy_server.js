@@ -3123,7 +3123,31 @@ app.get('/api/documentation/list', (req, res) => {
   }
 });
 
-// Get specific documentation file
+// IMPORTANT: Specific routes must come BEFORE generic :docName route
+// Get roadmap documentation (must be before /:docName route)
+app.get('/api/documentation/roadmap', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+
+  try {
+    const roadmapPath = path.join(__dirname, 'docs', 'NAPCORE_KILLER_ROADMAP.md');
+    const documentation = fs.readFileSync(roadmapPath, 'utf8');
+
+    res.json({
+      success: true,
+      documentation,
+      lastUpdated: '2026-01-19'
+    });
+  } catch (error) {
+    console.error('Error reading roadmap documentation:', error);
+    res.status(500).json({
+      error: 'Failed to load roadmap documentation',
+      details: error.message
+    });
+  }
+});
+
+// Get specific documentation file (generic route - must be last)
 app.get('/api/documentation/:docName', (req, res) => {
   const fs = require('fs');
   const path = require('path');
@@ -3151,28 +3175,6 @@ app.get('/api/documentation/:docName', (req, res) => {
     console.error('Error reading documentation:', error);
     res.status(500).json({
       error: 'Failed to load documentation',
-      details: error.message
-    });
-  }
-});
-
-app.get('/api/documentation/roadmap', (req, res) => {
-  const fs = require('fs');
-  const path = require('path');
-
-  try {
-    const roadmapPath = path.join(__dirname, 'docs', 'NAPCORE_KILLER_ROADMAP.md');
-    const documentation = fs.readFileSync(roadmapPath, 'utf8');
-
-    res.json({
-      success: true,
-      documentation,
-      lastUpdated: '2026-01-19'
-    });
-  } catch (error) {
-    console.error('Error reading roadmap documentation:', error);
-    res.status(500).json({
-      error: 'Failed to load roadmap documentation',
       details: error.message
     });
   }
