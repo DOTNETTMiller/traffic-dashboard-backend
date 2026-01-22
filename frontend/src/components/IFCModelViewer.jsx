@@ -124,22 +124,29 @@ const IFCModelViewer = ({ modelId, filename }) => {
         const ifcLoader = new IFCLoader();
         viewerRef.current.ifcLoader = ifcLoader;
 
-        // Setup web-ifc with multiple fallback paths for cross-platform compatibility
-        try {
-          // Try absolute URL first (works better on Windows)
-          const wasmPath = window.location.origin + '/wasm/';
-          console.log('Setting WASM path to:', wasmPath);
-          await ifcLoader.ifcManager.setWasmPath(wasmPath);
-          console.log('WASM path set successfully');
-        } catch (wasmErr) {
-          console.error('Failed to set WASM path:', wasmErr);
-          // Try relative path as fallback
+        // Setup web-ifc with cross-platform compatibility
+        // Try multiple path strategies in order
+        let wasmInitialized = false;
+        const pathsToTry = [
+          '/wasm/',  // Relative path (standard)
+          window.location.origin + '/wasm/',  // Absolute URL
+          './wasm/',  // Relative to current page
+        ];
+
+        console.log('Platform:', navigator.platform, 'User Agent:', navigator.userAgent);
+
+        for (let i = 0; i < pathsToTry.length && !wasmInitialized; i++) {
+          const wasmPath = pathsToTry[i];
           try {
-            await ifcLoader.ifcManager.setWasmPath('/wasm/');
-            console.log('WASM path set successfully (relative fallback)');
-          } catch (fallbackErr) {
-            console.error('Fallback WASM path also failed:', fallbackErr);
-            throw new Error('Failed to initialize WASM components. Please ensure web-ifc WASM files are accessible.');
+            console.log(`[Attempt ${i + 1}/${pathsToTry.length}] Setting WASM path to:`, wasmPath);
+            await ifcLoader.ifcManager.setWasmPath(wasmPath);
+            console.log('✓ WASM path set successfully:', wasmPath);
+            wasmInitialized = true;
+          } catch (wasmErr) {
+            console.warn(`✗ Failed to set WASM path (${wasmPath}):`, wasmErr);
+            if (i === pathsToTry.length - 1) {
+              throw new Error('Failed to initialize WASM components after trying all paths. Please ensure web-ifc WASM files are accessible.');
+            }
           }
         }
 
