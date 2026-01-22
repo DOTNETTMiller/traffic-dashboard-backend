@@ -846,16 +846,54 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                           <div style={{
                             display: 'flex',
                             alignItems: 'flex-end',
-                            gap: '2px',
-                            height: '60px',
-                            backgroundColor: 'white',
+                            gap: '3px',
+                            height: '80px',
+                            backgroundColor: '#f9fafb',
                             padding: '8px',
-                            borderRadius: '4px'
+                            paddingLeft: '32px',
+                            borderRadius: '6px',
+                            marginBottom: '8px',
+                            position: 'relative'
                           }}>
+                            {/* Y-axis labels */}
+                            <div style={{
+                              position: 'absolute',
+                              left: '2px',
+                              top: '8px',
+                              bottom: '8px',
+                              width: '28px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'space-between',
+                              fontSize: '8px',
+                              color: '#9ca3af',
+                              fontWeight: '500'
+                            }}>
+                              <span>100%</span>
+                              <span>50%</span>
+                              <span>0%</span>
+                            </div>
+
+                            {/* Grid lines */}
+                            <div style={{
+                              position: 'absolute',
+                              left: '32px',
+                              right: '8px',
+                              top: '8px',
+                              bottom: '8px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'space-between'
+                            }}>
+                              <div style={{ borderTop: '1px dashed #e5e7eb' }} />
+                              <div style={{ borderTop: '1px dashed #e5e7eb' }} />
+                            </div>
+
+                            {/* Bars */}
                             {facility.hourlyPredictions.map(({ hour, occupancyRate }) => {
                               const currentHour = new Date().getHours();
                               const isCurrentHour = hour === currentHour;
-                              const height = occupancyRate !== null ? occupancyRate * 100 : 0;
+                              const percentage = occupancyRate !== null ? occupancyRate * 100 : 0;
                               const color = occupancyRate === null ? '#e5e7eb' :
                                 occupancyRate > 0.8 ? '#ef4444' :
                                 occupancyRate > 0.6 ? '#f59e0b' :
@@ -869,21 +907,39 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'center',
-                                    gap: '2px'
+                                    justifyContent: 'flex-end',
+                                    height: '100%',
+                                    position: 'relative'
                                   }}
-                                  title={`${hour}:00 - ${Math.round(height)}% occupied`}
+                                  title={`${hour}:00 - ${Math.round(percentage)}% occupied${occupancyRate === null ? ' (no data)' : ''}`}
                                 >
                                   <div
                                     style={{
                                       width: '100%',
-                                      height: `${Math.max(height, 5)}%`,
+                                      height: `${Math.max(percentage, 2)}%`,
                                       backgroundColor: color,
                                       borderRadius: '2px 2px 0 0',
-                                      transition: 'all 0.3s ease',
-                                      opacity: isCurrentHour ? 1 : 0.7,
-                                      border: isCurrentHour ? '2px solid #3b82f6' : 'none'
+                                      transition: 'all 0.2s ease',
+                                      border: isCurrentHour ? '2px solid #3b82f6' : 'none',
+                                      boxSizing: 'border-box',
+                                      position: 'relative'
                                     }}
-                                  />
+                                  >
+                                    {isCurrentHour && percentage > 10 && (
+                                      <div style={{
+                                        position: 'absolute',
+                                        top: '-16px',
+                                        left: '50%',
+                                        transform: 'translateX(-50%)',
+                                        fontSize: '9px',
+                                        fontWeight: '600',
+                                        color: '#3b82f6',
+                                        whiteSpace: 'nowrap'
+                                      }}>
+                                        {Math.round(percentage)}%
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               );
                             })}
