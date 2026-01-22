@@ -104,11 +104,44 @@ const IFCModelViewer = ({ modelId, filename }) => {
         // Load operational data first
         await loadOperationalData();
 
+        // Verify WASM files are accessible before proceeding
+        const wasmFiles = ['web-ifc.wasm', 'web-ifc-mt.wasm'];
+        const wasmChecks = await Promise.all(
+          wasmFiles.map(file =>
+            fetch(`/wasm/${file}`, { method: 'HEAD' })
+              .then(res => ({ file, ok: res.ok, status: res.status }))
+              .catch(err => ({ file, ok: false, error: err.message }))
+          )
+        );
+
+        console.log('WASM file accessibility check:', wasmChecks);
+        const inaccessibleFiles = wasmChecks.filter(check => !check.ok);
+        if (inaccessibleFiles.length > 0) {
+          console.warn('Some WASM files are not accessible:', inaccessibleFiles);
+          // Continue anyway - the files might be lazy-loaded
+        }
+
         const ifcLoader = new IFCLoader();
         viewerRef.current.ifcLoader = ifcLoader;
 
-        // Setup web-ifc
-        await ifcLoader.ifcManager.setWasmPath('/wasm/');
+        // Setup web-ifc with multiple fallback paths for cross-platform compatibility
+        try {
+          // Try absolute URL first (works better on Windows)
+          const wasmPath = window.location.origin + '/wasm/';
+          console.log('Setting WASM path to:', wasmPath);
+          await ifcLoader.ifcManager.setWasmPath(wasmPath);
+          console.log('WASM path set successfully');
+        } catch (wasmErr) {
+          console.error('Failed to set WASM path:', wasmErr);
+          // Try relative path as fallback
+          try {
+            await ifcLoader.ifcManager.setWasmPath('/wasm/');
+            console.log('WASM path set successfully (relative fallback)');
+          } catch (fallbackErr) {
+            console.error('Fallback WASM path also failed:', fallbackErr);
+            throw new Error('Failed to initialize WASM components. Please ensure web-ifc WASM files are accessible.');
+          }
+        }
 
         // Load the model
         const modelUrl = `${API_BASE}/api/digital-infrastructure/models/${modelId}/file`;
@@ -196,14 +229,17 @@ const IFCModelViewer = ({ modelId, filename }) => {
           },
           (err) => {
             console.error('Error loading IFC model:', err);
+            console.error('Error stack:', err.stack);
 
             // Check if it's a 404 error (file not found on server)
             if (err.message && err.message.includes('404')) {
               setError('IFC file not found on server. The file may need to be re-uploaded. Please contact an administrator.');
-            } else if (err.message && err.message.includes('WASM')) {
-              setError('Failed to load IFC viewer components. Please refresh the page.');
+            } else if (err.message && (err.message.includes('WASM') || err.message.includes('wasm'))) {
+              setError('Failed to load IFC viewer WASM components. This may be a browser compatibility issue. Try refreshing the page or using a different browser (Chrome/Edge recommended).');
+            } else if (err.message && err.message.includes('fetch')) {
+              setError('Network error loading IFC model. Please check your internet connection and try again.');
             } else {
-              setError('Failed to load IFC model. The file may be corrupted or incompatible.');
+              setError(`Failed to load IFC model: ${err.message || 'Unknown error'}. The file may be corrupted or incompatible.`);
             }
             setLoading(false);
           }
