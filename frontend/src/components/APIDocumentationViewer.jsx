@@ -85,7 +85,9 @@ const APIDocumentationViewer = () => {
           return `<h3 key="${index}" style="font-size: 18px; font-weight: bold; margin: 20px 0 12px 0; color: #1f2937;">${line.substring(4)}</h3>`;
         }
         if (line.startsWith('## ')) {
-          return `<h2 key="${index}" style="font-size: 22px; font-weight: bold; margin: 24px 0 16px 0; color: #111827; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">${line.substring(3)}</h2>`;
+          const headerText = line.substring(3);
+          const headerId = headerText.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          return `<h2 id="${headerId}" key="${index}" style="font-size: 22px; font-weight: bold; margin: 24px 0 16px 0; color: #111827; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">${headerText}</h2>`;
         }
         if (line.startsWith('# ')) {
           return `<h1 key="${index}" style="font-size: 28px; font-weight: bold; margin: 32px 0 20px 0; color: #111827;">${line.substring(2)}</h1>`;
