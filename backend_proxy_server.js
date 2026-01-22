@@ -3040,7 +3040,8 @@ app.get('/api/documentation/auto', (req, res) => {
 
     // Generate sections
     Object.keys(categorized).sort().forEach(category => {
-      doc += `## ${category}\n\n`;
+      const anchorId = category.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      doc += `## <a name="${anchorId}"></a>${category}\n\n`;
       const sortedRoutes = categorized[category].sort((a, b) => {
         if (a.path < b.path) return -1;
         if (a.path > b.path) return 1;

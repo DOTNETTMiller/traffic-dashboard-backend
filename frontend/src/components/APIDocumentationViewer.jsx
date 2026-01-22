@@ -17,7 +17,7 @@ const APIDocumentationViewer = () => {
       setLoading(true);
       setError(null); // Clear previous errors
       setSearchTerm(''); // Clear search when switching docs
-      const endpoint = currentDoc === 'api' ? '/api/documentation' : '/api/documentation/roadmap';
+      const endpoint = currentDoc === 'api' ? '/api/documentation/auto' : '/api/documentation/roadmap';
       console.log('Fetching documentation from:', endpoint);
       const response = await api.get(endpoint);
       console.log('Documentation response:', response.data);
