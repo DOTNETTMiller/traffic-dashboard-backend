@@ -836,6 +836,53 @@ function App() {
                 </button>
                 <button
                   onClick={() => {
+                    setView('stateQualityRankings');
+                    setDataQualityDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'stateQualityRankings' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'stateQualityRankings' ? '600' : '400',
+                    color: view === 'stateQualityRankings' ? '#3b82f6' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'stateQualityRankings' ? '#f3f4f6' : 'white'}
+                >
+                  🎖️ State Quality Rankings
+                </button>
+
+                <div style={{ height: '1px', background: '#e5e7eb', margin: '8px 0' }}></div>
+
+                <button
+                  onClick={() => {
+                    setView('vendorLeaderboard');
+                    setDataQualityDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'vendorLeaderboard' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'vendorLeaderboard' ? '600' : '400',
+                    color: view === 'vendorLeaderboard' ? '#3b82f6' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'vendorLeaderboard' ? '#f3f4f6' : 'white'}
+                >
+                  🏆 Vendor Leaderboard
+                </button>
+                <button
+                  onClick={() => {
                     setView('vendorComparison');
                     setDataQualityDropdownOpen(false);
                   }}
@@ -855,28 +902,6 @@ function App() {
                   onMouseLeave={(e) => e.currentTarget.style.background = view === 'vendorComparison' ? '#f3f4f6' : 'white'}
                 >
                   🔄 Vendor Comparison
-                </button>
-                <button
-                  onClick={() => {
-                    setView('alignment');
-                    setDataQualityDropdownOpen(false);
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '10px 16px',
-                    border: 'none',
-                    background: view === 'alignment' ? '#f3f4f6' : 'white',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: view === 'alignment' ? '600' : '400',
-                    color: view === 'alignment' ? '#3b82f6' : '#374151',
-                    transition: 'background 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'alignment' ? '#f3f4f6' : 'white'}
-                >
-                  🔗 Feed Alignment
                 </button>
                 <button
                   onClick={() => {
@@ -900,6 +925,9 @@ function App() {
                 >
                   📊 Vendor Gap Analysis
                 </button>
+
+                <div style={{ height: '1px', background: '#e5e7eb', margin: '8px 0' }}></div>
+
                 <button
                   onClick={() => {
                     setView('coverageGaps');
@@ -924,75 +952,28 @@ function App() {
                 </button>
                 <button
                   onClick={() => {
-                    setView('vendorLeaderboard');
+                    setView('alignment');
                     setDataQualityDropdownOpen(false);
                   }}
                   style={{
                     width: '100%',
                     padding: '10px 16px',
                     border: 'none',
-                    background: view === 'vendorLeaderboard' ? '#f3f4f6' : 'white',
+                    background: view === 'alignment' ? '#f3f4f6' : 'white',
                     textAlign: 'left',
                     cursor: 'pointer',
                     fontSize: '14px',
-                    fontWeight: view === 'vendorLeaderboard' ? '600' : '400',
-                    color: view === 'vendorLeaderboard' ? '#3b82f6' : '#374151',
+                    fontWeight: view === 'alignment' ? '600' : '400',
+                    color: view === 'alignment' ? '#3b82f6' : '#374151',
                     transition: 'background 0.15s ease'
                   }}
                   onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'vendorLeaderboard' ? '#f3f4f6' : 'white'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'alignment' ? '#f3f4f6' : 'white'}
                 >
-                  🏆 Vendor Leaderboard
+                  🔗 Feed Alignment
                 </button>
 
-                <button
-                  onClick={() => {
-                    setView('stateQualityRankings');
-                    setDataQualityDropdownOpen(false);
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '10px 16px',
-                    border: 'none',
-                    background: view === 'stateQualityRankings' ? '#f3f4f6' : 'white',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: view === 'stateQualityRankings' ? '600' : '400',
-                    color: view === 'stateQualityRankings' ? '#3b82f6' : '#374151',
-                    transition: 'background 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'stateQualityRankings' ? '#f3f4f6' : 'white'}
-                >
-                  🎖️ State Quality Rankings
-                </button>
-
-                <button
-                  onClick={() => {
-                    setView('predictiveAnalytics');
-                    setDataQualityDropdownOpen(false);
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '10px 16px',
-                    border: 'none',
-                    background: view === 'predictiveAnalytics' ? '#f3f4f6' : 'white',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: view === 'predictiveAnalytics' ? '600' : '400',
-                    color: view === 'predictiveAnalytics' ? '#3b82f6' : '#374151',
-                    transition: 'background 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'predictiveAnalytics' ? '#f3f4f6' : 'white'}
-                >
-                  🤖 Predictive Analytics (Phase 6)
-                </button>
-
-                {/* Phase 1 & 2 Dashboards */}
-                <div style={{ height: '1px', background: '#e5e7eb', margin: '4px 0' }}></div>
+                <div style={{ height: '1px', background: '#e5e7eb', margin: '8px 0' }}></div>
 
                 <button
                   onClick={() => {
@@ -1014,7 +995,7 @@ function App() {
                   onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
                   onMouseLeave={(e) => e.currentTarget.style.background = view === 'eventConfidence' ? '#f3f4f6' : 'white'}
                 >
-                  ✓ Event Confidence Scoring (Phase 1.2)
+                  ✓ Event Confidence Scoring (Phase 1)
                 </button>
 
                 <button
@@ -1037,7 +1018,7 @@ function App() {
                   onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
                   onMouseLeave={(e) => e.currentTarget.style.background = view === 'procurement' ? '#f3f4f6' : 'white'}
                 >
-                  💰 Procurement Transparency (Phase 1.3)
+                  💰 Procurement Transparency (Phase 1)
                 </button>
 
                 <button
@@ -1061,6 +1042,29 @@ function App() {
                   onMouseLeave={(e) => e.currentTarget.style.background = view === 'assetHealth' ? '#f3f4f6' : 'white'}
                 >
                   🔧 Asset Health & Maintenance (Phase 2)
+                </button>
+
+                <button
+                  onClick={() => {
+                    setView('predictiveAnalytics');
+                    setDataQualityDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'predictiveAnalytics' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'predictiveAnalytics' ? '600' : '400',
+                    color: view === 'predictiveAnalytics' ? '#3b82f6' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'predictiveAnalytics' ? '#f3f4f6' : 'white'}
+                >
+                  🤖 Predictive Analytics (Phase 3)
                 </button>
               </div>
             )}
