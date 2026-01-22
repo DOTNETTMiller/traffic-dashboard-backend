@@ -373,22 +373,62 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
                 {/* Camera Specific */}
                 {item.equipment_type === 'camera' && item.stream_url && (
                   <div style={{ marginTop: '12px' }}>
+                    <div style={{
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '6px'
+                    }}>
+                      📹 Live Camera Feed
+                    </div>
                     <a
                       href={item.stream_url}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{
-                        display: 'inline-block',
-                        padding: '6px 12px',
-                        backgroundColor: style.color,
-                        color: 'white',
-                        borderRadius: '6px',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        textDecoration: 'none'
+                        display: 'block',
+                        textDecoration: 'none',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        border: '2px solid #e5e7eb',
+                        transition: 'border-color 0.2s'
                       }}
+                      onMouseEnter={(e) => e.currentTarget.style.borderColor = style.color}
+                      onMouseLeave={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
                     >
-                      📹 View Stream
+                      <img
+                        src={item.stream_url}
+                        alt={item.equipment_name || 'Camera feed'}
+                        style={{
+                          width: '100%',
+                          height: '120px',
+                          objectFit: 'cover',
+                          display: 'block',
+                          backgroundColor: '#f3f4f6'
+                        }}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.parentElement.style.display = 'none';
+                          // Show fallback button instead
+                          const fallback = document.createElement('a');
+                          fallback.href = item.stream_url;
+                          fallback.target = '_blank';
+                          fallback.rel = 'noopener noreferrer';
+                          fallback.style.cssText = 'display:inline-block;padding:6px 12px;background-color:' + style.color + ';color:white;border-radius:6px;font-size:11px;font-weight:600;text-decoration:none;';
+                          fallback.textContent = '📹 View Stream';
+                          e.target.parentElement.parentElement.appendChild(fallback);
+                        }}
+                      />
+                      <div style={{
+                        padding: '6px',
+                        backgroundColor: 'rgba(0,0,0,0.7)',
+                        color: 'white',
+                        fontSize: '10px',
+                        textAlign: 'center',
+                        fontWeight: '500'
+                      }}>
+                        Click to view full size
+                      </div>
                     </a>
                   </div>
                 )}
