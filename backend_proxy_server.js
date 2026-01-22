@@ -2981,6 +2981,96 @@ app.get('/api/events/:state', async (req, res) => {
 });
 
 // API Documentation endpoint
+// Auto-generated API documentation endpoint
+app.get('/api/documentation/auto', (req, res) => {
+  try {
+    // Extract all routes from Express app
+    const routes = [];
+    app._router.stack.forEach((middleware) => {
+      if (middleware.route) {
+        // Single route
+        const methods = Object.keys(middleware.route.methods).map(m => m.toUpperCase());
+        routes.push({
+          path: middleware.route.path,
+          methods: methods
+        });
+      } else if (middleware.name === 'router') {
+        // Router middleware
+        middleware.handle.stack.forEach((handler) => {
+          if (handler.route) {
+            const methods = Object.keys(handler.route.methods).map(m => m.toUpperCase());
+            const basePath = middleware.regexp.source
+              .replace('\\/?', '')
+              .replace('(?=\\/|$)', '')
+              .replace(/\\\//g, '/')
+              .replace(/\^/g, '')
+              .replace(/\$/g, '')
+              .replace(/\\/g, '');
+
+            routes.push({
+              path: handler.route.path,
+              methods: methods
+            });
+          }
+        });
+      }
+    });
+
+    // Group routes by category
+    const categorized = {};
+    routes.filter(r => r.path.startsWith('/api/')).forEach(route => {
+      const category = route.path.split('/')[2] || 'root';
+      if (!categorized[category]) {
+        categorized[category] = [];
+      }
+      categorized[category].push(route);
+    });
+
+    // Generate markdown documentation
+    let doc = `# DOT Corridor Communicator - Complete API Reference\n\n`;
+    doc += `**Auto-generated:** ${new Date().toISOString()}\n`;
+    doc += `**Total Endpoints:** ${routes.filter(r => r.path.startsWith('/api/')).length}\n\n`;
+    doc += `---\n\n`;
+
+    doc += `## Table of Contents\n\n`;
+    Object.keys(categorized).sort().forEach(cat => {
+      doc += `- [${cat}](#${cat.toLowerCase().replace(/[^a-z0-9]+/g, '-')})\n`;
+    });
+    doc += `\n---\n\n`;
+
+    // Generate sections
+    Object.keys(categorized).sort().forEach(category => {
+      doc += `## ${category}\n\n`;
+      const sortedRoutes = categorized[category].sort((a, b) => {
+        if (a.path < b.path) return -1;
+        if (a.path > b.path) return 1;
+        return 0;
+      });
+
+      sortedRoutes.forEach(route => {
+        route.methods.forEach(method => {
+          doc += `### ${method} \`${route.path}\`\n\n`;
+        });
+      });
+      doc += `\n`;
+    });
+
+    res.json({
+      success: true,
+      documentation: doc,
+      totalEndpoints: routes.filter(r => r.path.startsWith('/api/')).length,
+      categories: Object.keys(categorized).sort(),
+      lastGenerated: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error generating auto documentation:', error);
+    res.status(500).json({
+      error: 'Failed to generate API documentation',
+      details: error.message
+    });
+  }
+});
+
 app.get('/api/documentation', (req, res) => {
   const fs = require('fs');
   const path = require('path');
