@@ -19,10 +19,57 @@ The **DOT Corridor Communicator** serves as a **reference implementation** for A
 
 **Purpose**: J-Stan is an internal, cross-committee, multi-discipline group within AASHTO that coordinates schema development, identifies gaps, resolves conflicts, and avoids duplication of efforts across multiple AASHTO committees.
 
+### JSTAN's Broader Standards Leadership
+
+While **BIM/IFC has been JSTAN's primary focus area** (advancing digital infrastructure delivery), JSTAN's mission spans **the entire transportation data ecosystem**:
+
+- **Design & Construction Standards**: IFC, IDS, LandXML, OpenRoads
+- **Operational Data Standards**: WZDx, TMDD, NTCIP, CTI
+- **Connected Vehicle Standards**: SAE J2735, SAE J3216, ISO 14816
+- **Asset Management Standards**: GASB 34, FHWA HPMS, ISO 55000
+- **Data Exchange Standards**: GeoJSON, GTFS, NeTEx, Transmodel
+
+**Key Insight**: JSTAN recognizes that **interoperability requires standards at EVERY lifecycle phase**—from initial design (IFC) through construction, operations (WZDx, TMDD), and long-term asset management. This platform demonstrates how those standards connect.
+
 **Official Resources**:
 - Website: https://transportation.org/data/jstan/
 - AASHTO ShareIT: https://shareit.transportation.org/
 - Parent Committee: Committee on Data Management and Analytics (CDMA)
+
+---
+
+## Connecting BIM/IFC to ITS Operations: The Missing Link
+
+### Why This Matters for JSTAN
+
+**The Challenge**: Traditionally, **design data (BIM/IFC) dies after construction**. Once a road or bridge is built, the digital model sits unused while operations teams rely on spreadsheets, paper maps, and tribal knowledge.
+
+**JSTAN's Vision**: **Design data should flow seamlessly into operations**, enabling:
+- Automatic population of ITS device databases (NTCIP, TMDD)
+- Real-time linkage between physical assets and operational systems
+- Predictive maintenance based on as-built geometry and materials
+- Connected vehicle readiness (RSU placement validation, V2X message generation)
+
+### How This Platform Bridges the Gap
+
+**See**: **[Digital Standards Crosswalk](./digital-standards-crosswalk.md)** - Full lifecycle mapping from design through operations
+
+| Lifecycle Phase | Design Standards | → | Operational Standards | Platform Feature |
+|----------------|------------------|---|---------------------|------------------|
+| **Planning** | GIS, LandXML | → | HPMS, pavement condition | Corridor geometry analysis |
+| **Design** | IFC 4.3, IDS | → | NTCIP device specs | BIM model viewer with gap detection |
+| **Construction** | IFC, COBie | → | Asset inventory | Automated ITS equipment extraction |
+| **Operations** | IFC geometry | → | WZDx, TMDD, SAE J2735 | Real-time event mapping to infrastructure |
+| **Maintenance** | IFC materials/specs | → | Asset health monitoring | Predictive maintenance alerts |
+
+**Example Flow**:
+1. Engineer designs bridge in IFC 4.3 with embedded RSU locations
+2. Platform extracts RSU coordinates, validates NTCIP compliance
+3. During operations, RSUs broadcast SAE J2735 messages (SPaT, MAP, BSM)
+4. When bridge maintenance is scheduled, WZDx events automatically reference IFC geometry
+5. V2X messages update in real-time based on work zone boundaries
+
+**Result**: **Design data becomes operational intelligence**—not just documentation.
 
 ---
 
@@ -47,6 +94,24 @@ The **DOT Corridor Communicator** serves as a **reference implementation** for A
 - **SAE J2735 message generation** for V2X deployment
 - **Digital infrastructure module** linking BIM models to operational systems
 - **Gap analysis tools** identifying CAV readiness deficiencies
+
+### 5. AASHTO-Wide Standards Adoption Leadership
+
+**JSTAN's Role**: Not just developing standards, but **driving adoption across all AASHTO committees and member states**.
+
+This platform accelerates JSTAN's adoption mission by:
+
+| AASHTO Committee | Standards Addressed | Platform Proof Point |
+|-----------------|-------------------|---------------------|
+| **Committee on Design** | IFC, IDS, LandXML | 3D BIM viewer, IDS validation engine |
+| **Committee on Construction** | COBie, BuildingSMART | Automated asset extraction from IFC models |
+| **Committee on Maintenance** | GASB 34, ISO 55000 | Asset health monitoring, predictive maintenance |
+| **SCOTE (Traffic Engineering)** | TMDD, NTCIP, WZDx | 40+ state real-time data feeds, TMDD export |
+| **Connected/Automated Vehicles** | SAE J2735, J3216 | TIM/BSM/SPaT message generation at scale |
+| **Public Transportation** | GTFS, NeTEx, Transmodel | Transit integration (future phase) |
+| **Data Management & Analytics** | All of the above | Unified data quality scoring (TETC DQI) |
+
+**Key Message**: **Standards adoption is not optional for interoperability**. JSTAN provides the coordination, and this platform provides the proof that adoption delivers ROI.
 
 ---
 
