@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
+import jsPDF from 'jspdf';
 
 const APIDocumentationViewer = () => {
   const [documentation, setDocumentation] = useState('');
@@ -59,6 +60,62 @@ const APIDocumentationViewer = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const downloadAsPDF = () => {
+    const pdf = new jsPDF('p', 'pt', 'letter');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 40;
+    const maxWidth = pageWidth - (margin * 2);
+    let yPosition = margin;
+
+    // Get document title
+    const docTitle = currentDoc === 'api'
+      ? 'API Reference'
+      : currentDoc === 'roadmap'
+      ? 'Strategic Roadmap'
+      : currentDoc.replace(/_/g, ' ').replace(/-/g, ' ');
+
+    // Title
+    pdf.setFontSize(18);
+    pdf.setFont(undefined, 'bold');
+    pdf.text(docTitle, margin, yPosition);
+    yPosition += 30;
+
+    // Subtitle
+    pdf.setFontSize(10);
+    pdf.setFont(undefined, 'normal');
+    pdf.text('DOT Corridor Communicator Documentation', margin, yPosition);
+    yPosition += 10;
+    pdf.text(`Generated: ${new Date().toLocaleDateString()}`, margin, yPosition);
+    yPosition += 30;
+
+    // Convert markdown to plain text (remove markdown syntax)
+    const plainText = documentation
+      .replace(/#{1,6}\s/g, '') // Remove header markers
+      .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
+      .replace(/`([^`]+)`/g, '$1') // Remove inline code
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove links
+      .replace(/^-\s/gm, '• ') // Convert list markers
+      .replace(/---/g, '───────────────────────────'); // Horizontal rules
+
+    // Split into lines and add to PDF
+    const lines = pdf.splitTextToSize(plainText, maxWidth);
+
+    pdf.setFontSize(9);
+    for (let i = 0; i < lines.length; i++) {
+      if (yPosition > pageHeight - margin) {
+        pdf.addPage();
+        yPosition = margin;
+      }
+      pdf.text(lines[i], margin, yPosition);
+      yPosition += 12;
+    }
+
+    // Save PDF
+    const filename = `${docTitle.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+    pdf.save(filename);
   };
 
   // Simple markdown-to-HTML converter for basic formatting
@@ -271,23 +328,40 @@ const APIDocumentationViewer = () => {
 
       {/* Main Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-        {!showSidebar && (
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', alignItems: 'center' }}>
+          {!showSidebar && (
+            <button
+              onClick={() => setShowSidebar(true)}
+              style={{
+                padding: '8px 16px',
+                background: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '14px'
+              }}
+            >
+              Show Sidebar
+            </button>
+          )}
           <button
-            onClick={() => setShowSidebar(true)}
+            onClick={downloadAsPDF}
+            disabled={loading || !documentation}
             style={{
               padding: '8px 16px',
-              marginBottom: '20px',
-              background: '#3b82f6',
+              background: loading || !documentation ? '#d1d5db' : '#10b981',
               color: 'white',
               border: 'none',
               borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '14px'
+              cursor: loading || !documentation ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              fontWeight: '500'
             }}
           >
-            Show Sidebar
+            📥 Download PDF
           </button>
-        )}
+        </div>
 
       {/* Search Box */}
       <div style={{ marginBottom: '24px' }}>
