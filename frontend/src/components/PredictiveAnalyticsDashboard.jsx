@@ -126,19 +126,19 @@ const PredictiveAnalyticsDashboard = () => {
               <div>
                 <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Total Forecasts</div>
                 <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>
-                  {congestionData.summary.total_forecasts}
+                  {congestionData?.forecasts?.length || 0}
                 </div>
               </div>
               <div>
                 <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Corridors Monitored</div>
                 <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>
-                  {congestionData.summary.corridors_monitored}
+                  {new Set(congestionData?.forecasts?.map(f => f.corridor_id) || []).size}
                 </div>
               </div>
               <div>
                 <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Max Horizon</div>
                 <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>
-                  {congestionData.summary.max_horizon_minutes} min
+                  {Math.max(...(congestionData?.forecasts?.map(f => f.forecast_horizon_minutes) || [0]))} min
                 </div>
               </div>
             </div>
@@ -146,7 +146,7 @@ const PredictiveAnalyticsDashboard = () => {
 
           {/* Forecast Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-            {congestionData.forecasts.slice(0, 12).map((forecast, idx) => (
+            {(congestionData?.forecasts || []).slice(0, 12).map((forecast, idx) => (
               <div
                 key={idx}
                 style={{
