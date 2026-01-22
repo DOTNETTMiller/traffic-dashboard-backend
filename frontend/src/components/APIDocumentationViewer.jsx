@@ -6,18 +6,44 @@ const APIDocumentationViewer = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [currentDoc, setCurrentDoc] = useState('api'); // 'api' or 'roadmap'
+  const [currentDoc, setCurrentDoc] = useState('api'); // 'api', 'roadmap', or doc filename
+  const [documentList, setDocumentList] = useState([]);
+  const [showSidebar, setShowSidebar] = useState(true);
+
+  useEffect(() => {
+    fetchDocumentList();
+  }, []);
 
   useEffect(() => {
     fetchDocumentation();
   }, [currentDoc]);
 
+  const fetchDocumentList = async () => {
+    try {
+      const response = await api.get('/api/documentation/list');
+      if (response.data.success) {
+        setDocumentList(response.data.documents);
+      }
+    } catch (err) {
+      console.error('Error fetching document list:', err);
+    }
+  };
+
   const fetchDocumentation = async () => {
     try {
       setLoading(true);
-      setError(null); // Clear previous errors
-      setSearchTerm(''); // Clear search when switching docs
-      const endpoint = currentDoc === 'api' ? '/api/documentation/auto' : '/api/documentation/roadmap';
+      setError(null);
+      setSearchTerm('');
+
+      let endpoint;
+      if (currentDoc === 'api') {
+        endpoint = '/api/documentation/auto';
+      } else if (currentDoc === 'roadmap') {
+        endpoint = '/api/documentation/roadmap';
+      } else {
+        endpoint = `/api/documentation/${currentDoc}`;
+      }
+
       console.log('Fetching documentation from:', endpoint);
       const response = await api.get(endpoint);
       console.log('Documentation response:', response.data);
@@ -137,56 +163,131 @@ const APIDocumentationViewer = () => {
   }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ marginBottom: '32px' }}>
-        <h1 style={{ margin: '0 0 8px 0', fontSize: '32px', fontWeight: 'bold', color: '#111827' }}>
-          Documentation
-        </h1>
-        <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>
-          {currentDoc === 'api'
-            ? 'Complete reference for all 200+ API endpoints in the Corridor Communicator platform'
-            : 'Strategic roadmap for building the world\'s most advanced transportation data platform'}
-        </p>
-      </div>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      {/* Sidebar */}
+      {showSidebar && (
+        <div style={{
+          width: '300px',
+          background: '#f9fafb',
+          borderRight: '1px solid #e5e7eb',
+          overflowY: 'auto',
+          padding: '20px'
+        }}>
+          <div style={{ marginBottom: '20px' }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: 'bold', color: '#111827' }}>
+              Documentation
+            </h3>
+            <button
+              onClick={() => setShowSidebar(false)}
+              style={{
+                padding: '4px 8px',
+                fontSize: '12px',
+                background: '#e5e7eb',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Hide Sidebar
+            </button>
+          </div>
 
-      {/* Document Selector Tabs */}
-      <div style={{ marginBottom: '24px', display: 'flex', gap: '12px', borderBottom: '2px solid #e5e7eb' }}>
-        <button
-          onClick={() => setCurrentDoc('api')}
-          style={{
-            padding: '12px 24px',
-            fontSize: '15px',
-            fontWeight: '600',
-            background: 'none',
-            border: 'none',
-            borderBottom: currentDoc === 'api' ? '3px solid #3b82f6' : '3px solid transparent',
-            color: currentDoc === 'api' ? '#3b82f6' : '#6b7280',
-            cursor: 'pointer',
-            marginBottom: '-2px',
-            transition: 'all 0.2s'
-          }}
-        >
-          API Reference
-        </button>
-        <button
-          onClick={() => setCurrentDoc('roadmap')}
-          style={{
-            padding: '12px 24px',
-            fontSize: '15px',
-            fontWeight: '600',
-            background: 'none',
-            border: 'none',
-            borderBottom: currentDoc === 'roadmap' ? '3px solid #3b82f6' : '3px solid transparent',
-            color: currentDoc === 'roadmap' ? '#3b82f6' : '#6b7280',
-            cursor: 'pointer',
-            marginBottom: '-2px',
-            transition: 'all 0.2s'
-          }}
-        >
-          Strategic Roadmap
-        </button>
-      </div>
+          {/* Special Sections */}
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '12px', fontWeight: '600', color: '#6b7280', marginBottom: '8px', textTransform: 'uppercase' }}>
+              Platform Docs
+            </div>
+            <button
+              onClick={() => setCurrentDoc('api')}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                padding: '8px 12px',
+                background: currentDoc === 'api' ? '#3b82f6' : 'white',
+                color: currentDoc === 'api' ? 'white' : '#374151',
+                border: '1px solid #e5e7eb',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                marginBottom: '4px',
+                fontSize: '13px'
+              }}
+            >
+              📘 API Reference (291 endpoints)
+            </button>
+            <button
+              onClick={() => setCurrentDoc('roadmap')}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                padding: '8px 12px',
+                background: currentDoc === 'roadmap' ? '#3b82f6' : 'white',
+                color: currentDoc === 'roadmap' ? 'white' : '#374151',
+                border: '1px solid #e5e7eb',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                marginBottom: '4px',
+                fontSize: '13px'
+              }}
+            >
+              🗺️ Strategic Roadmap
+            </button>
+          </div>
+
+          {/* All Documentation Files */}
+          <div>
+            <div style={{ fontSize: '12px', fontWeight: '600', color: '#6b7280', marginBottom: '8px', textTransform: 'uppercase' }}>
+              Guides & Resources ({documentList.length})
+            </div>
+            {documentList.map(doc => (
+              <button
+                key={doc.path}
+                onClick={() => setCurrentDoc(doc.path)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  textAlign: 'left',
+                  padding: '8px 12px',
+                  background: currentDoc === doc.path ? '#3b82f6' : 'white',
+                  color: currentDoc === doc.path ? 'white' : '#374151',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  marginBottom: '4px',
+                  fontSize: '12px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}
+                title={doc.title}
+              >
+                {doc.title}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+        {!showSidebar && (
+          <button
+            onClick={() => setShowSidebar(true)}
+            style={{
+              padding: '8px 16px',
+              marginBottom: '20px',
+              background: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            Show Sidebar
+          </button>
+        )}
 
       {/* Search Box */}
       <div style={{ marginBottom: '24px' }}>
@@ -238,22 +339,23 @@ const APIDocumentationViewer = () => {
         dangerouslySetInnerHTML={{ __html: renderMarkdown(documentation) }}
       />
 
-      {/* Footer */}
-      <div style={{
-        marginTop: '32px',
-        padding: '20px',
-        background: '#f9fafb',
-        borderRadius: '8px',
-        textAlign: 'center',
-        fontSize: '13px',
-        color: '#6b7280'
-      }}>
-        <p style={{ margin: 0 }}>
-          <strong>Base URL:</strong> https://corridor-communication-dashboard-production.up.railway.app
-        </p>
-        <p style={{ margin: '8px 0 0 0' }}>
-          Last updated: January 19, 2026
-        </p>
+        {/* Footer */}
+        <div style={{
+          marginTop: '32px',
+          padding: '20px',
+          background: '#f9fafb',
+          borderRadius: '8px',
+          textAlign: 'center',
+          fontSize: '13px',
+          color: '#6b7280'
+        }}>
+          <p style={{ margin: 0 }}>
+            <strong>Base URL:</strong> https://corridor-communication-dashboard-production.up.railway.app
+          </p>
+          <p style={{ margin: '8px 0 0 0' }}>
+            Last updated: January 22, 2026 • {documentList.length} guides available
+          </p>
+        </div>
       </div>
     </div>
   );

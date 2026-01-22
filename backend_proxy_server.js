@@ -3093,6 +3093,69 @@ app.get('/api/documentation', (req, res) => {
   }
 });
 
+// Get list of all documentation files
+app.get('/api/documentation/list', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+
+  try {
+    const docsDir = path.join(__dirname, 'docs');
+    const files = fs.readdirSync(docsDir)
+      .filter(file => file.endsWith('.md'))
+      .map(file => ({
+        filename: file,
+        title: file.replace('.md', '').replace(/_/g, ' ').replace(/-/g, ' '),
+        path: file.replace('.md', '')
+      }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+
+    res.json({
+      success: true,
+      documents: files,
+      count: files.length
+    });
+  } catch (error) {
+    console.error('Error listing documentation:', error);
+    res.status(500).json({
+      error: 'Failed to list documentation',
+      details: error.message
+    });
+  }
+});
+
+// Get specific documentation file
+app.get('/api/documentation/:docName', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+
+  try {
+    const docName = req.params.docName;
+    const docPath = path.join(__dirname, 'docs', `${docName}.md`);
+
+    if (!fs.existsSync(docPath)) {
+      return res.status(404).json({
+        error: 'Documentation file not found',
+        requested: docName
+      });
+    }
+
+    const documentation = fs.readFileSync(docPath, 'utf8');
+
+    res.json({
+      success: true,
+      documentation,
+      filename: `${docName}.md`,
+      lastUpdated: '2026-01-22'
+    });
+  } catch (error) {
+    console.error('Error reading documentation:', error);
+    res.status(500).json({
+      error: 'Failed to load documentation',
+      details: error.message
+    });
+  }
+});
+
 app.get('/api/documentation/roadmap', (req, res) => {
   const fs = require('fs');
   const path = require('path');
