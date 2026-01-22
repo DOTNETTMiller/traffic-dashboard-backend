@@ -141,7 +141,23 @@ const IFCModelViewer = ({ modelId, filename }) => {
             console.log(`[Attempt ${i + 1}/${pathsToTry.length}] Setting WASM path to:`, wasmPath);
             await ifcLoader.ifcManager.setWasmPath(wasmPath);
             console.log('✓ WASM path set successfully:', wasmPath);
-            wasmInitialized = true;
+
+            // Wait for WASM to fully initialize (important for Windows)
+            console.log('Waiting for WASM module to initialize...');
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // Test that the WASM module is actually usable
+            try {
+              const state = ifcLoader.ifcManager.state;
+              if (state && state.api) {
+                console.log('✓ WASM module initialized and ready');
+                wasmInitialized = true;
+              } else {
+                console.warn('WASM module loaded but not fully initialized, trying next path...');
+              }
+            } catch (testErr) {
+              console.warn('WASM module test failed:', testErr);
+            }
           } catch (wasmErr) {
             console.warn(`✗ Failed to set WASM path (${wasmPath}):`, wasmErr);
             if (i === pathsToTry.length - 1) {
@@ -189,15 +205,24 @@ const IFCModelViewer = ({ modelId, filename }) => {
 
               for (const mesh of meshesWithExpressID) {
                 try {
+                  // Check if ifcManager and its methods are properly initialized
+                  if (!ifcLoader.ifcManager || typeof ifcLoader.ifcManager.getItemProperties !== 'function') {
+                    console.error('IFC Manager not properly initialized');
+                    break;
+                  }
+
                   const props = await ifcLoader.ifcManager.getItemProperties(ifcModel.modelID, mesh.expressID);
-                  const globalId = props.GlobalId?.value;
+                  const globalId = props?.GlobalId?.value;
                   if (globalId) {
                     guidToMeshMap.set(globalId, mesh);
                     successCount++;
                   }
                 } catch (err) {
                   errorCount++;
-                  // Silently skip elements that can't be queried
+                  // Log first few errors for debugging
+                  if (errorCount <= 3) {
+                    console.warn(`Error getting properties for expressID ${mesh.expressID}:`, err.message);
+                  }
                 }
               }
 
