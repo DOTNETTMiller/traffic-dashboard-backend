@@ -32,13 +32,14 @@ export default function EventFormatPopup({
   ];
 
   return (
-    <div style={{ padding: '0', width: '450px', maxWidth: '90vw', backgroundColor: 'white' }}>
+    <div style={{ padding: '0', width: '340px', maxWidth: '90vw', maxHeight: '80vh', backgroundColor: 'white', display: 'flex', flexDirection: 'column' }}>
       {/* Tab Navigation */}
       <div style={{
         display: 'flex',
         borderBottom: '2px solid #e5e7eb',
-        marginBottom: '8px',
-        backgroundColor: '#f9fafb'
+        marginBottom: '6px',
+        backgroundColor: '#f9fafb',
+        flexShrink: 0
       }}>
         {tabs.map(tab => (
           <button
@@ -65,8 +66,8 @@ export default function EventFormatPopup({
         ))}
       </div>
 
-      {/* Tab Content */}
-      <div style={{ padding: '8px 12px', backgroundColor: 'white' }}>
+      {/* Tab Content - Scrollable */}
+      <div style={{ padding: '6px 10px', backgroundColor: 'white', overflowY: 'auto', flex: 1 }}>
         {activeTab === 'raw' && (
           <RawFormatView
             event={event}
@@ -87,11 +88,11 @@ export default function EventFormatPopup({
             cifsFormat={cifsFormat}
           />
         )}
-      </div>
 
-      {/* Nearby ITS Equipment (shown in all tabs) */}
-      <div style={{ padding: '0 12px 8px 12px', backgroundColor: 'white' }}>
-        <NearbyITSEquipment event={event} />
+        {/* Nearby ITS Equipment (shown in all tabs) */}
+        <div style={{ paddingTop: '6px' }}>
+          <NearbyITSEquipment event={event} />
+        </div>
       </div>
 
       {/* Action Buttons */}
@@ -145,16 +146,16 @@ function RawFormatView({ event, borderInfo, showCVTIM }) {
     <div style={{ fontSize: '12px', lineHeight: '1.5' }}>
       {/* Header */}
       <div style={{
-        padding: '8px',
+        padding: '6px',
         backgroundColor: '#f3f4f6',
         borderRadius: '4px',
-        marginBottom: '10px',
+        marginBottom: '8px',
         borderLeft: '3px solid #6b7280'
       }}>
-        <div style={{ fontSize: '11px', color: '#6b7280', fontWeight: '600', marginBottom: '2px' }}>
+        <div style={{ fontSize: '10px', color: '#6b7280', fontWeight: '600', marginBottom: '2px' }}>
           RAW FEED DATA
         </div>
-        <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#111827' }}>
+        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#111827' }}>
           {event.eventType}
         </div>
       </div>
@@ -194,16 +195,16 @@ function RawFormatView({ event, borderInfo, showCVTIM }) {
 
       {borderInfo && borderInfo.nearBorder && (
         <div style={{
-          margin: '10px 0',
-          padding: '8px',
+          margin: '8px 0',
+          padding: '6px',
           backgroundColor: '#e0e7ff',
-          borderRadius: '4px',
+          borderRadius: '3px',
           borderLeft: '3px solid #6366f1',
-          fontSize: '11px'
+          fontSize: '10px'
         }}>
           <strong>🔵 Border Event</strong><br/>
           {borderInfo.distance} miles from {borderInfo.borderName}<br/>
-          <span style={{ fontSize: '10px', fontStyle: 'italic', color: '#4338ca' }}>
+          <span style={{ fontSize: '9px', fontStyle: 'italic', color: '#4338ca' }}>
             Requires {borderInfo.borderStates.join('-')} coordination
           </span>
         </div>
@@ -211,11 +212,11 @@ function RawFormatView({ event, borderInfo, showCVTIM }) {
 
       {showCVTIM && (
         <div style={{
-          margin: '10px 0',
-          padding: '6px 8px',
+          margin: '8px 0',
+          padding: '5px 6px',
           backgroundColor: '#fef3c7',
-          borderRadius: '4px',
-          fontSize: '11px',
+          borderRadius: '3px',
+          fontSize: '10px',
           color: '#92400e',
           fontWeight: '600'
         }}>
@@ -234,27 +235,27 @@ function TIMFormatView({ event, timFormat, showCVTIM }) {
     <div style={{ fontSize: '12px', lineHeight: '1.5' }}>
       {/* Header */}
       <div style={{
-        padding: '8px',
+        padding: '6px',
         backgroundColor: '#eff6ff',
         borderRadius: '4px',
-        marginBottom: '10px',
+        marginBottom: '8px',
         borderLeft: '3px solid #3b82f6'
       }}>
-        <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '600', marginBottom: '2px' }}>
+        <div style={{ fontSize: '10px', color: '#3b82f6', fontWeight: '600', marginBottom: '2px' }}>
           SAE J2735 TIM
         </div>
-        <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e40af' }}>
+        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e40af' }}>
           {timFormat.data.msgType}
         </div>
       </div>
 
       {showCVTIM && (
         <div style={{
-          padding: '6px 8px',
+          padding: '5px 6px',
           backgroundColor: '#fef3c7',
-          borderRadius: '4px',
-          marginBottom: '8px',
-          fontSize: '11px',
+          borderRadius: '3px',
+          marginBottom: '6px',
+          fontSize: '10px',
           color: '#92400e',
           fontWeight: '600'
         }}>
@@ -294,16 +295,16 @@ function CIFSFormatView({ event, cifsFormat }) {
     <div style={{ fontSize: '12px', lineHeight: '1.5' }}>
       {/* Header */}
       <div style={{
-        padding: '8px',
+        padding: '6px',
         backgroundColor: '#d1fae5',
         borderRadius: '4px',
-        marginBottom: '10px',
+        marginBottom: '8px',
         borderLeft: '3px solid #10b981'
       }}>
-        <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '600', marginBottom: '2px' }}>
+        <div style={{ fontSize: '10px', color: '#10b981', fontWeight: '600', marginBottom: '2px' }}>
           COMMON INCIDENT FEED SPECIFICATION
         </div>
-        <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#065f46' }}>
+        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#065f46' }}>
           {cifsFormat.data.type}
         </div>
         <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
@@ -312,25 +313,25 @@ function CIFSFormatView({ event, cifsFormat }) {
       </div>
 
       {/* Status Badges */}
-      <div style={{ marginBottom: '10px', display: 'flex', gap: '6px' }}>
+      <div style={{ marginBottom: '8px', display: 'flex', gap: '4px' }}>
         <span style={{
           display: 'inline-block',
-          padding: '4px 10px',
-          borderRadius: '4px',
+          padding: '3px 8px',
+          borderRadius: '3px',
           backgroundColor: getStatusColor(cifsFormat.data.status),
           color: 'white',
-          fontSize: '11px',
+          fontSize: '10px',
           fontWeight: '700'
         }}>
           {cifsFormat.data.status}
         </span>
         <span style={{
           display: 'inline-block',
-          padding: '4px 10px',
-          borderRadius: '4px',
+          padding: '3px 8px',
+          borderRadius: '3px',
           backgroundColor: getCIFSSeverityColor(cifsFormat.data.severity),
           color: 'white',
-          fontSize: '11px',
+          fontSize: '10px',
           fontWeight: '700'
         }}>
           {cifsFormat.data.severity}
@@ -376,7 +377,7 @@ function CIFSFormatView({ event, cifsFormat }) {
 function Field({ label, value, multiline, compact }) {
   if (!value) return null;
 
-  const marginStyle = compact ? '3px 0' : '6px 0';
+  const marginStyle = compact ? '2px 0' : '4px 0';
 
   return (
     <div style={{ margin: marginStyle }}>
