@@ -12,5 +12,22 @@ export default defineConfig({
         changeOrigin: true
       }
     }
-  }
+  },
+  build: {
+    // Ensure WASM files are copied to dist folder
+    assetsInlineLimit: 0, // Don't inline WASM files
+    rollupOptions: {
+      output: {
+        // Keep WASM files in their original location
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name && assetInfo.name.endsWith('.wasm')) {
+            return 'wasm/[name][extname]';
+          }
+          return 'assets/[name]-[hash][extname]';
+        }
+      }
+    }
+  },
+  // Explicitly allow WASM files
+  assetsInclude: ['**/*.wasm']
 })
