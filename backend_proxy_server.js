@@ -13264,6 +13264,8 @@ function getRecommendationAction(dimension, score) {
 // ============================================
 
 const AssetHealthMonitor = require('./services/asset-health-monitor');
+const PredictiveMaintenanceAI = require('./services/predictive-maintenance-ai');
+const CoverageGapAnalyzer = require('./services/coverage-gap-analyzer');
 
 /**
  * Get asset health dashboard for a state
@@ -13525,6 +13527,151 @@ app.post('/api/asset-health/maintenance/schedule', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to schedule maintenance',
+      details: error.message
+    });
+  }
+});
+
+// ============================================
+// PHASE 2.2: PREDICTIVE MAINTENANCE AI
+// ============================================
+
+/**
+ * Get predictive maintenance recommendations for a state
+ * POST /api/predictive-maintenance/predict/:stateKey
+ */
+app.post('/api/predictive-maintenance/predict/:stateKey', async (req, res) => {
+  try {
+    const { stateKey } = req.params;
+    const predictiveAI = new PredictiveMaintenanceAI();
+
+    const predictions = predictiveAI.predictStateAssets(stateKey);
+    predictiveAI.close();
+
+    res.json({
+      success: true,
+      state_key: stateKey,
+      total_predictions: predictions.length,
+      predictions
+    });
+  } catch (error) {
+    console.error('Error generating predictions:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate predictive maintenance recommendations',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Get critical alerts (high-risk assets)
+ * GET /api/predictive-maintenance/critical-alerts/:stateKey
+ */
+app.get('/api/predictive-maintenance/critical-alerts/:stateKey', async (req, res) => {
+  try {
+    const { stateKey } = req.params;
+    const predictiveAI = new PredictiveMaintenanceAI();
+
+    const alerts = predictiveAI.getCriticalAlerts(stateKey);
+    predictiveAI.close();
+
+    res.json({
+      success: true,
+      state_key: stateKey,
+      total_alerts: alerts.length,
+      alerts
+    });
+  } catch (error) {
+    console.error('Error fetching critical alerts:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch critical alerts',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Get cost savings analysis for a state
+ * GET /api/predictive-maintenance/cost-savings/:stateKey
+ */
+app.get('/api/predictive-maintenance/cost-savings/:stateKey', async (req, res) => {
+  try {
+    const { stateKey } = req.params;
+    const predictiveAI = new PredictiveMaintenanceAI();
+
+    const savings = predictiveAI.calculateCostSavings(stateKey);
+    predictiveAI.close();
+
+    res.json({
+      success: true,
+      ...savings
+    });
+  } catch (error) {
+    console.error('Error calculating cost savings:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to calculate cost savings',
+      details: error.message
+    });
+  }
+});
+
+// ============================================
+// PHASE 2.3: COVERAGE GAP ANALYSIS
+// ============================================
+
+/**
+ * Analyze coverage gaps for a state
+ * POST /api/coverage-gaps/analyze/:stateKey
+ */
+app.post('/api/coverage-gaps/analyze/:stateKey', async (req, res) => {
+  try {
+    const { stateKey } = req.params;
+    const analyzer = new CoverageGapAnalyzer();
+
+    const gaps = analyzer.analyzeState(stateKey);
+    analyzer.close();
+
+    res.json({
+      success: true,
+      state_key: stateKey,
+      total_gaps: gaps.length,
+      gaps: gaps.slice(0, 50) // Return top 50 priority gaps
+    });
+  } catch (error) {
+    console.error('Error analyzing coverage gaps:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to analyze coverage gaps',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Get coverage gap summary for a state
+ * GET /api/coverage-gaps/summary/:stateKey
+ */
+app.get('/api/coverage-gaps/summary/:stateKey', async (req, res) => {
+  try {
+    const { stateKey } = req.params;
+    const analyzer = new CoverageGapAnalyzer();
+
+    const summary = analyzer.getGapSummary(stateKey);
+    analyzer.close();
+
+    res.json({
+      success: true,
+      state_key: stateKey,
+      ...summary
+    });
+  } catch (error) {
+    console.error('Error fetching gap summary:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch coverage gap summary',
       details: error.message
     });
   }
