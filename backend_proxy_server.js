@@ -13259,6 +13259,278 @@ function getRecommendationAction(dimension, score) {
 }
 
 // ============================================
+// PHASE 2: SENSOR HEALTH & ASSET MANAGEMENT
+// Asset Health Monitoring API Endpoints
+// ============================================
+
+const AssetHealthMonitor = require('./services/asset-health-monitor');
+
+/**
+ * Get asset health dashboard for a state
+ * GET /api/asset-health/dashboard/:stateKey
+ */
+app.get('/api/asset-health/dashboard/:stateKey', async (req, res) => {
+  try {
+    const { stateKey } = req.params;
+    const monitor = new AssetHealthMonitor();
+
+    const dashboard = monitor.getStateDashboard(stateKey);
+    monitor.close();
+
+    res.json({
+      success: true,
+      ...dashboard
+    });
+  } catch (error) {
+    console.error('Error generating asset health dashboard:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate asset health dashboard',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Get detailed information for a specific asset
+ * GET /api/asset-health/asset/:assetId
+ */
+app.get('/api/asset-health/asset/:assetId', async (req, res) => {
+  try {
+    const { assetId } = req.params;
+    const monitor = new AssetHealthMonitor();
+
+    const details = monitor.getAssetDetails(assetId);
+    monitor.close();
+
+    if (!details) {
+      return res.status(404).json({
+        success: false,
+        error: 'Asset not found',
+        asset_id: assetId
+      });
+    }
+
+    res.json({
+      success: true,
+      ...details
+    });
+  } catch (error) {
+    console.error('Error fetching asset details:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch asset details',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Monitor health of a specific asset (trigger health check)
+ * POST /api/asset-health/monitor/:assetId
+ */
+app.post('/api/asset-health/monitor/:assetId', async (req, res) => {
+  try {
+    const { assetId } = req.params;
+    const monitor = new AssetHealthMonitor();
+
+    const health = await monitor.monitorAsset(assetId);
+    monitor.close();
+
+    res.json({
+      success: true,
+      asset_id: assetId,
+      health
+    });
+  } catch (error) {
+    console.error('Error monitoring asset:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to monitor asset',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Get coverage gaps for a state
+ * GET /api/asset-health/coverage-gaps/:stateKey
+ */
+app.get('/api/asset-health/coverage-gaps/:stateKey', async (req, res) => {
+  try {
+    const { stateKey } = req.params;
+    const Database = require('better-sqlite3');
+    const path = require('path');
+    const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'traffic_data.db');
+    const db = new Database(DB_PATH);
+
+    const gaps = db.prepare(`
+      SELECT * FROM asset_coverage_gaps
+      WHERE state_key = ?
+      ORDER BY priority_score DESC
+    `).all(stateKey);
+
+    db.close();
+
+    res.json({
+      success: true,
+      state_key: stateKey,
+      total_gaps: gaps.length,
+      coverage_gaps: gaps.map(gap => ({
+        id: gap.id,
+        corridor: gap.corridor,
+        segment_start: {
+          lat: gap.segment_start_lat,
+          lon: gap.segment_start_lon
+        },
+        segment_end: {
+          lat: gap.segment_end_lat,
+          lon: gap.segment_end_lon
+        },
+        gap_distance_miles: gap.gap_distance_miles,
+        missing_asset_types: gap.missing_asset_types ? JSON.parse(gap.missing_asset_types) : [],
+        incident_count_30d: gap.incident_count_30d,
+        priority_score: gap.priority_score,
+        recommended_equipment: gap.recommended_equipment ? JSON.parse(gap.recommended_equipment) : [],
+        estimated_cost: gap.estimated_installation_cost,
+        estimated_roi: gap.estimated_annual_roi,
+        matching_grants: gap.matching_grant_programs ? JSON.parse(gap.matching_grant_programs) : [],
+        status: gap.status
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching coverage gaps:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch coverage gaps',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Get upcoming maintenance schedule
+ * GET /api/asset-health/maintenance/upcoming?state=:stateKey&days=30
+ */
+app.get('/api/asset-health/maintenance/upcoming', async (req, res) => {
+  try {
+    const { state, days = 30 } = req.query;
+    const Database = require('better-sqlite3');
+    const path = require('path');
+    const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'traffic_data.db');
+    const db = new Database(DB_PATH);
+
+    let query = `
+      SELECT ms.*, ah.asset_type, ah.corridor, ah.manufacturer, ah.model
+      FROM maintenance_schedule ms
+      JOIN asset_health ah ON ah.asset_id = ms.asset_id
+      WHERE ms.scheduled_date >= date('now')
+        AND ms.scheduled_date <= date('now', '+' || ? || ' days')
+        AND ms.status = 'SCHEDULED'
+    `;
+    const params = [days];
+
+    if (state) {
+      query += ` AND ah.state_key = ?`;
+      params.push(state);
+    }
+
+    query += ` ORDER BY ms.scheduled_date ASC`;
+
+    const maintenance = db.prepare(query).all(...params);
+    db.close();
+
+    res.json({
+      success: true,
+      state_key: state || 'ALL',
+      period_days: days,
+      total_scheduled: maintenance.length,
+      maintenance: maintenance.map(m => ({
+        id: m.id,
+        asset_id: m.asset_id,
+        asset_type: m.asset_type,
+        corridor: m.corridor,
+        manufacturer: m.manufacturer,
+        model: m.model,
+        scheduled_date: m.scheduled_date,
+        maintenance_type: m.maintenance_type,
+        priority: m.priority,
+        assigned_vendor: m.assigned_vendor,
+        estimated_cost: m.estimated_cost,
+        estimated_downtime_hours: m.estimated_downtime_hours
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching maintenance schedule:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch maintenance schedule',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Schedule new maintenance activity
+ * POST /api/asset-health/maintenance/schedule
+ */
+app.post('/api/asset-health/maintenance/schedule', async (req, res) => {
+  try {
+    const {
+      asset_id,
+      scheduled_date,
+      maintenance_type,
+      priority = 'MEDIUM',
+      assigned_vendor,
+      estimated_cost,
+      estimated_downtime_hours
+    } = req.body;
+
+    if (!asset_id || !scheduled_date || !maintenance_type) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: asset_id, scheduled_date, maintenance_type'
+      });
+    }
+
+    const Database = require('better-sqlite3');
+    const path = require('path');
+    const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'traffic_data.db');
+    const db = new Database(DB_PATH);
+
+    const result = db.prepare(`
+      INSERT INTO maintenance_schedule (
+        asset_id, scheduled_date, maintenance_type, priority,
+        assigned_vendor, estimated_cost, estimated_downtime_hours
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      asset_id,
+      scheduled_date,
+      maintenance_type,
+      priority,
+      assigned_vendor,
+      estimated_cost,
+      estimated_downtime_hours
+    );
+
+    db.close();
+
+    res.json({
+      success: true,
+      maintenance_id: result.lastInsertRowid,
+      message: 'Maintenance scheduled successfully'
+    });
+  } catch (error) {
+    console.error('Error scheduling maintenance:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to schedule maintenance',
+      details: error.message
+    });
+  }
+});
+
+// ============================================
 // PHASE 6: AI-POWERED PREDICTIVE ANALYTICS
 // ============================================
 
