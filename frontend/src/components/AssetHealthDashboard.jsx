@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 
-const AssetHealthDashboard = () => {
-  const [assets, setAssets] = useState([]);
-  const [predictions, setPredictions] = useState([]);
-  const [criticalAlerts, setCriticalAlerts] = useState([]);
+const AssetHealthDashboard = ({ stateKey = 'OH' }) => {
+  const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedAsset, setSelectedAsset] = useState(null);
@@ -13,20 +11,16 @@ const AssetHealthDashboard = () => {
 
   useEffect(() => {
     fetchAssetData();
-  }, []);
+  }, [stateKey]);
 
   const fetchAssetData = async () => {
     try {
       setLoading(true);
-      const [assetsResp, predictionsResp, alertsResp] = await Promise.all([
-        api.get('/assets/health'),
-        api.get('/assets/predictive-maintenance'),
-        api.get('/assets/critical-alerts')
-      ]);
+      const response = await api.get(`/asset-health/dashboard/${stateKey}`);
 
-      if (assetsResp.data.success) setAssets(assetsResp.data.assets);
-      if (predictionsResp.data.success) setPredictions(predictionsResp.data.predictions);
-      if (alertsResp.data.success) setCriticalAlerts(alertsResp.data.alerts);
+      if (response.data.success) {
+        setDashboard(response.data);
+      }
     } catch (err) {
       console.error('Error fetching asset data:', err);
       setError(err.message);
@@ -80,6 +74,12 @@ const AssetHealthDashboard = () => {
     return icons[type] || '🔧';
   };
 
+  const assets = dashboard?.assets || [];
+  const alerts = dashboard?.alerts || [];
+  const maintenanceDue = dashboard?.maintenance_due || [];
+  const summary = dashboard?.summary || {};
+  const byType = dashboard?.by_type || {};
+
   const filteredAssets = assets.filter(asset => {
     if (filterType !== 'ALL' && asset.asset_type !== filterType) return false;
     if (filterStatus !== 'ALL' && asset.status !== filterStatus) return false;
@@ -87,7 +87,7 @@ const AssetHealthDashboard = () => {
   });
 
   const assetTypes = ['ALL', 'CCTV', 'RSU', 'DMS', 'RWIS', 'DETECTOR'];
-  const statusTypes = ['ALL', 'OPERATIONAL', 'DEGRADED', 'FAILED', 'MAINTENANCE', 'OFFLINE'];
+  const statusTypes = ['ALL', 'OPERATIONAL', 'DEGRADED', 'FAILED', 'MAINTENANCE'];
 
   if (loading) {
     return <div style={{ padding: '40px', textAlign: 'center', fontSize: '16px', color: '#6b7280' }}>
@@ -109,18 +109,73 @@ const AssetHealthDashboard = () => {
           Asset Health & Predictive Maintenance
         </h1>
         <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>
-          Phase 2.1 & 2.2: Real-time asset monitoring and AI-powered failure prediction
+          Phase 2.1: Real-time asset monitoring for {stateKey}
         </p>
       </div>
 
-      {/* Critical Alerts Section */}
-      {criticalAlerts.length > 0 && (
+      {/* Summary Statistics */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '32px' }}>
+        <div style={{ background: 'white', border: '2px solid #e5e7eb', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
+          <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>Total Assets</div>
+          <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#111827' }}>{summary.total_assets || 0}</div>
+        </div>
+        <div style={{ background: 'white', border: '2px solid #10b981', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
+          <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>Operational</div>
+          <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#10b981' }}>{summary.operational || 0}</div>
+        </div>
+        <div style={{ background: 'white', border: '2px solid #f59e0b', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
+          <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>Degraded</div>
+          <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#f59e0b' }}>{summary.degraded || 0}</div>
+        </div>
+        <div style={{ background: 'white', border: '2px solid #ef4444', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
+          <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>Failed</div>
+          <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#ef4444' }}>{summary.failed || 0}</div>
+        </div>
+        <div style={{ background: 'white', border: '2px solid #8b5cf6', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
+          <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>Health Score</div>
+          <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#8b5cf6' }}>{summary.overall_health_score || 0}</div>
+        </div>
+      </div>
+
+      {/* Asset Type Breakdown */}
+      {Object.keys(byType).length > 0 && (
         <div style={{ marginBottom: '32px' }}>
           <h2 style={{ margin: '0 0 16px 0', fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>
-            Critical Alerts ({criticalAlerts.length})
+            Asset Types
+          </h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+            {Object.entries(byType).map(([type, data]) => (
+              <div key={type} style={{ background: 'white', border: '2px solid #e5e7eb', borderRadius: '12px', padding: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '32px' }}>{getAssetIcon(type)}</div>
+                  <div>
+                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#111827' }}>{type}</div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>{data.total} total</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Health Score</div>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#8b5cf6' }}>
+                  {data.health_score.toFixed(1)}
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px', fontSize: '11px' }}>
+                  <span style={{ color: '#10b981' }}>✓ {data.operational}</span>
+                  <span style={{ color: '#f59e0b' }}>⚠ {data.degraded}</span>
+                  <span style={{ color: '#ef4444' }}>✗ {data.failed}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recent Alerts Section */}
+      {alerts.length > 0 && (
+        <div style={{ marginBottom: '32px' }}>
+          <h2 style={{ margin: '0 0 16px 0', fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>
+            Recent Alerts (Last 7 Days)
           </h2>
           <div style={{ display: 'grid', gap: '12px' }}>
-            {criticalAlerts.map((alert, idx) => (
+            {alerts.map((alert, idx) => (
               <div
                 key={idx}
                 style={{
@@ -138,7 +193,7 @@ const AssetHealthDashboard = () => {
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#111827', marginBottom: '4px' }}>
-                    {alert.asset_name || alert.asset_id}
+                    {alert.asset_id}
                   </div>
                   <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '4px' }}>
                     {alert.corridor} • {alert.asset_type}
@@ -146,56 +201,30 @@ const AssetHealthDashboard = () => {
                   <div style={{ display: 'flex', gap: '8px', fontSize: '12px' }}>
                     <span style={{
                       padding: '2px 8px',
-                      background: getStatusColor(alert.status),
+                      background: getAlertPriorityColor(alert.alert_type),
                       color: 'white',
                       borderRadius: '4px',
                       fontWeight: '600'
                     }}>
-                      {alert.status}
+                      {alert.alert_type}
                     </span>
-                    {alert.failure_risk_level && (
+                    {alert.performance_metric !== undefined && (
                       <span style={{
                         padding: '2px 8px',
-                        background: getRiskColor(alert.failure_risk_level),
-                        color: 'white',
+                        background: '#f3f4f6',
+                        color: '#374151',
                         borderRadius: '4px',
                         fontWeight: '600'
                       }}>
-                        {alert.failure_risk_level} RISK
-                      </span>
-                    )}
-                    {alert.recommended_action && (
-                      <span style={{
-                        padding: '2px 8px',
-                        background: '#dbeafe',
-                        color: '#1e40af',
-                        borderRadius: '4px',
-                        fontWeight: '600'
-                      }}>
-                        {alert.recommended_action}
+                        Metric: {alert.performance_metric.toFixed(1)}
                       </span>
                     )}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div
-                    style={{
-                      padding: '8px 16px',
-                      background: getAlertPriorityColor(alert.alert_priority),
-                      color: 'white',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontWeight: 'bold',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {alert.alert_priority}
+                  <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                    {new Date(alert.timestamp).toLocaleString()}
                   </div>
-                  {alert.failure_probability_30d !== undefined && (
-                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#ef4444', marginTop: '4px' }}>
-                      {(alert.failure_probability_30d * 100).toFixed(0)}%
-                    </div>
-                  )}
                 </div>
               </div>
             ))}
@@ -203,107 +232,59 @@ const AssetHealthDashboard = () => {
         </div>
       )}
 
-      {/* Predictive Maintenance Section */}
-      {predictions.length > 0 && (
+      {/* Upcoming Maintenance Section */}
+      {maintenanceDue.length > 0 && (
         <div style={{ marginBottom: '32px' }}>
           <h2 style={{ margin: '0 0 16px 0', fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>
-            Predictive Maintenance Recommendations
+            Upcoming Maintenance (Next 30 Days)
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '16px' }}>
-            {predictions.slice(0, 6).map((pred, idx) => (
-              <div
-                key={idx}
-                style={{
-                  background: 'white',
-                  border: `2px solid ${getRiskColor(pred.failure_risk_level)}`,
-                  borderRadius: '12px',
-                  padding: '20px'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                  <div style={{ fontSize: '32px' }}>
-                    {getAssetIcon(pred.asset_type)}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#111827' }}>
-                      {pred.asset_id}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                      {pred.asset_type}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      padding: '4px 12px',
-                      background: getRiskColor(pred.failure_risk_level),
-                      color: 'white',
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      fontWeight: 'bold'
-                    }}
-                  >
-                    {pred.failure_risk_level}
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '12px' }}>
-                  <div style={{ textAlign: 'center', padding: '8px', background: '#fef3c7', borderRadius: '6px' }}>
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#92400e' }}>
-                      {(pred.failure_probability_7d * 100).toFixed(0)}%
-                    </div>
-                    <div style={{ fontSize: '10px', color: '#92400e' }}>7-day</div>
-                  </div>
-                  <div style={{ textAlign: 'center', padding: '8px', background: '#fed7aa', borderRadius: '6px' }}>
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#9a3412' }}>
-                      {(pred.failure_probability_14d * 100).toFixed(0)}%
-                    </div>
-                    <div style={{ fontSize: '10px', color: '#9a3412' }}>14-day</div>
-                  </div>
-                  <div style={{ textAlign: 'center', padding: '8px', background: '#fecaca', borderRadius: '6px' }}>
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#991b1b' }}>
-                      {(pred.failure_probability_30d * 100).toFixed(0)}%
-                    </div>
-                    <div style={{ fontSize: '10px', color: '#991b1b' }}>30-day</div>
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: '12px', padding: '12px', background: '#f9fafb', borderRadius: '6px' }}>
-                  <div style={{ fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
-                    Recommended Action
-                  </div>
-                  <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#1f2937', marginBottom: '4px' }}>
-                    {pred.recommended_action}
-                  </div>
-                  {pred.recommended_action_by_date && (
-                    <div style={{ fontSize: '11px', color: '#6b7280' }}>
-                      By: {new Date(pred.recommended_action_by_date).toLocaleDateString()}
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
-                  <div>
-                    <div style={{ color: '#6b7280', marginBottom: '2px' }}>Preventive Cost</div>
-                    <div style={{ fontWeight: 'bold', color: '#10b981' }}>
-                      ${pred.preventive_maintenance_cost.toLocaleString()}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ color: '#6b7280', marginBottom: '2px' }}>Emergency Cost</div>
-                    <div style={{ fontWeight: 'bold', color: '#ef4444' }}>
-                      ${pred.emergency_repair_cost.toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #e5e7eb', textAlign: 'center' }}>
-                  <div style={{ fontSize: '11px', color: '#6b7280' }}>ROI: Preventive Maintenance</div>
-                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>
-                    {pred.roi_preventive_maintenance.toFixed(1)}x
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div style={{ background: 'white', border: '2px solid #e5e7eb', borderRadius: '12px', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6b7280' }}>Asset</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6b7280' }}>Type</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6b7280' }}>Corridor</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6b7280' }}>Scheduled</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6b7280' }}>Days Until Due</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6b7280' }}>Priority</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#6b7280' }}>Maintenance Type</th>
+                </tr>
+              </thead>
+              <tbody>
+                {maintenanceDue.map((maint, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                    <td style={{ padding: '12px', fontSize: '14px', color: '#111827' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '20px' }}>{getAssetIcon(maint.asset_type)}</span>
+                        {maint.asset_id}
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px', fontSize: '13px', color: '#6b7280' }}>{maint.asset_type}</td>
+                    <td style={{ padding: '12px', fontSize: '13px', color: '#6b7280' }}>{maint.corridor}</td>
+                    <td style={{ padding: '12px', fontSize: '13px', color: '#111827' }}>
+                      {new Date(maint.scheduled_date).toLocaleDateString()}
+                    </td>
+                    <td style={{ padding: '12px', fontSize: '13px', fontWeight: 'bold', color: maint.days_until_due < 7 ? '#ef4444' : '#111827' }}>
+                      {maint.days_until_due} days
+                    </td>
+                    <td style={{ padding: '12px' }}>
+                      <span style={{
+                        padding: '4px 8px',
+                        background: maint.priority === 'CRITICAL' ? '#ef4444' : maint.priority === 'HIGH' ? '#f59e0b' : '#10b981',
+                        color: 'white',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        fontWeight: '600'
+                      }}>
+                        {maint.priority}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px', fontSize: '13px', color: '#6b7280' }}>{maint.maintenance_type}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -420,43 +401,11 @@ const AssetHealthDashboard = () => {
                   <div style={{
                     fontSize: '20px',
                     fontWeight: 'bold',
-                    color: asset.uptime_percentage_30d >= 99 ? '#10b981' : asset.uptime_percentage_30d >= 95 ? '#f59e0b' : '#ef4444'
+                    color: (asset.uptime_30d || 0) >= 99 ? '#10b981' : (asset.uptime_30d || 0) >= 95 ? '#f59e0b' : '#ef4444'
                   }}>
-                    {asset.uptime_percentage_30d.toFixed(1)}%
+                    {(asset.uptime_30d || 0).toFixed(1)}%
                   </div>
                 </div>
-                {asset.performance_score !== undefined && (
-                  <div>
-                    <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>Performance</div>
-                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#111827' }}>
-                      {asset.performance_score}/100
-                    </div>
-                  </div>
-                )}
-                {asset.next_maintenance_due && (
-                  <div>
-                    <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>Next Maintenance</div>
-                    <div style={{
-                      fontSize: '14px',
-                      fontWeight: 'bold',
-                      color: new Date(asset.next_maintenance_due) < new Date() ? '#ef4444' : '#111827'
-                    }}>
-                      {new Date(asset.next_maintenance_due).toLocaleDateString()}
-                    </div>
-                  </div>
-                )}
-                {asset.estimated_remaining_life_years !== undefined && (
-                  <div>
-                    <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>Est. Remaining Life</div>
-                    <div style={{
-                      fontSize: '18px',
-                      fontWeight: 'bold',
-                      color: asset.estimated_remaining_life_years < 2 ? '#ef4444' : '#111827'
-                    }}>
-                      {asset.estimated_remaining_life_years.toFixed(1)} yrs
-                    </div>
-                  </div>
-                )}
               </div>
 
               {asset.last_online && (
@@ -535,76 +484,19 @@ const AssetHealthDashboard = () => {
               <div>
                 <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Uptime (30 days)</div>
                 <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>
-                  {selectedAsset.uptime_percentage_30d.toFixed(2)}%
+                  {(selectedAsset.uptime_30d || 0).toFixed(2)}%
                 </div>
               </div>
             </div>
 
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
-                Equipment Details
-              </div>
-              <div style={{ display: 'grid', gap: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: '#f9fafb', borderRadius: '6px' }}>
-                  <span style={{ fontSize: '14px', color: '#374151' }}>Manufacturer</span>
-                  <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#111827' }}>
-                    {selectedAsset.manufacturer || 'N/A'}
-                  </span>
+            {selectedAsset.last_online && (
+              <div style={{ marginBottom: '20px', padding: '12px', background: '#f9fafb', borderRadius: '6px' }}>
+                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Last Online</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#111827' }}>
+                  {new Date(selectedAsset.last_online).toLocaleString()}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: '#f9fafb', borderRadius: '6px' }}>
-                  <span style={{ fontSize: '14px', color: '#374151' }}>Model</span>
-                  <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#111827' }}>
-                    {selectedAsset.model || 'N/A'}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: '#f9fafb', borderRadius: '6px' }}>
-                  <span style={{ fontSize: '14px', color: '#374151' }}>Age</span>
-                  <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#111827' }}>
-                    {selectedAsset.age_years ? `${selectedAsset.age_years.toFixed(1)} years` : 'N/A'}
-                  </span>
-                </div>
-                {selectedAsset.estimated_remaining_life_years !== undefined && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: '#f9fafb', borderRadius: '6px' }}>
-                    <span style={{ fontSize: '14px', color: '#374151' }}>Est. Remaining Life</span>
-                    <span style={{
-                      fontSize: '14px',
-                      fontWeight: 'bold',
-                      color: selectedAsset.estimated_remaining_life_years < 2 ? '#ef4444' : '#10b981'
-                    }}>
-                      {selectedAsset.estimated_remaining_life_years.toFixed(1)} years
-                    </span>
-                  </div>
-                )}
               </div>
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
-                Maintenance Schedule
-              </div>
-              <div style={{ display: 'grid', gap: '8px' }}>
-                {selectedAsset.last_maintenance_date && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: '#f9fafb', borderRadius: '6px' }}>
-                    <span style={{ fontSize: '14px', color: '#374151' }}>Last Maintenance</span>
-                    <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#111827' }}>
-                      {new Date(selectedAsset.last_maintenance_date).toLocaleDateString()}
-                    </span>
-                  </div>
-                )}
-                {selectedAsset.next_maintenance_due && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', background: '#f9fafb', borderRadius: '6px' }}>
-                    <span style={{ fontSize: '14px', color: '#374151' }}>Next Maintenance Due</span>
-                    <span style={{
-                      fontSize: '14px',
-                      fontWeight: 'bold',
-                      color: new Date(selectedAsset.next_maintenance_due) < new Date() ? '#ef4444' : '#10b981'
-                    }}>
-                      {new Date(selectedAsset.next_maintenance_due).toLocaleDateString()}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
 
             <button
               onClick={() => setSelectedAsset(null)}
@@ -637,10 +529,10 @@ const AssetHealthDashboard = () => {
         color: '#6b7280'
       }}>
         <p style={{ margin: 0 }}>
-          <strong>Phase 2.1 & 2.2 MVP:</strong> Real-time asset health monitoring with AI-powered predictive maintenance.
+          <strong>Phase 2.1:</strong> Real-time asset health monitoring for ITS equipment (CCTV, RSU, DMS, RWIS, Detectors).
         </p>
         <p style={{ margin: '8px 0 0 0' }}>
-          Failure prediction models estimate 7/14/30-day failure probabilities with cost-benefit analysis for preventive vs emergency maintenance.
+          Tracks uptime, performance metrics, alerts, and maintenance schedules. Predictive maintenance AI coming in Phase 2.2.
         </p>
       </div>
     </div>
