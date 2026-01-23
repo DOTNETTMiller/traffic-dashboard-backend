@@ -12873,6 +12873,392 @@ app.get('/api/data-quality/trending-summary', async (req, res) => {
 });
 
 // ============================================
+// PHASE 1: DATA QUALITY & ACCOUNTABILITY FOUNDATION
+// State Report Card API Endpoints
+// ============================================
+
+/**
+ * Get comprehensive state report card with 7-dimension scoring
+ * GET /api/data-quality/report-card/:stateKey
+ *
+ * Returns:
+ * - Current quality metrics (all 7 dimensions)
+ * - Historical trend (30/90 day comparison)
+ * - National ranking
+ * - Peer state comparisons
+ * - Actionable recommendations
+ * - Vendor/contract information
+ */
+app.get('/api/data-quality/report-card/:stateKey', async (req, res) => {
+  try {
+    const { stateKey } = req.params;
+    const Database = require('better-sqlite3');
+    const path = require('path');
+    const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'traffic_data.db');
+    const db = new Database(DB_PATH);
+    db.pragma('journal_mode = WAL');
+
+    // Get latest quality metrics for this state's feeds
+    const metrics = db.prepare(`
+      SELECT
+        dqm.*,
+        df.provider_name,
+        c.name as corridor_name
+      FROM data_quality_metrics dqm
+      JOIN data_feeds df ON df.id = dqm.feed_key
+      JOIN corridors c ON c.id = df.corridor_id
+      WHERE dqm.state_key = ?
+        AND dqm.id IN (
+          SELECT MAX(id)
+          FROM data_quality_metrics
+          WHERE state_key = ?
+          GROUP BY feed_key
+        )
+      ORDER BY dqm.overall_quality_score DESC
+    `).all(stateKey, stateKey);
+
+    if (metrics.length === 0) {
+      db.close();
+      return res.status(404).json({
+        success: false,
+        error: 'No quality data found for this state',
+        state_key: stateKey
+      });
+    }
+
+    // Calculate state-level aggregates
+    const avgScore = metrics.reduce((sum, m) => sum + m.overall_quality_score, 0) / metrics.length;
+    const avgCompleteness = metrics.reduce((sum, m) => sum + m.completeness_score, 0) / metrics.length;
+    const avgFreshness = metrics.reduce((sum, m) => sum + m.freshness_score, 0) / metrics.length;
+    const avgAccuracy = metrics.reduce((sum, m) => sum + m.accuracy_score, 0) / metrics.length;
+    const avgAvailability = metrics.reduce((sum, m) => sum + m.availability_score, 0) / metrics.length;
+    const avgStandardization = metrics.reduce((sum, m) => sum + m.standardization_score, 0) / metrics.length;
+    const avgTimeliness = metrics.reduce((sum, m) => sum + m.timeliness_score, 0) / metrics.length;
+    const avgUsability = metrics.reduce((sum, m) => sum + m.usability_score, 0) / metrics.length;
+
+    // Get historical data (30 days)
+    const history30d = db.prepare(`
+      SELECT
+        DATE(timestamp) as date,
+        AVG(overall_quality_score) as avg_score,
+        COUNT(*) as feed_count
+      FROM data_quality_metrics
+      WHERE state_key = ?
+        AND timestamp >= datetime('now', '-30 days')
+      GROUP BY DATE(timestamp)
+      ORDER BY date ASC
+    `).all(stateKey);
+
+    // Calculate trend
+    let trend = 'stable';
+    let trendChange = 0;
+    if (history30d.length >= 7) {
+      const recentAvg = history30d.slice(-7).reduce((sum, d) => sum + d.avg_score, 0) / 7;
+      const olderAvg = history30d.slice(0, 7).reduce((sum, d) => sum + d.avg_score, 0) / 7;
+      trendChange = recentAvg - olderAvg;
+      if (trendChange > 2) trend = 'improving';
+      else if (trendChange < -2) trend = 'declining';
+    }
+
+    // Get national rankings
+    const allStates = db.prepare(`
+      SELECT
+        state_key,
+        AVG(overall_quality_score) as avg_score
+      FROM data_quality_metrics
+      WHERE id IN (
+          SELECT MAX(id)
+          FROM data_quality_metrics
+          GROUP BY feed_key
+        )
+      GROUP BY state_key
+      ORDER BY avg_score DESC
+    `).all();
+
+    const nationalRank = allStates.findIndex(s => s.state_key === stateKey) + 1;
+    const totalStates = allStates.length;
+
+    // Find peer states (similar scores ±10 points)
+    const peers = allStates
+      .filter(s => s.state_key !== stateKey && Math.abs(s.avg_score - avgScore) <= 10)
+      .slice(0, 5)
+      .map(s => ({
+        state_key: s.state_key,
+        avg_score: Math.round(s.avg_score * 10) / 10
+      }));
+
+    // Get vendor/contract info
+    const contracts = db.prepare(`
+      SELECT * FROM vendor_contracts WHERE state_key = ?
+    `).all(stateKey);
+
+    // Generate recommendations based on weakest dimensions
+    const recommendations = [];
+    const dimensionScores = [
+      { name: 'Completeness', score: avgCompleteness, weight: 0.20 },
+      { name: 'Freshness', score: avgFreshness, weight: 0.15 },
+      { name: 'Accuracy', score: avgAccuracy, weight: 0.20 },
+      { name: 'Availability', score: avgAvailability, weight: 0.15 },
+      { name: 'Standardization', score: avgStandardization, weight: 0.15 },
+      { name: 'Timeliness', score: avgTimeliness, weight: 0.10 },
+      { name: 'Usability', score: avgUsability, weight: 0.05 }
+    ].sort((a, b) => a.score - b.score);
+
+    // Recommend improvements for lowest 3 dimensions
+    for (let i = 0; i < Math.min(3, dimensionScores.length); i++) {
+      const dim = dimensionScores[i];
+      if (dim.score < 70) {
+        recommendations.push({
+          dimension: dim.name,
+          current_score: Math.round(dim.score * 10) / 10,
+          priority: dim.score < 50 ? 'HIGH' : dim.score < 60 ? 'MEDIUM' : 'LOW',
+          impact: `+${Math.round((100 - dim.score) * dim.weight * 10) / 10} points to overall DQI`,
+          action: getRecommendationAction(dim.name, dim.score)
+        });
+      }
+    }
+
+    db.close();
+
+    res.json({
+      success: true,
+      state_key: stateKey,
+      report_date: new Date().toISOString(),
+
+      // Current Metrics Summary
+      current_metrics: {
+        overall_dqi: Math.round(avgScore * 10) / 10,
+        letter_grade: getLetterGrade(avgScore),
+        total_feeds: metrics.length,
+        dimensions: {
+          completeness: Math.round(avgCompleteness * 10) / 10,
+          freshness: Math.round(avgFreshness * 10) / 10,
+          accuracy: Math.round(avgAccuracy * 10) / 10,
+          availability: Math.round(avgAvailability * 10) / 10,
+          standardization: Math.round(avgStandardization * 10) / 10,
+          timeliness: Math.round(avgTimeliness * 10) / 10,
+          usability: Math.round(avgUsability * 10) / 10
+        }
+      },
+
+      // Historical Trend
+      trend: {
+        direction: trend,
+        change_30d: Math.round(trendChange * 10) / 10,
+        history: history30d.map(h => ({
+          date: h.date,
+          score: Math.round(h.avg_score * 10) / 10
+        }))
+      },
+
+      // National Ranking
+      ranking: {
+        national_rank: nationalRank,
+        total_states: totalStates,
+        percentile: Math.round((1 - (nationalRank - 1) / totalStates) * 100)
+      },
+
+      // Peer Comparisons
+      peer_states: peers,
+
+      // Feed Details
+      feeds: metrics.map(m => ({
+        feed_key: m.feed_key,
+        provider: m.provider_name,
+        corridor: m.corridor_name,
+        dqi: Math.round(m.overall_quality_score * 10) / 10,
+        grade: m.letter_grade
+      })),
+
+      // Vendor Contracts
+      contracts: contracts.map(c => ({
+        vendor_name: c.vendor_name,
+        contract_value_annual: c.contract_value_annual,
+        contract_start_date: c.contract_start_date,
+        contract_end_date: c.contract_end_date,
+        sla_uptime_target: c.sla_uptime_target
+      })),
+
+      // Recommendations
+      recommendations: recommendations
+    });
+
+  } catch (error) {
+    console.error('Error generating state report card:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate state report card',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Get quality metrics history for a specific state
+ * GET /api/data-quality/history/:stateKey?days=90
+ */
+app.get('/api/data-quality/history/:stateKey', async (req, res) => {
+  try {
+    const { stateKey } = req.params;
+    const days = parseInt(req.query.days) || 90;
+
+    const Database = require('better-sqlite3');
+    const path = require('path');
+    const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'traffic_data.db');
+    const db = new Database(DB_PATH);
+    db.pragma('journal_mode = WAL');
+
+    const history = db.prepare(`
+      SELECT
+        DATE(timestamp) as date,
+        AVG(overall_quality_score) as avg_dqi,
+        AVG(completeness_score) as avg_completeness,
+        AVG(freshness_score) as avg_freshness,
+        AVG(accuracy_score) as avg_accuracy,
+        AVG(availability_score) as avg_availability,
+        AVG(standardization_score) as avg_standardization,
+        AVG(timeliness_score) as avg_timeliness,
+        AVG(usability_score) as avg_usability,
+        COUNT(DISTINCT feed_key) as feed_count,
+        SUM(total_events) as total_events
+      FROM data_quality_metrics
+      WHERE state_key = ?
+        AND timestamp >= datetime('now', '-' || ? || ' days')
+      GROUP BY DATE(timestamp)
+      ORDER BY date ASC
+    `).all(stateKey, days);
+
+    db.close();
+
+    res.json({
+      success: true,
+      state_key: stateKey,
+      period_days: days,
+      data_points: history.length,
+      history: history.map(h => ({
+        date: h.date,
+        dqi: Math.round(h.avg_dqi * 10) / 10,
+        dimensions: {
+          completeness: Math.round(h.avg_completeness * 10) / 10,
+          freshness: Math.round(h.avg_freshness * 10) / 10,
+          accuracy: Math.round(h.avg_accuracy * 10) / 10,
+          availability: Math.round(h.avg_availability * 10) / 10,
+          standardization: Math.round(h.avg_standardization * 10) / 10,
+          timeliness: Math.round(h.avg_timeliness * 10) / 10,
+          usability: Math.round(h.avg_usability * 10) / 10
+        },
+        feed_count: h.feed_count,
+        total_events: h.total_events
+      }))
+    });
+
+  } catch (error) {
+    console.error('Error fetching quality history:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch quality history',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Get all state report cards (national overview)
+ * GET /api/data-quality/national-report-cards
+ */
+app.get('/api/data-quality/national-report-cards', async (req, res) => {
+  try {
+    const Database = require('better-sqlite3');
+    const path = require('path');
+    const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, 'traffic_data.db');
+    const db = new Database(DB_PATH);
+    db.pragma('journal_mode = WAL');
+
+    // Get latest metrics aggregated by state
+    const stateMetrics = db.prepare(`
+      SELECT
+        state_key,
+        COUNT(DISTINCT feed_key) as feed_count,
+        AVG(overall_quality_score) as avg_dqi,
+        AVG(completeness_score) as avg_completeness,
+        AVG(freshness_score) as avg_freshness,
+        AVG(accuracy_score) as avg_accuracy,
+        AVG(availability_score) as avg_availability,
+        AVG(standardization_score) as avg_standardization,
+        AVG(timeliness_score) as avg_timeliness,
+        AVG(usability_score) as avg_usability,
+        SUM(total_events) as total_events
+      FROM data_quality_metrics
+      WHERE id IN (
+        SELECT MAX(id)
+        FROM data_quality_metrics
+        GROUP BY feed_key
+      )
+      GROUP BY state_key
+      ORDER BY avg_dqi DESC
+    `).all();
+
+    db.close();
+
+    const reportCards = stateMetrics.map((state, index) => ({
+      state_key: state.state_key,
+      national_rank: index + 1,
+      dqi: Math.round(state.avg_dqi * 10) / 10,
+      letter_grade: getLetterGrade(state.avg_dqi),
+      feed_count: state.feed_count,
+      total_events: state.total_events,
+      dimensions: {
+        completeness: Math.round(state.avg_completeness * 10) / 10,
+        freshness: Math.round(state.avg_freshness * 10) / 10,
+        accuracy: Math.round(state.avg_accuracy * 10) / 10,
+        availability: Math.round(state.avg_availability * 10) / 10,
+        standardization: Math.round(state.avg_standardization * 10) / 10,
+        timeliness: Math.round(state.avg_timeliness * 10) / 10,
+        usability: Math.round(state.avg_usability * 10) / 10
+      }
+    }));
+
+    res.json({
+      success: true,
+      report_date: new Date().toISOString(),
+      total_states: reportCards.length,
+      national_avg_dqi: Math.round(stateMetrics.reduce((sum, s) => sum + s.avg_dqi, 0) / stateMetrics.length * 10) / 10,
+      report_cards: reportCards
+    });
+
+  } catch (error) {
+    console.error('Error generating national report cards:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate national report cards',
+      details: error.message
+    });
+  }
+});
+
+// Helper functions for report cards
+function getLetterGrade(score) {
+  if (score >= 90) return 'A';
+  if (score >= 80) return 'B';
+  if (score >= 70) return 'C';
+  if (score >= 60) return 'D';
+  return 'F';
+}
+
+function getRecommendationAction(dimension, score) {
+  const actions = {
+    'Completeness': 'Work with data providers to ensure all required fields are populated, especially end times and descriptions',
+    'Freshness': 'Increase feed update frequency to 5-15 minutes for real-time coordination',
+    'Accuracy': 'Validate geometry coordinates and schema compliance before publishing',
+    'Availability': 'Implement redundancy and monitoring to improve feed uptime to 99%+',
+    'Standardization': 'Adopt WZDx v4.2 specification and standard ITIS codes for event classification',
+    'Timeliness': 'Remove stale events (>7 days old) and validate event start/end dates',
+    'Usability': 'Add contact information, lane closure details, and work zone type classifications'
+  };
+  return actions[dimension] || 'Review data quality guidelines and implement improvements';
+}
+
+// ============================================
 // PHASE 6: AI-POWERED PREDICTIVE ANALYTICS
 // ============================================
 
