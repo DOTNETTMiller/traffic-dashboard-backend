@@ -1,21 +1,22 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-const DB_PATH = path.join(__dirname, '..', 'states.db');
+const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, '..', 'traffic_data.db');
 
 /**
- * Data Quality Service
+ * Data Quality Service - Phase 1: Data Quality & Accountability Foundation
  *
- * Calculates 7-dimension quality scores for each state's data feed:
- * 1. Completeness - Required fields populated
- * 2. Freshness - How up-to-date is the data
+ * Calculates 7-dimension quality scores for data feeds:
+ * 1. Completeness - Required fields populated (end time, description, geometry, severity, lanes)
+ * 2. Freshness - How up-to-date is the data (update latency, stale events)
  * 3. Accuracy - Geometry validation, schema compliance
- * 4. Availability - Feed uptime and reliability
- * 5. Consistency - Data format consistency
- * 6. Coverage - Geographic coverage completeness
- * 7. Timeliness - Update frequency
+ * 4. Availability - Feed uptime and reliability (fetch success/failure)
+ * 5. Standardization - WZDx compliance, ITIS codes, valid event types
+ * 6. Timeliness - Future-dated events, event age distribution, staleness
+ * 7. Usability - Contact info, restrictions, work zone types
  *
  * Overall score is a weighted average of all dimensions.
+ * Generates letter grades (A-F) and national rankings for state report cards.
  */
 
 class DataQualityService {
