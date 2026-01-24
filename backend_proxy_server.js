@@ -1880,8 +1880,8 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events', a
             // Log first detail structure
             if (index === 0 && detail) {
               console.log(`${stateName}: Detail keys:`, Object.keys(detail));
-              if (detail.location) {
-                console.log(`${stateName}: Location structure:`, JSON.stringify(detail.location, null, 2));
+              if (detail.locations) {
+                console.log(`${stateName}: Locations structure:`, JSON.stringify(detail.locations, null, 2).substring(0, 2000));
               }
             }
 
@@ -1923,6 +1923,9 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events', a
                     coordinates: coordinates,
                     source: 'FEU-G path'
                   };
+                  if (index === 0) {
+                    console.log(`${stateName}: Extracted geometry from path with ${coordinates.length} coordinates`);
+                  }
                 }
               }
 
@@ -1957,7 +1960,12 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events', a
                     coordinates: coordinates,
                     source: 'FEU-G supplemental-location'
                   };
+                  if (index === 0) {
+                    console.log(`${stateName}: Extracted geometry from supplemental-location with ${coordinates.length} coordinates`);
+                  }
                 }
+              } else if (index === 0 && locationOnLink) {
+                console.log(`${stateName}: No geometry found - path:`, !!locationOnLink.path, 'supplemental-location:', !!locationOnLink['supplemental-location']);
               }
             }
 
