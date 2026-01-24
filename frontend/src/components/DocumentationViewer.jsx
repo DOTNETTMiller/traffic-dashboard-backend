@@ -255,7 +255,9 @@ function DocumentationViewer() {
     // Convert markdown to HTML
     let html = markdown;
 
-    // Headers
+    // Headers (process from most specific to least specific)
+    html = html.replace(/^##### (.*$)/gim, '<h5>$1</h5>');
+    html = html.replace(/^#### (.*$)/gim, '<h4>$1</h4>');
     html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
     html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
     html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
@@ -504,6 +506,20 @@ function DocumentationViewer() {
             font-weight: 600;
             margin: 16px 0 8px 0;
             color: #374151;
+          }
+
+          .markdown-content h4 {
+            font-size: 17px;
+            font-weight: 600;
+            margin: 14px 0 8px 0;
+            color: #4b5563;
+          }
+
+          .markdown-content h5 {
+            font-size: 15px;
+            font-weight: 600;
+            margin: 12px 0 6px 0;
+            color: #6b7280;
           }
 
           .markdown-content p {
