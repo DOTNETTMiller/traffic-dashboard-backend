@@ -1899,73 +1899,29 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events', a
                 lng = parseFloat(primaryLoc.longitude) / 1000000 || 0;
               }
 
-              // Try to extract polyline from path
-              const path = locationOnLink.path;
-              if (path && path['geo-location']) {
-                const geoLocations = Array.isArray(path['geo-location'])
-                  ? path['geo-location']
-                  : [path['geo-location']];
+              // Extract polyline from primary + secondary locations
+              const secondaryLoc = locationOnLink['secondary-location']?.['geo-location'];
+              if (primaryLoc && secondaryLoc) {
+                const primaryLat = parseFloat(primaryLoc.latitude) / 1000000;
+                const primaryLng = parseFloat(primaryLoc.longitude) / 1000000;
+                const secondaryLat = parseFloat(secondaryLoc.latitude) / 1000000;
+                const secondaryLng = parseFloat(secondaryLoc.longitude) / 1000000;
 
-                const coordinates = geoLocations
-                  .map(loc => {
-                    const pathLat = parseFloat(loc.latitude) / 1000000;
-                    const pathLng = parseFloat(loc.longitude) / 1000000;
-                    if (pathLat && pathLng) {
-                      return [pathLng, pathLat]; // GeoJSON format: [lng, lat]
-                    }
-                    return null;
-                  })
-                  .filter(coord => coord !== null);
-
-                if (coordinates.length >= 2) {
+                if (primaryLat && primaryLng && secondaryLat && secondaryLng) {
                   geometry = {
                     type: 'LineString',
-                    coordinates: coordinates,
-                    source: 'FEU-G path'
+                    coordinates: [
+                      [primaryLng, primaryLat],
+                      [secondaryLng, secondaryLat]
+                    ],
+                    source: 'FEU-G primary+secondary'
                   };
                   if (index === 0) {
-                    console.log(`${stateName}: Extracted geometry from path with ${coordinates.length} coordinates`);
+                    console.log(`${stateName}: Extracted geometry from primary+secondary locations`);
                   }
                 }
-              }
-
-              // If no path, try supplemental-location
-              if (!geometry && locationOnLink['supplemental-location']) {
-                const suppLocs = Array.isArray(locationOnLink['supplemental-location'])
-                  ? locationOnLink['supplemental-location']
-                  : [locationOnLink['supplemental-location']];
-
-                const coordinates = suppLocs
-                  .map(loc => {
-                    const geoLoc = loc['geo-location'];
-                    if (geoLoc) {
-                      const suppLat = parseFloat(geoLoc.latitude) / 1000000;
-                      const suppLng = parseFloat(geoLoc.longitude) / 1000000;
-                      if (suppLat && suppLng) {
-                        return [suppLng, suppLat]; // GeoJSON format: [lng, lat]
-                      }
-                    }
-                    return null;
-                  })
-                  .filter(coord => coord !== null);
-
-                // Add primary location at start if we have supplemental locations
-                if (coordinates.length >= 1 && lat && lng) {
-                  coordinates.unshift([lng, lat]);
-                }
-
-                if (coordinates.length >= 2) {
-                  geometry = {
-                    type: 'LineString',
-                    coordinates: coordinates,
-                    source: 'FEU-G supplemental-location'
-                  };
-                  if (index === 0) {
-                    console.log(`${stateName}: Extracted geometry from supplemental-location with ${coordinates.length} coordinates`);
-                  }
-                }
-              } else if (index === 0 && locationOnLink) {
-                console.log(`${stateName}: No geometry found - path:`, !!locationOnLink.path, 'supplemental-location:', !!locationOnLink['supplemental-location']);
+              } else if (index === 0) {
+                console.log(`${stateName}: No secondary location - primary:`, !!primaryLoc, 'secondary:', !!secondaryLoc);
               }
             }
 
