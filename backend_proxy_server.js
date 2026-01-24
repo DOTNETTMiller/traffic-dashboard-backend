@@ -791,6 +791,28 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+// Snap a straight line to road network using OSRM routing
+async function snapToRoad(lat1, lng1, lat2, lng2) {
+  try {
+    // Use OSRM public API to get road-snapped geometry
+    const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
+    const response = await axios.get(url, { timeout: 5000 });
+
+    if (response.data.code === 'Ok' && response.data.routes && response.data.routes[0]) {
+      const coordinates = response.data.routes[0].geometry.coordinates;
+      if (coordinates && coordinates.length > 0) {
+        return coordinates;
+      }
+    }
+  } catch (error) {
+    // If OSRM fails (network error, rate limit, etc.), fall back to straight line
+    console.log('OSRM road-snapping failed, using straight line:', error.message);
+  }
+
+  // Fallback to straight line between the two points
+  return [[lng1, lat1], [lng2, lat2]];
+}
+
 // Check if event is near any low-clearance bridge and create warnings
 async function checkBridgeClearanceProximity(event, stateKey) {
   try {
@@ -1405,7 +1427,7 @@ const attachRawFields = (event, rawData = {}, extractedData = {}) => {
 };
 
 // Normalize data from different state formats
-const normalizeEventData = (rawData, stateName, format, sourceType = 'events', apiType = null, stateKey = null) => {
+const normalizeEventData = async (rawData, stateName, format, sourceType = 'events', apiType = null, stateKey = null) => {
   const normalized = [];
 
   try {
@@ -1866,7 +1888,8 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events', a
             console.log(`${stateName}: First update sample:`, JSON.stringify(feuUpdate[0], null, 2).substring(0, 3000));
           }
 
-          feuUpdate.forEach((update, index) => {
+          // Process FEU updates with async road-snapping
+          const feuPromises = feuUpdate.map(async (update, index) => {
             // Extract event ID
             const eventId = update['event-reference']?.['event-id'] || 'unknown';
 
@@ -1899,7 +1922,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events', a
                 lng = parseFloat(primaryLoc.longitude) / 1000000 || 0;
               }
 
-              // Extract polyline from primary + secondary locations
+              // Extract polyline from primary + secondary locations with road-snapping
               const secondaryLoc = locationOnLink['secondary-location']?.['geo-location'];
               if (primaryLoc && secondaryLoc) {
                 const primaryLat = parseFloat(primaryLoc.latitude) / 1000000;
@@ -1908,22 +1931,31 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events', a
                 const secondaryLng = parseFloat(secondaryLoc.longitude) / 1000000;
 
                 if (primaryLat && primaryLng && secondaryLat && secondaryLng) {
+                  // Use OSRM to snap to road network
+                  const roadSnappedCoords = await snapToRoad(primaryLat, primaryLng, secondaryLat, secondaryLng);
+
                   geometry = {
                     type: 'LineString',
-                    coordinates: [
-                      [primaryLng, primaryLat],
-                      [secondaryLng, secondaryLat]
-                    ],
-                    source: 'FEU-G primary+secondary'
+                    coordinates: roadSnappedCoords,
+                    source: roadSnappedCoords.length > 2 ? 'FEU-G + OSRM road-snapped' : 'FEU-G primary+secondary'
                   };
                   if (index === 0) {
-                    console.log(`${stateName}: Extracted geometry from primary+secondary locations`);
+                    console.log(`${stateName}: Extracted geometry with ${roadSnappedCoords.length} points (road-snapped: ${roadSnappedCoords.length > 2})`);
                   }
                 }
               } else if (index === 0) {
                 console.log(`${stateName}: No secondary location - primary:`, !!primaryLoc, 'secondary:', !!secondaryLoc);
               }
             }
+
+            return { update, index, eventId, headlineText, detail, lat, lng, geometry, locationOnLink };
+          });
+
+          // Wait for all road-snapping to complete
+          const processedUpdates = await Promise.all(feuPromises);
+
+          // Now process the results
+          processedUpdates.forEach(({ update, index, eventId, headlineText, detail, lat, lng, geometry, locationOnLink }) => {
 
             // Extract description
             const descriptions = detail?.descriptions?.description || [];
@@ -2577,7 +2609,7 @@ const fetchStateData = async (stateKey) => {
             timeout: 10000,
             decompress: true // Explicitly enable gzip decompression
           });
-          const normalized = normalizeEventData(response.data, config.name, config.format, 'events', config.apiType, stateKey);
+          const normalized = await normalizeEventData(response.data, config.name, config.format, 'events', config.apiType, stateKey);
           results.events.push(...normalized);
         } catch (error) {
           results.errors.push(`Events: ${error.message}`);
@@ -2595,7 +2627,7 @@ const fetchStateData = async (stateKey) => {
             timeout: 10000,
             decompress: true // Explicitly enable gzip decompression
           });
-          const normalized = normalizeEventData(response.data, config.name, 'json', 'incidents', config.apiType, stateKey);
+          const normalized = await normalizeEventData(response.data, config.name, 'json', 'incidents', config.apiType, stateKey);
           results.events.push(...normalized);
         } catch (error) {
           results.errors.push(`Incidents: ${error.message}`);
@@ -2614,7 +2646,7 @@ const fetchStateData = async (stateKey) => {
             timeout: 10000,
             decompress: true // Explicitly enable gzip decompression
           });
-          const normalized = normalizeEventData(response.data, config.name, 'json', 'wzdx', config.apiType, stateKey);
+          const normalized = await normalizeEventData(response.data, config.name, 'json', 'wzdx', config.apiType, stateKey);
           results.events.push(...normalized);
         } catch (error) {
           results.errors.push(`WZDX: ${error.message}`);
@@ -2642,7 +2674,7 @@ const fetchStateData = async (stateKey) => {
         try {
           const response = await axios.get(config.eventsUrl, axiosConfig);
           const parsed = await parseXML(response.data);
-          const normalized = normalizeEventData(parsed, config.name, 'xml', 'events', config.apiType, stateKey);
+          const normalized = await normalizeEventData(parsed, config.name, 'xml', 'events', config.apiType, stateKey);
           results.events.push(...normalized);
         } catch (error) {
           results.errors.push(`Events: ${error.message}`);
@@ -2653,7 +2685,7 @@ const fetchStateData = async (stateKey) => {
         try {
           const response = await axios.get(config.wzdxUrl, axiosConfig);
           const parsed = await parseXML(response.data);
-          const normalized = normalizeEventData(parsed, config.name, 'xml', 'wzdx', config.apiType, stateKey);
+          const normalized = await normalizeEventData(parsed, config.name, 'xml', 'wzdx', config.apiType, stateKey);
           results.events.push(...normalized);
         } catch (error) {
           results.errors.push(`WZDX: ${error.message}`);
