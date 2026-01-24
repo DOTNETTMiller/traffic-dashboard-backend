@@ -1,0 +1,113 @@
+{
+  "name": "DOT Corridor Communicator",
+  "short_name": "DOT Corridor",
+  "description": "Real-time traffic monitoring and corridor communication dashboard for state DOTs",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "categories": ["transportation", "government", "utilities"],
+  "screenshots": [
+    {
+      "src": "/screenshots/desktop-1.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    },
+    {
+      "src": "/screenshots/mobile-1.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "View Map",
+      "short_name": "Map",
+      "description": "Open interactive traffic map",
+      "url": "/?view=map",
+      "icons": [
+        {
+          "src": "/icons/shortcut-map.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Data Quality",
+      "short_name": "Quality",
+      "description": "View data quality dashboard",
+      "url": "/?view=quality",
+      "icons": [
+        {
+          "src": "/icons/shortcut-quality.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Asset Health",
+      "short_name": "Assets",
+      "description": "Monitor asset health",
+      "url": "/?view=assets",
+      "icons": [
+        {
+          "src": "/icons/shortcut-assets.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ]
+}

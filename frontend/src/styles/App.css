@@ -625,3 +625,230 @@ body {
 .dark-mode tr:hover {
   background-color: #374151;
 }
+
+/* ===== Mobile PWA Enhancements ===== */
+
+/* Smooth scrolling for better mobile experience */
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Better touch targets for mobile */
+@media (max-width: 768px) {
+  button,
+  a,
+  input[type="button"],
+  input[type="submit"],
+  .clickable {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Larger font sizes for better readability on mobile */
+  body {
+    font-size: 16px;
+  }
+
+  /* Hide horizontal scroll on mobile */
+  .app {
+    overflow-x: hidden;
+    width: 100%;
+  }
+
+  /* Stack navigation buttons vertically on very small screens */
+  .view-toggle {
+    flex-wrap: wrap;
+  }
+
+  .toggle-btn {
+    flex: 1 1 auto;
+    min-width: 80px;
+  }
+
+  /* Make controls more compact on mobile */
+  .control-buttons {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* Bottom spacing for PWA install prompt */
+  .main-content {
+    padding-bottom: 80px; /* Extra space for install prompt banner */
+  }
+}
+
+/* Extra small screens (phones in portrait) */
+@media (max-width: 480px) {
+  .header {
+    padding: 8px 12px;
+  }
+
+  .title {
+    font-size: 16px;
+  }
+
+  .title span {
+    font-size: 8px !important;
+  }
+
+  .header-info {
+    font-size: 11px;
+  }
+
+  .controls {
+    padding: 8px 12px;
+  }
+
+  .main-content {
+    padding: 8px 12px 80px 12px;
+  }
+
+  /* Make buttons more compact */
+  .toggle-btn {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .refresh-btn {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+}
+
+/* Landscape orientation on mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+  .header {
+    padding: 6px 12px;
+  }
+
+  .title {
+    font-size: 16px;
+  }
+
+  .controls {
+    padding: 6px 12px;
+  }
+
+  /* Compact header in landscape to maximize map/content area */
+  .header-content {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .header-info {
+    font-size: 11px;
+  }
+}
+
+/* iOS safe area support for notched devices */
+@supports (padding: max(0px)) {
+  .app {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .header {
+    padding-top: max(8px, env(safe-area-inset-top));
+  }
+
+  @media (max-width: 768px) {
+    .main-content {
+      padding-bottom: max(80px, calc(80px + env(safe-area-inset-bottom)));
+    }
+  }
+}
+
+/* High DPI displays (Retina, etc.) */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  /* Crisper borders and shadows on high-res displays */
+  .view-container {
+    box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.15), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  }
+
+  .header {
+    box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.15);
+  }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Dark mode enhancements for PWA */
+@media (prefers-color-scheme: dark) {
+  /* Auto dark mode if not explicitly set */
+  :root:not(.dark-mode-disabled) {
+    color-scheme: dark;
+  }
+}
+
+/* Pull-to-refresh indicator spacing (prevent overlap with header) */
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* Prevent zoom on input focus (iOS) */
+@media (max-width: 768px) {
+  input[type="text"],
+  input[type="search"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  select,
+  textarea {
+    font-size: 16px; /* Prevents iOS zoom */
+  }
+}
+
+/* Better tap highlighting */
+@media (max-width: 768px) {
+  * {
+    -webkit-tap-highlight-color: rgba(37, 99, 235, 0.2);
+  }
+
+  button:active,
+  a:active,
+  .clickable:active {
+    opacity: 0.8;
+  }
+}
+
+/* Standalone mode (when installed as PWA) */
+@media (display-mode: standalone) {
+  /* Hide browser-specific UI hints when running as PWA */
+  .browser-only {
+    display: none;
+  }
+
+  /* Add extra padding at top for status bar */
+  .header {
+    padding-top: max(8px, env(safe-area-inset-top, 8px));
+  }
+
+  /* Show install success indicator */
+  body::before {
+    content: '';
+    /* Visual indicator that app is installed */
+  }
+}
+
+/* Fullscreen mode support */
+@media (display-mode: fullscreen) {
+  .header {
+    position: fixed;
+    width: 100%;
+  }
+
+  .app {
+    padding-top: 60px; /* Account for fixed header */
+  }
+}
