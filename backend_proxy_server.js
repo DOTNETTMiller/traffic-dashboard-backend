@@ -845,12 +845,42 @@ function offsetCoordinates(coordinates, direction) {
   });
 }
 
-// Snap a straight line to road network using OSRM routing
+// Throttle OSRM requests to avoid overwhelming the public API
+const osrmQueue = [];
+let osrmProcessing = false;
+const OSRM_DELAY_MS = 100; // Delay between requests
+
+async function processOSRMQueue() {
+  if (osrmProcessing || osrmQueue.length === 0) return;
+
+  osrmProcessing = true;
+  while (osrmQueue.length > 0) {
+    const { lat1, lng1, lat2, lng2, direction, resolve } = osrmQueue.shift();
+    const result = await snapToRoadImmediate(lat1, lng1, lat2, lng2, direction);
+    resolve(result);
+
+    // Small delay between requests to avoid rate limiting
+    if (osrmQueue.length > 0) {
+      await new Promise(r => setTimeout(r, OSRM_DELAY_MS));
+    }
+  }
+  osrmProcessing = false;
+}
+
+// Snap a straight line to road network using OSRM routing (queued)
 async function snapToRoad(lat1, lng1, lat2, lng2, direction = null) {
+  return new Promise((resolve) => {
+    osrmQueue.push({ lat1, lng1, lat2, lng2, direction, resolve });
+    processOSRMQueue();
+  });
+}
+
+// Internal OSRM call (not queued)
+async function snapToRoadImmediate(lat1, lng1, lat2, lng2, direction = null) {
   try {
     // Use OSRM public API to get road-snapped geometry
     const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
-    const response = await axios.get(url, { timeout: 5000 });
+    const response = await axios.get(url, { timeout: 10000 }); // Increased timeout
 
     if (response.data.code === 'Ok' && response.data.routes && response.data.routes[0]) {
       let coordinates = response.data.routes[0].geometry.coordinates;
@@ -864,7 +894,9 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null) {
     }
   } catch (error) {
     // If OSRM fails (network error, rate limit, etc.), fall back to straight line
-    console.log('OSRM road-snapping failed, using straight line:', error.message);
+    if (!error.message.includes('timeout')) {
+      console.log('OSRM road-snapping failed, using straight line:', error.message);
+    }
   }
 
   // Fallback to straight line between the two points
