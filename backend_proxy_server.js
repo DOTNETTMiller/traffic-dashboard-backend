@@ -903,7 +903,7 @@ async function processOSRMQueue() {
   osrmProcessing = false;
 }
 
-// Snap a straight line to road network using OSRM routing (cached & queued)
+// Snap a straight line to road network using OSRM routing (cached only)
 async function snapToRoad(lat1, lng1, lat2, lng2, direction = null) {
   // Check cache first
   const cacheKey = getOSRMCacheKey(lat1, lng1, lat2, lng2, direction);
@@ -914,14 +914,12 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null) {
       return JSON.parse(cached.geometry);
     }
   } catch (error) {
-    // Cache lookup failed, continue to OSRM
+    // Cache lookup failed, fall through
   }
 
-  // Not in cache, queue OSRM request
-  return new Promise((resolve) => {
-    osrmQueue.push({ lat1, lng1, lat2, lng2, direction, cacheKey, resolve });
-    processOSRMQueue();
-  });
+  // Not in cache - return straight line instead of queuing OSRM
+  // Use the pre-population script to fill the cache: node scripts/prepopulate_osrm_cache.js
+  return [[lng1, lat1], [lng2, lat2]];
 }
 
 // Internal OSRM call (not queued)
