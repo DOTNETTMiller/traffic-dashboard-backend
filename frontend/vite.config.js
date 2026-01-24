@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Vite configuration for Corridor Communicator - includes 3D model viewer support
+// Vite configuration for Corridor Communicator - includes 3D model viewer support and PWA
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -23,11 +23,18 @@ export default defineConfig({
           if (assetInfo.name && assetInfo.name.endsWith('.wasm')) {
             return 'wasm/[name][extname]';
           }
+          // Keep PWA assets in root
+          if (assetInfo.name && (assetInfo.name.endsWith('.json') || assetInfo.name === 'service-worker.js')) {
+            return '[name][extname]';
+          }
           return 'assets/[name]-[hash][extname]';
         }
       }
-    }
+    },
+    // Copy public assets to dist
+    copyPublicDir: true
   },
-  // Explicitly allow WASM files
-  assetsInclude: ['**/*.wasm']
+  // Explicitly allow WASM files and PWA assets
+  assetsInclude: ['**/*.wasm'],
+  publicDir: 'public'
 })

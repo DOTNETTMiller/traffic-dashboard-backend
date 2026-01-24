@@ -53,6 +53,7 @@ import NASCOCorridorRegulationsView from './components/NASCOCorridorRegulationsV
 import DigitalInfrastructure from './components/DigitalInfrastructure';
 import DigitalStandardsCrosswalk from './components/DigitalStandardsCrosswalk';
 import VendorPortal from './components/VendorPortal';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
 import './styles/App.css';
 
 function App() {
@@ -2383,6 +2384,9 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt />
     </div>
   );
 }
