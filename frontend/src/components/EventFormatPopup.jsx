@@ -16,9 +16,10 @@ export default function EventFormatPopup({
   onEventSelect,
   hasMessages,
   messageCount,
-  borderInfo
+  borderInfo,
+  geometryDiagnostics
 }) {
-  const [activeTab, setActiveTab] = useState('raw'); // 'raw', 'tim', 'cifs'
+  const [activeTab, setActiveTab] = useState('raw'); // 'raw', 'tim', 'cifs', 'geometry'
 
   // Generate formatted versions
   const timFormat = formatAsTIM(event);
@@ -30,6 +31,11 @@ export default function EventFormatPopup({
     { id: 'tim', label: 'SAE J2735', icon: '📡' },
     { id: 'cifs', label: 'CIFS', icon: '🚨' }
   ];
+
+  // Add Geometry tab if diagnostics available
+  if (geometryDiagnostics) {
+    tabs.push({ id: 'geometry', label: 'Geometry', icon: '🗺️' });
+  }
 
   return (
     <div style={{ padding: '0', width: '340px', maxWidth: '90vw', maxHeight: '80vh', backgroundColor: 'white', display: 'flex', flexDirection: 'column' }}>
@@ -86,6 +92,11 @@ export default function EventFormatPopup({
           <CIFSFormatView
             event={event}
             cifsFormat={cifsFormat}
+          />
+        )}
+        {activeTab === 'geometry' && geometryDiagnostics && (
+          <GeometryDiagnosticsView
+            diagnostics={geometryDiagnostics}
           />
         )}
 
@@ -421,4 +432,107 @@ function getCIFSSeverityColor(severity) {
   if (severity === 'MAJOR') return '#ef4444';
   if (severity === 'MODERATE') return '#f59e0b';
   return '#10b981';
+}
+
+/**
+ * Geometry Diagnostics View - Shows polyline analysis
+ */
+function GeometryDiagnosticsView({ diagnostics }) {
+  if (!diagnostics || !diagnostics.valid) {
+    return (
+      <div style={{ padding: '8px', backgroundColor: '#fef2f2', borderRadius: '4px', marginBottom: '8px' }}>
+        <strong style={{ color: '#dc2626' }}>⚠️ Invalid Geometry</strong>
+        <div style={{ fontSize: '13px', marginTop: '4px', color: '#991b1b' }}>
+          {diagnostics?.issue || 'Geometry data is malformed or missing'}
+        </div>
+      </div>
+    );
+  }
+
+  const hasIssues = diagnostics.issues && diagnostics.issues.length > 0;
+
+  return (
+    <div style={{ fontSize: '13px' }}>
+      {/* Header */}
+      <div style={{
+        backgroundColor: hasIssues ? '#fef3c7' : '#d1fae5',
+        padding: '8px',
+        borderRadius: '4px',
+        marginBottom: '10px',
+        fontWeight: 'bold',
+        color: hasIssues ? '#92400e' : '#065f46'
+      }}>
+        {hasIssues ? '⚠️ Geometry Quality Issues Detected' : '✅ Geometry Quality: Good'}
+      </div>
+
+      {/* Coordinates */}
+      <div style={{ marginBottom: '12px' }}>
+        <strong>📍 Start Coordinate</strong>
+        <div style={{ fontFamily: 'monospace', fontSize: '12px', padding: '4px', backgroundColor: '#f3f4f6', borderRadius: '3px', marginTop: '4px' }}>
+          Lat: {diagnostics.startCoordinate.lat}<br/>
+          Lng: {diagnostics.startCoordinate.lng}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: '12px' }}>
+        <strong>📍 End Coordinate</strong>
+        <div style={{ fontFamily: 'monospace', fontSize: '12px', padding: '4px', backgroundColor: '#f3f4f6', borderRadius: '3px', marginTop: '4px' }}>
+          Lat: {diagnostics.endCoordinate.lat}<br/>
+          Lng: {diagnostics.endCoordinate.lng}
+        </div>
+      </div>
+
+      {/* Metrics */}
+      <div style={{ marginBottom: '12px' }}>
+        <strong>📊 Metrics</strong>
+        <div style={{ marginTop: '4px', paddingLeft: '8px' }}>
+          <div style={{ marginBottom: '3px' }}>
+            <span style={{ color: '#6b7280' }}>Total Distance:</span>{' '}
+            <strong>{diagnostics.totalDistance} miles</strong>
+          </div>
+          <div style={{ marginBottom: '3px' }}>
+            <span style={{ color: '#6b7280' }}>Points:</span>{' '}
+            <strong>{diagnostics.pointCount}</strong>
+          </div>
+          <div>
+            <span style={{ color: '#6b7280' }}>Longest Segment:</span>{' '}
+            <strong>{diagnostics.longestSegment.distance} mi</strong>
+            {' '}(point {diagnostics.longestSegment.from} → {diagnostics.longestSegment.to})
+          </div>
+        </div>
+      </div>
+
+      {/* Source Info */}
+      {diagnostics.source && diagnostics.source !== 'unknown' && (
+        <div style={{ marginBottom: '12px' }}>
+          <strong>📡 Data Source</strong>
+          <div style={{ marginTop: '4px', padding: '4px 8px', backgroundColor: '#eff6ff', borderLeft: '3px solid #3b82f6', borderRadius: '3px' }}>
+            {diagnostics.source}
+            {diagnostics.corrected && (
+              <div style={{ marginTop: '4px', fontSize: '12px', color: '#1e40af' }}>
+                ✨ Client-side corrected (smoothed/simplified)
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Issues */}
+      {hasIssues && (
+        <div>
+          <strong style={{ color: '#dc2626' }}>⚠️ Issues Found</strong>
+          <ul style={{ marginTop: '6px', marginLeft: '16px', marginBottom: '0', paddingLeft: '4px' }}>
+            {diagnostics.issues.map((issue, idx) => (
+              <li key={idx} style={{ marginBottom: '4px', color: '#991b1b' }}>
+                {issue}
+              </li>
+            ))}
+          </ul>
+          <div style={{ marginTop: '8px', padding: '6px', backgroundColor: '#fef2f2', borderRadius: '3px', fontSize: '12px', color: '#7f1d1d' }}>
+            💡 These issues may indicate incorrect polyline data from the source feed. The route shown may not accurately follow the roadway.
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
