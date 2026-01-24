@@ -50,7 +50,10 @@ export default function EventFormatPopup({
         {tabs.map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveTab(tab.id);
+            }}
             style={{
               flex: 1,
               padding: '10px 8px',
