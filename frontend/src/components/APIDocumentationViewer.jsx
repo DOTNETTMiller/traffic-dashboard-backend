@@ -173,7 +173,7 @@ const APIDocumentationViewer = () => {
       if (line.startsWith('|') && line.endsWith('|')) {
         if (!inTable) {
           inTable = true;
-          tableHTML = '<table class="api-doc-table" style="width: 100%; border-collapse: separate; border-spacing: 0; margin: 20px 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">';
+          tableHTML = '<table class="api-doc-table" style="width: 100%; border-collapse: collapse; margin: 24px 0; border: 2px solid #d1d5db; border-radius: 0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', system-ui, sans-serif;">';
 
           // Check if next line is separator (contains --- or :--: etc)
           const nextLine = i + 1 < lines.length ? lines[i + 1].trim() : '';
@@ -184,13 +184,15 @@ const APIDocumentationViewer = () => {
             tableHTML += '<tr>';
             // Remove leading and trailing pipes, then split
             const headers = line.slice(1, -1).split('|');
-            headers.forEach(header => {
+            headers.forEach((header, idx) => {
               // Process markdown formatting in headers
               let processedHeader = header.trim();
-              processedHeader = processedHeader.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-              processedHeader = processedHeader.replace(/\*(.*?)\*/g, '<em>$1</em>');
-              processedHeader = processedHeader.replace(/`([^`]+)`/g, '<code>$1</code>');
-              tableHTML += `<th style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border: none; border-bottom: 2px solid #1d4ed8; padding: 12px 16px; text-align: left; font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">${processedHeader}</th>`;
+              processedHeader = processedHeader.replace(/\*\*(.*?)\*\*/g, '$1'); // Remove bold
+              processedHeader = processedHeader.replace(/\*(.*?)\*/g, '$1'); // Remove italic
+              processedHeader = processedHeader.replace(/`([^`]+)`/g, '$1'); // Remove code
+
+              const borderRight = idx < headers.length - 1 ? 'border-right: 1px solid rgba(255,255,255,0.15);' : '';
+              tableHTML += `<th style="background: linear-gradient(to bottom, #1e40af 0%, #1e3a8a 100%); color: white; border: 1px solid #1e3a8a; border-bottom: 3px solid #1e3a8a; padding: 14px 18px; text-align: left; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; ${borderRight}">${processedHeader}</th>`;
             });
             tableHTML += '</tr></thead><tbody>';
             i++; // Skip separator line
@@ -201,20 +203,28 @@ const APIDocumentationViewer = () => {
         }
 
         // Process table row
-        tableHTML += '<tr style="transition: background-color 0.2s ease;">';
+        tableHTML += '<tr style="transition: all 0.15s ease; border-bottom: 1px solid #d1d5db;">';
         const cells = line.slice(1, -1).split('|');
         cells.forEach((cell, cellIndex) => {
           // Process markdown formatting in cells
           let processedCell = cell.trim();
-          processedCell = processedCell.replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: 600; color: #1f2937;">$1</strong>');
+          processedCell = processedCell.replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: 700; color: #111827;">$1</strong>');
           processedCell = processedCell.replace(/\*(.*?)\*/g, '<em>$1</em>');
-          processedCell = processedCell.replace(/`([^`]+)`/g, '<code style="background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 13px;">$1</code>');
+          processedCell = processedCell.replace(/`([^`]+)`/g, '<code style="background: #e0e7ff; padding: 3px 7px; border-radius: 4px; font-family: Consolas, Monaco, monospace; font-size: 12px; color: #3730a3; border: 1px solid #c7d2fe;">$1</code>');
 
-          const cellStyle = cellIndex === 0
-            ? 'font-weight: 600; color: #1f2937;'
-            : (cellIndex === 1 ? 'font-family: Monaco, Courier New, monospace; color: #059669; font-weight: 500;' : '');
+          const borderRight = cellIndex < cells.length - 1 ? 'border-right: 1px solid #e5e7eb;' : '';
 
-          tableHTML += `<td style="border: none; border-bottom: 1px solid #e5e7eb; padding: 12px 16px; color: #374151; vertical-align: top; line-height: 1.5; ${cellStyle}">${processedCell}</td>`;
+          let cellStyle = `border: 1px solid #e5e7eb; padding: 14px 18px; vertical-align: middle; line-height: 1.6; font-size: 13.5px; ${borderRight}`;
+
+          if (cellIndex === 0) {
+            cellStyle += ' font-weight: 700; color: #111827; background: linear-gradient(to right, #f9fafb 0%, #ffffff 100%);';
+          } else if (cellIndex === 1) {
+            cellStyle += ' font-family: "SF Mono", Consolas, Monaco, monospace; color: #059669; font-weight: 600; text-align: center; background: #f0fdf4; font-size: 14px;';
+          } else {
+            cellStyle += ' color: #374151;';
+          }
+
+          tableHTML += `<td style="${cellStyle}">${processedCell}</td>`;
         });
         tableHTML += '</tr>';
       } else {
@@ -524,26 +534,50 @@ const APIDocumentationViewer = () => {
         </div>
       </div>
 
-      {/* CSS for table hover effects */}
+      {/* CSS for professional table styling */}
       <style>{`
+        .api-doc-table {
+          border-radius: 6px;
+          overflow: hidden;
+        }
+
         .api-doc-table tbody tr:nth-child(even) {
-          background-color: #f9fafb;
+          background-color: #fafafa;
+        }
+
+        .api-doc-table tbody tr:nth-child(odd) {
+          background-color: #ffffff;
         }
 
         .api-doc-table tbody tr:hover {
-          background-color: #eff6ff !important;
+          background: linear-gradient(to right, #dbeafe 0%, #e0f2fe 100%) !important;
+          transform: scale(1.001);
+          box-shadow: inset 0 0 0 1px #3b82f6;
         }
 
         .api-doc-table tbody tr:last-child td {
-          border-bottom: none;
+          border-bottom: 2px solid #d1d5db;
         }
 
-        .api-doc-table th:not(:last-child) {
-          border-right: 1px solid rgba(255, 255, 255, 0.2);
+        .api-doc-table thead th {
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
-        .api-doc-table td:not(:last-child) {
-          border-right: 1px solid #f3f4f6;
+        .api-doc-table td strong {
+          color: #111827;
+          font-weight: 700;
+        }
+
+        @media print {
+          .api-doc-table {
+            page-break-inside: avoid;
+          }
+          .api-doc-table thead {
+            display: table-header-group;
+          }
         }
       `}</style>
     </div>
