@@ -256,17 +256,23 @@ const APIDocumentationViewer = () => {
 
         const trimmedLine = line.trim();
 
-        // Headers
+        // Headers (including #### and #####)
+        if (trimmedLine.startsWith('##### ')) {
+          return `<h5 key="${index}" style="font-size: 14px; font-weight: 600; margin: 14px 0 8px 0; color: #374151;">${trimmedLine.substring(6)}</h5>`;
+        }
+        if (trimmedLine.startsWith('#### ')) {
+          return `<h4 key="${index}" style="font-size: 16px; font-weight: 700; margin: 16px 0 10px 0; color: #1f2937;">${trimmedLine.substring(5)}</h4>`;
+        }
         if (trimmedLine.startsWith('### ')) {
-          return `<h3 key="${index}" style="font-size: 18px; font-weight: bold; margin: 20px 0 12px 0; color: #1f2937;">${trimmedLine.substring(4)}</h3>`;
+          return `<h3 key="${index}" style="font-size: 18px; font-weight: 700; margin: 20px 0 12px 0; color: #1f2937;">${trimmedLine.substring(4)}</h3>`;
         }
         if (trimmedLine.startsWith('## ')) {
           const headerText = trimmedLine.substring(3);
           const headerId = headerText.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-          return `<h2 id="${headerId}" key="${index}" style="font-size: 22px; font-weight: bold; margin: 24px 0 16px 0; color: #111827; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">${headerText}</h2>`;
+          return `<h2 id="${headerId}" key="${index}" style="font-size: 22px; font-weight: 700; margin: 24px 0 16px 0; color: #111827; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">${headerText}</h2>`;
         }
         if (trimmedLine.startsWith('# ')) {
-          return `<h1 key="${index}" style="font-size: 28px; font-weight: bold; margin: 32px 0 20px 0; color: #111827;">${trimmedLine.substring(2)}</h1>`;
+          return `<h1 key="${index}" style="font-size: 28px; font-weight: 700; margin: 32px 0 20px 0; color: #111827;">${trimmedLine.substring(2)}</h1>`;
         }
 
         // Code blocks
