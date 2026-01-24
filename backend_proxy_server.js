@@ -791,16 +791,74 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+// Offset coordinates perpendicular to the route based on direction
+function offsetCoordinates(coordinates, direction) {
+  // Offset distance in degrees (~10 meters at mid-latitudes)
+  const offsetMeters = 10;
+  const offsetDegrees = offsetMeters / 111320; // meters to degrees conversion
+
+  // Determine offset direction: positive = right, negative = left
+  // For eastbound/westbound: offset north/south
+  // For northbound/southbound: offset east/west
+  let offsetMultiplier = 0;
+
+  if (direction && typeof direction === 'string') {
+    const dir = direction.toLowerCase();
+    if (dir.includes('east') || dir.includes('eb') || dir === 'e') {
+      offsetMultiplier = -1; // Eastbound traffic = offset south (right side in US)
+    } else if (dir.includes('west') || dir.includes('wb') || dir === 'w') {
+      offsetMultiplier = 1; // Westbound traffic = offset north (right side in US)
+    } else if (dir.includes('north') || dir.includes('nb') || dir === 'n') {
+      offsetMultiplier = 1; // Northbound traffic = offset east (right side in US)
+    } else if (dir.includes('south') || dir.includes('sb') || dir === 's') {
+      offsetMultiplier = -1; // Southbound traffic = offset west (right side in US)
+    }
+  }
+
+  if (offsetMultiplier === 0) {
+    return coordinates; // No offset for "Both" or unknown directions
+  }
+
+  return coordinates.map((coord, i) => {
+    const [lng, lat] = coord;
+
+    // Calculate bearing to next point (or use previous bearing for last point)
+    let bearing = 0;
+    if (i < coordinates.length - 1) {
+      const [nextLng, nextLat] = coordinates[i + 1];
+      const dLng = nextLng - lng;
+      const dLat = nextLat - lat;
+      bearing = Math.atan2(dLng, dLat);
+    } else if (i > 0) {
+      const [prevLng, prevLat] = coordinates[i - 1];
+      const dLng = lng - prevLng;
+      const dLat = lat - prevLat;
+      bearing = Math.atan2(dLng, dLat);
+    }
+
+    // Calculate perpendicular offset (90 degrees from bearing)
+    const perpBearing = bearing + (Math.PI / 2) * offsetMultiplier;
+    const latOffset = Math.cos(perpBearing) * offsetDegrees;
+    const lngOffset = Math.sin(perpBearing) * offsetDegrees;
+
+    return [lng + lngOffset, lat + latOffset];
+  });
+}
+
 // Snap a straight line to road network using OSRM routing
-async function snapToRoad(lat1, lng1, lat2, lng2) {
+async function snapToRoad(lat1, lng1, lat2, lng2, direction = null) {
   try {
     // Use OSRM public API to get road-snapped geometry
     const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
     const response = await axios.get(url, { timeout: 5000 });
 
     if (response.data.code === 'Ok' && response.data.routes && response.data.routes[0]) {
-      const coordinates = response.data.routes[0].geometry.coordinates;
+      let coordinates = response.data.routes[0].geometry.coordinates;
       if (coordinates && coordinates.length > 0) {
+        // Apply directional offset if direction is specified
+        if (direction) {
+          coordinates = offsetCoordinates(coordinates, direction);
+        }
         return coordinates;
       }
     }
@@ -1913,7 +1971,33 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
             let lng = 0;
             let geometry = null;
 
+            // Extract description early (needed for direction detection)
+            const descriptions = detail?.descriptions?.description || [];
+            const descArray = Array.isArray(descriptions) ? descriptions : [descriptions];
+            const descParts = descArray
+              .map(d => {
+                const phrase = d.phrase || d;
+                return extractTextValue(phrase);
+              })
+              .filter(text => text && text.trim().length > 0);
+            const descText = descParts.length > 0
+              ? descParts.join('; ')
+              : 'Event description not available';
+
+            // Extract location early (needed for corridor/direction detection)
+            let locationText = 'Location not specified';
             const locationOnLink = detail?.locations?.location?.['location-on-link'];
+            const routeDesignator = locationOnLink?.['route-designator'];
+            if (routeDesignator) {
+              locationText = routeDesignator;
+            }
+            const roadwayNames = detail?.['roadway-names']?.['roadway-name'] || [];
+            if (roadwayNames && roadwayNames.length > 0) {
+              const roadwayArray = Array.isArray(roadwayNames) ? roadwayNames : [roadwayNames];
+              const roadwayText = roadwayArray.map(r => r._ || r).join(', ');
+              if (roadwayText) locationText = roadwayText;
+            }
+
             if (locationOnLink) {
               const primaryLoc = locationOnLink['primary-location']?.['geo-location'];
               if (primaryLoc) {
@@ -1931,8 +2015,12 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
                 const secondaryLng = parseFloat(secondaryLoc.longitude) / 1000000;
 
                 if (primaryLat && primaryLng && secondaryLat && secondaryLng) {
-                  // Use OSRM to snap to road network
-                  const roadSnappedCoords = await snapToRoad(primaryLat, primaryLng, secondaryLat, secondaryLng);
+                  // Extract direction to inform road-side offset
+                  const corridor = extractCorridor(locationText);
+                  const direction = extractDirection(descText, headlineText, corridor, primaryLat, primaryLng);
+
+                  // Use OSRM to snap to road network with directional offset
+                  const roadSnappedCoords = await snapToRoad(primaryLat, primaryLng, secondaryLat, secondaryLng, direction);
 
                   geometry = {
                     type: 'LineString',
@@ -1940,7 +2028,7 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
                     source: roadSnappedCoords.length > 2 ? 'FEU-G + OSRM road-snapped' : 'FEU-G primary+secondary'
                   };
                   if (index === 0) {
-                    console.log(`${stateName}: Extracted geometry with ${roadSnappedCoords.length} points (road-snapped: ${roadSnappedCoords.length > 2})`);
+                    console.log(`${stateName}: Extracted geometry with ${roadSnappedCoords.length} points (road-snapped: ${roadSnappedCoords.length > 2}, direction: ${direction})`);
                   }
                 }
               } else if (index === 0) {
@@ -1948,44 +2036,14 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
               }
             }
 
-            return { update, index, eventId, headlineText, detail, lat, lng, geometry, locationOnLink };
+            return { update, index, eventId, headlineText, detail, lat, lng, geometry, locationText, descText };
           });
 
           // Wait for all road-snapping to complete
           const processedUpdates = await Promise.all(feuPromises);
 
           // Now process the results
-          processedUpdates.forEach(({ update, index, eventId, headlineText, detail, lat, lng, geometry, locationOnLink }) => {
-
-            // Extract description
-            const descriptions = detail?.descriptions?.description || [];
-            const descArray = Array.isArray(descriptions) ? descriptions : [descriptions];
-            const descParts = descArray
-              .map(d => {
-                const phrase = d.phrase || d;
-                return extractTextValue(phrase);
-              })
-              .filter(text => text && text.trim().length > 0); // Remove empty strings
-            const descText = descParts.length > 0
-              ? descParts.join('; ')
-              : 'Event description not available';
-
-            // Extract location/roadway name
-            let locationText = 'Location not specified';
-
-            // Try route-designator from location-on-link
-            const routeDesignator = locationOnLink?.['route-designator'];
-            if (routeDesignator) {
-              locationText = routeDesignator;
-            }
-
-            // Also try roadway-names if available
-            const roadwayNames = detail?.['roadway-names']?.['roadway-name'] || [];
-            if (roadwayNames && roadwayNames.length > 0) {
-              const roadwayArray = Array.isArray(roadwayNames) ? roadwayNames : [roadwayNames];
-              const roadwayText = roadwayArray.map(r => r._ || r).join(', ');
-              if (roadwayText) locationText = roadwayText;
-            }
+          processedUpdates.forEach(({ update, index, eventId, headlineText, detail, lat, lng, geometry, locationText, descText }) => {
 
             // Only include events on interstate highways
             if (isInterstateRoute(locationText)) {
