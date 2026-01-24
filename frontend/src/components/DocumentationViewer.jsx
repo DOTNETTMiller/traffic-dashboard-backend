@@ -282,7 +282,7 @@ function DocumentationViewer() {
         : src.startsWith('/')
         ? `${config.apiUrl}${src}`
         : src;
-      return `<img src="${imageSrc}" alt="${alt}" style="max-width: 200px; height: auto; margin: 10px 0;" />`;
+      return `<img src="${imageSrc}" alt="${alt}" style="max-width: 150px; height: auto; margin: 10px 0;" />`;
     });
 
     // Links
