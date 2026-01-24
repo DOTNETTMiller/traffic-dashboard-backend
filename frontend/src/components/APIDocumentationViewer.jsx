@@ -280,13 +280,24 @@ const APIDocumentationViewer = () => {
           return ''; // We'll handle code blocks separately
         }
 
+        // Images (must come before links since images use similar syntax)
+        line = line.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, src) => {
+          // Convert relative paths to absolute API URLs
+          const imageSrc = src.startsWith('./')
+            ? `${window.location.origin}/docs/${src.substring(2)}`
+            : src.startsWith('/')
+            ? `${window.location.origin}${src}`
+            : src;
+          return `<img src="${imageSrc}" alt="${alt}" style="max-width: 300px; height: auto; margin: 16px 0; display: block; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />`;
+        });
+
         // Bold
         line = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
         // Inline code
         line = line.replace(/`([^`]+)`/g, '<code style="background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 13px;">$1</code>');
 
-        // Links
+        // Links (after images)
         line = line.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #3b82f6; text-decoration: underline;">$1</a>');
 
         // List items
