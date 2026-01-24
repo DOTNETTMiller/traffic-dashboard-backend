@@ -160,24 +160,107 @@ const APIDocumentationViewer = () => {
       filteredContent = matchedSections.length > 0 ? matchedSections.join('\n') : markdown;
     }
 
-    return filteredContent
-      .split('\n')
-      .map((line, index) => {
-        // Headers
-        if (line.startsWith('### ')) {
-          return `<h3 key="${index}" style="font-size: 18px; font-weight: bold; margin: 20px 0 12px 0; color: #1f2937;">${line.substring(4)}</h3>`;
+    // Process tables first before splitting into lines
+    const lines = filteredContent.split('\n');
+    let inTable = false;
+    let tableHTML = '';
+    const processedLines = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+
+      // Check if line is a table row (starts and ends with |)
+      if (line.startsWith('|') && line.endsWith('|')) {
+        if (!inTable) {
+          inTable = true;
+          tableHTML = '<table class="api-doc-table" style="width: 100%; border-collapse: separate; border-spacing: 0; margin: 20px 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">';
+
+          // Check if next line is separator (contains --- or :--: etc)
+          const nextLine = i + 1 < lines.length ? lines[i + 1].trim() : '';
+          const isHeader = nextLine && nextLine.includes('|') && /[-:]+/.test(nextLine);
+
+          if (isHeader) {
+            tableHTML += '<thead>';
+            tableHTML += '<tr>';
+            // Remove leading and trailing pipes, then split
+            const headers = line.slice(1, -1).split('|');
+            headers.forEach(header => {
+              // Process markdown formatting in headers
+              let processedHeader = header.trim();
+              processedHeader = processedHeader.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+              processedHeader = processedHeader.replace(/\*(.*?)\*/g, '<em>$1</em>');
+              processedHeader = processedHeader.replace(/`([^`]+)`/g, '<code>$1</code>');
+              tableHTML += `<th style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border: none; border-bottom: 2px solid #1d4ed8; padding: 12px 16px; text-align: left; font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">${processedHeader}</th>`;
+            });
+            tableHTML += '</tr></thead><tbody>';
+            i++; // Skip separator line
+            continue;
+          } else {
+            tableHTML += '<tbody>';
+          }
         }
-        if (line.startsWith('## ')) {
-          const headerText = line.substring(3);
+
+        // Process table row
+        tableHTML += '<tr style="transition: background-color 0.2s ease;">';
+        const cells = line.slice(1, -1).split('|');
+        cells.forEach((cell, cellIndex) => {
+          // Process markdown formatting in cells
+          let processedCell = cell.trim();
+          processedCell = processedCell.replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: 600; color: #1f2937;">$1</strong>');
+          processedCell = processedCell.replace(/\*(.*?)\*/g, '<em>$1</em>');
+          processedCell = processedCell.replace(/`([^`]+)`/g, '<code style="background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 13px;">$1</code>');
+
+          const cellStyle = cellIndex === 0
+            ? 'font-weight: 600; color: #1f2937;'
+            : (cellIndex === 1 ? 'font-family: Monaco, Courier New, monospace; color: #059669; font-weight: 500;' : '');
+
+          tableHTML += `<td style="border: none; border-bottom: 1px solid #e5e7eb; padding: 12px 16px; color: #374151; vertical-align: top; line-height: 1.5; ${cellStyle}">${processedCell}</td>`;
+        });
+        tableHTML += '</tr>';
+      } else {
+        // Not a table row
+        if (inTable) {
+          tableHTML += '</tbody></table>';
+          processedLines.push(tableHTML);
+          tableHTML = '';
+          inTable = false;
+        }
+        if (line) { // Only add non-empty lines
+          processedLines.push(lines[i]); // Use original line with spacing
+        }
+      }
+    }
+
+    // Close table if still open
+    if (inTable) {
+      tableHTML += '</tbody></table>';
+      processedLines.push(tableHTML);
+    }
+
+    return processedLines
+      .map((line, index) => {
+        // Skip if already HTML (table)
+        if (line.startsWith('<table')) {
+          return line;
+        }
+
+        const trimmedLine = line.trim();
+
+        // Headers
+        if (trimmedLine.startsWith('### ')) {
+          return `<h3 key="${index}" style="font-size: 18px; font-weight: bold; margin: 20px 0 12px 0; color: #1f2937;">${trimmedLine.substring(4)}</h3>`;
+        }
+        if (trimmedLine.startsWith('## ')) {
+          const headerText = trimmedLine.substring(3);
           const headerId = headerText.toLowerCase().replace(/[^a-z0-9]+/g, '-');
           return `<h2 id="${headerId}" key="${index}" style="font-size: 22px; font-weight: bold; margin: 24px 0 16px 0; color: #111827; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">${headerText}</h2>`;
         }
-        if (line.startsWith('# ')) {
-          return `<h1 key="${index}" style="font-size: 28px; font-weight: bold; margin: 32px 0 20px 0; color: #111827;">${line.substring(2)}</h1>`;
+        if (trimmedLine.startsWith('# ')) {
+          return `<h1 key="${index}" style="font-size: 28px; font-weight: bold; margin: 32px 0 20px 0; color: #111827;">${trimmedLine.substring(2)}</h1>`;
         }
 
         // Code blocks
-        if (line.startsWith('```')) {
+        if (trimmedLine.startsWith('```')) {
           return ''; // We'll handle code blocks separately
         }
 
@@ -191,17 +274,17 @@ const APIDocumentationViewer = () => {
         line = line.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #3b82f6; text-decoration: underline;">$1</a>');
 
         // List items
-        if (line.trim().startsWith('- ')) {
-          return `<li key="${index}" style="margin: 4px 0; padding-left: 8px;">${line.substring(2)}</li>`;
+        if (trimmedLine.startsWith('- ')) {
+          return `<li key="${index}" style="margin: 4px 0; padding-left: 8px;">${line.substring(line.indexOf('-') + 2)}</li>`;
         }
 
         // Empty lines
-        if (line.trim() === '') {
+        if (trimmedLine === '') {
           return '<br key="${index}" />';
         }
 
-        // Horizontal rules
-        if (line.trim() === '---') {
+        // Horizontal rules (but not table separators)
+        if (trimmedLine === '---' && !trimmedLine.includes('|')) {
           return '<hr key="${index}" style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />';
         }
 
@@ -440,6 +523,29 @@ const APIDocumentationViewer = () => {
           </p>
         </div>
       </div>
+
+      {/* CSS for table hover effects */}
+      <style>{`
+        .api-doc-table tbody tr:nth-child(even) {
+          background-color: #f9fafb;
+        }
+
+        .api-doc-table tbody tr:hover {
+          background-color: #eff6ff !important;
+        }
+
+        .api-doc-table tbody tr:last-child td {
+          border-bottom: none;
+        }
+
+        .api-doc-table th:not(:last-child) {
+          border-right: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .api-doc-table td:not(:last-child) {
+          border-right: 1px solid #f3f4f6;
+        }
+      `}</style>
     </div>
   );
 };
