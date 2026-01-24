@@ -845,6 +845,29 @@ function offsetCoordinates(coordinates, direction) {
   });
 }
 
+// Initialize OSRM geometry cache table
+function initOSRMCache() {
+  try {
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS osrm_geometry_cache (
+        cache_key TEXT PRIMARY KEY,
+        geometry TEXT NOT NULL,
+        created_at INTEGER DEFAULT (strftime('%s', 'now'))
+      )
+    `).run();
+    console.log('✅ OSRM geometry cache table initialized');
+  } catch (error) {
+    console.error('❌ Failed to initialize OSRM cache:', error.message);
+  }
+}
+
+// Generate cache key for OSRM request
+function getOSRMCacheKey(lat1, lng1, lat2, lng2, direction) {
+  // Round to 5 decimal places (~1 meter precision) for cache key
+  const key = `${lat1.toFixed(5)},${lng1.toFixed(5)}_${lat2.toFixed(5)},${lng2.toFixed(5)}_${direction || 'none'}`;
+  return key;
+}
+
 // Throttle OSRM requests to avoid overwhelming the public API
 const osrmQueue = [];
 let osrmProcessing = false;
@@ -855,8 +878,21 @@ async function processOSRMQueue() {
 
   osrmProcessing = true;
   while (osrmQueue.length > 0) {
-    const { lat1, lng1, lat2, lng2, direction, resolve } = osrmQueue.shift();
+    const { lat1, lng1, lat2, lng2, direction, cacheKey, resolve } = osrmQueue.shift();
     const result = await snapToRoadImmediate(lat1, lng1, lat2, lng2, direction);
+
+    // Save to cache if OSRM succeeded (more than 2 points = road-snapped)
+    if (result.length > 2) {
+      try {
+        db.prepare('INSERT OR REPLACE INTO osrm_geometry_cache (cache_key, geometry) VALUES (?, ?)').run(
+          cacheKey,
+          JSON.stringify(result)
+        );
+      } catch (error) {
+        // Cache write failed, but continue
+      }
+    }
+
     resolve(result);
 
     // Small delay between requests to avoid rate limiting
@@ -867,10 +903,23 @@ async function processOSRMQueue() {
   osrmProcessing = false;
 }
 
-// Snap a straight line to road network using OSRM routing (queued)
+// Snap a straight line to road network using OSRM routing (cached & queued)
 async function snapToRoad(lat1, lng1, lat2, lng2, direction = null) {
+  // Check cache first
+  const cacheKey = getOSRMCacheKey(lat1, lng1, lat2, lng2, direction);
+
+  try {
+    const cached = db.prepare('SELECT geometry FROM osrm_geometry_cache WHERE cache_key = ?').get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached.geometry);
+    }
+  } catch (error) {
+    // Cache lookup failed, continue to OSRM
+  }
+
+  // Not in cache, queue OSRM request
   return new Promise((resolve) => {
-    osrmQueue.push({ lat1, lng1, lat2, lng2, direction, resolve });
+    osrmQueue.push({ lat1, lng1, lat2, lng2, direction, cacheKey, resolve });
     processOSRMQueue();
   });
 }
@@ -1367,6 +1416,9 @@ async function initializeDatabase() {
 
     // Ensure state OS/OW regulations table exists
     ensureStateOSWRegulationsTable();
+
+    // Initialize OSRM geometry cache
+    initOSRMCache();
 
     // Generate admin token if none exist
     const tokenCheck = db.db.prepare('SELECT COUNT(*) as count FROM admin_tokens').get();
