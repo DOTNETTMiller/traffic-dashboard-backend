@@ -286,28 +286,36 @@ function DocumentationViewer() {
     // Links
     html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/gim, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 
-    // Tables - simple conversion
+    // Tables - improved conversion with better formatting
     const lines = html.split('\n');
     let inTable = false;
     let tableHTML = '';
     const processedLines = [];
 
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.includes('|') && line.trim().startsWith('|')) {
+      const line = lines[i].trim();
+
+      // Check if line is a table row (starts and ends with |)
+      if (line.startsWith('|') && line.endsWith('|')) {
         if (!inTable) {
           inTable = true;
           tableHTML = '<table class="doc-table">';
 
-          // Check if next line is separator
-          const nextLine = lines[i + 1];
-          const isHeader = nextLine && nextLine.includes('|') && nextLine.includes('---');
+          // Check if next line is separator (contains --- or :--: etc)
+          const nextLine = i + 1 < lines.length ? lines[i + 1].trim() : '';
+          const isHeader = nextLine && nextLine.includes('|') && /[-:]+/.test(nextLine);
 
           if (isHeader) {
             tableHTML += '<thead><tr>';
-            const headers = line.split('|').filter(cell => cell.trim());
+            // Remove leading and trailing pipes, then split
+            const headers = line.slice(1, -1).split('|');
             headers.forEach(header => {
-              tableHTML += `<th>${header.trim()}</th>`;
+              // Process markdown formatting in headers (bold, italic, etc)
+              let processedHeader = header.trim();
+              processedHeader = processedHeader.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+              processedHeader = processedHeader.replace(/\*(.*?)\*/g, '<em>$1</em>');
+              processedHeader = processedHeader.replace(/`([^`]+)`/g, '<code>$1</code>');
+              tableHTML += `<th>${processedHeader}</th>`;
             });
             tableHTML += '</tr></thead><tbody>';
             i++; // Skip separator line
@@ -317,23 +325,33 @@ function DocumentationViewer() {
           }
         }
 
+        // Process table row
         tableHTML += '<tr>';
-        const cells = line.split('|').filter(cell => cell.trim());
+        const cells = line.slice(1, -1).split('|');
         cells.forEach(cell => {
-          tableHTML += `<td>${cell.trim()}</td>`;
+          // Process markdown formatting in cells
+          let processedCell = cell.trim();
+          processedCell = processedCell.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+          processedCell = processedCell.replace(/\*(.*?)\*/g, '<em>$1</em>');
+          processedCell = processedCell.replace(/`([^`]+)`/g, '<code>$1</code>');
+          tableHTML += `<td>${processedCell}</td>`;
         });
         tableHTML += '</tr>';
       } else {
+        // Not a table row
         if (inTable) {
           tableHTML += '</tbody></table>';
           processedLines.push(tableHTML);
           tableHTML = '';
           inTable = false;
         }
-        processedLines.push(line);
+        if (line) { // Only add non-empty lines
+          processedLines.push(line);
+        }
       }
     }
 
+    // Close table if still open
     if (inTable) {
       tableHTML += '</tbody></table>';
       processedLines.push(tableHTML);
@@ -542,27 +560,73 @@ function DocumentationViewer() {
 
           .doc-table {
             width: 100%;
-            border-collapse: collapse;
-            margin: 16px 0;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 20px 0;
             font-size: 14px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
           }
 
           .doc-table th {
-            background-color: #f3f4f6;
-            border: 1px solid #d1d5db;
-            padding: 10px;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border: none;
+            border-bottom: 2px solid #1d4ed8;
+            padding: 12px 16px;
             text-align: left;
             font-weight: 600;
-            color: #111827;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+
+          .doc-table th:not(:last-child) {
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
           }
 
           .doc-table td {
-            border: 1px solid #e5e7eb;
-            padding: 10px;
+            border: none;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 12px 16px;
+            color: #374151;
+            vertical-align: top;
+            line-height: 1.5;
           }
 
-          .doc-table tr:nth-child(even) {
+          .doc-table td:not(:last-child) {
+            border-right: 1px solid #f3f4f6;
+          }
+
+          .doc-table tbody tr {
+            transition: background-color 0.2s ease;
+          }
+
+          .doc-table tbody tr:nth-child(even) {
             background-color: #f9fafb;
+          }
+
+          .doc-table tbody tr:hover {
+            background-color: #eff6ff;
+          }
+
+          .doc-table tbody tr:last-child td {
+            border-bottom: none;
+          }
+
+          /* Make first column bold for dimension labels */
+          .doc-table td:first-child {
+            font-weight: 600;
+            color: #1f2937;
+          }
+
+          /* Style percentages and numbers in tables */
+          .doc-table td:nth-child(2) {
+            font-family: 'Monaco', 'Courier New', monospace;
+            color: #059669;
+            font-weight: 500;
           }
 
           /* Custom scrollbar styling */
