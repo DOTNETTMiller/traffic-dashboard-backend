@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { isNearBorder } from '../utils/borderProximity';
+import { analyzePolyline } from '../utils/polylineDiagnostics';
 import ParkingLayer from './ParkingLayer';
 import InterchangeLayer from './InterchangeLayer';
 import BridgeClearanceLayer from './BridgeClearanceLayer';
@@ -523,6 +524,9 @@ export default function TrafficMap({
             ? event.geometry.coordinates.map(coord => [coord[1], coord[0]])
             : [];
 
+          // Analyze geometry for diagnostics
+          const geometryDiagnostics = hasGeometry ? analyzePolyline(event.geometry) : null;
+
           // Tooltip content (shared between marker and polyline)
           const tooltipContent = (
             <div style={{ minWidth: '200px' }}>
@@ -546,6 +550,7 @@ export default function TrafficMap({
               hasMessages={hasMessages}
               messageCount={messageCount}
               borderInfo={borderInfo}
+              geometryDiagnostics={geometryDiagnostics}
             />
           );
 
