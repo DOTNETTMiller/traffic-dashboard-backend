@@ -288,7 +288,7 @@ const APIDocumentationViewer = () => {
             : src.startsWith('/')
             ? `${window.location.origin}${src}`
             : src;
-          return `<img src="${imageSrc}" alt="${alt}" style="max-width: 300px; height: auto; margin: 16px 0; display: block; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />`;
+          return `<img src="${imageSrc}" alt="${alt}" style="max-width: 150px; height: auto; margin: 16px 0; display: block; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />`;
         });
 
         // Bold
