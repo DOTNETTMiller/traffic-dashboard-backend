@@ -1,5 +1,16 @@
 import { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Polyline, Marker, Popup } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 import api from '../services/api';
+
+// Fix for default marker icons in React-Leaflet
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 const CoverageGapAnalysis = () => {
   const [corridors, setCorridors] = useState([]);
@@ -7,6 +18,8 @@ const CoverageGapAnalysis = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [viewMode, setViewMode] = useState('vendors'); // 'vendors' or 'states'
+  const [selectedCorridor, setSelectedCorridor] = useState(null);
+  const [showMap, setShowMap] = useState(false);
 
   useEffect(() => {
     fetchCoverageGaps();
@@ -29,6 +42,52 @@ const CoverageGapAnalysis = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Extract geographic info from corridor description/name
+  const getCorridorGeography = (corridor) => {
+    // Try to extract state and route info from corridor name/description
+    const stateMatch = corridor.corridor_name.match(/([A-Z]{2})(?:\s|$|_)/);
+    const routeMatch = corridor.corridor_name.match(/(I-?\d+|US-?\d+|SR-?\d+)/i);
+
+    const geography = {
+      route: routeMatch ? routeMatch[1].toUpperCase() : null,
+      state: stateMatch ? stateMatch[1] : null,
+      description: corridor.description || '',
+    };
+
+    // Parse common patterns like "Mile 0 to Mile 100" or "City A to City B"
+    const milePattern = /mile\s+(\d+\.?\d*)\s+to\s+mile\s+(\d+\.?\d*)/i;
+    const cityPattern = /from\s+([A-Za-z\s]+)\s+to\s+([A-Za-z\s]+)/i;
+
+    const mileMatch = corridor.description?.match(milePattern);
+    const cityMatch = corridor.description?.match(cityPattern);
+
+    if (mileMatch) {
+      geography.startMile = parseFloat(mileMatch[1]);
+      geography.endMile = parseFloat(mileMatch[2]);
+      geography.segmentType = 'mile-marker';
+    } else if (cityMatch) {
+      geography.startCity = cityMatch[1].trim();
+      geography.endCity = cityMatch[2].trim();
+      geography.segmentType = 'city';
+    }
+
+    return geography;
+  };
+
+  const formatCorridorSegment = (corridor) => {
+    const geo = getCorridorGeography(corridor);
+
+    if (geo.segmentType === 'mile-marker') {
+      return `${geo.route || 'Route'} (Mile ${geo.startMile} to ${geo.endMile}) - ${geo.state || ''}`;
+    } else if (geo.segmentType === 'city') {
+      return `${geo.route || 'Route'}: ${geo.startCity} to ${geo.endCity} - ${geo.state || ''}`;
+    } else if (geo.route && geo.state) {
+      return `${geo.route} - ${geo.state}`;
+    }
+
+    return corridor.corridor_name;
   };
 
   const getSeverityColor = (severity) => {
@@ -199,9 +258,31 @@ const CoverageGapAnalysis = () => {
                 <div style={{ fontWeight: 'bold', fontSize: '18px', color: '#1f2937', marginBottom: '4px' }}>
                   {corridor.corridor_name}
                 </div>
+                <div style={{ fontSize: '14px', color: '#3b82f6', fontWeight: '600', marginBottom: '6px' }}>
+                  📍 {formatCorridorSegment(corridor)}
+                </div>
                 <div style={{ fontSize: '13px', color: '#6b7280' }}>
                   {corridor.description}
                 </div>
+                <button
+                  onClick={() => {
+                    setSelectedCorridor(corridor);
+                    setShowMap(true);
+                  }}
+                  style={{
+                    marginTop: '8px',
+                    padding: '6px 12px',
+                    background: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontWeight: '500'
+                  }}
+                >
+                  🗺️ View on Map
+                </button>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{
@@ -392,6 +473,135 @@ const CoverageGapAnalysis = () => {
           </div>
           <div style={{ color: '#6b7280' }}>
             All corridors have adequate vendor coverage and quality. The market is well-served.
+          </div>
+        </div>
+      )}
+
+      {/* Map Modal */}
+      {showMap && selectedCorridor && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.7)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            width: '90%',
+            maxWidth: '1200px',
+            height: '80vh',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '20px',
+              borderBottom: '2px solid #e5e7eb',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: 'bold' }}>
+                  {selectedCorridor.corridor_name}
+                </h3>
+                <div style={{ fontSize: '14px', color: '#3b82f6', fontWeight: '600' }}>
+                  📍 {formatCorridorSegment(selectedCorridor)}
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowMap(false);
+                  setSelectedCorridor(null);
+                }}
+                style={{
+                  padding: '8px 16px',
+                  background: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            {/* Map */}
+            <div style={{ flex: 1, position: 'relative' }}>
+              <MapContainer
+                center={[40.0, -95.0]}
+                zoom={6}
+                style={{ height: '100%', width: '100%' }}
+              >
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                />
+                {/* Center marker for corridor */}
+                <Marker position={[40.0, -95.0]}>
+                  <Popup>
+                    <div style={{ textAlign: 'center' }}>
+                      <strong>{selectedCorridor.corridor_name}</strong>
+                      <br />
+                      {formatCorridorSegment(selectedCorridor)}
+                      <br />
+                      <br />
+                      <strong>Coverage Gaps:</strong> {selectedCorridor.gaps.length}
+                      <br />
+                      <strong>Vendors:</strong> {selectedCorridor.current_state.vendor_count}
+                      <br />
+                      <strong>Avg DQI:</strong> {selectedCorridor.current_state.avg_dqi != null ? Number(selectedCorridor.current_state.avg_dqi).toFixed(1) : 'N/A'}
+                    </div>
+                  </Popup>
+                </Marker>
+              </MapContainer>
+
+              {/* Gap Summary Overlay */}
+              <div style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'white',
+                padding: '16px',
+                borderRadius: '8px',
+                boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                maxWidth: '300px',
+                zIndex: 1000
+              }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 'bold' }}>
+                  Coverage Summary
+                </h4>
+                <div style={{ fontSize: '12px', lineHeight: '1.6' }}>
+                  <div style={{ marginBottom: '8px' }}>
+                    <strong>Vendors:</strong> {selectedCorridor.current_state.vendor_count} ({selectedCorridor.current_state.providers})
+                  </div>
+                  <div style={{ marginBottom: '8px' }}>
+                    <strong>Service Types:</strong> {selectedCorridor.current_state.service_type_count}
+                  </div>
+                  <div style={{ marginBottom: '8px' }}>
+                    <strong>Total Feeds:</strong> {selectedCorridor.current_state.feed_count}
+                  </div>
+                  <div style={{ marginBottom: '8px' }}>
+                    <strong>Avg Quality:</strong> {selectedCorridor.current_state.avg_dqi != null ? Number(selectedCorridor.current_state.avg_dqi).toFixed(1) : 'N/A'}
+                  </div>
+                  <div>
+                    <strong>Identified Gaps:</strong> {selectedCorridor.gaps.length}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
