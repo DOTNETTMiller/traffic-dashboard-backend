@@ -560,73 +560,101 @@ function DocumentationViewer() {
 
           .doc-table {
             width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-            margin: 20px 0;
-            font-size: 14px;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
+            border-collapse: collapse;
+            margin: 24px 0;
+            font-size: 13.5px;
+            border: 2px solid #d1d5db;
+            border-radius: 6px;
             overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
           }
 
           .doc-table th {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            background: linear-gradient(to bottom, #1e40af 0%, #1e3a8a 100%);
             color: white;
-            border: none;
-            border-bottom: 2px solid #1d4ed8;
-            padding: 12px 16px;
+            border: 1px solid #1e3a8a;
+            border-bottom: 3px solid #1e3a8a;
+            padding: 14px 18px;
             text-align: left;
-            font-weight: 600;
-            font-size: 13px;
+            font-weight: 700;
+            font-size: 12px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.8px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           }
 
           .doc-table th:not(:last-child) {
-            border-right: 1px solid rgba(255, 255, 255, 0.2);
+            border-right: 1px solid rgba(255, 255, 255, 0.15);
           }
 
           .doc-table td {
-            border: none;
-            border-bottom: 1px solid #e5e7eb;
-            padding: 12px 16px;
+            border: 1px solid #e5e7eb;
+            padding: 14px 18px;
             color: #374151;
-            vertical-align: top;
-            line-height: 1.5;
+            vertical-align: middle;
+            line-height: 1.6;
           }
 
           .doc-table td:not(:last-child) {
-            border-right: 1px solid #f3f4f6;
+            border-right: 1px solid #e5e7eb;
           }
 
           .doc-table tbody tr {
-            transition: background-color 0.2s ease;
+            transition: all 0.15s ease;
+            border-bottom: 1px solid #d1d5db;
           }
 
           .doc-table tbody tr:nth-child(even) {
-            background-color: #f9fafb;
+            background-color: #fafafa;
+          }
+
+          .doc-table tbody tr:nth-child(odd) {
+            background-color: #ffffff;
           }
 
           .doc-table tbody tr:hover {
-            background-color: #eff6ff;
+            background: linear-gradient(to right, #dbeafe 0%, #e0f2fe 100%) !important;
+            transform: scale(1.001);
+            box-shadow: inset 0 0 0 1px #3b82f6;
           }
 
           .doc-table tbody tr:last-child td {
-            border-bottom: none;
+            border-bottom: 2px solid #d1d5db;
           }
 
           /* Make first column bold for dimension labels */
           .doc-table td:first-child {
-            font-weight: 600;
-            color: #1f2937;
+            font-weight: 700;
+            color: #111827;
+            background: linear-gradient(to right, #f9fafb 0%, #ffffff 100%);
+          }
+
+          .doc-table td:first-child strong {
+            color: #111827;
+            font-weight: 700;
           }
 
           /* Style percentages and numbers in tables */
           .doc-table td:nth-child(2) {
-            font-family: 'Monaco', 'Courier New', monospace;
+            font-family: "SF Mono", Consolas, Monaco, monospace;
             color: #059669;
-            font-weight: 500;
+            font-weight: 600;
+            text-align: center;
+            background: #f0fdf4;
+            font-size: 14px;
+          }
+
+          @media print {
+            .doc-table {
+              page-break-inside: avoid;
+            }
+            .doc-table thead {
+              display: table-header-group;
+            }
           }
 
           /* Custom scrollbar styling */
