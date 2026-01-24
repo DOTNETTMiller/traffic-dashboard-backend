@@ -1888,6 +1888,7 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events', a
             // Extract coordinates from primary location
             let lat = 0;
             let lng = 0;
+            let geometry = null;
 
             const locationOnLink = detail?.locations?.location?.['location-on-link'];
             if (locationOnLink) {
@@ -1896,6 +1897,67 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events', a
                 // Coordinates are in microdegrees - divide by 1,000,000
                 lat = parseFloat(primaryLoc.latitude) / 1000000 || 0;
                 lng = parseFloat(primaryLoc.longitude) / 1000000 || 0;
+              }
+
+              // Try to extract polyline from path
+              const path = locationOnLink.path;
+              if (path && path['geo-location']) {
+                const geoLocations = Array.isArray(path['geo-location'])
+                  ? path['geo-location']
+                  : [path['geo-location']];
+
+                const coordinates = geoLocations
+                  .map(loc => {
+                    const pathLat = parseFloat(loc.latitude) / 1000000;
+                    const pathLng = parseFloat(loc.longitude) / 1000000;
+                    if (pathLat && pathLng) {
+                      return [pathLng, pathLat]; // GeoJSON format: [lng, lat]
+                    }
+                    return null;
+                  })
+                  .filter(coord => coord !== null);
+
+                if (coordinates.length >= 2) {
+                  geometry = {
+                    type: 'LineString',
+                    coordinates: coordinates,
+                    source: 'FEU-G path'
+                  };
+                }
+              }
+
+              // If no path, try supplemental-location
+              if (!geometry && locationOnLink['supplemental-location']) {
+                const suppLocs = Array.isArray(locationOnLink['supplemental-location'])
+                  ? locationOnLink['supplemental-location']
+                  : [locationOnLink['supplemental-location']];
+
+                const coordinates = suppLocs
+                  .map(loc => {
+                    const geoLoc = loc['geo-location'];
+                    if (geoLoc) {
+                      const suppLat = parseFloat(geoLoc.latitude) / 1000000;
+                      const suppLng = parseFloat(geoLoc.longitude) / 1000000;
+                      if (suppLat && suppLng) {
+                        return [suppLng, suppLat]; // GeoJSON format: [lng, lat]
+                      }
+                    }
+                    return null;
+                  })
+                  .filter(coord => coord !== null);
+
+                // Add primary location at start if we have supplemental locations
+                if (coordinates.length >= 1 && lat && lng) {
+                  coordinates.unshift([lng, lat]);
+                }
+
+                if (coordinates.length >= 2) {
+                  geometry = {
+                    type: 'LineString',
+                    coordinates: coordinates,
+                    source: 'FEU-G supplemental-location'
+                  };
+                }
               }
             }
 
@@ -1953,7 +2015,8 @@ const normalizeEventData = (rawData, stateName, format, sourceType = 'events', a
               lanesAffected: lanesRaw,
               severity: severityRaw,
               direction: directionRaw,
-              requiresCollaboration: false
+              requiresCollaboration: false,
+              geometry: geometry // Add FEU-G polyline geometry
             };
 
             normalized.push(attachRawFields(normalizedEvent, {
