@@ -848,7 +848,7 @@ function offsetCoordinates(coordinates, direction) {
 // Initialize OSRM geometry cache table
 function initOSRMCache() {
   try {
-    db.prepare(`
+    db.db.prepare(`
       CREATE TABLE IF NOT EXISTS osrm_geometry_cache (
         cache_key TEXT PRIMARY KEY,
         geometry TEXT NOT NULL,
@@ -884,7 +884,7 @@ async function processOSRMQueue() {
     // Save to cache if OSRM succeeded (more than 2 points = road-snapped)
     if (result.length > 2) {
       try {
-        db.prepare('INSERT OR REPLACE INTO osrm_geometry_cache (cache_key, geometry) VALUES (?, ?)').run(
+        db.db.prepare('INSERT OR REPLACE INTO osrm_geometry_cache (cache_key, geometry) VALUES (?, ?)').run(
           cacheKey,
           JSON.stringify(result)
         );
@@ -926,7 +926,7 @@ function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, directio
       : 'SELECT geometry FROM interstate_geometries WHERE corridor = ? AND state = ? LIMIT 1';
 
     const params = dir ? [corridor, state, dir] : [corridor, state];
-    const result = db.prepare(query).get(...params);
+    const result = db.db.prepare(query).get(...params);
 
     if (!result) {
       return null;
@@ -1002,7 +1002,7 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
   const cacheKey = getOSRMCacheKey(lat1, lng1, lat2, lng2, direction);
 
   try {
-    const cached = db.prepare('SELECT geometry FROM osrm_geometry_cache WHERE cache_key = ?').get(cacheKey);
+    const cached = db.db.prepare('SELECT geometry FROM osrm_geometry_cache WHERE cache_key = ?').get(cacheKey);
     if (cached) {
       return JSON.parse(cached.geometry);
     }
@@ -21006,7 +21006,7 @@ app.post('/api/grants/applications/:id/proposal', upload.single('proposal'), asy
     }
 
     // Check if application exists
-    const application = db.prepare('SELECT id FROM grant_applications WHERE id = ?').get(id);
+    const application = db.db.prepare('SELECT id FROM grant_applications WHERE id = ?').get(id);
     if (!application) {
       return res.status(404).json({
         success: false,
@@ -21015,7 +21015,7 @@ app.post('/api/grants/applications/:id/proposal', upload.single('proposal'), asy
     }
 
     // Update application with proposal info
-    db.prepare(`
+    db.db.prepare(`
       UPDATE grant_applications
       SET proposal_document_path = ?,
           proposal_document_name = ?,
