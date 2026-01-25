@@ -1004,24 +1004,31 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
   if (corridor && state) {
     const interstateGeom = getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, direction);
     if (interstateGeom) {
+      console.log(`✅ Using interstate geometry for ${corridor} ${state} ${direction}`);
       return interstateGeom;
     }
   }
 
   // 2. Check OSRM cache
   const cacheKey = getOSRMCacheKey(lat1, lng1, lat2, lng2, direction);
+  console.log(`🔍 Cache lookup: ${cacheKey}`);
 
   try {
     const cached = db.db.prepare('SELECT geometry FROM osrm_geometry_cache WHERE cache_key = ?').get(cacheKey);
     if (cached) {
-      return JSON.parse(cached.geometry);
+      const geom = JSON.parse(cached.geometry);
+      console.log(`✅ Cache HIT! Returning ${geom.length} coordinates`);
+      return geom;
+    } else {
+      console.log(`❌ Cache MISS for key: ${cacheKey}`);
     }
   } catch (error) {
-    // Cache lookup failed, fall through
+    console.error(`❌ Cache lookup error:`, error.message);
   }
 
   // 3. Not in cache - return straight line instead of queuing OSRM
   // Use the pre-population script to fill the cache: node scripts/prepopulate_osrm_cache.js
+  console.log(`⚠️  Returning straight line for ${lat1},${lng1} -> ${lat2},${lng2}`);
   return [[lng1, lat1], [lng2, lat2]];
 }
 
