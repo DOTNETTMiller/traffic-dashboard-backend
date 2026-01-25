@@ -903,9 +903,102 @@ async function processOSRMQueue() {
   osrmProcessing = false;
 }
 
-// Snap a straight line to road network using OSRM routing (cached only)
-async function snapToRoad(lat1, lng1, lat2, lng2, direction = null) {
-  // Check cache first
+// Get interstate geometry from database for a corridor segment
+function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, direction = null) {
+  if (!corridor || !state || !corridor.match(/^I-\d+/i)) {
+    return null; // Not an interstate
+  }
+
+  try {
+    // Normalize direction
+    let dir = null;
+    if (direction) {
+      const d = direction.toLowerCase();
+      if (d.includes('north') || d.includes('nb') || d === 'n') dir = 'northbound';
+      else if (d.includes('south') || d.includes('sb') || d === 's') dir = 'southbound';
+      else if (d.includes('east') || d.includes('eb') || d === 'e') dir = 'eastbound';
+      else if (d.includes('west') || d.includes('wb') || d === 'w') dir = 'westbound';
+    }
+
+    // Try to get stored interstate geometry
+    const query = dir
+      ? 'SELECT geometry FROM interstate_geometries WHERE corridor = ? AND state = ? AND direction = ?'
+      : 'SELECT geometry FROM interstate_geometries WHERE corridor = ? AND state = ? LIMIT 1';
+
+    const params = dir ? [corridor, state, dir] : [corridor, state];
+    const result = db.prepare(query).get(...params);
+
+    if (!result) {
+      return null;
+    }
+
+    const fullGeometry = JSON.parse(result.geometry);
+
+    // Extract the segment between our start/end points
+    return extractSegment(fullGeometry, lat1, lng1, lat2, lng2);
+
+  } catch (error) {
+    console.error('Error fetching interstate geometry:', error.message);
+    return null;
+  }
+}
+
+// Extract a segment from a full highway geometry
+function extractSegment(geometry, lat1, lng1, lat2, lng2) {
+  if (!geometry || geometry.length < 2) {
+    return null;
+  }
+
+  // Find closest points to start and end
+  let startIdx = 0;
+  let endIdx = geometry.length - 1;
+  let minStartDist = Infinity;
+  let minEndDist = Infinity;
+
+  for (let i = 0; i < geometry.length; i++) {
+    const [lon, lat] = geometry[i];
+
+    const startDist = Math.sqrt(Math.pow(lat - lat1, 2) + Math.pow(lon - lng1, 2));
+    if (startDist < minStartDist) {
+      minStartDist = startDist;
+      startIdx = i;
+    }
+
+    const endDist = Math.sqrt(Math.pow(lat - lat2, 2) + Math.pow(lon - lng2, 2));
+    if (endDist < minEndDist) {
+      minEndDist = endDist;
+      endIdx = i;
+    }
+  }
+
+  // Ensure start comes before end
+  if (startIdx > endIdx) {
+    [startIdx, endIdx] = [endIdx, startIdx];
+  }
+
+  // Extract segment
+  const segment = geometry.slice(startIdx, endIdx + 1);
+
+  // Only use if the segment makes sense (endpoints are reasonably close)
+  if (minStartDist > 0.1 || minEndDist > 0.1) {
+    // Points are too far from highway (>0.1 degrees ≈ 11km) - probably wrong highway
+    return null;
+  }
+
+  return segment.length >= 2 ? segment : null;
+}
+
+// Snap a straight line to road network (interstate geometry → OSRM cache → straight line)
+async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = null, state = null) {
+  // 1. Check for interstate geometry first (most accurate for highways)
+  if (corridor && state) {
+    const interstateGeom = getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, direction);
+    if (interstateGeom) {
+      return interstateGeom;
+    }
+  }
+
+  // 2. Check OSRM cache
   const cacheKey = getOSRMCacheKey(lat1, lng1, lat2, lng2, direction);
 
   try {
@@ -917,7 +1010,7 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null) {
     // Cache lookup failed, fall through
   }
 
-  // Not in cache - return straight line instead of queuing OSRM
+  // 3. Not in cache - return straight line instead of queuing OSRM
   // Use the pre-population script to fill the cache: node scripts/prepopulate_osrm_cache.js
   return [[lng1, lat1], [lng2, lat2]];
 }
@@ -2101,16 +2194,27 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
                   const corridor = extractCorridor(locationText);
                   const direction = extractDirection(descText, headlineText, corridor, primaryLat, primaryLng);
 
-                  // Use OSRM to snap to road network with directional offset
-                  const roadSnappedCoords = await snapToRoad(primaryLat, primaryLng, secondaryLat, secondaryLng, direction);
+                  // Use interstate geometry → OSRM cache → straight line fallback
+                  const roadSnappedCoords = await snapToRoad(
+                    primaryLat, primaryLng, secondaryLat, secondaryLng,
+                    direction, corridor, stateName
+                  );
+
+                  // Determine source based on geometry
+                  let source = 'FEU-G primary+secondary';
+                  if (roadSnappedCoords.length > 10) {
+                    source = corridor && corridor.match(/^I-\d+/i)
+                      ? 'FEU-G + Interstate geometry'
+                      : 'FEU-G + OSRM road-snapped';
+                  }
 
                   geometry = {
                     type: 'LineString',
                     coordinates: roadSnappedCoords,
-                    source: roadSnappedCoords.length > 2 ? 'FEU-G + OSRM road-snapped' : 'FEU-G primary+secondary'
+                    source
                   };
                   if (index === 0) {
-                    console.log(`${stateName}: Extracted geometry with ${roadSnappedCoords.length} points (road-snapped: ${roadSnappedCoords.length > 2}, direction: ${direction})`);
+                    console.log(`${stateName}: Extracted geometry with ${roadSnappedCoords.length} points (${source}, direction: ${direction})`);
                   }
                 }
               } else if (index === 0) {
