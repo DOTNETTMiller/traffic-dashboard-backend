@@ -864,7 +864,17 @@ function initOSRMCache() {
 // Generate cache key for OSRM request
 function getOSRMCacheKey(lat1, lng1, lat2, lng2, direction) {
   // Round to 5 decimal places (~1 meter precision) for cache key
-  const key = `${lat1.toFixed(5)},${lng1.toFixed(5)}_${lat2.toFixed(5)},${lng2.toFixed(5)}_${direction || 'none'}`;
+  // Normalize direction to match prepopulate script format (capitalized)
+  let normalizedDir = direction || 'none';
+  if (direction && typeof direction === 'string') {
+    const d = direction.toLowerCase();
+    if (d.includes('north') || d === 'n' || d === 'nb') normalizedDir = 'Northbound';
+    else if (d.includes('south') || d === 's' || d === 'sb') normalizedDir = 'Southbound';
+    else if (d.includes('east') || d === 'e' || d === 'eb') normalizedDir = 'Eastbound';
+    else if (d.includes('west') || d === 'w' || d === 'wb') normalizedDir = 'Westbound';
+    else if (d.includes('both')) normalizedDir = 'Both';
+  }
+  const key = `${lat1.toFixed(5)},${lng1.toFixed(5)}_${lat2.toFixed(5)},${lng2.toFixed(5)}_${normalizedDir}`;
   return key;
 }
 
