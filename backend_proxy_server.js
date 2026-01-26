@@ -848,11 +848,15 @@ function offsetCoordinates(coordinates, direction) {
 // Initialize OSRM geometry cache table
 function initOSRMCache() {
   try {
+    const timestampDefault = process.env.DATABASE_URL
+      ? 'EXTRACT(EPOCH FROM NOW())::INTEGER'  // PostgreSQL
+      : "(strftime('%s', 'now'))";             // SQLite
+
     db.db.prepare(`
       CREATE TABLE IF NOT EXISTS osrm_geometry_cache (
         cache_key TEXT PRIMARY KEY,
         geometry TEXT NOT NULL,
-        created_at INTEGER DEFAULT (strftime('%s', 'now'))
+        created_at INTEGER DEFAULT ${timestampDefault}
       )
     `).run();
     console.log('✅ OSRM geometry cache table initialized');
