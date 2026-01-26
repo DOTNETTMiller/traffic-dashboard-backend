@@ -2200,9 +2200,6 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
                 lng = parseFloat(primaryLoc.longitude) / 1000000 || 0;
               }
 
-              // Extract corridor ONCE before geometry processing
-              const corridor = extractCorridor(locationText);
-
               // Extract polyline from primary + secondary locations with road-snapping
               const secondaryLoc = locationOnLink['secondary-location']?.['geo-location'];
               if (primaryLoc && secondaryLoc) {
@@ -2213,6 +2210,7 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
 
                 if (primaryLat && primaryLng && secondaryLat && secondaryLng) {
                   // Extract direction to inform road-side offset
+                  const corridor = extractCorridor(locationText);
                   const direction = extractDirection(descText, headlineText, corridor, primaryLat, primaryLng);
 
                   // Use interstate geometry → OSRM cache → straight line fallback
@@ -2243,17 +2241,18 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
               }
             }
 
-            return { update, index, eventId, headlineText, detail, lat, lng, geometry, locationText, descText, corridor };
+            return { update, index, eventId, headlineText, detail, lat, lng, geometry, locationText, descText };
           });
 
           // Wait for all road-snapping to complete
           const processedUpdates = await Promise.all(feuPromises);
 
           // Now process the results
-          processedUpdates.forEach(({ update, index, eventId, headlineText, detail, lat, lng, geometry, locationText, descText, corridor }) => {
+          processedUpdates.forEach(({ update, index, eventId, headlineText, detail, lat, lng, geometry, locationText, descText }) => {
 
             // Only include events on interstate highways
             if (isInterstateRoute(locationText)) {
+            const corridor = extractCorridor(locationText);
             const startRaw = detail?.['event-times']?.['start-time'] || null;
             const endRaw = detail?.['event-times']?.['end-time'] || null;
             const lanesRaw = extractLaneInfo(descText, headlineText);
