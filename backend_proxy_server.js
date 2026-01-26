@@ -998,78 +998,6 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   return segment.length >= 2 ? segment : null;
 }
 
-// Generate a synthetic corridor segment for single-point events
-function generateCorridorSegment(lat, lng, corridor, state, direction = null) {
-  if (!corridor || !state || !corridor.match(/^I-\d+/i)) {
-    return null; // Not an interstate
-  }
-
-  try {
-    // Normalize direction
-    let dir = null;
-    if (direction) {
-      const d = direction.toLowerCase();
-      if (d.includes('north') || d.includes('nb') || d === 'n') dir = 'northbound';
-      else if (d.includes('south') || d.includes('sb') || d === 's') dir = 'southbound';
-      else if (d.includes('east') || d.includes('eb') || d === 'e') dir = 'eastbound';
-      else if (d.includes('west') || d.includes('wb') || d === 'w') dir = 'westbound';
-    }
-
-    // Try to get stored interstate geometry
-    const query = dir
-      ? 'SELECT geometry FROM interstate_geometries WHERE corridor = ? AND state = ? AND direction = ?'
-      : 'SELECT geometry FROM interstate_geometries WHERE corridor = ? AND state = ? LIMIT 1';
-
-    const params = dir ? [corridor, state, dir] : [corridor, state];
-    const result = db.db.prepare(query).get(...params);
-
-    if (!result) {
-      console.log(`⚠️  No interstate geometry found for ${corridor} ${state} ${dir || 'any direction'}`);
-      return null;
-    }
-
-    const fullGeometry = JSON.parse(result.geometry);
-
-    // Find closest point on the interstate to this event
-    let closestIdx = 0;
-    let minDist = Infinity;
-
-    for (let i = 0; i < fullGeometry.length; i++) {
-      const [lon, latCoord] = fullGeometry[i];
-      const dist = Math.sqrt(Math.pow(latCoord - lat, 2) + Math.pow(lon - lng, 2));
-      if (dist < minDist) {
-        minDist = dist;
-        closestIdx = i;
-      }
-    }
-
-    // Only use if point is reasonably close to highway
-    if (minDist > 0.05) {
-      // Point is too far from highway (>0.05 degrees ≈ 5.5km)
-      console.log(`⚠️  Event too far from ${corridor} (${minDist.toFixed(4)} degrees)`);
-      return null;
-    }
-
-    // Extract segment around the closest point (±20 points for ~2-4 mile segment)
-    const segmentRadius = 20;
-    const startIdx = Math.max(0, closestIdx - segmentRadius);
-    const endIdx = Math.min(fullGeometry.length - 1, closestIdx + segmentRadius);
-
-    const segment = fullGeometry.slice(startIdx, endIdx + 1);
-
-    if (segment.length < 2) {
-      return null;
-    }
-
-    console.log(`✅ Generated ${segment.length}-point corridor segment for ${corridor} ${state} (closest point: index ${closestIdx}, distance: ${minDist.toFixed(4)}°)`);
-    return segment;
-
-  } catch (error) {
-    console.error('Error generating corridor segment:', error.message);
-    return null;
-  }
-}
-
 // Snap a straight line to road network (interstate geometry → OSRM cache → straight line)
 async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = null, state = null) {
   console.log(`📍 snapToRoad called: lat1=${lat1}, lng1=${lng1}, lat2=${lat2}, lng2=${lng2}, direction="${direction}", corridor="${corridor}", state="${state}"`);
@@ -2360,25 +2288,9 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
                     console.log(`${stateName}: Extracted geometry with ${roadSnappedCoords.length} points (${source}, direction: ${direction})`);
                   }
                 }
-              } else if (primaryLoc && !secondaryLoc && corridor && corridor.match(/^I-\d+/i)) {
-                // Single-point event on an interstate - generate synthetic corridor segment
-                const direction = extractDirection(descText, headlineText, corridor, lat, lng);
-                const syntheticSegment = generateCorridorSegment(lat, lng, corridor, stateName, direction);
-
-                if (syntheticSegment) {
-                  geometry = {
-                    type: 'LineString',
-                    coordinates: syntheticSegment,
-                    source: 'FEU-G synthetic corridor segment'
-                  };
-                  if (index === 0) {
-                    console.log(`${stateName}: Generated synthetic segment with ${syntheticSegment.length} points for single-point event`);
-                  }
-                } else if (index === 0) {
-                  console.log(`${stateName}: Could not generate synthetic segment for corridor ${corridor}`);
-                }
               } else if (index === 0) {
-                console.log(`${stateName}: No secondary location - primary:`, !!primaryLoc, 'secondary:', !!secondaryLoc, 'corridor:', corridor);
+                // Single-point event - geometry remains null (no polyline)
+                console.log(`${stateName}: Single-point event (no secondary location) - no polyline generated`);
               }
             }
 
