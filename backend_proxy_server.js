@@ -1016,7 +1016,22 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
   console.log(`🔍 Cache lookup: ${cacheKey}`);
 
   try {
-    const cached = db.db.prepare('SELECT geometry FROM osrm_geometry_cache WHERE cache_key = ?').get(cacheKey);
+    let cached = db.db.prepare('SELECT geometry FROM osrm_geometry_cache WHERE cache_key = ?').get(cacheKey);
+
+    // If direction="Both" and cache miss, try fallback to specific directions
+    if (!cached && direction && direction.toLowerCase().includes('both')) {
+      console.log(`⚠️  Cache MISS for "Both" - trying fallback directions...`);
+      const fallbackDirections = ['Westbound', 'Eastbound', 'Northbound', 'Southbound'];
+      for (const fallbackDir of fallbackDirections) {
+        const fallbackKey = getOSRMCacheKey(lat1, lng1, lat2, lng2, fallbackDir);
+        cached = db.db.prepare('SELECT geometry FROM osrm_geometry_cache WHERE cache_key = ?').get(fallbackKey);
+        if (cached) {
+          console.log(`✅ Cache HIT on fallback! Using ${fallbackDir} geometry`);
+          break;
+        }
+      }
+    }
+
     if (cached) {
       const geom = JSON.parse(cached.geometry);
       console.log(`✅ Cache HIT! Returning ${geom.length} coordinates`);
