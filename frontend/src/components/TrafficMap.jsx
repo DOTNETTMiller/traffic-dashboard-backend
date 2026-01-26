@@ -557,7 +557,8 @@ export default function TrafficMap({
           return (
             <div key={`event-${event.id}`}>
               {/* Render polyline for linear features (work zones, closures along road segments) */}
-              {hasGeometry && (
+              {/* Skip polylines for Weather events - only show markers */}
+              {hasGeometry && event.eventType !== 'Weather' && (
                 <Polyline
                   key={`polyline-${event.id}`}
                   positions={polylinePositions}
