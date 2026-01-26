@@ -986,13 +986,26 @@ function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, directio
   }
 }
 
+// Haversine distance formula (in kilometers)
+function haversineDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 // Extract a segment from a full highway geometry
 function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   if (!geometry || geometry.length < 2) {
     return null;
   }
 
-  // Find closest points to start and end
+  // Find closest points to start and end using proper Haversine distance
   let startIdx = 0;
   let endIdx = geometry.length - 1;
   let minStartDist = Infinity;
@@ -1001,13 +1014,13 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   for (let i = 0; i < geometry.length; i++) {
     const [lon, lat] = geometry[i];
 
-    const startDist = Math.sqrt(Math.pow(lat - lat1, 2) + Math.pow(lon - lng1, 2));
+    const startDist = haversineDistance(lat1, lng1, lat, lon);
     if (startDist < minStartDist) {
       minStartDist = startDist;
       startIdx = i;
     }
 
-    const endDist = Math.sqrt(Math.pow(lat - lat2, 2) + Math.pow(lon - lng2, 2));
+    const endDist = haversineDistance(lat2, lng2, lat, lon);
     if (endDist < minEndDist) {
       minEndDist = endDist;
       endIdx = i;
@@ -1023,11 +1036,13 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   const segment = geometry.slice(startIdx, endIdx + 1);
 
   // Only use if the segment makes sense (endpoints are reasonably close)
-  if (minStartDist > 0.1 || minEndDist > 0.1) {
-    // Points are too far from highway (>0.1 degrees ≈ 11km) - probably wrong highway
+  // Increased threshold from ~11km to 25km to handle rural interstates better
+  if (minStartDist > 25 || minEndDist > 25) {
+    console.log(`⚠️  Segment rejected: start=${minStartDist.toFixed(1)}km, end=${minEndDist.toFixed(1)}km from highway`);
     return null;
   }
 
+  console.log(`✅ Segment extracted: start=${minStartDist.toFixed(1)}km, end=${minEndDist.toFixed(1)}km from highway, ${segment.length} points`);
   return segment.length >= 2 ? segment : null;
 }
 
