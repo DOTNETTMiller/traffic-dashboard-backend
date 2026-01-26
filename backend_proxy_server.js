@@ -2192,6 +2192,9 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
               if (roadwayText) locationText = roadwayText;
             }
 
+            // Extract corridor once for use in both geometry processing and event object
+            const corridor = extractCorridor(locationText);
+
             if (locationOnLink) {
               const primaryLoc = locationOnLink['primary-location']?.['geo-location'];
               if (primaryLoc) {
@@ -2209,8 +2212,7 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
                 const secondaryLng = parseFloat(secondaryLoc.longitude) / 1000000;
 
                 if (primaryLat && primaryLng && secondaryLat && secondaryLng) {
-                  // Extract direction to inform road-side offset
-                  const corridor = extractCorridor(locationText);
+                  // Use corridor extracted above
                   const direction = extractDirection(descText, headlineText, corridor, primaryLat, primaryLng);
 
                   // Use interstate geometry → OSRM cache → straight line fallback
