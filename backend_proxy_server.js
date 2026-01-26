@@ -865,6 +865,29 @@ function initOSRMCache() {
   }
 }
 
+// Initialize interstate geometries table
+function initInterstateGeometries() {
+  try {
+    const timestampDefault = process.env.DATABASE_URL
+      ? 'EXTRACT(EPOCH FROM NOW())::INTEGER'  // PostgreSQL
+      : "(strftime('%s', 'now'))";             // SQLite
+
+    db.db.prepare(`
+      CREATE TABLE IF NOT EXISTS interstate_geometries (
+        corridor TEXT,
+        state TEXT,
+        direction TEXT,
+        geometry TEXT NOT NULL,
+        updated_at INTEGER DEFAULT ${timestampDefault},
+        PRIMARY KEY (corridor, state, direction)
+      )
+    `).run();
+    console.log('✅ Interstate geometries table initialized');
+  } catch (error) {
+    console.error('❌ Failed to initialize interstate_geometries:', error.message);
+  }
+}
+
 // Generate cache key for OSRM request
 function getOSRMCacheKey(lat1, lng1, lat2, lng2, direction) {
   // Round to 5 decimal places (~1 meter precision) for cache key
@@ -1598,6 +1621,9 @@ async function initializeDatabase() {
 
     // Initialize OSRM geometry cache
     initOSRMCache();
+
+    // Initialize interstate geometries table
+    initInterstateGeometries();
 
     // Generate admin token if none exist
     const tokenCheck = db.db.prepare('SELECT COUNT(*) as count FROM admin_tokens').get();
