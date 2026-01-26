@@ -1050,8 +1050,13 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
         const fallbackKey = getOSRMCacheKey(lat1, lng1, lat2, lng2, dir);
         const result = db.db.prepare('SELECT geometry FROM osrm_geometry_cache WHERE cache_key = ?').get(fallbackKey);
         if (result) {
-          geometries.push({ direction: dir, coords: JSON.parse(result.geometry) });
-          console.log(`✅ Found ${dir} geometry (${JSON.parse(result.geometry).length} points)`);
+          try {
+            const coords = JSON.parse(result.geometry);
+            geometries.push({ direction: dir, coords });
+            console.log(`✅ Found ${dir} geometry (${coords.length} points)`);
+          } catch (parseError) {
+            console.log(`❌ Invalid JSON in cache for ${dir}, skipping`);
+          }
         }
       }
 
@@ -1072,9 +1077,13 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     }
 
     if (cached) {
-      const geom = JSON.parse(cached.geometry);
-      console.log(`✅ Cache HIT! Returning ${geom.length} coordinates`);
-      return geom;
+      try {
+        const geom = JSON.parse(cached.geometry);
+        console.log(`✅ Cache HIT! Returning ${geom.length} coordinates`);
+        return geom;
+      } catch (parseError) {
+        console.log(`❌ Invalid JSON in cache for key ${cacheKey}, treating as MISS`);
+      }
     } else {
       console.log(`❌ Cache MISS for key: ${cacheKey}`);
     }
