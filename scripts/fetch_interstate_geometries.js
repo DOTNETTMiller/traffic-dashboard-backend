@@ -13,18 +13,22 @@ const axios = require('axios');
 const Database = require('better-sqlite3');
 const path = require('path');
 
-// Database connection
-const dbPath = path.join(__dirname, '..', 'states.db');
+// Database connection - support both SQLite and PostgreSQL
+const dbPath = process.env.DATABASE_URL || path.join(__dirname, '..', 'states.db');
 const db = new Database(dbPath);
 
 // Initialize interstate geometries table
+const timestampDefault = process.env.DATABASE_URL
+  ? 'EXTRACT(EPOCH FROM NOW())::INTEGER'  // PostgreSQL
+  : "(strftime('%s', 'now'))";             // SQLite
+
 db.prepare(`
   CREATE TABLE IF NOT EXISTS interstate_geometries (
     corridor TEXT,
     state TEXT,
     direction TEXT,
     geometry TEXT NOT NULL,
-    updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+    updated_at INTEGER DEFAULT ${timestampDefault},
     PRIMARY KEY (corridor, state, direction)
   )
 `).run();
@@ -53,14 +57,23 @@ const STATE_CODES = {
 async function fetchInterstateGeometry(interstate, state) {
   const stateCode = STATE_CODES[state];
 
-  // Overpass query to get highway geometry
+  // Extract number from interstate (e.g., "I-80" -> "80")
+  const interstateNum = interstate.replace(/^I-/, '');
+
+  // Overpass query to get highway geometry - try multiple reference formats
   const query = `
     [out:json][timeout:25];
     area["ISO3166-2"="US-${stateCode}"]->.searchArea;
     (
       way["highway"="motorway"]["ref"="${interstate}"](area.searchArea);
+      way["highway"="motorway"]["ref"="Interstate ${interstateNum}"](area.searchArea);
+      way["highway"="motorway"]["network"="US:I"]["ref"="${interstateNum}"](area.searchArea);
       way["highway"="trunk"]["ref"="${interstate}"](area.searchArea);
+      way["highway"="trunk"]["ref"="Interstate ${interstateNum}"](area.searchArea);
+      relation["network"="US:I"]["ref"="${interstateNum}"](area.searchArea);
     );
+    out geom;
+    >;
     out geom;
   `;
 
@@ -146,15 +159,20 @@ async function fetchAllInterstates() {
         // Store each direction
         for (const [direction, coords] of Object.entries(directions)) {
           try {
+            const timestampValue = process.env.DATABASE_URL
+              ? db.prepare('SELECT EXTRACT(EPOCH FROM NOW())::INTEGER as ts').get().ts
+              : db.prepare("SELECT strftime('%s', 'now') as ts").get().ts;
+
             db.prepare(`
               INSERT OR REPLACE INTO interstate_geometries
               (corridor, state, direction, geometry, updated_at)
-              VALUES (?, ?, ?, ?, strftime('%s', 'now'))
+              VALUES (?, ?, ?, ?, ?)
             `).run(
               interstate,
               state,
               direction,
-              JSON.stringify(coords)
+              JSON.stringify(coords),
+              timestampValue
             );
           } catch (error) {
             console.error(`\n   ❌ Failed to store ${interstate} ${direction}:`, error.message);
