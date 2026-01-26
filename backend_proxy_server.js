@@ -946,7 +946,13 @@ function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, directio
       return null;
     }
 
-    const fullGeometry = JSON.parse(result.geometry);
+    let fullGeometry;
+    try {
+      fullGeometry = JSON.parse(result.geometry);
+    } catch (parseError) {
+      console.error(`❌ Invalid JSON in interstate_geometries for ${corridor} ${state} ${dir || 'any'}`);
+      return null;
+    }
 
     // Extract the segment between our start/end points
     return extractSegment(fullGeometry, lat1, lng1, lat2, lng2);
