@@ -1018,17 +1018,52 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
   try {
     let cached = db.db.prepare('SELECT geometry FROM osrm_geometry_cache WHERE cache_key = ?').get(cacheKey);
 
-    // If direction="Both" and cache miss, try fallback to specific directions
+    // If direction="Both" and cache miss, retrieve BOTH direction geometries and combine them
     if (!cached && direction && direction.toLowerCase().includes('both')) {
-      console.log(`⚠️  Cache MISS for "Both" - trying fallback directions...`);
-      const fallbackDirections = ['Westbound', 'Eastbound', 'Northbound', 'Southbound'];
-      for (const fallbackDir of fallbackDirections) {
-        const fallbackKey = getOSRMCacheKey(lat1, lng1, lat2, lng2, fallbackDir);
-        cached = db.db.prepare('SELECT geometry FROM osrm_geometry_cache WHERE cache_key = ?').get(fallbackKey);
-        if (cached) {
-          console.log(`✅ Cache HIT on fallback! Using ${fallbackDir} geometry`);
-          break;
+      console.log(`⚠️  Cache MISS for "Both" - retrieving both directional routes...`);
+
+      // Determine which pair of directions to use based on corridor
+      let directionPair = [];
+      if (corridor) {
+        // East-West interstates (even numbers: I-80, I-70, I-90, etc.)
+        if (corridor.match(/I-?(10|20|30|40|70|80|90|94|)/)) {
+          directionPair = ['Westbound', 'Eastbound'];
         }
+        // North-South interstates (odd numbers: I-35, I-29, I-65, etc.)
+        else if (corridor.match(/I-?(5|15|25|29|35|45|55|65|69|75|95)/)) {
+          directionPair = ['Northbound', 'Southbound'];
+        }
+        // Default: try all four
+        else {
+          directionPair = ['Westbound', 'Eastbound', 'Northbound', 'Southbound'];
+        }
+      } else {
+        directionPair = ['Westbound', 'Eastbound', 'Northbound', 'Southbound'];
+      }
+
+      const geometries = [];
+      for (const dir of directionPair) {
+        const fallbackKey = getOSRMCacheKey(lat1, lng1, lat2, lng2, dir);
+        const result = db.db.prepare('SELECT geometry FROM osrm_geometry_cache WHERE cache_key = ?').get(fallbackKey);
+        if (result) {
+          geometries.push({ direction: dir, coords: JSON.parse(result.geometry) });
+          console.log(`✅ Found ${dir} geometry (${JSON.parse(result.geometry).length} points)`);
+        }
+      }
+
+      // If we found both directions, return them combined
+      // For split interstates, we want to show both roadways
+      if (geometries.length >= 2) {
+        // Combine: route1 forward + route2 reversed to create a loop showing both sides
+        const route1 = geometries[0].coords;
+        const route2 = [...geometries[1].coords].reverse();
+        const combined = [...route1, ...route2];
+        console.log(`✅ Combined ${geometries[0].direction} + ${geometries[1].direction} into ${combined.length} total points`);
+        return combined;
+      } else if (geometries.length === 1) {
+        // Only found one direction, use it
+        console.log(`✅ Using single direction: ${geometries[0].direction}`);
+        return geometries[0].coords;
       }
     }
 
