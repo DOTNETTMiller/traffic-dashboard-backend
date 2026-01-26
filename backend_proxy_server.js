@@ -2263,6 +2263,9 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
 
             // Extract corridor once for use in both geometry processing and event object
             const corridor = extractCorridor(locationText);
+            if (index === 0) {
+              console.log(`${stateName}: locationText="${locationText}" → corridor="${corridor}"`);
+            }
 
             if (locationOnLink) {
               const primaryLoc = locationOnLink['primary-location']?.['geo-location'];
