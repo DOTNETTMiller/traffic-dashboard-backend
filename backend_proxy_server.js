@@ -866,7 +866,7 @@ function initOSRMCache() {
     `).run();
     console.log('✅ Google Roads API cache table initialized');
 
-    // Create API usage tracking table
+    // Create API usage tracking tables
     db.db.prepare(`
       CREATE TABLE IF NOT EXISTS google_roads_usage (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -878,6 +878,16 @@ function initOSRMCache() {
       )
     `).run();
     console.log('✅ Google Roads API usage tracking table initialized');
+
+    db.db.prepare(`
+      CREATE TABLE IF NOT EXISTS google_directions_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        api_calls INTEGER DEFAULT 0,
+        UNIQUE(date)
+      )
+    `).run();
+    console.log('✅ Google Directions API usage tracking table initialized');
 
     // Create event geometries table - permanent storage tied to event IDs
     // This is MUCH more efficient: fetch geometry once per event, not once per page load
@@ -1154,9 +1164,123 @@ function checkGoogleRoadsRateLimit() {
   }
 }
 
+// Google Directions API - provides TRUE directional routing
+// Free tier: 10,000 requests/month (~333/day)
+// Cost: $5 per 1,000 requests (HALF the price of Roads API)
+// Returns route that follows traffic direction (WB goes west, EB goes east)
+async function getDirectionsGoogle(lat1, lng1, lat2, lng2, direction = null) {
+  const apiKey = process.env.GOOGLE_ROADS_API_KEY; // Same key works for both APIs
+
+  if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
+    console.log('⚠️  Google API key not configured, skipping Directions API');
+    return null;
+  }
+
+  // Check rate limit for Directions API (333/day conservative limit)
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const usage = db.db.prepare('SELECT api_calls FROM google_directions_usage WHERE date = ?').get(today);
+    const apiCallsToday = usage ? usage.api_calls : 0;
+    const dailyLimit = 333; // 10,000/month ÷ 30 days
+
+    if (apiCallsToday >= dailyLimit) {
+      console.log(`⚠️  Google Directions API daily limit reached (${apiCallsToday}/${dailyLimit}), falling back`);
+      return null;
+    }
+  } catch (error) {
+    console.error('Failed to check Directions API rate limit:', error.message);
+  }
+
+  try {
+    // Call Google Directions API
+    // This provides TRUE directional routing - routes from start to end following traffic direction
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${lat1},${lng1}&destination=${lat2},${lng2}&key=${apiKey}`;
+
+    console.log(`🗺️  Calling Google Directions API for ${direction || 'unknown'} direction routing...`);
+    const response = await axios.get(url, { timeout: 10000 });
+
+    if (response.data.status !== 'OK' || !response.data.routes || response.data.routes.length === 0) {
+      console.log(`⚠️  Google Directions API returned: ${response.data.status}`);
+      return null;
+    }
+
+    // Decode polyline from Directions API response
+    const route = response.data.routes[0];
+    const encodedPolyline = route.overview_polyline.points;
+
+    // Decode polyline (Google uses encoded polyline format)
+    const coordinates = decodePolyline(encodedPolyline);
+
+    console.log(`✅ Google Directions API returned ${coordinates.length} points for ${direction || 'route'}`);
+
+    // Track usage
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      db.db.prepare(`
+        INSERT INTO google_directions_usage (date, api_calls)
+        VALUES (?, 1)
+        ON CONFLICT(date) DO UPDATE SET api_calls = api_calls + 1
+      `).run(today);
+    } catch (error) {
+      console.error('Failed to track Directions API usage:', error.message);
+    }
+
+    return coordinates;
+
+  } catch (error) {
+    if (error.response) {
+      console.log(`❌ Google Directions API error: ${error.response.status} ${error.response.statusText}`);
+    } else {
+      console.log(`❌ Google Directions API request failed: ${error.message}`);
+    }
+    return null;
+  }
+}
+
+// Decode Google's encoded polyline format to [lng, lat] coordinates
+function decodePolyline(encoded) {
+  const coordinates = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < encoded.length) {
+    let shift = 0;
+    let result = 0;
+    let byte;
+
+    // Decode latitude
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    const deltaLat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lat += deltaLat;
+
+    shift = 0;
+    result = 0;
+
+    // Decode longitude
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+    const deltaLng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lng += deltaLng;
+
+    // Convert to degrees and format as [lng, lat] (GeoJSON format)
+    coordinates.push([lng / 1e5, lat / 1e5]);
+  }
+
+  return coordinates;
+}
+
 // Google Roads API road snapping (interpolates between points and snaps to actual roads)
-// Free tier: 28,500 requests/month (~950/day)
-// Includes aggressive caching and rate limiting
+// Free tier: 100,000 requests/month (~3,300/day)
+// Cost: $10 per 1,000 requests
+// Note: Only snaps to nearest road, does NOT provide directional routing
 async function snapToRoadsGoogle(lat1, lng1, lat2, lng2) {
   const apiKey = process.env.GOOGLE_ROADS_API_KEY;
 
@@ -1280,12 +1404,41 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     }
   }
 
-  // 1. Try Google Roads API (most accurate, real road snapping with interpolation)
+  // 1. Try Google Directions API first (TRUE directional routing, cheaper, better for new events)
+  const directionsGeom = await getDirectionsGoogle(lat1, lng1, lat2, lng2, direction);
+  if (directionsGeom && directionsGeom.length >= 2) {
+    console.log(`✅ Using Google Directions API geometry (${directionsGeom.length} points) for ${direction || 'route'}`);
+    // Directions API provides TRUE directional routing - follows traffic direction
+    const finalGeom = directionsGeom;
+
+    // Store in event_geometries for future use
+    if (eventId) {
+      try {
+        db.db.prepare(`
+          INSERT OR REPLACE INTO event_geometries (event_id, state_key, geometry, direction, source, created_at, updated_at)
+          VALUES (?, ?, ?, ?, 'google_directions', ?, ?)
+        `).run(
+          eventId,
+          stateKey,
+          JSON.stringify(finalGeom),
+          direction,
+          Math.floor(Date.now() / 1000),
+          Math.floor(Date.now() / 1000)
+        );
+        console.log(`💾 Stored event geometry for ${eventId} from Directions API (will never need to fetch again!)`);
+      } catch (error) {
+        console.error('Failed to store event geometry:', error.message);
+      }
+    }
+
+    return finalGeom;
+  }
+
+  // 2. Fallback to Google Roads API (for backwards compatibility or if Directions fails)
   const googleGeom = await snapToRoadsGoogle(lat1, lng1, lat2, lng2);
   if (googleGeom && googleGeom.length >= 2) {
     console.log(`✅ Using Google Roads API geometry (${googleGeom.length} points)`);
     // Google Roads API returns actual road centerline - no offset needed
-    // The API follows the real road geometry perfectly
     const finalGeom = googleGeom;
 
     // Store in event_geometries for future use
@@ -1311,7 +1464,7 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     return finalGeom;
   }
 
-  // 2. Check for interstate geometry (pre-fetched highway geometries)
+  // 3. Check for interstate geometry (pre-fetched highway geometries)
   if (corridor && state) {
     const interstateGeom = getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, direction);
     if (interstateGeom) {
@@ -1343,7 +1496,7 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     }
   }
 
-  // 3. Check OSRM cache (fallback routing)
+  // 4. Check OSRM cache (fallback routing)
   const cacheKey = getOSRMCacheKey(lat1, lng1, lat2, lng2, direction);
   console.log(`🔍 Cache lookup: ${cacheKey}`);
 
@@ -1450,7 +1603,7 @@ async function snapToRoadImmediate(lat1, lng1, lat2, lng2, direction = null) {
     }
   }
 
-  // Fallback to straight line between the two points
+  // 5. Fallback to straight line between the two points
   return [[lng1, lat1], [lng2, lat2]];
 }
 
