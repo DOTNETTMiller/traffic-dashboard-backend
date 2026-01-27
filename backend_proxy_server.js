@@ -1072,6 +1072,10 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     const interstateGeom = getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, direction);
     if (interstateGeom) {
       console.log(`✅ Using interstate geometry for ${corridor} ${state} ${direction}`);
+      // Apply directional offset to interstate geometry
+      if (direction) {
+        return offsetCoordinates(interstateGeom, direction);
+      }
       return interstateGeom;
     }
   }
@@ -1139,8 +1143,12 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
 
     if (cached) {
       try {
-        const geom = JSON.parse(cached.geometry);
+        let geom = JSON.parse(cached.geometry);
         console.log(`✅ Cache HIT! Returning ${geom.length} coordinates`);
+        // Apply directional offset to cached geometry
+        if (direction) {
+          geom = offsetCoordinates(geom, direction);
+        }
         return geom;
       } catch (parseError) {
         console.log(`❌ Invalid JSON in cache for key ${cacheKey}, treating as MISS`);
