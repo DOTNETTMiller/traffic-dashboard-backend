@@ -793,8 +793,8 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 
 // Offset coordinates perpendicular to the route based on direction
 function offsetCoordinates(coordinates, direction) {
-  // TEMPORARY: Using 500 meters for testing visibility
-  const offsetMeters = 500;
+  // Offset distance for divided highways - visible at highway zoom levels
+  const offsetMeters = 35;
   const offsetDegrees = offsetMeters / 111320; // meters to degrees conversion
 
   // Determine offset direction based on US right-hand traffic
