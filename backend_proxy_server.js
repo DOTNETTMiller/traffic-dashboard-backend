@@ -1284,11 +1284,9 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
   const googleGeom = await snapToRoadsGoogle(lat1, lng1, lat2, lng2);
   if (googleGeom && googleGeom.length >= 2) {
     console.log(`✅ Using Google Roads API geometry (${googleGeom.length} points)`);
-    // Apply directional offset to Google geometry
-    let finalGeom = googleGeom;
-    if (direction) {
-      finalGeom = offsetCoordinates(googleGeom, direction);
-    }
+    // Google Roads API returns actual road centerline - no offset needed
+    // The API follows the real road geometry perfectly
+    const finalGeom = googleGeom;
 
     // Store in event_geometries for future use
     if (eventId) {
@@ -1318,11 +1316,8 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     const interstateGeom = getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, direction);
     if (interstateGeom) {
       console.log(`✅ Using interstate geometry for ${corridor} ${state} ${direction}`);
-      // Apply directional offset to interstate geometry
-      let finalGeom = interstateGeom;
-      if (direction) {
-        finalGeom = offsetCoordinates(interstateGeom, direction);
-      }
+      // Interstate geometries are centerlines - no offset needed
+      const finalGeom = interstateGeom;
 
       // Store in event_geometries
       if (eventId) {
@@ -1411,12 +1406,9 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
 
     if (cached) {
       try {
-        let geom = JSON.parse(cached.geometry);
+        const geom = JSON.parse(cached.geometry);
         console.log(`✅ Cache HIT! Returning ${geom.length} coordinates`);
-        // Apply directional offset to cached geometry
-        if (direction) {
-          geom = offsetCoordinates(geom, direction);
-        }
+        // OSRM returns centerlines - no offset needed
         return geom;
       } catch (parseError) {
         console.log(`❌ Invalid JSON in cache for key ${cacheKey}, treating as MISS`);
@@ -1433,10 +1425,7 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
   console.log(`⚠️  Returning straight line for ${lat1},${lng1} -> ${lat2},${lng2} direction=${direction}`);
   const straightLine = [[lng1, lat1], [lng2, lat2]];
 
-  // Apply directional offset to straight line fallback as well
-  if (direction) {
-    return offsetCoordinates(straightLine, direction);
-  }
+  // Straight lines are simple point-to-point - no offset needed
   return straightLine;
 }
 
@@ -1448,12 +1437,9 @@ async function snapToRoadImmediate(lat1, lng1, lat2, lng2, direction = null) {
     const response = await axios.get(url, { timeout: 10000 }); // Increased timeout
 
     if (response.data.code === 'Ok' && response.data.routes && response.data.routes[0]) {
-      let coordinates = response.data.routes[0].geometry.coordinates;
+      const coordinates = response.data.routes[0].geometry.coordinates;
       if (coordinates && coordinates.length > 0) {
-        // Apply directional offset if direction is specified
-        if (direction) {
-          coordinates = offsetCoordinates(coordinates, direction);
-        }
+        // OSRM returns centerlines - no offset needed
         return coordinates;
       }
     }
