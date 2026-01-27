@@ -878,6 +878,23 @@ function initOSRMCache() {
       )
     `).run();
     console.log('✅ Google Roads API usage tracking table initialized');
+
+    // Create event geometries table - permanent storage tied to event IDs
+    // This is MUCH more efficient: fetch geometry once per event, not once per page load
+    db.db.prepare(`
+      CREATE TABLE IF NOT EXISTS event_geometries (
+        event_id TEXT PRIMARY KEY,
+        state_key TEXT,
+        geometry TEXT NOT NULL,
+        direction TEXT,
+        source TEXT,
+        created_at INTEGER DEFAULT ${timestampDefault},
+        updated_at INTEGER DEFAULT ${timestampDefault},
+        event_start_time INTEGER,
+        event_end_time INTEGER
+      )
+    `).run();
+    console.log('✅ Event geometries table initialized');
   } catch (error) {
     console.error('❌ Failed to initialize cache tables:', error.message);
   }
@@ -1242,19 +1259,58 @@ async function snapToRoadsGoogle(lat1, lng1, lat2, lng2) {
   }
 }
 
-// Snap a straight line to road network (Google Roads → interstate geometry → OSRM cache → straight line)
-async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = null, state = null) {
-  console.log(`📍 snapToRoad called: lat1=${lat1}, lng1=${lng1}, lat2=${lat2}, lng2=${lng2}, direction="${direction}", corridor="${corridor}", state="${state}"`);
+// Snap a straight line to road network (event geometries → Google Roads → interstate geometry → OSRM cache → straight line)
+async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = null, state = null, eventId = null, stateKey = null) {
+  console.log(`📍 snapToRoad called: eventId=${eventId}, lat1=${lat1}, lng1=${lng1}, lat2=${lat2}, lng2=${lng2}, direction="${direction}", corridor="${corridor}", state="${state}"`);
 
-  // 1. Try Google Roads API first (most accurate, real road snapping with interpolation)
+  // 0. Check event_geometries table first (permanent storage per event)
+  // This is the MOST efficient: fetch once per event, use forever
+  if (eventId) {
+    try {
+      const cached = db.db.prepare('SELECT geometry, source, direction FROM event_geometries WHERE event_id = ?').get(eventId);
+      if (cached) {
+        const coordinates = JSON.parse(cached.geometry);
+        console.log(`✅ Event geometry FOUND for ${eventId} from ${cached.source} (${coordinates.length} points) - ZERO API calls needed!`);
+        // Geometry is already offset and ready to use
+        return coordinates;
+      }
+      console.log(`❌ Event geometry NOT FOUND for ${eventId} - will fetch and store`);
+    } catch (error) {
+      console.error('Event geometry lookup error:', error.message);
+    }
+  }
+
+  // 1. Try Google Roads API (most accurate, real road snapping with interpolation)
   const googleGeom = await snapToRoadsGoogle(lat1, lng1, lat2, lng2);
   if (googleGeom && googleGeom.length >= 2) {
     console.log(`✅ Using Google Roads API geometry (${googleGeom.length} points)`);
     // Apply directional offset to Google geometry
+    let finalGeom = googleGeom;
     if (direction) {
-      return offsetCoordinates(googleGeom, direction);
+      finalGeom = offsetCoordinates(googleGeom, direction);
     }
-    return googleGeom;
+
+    // Store in event_geometries for future use
+    if (eventId) {
+      try {
+        db.db.prepare(`
+          INSERT OR REPLACE INTO event_geometries (event_id, state_key, geometry, direction, source, created_at, updated_at)
+          VALUES (?, ?, ?, ?, 'google_roads', ?, ?)
+        `).run(
+          eventId,
+          stateKey,
+          JSON.stringify(finalGeom),
+          direction,
+          Math.floor(Date.now() / 1000),
+          Math.floor(Date.now() / 1000)
+        );
+        console.log(`💾 Stored event geometry for ${eventId} (will never need to fetch again!)`);
+      } catch (error) {
+        console.error('Failed to store event geometry:', error.message);
+      }
+    }
+
+    return finalGeom;
   }
 
   // 2. Check for interstate geometry (pre-fetched highway geometries)
@@ -1263,10 +1319,32 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     if (interstateGeom) {
       console.log(`✅ Using interstate geometry for ${corridor} ${state} ${direction}`);
       // Apply directional offset to interstate geometry
+      let finalGeom = interstateGeom;
       if (direction) {
-        return offsetCoordinates(interstateGeom, direction);
+        finalGeom = offsetCoordinates(interstateGeom, direction);
       }
-      return interstateGeom;
+
+      // Store in event_geometries
+      if (eventId) {
+        try {
+          db.db.prepare(`
+            INSERT OR REPLACE INTO event_geometries (event_id, state_key, geometry, direction, source, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 'interstate', ?, ?)
+          `).run(
+            eventId,
+            stateKey,
+            JSON.stringify(finalGeom),
+            direction,
+            Math.floor(Date.now() / 1000),
+            Math.floor(Date.now() / 1000)
+          );
+          console.log(`💾 Stored interstate geometry for event ${eventId}`);
+        } catch (error) {
+          console.error('Failed to store event geometry:', error.message);
+        }
+      }
+
+      return finalGeom;
     }
   }
 
@@ -2549,10 +2627,11 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
                   // Use corridor extracted above
                   const direction = extractDirection(descText, headlineText, corridor, primaryLat, primaryLng);
 
-                  // Use interstate geometry → OSRM cache → straight line fallback
+                  // Use event geometries (if stored) → Google Roads → interstate geometry → OSRM cache → straight line
+                  // Pass event ID so geometry is stored permanently and reused
                   const roadSnappedCoords = await snapToRoad(
                     primaryLat, primaryLng, secondaryLat, secondaryLng,
-                    direction, corridor, stateName
+                    direction, corridor, stateName, eventId, stateKey
                   );
 
                   // Determine source based on geometry
@@ -3438,6 +3517,23 @@ async function fetchAndCacheEvents() {
     eventsCache.isRefreshing = false;
   }
 }
+
+// Cleanup old event geometries (runs daily)
+function cleanupOldEventGeometries() {
+  try {
+    // Delete geometries older than 7 days
+    const sevenDaysAgo = Math.floor(Date.now() / 1000) - (7 * 24 * 60 * 60);
+    const result = db.db.prepare('DELETE FROM event_geometries WHERE updated_at < ?').run(sevenDaysAgo);
+    if (result.changes > 0) {
+      console.log(`🗑️  Cleaned up ${result.changes} old event geometries (>7 days)`);
+    }
+  } catch (error) {
+    console.error('Failed to cleanup event geometries:', error.message);
+  }
+}
+
+// Run cleanup daily
+setInterval(cleanupOldEventGeometries, 24 * 60 * 60 * 1000); // Every 24 hours
 
 // Background refresh interval (runs every 50 seconds)
 setInterval(async () => {
