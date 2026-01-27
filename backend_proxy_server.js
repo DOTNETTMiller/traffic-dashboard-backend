@@ -807,24 +807,35 @@ function offsetCoordinates(coordinates, direction) {
     const dir = direction.toLowerCase();
     if (dir.includes('west') || dir.includes('wb') || dir === 'w') {
       latOffset = offsetDegrees; // Westbound = offset north (positive latitude)
+      console.log(`🧭 Westbound detected: offsetting NORTH by ${offsetDegrees} degrees`);
     } else if (dir.includes('east') || dir.includes('eb') || dir === 'e') {
       latOffset = -offsetDegrees; // Eastbound = offset south (negative latitude)
+      console.log(`🧭 Eastbound detected: offsetting SOUTH by ${offsetDegrees} degrees`);
     } else if (dir.includes('north') || dir.includes('nb') || dir === 'n') {
       lngOffset = offsetDegrees; // Northbound = offset east (positive longitude)
+      console.log(`🧭 Northbound detected: offsetting EAST by ${offsetDegrees} degrees`);
     } else if (dir.includes('south') || dir.includes('sb') || dir === 's') {
       lngOffset = -offsetDegrees; // Southbound = offset west (negative longitude)
+      console.log(`🧭 Southbound detected: offsetting WEST by ${offsetDegrees} degrees`);
     }
   }
 
   if (latOffset === 0 && lngOffset === 0) {
+    console.log(`⚠️  No offset applied for direction: "${direction}"`);
     return coordinates; // No offset for "Both" or unknown directions
   }
 
   // Apply fixed offset to all coordinates
-  return coordinates.map(coord => {
+  const result = coordinates.map(coord => {
     const [lng, lat] = coord;
     return [lng + lngOffset, lat + latOffset];
   });
+
+  console.log(`✅ Applied offset: latOffset=${latOffset}, lngOffset=${lngOffset}`);
+  console.log(`   Original: [${coordinates[0][0]}, ${coordinates[0][1]}]`);
+  console.log(`   Offset:   [${result[0][0]}, ${result[0][1]}]`);
+
+  return result;
 }
 
 // Initialize OSRM geometry cache table
