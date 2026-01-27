@@ -1035,14 +1035,38 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   // Extract segment
   const segment = geometry.slice(startIdx, endIdx + 1);
 
-  // Only use if the segment makes sense (endpoints are reasonably close)
-  // Increased threshold from ~11km to 25km to handle rural interstates better
+  // Validation 1: Endpoints must be reasonably close to highway
   if (minStartDist > 25 || minEndDist > 25) {
     console.log(`⚠️  Segment rejected: start=${minStartDist.toFixed(1)}km, end=${minEndDist.toFixed(1)}km from highway`);
     return null;
   }
 
-  console.log(`✅ Segment extracted: start=${minStartDist.toFixed(1)}km, end=${minEndDist.toFixed(1)}km from highway, ${segment.length} points`);
+  // Validation 2: Calculate actual event distance
+  const eventDistance = haversineDistance(lat1, lng1, lat2, lng2);
+
+  // Validation 3: Calculate segment path length
+  let segmentPathLength = 0;
+  for (let i = 0; i < segment.length - 1; i++) {
+    const [lon1, lat1] = segment[i];
+    const [lon2, lat2] = segment[i + 1];
+    segmentPathLength += haversineDistance(lat1, lon1, lat2, lon2);
+  }
+
+  // Validation 4: Segment shouldn't be way longer than event distance
+  // Allow 5x ratio to account for road curves and detours
+  if (segmentPathLength > Math.max(eventDistance * 5, 50)) {
+    console.log(`⚠️  Segment rejected: segment=${segmentPathLength.toFixed(1)}km is too long for event=${eventDistance.toFixed(1)}km`);
+    return null;
+  }
+
+  // Validation 5: Segment shouldn't use too much of the highway
+  // If we're using more than 30% of the full highway geometry, something is wrong
+  if (segment.length > geometry.length * 0.3) {
+    console.log(`⚠️  Segment rejected: ${segment.length} points is ${((segment.length/geometry.length)*100).toFixed(0)}% of full highway`);
+    return null;
+  }
+
+  console.log(`✅ Segment extracted: start=${minStartDist.toFixed(1)}km, end=${minEndDist.toFixed(1)}km, segment=${segmentPathLength.toFixed(1)}km, event=${eventDistance.toFixed(1)}km, ${segment.length} points`);
   return segment.length >= 2 ? segment : null;
 }
 
