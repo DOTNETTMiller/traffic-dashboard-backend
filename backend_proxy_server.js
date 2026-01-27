@@ -1305,7 +1305,7 @@ async function snapToRoadsGoogle(lat1, lng1, lat2, lng2) {
   try {
     const cached = db.db.prepare('SELECT geometry, api_calls_saved FROM google_roads_cache WHERE cache_key = ?').get(cacheKey);
 
-    if (cached) {
+    if (cached && cached.geometry) {
       // Update last_used_at and increment api_calls_saved
       db.db.prepare(`
         UPDATE google_roads_cache
