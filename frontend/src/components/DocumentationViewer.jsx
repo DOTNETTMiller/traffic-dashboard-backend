@@ -378,12 +378,13 @@ function DocumentationViewer() {
     const doc = docs.find(d => d.key === activeDoc);
     return (
       <div ref={contentRef} className="documentation-viewer" style={{
-        backgroundColor: 'white',
+        backgroundColor: '#ffffff',
         borderRadius: '8px',
         padding: '24px',
         maxWidth: '1200px',
         margin: '0 auto',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        color: '#111827'
       }}>
         {/* Back button */}
         <button
@@ -699,12 +700,13 @@ function DocumentationViewer() {
   // Document library view (grid of cards)
   return (
     <div className="documentation-library" style={{
-      backgroundColor: 'white',
+      backgroundColor: '#ffffff',
       borderRadius: '8px',
       padding: '32px',
       maxWidth: '1400px',
       margin: '0 auto',
-      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+      color: '#111827'
     }}>
       <div style={{ marginBottom: '32px' }}>
         <h1 style={{
