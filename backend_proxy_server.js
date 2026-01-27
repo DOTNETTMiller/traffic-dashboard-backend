@@ -1396,7 +1396,7 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
   if (eventId) {
     try {
       const cached = db.db.prepare('SELECT geometry, source, direction FROM event_geometries WHERE event_id = ?').get(eventId);
-      if (cached) {
+      if (cached && cached.geometry) {
         const coordinates = JSON.parse(cached.geometry);
         console.log(`✅ Event geometry FOUND for ${eventId} from ${cached.source} (${coordinates.length} points) - ZERO API calls needed!`);
         // Return both coordinates and source for visual distinction
