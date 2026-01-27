@@ -486,9 +486,8 @@ function DocumentationViewer() {
         )}
 
         <style>{`
-          /* Force dark text color on all markdown content for cross-platform consistency */
-          .markdown-content,
-          .markdown-content * {
+          /* Force dark text color on markdown content for cross-platform consistency */
+          .markdown-content {
             color: #111827 !important;
           }
 
@@ -505,32 +504,38 @@ function DocumentationViewer() {
             font-size: 24px;
             font-weight: 600;
             margin: 20px 0 12px 0;
-            color: #1f2937 !important;
+            color: #111827 !important;
           }
 
           .markdown-content h3 {
             font-size: 20px;
             font-weight: 600;
             margin: 16px 0 8px 0;
-            color: #374151 !important;
+            color: #111827 !important;
           }
 
           .markdown-content h4 {
             font-size: 17px;
             font-weight: 600;
             margin: 14px 0 8px 0;
-            color: #4b5563 !important;
+            color: #111827 !important;
           }
 
           .markdown-content h5 {
             font-size: 15px;
             font-weight: 600;
             margin: 12px 0 6px 0;
-            color: #6b7280 !important;
+            color: #111827 !important;
           }
 
           .markdown-content p {
             margin: 12px 0;
+            color: #111827 !important;
+          }
+
+          .markdown-content div,
+          .markdown-content span,
+          .markdown-content td {
             color: #111827 !important;
           }
 
@@ -575,15 +580,16 @@ function DocumentationViewer() {
           .markdown-content li {
             margin: 6px 0;
             list-style-type: disc;
+            color: #111827 !important;
           }
 
           .markdown-content a {
-            color: #2563eb;
+            color: #2563eb !important;
             text-decoration: underline;
           }
 
           .markdown-content a:hover {
-            color: #1d4ed8;
+            color: #1d4ed8 !important;
           }
 
           .doc-table {
