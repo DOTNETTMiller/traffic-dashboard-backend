@@ -1173,10 +1173,11 @@ function checkGoogleRoadsRateLimit() {
 // Cost: $5 per 1,000 requests (HALF the price of Roads API)
 // Returns route that follows traffic direction (WB goes west, EB goes east)
 async function getDirectionsGoogle(lat1, lng1, lat2, lng2, direction = null) {
-  const apiKey = process.env.GOOGLE_ROADS_API_KEY; // Same key works for both APIs
+  // Use dedicated Directions API key, fallback to Roads API key for backwards compatibility
+  const apiKey = process.env.GOOGLE_DIRECTIONS_API_KEY || process.env.GOOGLE_ROADS_API_KEY;
 
   if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
-    console.log('⚠️  Google API key not configured, skipping Directions API');
+    console.log('⚠️  Google Directions API key not configured, skipping Directions API');
     return null;
   }
 
