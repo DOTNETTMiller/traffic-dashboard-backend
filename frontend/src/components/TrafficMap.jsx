@@ -111,9 +111,10 @@ const getWeatherType = (description) => {
 
 // Helper to get polyline color based on event type, severity, and geometry source
 const getPolylineColor = (eventType, severity, geometrySource) => {
-  // If geometry is from old Roads API (centerline only, not directional), show in grey
-  if (geometrySource === 'google_roads') {
-    return '#9ca3af'; // gray-400 - indicates old geometry that needs update
+  // If geometry is NOT from Google APIs (original raw data), show in grey
+  // Only Google-enhanced geometry (google_directions or google_roads) gets colored
+  if (!geometrySource || (geometrySource !== 'google_directions' && geometrySource !== 'google_roads')) {
+    return '#9ca3af'; // gray-400 - indicates original geometry without Google enhancement
   }
 
   // Closure - red (most severe)
