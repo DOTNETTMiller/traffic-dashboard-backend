@@ -1129,9 +1129,9 @@ function trackGoogleRoadsUsage(isApiCall, isCacheHit) {
       INSERT INTO google_roads_usage (date, api_calls, cache_hits, cache_misses)
       VALUES (?, ?, ?, ?)
       ON CONFLICT(date) DO UPDATE SET
-        api_calls = api_calls + excluded.api_calls,
-        cache_hits = cache_hits + excluded.cache_hits,
-        cache_misses = cache_misses + excluded.cache_misses
+        api_calls = google_roads_usage.api_calls + excluded.api_calls,
+        cache_hits = google_roads_usage.cache_hits + excluded.cache_hits,
+        cache_misses = google_roads_usage.cache_misses + excluded.cache_misses
     `).run(
       today,
       isApiCall ? 1 : 0,
@@ -1224,7 +1224,7 @@ async function getDirectionsGoogle(lat1, lng1, lat2, lng2, direction = null) {
       db.db.prepare(`
         INSERT INTO google_directions_usage (date, api_calls)
         VALUES (?, 1)
-        ON CONFLICT(date) DO UPDATE SET api_calls = api_calls + 1
+        ON CONFLICT(date) DO UPDATE SET api_calls = google_directions_usage.api_calls + 1
       `).run(today);
     } catch (error) {
       console.error('Failed to track Directions API usage:', error.message);
