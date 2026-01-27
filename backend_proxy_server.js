@@ -853,8 +853,33 @@ function initOSRMCache() {
       )
     `).run();
     console.log('✅ OSRM geometry cache table initialized');
+
+    // Also create Google Roads API cache table
+    db.db.prepare(`
+      CREATE TABLE IF NOT EXISTS google_roads_cache (
+        cache_key TEXT PRIMARY KEY,
+        geometry TEXT NOT NULL,
+        api_calls_saved INTEGER DEFAULT 0,
+        created_at INTEGER DEFAULT ${timestampDefault},
+        last_used_at INTEGER DEFAULT ${timestampDefault}
+      )
+    `).run();
+    console.log('✅ Google Roads API cache table initialized');
+
+    // Create API usage tracking table
+    db.db.prepare(`
+      CREATE TABLE IF NOT EXISTS google_roads_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        api_calls INTEGER DEFAULT 0,
+        cache_hits INTEGER DEFAULT 0,
+        cache_misses INTEGER DEFAULT 0,
+        UNIQUE(date)
+      )
+    `).run();
+    console.log('✅ Google Roads API usage tracking table initialized');
   } catch (error) {
-    console.error('❌ Failed to initialize OSRM cache:', error.message);
+    console.error('❌ Failed to initialize cache tables:', error.message);
   }
 }
 
@@ -1063,11 +1088,176 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   return segment.length >= 2 ? segment : null;
 }
 
-// Snap a straight line to road network (interstate geometry → OSRM cache → straight line)
+// Helper: Track Google Roads API usage
+function trackGoogleRoadsUsage(isApiCall, isCacheHit) {
+  try {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+    // Upsert usage record for today
+    db.db.prepare(`
+      INSERT INTO google_roads_usage (date, api_calls, cache_hits, cache_misses)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(date) DO UPDATE SET
+        api_calls = api_calls + excluded.api_calls,
+        cache_hits = cache_hits + excluded.cache_hits,
+        cache_misses = cache_misses + excluded.cache_misses
+    `).run(
+      today,
+      isApiCall ? 1 : 0,
+      isCacheHit ? 1 : 0,
+      (isApiCall && !isCacheHit) ? 1 : 0
+    );
+  } catch (error) {
+    console.error('Failed to track API usage:', error.message);
+  }
+}
+
+// Helper: Check if we're approaching daily rate limit
+function checkGoogleRoadsRateLimit() {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const usage = db.db.prepare('SELECT api_calls FROM google_roads_usage WHERE date = ?').get(today);
+
+    const apiCallsToday = usage ? usage.api_calls : 0;
+    const dailyLimit = 950; // ~28,500/month = 950/day (conservative)
+
+    if (apiCallsToday >= dailyLimit) {
+      console.log(`⚠️  Google Roads API daily limit reached (${apiCallsToday}/${dailyLimit}), skipping API call`);
+      return false;
+    }
+
+    if (apiCallsToday >= dailyLimit * 0.9) {
+      console.log(`⚠️  Google Roads API approaching daily limit (${apiCallsToday}/${dailyLimit})`);
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Failed to check rate limit:', error.message);
+    return true; // Allow on error
+  }
+}
+
+// Google Roads API road snapping (interpolates between points and snaps to actual roads)
+// Free tier: 28,500 requests/month (~950/day)
+// Includes aggressive caching and rate limiting
+async function snapToRoadsGoogle(lat1, lng1, lat2, lng2) {
+  const apiKey = process.env.GOOGLE_ROADS_API_KEY;
+
+  if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
+    console.log('⚠️  Google Roads API key not configured, skipping');
+    return null;
+  }
+
+  // Generate cache key (rounded to 4 decimal places = ~11m precision)
+  const lat1Key = lat1.toFixed(4);
+  const lng1Key = lng1.toFixed(4);
+  const lat2Key = lat2.toFixed(4);
+  const lng2Key = lng2.toFixed(4);
+  const cacheKey = `google:${lat1Key},${lng1Key}-${lat2Key},${lng2Key}`;
+
+  // 1. Check cache first
+  try {
+    const cached = db.db.prepare('SELECT geometry, api_calls_saved FROM google_roads_cache WHERE cache_key = ?').get(cacheKey);
+
+    if (cached) {
+      // Update last_used_at and increment api_calls_saved
+      db.db.prepare(`
+        UPDATE google_roads_cache
+        SET last_used_at = ?, api_calls_saved = api_calls_saved + 1
+        WHERE cache_key = ?
+      `).run(Math.floor(Date.now() / 1000), cacheKey);
+
+      trackGoogleRoadsUsage(false, true); // Cache hit
+
+      const coordinates = JSON.parse(cached.geometry);
+      console.log(`✅ Google Roads cache HIT! (saved ${cached.api_calls_saved + 1} API calls) Returning ${coordinates.length} points`);
+      return coordinates;
+    }
+
+    console.log(`❌ Google Roads cache MISS for: ${cacheKey}`);
+  } catch (error) {
+    console.error('Google Roads cache lookup error:', error.message);
+  }
+
+  // 2. Check rate limit before making API call
+  if (!checkGoogleRoadsRateLimit()) {
+    return null; // Skip API call if limit reached
+  }
+
+  // 3. Make API call
+  try {
+    // Build path parameter: lat1,lng1|lat2,lng2
+    const path = `${lat1},${lng1}|${lat2},${lng2}`;
+
+    // Call Google Roads API with interpolation
+    const url = `https://roads.googleapis.com/v1/snapToRoads?path=${encodeURIComponent(path)}&interpolate=true&key=${apiKey}`;
+
+    console.log(`🗺️  Calling Google Roads API for road snapping...`);
+    const response = await axios.get(url, { timeout: 10000 });
+
+    if (!response.data.snappedPoints || response.data.snappedPoints.length === 0) {
+      console.log('⚠️  Google Roads API returned no snapped points');
+      trackGoogleRoadsUsage(true, false); // API call, cache miss
+      return null;
+    }
+
+    // Convert response to GeoJSON coordinate format [lng, lat]
+    const coordinates = response.data.snappedPoints.map(point => [
+      point.location.longitude,
+      point.location.latitude
+    ]);
+
+    console.log(`✅ Google Roads API returned ${coordinates.length} snapped points`);
+
+    // 4. Store in cache
+    try {
+      db.db.prepare(`
+        INSERT OR REPLACE INTO google_roads_cache (cache_key, geometry, api_calls_saved, created_at, last_used_at)
+        VALUES (?, ?, 0, ?, ?)
+      `).run(
+        cacheKey,
+        JSON.stringify(coordinates),
+        Math.floor(Date.now() / 1000),
+        Math.floor(Date.now() / 1000)
+      );
+      console.log(`💾 Cached Google Roads result: ${cacheKey}`);
+    } catch (cacheError) {
+      console.error('Failed to cache Google Roads result:', cacheError.message);
+    }
+
+    trackGoogleRoadsUsage(true, false); // API call, cache miss
+    return coordinates;
+
+  } catch (error) {
+    if (error.response) {
+      console.log(`❌ Google Roads API error: ${error.response.status} ${error.response.statusText}`);
+      if (error.response.data && error.response.data.error) {
+        console.log(`   Error details: ${JSON.stringify(error.response.data.error)}`);
+      }
+    } else {
+      console.log(`❌ Google Roads API request failed: ${error.message}`);
+    }
+    trackGoogleRoadsUsage(true, false); // Failed API call counts toward limit
+    return null;
+  }
+}
+
+// Snap a straight line to road network (Google Roads → interstate geometry → OSRM cache → straight line)
 async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = null, state = null) {
   console.log(`📍 snapToRoad called: lat1=${lat1}, lng1=${lng1}, lat2=${lat2}, lng2=${lng2}, direction="${direction}", corridor="${corridor}", state="${state}"`);
 
-  // 1. Check for interstate geometry first (most accurate for highways)
+  // 1. Try Google Roads API first (most accurate, real road snapping with interpolation)
+  const googleGeom = await snapToRoadsGoogle(lat1, lng1, lat2, lng2);
+  if (googleGeom && googleGeom.length >= 2) {
+    console.log(`✅ Using Google Roads API geometry (${googleGeom.length} points)`);
+    // Apply directional offset to Google geometry
+    if (direction) {
+      return offsetCoordinates(googleGeom, direction);
+    }
+    return googleGeom;
+  }
+
+  // 2. Check for interstate geometry (pre-fetched highway geometries)
   if (corridor && state) {
     const interstateGeom = getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, direction);
     if (interstateGeom) {
@@ -1080,7 +1270,7 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     }
   }
 
-  // 2. Check OSRM cache
+  // 3. Check OSRM cache (fallback routing)
   const cacheKey = getOSRMCacheKey(lat1, lng1, lat2, lng2, direction);
   console.log(`🔍 Cache lookup: ${cacheKey}`);
 
@@ -1160,7 +1350,7 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     console.error(`❌ Cache lookup error:`, error.message);
   }
 
-  // 3. Not in cache - return straight line instead of queuing OSRM
+  // 4. Not in cache - return straight line as final fallback
   // Use the pre-population script to fill the cache: node scripts/prepopulate_osrm_cache.js
   console.log(`⚠️  Returning straight line for ${lat1},${lng1} -> ${lat2},${lng2} direction=${direction}`);
   const straightLine = [[lng1, lat1], [lng2, lat2]];
@@ -9283,6 +9473,78 @@ app.get('/api/vendors/api-usage/:providerId', async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting API usage stats:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/google-roads/usage - Get Google Roads API usage statistics
+app.get('/api/google-roads/usage', async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 30;
+
+    // Get usage statistics for the last N days
+    const stats = db.db.prepare(`
+      SELECT
+        date,
+        api_calls,
+        cache_hits,
+        cache_misses,
+        CAST(cache_hits AS FLOAT) / NULLIF(cache_hits + cache_misses, 0) * 100 AS cache_hit_rate
+      FROM google_roads_usage
+      WHERE date >= date('now', '-' || ? || ' days')
+      ORDER BY date DESC
+    `).all(days);
+
+    // Get cache statistics
+    const cacheStats = db.db.prepare(`
+      SELECT
+        COUNT(*) AS total_entries,
+        SUM(api_calls_saved) AS total_calls_saved,
+        AVG(api_calls_saved) AS avg_calls_saved_per_entry
+      FROM google_roads_cache
+    `).get();
+
+    // Get today's usage
+    const today = new Date().toISOString().split('T')[0];
+    const todayUsage = db.db.prepare('SELECT * FROM google_roads_usage WHERE date = ?').get(today) || {
+      date: today,
+      api_calls: 0,
+      cache_hits: 0,
+      cache_misses: 0
+    };
+
+    const dailyLimit = 950; // Conservative daily limit
+    const percentUsed = (todayUsage.api_calls / dailyLimit * 100).toFixed(1);
+
+    res.json({
+      success: true,
+      today: {
+        date: today,
+        api_calls: todayUsage.api_calls,
+        cache_hits: todayUsage.cache_hits,
+        cache_misses: todayUsage.cache_misses,
+        daily_limit: dailyLimit,
+        percent_used: parseFloat(percentUsed),
+        remaining: dailyLimit - todayUsage.api_calls
+      },
+      cache: {
+        total_entries: cacheStats.total_entries || 0,
+        total_calls_saved: cacheStats.total_calls_saved || 0,
+        avg_calls_saved_per_entry: cacheStats.avg_calls_saved_per_entry || 0
+      },
+      history: stats.map(s => ({
+        date: s.date,
+        api_calls: s.api_calls,
+        cache_hits: s.cache_hits,
+        cache_misses: s.cache_misses,
+        cache_hit_rate: s.cache_hit_rate ? s.cache_hit_rate.toFixed(1) + '%' : 'N/A'
+      }))
+    });
+  } catch (error) {
+    console.error('Error getting Google Roads usage stats:', error);
     res.status(500).json({
       success: false,
       error: error.message
