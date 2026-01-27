@@ -6,9 +6,9 @@ class PostgreSQLAdapter {
     this.pool = new Pool({
       connectionString,
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-      max: 20, // Maximum pool size
+      max: 30, // Maximum pool size (increased for concurrent geometry lookups)
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
+      connectionTimeoutMillis: 30000, // Increased from 10s to 30s to handle peak load
     });
     this.initialized = false;
     this.initPromise = null;
