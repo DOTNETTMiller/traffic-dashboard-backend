@@ -867,9 +867,13 @@ function initOSRMCache() {
     console.log('✅ Google Roads API cache table initialized');
 
     // Create API usage tracking tables
+    const idColumn = process.env.DATABASE_URL
+      ? 'id SERIAL PRIMARY KEY'  // PostgreSQL
+      : 'id INTEGER PRIMARY KEY AUTOINCREMENT';  // SQLite
+
     db.db.prepare(`
       CREATE TABLE IF NOT EXISTS google_roads_usage (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ${idColumn},
         date TEXT NOT NULL,
         api_calls INTEGER DEFAULT 0,
         cache_hits INTEGER DEFAULT 0,
@@ -881,7 +885,7 @@ function initOSRMCache() {
 
     db.db.prepare(`
       CREATE TABLE IF NOT EXISTS google_directions_usage (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ${idColumn},
         date TEXT NOT NULL,
         api_calls INTEGER DEFAULT 0,
         UNIQUE(date)
