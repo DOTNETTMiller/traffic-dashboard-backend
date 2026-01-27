@@ -67,7 +67,7 @@ function App() {
   });
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [messages, setMessages] = useState({});
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(false);
   const [showParking, setShowParking] = useState(false);
   const [parkingPredictionHours, setParkingPredictionHours] = useState(0);
   const [parkingContext, setParkingContext] = useState(null);
