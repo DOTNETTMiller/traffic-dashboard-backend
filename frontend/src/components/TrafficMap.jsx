@@ -563,7 +563,10 @@ export default function TrafficMap({
                   key={`polyline-${event.id}`}
                   positions={polylinePositions}
                   pathOptions={{
-                    color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)),
+                    // TEMP: Show westbound in green for testing
+                    color: (event.direction && event.direction.toLowerCase().includes('west'))
+                      ? '#00ff00'
+                      : getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)),
                     weight: 5,
                     opacity: 0.7,
                     lineJoin: 'round',
