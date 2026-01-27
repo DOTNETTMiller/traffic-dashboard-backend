@@ -797,50 +797,32 @@ function offsetCoordinates(coordinates, direction) {
   const offsetMeters = 10;
   const offsetDegrees = offsetMeters / 111320; // meters to degrees conversion
 
-  // Determine offset direction: positive = right, negative = left
-  // For eastbound/westbound: offset north/south
-  // For northbound/southbound: offset east/west
-  let offsetMultiplier = 0;
+  // Determine offset direction based on US right-hand traffic
+  // Westbound = north side, Eastbound = south side
+  // Northbound = east side, Southbound = west side
+  let latOffset = 0;
+  let lngOffset = 0;
 
   if (direction && typeof direction === 'string') {
     const dir = direction.toLowerCase();
-    if (dir.includes('east') || dir.includes('eb') || dir === 'e') {
-      offsetMultiplier = 1; // Eastbound traffic = offset south (right side in US)
-    } else if (dir.includes('west') || dir.includes('wb') || dir === 'w') {
-      offsetMultiplier = -1; // Westbound traffic = offset north (right side in US)
+    if (dir.includes('west') || dir.includes('wb') || dir === 'w') {
+      latOffset = offsetDegrees; // Westbound = offset north (positive latitude)
+    } else if (dir.includes('east') || dir.includes('eb') || dir === 'e') {
+      latOffset = -offsetDegrees; // Eastbound = offset south (negative latitude)
     } else if (dir.includes('north') || dir.includes('nb') || dir === 'n') {
-      offsetMultiplier = -1; // Northbound traffic = offset east (right side in US)
+      lngOffset = offsetDegrees; // Northbound = offset east (positive longitude)
     } else if (dir.includes('south') || dir.includes('sb') || dir === 's') {
-      offsetMultiplier = 1; // Southbound traffic = offset west (right side in US)
+      lngOffset = -offsetDegrees; // Southbound = offset west (negative longitude)
     }
   }
 
-  if (offsetMultiplier === 0) {
+  if (latOffset === 0 && lngOffset === 0) {
     return coordinates; // No offset for "Both" or unknown directions
   }
 
-  return coordinates.map((coord, i) => {
+  // Apply fixed offset to all coordinates
+  return coordinates.map(coord => {
     const [lng, lat] = coord;
-
-    // Calculate bearing to next point (or use previous bearing for last point)
-    let bearing = 0;
-    if (i < coordinates.length - 1) {
-      const [nextLng, nextLat] = coordinates[i + 1];
-      const dLng = nextLng - lng;
-      const dLat = nextLat - lat;
-      bearing = Math.atan2(dLng, dLat);
-    } else if (i > 0) {
-      const [prevLng, prevLat] = coordinates[i - 1];
-      const dLng = lng - prevLng;
-      const dLat = lat - prevLat;
-      bearing = Math.atan2(dLng, dLat);
-    }
-
-    // Calculate perpendicular offset (90 degrees from bearing)
-    const perpBearing = bearing + (Math.PI / 2) * offsetMultiplier;
-    const latOffset = Math.cos(perpBearing) * offsetDegrees;
-    const lngOffset = Math.sin(perpBearing) * offsetDegrees;
-
     return [lng + lngOffset, lat + latOffset];
   });
 }
