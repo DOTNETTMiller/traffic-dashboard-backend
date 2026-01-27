@@ -1137,8 +1137,14 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
 
   // 3. Not in cache - return straight line instead of queuing OSRM
   // Use the pre-population script to fill the cache: node scripts/prepopulate_osrm_cache.js
-  console.log(`⚠️  Returning straight line for ${lat1},${lng1} -> ${lat2},${lng2}`);
-  return [[lng1, lat1], [lng2, lat2]];
+  console.log(`⚠️  Returning straight line for ${lat1},${lng1} -> ${lat2},${lng2} direction=${direction}`);
+  const straightLine = [[lng1, lat1], [lng2, lat2]];
+
+  // Apply directional offset to straight line fallback as well
+  if (direction) {
+    return offsetCoordinates(straightLine, direction);
+  }
+  return straightLine;
 }
 
 // Internal OSRM call (not queued)
