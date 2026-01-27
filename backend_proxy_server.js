@@ -805,13 +805,13 @@ function offsetCoordinates(coordinates, direction) {
   if (direction && typeof direction === 'string') {
     const dir = direction.toLowerCase();
     if (dir.includes('east') || dir.includes('eb') || dir === 'e') {
-      offsetMultiplier = -1; // Eastbound traffic = offset south (right side in US)
+      offsetMultiplier = 1; // Eastbound traffic = offset south (right side in US)
     } else if (dir.includes('west') || dir.includes('wb') || dir === 'w') {
-      offsetMultiplier = 1; // Westbound traffic = offset north (right side in US)
+      offsetMultiplier = -1; // Westbound traffic = offset north (right side in US)
     } else if (dir.includes('north') || dir.includes('nb') || dir === 'n') {
-      offsetMultiplier = 1; // Northbound traffic = offset east (right side in US)
+      offsetMultiplier = -1; // Northbound traffic = offset east (right side in US)
     } else if (dir.includes('south') || dir.includes('sb') || dir === 's') {
-      offsetMultiplier = -1; // Southbound traffic = offset west (right side in US)
+      offsetMultiplier = 1; // Southbound traffic = offset west (right side in US)
     }
   }
 
