@@ -1395,8 +1395,8 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
       if (cached) {
         const coordinates = JSON.parse(cached.geometry);
         console.log(`✅ Event geometry FOUND for ${eventId} from ${cached.source} (${coordinates.length} points) - ZERO API calls needed!`);
-        // Geometry is already offset and ready to use
-        return coordinates;
+        // Return both coordinates and source for visual distinction
+        return { coordinates, geometrySource: cached.source };
       }
       console.log(`❌ Event geometry NOT FOUND for ${eventId} - will fetch and store`);
     } catch (error) {
@@ -1431,7 +1431,7 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
       }
     }
 
-    return finalGeom;
+    return { coordinates: finalGeom, geometrySource: 'google_directions' };
   }
 
   // 2. Fallback to Google Roads API (for backwards compatibility or if Directions fails)
@@ -1461,7 +1461,7 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
       }
     }
 
-    return finalGeom;
+    return { coordinates: finalGeom, geometrySource: 'google_roads' };
   }
 
   // 3. Check for interstate geometry (pre-fetched highway geometries)
@@ -1492,7 +1492,7 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
         }
       }
 
-      return finalGeom;
+      return { coordinates: finalGeom, geometrySource: 'interstate' };
     }
   }
 
@@ -1549,11 +1549,11 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
         const route2 = [...geometries[1].coords].reverse();
         const combined = [...route1, ...route2];
         console.log(`✅ Combined ${geometries[0].direction} + ${geometries[1].direction} into ${combined.length} total points`);
-        return combined;
+        return { coordinates: combined, geometrySource: 'osrm' };
       } else if (geometries.length === 1) {
         // Only found one direction, use it
         console.log(`✅ Using single direction: ${geometries[0].direction}`);
-        return geometries[0].coords;
+        return { coordinates: geometries[0].coords, geometrySource: 'osrm' };
       }
     }
 
@@ -1562,7 +1562,7 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
         const geom = JSON.parse(cached.geometry);
         console.log(`✅ Cache HIT! Returning ${geom.length} coordinates`);
         // OSRM returns centerlines - no offset needed
-        return geom;
+        return { coordinates: geom, geometrySource: 'osrm' };
       } catch (parseError) {
         console.log(`❌ Invalid JSON in cache for key ${cacheKey}, treating as MISS`);
       }
@@ -1573,13 +1573,13 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     console.error(`❌ Cache lookup error:`, error.message);
   }
 
-  // 4. Not in cache - return straight line as final fallback
+  // 5. Not in cache - return straight line as final fallback
   // Use the pre-population script to fill the cache: node scripts/prepopulate_osrm_cache.js
   console.log(`⚠️  Returning straight line for ${lat1},${lng1} -> ${lat2},${lng2} direction=${direction}`);
   const straightLine = [[lng1, lat1], [lng2, lat2]];
 
   // Straight lines are simple point-to-point - no offset needed
-  return straightLine;
+  return { coordinates: straightLine, geometrySource: 'straight_line' };
 }
 
 // Internal OSRM call (not queued)
@@ -2766,14 +2766,17 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
                   // Use corridor extracted above
                   const direction = extractDirection(descText, headlineText, corridor, primaryLat, primaryLng);
 
-                  // Use event geometries (if stored) → Google Roads → interstate geometry → OSRM cache → straight line
+                  // Use event geometries (if stored) → Google Directions → Google Roads → interstate geometry → OSRM cache → straight line
                   // Pass event ID so geometry is stored permanently and reused
-                  const roadSnappedCoords = await snapToRoad(
+                  const snapResult = await snapToRoad(
                     primaryLat, primaryLng, secondaryLat, secondaryLng,
                     direction, corridor, stateName, eventId, stateKey
                   );
 
-                  // Determine source based on geometry
+                  const roadSnappedCoords = snapResult.coordinates;
+                  const geometrySource = snapResult.geometrySource;
+
+                  // Determine descriptive source based on geometry
                   let source = 'FEU-G primary+secondary';
                   if (roadSnappedCoords.length > 10) {
                     source = corridor && corridor.match(/^I-\d+/i)
@@ -2784,7 +2787,8 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
                   geometry = {
                     type: 'LineString',
                     coordinates: roadSnappedCoords,
-                    source
+                    source,
+                    geometrySource // Include the actual API source for visual distinction
                   };
                   if (index === 0) {
                     console.log(`${stateName}: Extracted geometry with ${roadSnappedCoords.length} points (${source}, direction: ${direction})`);
