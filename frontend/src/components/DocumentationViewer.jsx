@@ -486,11 +486,17 @@ function DocumentationViewer() {
         )}
 
         <style>{`
+          /* Force dark text color on all markdown content for cross-platform consistency */
+          .markdown-content,
+          .markdown-content * {
+            color: #111827 !important;
+          }
+
           .markdown-content h1 {
             font-size: 32px;
             font-weight: 700;
             margin: 24px 0 16px 0;
-            color: #111827;
+            color: #111827 !important;
             border-bottom: 2px solid #e5e7eb;
             padding-bottom: 8px;
           }
@@ -499,32 +505,33 @@ function DocumentationViewer() {
             font-size: 24px;
             font-weight: 600;
             margin: 20px 0 12px 0;
-            color: #1f2937;
+            color: #1f2937 !important;
           }
 
           .markdown-content h3 {
             font-size: 20px;
             font-weight: 600;
             margin: 16px 0 8px 0;
-            color: #374151;
+            color: #374151 !important;
           }
 
           .markdown-content h4 {
             font-size: 17px;
             font-weight: 600;
             margin: 14px 0 8px 0;
-            color: #4b5563;
+            color: #4b5563 !important;
           }
 
           .markdown-content h5 {
             font-size: 15px;
             font-weight: 600;
             margin: 12px 0 6px 0;
-            color: #6b7280;
+            color: #6b7280 !important;
           }
 
           .markdown-content p {
             margin: 12px 0;
+            color: #111827 !important;
           }
 
           .markdown-content code {
@@ -538,7 +545,7 @@ function DocumentationViewer() {
 
           .markdown-content pre {
             background-color: #1f2937;
-            color: #f9fafb;
+            color: #f9fafb !important;
             padding: 16px;
             border-radius: 6px;
             overflow-x: auto;
@@ -547,8 +554,12 @@ function DocumentationViewer() {
 
           .markdown-content pre code {
             background-color: transparent;
-            color: #f9fafb;
+            color: #f9fafb !important;
             padding: 0;
+          }
+
+          .markdown-content pre * {
+            color: #f9fafb !important;
           }
 
           .markdown-content strong {
@@ -589,7 +600,7 @@ function DocumentationViewer() {
 
           .doc-table th {
             background: linear-gradient(to bottom, #1e40af 0%, #1e3a8a 100%);
-            color: white;
+            color: white !important;
             border: 1px solid #1e3a8a;
             border-bottom: 3px solid #1e3a8a;
             padding: 14px 18px;
@@ -602,6 +613,10 @@ function DocumentationViewer() {
             top: 0;
             z-index: 10;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+
+          .doc-table th * {
+            color: white !important;
           }
 
           .doc-table th:not(:last-child) {
