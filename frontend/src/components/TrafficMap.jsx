@@ -109,8 +109,13 @@ const getWeatherType = (description) => {
   return 'general';
 };
 
-// Helper to get polyline color based on event type and severity
-const getPolylineColor = (eventType, severity) => {
+// Helper to get polyline color based on event type, severity, and geometry source
+const getPolylineColor = (eventType, severity, geometrySource) => {
+  // If geometry is from old Roads API (centerline only, not directional), show in grey
+  if (geometrySource === 'google_roads') {
+    return '#9ca3af'; // gray-400 - indicates old geometry that needs update
+  }
+
   // Closure - red (most severe)
   if (eventType === 'Closure') {
     return '#dc2626'; // red-600
@@ -563,7 +568,7 @@ export default function TrafficMap({
                   key={`polyline-${event.id}`}
                   positions={polylinePositions}
                   pathOptions={{
-                    color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)),
+                    color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity), event.geometry?.geometrySource),
                     weight: 5,
                     opacity: 0.7,
                     lineJoin: 'round',
