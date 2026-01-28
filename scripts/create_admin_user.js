@@ -5,7 +5,7 @@
  * Usage: node scripts/create_admin_user.js <email> <password>
  */
 
-const DatabaseWrapper = require('../database.js');
+const db = require('../database.js');
 
 async function createAdminUser() {
   const email = process.argv[2];
@@ -19,7 +19,6 @@ async function createAdminUser() {
 
   console.log(`Creating admin user: ${email}`);
 
-  const db = new DatabaseWrapper();
   await db.init();
 
   try {
