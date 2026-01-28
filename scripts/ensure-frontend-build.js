@@ -32,6 +32,12 @@ try {
     process.exit(0);
   }
 
+  // Clear any existing dist folder to force fresh build
+  if (fs.existsSync(distDir)) {
+    console.log('🗑️  Clearing old frontend build...');
+    fs.rmSync(distDir, { recursive: true, force: true });
+  }
+
   console.log('📦 Installing frontend dependencies...');
   run('npm', ['ci'], { cwd: frontendDir });
 

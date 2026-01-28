@@ -408,6 +408,10 @@ export default function TrafficMap({
   onGeometryFilterChange,
   isDarkMode = false
 }) {
+  // Debug: Verify geometry filter props are being received
+  console.log('🔍 TrafficMap geometryFilter prop:', geometryFilter);
+  console.log('🔍 TrafficMap onGeometryFilterChange prop:', typeof onGeometryFilterChange);
+
   const mapRef = useRef(null);
   const [showMiniMap, setShowMiniMap] = useState(() => {
     const saved = localStorage.getItem('showMiniMap');
