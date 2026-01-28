@@ -404,6 +404,8 @@ export default function TrafficMap({
   heatMapMode = 'density',
   onHeatMapToggle,
   onHeatMapModeChange,
+  geometryFilter = 'all',
+  onGeometryFilterChange,
   isDarkMode = false
 }) {
   const mapRef = useRef(null);
@@ -434,7 +436,20 @@ export default function TrafficMap({
   });
 
   // Optionally filter to interstate events only
-  const displayEvents = interstateOnly ? validEvents.filter(isInterstateEvent) : validEvents;
+  let displayEvents = interstateOnly ? validEvents.filter(isInterstateEvent) : validEvents;
+
+  // Filter by geometry source
+  if (geometryFilter === 'google-only') {
+    displayEvents = displayEvents.filter(e =>
+      e.geometry?.geometrySource === 'google_directions' ||
+      e.geometry?.geometrySource === 'google_roads'
+    );
+  } else if (geometryFilter === 'original-only') {
+    displayEvents = displayEvents.filter(e =>
+      !e.geometry?.geometrySource ||
+      (e.geometry?.geometrySource !== 'google_directions' && e.geometry?.geometrySource !== 'google_roads')
+    );
+  }
 
   console.log(`📍 Map: ${displayEvents.length} mapped events out of ${validEvents.length} valid events (${events.length} total)${interstateOnly ? ' [Interstate Only]' : ' [All Routes]'}`);
 
@@ -679,6 +694,44 @@ export default function TrafficMap({
         onToggle={onHeatMapToggle}
         onModeChange={onHeatMapModeChange}
       />
+
+      {/* Geometry Filter Control */}
+      <div className="leaflet-top leaflet-right" style={{ marginTop: '150px', pointerEvents: 'none' }}>
+        <div className="leaflet-control" style={{ pointerEvents: 'auto' }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '10px',
+            borderRadius: '4px',
+            boxShadow: '0 1px 5px rgba(0,0,0,0.4)',
+            minWidth: '200px'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '8px', fontSize: '13px' }}>
+              Geometry Filter
+            </div>
+            <select
+              value={geometryFilter}
+              onChange={(e) => onGeometryFilterChange && onGeometryFilterChange(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '6px',
+                borderRadius: '3px',
+                border: '1px solid #ccc',
+                fontSize: '12px',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="all">All Events</option>
+              <option value="google-only">Google-Enhanced Only</option>
+              <option value="original-only">Original Data Only</option>
+            </select>
+            <div style={{ fontSize: '11px', color: '#666', marginTop: '6px' }}>
+              {geometryFilter === 'google-only' && '🟧 Showing colored lines only'}
+              {geometryFilter === 'original-only' && '⬜ Showing grey lines only'}
+              {geometryFilter === 'all' && '📊 Showing all events'}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Mini Map Navigation Control */}
       <MiniMapControl
