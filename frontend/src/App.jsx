@@ -71,7 +71,6 @@ function App() {
   const [showParking, setShowParking] = useState(false);
   const [parkingPredictionHours, setParkingPredictionHours] = useState(0);
   const [parkingContext, setParkingContext] = useState(null);
-  const [geometryFilter, setGeometryFilter] = useState('all'); // 'all', 'google-only', 'original-only'
   const [showITSEquipment, setShowITSEquipment] = useState(false);
   const [itsEquipmentRoute, setItsEquipmentRoute] = useState(''); // Route filter for ITS equipment
   const [itsEquipmentType, setItsEquipmentType] = useState(''); // Equipment type filter (camera, dms, sensor, rsu)
@@ -2147,8 +2146,6 @@ function App() {
                   heatMapMode={heatMapMode}
                   onHeatMapToggle={setHeatMapActive}
                   onHeatMapModeChange={setHeatMapMode}
-                  geometryFilter={geometryFilter}
-                  onGeometryFilterChange={setGeometryFilter}
                   isDarkMode={isDarkMode}
                 />
               </div>
