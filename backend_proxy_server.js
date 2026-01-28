@@ -1173,6 +1173,12 @@ function checkGoogleRoadsRateLimit() {
 // Cost: $5 per 1,000 requests (HALF the price of Roads API)
 // Returns route that follows traffic direction (WB goes west, EB goes east)
 async function getDirectionsGoogle(lat1, lng1, lat2, lng2, direction = null) {
+  // TEMPORARILY DISABLED - rate limiting was broken on PostgreSQL causing $3k charges
+  // The db.prepare().get() calls return Promises on PostgreSQL but were treated as sync results
+  // This meant the rate limit check never worked and unlimited API calls were made
+  console.log('⚠️  Google Directions API DISABLED to prevent runaway charges');
+  return null;
+
   // Use dedicated Directions API key, fallback to Roads API key for backwards compatibility
   const apiKey = process.env.GOOGLE_DIRECTIONS_API_KEY || process.env.GOOGLE_ROADS_API_KEY;
 
@@ -1184,7 +1190,7 @@ async function getDirectionsGoogle(lat1, lng1, lat2, lng2, direction = null) {
   // Check rate limit for Directions API (333/day conservative limit)
   try {
     const today = new Date().toISOString().split('T')[0];
-    const usage = db.db.prepare('SELECT api_calls FROM google_directions_usage WHERE date = ?').get(today);
+    const usage = await db.db.prepare('SELECT api_calls FROM google_directions_usage WHERE date = ?').get(today);
     const apiCallsToday = usage ? usage.api_calls : 0;
     const dailyLimit = 333; // 10,000/month ÷ 30 days
 
@@ -1287,6 +1293,10 @@ function decodePolyline(encoded) {
 // Cost: $10 per 1,000 requests
 // Note: Only snaps to nearest road, does NOT provide directional routing
 async function snapToRoadsGoogle(lat1, lng1, lat2, lng2) {
+  // TEMPORARILY DISABLED - rate limiting was broken on PostgreSQL causing $3k charges
+  console.log('⚠️  Google Roads API DISABLED to prevent runaway charges');
+  return null;
+
   const apiKey = process.env.GOOGLE_ROADS_API_KEY;
 
   if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
@@ -27167,11 +27177,26 @@ app.get('*', (req, res) => {
 
   const indexPath = path.join(__dirname, 'frontend/dist/index.html');
   if (fs.existsSync(indexPath)) {
-    // Force no-cache headers for index.html
+    // Read and patch index.html at runtime to disable service worker
+    let html = fs.readFileSync(indexPath, 'utf8');
+
+    // Replace service worker registration block with cache-clearing version
+    const swRegex = /<!-- Service Worker Registration.*?<\/script>/s;
+    if (swRegex.test(html)) {
+      html = html.replace(swRegex,
+        '<!-- SW disabled --><script>' +
+        'if("serviceWorker"in navigator){' +
+        'navigator.serviceWorker.getRegistrations().then(function(r){for(var i of r)i.unregister();});' +
+        'if("caches"in window)caches.keys().then(function(n){for(var i of n)caches.delete(i);});}' +
+        '</script>'
+      );
+    }
+
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    res.sendFile(indexPath);
+    res.setHeader('Content-Type', 'text/html; charset=UTF-8');
+    res.send(html);
   } else {
     res.status(404).send('Frontend not built. Run: cd frontend && npm run build');
   }
