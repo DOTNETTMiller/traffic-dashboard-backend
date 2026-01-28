@@ -3,7 +3,7 @@
  * Enables offline functionality and caching for PWA
  */
 
-const CACHE_NAME = 'dot-corridor-v1';
+const CACHE_NAME = 'dot-corridor-v3-network-first-js';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -90,30 +90,51 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first strategy for assets
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        if (response) {
-          return response;
-        }
+  // Network-first strategy for JS/CSS assets (to ensure updates are fetched)
+  // Cache-first for images and other static assets
+  const isAsset = event.request.url.match(/\.(js|css)$/);
 
-        return fetch(event.request).then((response) => {
-          // Don't cache non-successful responses
-          if (!response || response.status !== 200 || response.type === 'error') {
-            return response;
-          }
-
+  if (isAsset) {
+    // Network-first for JS/CSS
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME)
             .then((cache) => {
               cache.put(event.request, responseToCache);
             });
-
           return response;
-        });
-      })
-  );
+        })
+        .catch(() => {
+          return caches.match(event.request);
+        })
+    );
+  } else {
+    // Cache-first for images/fonts
+    event.respondWith(
+      caches.match(event.request)
+        .then((response) => {
+          if (response) {
+            return response;
+          }
+
+          return fetch(event.request).then((response) => {
+            if (!response || response.status !== 200 || response.type === 'error') {
+              return response;
+            }
+
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME)
+              .then((cache) => {
+                cache.put(event.request, responseToCache);
+              });
+
+            return response;
+          });
+        })
+    );
+  }
 });
 
 // Background sync for offline actions
