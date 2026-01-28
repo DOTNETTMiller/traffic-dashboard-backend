@@ -10478,8 +10478,13 @@ const generateTemporaryPassword = (length = 12) => {
 
 // List users
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
-  const users = await db.getAllUsers();
-  res.json({ success: true, users });
+  try {
+    const users = await db.getAllUsers();
+    res.json({ success: true, users });
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Failed to load users', details: error.message });
+  }
 });
 
 // Create user
