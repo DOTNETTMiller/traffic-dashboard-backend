@@ -5,7 +5,10 @@ nixPkgs = ["nodejs", "python3"]
 cmds = ["npm install"]
 
 [phases.build]
-cmds = ["npm run build:frontend"]
+cmds = [
+  "rm -rf frontend/dist",
+  "npm run build:frontend"
+]
 
 [start]
 cmd = "node start.js"
