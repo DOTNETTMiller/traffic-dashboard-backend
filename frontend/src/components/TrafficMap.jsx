@@ -109,14 +109,8 @@ const getWeatherType = (description) => {
   return 'general';
 };
 
-// Helper to get polyline color based on event type, severity, and geometry source
-const getPolylineColor = (eventType, severity, geometrySource) => {
-  // If geometry is NOT from Google APIs (original raw data), show in grey
-  // Only Google-enhanced geometry (google_directions or google_roads) gets colored
-  if (!geometrySource || (geometrySource !== 'google_directions' && geometrySource !== 'google_roads')) {
-    return '#9ca3af'; // gray-400 - indicates original geometry without Google enhancement
-  }
-
+// Helper to get polyline color based on event type and severity
+const getPolylineColor = (eventType, severity) => {
   // Closure - red (most severe)
   if (eventType === 'Closure') {
     return '#dc2626'; // red-600
@@ -404,13 +398,9 @@ export default function TrafficMap({
   heatMapMode = 'density',
   onHeatMapToggle,
   onHeatMapModeChange,
-  geometryFilter = 'all',
-  onGeometryFilterChange,
   isDarkMode = false
 }) {
   // Debug: Verify geometry filter props are being received
-  console.log('🔍 TrafficMap geometryFilter prop:', geometryFilter);
-  console.log('🔍 TrafficMap onGeometryFilterChange prop:', typeof onGeometryFilterChange);
 
   const mapRef = useRef(null);
   const [showMiniMap, setShowMiniMap] = useState(() => {
@@ -441,19 +431,6 @@ export default function TrafficMap({
 
   // Optionally filter to interstate events only
   let displayEvents = interstateOnly ? validEvents.filter(isInterstateEvent) : validEvents;
-
-  // Filter by geometry source
-  if (geometryFilter === 'google-only') {
-    displayEvents = displayEvents.filter(e =>
-      e.geometry?.geometrySource === 'google_directions' ||
-      e.geometry?.geometrySource === 'google_roads'
-    );
-  } else if (geometryFilter === 'original-only') {
-    displayEvents = displayEvents.filter(e =>
-      !e.geometry?.geometrySource ||
-      (e.geometry?.geometrySource !== 'google_directions' && e.geometry?.geometrySource !== 'google_roads')
-    );
-  }
 
   console.log(`📍 Map: ${displayEvents.length} mapped events out of ${validEvents.length} valid events (${events.length} total)${interstateOnly ? ' [Interstate Only]' : ' [All Routes]'}`);
 
@@ -588,7 +565,7 @@ export default function TrafficMap({
                   key={`polyline-${event.id}`}
                   positions={polylinePositions}
                   pathOptions={{
-                    color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity), event.geometry?.geometrySource),
+                    color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)),
                     weight: 5,
                     opacity: 0.7,
                     lineJoin: 'round',
@@ -698,44 +675,6 @@ export default function TrafficMap({
         onToggle={onHeatMapToggle}
         onModeChange={onHeatMapModeChange}
       />
-
-      {/* Geometry Filter Control */}
-      <div className="leaflet-top leaflet-right" style={{ marginTop: '150px', pointerEvents: 'none' }}>
-        <div className="leaflet-control" style={{ pointerEvents: 'auto' }}>
-          <div style={{
-            backgroundColor: 'white',
-            padding: '10px',
-            borderRadius: '4px',
-            boxShadow: '0 1px 5px rgba(0,0,0,0.4)',
-            minWidth: '200px'
-          }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '8px', fontSize: '13px' }}>
-              Geometry Filter
-            </div>
-            <select
-              value={geometryFilter}
-              onChange={(e) => onGeometryFilterChange && onGeometryFilterChange(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '6px',
-                borderRadius: '3px',
-                border: '1px solid #ccc',
-                fontSize: '12px',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="all">All Events</option>
-              <option value="google-only">Google-Enhanced Only</option>
-              <option value="original-only">Original Data Only</option>
-            </select>
-            <div style={{ fontSize: '11px', color: '#666', marginTop: '6px' }}>
-              {geometryFilter === 'google-only' && '🟧 Showing colored lines only'}
-              {geometryFilter === 'original-only' && '⬜ Showing grey lines only'}
-              {geometryFilter === 'all' && '📊 Showing all events'}
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Mini Map Navigation Control */}
       <MiniMapControl
