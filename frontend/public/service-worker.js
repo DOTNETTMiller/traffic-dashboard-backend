@@ -3,7 +3,7 @@
  * Enables offline functionality and caching for PWA
  */
 
-const CACHE_NAME = 'dot-corridor-v1';
+const CACHE_NAME = 'dot-corridor-v2-geometry-filter';
 const urlsToCache = [
   '/',
   '/index.html',
