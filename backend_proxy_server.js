@@ -27146,8 +27146,17 @@ app.post('/api/data-quality/fix-corridor-geometries', async (req, res) => {
 // ============================================================================
 // STATIC FILE SERVING - Serve built frontend from backend (temporary solution)
 // ============================================================================
-// Serve static files from the built frontend
-app.use(express.static(path.join(__dirname, 'frontend/dist')));
+// Serve static files from the built frontend with aggressive no-cache for HTML
+app.use(express.static(path.join(__dirname, 'frontend/dist'), {
+  setHeaders: (res, path) => {
+    // Never cache HTML files - always fetch fresh
+    if (path.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 
 // Fallback route - serve index.html for all non-API routes (SPA support)
 app.get('*', (req, res) => {
@@ -27158,6 +27167,10 @@ app.get('*', (req, res) => {
 
   const indexPath = path.join(__dirname, 'frontend/dist/index.html');
   if (fs.existsSync(indexPath)) {
+    // Force no-cache headers for index.html
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.sendFile(indexPath);
   } else {
     res.status(404).send('Frontend not built. Run: cd frontend && npm run build');
