@@ -25681,6 +25681,58 @@ app.post('/api/calendar/events', requireAdmin, async (req, res) => {
   }
 });
 
+// Update event (admin only) - useful for adding meeting links later
+app.put('/api/calendar/events/:id', requireAdmin, async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    const {
+      title, description, location, virtual_link, organizer_name, organizer_email,
+      is_tentative, is_optional
+    } = req.body;
+
+    const fields = [];
+    const values = [];
+
+    if (title !== undefined) { fields.push('title = ?'); values.push(title); }
+    if (description !== undefined) { fields.push('description = ?'); values.push(description); }
+    if (location !== undefined) { fields.push('location = ?'); values.push(location); }
+    if (virtual_link !== undefined) { fields.push('virtual_link = ?'); values.push(virtual_link); }
+    if (organizer_name !== undefined) { fields.push('organizer_name = ?'); values.push(organizer_name); }
+    if (organizer_email !== undefined) { fields.push('organizer_email = ?'); values.push(organizer_email); }
+    if (is_tentative !== undefined) { fields.push('is_tentative = ?'); values.push(is_tentative ? 1 : 0); }
+    if (is_optional !== undefined) { fields.push('is_optional = ?'); values.push(is_optional ? 1 : 0); }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    fields.push('updated_at = datetime(\'now\')');
+    values.push(eventId);
+
+    const stmt = db.db.prepare(`
+      UPDATE calendar_events
+      SET ${fields.join(', ')}
+      WHERE id = ?
+    `);
+
+    const result = db.isPostgres
+      ? await stmt.run(...values)
+      : stmt.run(...values);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Event updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating event:', error);
+    res.status(500).json({ error: 'Failed to update event' });
+  }
+});
+
 // ==================== CHATGPT API ENDPOINTS ====================
 
 // Generate API key for ChatGPT (admin only)
