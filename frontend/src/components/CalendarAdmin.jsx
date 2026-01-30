@@ -14,6 +14,10 @@ export default function CalendarAdmin({ authToken }) {
     title: '',
     file_url: ''
   });
+  const [selectedEventForMinutes, setSelectedEventForMinutes] = useState(null);
+  const [minutesText, setMinutesText] = useState('');
+  const [minutesAnalysis, setMinutesAnalysis] = useState(null);
+  const [analyzingMinutes, setAnalyzingMinutes] = useState(false);
 
   const eventTypes = [
     'Technical Working Group',
@@ -197,6 +201,45 @@ export default function CalendarAdmin({ authToken }) {
     } catch (err) {
       alert('Error deleting artifact: ' + err.message);
     }
+  };
+
+  const handleAnalyzeMinutes = async () => {
+    if (!minutesText.trim()) {
+      alert('Please paste meeting minutes to analyze');
+      return;
+    }
+
+    setAnalyzingMinutes(true);
+    setMinutesAnalysis(null);
+
+    try {
+      const response = await fetch(`${config.apiUrl}/api/calendar/events/${selectedEventForMinutes.id}/analyze-minutes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ minutes_text: minutesText })
+      });
+
+      if (!response.ok) throw new Error('Failed to analyze minutes');
+
+      const data = await response.json();
+      setMinutesAnalysis(data.analysis);
+    } catch (err) {
+      alert('Error analyzing minutes: ' + err.message);
+    } finally {
+      setAnalyzingMinutes(false);
+    }
+  };
+
+  const handleManageMinutes = (event) => {
+    setSelectedEventForMinutes(event);
+    setMinutesText('');
+    setMinutesAnalysis(null);
+    setEditingEvent(null);
+    setShowCreateForm(false);
+    setSelectedEventForArtifacts(null);
   };
 
   const formatDate = (dateStr) => {
@@ -469,6 +512,246 @@ export default function CalendarAdmin({ authToken }) {
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* AI Minutes Analysis Panel */}
+      {selectedEventForMinutes && (
+        <div style={{
+          backgroundColor: 'white',
+          border: '2px solid #10b981',
+          borderRadius: '12px',
+          padding: '24px',
+          marginBottom: '24px'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px'
+          }}>
+            <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700' }}>
+              🤖 AI Minutes Analysis - {selectedEventForMinutes.title}
+            </h2>
+            <button
+              onClick={() => setSelectedEventForMinutes(null)}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#6b7280',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600'
+              }}
+            >
+              Close
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: minutesAnalysis ? '1fr 1fr' : '1fr', gap: '20px' }}>
+            {/* Input Panel */}
+            <div>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600' }}>
+                Paste Meeting Minutes
+              </h3>
+              <textarea
+                value={minutesText}
+                onChange={(e) => setMinutesText(e.target.value)}
+                placeholder="Paste meeting minutes here for AI analysis...
+
+Example format:
+Meeting Date: March 20, 2025
+Attendees: [list]
+Key Discussions:
+- Topic 1
+- Topic 2
+Action Items:
+- Task assigned to [person]
+..."
+                style={{
+                  width: '100%',
+                  minHeight: '400px',
+                  padding: '12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontFamily: 'monospace',
+                  resize: 'vertical'
+                }}
+              />
+              <button
+                onClick={handleAnalyzeMinutes}
+                disabled={analyzingMinutes || !minutesText.trim()}
+                style={{
+                  marginTop: '12px',
+                  padding: '12px 24px',
+                  backgroundColor: analyzingMinutes ? '#9ca3af' : '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: analyzingMinutes ? 'not-allowed' : 'pointer',
+                  width: '100%'
+                }}
+              >
+                {analyzingMinutes ? '🔄 Analyzing with AI...' : '🤖 Analyze Minutes'}
+              </button>
+              <p style={{ margin: '12px 0 0 0', fontSize: '12px', color: '#6b7280' }}>
+                💡 AI will analyze minutes in the context of I-80 Coalition goals: Data Standardization, SDX Integration, Pooled Fund, SMART Grant, MDODE, Connected Corridor, and Truck Parking Solutions
+              </p>
+            </div>
+
+            {/* Analysis Results Panel */}
+            {minutesAnalysis && (
+              <div style={{
+                backgroundColor: '#f9fafb',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                padding: '16px',
+                maxHeight: '600px',
+                overflowY: 'auto'
+              }}>
+                <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: '600', color: '#10b981' }}>
+                  📊 AI Analysis Results
+                </h3>
+
+                {/* Executive Summary */}
+                {minutesAnalysis.summary && (
+                  <div style={{ marginBottom: '20px' }}>
+                    <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: '700', color: '#1f2937' }}>
+                      Executive Summary
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '14px', color: '#374151', lineHeight: '1.6' }}>
+                      {minutesAnalysis.summary}
+                    </p>
+                  </div>
+                )}
+
+                {/* Key Discussions */}
+                {minutesAnalysis.discussions && minutesAnalysis.discussions.length > 0 && (
+                  <div style={{ marginBottom: '20px' }}>
+                    <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: '700', color: '#1f2937' }}>
+                      Key Discussions
+                    </h4>
+                    <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#374151' }}>
+                      {minutesAnalysis.discussions.map((item, idx) => (
+                        <li key={idx} style={{ marginBottom: '6px' }}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Decisions Made */}
+                {minutesAnalysis.decisions && minutesAnalysis.decisions.length > 0 && (
+                  <div style={{ marginBottom: '20px' }}>
+                    <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: '700', color: '#1f2937' }}>
+                      ✅ Decisions Made
+                    </h4>
+                    <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#374151' }}>
+                      {minutesAnalysis.decisions.map((item, idx) => (
+                        <li key={idx} style={{ marginBottom: '6px' }}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Action Items */}
+                {minutesAnalysis.action_items && minutesAnalysis.action_items.length > 0 && (
+                  <div style={{ marginBottom: '20px' }}>
+                    <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: '700', color: '#1f2937' }}>
+                      📋 Action Items
+                    </h4>
+                    {minutesAnalysis.action_items.map((item, idx) => (
+                      <div key={idx} style={{
+                        padding: '10px',
+                        backgroundColor: 'white',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '6px',
+                        marginBottom: '8px'
+                      }}>
+                        <div style={{ fontSize: '13px', fontWeight: '600', color: '#1f2937', marginBottom: '4px' }}>
+                          {item.task}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                          👤 {item.owner} • 📅 {item.due_date}
+                        </div>
+                        {item.goal_alignment && (
+                          <div style={{ fontSize: '11px', color: '#10b981', marginTop: '4px', fontWeight: '600' }}>
+                            🎯 {item.goal_alignment}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Progress Toward Goals */}
+                {minutesAnalysis.progress && (
+                  <div style={{ marginBottom: '20px' }}>
+                    <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: '700', color: '#1f2937' }}>
+                      📈 Progress Toward Goals
+                    </h4>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#374151', lineHeight: '1.6' }}>
+                      {minutesAnalysis.progress}
+                    </p>
+                  </div>
+                )}
+
+                {/* Strategic Recommendations */}
+                {minutesAnalysis.recommendations && minutesAnalysis.recommendations.length > 0 && (
+                  <div style={{ marginBottom: '20px' }}>
+                    <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: '700', color: '#1f2937' }}>
+                      💡 Strategic Recommendations
+                    </h4>
+                    <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#374151' }}>
+                      {minutesAnalysis.recommendations.map((item, idx) => (
+                        <li key={idx} style={{ marginBottom: '6px' }}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Risks & Blockers */}
+                {minutesAnalysis.risks && minutesAnalysis.risks.length > 0 && (
+                  <div style={{
+                    padding: '12px',
+                    backgroundColor: '#fef3c7',
+                    border: '1px solid #f59e0b',
+                    borderRadius: '6px'
+                  }}>
+                    <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: '700', color: '#92400e' }}>
+                      ⚠️ Risks & Blockers
+                    </h4>
+                    <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#92400e' }}>
+                      {minutesAnalysis.risks.map((item, idx) => (
+                        <li key={idx} style={{ marginBottom: '6px' }}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Raw Analysis (fallback) */}
+                {minutesAnalysis.raw_analysis && (
+                  <div style={{ marginTop: '20px' }}>
+                    <pre style={{
+                      margin: 0,
+                      padding: '12px',
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word'
+                    }}>
+                      {minutesAnalysis.raw_analysis}
+                    </pre>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -879,6 +1162,22 @@ export default function CalendarAdmin({ authToken }) {
                       }}
                     >
                       📄 Documents
+                    </button>
+                    <button
+                      onClick={() => handleManageMinutes(event)}
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        marginRight: '8px'
+                      }}
+                    >
+                      🤖 AI Minutes
                     </button>
                     <button
                       onClick={() => handleDelete(event.id)}
