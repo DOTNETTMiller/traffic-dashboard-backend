@@ -1065,7 +1065,7 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
 
 // Snap a straight line to road network (interstate geometry → OSRM cache → straight line)
 async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = null, state = null, eventId = null, stateKey = null) {
-  console.log(`📍 snapToRoad called: eventId=${eventId}, lat1=${lat1}, lng1=${lng1}, lat2=${lat2}, lng2=${lng2}, direction="${direction}", corridor="${corridor}", state="${state}"`);
+  console.log(`📍 snapToRoad called: eventId=${eventId}, stateKey="${stateKey}", direction="${direction}", corridor="${corridor}", state="${state}"`);
 
   // 1. Check for interstate geometry (pre-fetched highway geometries)
   if (corridor && state) {
