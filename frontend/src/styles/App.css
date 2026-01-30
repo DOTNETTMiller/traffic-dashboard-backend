@@ -520,6 +520,29 @@ body {
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
 }
 
+/* Fix close button position to top right corner */
+.leaflet-popup-close-button {
+  position: absolute !important;
+  top: 8px !important;
+  right: 8px !important;
+  padding: 4px 8px !important;
+  font-size: 20px !important;
+  line-height: 1 !important;
+  color: #6b7280 !important;
+  background: white !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  z-index: 1000 !important;
+  transition: all 0.2s ease !important;
+}
+
+.leaflet-popup-close-button:hover {
+  color: #1f2937 !important;
+  background: #f3f4f6 !important;
+  border-color: #d1d5db !important;
+}
+
 @keyframes popupFadeIn {
   from {
     opacity: 0;
