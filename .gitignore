@@ -39,6 +39,13 @@ coverage/
 messages.json
 states.db
 states.db-journal
+states.db-shm
+states.db-wal
+
+# Database backups
+backups/
+*.db.backup
+*.db.bak
 
 # Large data files (not needed for deployment)
 TruckStopsExport/
