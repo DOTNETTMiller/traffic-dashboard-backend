@@ -72,6 +72,19 @@ class StateDatabase {
     if (this.initPromise) return this.initPromise;
 
     this.initPromise = (async () => {
+      // Create automatic backup on startup (SQLite only)
+      if (!this.isPostgres && process.env.NODE_ENV !== 'test') {
+        try {
+          const { execSync } = require('child_process');
+          execSync('node scripts/backup_database.js --auto', {
+            cwd: __dirname,
+            stdio: 'inherit'
+          });
+        } catch (err) {
+          console.warn('⚠️  Auto-backup failed:', err.message);
+        }
+      }
+
       if (this.isPostgres) {
         // Initialize PostgreSQL connection first
         await this.db.init();
