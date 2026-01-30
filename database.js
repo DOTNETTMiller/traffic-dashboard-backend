@@ -467,6 +467,84 @@ class StateDatabase {
       CREATE INDEX IF NOT EXISTS idx_projects_created_at ON projects(created_at);
       CREATE INDEX IF NOT EXISTS idx_biweekly_reports_project_id ON biweekly_reports(project_id);
       CREATE INDEX IF NOT EXISTS idx_biweekly_reports_report_date ON biweekly_reports(report_date);
+
+      -- Calendar events for corridor coalition meetings
+      CREATE TABLE IF NOT EXISTS calendar_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        description TEXT,
+        event_type TEXT NOT NULL,
+        start_time DATETIME NOT NULL,
+        end_time DATETIME NOT NULL,
+        timezone TEXT DEFAULT 'America/Chicago',
+        location TEXT,
+        virtual_link TEXT,
+        organizer_name TEXT,
+        organizer_email TEXT,
+        workstream TEXT,
+        corridor TEXT,
+        is_tentative BOOLEAN DEFAULT FALSE,
+        is_optional BOOLEAN DEFAULT FALSE,
+        recurrence_rule TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- RSVPs for calendar events
+      CREATE TABLE IF NOT EXISTS calendar_rsvps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id INTEGER NOT NULL,
+        user_email TEXT NOT NULL,
+        user_name TEXT,
+        response TEXT NOT NULL CHECK(response IN ('going', 'maybe', 'not_going')),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(event_id, user_email),
+        FOREIGN KEY (event_id) REFERENCES calendar_events(id) ON DELETE CASCADE
+      );
+
+      -- Meeting artifacts (minutes, agendas, recordings)
+      CREATE TABLE IF NOT EXISTS calendar_artifacts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id INTEGER NOT NULL,
+        artifact_type TEXT NOT NULL CHECK(artifact_type IN ('minutes', 'agenda', 'slides', 'recording', 'other')),
+        title TEXT NOT NULL,
+        file_path TEXT,
+        file_url TEXT,
+        uploaded_by TEXT,
+        uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES calendar_events(id) ON DELETE CASCADE
+      );
+
+      -- Action items and decisions from meetings
+      CREATE TABLE IF NOT EXISTS calendar_action_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        owner_name TEXT,
+        owner_email TEXT,
+        due_date DATE,
+        status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open', 'in_progress', 'blocked', 'completed', 'cancelled')),
+        workstream TEXT,
+        is_decision BOOLEAN DEFAULT FALSE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        completed_at DATETIME,
+        FOREIGN KEY (event_id) REFERENCES calendar_events(id) ON DELETE CASCADE
+      );
+
+      -- Indexes for calendar tables
+      CREATE INDEX IF NOT EXISTS idx_calendar_events_start_time ON calendar_events(start_time);
+      CREATE INDEX IF NOT EXISTS idx_calendar_events_workstream ON calendar_events(workstream);
+      CREATE INDEX IF NOT EXISTS idx_calendar_events_corridor ON calendar_events(corridor);
+      CREATE INDEX IF NOT EXISTS idx_calendar_rsvps_event ON calendar_rsvps(event_id);
+      CREATE INDEX IF NOT EXISTS idx_calendar_rsvps_email ON calendar_rsvps(user_email);
+      CREATE INDEX IF NOT EXISTS idx_calendar_artifacts_event ON calendar_artifacts(event_id);
+      CREATE INDEX IF NOT EXISTS idx_calendar_action_items_event ON calendar_action_items(event_id);
+      CREATE INDEX IF NOT EXISTS idx_calendar_action_items_status ON calendar_action_items(status);
+      CREATE INDEX IF NOT EXISTS idx_calendar_action_items_owner ON calendar_action_items(owner_email);
+      CREATE INDEX IF NOT EXISTS idx_calendar_action_items_due_date ON calendar_action_items(due_date);
     `);
   }
 
