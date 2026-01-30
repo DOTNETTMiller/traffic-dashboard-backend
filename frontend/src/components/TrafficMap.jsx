@@ -575,7 +575,13 @@ export default function TrafficMap({
                   <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
                     {tooltipContent}
                   </Tooltip>
-                  <Popup maxWidth={300}>
+                  <Popup
+                    maxWidth={340}
+                    autoPan={true}
+                    autoPanPadding={[50, 50]}
+                    keepInView={true}
+                    closeButton={true}
+                  >
                     {popupContent}
                   </Popup>
                 </Polyline>
@@ -592,7 +598,13 @@ export default function TrafficMap({
                 <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
                   {tooltipContent}
                 </Tooltip>
-                <Popup maxWidth={300}>
+                <Popup
+                  maxWidth={340}
+                  autoPan={true}
+                  autoPanPadding={[50, 50]}
+                  keepInView={true}
+                  closeButton={true}
+                >
                   {popupContent}
                 </Popup>
               </Marker>
@@ -610,7 +622,12 @@ export default function TrafficMap({
             radius={14}
             pathOptions={{ color: '#dc2626', weight: 3, fillOpacity: 0.25 }}
           >
-            <Popup>
+            <Popup
+              autoPan={true}
+              autoPanPadding={[50, 50]}
+              keepInView={true}
+              closeButton={true}
+            >
               <div style={{ maxWidth: '240px' }}>
                 <h3 style={{ marginTop: 0, marginBottom: '8px' }}>Detour Advisory</h3>
                 <p style={{ margin: '4px 0' }}><strong>{alert.interchangeName}</strong></p>
