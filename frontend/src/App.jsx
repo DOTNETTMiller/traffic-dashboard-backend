@@ -759,7 +759,7 @@ function App() {
           </button>
 
           {/* Calendar Admin (admin only) */}
-          {isAdmin && (
+          {authToken && (
             <button
               className={`toggle-btn ${view === 'calendarAdmin' ? 'active' : ''}`}
               onClick={() => setView('calendarAdmin')}
