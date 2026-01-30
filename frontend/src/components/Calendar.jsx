@@ -37,11 +37,21 @@ export default function Calendar({ authToken }) {
 
   const fetchEventDetails = async (eventId) => {
     try {
-      const response = await fetch(`${config.apiUrl}/api/calendar/events/${eventId}`);
-      if (!response.ok) throw new Error('Failed to load event details');
-      const data = await response.json();
-      setSelectedEvent(data.event);
-      setRsvpStatus(data.rsvpCounts || {});
+      const [eventRes, artifactsRes] = await Promise.all([
+        fetch(`${config.apiUrl}/api/calendar/events/${eventId}`),
+        fetch(`${config.apiUrl}/api/calendar/events/${eventId}/artifacts`)
+      ]);
+
+      if (!eventRes.ok) throw new Error('Failed to load event details');
+
+      const eventData = await eventRes.json();
+      const artifactsData = artifactsRes.ok ? await artifactsRes.json() : { artifacts: [] };
+
+      setSelectedEvent({
+        ...eventData.event,
+        artifacts: artifactsData.artifacts || []
+      });
+      setRsvpStatus(eventData.rsvpCounts || {});
     } catch (err) {
       setError(err.message);
     }
@@ -494,9 +504,64 @@ export default function Calendar({ authToken }) {
                 borderLeft: '3px solid #3b82f6',
                 borderRadius: '4px',
                 fontSize: '13px',
-                color: '#1e40af'
+                color: '#1e40af',
+                marginBottom: '20px'
               }}>
                 🔄 {selectedEvent.recurrence_rule}
+              </div>
+            )}
+
+            {/* Meeting Documents */}
+            {selectedEvent.artifacts && selectedEvent.artifacts.length > 0 && (
+              <div>
+                <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '8px', fontWeight: '600' }}>
+                  Meeting Documents
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {selectedEvent.artifacts.map(artifact => (
+                    <a
+                      key={artifact.id}
+                      href={artifact.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: '10px 12px',
+                        backgroundColor: '#f9fafb',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '6px',
+                        textDecoration: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#f3f4f6';
+                        e.currentTarget.style.borderColor = '#d1d5db';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#f9fafb';
+                        e.currentTarget.style.borderColor = '#e5e7eb';
+                      }}
+                    >
+                      <span style={{ fontSize: '16px' }}>
+                        {artifact.artifact_type === 'agenda' ? '📋' :
+                         artifact.artifact_type === 'minutes' ? '📝' :
+                         artifact.artifact_type === 'slides' ? '📊' :
+                         artifact.artifact_type === 'recording' ? '🎥' : '📄'}
+                      </span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '14px', fontWeight: '600', color: '#1f2937' }}>
+                          {artifact.title}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                          {artifact.artifact_type.charAt(0).toUpperCase() + artifact.artifact_type.slice(1)}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '18px', color: '#3b82f6' }}>→</span>
+                    </a>
+                  ))}
+                </div>
               </div>
             )}
           </div>

@@ -7,6 +7,13 @@ export default function CalendarAdmin({ authToken }) {
   const [error, setError] = useState('');
   const [editingEvent, setEditingEvent] = useState(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [selectedEventForArtifacts, setSelectedEventForArtifacts] = useState(null);
+  const [artifacts, setArtifacts] = useState([]);
+  const [newArtifact, setNewArtifact] = useState({
+    artifact_type: 'agenda',
+    title: '',
+    file_url: ''
+  });
 
   const eventTypes = [
     'Technical Working Group',
@@ -128,6 +135,70 @@ export default function CalendarAdmin({ authToken }) {
     }
   };
 
+  const fetchArtifacts = async (eventId) => {
+    try {
+      const response = await fetch(`${config.apiUrl}/api/calendar/events/${eventId}/artifacts`);
+      if (!response.ok) throw new Error('Failed to load artifacts');
+      const data = await response.json();
+      setArtifacts(data.artifacts || []);
+    } catch (err) {
+      alert('Error loading artifacts: ' + err.message);
+    }
+  };
+
+  const handleManageArtifacts = (event) => {
+    setSelectedEventForArtifacts(event);
+    fetchArtifacts(event.id);
+    setEditingEvent(null);
+    setShowCreateForm(false);
+  };
+
+  const handleAddArtifact = async () => {
+    if (!newArtifact.title || !newArtifact.file_url) {
+      alert('Please provide both title and URL');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${config.apiUrl}/api/calendar/events/${selectedEventForArtifacts.id}/artifacts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify(newArtifact)
+      });
+
+      if (!response.ok) throw new Error('Failed to add artifact');
+
+      alert('Document added successfully!');
+      setNewArtifact({ artifact_type: 'agenda', title: '', file_url: '' });
+      fetchArtifacts(selectedEventForArtifacts.id);
+    } catch (err) {
+      alert('Error adding artifact: ' + err.message);
+    }
+  };
+
+  const handleDeleteArtifact = async (artifactId) => {
+    if (!confirm('Are you sure you want to delete this document?')) return;
+
+    try {
+      const response = await fetch(`${config.apiUrl}/api/calendar/artifacts/${artifactId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to delete artifact');
+
+      alert('Document deleted successfully!');
+      fetchArtifacts(selectedEventForArtifacts.id);
+    } catch (err) {
+      alert('Error deleting artifact: ' + err.message);
+    }
+  };
+
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A';
     const date = new Date(dateStr);
@@ -194,6 +265,215 @@ export default function CalendarAdmin({ authToken }) {
           ➕ Create Event
         </button>
       </div>
+
+      {/* Artifacts Management Panel */}
+      {selectedEventForArtifacts && (
+        <div style={{
+          backgroundColor: 'white',
+          border: '2px solid #8b5cf6',
+          borderRadius: '12px',
+          padding: '24px',
+          marginBottom: '24px'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px'
+          }}>
+            <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700' }}>
+              📄 Manage Documents - {selectedEventForArtifacts.title}
+            </h2>
+            <button
+              onClick={() => setSelectedEventForArtifacts(null)}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#6b7280',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600'
+              }}
+            >
+              Close
+            </button>
+          </div>
+
+          {/* Add New Artifact */}
+          <div style={{
+            backgroundColor: '#f9fafb',
+            padding: '16px',
+            borderRadius: '8px',
+            marginBottom: '20px'
+          }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600' }}>
+              Add New Document
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr 1fr auto', gap: '12px', alignItems: 'end' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>
+                  Document Type
+                </label>
+                <select
+                  value={newArtifact.artifact_type}
+                  onChange={(e) => setNewArtifact({ ...newArtifact, artifact_type: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px'
+                  }}
+                >
+                  <option value="agenda">📋 Agenda</option>
+                  <option value="minutes">📝 Minutes</option>
+                  <option value="slides">📊 Slides</option>
+                  <option value="recording">🎥 Recording</option>
+                  <option value="other">📄 Other</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={newArtifact.title}
+                  onChange={(e) => setNewArtifact({ ...newArtifact, title: e.target.value })}
+                  placeholder="e.g., Meeting Agenda - February 2026"
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>
+                  Document URL
+                </label>
+                <input
+                  type="url"
+                  value={newArtifact.file_url}
+                  onChange={(e) => setNewArtifact({ ...newArtifact, file_url: e.target.value })}
+                  placeholder="https://drive.google.com/... or https://..."
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+              <button
+                onClick={handleAddArtifact}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                ➕ Add
+              </button>
+            </div>
+            <p style={{ margin: '12px 0 0 0', fontSize: '12px', color: '#6b7280' }}>
+              💡 Tip: Upload documents to Google Drive, Dropbox, or your organization's file server, then paste the shareable link here.
+            </p>
+          </div>
+
+          {/* Existing Artifacts */}
+          <div>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600' }}>
+              Existing Documents ({artifacts.length})
+            </h3>
+            {artifacts.length === 0 ? (
+              <div style={{
+                padding: '40px',
+                textAlign: 'center',
+                backgroundColor: '#f9fafb',
+                borderRadius: '8px',
+                color: '#6b7280'
+              }}>
+                No documents added yet. Add an agenda, minutes, or other meeting materials above.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {artifacts.map(artifact => (
+                  <div
+                    key={artifact.id}
+                    style={{
+                      padding: '12px',
+                      backgroundColor: '#f9fafb',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px'
+                    }}
+                  >
+                    <span style={{ fontSize: '24px' }}>
+                      {artifact.artifact_type === 'agenda' ? '📋' :
+                       artifact.artifact_type === 'minutes' ? '📝' :
+                       artifact.artifact_type === 'slides' ? '📊' :
+                       artifact.artifact_type === 'recording' ? '🎥' : '📄'}
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '14px', fontWeight: '600', color: '#1f2937', marginBottom: '2px' }}>
+                        {artifact.title}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                        {artifact.artifact_type.charAt(0).toUpperCase() + artifact.artifact_type.slice(1)}
+                        {artifact.uploaded_by && ` • Uploaded by ${artifact.uploaded_by}`}
+                      </div>
+                    </div>
+                    <a
+                      href={artifact.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: '#3b82f6',
+                        color: 'white',
+                        textDecoration: 'none',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: '600'
+                      }}
+                    >
+                      🔗 View
+                    </a>
+                    <button
+                      onClick={() => handleDeleteArtifact(artifact.id)}
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: '#ef4444',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Event Edit Form */}
       {editingEvent && (
@@ -583,6 +863,22 @@ export default function CalendarAdmin({ authToken }) {
                       }}
                     >
                       ✏️ Edit
+                    </button>
+                    <button
+                      onClick={() => handleManageArtifacts(event)}
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: '#8b5cf6',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        marginRight: '8px'
+                      }}
+                    >
+                      📄 Documents
                     </button>
                     <button
                       onClick={() => handleDelete(event.id)}

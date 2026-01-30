@@ -25757,6 +25757,85 @@ app.delete('/api/calendar/events/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// Get artifacts for an event
+app.get('/api/calendar/events/:id/artifacts', async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+
+    const stmt = db.db.prepare(`
+      SELECT * FROM calendar_artifacts
+      WHERE event_id = ?
+      ORDER BY uploaded_at DESC
+    `);
+
+    const artifacts = db.isPostgres
+      ? await stmt.all(eventId)
+      : stmt.all(eventId);
+
+    res.json({ artifacts });
+  } catch (error) {
+    console.error('Error fetching artifacts:', error);
+    res.status(500).json({ error: 'Failed to fetch artifacts' });
+  }
+});
+
+// Add artifact to event (admin only)
+app.post('/api/calendar/events/:id/artifacts', requireAdmin, async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    const { artifact_type, title, file_url } = req.body;
+
+    const validTypes = ['minutes', 'agenda', 'slides', 'recording', 'other'];
+    if (!validTypes.includes(artifact_type)) {
+      return res.status(400).json({ error: 'Invalid artifact type' });
+    }
+
+    const uploaded_by = req.user?.email || req.user?.username || 'admin';
+
+    const stmt = db.db.prepare(`
+      INSERT INTO calendar_artifacts (event_id, artifact_type, title, file_url, uploaded_by)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+
+    const result = db.isPostgres
+      ? await stmt.run(eventId, artifact_type, title, file_url, uploaded_by)
+      : stmt.run(eventId, artifact_type, title, file_url, uploaded_by);
+
+    res.json({
+      success: true,
+      message: 'Artifact added successfully',
+      artifactId: result.lastInsertRowid || result.insertId
+    });
+  } catch (error) {
+    console.error('Error adding artifact:', error);
+    res.status(500).json({ error: 'Failed to add artifact' });
+  }
+});
+
+// Delete artifact (admin only)
+app.delete('/api/calendar/artifacts/:id', requireAdmin, async (req, res) => {
+  try {
+    const artifactId = parseInt(req.params.id);
+
+    const stmt = db.db.prepare('DELETE FROM calendar_artifacts WHERE id = ?');
+    const result = db.isPostgres
+      ? await stmt.run(artifactId)
+      : stmt.run(artifactId);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Artifact not found' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Artifact deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting artifact:', error);
+    res.status(500).json({ error: 'Failed to delete artifact' });
+  }
+});
+
 // ==================== CHATGPT API ENDPOINTS ====================
 
 // Generate API key for ChatGPT (admin only)
