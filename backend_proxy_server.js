@@ -25836,6 +25836,107 @@ app.delete('/api/calendar/artifacts/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// Analyze meeting minutes with AI (admin only)
+app.post('/api/calendar/events/:id/analyze-minutes', requireAdmin, async (req, res) => {
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(503).json({
+        success: false,
+        error: 'OpenAI API key not configured'
+      });
+    }
+
+    const eventId = parseInt(req.params.id);
+    const { minutes_text } = req.body;
+
+    if (!minutes_text) {
+      return res.status(400).json({ error: 'Meeting minutes text is required' });
+    }
+
+    console.log(`🤖 Analyzing meeting minutes for event ${eventId}...`);
+
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const analysisPrompt = `You are an expert transportation policy analyst specializing in the I-80 Corridor Coalition data standardization initiative.
+
+COALITION CONTEXT & END GOALS:
+The I-80 Corridor Coalition spans 11 states (CA, NV, UT, WY, NE, IA, IL, IN, OH, PA, NJ) working toward:
+
+1. **Data Standardization** - Harmonize traffic event feeds using WZDx (Work Zone Data Exchange), TPIMS (Truck Parking Information Management System), and TDx (Transportation Data Exchange) formats
+2. **SDX Integration** - Connect all states to Situational Data Exchange for real-time traveler information via SiriusXM, Google Maps, Waze
+3. **Pooled Fund Study TPF-5(566)** - Multi-state "Connected Corridors Advancement Initiative" for collaborative implementation
+4. **SMART Grant** - Nevada DOT's $2M grant for data exchange and digital infrastructure (7 tasks including connectivity gap analysis, data exchange review, implementation plan)
+5. **MDODE Platform** - Managing Disruptions Operations Data Exchange - FHWA ITS JPO collaborative platform for operations data cataloging and exchange
+6. **Connected Vehicle Corridor** - Coast-to-coast V2X messaging using SAE J2735/J2540-2 standards with SCMS security
+7. **Truck Parking Solutions** - ELD data integration, corridor-wide parking availability systems
+8. **Work Zone Integration** - Real-time work zone data including utility permit systems, city integrations
+
+KEY TECHNICAL INITIATIVES:
+- 11 minimum data fields alignment: organization-id, start-time, end-time, event-id, closure, restriction, route-designator, latitude, longitude, link-direction, types_of_incident
+- Security: SCMS (Security Credential Management System) certification for V2X
+- Data Quality: Source validation, message security, feed consistency
+- Industry Engagement: OEM partnerships (Honda, etc.), mapping companies (Google, TomTom, Waze)
+- Multi-state Grants: RAISE, STBG applications, pooled fund participation
+
+Analyze the following meeting minutes and extract:
+
+1. **EXECUTIVE SUMMARY** (2-3 sentences): What happened in this meeting and why it matters for the coalition goals
+2. **KEY DISCUSSIONS**: Bulleted list of main topics discussed, with context on how they relate to coalition goals
+3. **DECISIONS MADE**: Clear decisions or commitments made during the meeting
+4. **ACTION ITEMS**: List each action item with:
+   - Task description
+   - Responsible party/state
+   - Target completion date (infer from context or suggest reasonable timeline)
+   - Strategic alignment (which coalition goal this advances)
+5. **PROGRESS TOWARD GOALS**: Assessment of how this meeting moves the coalition toward its end goals
+6. **STRATEGIC RECOMMENDATIONS**: 2-3 specific next steps to maintain momentum toward end goals
+7. **RISKS & BLOCKERS**: Any identified challenges, delays, or dependencies mentioned
+
+Format as structured JSON with these exact keys: summary, discussions, decisions, action_items (array of {task, owner, due_date, goal_alignment}), progress, recommendations, risks.
+
+MEETING MINUTES TO ANALYZE:
+${minutes_text}`;
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [
+        { role: 'system', content: 'You are an expert transportation policy analyst with deep knowledge of DOT operations, ITS standards, and multi-state coalition management.' },
+        { role: 'user', content: analysisPrompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 2500
+    });
+
+    const analysisText = completion.choices[0].message.content;
+
+    // Try to parse as JSON, fall back to structured text
+    let analysis;
+    try {
+      analysis = JSON.parse(analysisText);
+    } catch (e) {
+      // If not valid JSON, structure it manually
+      analysis = {
+        summary: analysisText.split('\n\n')[0],
+        raw_analysis: analysisText
+      };
+    }
+
+    res.json({
+      success: true,
+      analysis,
+      tokens_used: completion.usage.total_tokens
+    });
+
+  } catch (error) {
+    console.error('Error analyzing minutes:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to analyze meeting minutes',
+      details: error.message
+    });
+  }
+});
+
 // ==================== CHATGPT API ENDPOINTS ====================
 
 // Generate API key for ChatGPT (admin only)
