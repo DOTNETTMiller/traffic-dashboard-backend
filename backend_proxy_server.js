@@ -25523,6 +25523,166 @@ const requireAPIKey = (req, res, next) => {
   return res.status(403).json({ error: 'Invalid API key' });
 };
 
+// ==================== CALENDAR API ENDPOINTS ====================
+const calendarAPI = require('./calendar-api');
+
+// Get all upcoming events (public endpoint)
+app.get('/api/calendar/events', async (req, res) => {
+  try {
+    const { workstream, corridor, limit } = req.query;
+    let events = await calendarAPI.getUpcomingEvents(limit ? parseInt(limit) : 50);
+
+    // Apply filters if provided
+    if (workstream) {
+      events = events.filter(e => e.workstream === workstream);
+    }
+    if (corridor) {
+      events = events.filter(e => e.corridor === corridor);
+    }
+
+    res.json({ success: true, events });
+  } catch (error) {
+    console.error('Error fetching calendar events:', error);
+    res.status(500).json({ error: 'Failed to fetch events' });
+  }
+});
+
+// Get event details with RSVPs, artifacts, and action items
+app.get('/api/calendar/events/:id', async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    const eventDetails = await calendarAPI.getEventDetails(eventId);
+
+    if (!eventDetails) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Get RSVP counts
+    const rsvpCounts = await calendarAPI.getRSVPCounts(eventId);
+
+    res.json({
+      success: true,
+      event: eventDetails,
+      rsvpCounts
+    });
+  } catch (error) {
+    console.error('Error fetching event details:', error);
+    res.status(500).json({ error: 'Failed to fetch event details' });
+  }
+});
+
+// Download single event as ICS file
+app.get('/api/calendar/events/:id/download.ics', async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    const eventDetails = await calendarAPI.getEventDetails(eventId);
+
+    if (!eventDetails) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const icsContent = calendarAPI.generateICS(eventDetails);
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="i80-event-${eventId}.ics"`);
+    res.send(icsContent);
+  } catch (error) {
+    console.error('Error generating ICS file:', error);
+    res.status(500).json({ error: 'Failed to generate calendar file' });
+  }
+});
+
+// Calendar subscription feed for I-80 Coalition (all upcoming events)
+app.get('/api/calendar/i80-coalition.ics', async (req, res) => {
+  try {
+    const events = await calendarAPI.getUpcomingEvents(100); // Get next 100 events
+    const i80Events = events.filter(e => e.corridor === 'I-80');
+
+    const icsContent = calendarAPI.generateMultiEventICS(i80Events);
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', 'inline; filename="i80-coalition.ics"');
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    res.send(icsContent);
+  } catch (error) {
+    console.error('Error generating I-80 calendar feed:', error);
+    res.status(500).json({ error: 'Failed to generate calendar feed' });
+  }
+});
+
+// Submit or update RSVP (authenticated users only)
+app.post('/api/calendar/events/:id/rsvp', requireUser, async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    const { response } = req.body; // 'going', 'maybe', 'not_going'
+
+    if (!['going', 'maybe', 'not_going'].includes(response)) {
+      return res.status(400).json({ error: 'Invalid RSVP response. Must be: going, maybe, or not_going' });
+    }
+
+    const userEmail = req.user.email;
+    const userName = req.user.fullName || req.user.username;
+
+    await calendarAPI.upsertRSVP(eventId, userEmail, userName, response);
+
+    // Get updated counts
+    const rsvpCounts = await calendarAPI.getRSVPCounts(eventId);
+
+    res.json({
+      success: true,
+      message: 'RSVP recorded successfully',
+      rsvpCounts
+    });
+  } catch (error) {
+    console.error('Error recording RSVP:', error);
+    res.status(500).json({ error: 'Failed to record RSVP' });
+  }
+});
+
+// Create new event (admin only)
+app.post('/api/calendar/events', requireAdmin, async (req, res) => {
+  try {
+    const {
+      title, description, event_type, start_time, end_time, timezone,
+      location, virtual_link, organizer_name, organizer_email,
+      workstream, corridor, is_tentative, is_optional, recurrence_rule
+    } = req.body;
+
+    if (!title || !event_type || !start_time || !end_time) {
+      return res.status(400).json({ error: 'Missing required fields: title, event_type, start_time, end_time' });
+    }
+
+    const stmt = db.db.prepare(`
+      INSERT INTO calendar_events (
+        title, description, event_type, start_time, end_time, timezone,
+        location, virtual_link, organizer_name, organizer_email,
+        workstream, corridor, is_tentative, is_optional, recurrence_rule
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const result = db.isPostgres
+      ? await stmt.run(title, description, event_type, start_time, end_time, timezone || 'America/Chicago',
+                       location, virtual_link, organizer_name, organizer_email,
+                       workstream, corridor, is_tentative ? 1 : 0, is_optional ? 1 : 0, recurrence_rule)
+      : stmt.run(title, description, event_type, start_time, end_time, timezone || 'America/Chicago',
+                 location, virtual_link, organizer_name, organizer_email,
+                 workstream, corridor, is_tentative ? 1 : 0, is_optional ? 1 : 0, recurrence_rule);
+
+    const eventId = result.lastInsertRowid || result.lastID;
+
+    res.json({
+      success: true,
+      eventId,
+      message: 'Event created successfully'
+    });
+  } catch (error) {
+    console.error('Error creating event:', error);
+    res.status(500).json({ error: 'Failed to create event' });
+  }
+});
+
+// ==================== CHATGPT API ENDPOINTS ====================
+
 // Generate API key for ChatGPT (admin only)
 app.post('/api/chatgpt/generate-key', requireAdmin, (req, res) => {
   try {
