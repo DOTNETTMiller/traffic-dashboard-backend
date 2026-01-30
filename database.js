@@ -66,6 +66,24 @@ class StateDatabase {
     this.initPromise = null;
   }
 
+  // Create backup before critical operations (SQLite only, async-safe)
+  createSafetyBackup(operation = 'operation') {
+    if (this.isPostgres || process.env.NODE_ENV === 'test') {
+      return; // PostgreSQL has its own backup system
+    }
+
+    try {
+      const { execSync } = require('child_process');
+      execSync('node scripts/backup_database.js --auto', {
+        cwd: __dirname,
+        stdio: 'pipe' // Silent operation
+      });
+      console.log(`💾 Safety backup created before ${operation}`);
+    } catch (err) {
+      console.warn(`⚠️  Safety backup failed before ${operation}:`, err.message);
+    }
+  }
+
   // Async initialization for PostgreSQL
   async init() {
     if (this.initialized) return;
@@ -1915,6 +1933,9 @@ class StateDatabase {
   async createUser(userData) {
     const { username, email, password, fullName = null, organization = null, stateKey = null, role = 'user' } = userData;
     try {
+      // Create safety backup before adding user
+      this.createSafetyBackup('user creation');
+
       const passwordHash = this.hashPassword(password);
 
       if (this.isPostgres) {
@@ -2046,6 +2067,11 @@ class StateDatabase {
 
   async updateUser(userId, updates) {
     try {
+      // Create safety backup before updating user (especially for role changes)
+      if (updates.role || updates.active !== undefined) {
+        this.createSafetyBackup('critical user update');
+      }
+
       const fields = [];
       const values = [];
 
@@ -2148,6 +2174,9 @@ class StateDatabase {
 
   deleteUser(userId) {
     try {
+      // Create safety backup before deleting user
+      this.createSafetyBackup('user deletion');
+
       const result = this.db.prepare(`
         DELETE FROM users WHERE id = ?
       `).run(userId);
