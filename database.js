@@ -1923,12 +1923,15 @@ class StateDatabase {
 
   async getAllUsers() {
     try {
-      const users = await this.db.prepare(`
+      const stmt = this.db.prepare(`
         SELECT id, username, email, full_name, organization, role, active, created_at, last_login,
                state_key, notify_on_messages, notify_on_high_severity
         FROM users
         ORDER BY created_at DESC
-      `).all();
+      `);
+
+      // Handle both sync (SQLite) and async (PostgreSQL) APIs
+      const users = this.isPostgres ? await stmt.all() : stmt.all();
 
       return users.map(user => ({
         id: user.id,
