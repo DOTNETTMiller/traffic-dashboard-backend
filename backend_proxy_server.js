@@ -17745,7 +17745,7 @@ function escapeXML(str) {
 }
 
 // AI-Assisted Grant Narrative Generation (Enhanced with Pooled Fund Support)
-app.post('/api/grants/generate-narrative', async (req, res) => {
+app.post('/api/grants/generate-narrative', requireAdmin, async (req, res) => {
   try {
     const { stateKey, grantType, projectTitle, corridorDescription } = req.body;
 
@@ -21733,7 +21733,7 @@ app.get('/api/grants/applications/:id/its-equipment', async (req, res) => {
  * Generate grant writing assistance using ChatGPT API
  * Takes application data and ITS inventory to generate ideas and content
  */
-app.post('/api/grants/generate-content', async (req, res) => {
+app.post('/api/grants/generate-content', requireAdmin, async (req, res) => {
   try {
     const {
       applicationId,
@@ -22709,7 +22709,7 @@ app.get('/api/grants/monitor-deadlines', async (req, res) => {
  * Analyze a grant proposal and provide improvement suggestions
  * Uses AI to evaluate proposal against grant requirements and scoring criteria
  */
-app.post('/api/grants/analyze-proposal', async (req, res) => {
+app.post('/api/grants/analyze-proposal', requireAdmin, async (req, res) => {
   try {
     const {
       proposalText,
@@ -22891,7 +22891,7 @@ Format your response as JSON with this structure:
  * Score a complete grant application against program criteria
  * Provides detailed scoring breakdown by category
  */
-app.post('/api/grants/score-application', async (req, res) => {
+app.post('/api/grants/score-application', requireAdmin, async (req, res) => {
   try {
     const {
       grantProgram,
@@ -24490,7 +24490,7 @@ app.post('/api/parking/ground-truth/observations', async (req, res) => {
 });
 
 // AI-powered truck counting using OpenAI Vision API
-app.post('/api/parking/ground-truth/ai-count', async (req, res) => {
+app.post('/api/parking/ground-truth/ai-count', requireAdmin, async (req, res) => {
   try {
     const { facilityId, cameraView } = req.body;
 
@@ -24745,7 +24745,7 @@ function extractJSON(text) {
 }
 
 // Multi-camera consensus AI counting with overlap detection
-app.post('/api/parking/ground-truth/ai-count-consensus', async (req, res) => {
+app.post('/api/parking/ground-truth/ai-count-consensus', requireAdmin, async (req, res) => {
   try {
     const { facilityId } = req.body;
 
