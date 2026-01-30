@@ -25733,6 +25733,30 @@ app.put('/api/calendar/events/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// Delete event (admin only)
+app.delete('/api/calendar/events/:id', requireAdmin, async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+
+    const stmt = db.db.prepare('DELETE FROM calendar_events WHERE id = ?');
+    const result = db.isPostgres
+      ? await stmt.run(eventId)
+      : stmt.run(eventId);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Event deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting event:', error);
+    res.status(500).json({ error: 'Failed to delete event' });
+  }
+});
+
 // ==================== CHATGPT API ENDPOINTS ====================
 
 // Generate API key for ChatGPT (admin only)

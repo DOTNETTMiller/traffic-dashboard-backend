@@ -7,6 +7,14 @@ export default function Calendar({ authToken }) {
   const [error, setError] = useState('');
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [rsvpStatus, setRsvpStatus] = useState({});
+  const [timezone, setTimezone] = useState('America/Chicago');
+
+  const timezones = [
+    { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+    { value: 'America/Denver', label: 'Mountain Time (MT)' },
+    { value: 'America/Chicago', label: 'Central Time (CT)' },
+    { value: 'America/New_York', label: 'Eastern Time (ET)' }
+  ];
 
   useEffect(() => {
     fetchEvents();
@@ -82,6 +90,7 @@ export default function Calendar({ authToken }) {
       day: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
+      timeZone: timezone,
       timeZoneName: 'short'
     });
   };
@@ -133,21 +142,44 @@ export default function Calendar({ authToken }) {
             Stakeholder engagement meetings and technical working groups
           </p>
         </div>
-        <button
-          onClick={downloadFullCalendar}
-          style={{
-            padding: '12px 24px',
-            backgroundColor: '#3b82f6',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            fontSize: '14px'
-          }}
-        >
-          📥 Subscribe to Calendar
-        </button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <label style={{ fontSize: '14px', fontWeight: '600', color: '#374151' }}>
+              🌍 Time Zone:
+            </label>
+            <select
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+              style={{
+                padding: '8px 12px',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
+            >
+              {timezones.map(tz => (
+                <option key={tz.value} value={tz.value}>{tz.label}</option>
+              ))}
+            </select>
+          </div>
+          <button
+            onClick={downloadFullCalendar}
+            style={{
+              padding: '12px 24px',
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            📥 Subscribe to Calendar
+          </button>
+        </div>
       </div>
 
       {/* Event Grid */}
