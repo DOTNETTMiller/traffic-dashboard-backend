@@ -246,6 +246,107 @@ export default function Calendar({ authToken }) {
         </div>
       </div>
 
+      {/* I-80 Coalition Progress Dashboard */}
+      <div style={{
+        backgroundColor: 'white',
+        border: '2px solid #3b82f6',
+        borderRadius: '12px',
+        padding: '20px',
+        marginBottom: '20px'
+      }}>
+        <h2 style={{ margin: '0 0 16px 0', fontSize: '20px', fontWeight: '700', color: '#1f2937' }}>
+          🎯 I-80 Coalition Progress Tracker
+        </h2>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+          {/* Current Tasks */}
+          <div style={{
+            backgroundColor: '#eff6ff',
+            border: '2px solid #3b82f6',
+            borderRadius: '8px',
+            padding: '16px'
+          }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '700', color: '#1e40af' }}>
+              📋 Active Tasks
+            </h3>
+            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#1f2937', lineHeight: '1.6' }}>
+              <li>Complete SDX trial onboarding (9/11 states connected)</li>
+              <li>Nevada SMART Grant RFP release (pending federal approval)</li>
+              <li>Pooled Fund TPF-5(566) participation (TX, OK committed)</li>
+              <li>MDODE platform prototype participation</li>
+              <li>WZDx feed implementation (OH, PA in progress)</li>
+              <li>11 minimum data fields standardization across states</li>
+            </ul>
+          </div>
+
+          {/* Key Goals */}
+          <div style={{
+            backgroundColor: '#f0fdf4',
+            border: '2px solid #10b981',
+            borderRadius: '8px',
+            padding: '16px'
+          }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '700', color: '#065f46' }}>
+              🎯 2025-2026 Goals
+            </h3>
+            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#1f2937', lineHeight: '1.6' }}>
+              <li><strong>Data Standardization:</strong> WZDx, TPIMS, TDx alignment across corridor</li>
+              <li><strong>SDX Integration:</strong> All 11 states connected to real-time exchange</li>
+              <li><strong>SMART Grant:</strong> $2M Nevada implementation (7 tasks)</li>
+              <li><strong>Connected Corridor:</strong> Coast-to-coast V2X messaging (SAE J2735)</li>
+              <li><strong>Truck Parking:</strong> ELD data integration, corridor-wide availability</li>
+              <li><strong>Industry Integration:</strong> OEM partnerships, Google/Waze feeds</li>
+            </ul>
+          </div>
+
+          {/* Achievements */}
+          <div style={{
+            backgroundColor: '#fef3c7',
+            border: '2px solid #f59e0b',
+            borderRadius: '8px',
+            padding: '16px'
+          }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '700', color: '#92400e' }}>
+              ✅ Recent Achievements
+            </h3>
+            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#1f2937', lineHeight: '1.6' }}>
+              <li>Illinois DOT connected to SDX with WZDx feed</li>
+              <li>Wyoming successfully deployed SDX statewide</li>
+              <li>Nevada SMART Grant awarded ($2M)</li>
+              <li>Pooled Fund solicitation approved through Dec 2025</li>
+              <li>181 data field variables identified and cataloged</li>
+              <li>NCHRP CAV Peer Exchange insights integrated</li>
+              <li>Ohio DOT WZDx feed launched (partnership with DriveWise)</li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Quick Stats */}
+        <div style={{
+          marginTop: '16px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '12px'
+        }}>
+          <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '6px', textAlign: 'center' }}>
+            <div style={{ fontSize: '24px', fontWeight: '700', color: '#3b82f6' }}>11</div>
+            <div style={{ fontSize: '12px', color: '#6b7280' }}>States in Coalition</div>
+          </div>
+          <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '6px', textAlign: 'center' }}>
+            <div style={{ fontSize: '24px', fontWeight: '700', color: '#10b981' }}>9/11</div>
+            <div style={{ fontSize: '12px', color: '#6b7280' }}>SDX Trial Participants</div>
+          </div>
+          <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '6px', textAlign: 'center' }}>
+            <div style={{ fontSize: '24px', fontWeight: '700', color: '#f59e0b' }}>$2M</div>
+            <div style={{ fontSize: '12px', color: '#6b7280' }}>SMART Grant (NV)</div>
+          </div>
+          <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '6px', textAlign: 'center' }}>
+            <div style={{ fontSize: '24px', fontWeight: '700', color: '#8b5cf6' }}>181</div>
+            <div style={{ fontSize: '12px', color: '#6b7280' }}>Data Fields Cataloged</div>
+          </div>
+        </div>
+      </div>
+
       {/* Event Grid */}
       <div style={{
         display: 'grid',
