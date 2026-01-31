@@ -10,6 +10,10 @@ export default function Calendar({ authToken }) {
   const [timezone, setTimezone] = useState('America/Chicago');
   const [editingEvent, setEditingEvent] = useState(null);
   const [showEditForm, setShowEditForm] = useState(false);
+  const [showProgressTracker, setShowProgressTracker] = useState(true);
+  const [filterType, setFilterType] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showPastEvents, setShowPastEvents] = useState(false);
 
   const timezones = [
     { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
@@ -170,6 +174,40 @@ export default function Calendar({ authToken }) {
     return colors[type] || '#6b7280';
   };
 
+  const eventTypes = [
+    'Technical Working Group',
+    'Workshop',
+    'Coalition Update',
+    'Working Group',
+    'Summit'
+  ];
+
+  // Filter and search events
+  const filteredEvents = events.filter(event => {
+    const now = new Date();
+    const eventDate = new Date(event.start_time);
+
+    // Filter by time (upcoming/past)
+    if (!showPastEvents && eventDate < now) return false;
+    if (showPastEvents && eventDate >= now) return false;
+
+    // Filter by type
+    if (filterType !== 'all' && event.event_type !== filterType) return false;
+
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      return (
+        event.title.toLowerCase().includes(query) ||
+        (event.description && event.description.toLowerCase().includes(query)) ||
+        event.location.toLowerCase().includes(query) ||
+        event.event_type.toLowerCase().includes(query)
+      );
+    }
+
+    return true;
+  });
+
   if (loading) {
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -195,8 +233,10 @@ export default function Calendar({ authToken }) {
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '24px'
+        alignItems: 'flex-start',
+        marginBottom: '24px',
+        flexWrap: 'wrap',
+        gap: '16px'
       }}>
         <div>
           <h1 style={{ margin: '0 0 8px 0', fontSize: '28px', fontWeight: '700' }}>
@@ -206,7 +246,7 @@ export default function Calendar({ authToken }) {
             Stakeholder engagement meetings and technical working groups
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <label style={{ fontSize: '14px', fontWeight: '600', color: '#374151' }}>
               🌍 Time Zone:
@@ -246,17 +286,131 @@ export default function Calendar({ authToken }) {
         </div>
       </div>
 
+      {/* Filters and Search */}
+      <div style={{
+        backgroundColor: 'white',
+        border: '2px solid #e5e7eb',
+        borderRadius: '12px',
+        padding: '16px',
+        marginBottom: '20px',
+        display: 'flex',
+        gap: '12px',
+        alignItems: 'center',
+        flexWrap: 'wrap'
+      }}>
+        {/* Search */}
+        <div style={{ flex: '1 1 250px' }}>
+          <input
+            type="text"
+            placeholder="🔍 Search events..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              border: '1px solid #d1d5db',
+              borderRadius: '6px',
+              fontSize: '14px'
+            }}
+          />
+        </div>
+
+        {/* Event Type Filter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <label style={{ fontSize: '14px', fontWeight: '600', color: '#374151', whiteSpace: 'nowrap' }}>
+            Event Type:
+          </label>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            style={{
+              padding: '10px 12px',
+              border: '1px solid #d1d5db',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: 'pointer',
+              minWidth: '200px'
+            }}
+          >
+            <option value="all">All Types</option>
+            {eventTypes.map(type => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Upcoming/Past Toggle */}
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={() => setShowPastEvents(false)}
+            style={{
+              padding: '10px 16px',
+              backgroundColor: !showPastEvents ? '#3b82f6' : '#f3f4f6',
+              color: !showPastEvents ? 'white' : '#374151',
+              border: '1px solid #d1d5db',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            Upcoming
+          </button>
+          <button
+            onClick={() => setShowPastEvents(true)}
+            style={{
+              padding: '10px 16px',
+              backgroundColor: showPastEvents ? '#3b82f6' : '#f3f4f6',
+              color: showPastEvents ? 'white' : '#374151',
+              border: '1px solid #d1d5db',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            Past
+          </button>
+        </div>
+
+        {/* Results Count */}
+        <div style={{ fontSize: '14px', color: '#6b7280', fontWeight: '600', whiteSpace: 'nowrap' }}>
+          {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''}
+        </div>
+      </div>
+
       {/* I-80 Coalition Progress Dashboard */}
       <div style={{
         backgroundColor: 'white',
         border: '2px solid #3b82f6',
         borderRadius: '12px',
-        padding: '20px',
-        marginBottom: '20px'
+        marginBottom: '20px',
+        overflow: 'hidden'
       }}>
-        <h2 style={{ margin: '0 0 16px 0', fontSize: '20px', fontWeight: '700', color: '#1f2937' }}>
-          🎯 I-80 Coalition Progress Tracker
-        </h2>
+        {/* Collapsible Header */}
+        <div
+          onClick={() => setShowProgressTracker(!showProgressTracker)}
+          style={{
+            padding: '16px 20px',
+            cursor: 'pointer',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            backgroundColor: showProgressTracker ? 'white' : '#f9fafb',
+            transition: 'background-color 0.2s'
+          }}
+        >
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: '#1f2937' }}>
+            🎯 I-80 Coalition Progress Tracker
+          </h2>
+          <span style={{ fontSize: '20px', color: '#6b7280' }}>
+            {showProgressTracker ? '▼' : '▶'}
+          </span>
+        </div>
+
+        {showProgressTracker && (
+          <div style={{ padding: '0 20px 20px 20px' }}>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
           {/* Current Tasks */}
@@ -345,6 +499,8 @@ export default function Calendar({ authToken }) {
             <div style={{ fontSize: '12px', color: '#6b7280' }}>Data Fields Cataloged</div>
           </div>
         </div>
+          </div>
+        )}
       </div>
 
       {/* Event Grid */}
@@ -355,17 +511,21 @@ export default function Calendar({ authToken }) {
       }}>
         {/* Events List */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {events.length === 0 ? (
+          {filteredEvents.length === 0 ? (
             <div style={{
               padding: '40px',
               textAlign: 'center',
               backgroundColor: '#f9fafb',
               borderRadius: '12px'
             }}>
-              No upcoming events scheduled
+              {searchQuery || filterType !== 'all'
+                ? 'No events match your filters'
+                : showPastEvents
+                ? 'No past events found'
+                : 'No upcoming events scheduled'}
             </div>
           ) : (
-            events.map(event => (
+            filteredEvents.map(event => (
               <div
                 key={event.id}
                 onClick={() => fetchEventDetails(event.id)}
