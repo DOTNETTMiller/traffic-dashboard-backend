@@ -38,15 +38,28 @@ This creates:
 - `latest_corridor_update_status` view - quick status overview
 - Timestamps on `corridors` table
 
-### 2. Enable GitHub Action (Automated Checks)
+### 2. Enable GitHub Action (Automated Checks + Auto-Update)
 
 The GitHub Action is already set up at `.github/workflows/check-corridor-updates.yml`
 
 **What it does:**
 - ✅ Runs automatically on the 1st of every month
 - ✅ Checks all interstate corridors for OSM updates
-- ✅ Creates a GitHub issue if updates are needed
+- ✅ **AUTO-UPDATES minor changes** (with safety limits)
+- ✅ Creates GitHub issue for significant changes (requires manual approval)
 - ✅ Can be manually triggered via GitHub UI
+
+**Auto-Update Safety Rules:**
+
+The system will **automatically update** when:
+- ✅ Changes are **minor** (<180 days old)
+- ✅ Fewer than **6 corridors** need updating
+- ✅ No significant updates detected
+
+The system will **require manual approval** when:
+- ⚠️ Any corridor is >180 days old (significant update)
+- ⚠️ 6 or more corridors need updating (bulk update)
+- ⚠️ Creates GitHub issue with review instructions
 
 **Requirements:**
 - GitHub repository must have `DATABASE_URL` secret set
@@ -392,18 +405,69 @@ railway run psql < scripts/setup_corridor_monitoring.sql
 ```
 
 **Then forget about it:**
-- GitHub Action runs monthly automatically
-- Creates issues when updates needed
-- You just run the update script when notified
+- ✅ GitHub Action runs monthly automatically
+- ✅ **AUTO-UPDATES minor changes** (<6 corridors, <180 days)
+- ✅ Creates success notification after auto-updates
+- ✅ Creates manual approval issue for significant changes
+- ✅ Automatic database backup before updates
+- ✅ Rollback instructions if needed
 
 **Manual check anytime:**
 ```bash
 railway run node scripts/check_corridor_updates.js
 ```
 
-**Update when needed:**
+**Manual update (only for significant changes):**
 ```bash
 railway run node scripts/fetch_all_interstate_geometries.js
 ```
 
-🎯 **Result:** Always-fresh corridor geometries without manual tracking!
+🎯 **Result:** Always-fresh corridor geometries with zero manual effort!
+
+---
+
+## Auto-Update Scenarios
+
+### Scenario 1: Minor Changes (AUTO-UPDATE ✅)
+
+```
+Check runs → 2 corridors need minor updates (45 days old)
+↓
+System auto-updates corridors
+↓
+Creates backup before update
+↓
+Applies updates
+↓
+Posts success notification issue
+↓
+Done! No action needed from you
+```
+
+### Scenario 2: Significant Changes (MANUAL APPROVAL ⚠️)
+
+```
+Check runs → 1 corridor needs significant update (220 days old)
+↓
+System SKIPS auto-update
+↓
+Creates manual approval issue
+↓
+You review the issue
+↓
+You run update manually when ready
+↓
+Done!
+```
+
+### Scenario 3: All Up-to-Date (SILENT ✅)
+
+```
+Check runs → All corridors up-to-date
+↓
+No issue created
+↓
+No action needed
+↓
+System stays quiet
+```
