@@ -8,6 +8,8 @@ export default function Calendar({ authToken }) {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [rsvpStatus, setRsvpStatus] = useState({});
   const [timezone, setTimezone] = useState('America/Chicago');
+  const [editingEvent, setEditingEvent] = useState(null);
+  const [showEditForm, setShowEditForm] = useState(false);
 
   const timezones = [
     { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
@@ -89,6 +91,58 @@ export default function Calendar({ authToken }) {
 
   const downloadFullCalendar = () => {
     window.open(`${config.apiUrl}/api/calendar/i80-coalition.ics`, '_blank');
+  };
+
+  const handleEditEvent = (event) => {
+    setEditingEvent({
+      ...event,
+      start_time: event.start_time ? event.start_time.slice(0, 16) : '',
+      end_time: event.end_time ? event.end_time.slice(0, 16) : ''
+    });
+    setShowEditForm(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!authToken) {
+      alert('Please log in to edit events');
+      return;
+    }
+
+    try {
+      const eventData = {
+        title: editingEvent.title,
+        description: editingEvent.description,
+        location: editingEvent.location,
+        virtual_link: editingEvent.virtual_link,
+        organizer_name: editingEvent.organizer_name,
+        organizer_email: editingEvent.organizer_email,
+        is_tentative: editingEvent.is_tentative,
+        is_optional: editingEvent.is_optional
+      };
+
+      const response = await fetch(`${config.apiUrl}/api/calendar/events/${editingEvent.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify(eventData)
+      });
+
+      if (!response.ok) throw new Error('Failed to update event');
+
+      alert('Event updated successfully!');
+      setShowEditForm(false);
+      setEditingEvent(null);
+      fetchEvents();
+
+      // Refresh selected event details
+      if (selectedEvent && selectedEvent.id === editingEvent.id) {
+        fetchEventDetails(editingEvent.id);
+      }
+    } catch (err) {
+      alert('Error updating event: ' + err.message);
+    }
   };
 
   const formatDate = (dateStr) => {
@@ -330,8 +384,202 @@ export default function Calendar({ authToken }) {
           )}
         </div>
 
+        {/* Edit Event Form */}
+        {showEditForm && editingEvent && (
+          <div style={{
+            position: 'sticky',
+            top: '20px',
+            backgroundColor: 'white',
+            border: '2px solid #3b82f6',
+            borderRadius: '12px',
+            padding: '24px',
+            maxHeight: 'calc(100vh - 160px)',
+            overflowY: 'auto'
+          }}>
+            <h2 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: '700' }}>
+              ✏️ Edit Event
+            </h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Title */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>
+                  Event Title
+                </label>
+                <input
+                  type="text"
+                  value={editingEvent.title}
+                  onChange={(e) => setEditingEvent({ ...editingEvent, title: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>
+                  Description
+                </label>
+                <textarea
+                  value={editingEvent.description || ''}
+                  onChange={(e) => setEditingEvent({ ...editingEvent, description: e.target.value })}
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    resize: 'vertical'
+                  }}
+                />
+              </div>
+
+              {/* Location */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>
+                  Location
+                </label>
+                <input
+                  type="text"
+                  value={editingEvent.location}
+                  onChange={(e) => setEditingEvent({ ...editingEvent, location: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+
+              {/* Virtual Link */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>
+                  Virtual Meeting Link
+                </label>
+                <input
+                  type="url"
+                  value={editingEvent.virtual_link || ''}
+                  onChange={(e) => setEditingEvent({ ...editingEvent, virtual_link: e.target.value })}
+                  placeholder="https://teams.microsoft.com/..."
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+
+              {/* Organizer Name */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>
+                  Organizer Name
+                </label>
+                <input
+                  type="text"
+                  value={editingEvent.organizer_name || ''}
+                  onChange={(e) => setEditingEvent({ ...editingEvent, organizer_name: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+
+              {/* Organizer Email */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>
+                  Organizer Email
+                </label>
+                <input
+                  type="email"
+                  value={editingEvent.organizer_email || ''}
+                  onChange={(e) => setEditingEvent({ ...editingEvent, organizer_email: e.target.value })}
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+
+              {/* Flags */}
+              <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={editingEvent.is_tentative || false}
+                    onChange={(e) => setEditingEvent({ ...editingEvent, is_tentative: e.target.checked })}
+                  />
+                  <span style={{ fontSize: '13px', fontWeight: '600' }}>Tentative</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={editingEvent.is_optional || false}
+                    onChange={(e) => setEditingEvent({ ...editingEvent, is_optional: e.target.checked })}
+                  />
+                  <span style={{ fontSize: '13px', fontWeight: '600' }}>Optional</span>
+                </label>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                <button
+                  onClick={handleSaveEdit}
+                  style={{
+                    padding: '12px 24px',
+                    backgroundColor: '#10b981',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  💾 Save Changes
+                </button>
+                <button
+                  onClick={() => {
+                    setShowEditForm(false);
+                    setEditingEvent(null);
+                  }}
+                  style={{
+                    padding: '12px 24px',
+                    backgroundColor: '#6b7280',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Event Details Panel */}
-        {selectedEvent && (
+        {selectedEvent && !showEditForm && (
           <div style={{
             position: 'sticky',
             top: '20px',
@@ -357,19 +605,38 @@ export default function Calendar({ authToken }) {
               }}>
                 {selectedEvent.title}
               </h2>
-              <button
-                onClick={() => setSelectedEvent(null)}
-                style={{
-                  padding: '4px 8px',
-                  backgroundColor: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '20px',
-                  color: '#6b7280'
-                }}
-              >
-                ✕
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {authToken && (
+                  <button
+                    onClick={() => handleEditEvent(selectedEvent)}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: '#3b82f6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: '600'
+                    }}
+                  >
+                    ✏️ Edit
+                  </button>
+                )}
+                <button
+                  onClick={() => setSelectedEvent(null)}
+                  style={{
+                    padding: '4px 8px',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '20px',
+                    color: '#6b7280'
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             <div style={{
