@@ -523,18 +523,19 @@ body {
 /* Fix close button position to top right corner */
 .leaflet-popup-close-button {
   position: absolute !important;
-  top: 8px !important;
-  right: 8px !important;
-  padding: 4px 8px !important;
-  font-size: 20px !important;
+  top: 2px !important;
+  right: 2px !important;
+  padding: 2px 6px !important;
+  font-size: 18px !important;
   line-height: 1 !important;
   color: #6b7280 !important;
-  background: white !important;
+  background: rgba(255, 255, 255, 0.95) !important;
   border: 1px solid #e5e7eb !important;
-  border-radius: 4px !important;
+  border-radius: 3px !important;
   cursor: pointer !important;
-  z-index: 1000 !important;
+  z-index: 10001 !important;
   transition: all 0.2s ease !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
 }
 
 .leaflet-popup-close-button:hover {
