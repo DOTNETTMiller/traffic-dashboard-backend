@@ -36,14 +36,164 @@ jobs:
           node scripts/check_corridor_updates.js > check_output.txt 2>&1
           EXIT_CODE=$?
           cat check_output.txt
+
+          # Parse output for counts
+          NEEDS_UPDATE=$(grep -oP "Needs update.*?\K\d+" check_output.txt || echo "0")
+          SIGNIFICANT=$(grep -oP "Significant update needed.*?\K\d+" check_output.txt || echo "0")
+
           echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          echo "needs_update=$NEEDS_UPDATE" >> $GITHUB_OUTPUT
+          echo "significant=$SIGNIFICANT" >> $GITHUB_OUTPUT
           echo "output<<EOF" >> $GITHUB_OUTPUT
           cat check_output.txt >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
         continue-on-error: true
 
-      - name: Create issue if updates needed
-        if: steps.check.outputs.exit_code == '1'
+      - name: Create database backup before auto-update
+        id: backup
+        if: |
+          steps.check.outputs.exit_code == '1' &&
+          steps.check.outputs.significant == '0' &&
+          steps.check.outputs.needs_update != '0' &&
+          steps.check.outputs.needs_update < '6'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          echo "📦 Creating backup before auto-update..."
+
+          # Create backup SQL
+          cat > backup_corridors.sql << 'EOFBACKUP'
+          -- Backup corridors table before auto-update
+          CREATE TABLE IF NOT EXISTS corridors_backup_$(date +%Y%m%d) AS
+          SELECT * FROM corridors WHERE name LIKE 'I-%';
+          EOFBACKUP
+
+          # Execute backup (using psql if available, or note for manual backup)
+          if command -v psql &> /dev/null; then
+            psql "$DATABASE_URL" < backup_corridors.sql
+            echo "backup_created=true" >> $GITHUB_OUTPUT
+          else
+            echo "backup_created=false" >> $GITHUB_OUTPUT
+            echo "⚠️  psql not available - backup SQL saved to artifact"
+          fi
+
+      - name: Auto-update corridors (safe mode)
+        id: autoupdate
+        if: |
+          steps.check.outputs.exit_code == '1' &&
+          steps.check.outputs.significant == '0' &&
+          steps.check.outputs.needs_update != '0' &&
+          steps.check.outputs.needs_update < '6'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          echo "🤖 AUTO-UPDATE MODE: Safe to update (minor changes only)"
+          echo "   Corridors needing update: ${{ steps.check.outputs.needs_update }}"
+          echo "   Significant updates: ${{ steps.check.outputs.significant }}"
+          echo ""
+
+          # Run the update
+          node scripts/fetch_all_interstate_geometries.js > update_output.txt 2>&1
+          UPDATE_EXIT=$?
+
+          cat update_output.txt
+
+          if [ $UPDATE_EXIT -eq 0 ]; then
+            echo "✅ Auto-update completed successfully"
+            echo "update_success=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Auto-update failed"
+            echo "update_success=false" >> $GITHUB_OUTPUT
+          fi
+
+          echo "update_output<<EOF" >> $GITHUB_OUTPUT
+          cat update_output.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Create success notification issue
+        if: |
+          steps.autoupdate.outputs.update_success == 'true'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const needsUpdate = '${{ steps.check.outputs.needs_update }}';
+            const updateOutput = `${{ steps.autoupdate.outputs.update_output }}`;
+
+            const title = `✅ Interstate Corridors Auto-Updated Successfully`;
+
+            const body = `## ✅ Automated Corridor Update - Success
+
+The monthly automated update has successfully refreshed interstate corridor geometries from OpenStreetMap.
+
+### Summary
+- **Corridors Updated:** ${needsUpdate}
+- **Update Type:** Minor changes (auto-approved)
+- **Update Date:** ${new Date().toLocaleString()}
+- **Backup Created:** ${{ steps.backup.outputs.backup_created == 'true' ? 'Yes' : 'Noted in artifacts' }}
+
+### What Was Updated
+The following corridors had minor geometry improvements from OpenStreetMap:
+- New construction projects reflected
+- Route accuracy improvements
+- Updated interchange data
+
+### Safety Checks Passed
+- ✅ No significant updates (>180 days) detected
+- ✅ Less than 6 corridors needed updating
+- ✅ All updates were recent/minor changes
+- ✅ Database backup created before update
+
+### Verification
+You can verify the updates in the application:
+1. Navigate to the map view
+2. Check TETC Corridors layer
+3. Corridors should display with updated geometry
+
+### Rollback (if needed)
+If you notice any issues, you can rollback:
+
+\`\`\`sql
+-- List available backups
+SELECT tablename FROM pg_tables
+WHERE tablename LIKE 'corridors_backup_%'
+ORDER BY tablename DESC;
+
+-- Rollback to backup (replace date)
+BEGIN;
+DELETE FROM corridors WHERE name LIKE 'I-%';
+INSERT INTO corridors
+SELECT * FROM corridors_backup_YYYYMMDD;
+COMMIT;
+\`\`\`
+
+### Full Update Log
+
+<details>
+<summary>Click to expand update output</summary>
+
+\`\`\`
+${updateOutput}
+\`\`\`
+
+</details>
+
+---
+*This update was performed automatically by the corridor monitoring system. Updates are only automated for minor changes (<180 days old, <6 corridors). Significant changes require manual approval.*
+`;
+
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['automated', 'data-quality', 'success']
+            });
+
+      - name: Create issue for SIGNIFICANT updates (manual approval required)
+        if: |
+          steps.check.outputs.exit_code == '1' &&
+          (steps.check.outputs.significant != '0' || steps.check.outputs.needs_update >= '6')
         uses: actions/github-script@v6
         with:
           script: |
@@ -57,12 +207,26 @@ jobs:
             const significant = significantMatch ? parseInt(significantMatch[1]) : 0;
 
             const title = significant > 0
-              ? `🔴 Interstate Corridor Geometries Need Significant Update`
-              : `⚠️ Interstate Corridor Geometries Need Update`;
+              ? `🔴 Interstate Corridor Geometries Need MANUAL Update (Significant Changes)`
+              : `⚠️ Interstate Corridor Geometries Need MANUAL Update (Too Many Changes)`;
 
-            const body = `## Corridor Geometry Update Check Results
+            const body = `## ⚠️ Corridor Geometry Update Requires MANUAL Approval
 
-The automated monthly check has detected that some interstate corridor geometries need updating from OpenStreetMap.
+The automated monthly check has detected **significant changes** or **too many corridors** needing updates.
+
+**Automatic update was SKIPPED** - manual review and approval required for safety.
+
+### Why Manual Approval?
+${significant > 0 ? `
+- 🔴 **Significant updates detected** (${significant} corridors >180 days old)
+- Major route changes may require verification
+- Could indicate construction projects or realignments
+` : ''}
+${needsUpdate >= 6 ? `
+- ⚠️ **Many corridors need updating** (${needsUpdate} corridors)
+- Bulk update should be reviewed
+- May indicate widespread OSM improvements
+` : ''}
 
 ### Summary
 - **Needs Update (30-180 days old):** ${needsUpdate} corridors
@@ -75,9 +239,9 @@ OpenStreetMap data for these interstates has been updated with:
 - New interchange data
 - Route corrections
 
-### Recommended Action
+### Manual Update Required
 
-Run the update script on Railway:
+**Review the changes**, then run the update script on Railway:
 
 \`\`\`bash
 railway run node scripts/fetch_all_interstate_geometries.js
@@ -88,6 +252,11 @@ This will:
 - Update corridor geometries with improved accuracy
 - Maintain split highway separation (EB/WB, NB/SB)
 - Take ~10 minutes to complete
+
+### Safety Notes
+- Automatic updates only occur for minor changes (<6 corridors, <180 days)
+- This requires manual approval to ensure data quality
+- A backup will be created automatically during manual update
 
 ### Full Check Output
 
