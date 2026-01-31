@@ -14,7 +14,7 @@ import OSWRegulationsLayer from './OSWRegulationsLayer';
 import StateOSWRegulationsLayer from './StateOSWRegulationsLayer';
 import ITSEquipmentLayer from './ITSEquipmentLayer';
 import NetworkTopologyLayer from './NetworkTopologyLayer';
-// import TETCCorridorsLayer from './TETCCorridorsLayer'; // Temporarily disabled - needs proper OSM relation-based routing
+import TETCCorridorsLayer from './TETCCorridorsLayer';
 import EventFormatPopup from './EventFormatPopup';
 import BoundingBoxSelector from './BoundingBoxSelector';
 import HeatMapControl from './HeatMapControl';
@@ -646,8 +646,7 @@ export default function TrafficMap({
         <InterchangeLayer showInterchanges={showInterchanges} />
 
         {/* TETC Vendor Coverage Corridors - shows data quality scores overlaid with events */}
-        {/* <TETCCorridorsLayer events={events} /> */}
-        {/* Temporarily disabled - needs proper OSM relation-based routing to avoid fragmented lines */}
+        <TETCCorridorsLayer events={events} />
 
         {/* Bridge Clearance Layer */}
         {showBridgeClearances && (
