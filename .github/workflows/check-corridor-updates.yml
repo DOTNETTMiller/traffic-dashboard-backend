@@ -1,0 +1,122 @@
+# GitHub Action to automatically check for corridor geometry updates
+# Runs monthly and creates an issue if updates are needed
+
+name: Check Interstate Corridor Updates
+
+on:
+  # Run on the 1st of every month at 2 AM UTC
+  schedule:
+    - cron: '0 2 1 * *'
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: |
+          npm install pg axios
+
+      - name: Check for corridor updates
+        id: check
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          node scripts/check_corridor_updates.js > check_output.txt 2>&1
+          EXIT_CODE=$?
+          cat check_output.txt
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          echo "output<<EOF" >> $GITHUB_OUTPUT
+          cat check_output.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Create issue if updates needed
+        if: steps.check.outputs.exit_code == '1'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const output = `${{ steps.check.outputs.output }}`;
+
+            // Parse output to extract summary
+            const needsUpdateMatch = output.match(/Needs update.*?(\d+) corridors/);
+            const significantMatch = output.match(/Significant update needed.*?(\d+) corridors/);
+
+            const needsUpdate = needsUpdateMatch ? parseInt(needsUpdateMatch[1]) : 0;
+            const significant = significantMatch ? parseInt(significantMatch[1]) : 0;
+
+            const title = significant > 0
+              ? `🔴 Interstate Corridor Geometries Need Significant Update`
+              : `⚠️ Interstate Corridor Geometries Need Update`;
+
+            const body = `## Corridor Geometry Update Check Results
+
+The automated monthly check has detected that some interstate corridor geometries need updating from OpenStreetMap.
+
+### Summary
+- **Needs Update (30-180 days old):** ${needsUpdate} corridors
+- **Significant Update (>180 days old):** ${significant} corridors
+
+### What This Means
+OpenStreetMap data for these interstates has been updated with:
+- Construction/realignment projects
+- Improved route accuracy
+- New interchange data
+- Route corrections
+
+### Recommended Action
+
+Run the update script on Railway:
+
+\`\`\`bash
+railway run node scripts/fetch_all_interstate_geometries.js
+\`\`\`
+
+This will:
+- Fetch latest OSM data for all interstates
+- Update corridor geometries with improved accuracy
+- Maintain split highway separation (EB/WB, NB/SB)
+- Take ~10 minutes to complete
+
+### Full Check Output
+
+<details>
+<summary>Click to expand detailed results</summary>
+
+\`\`\`
+${output}
+\`\`\`
+
+</details>
+
+### More Information
+See \`docs/CORRIDOR_GEOMETRY_FIX.md\` for complete documentation.
+
+---
+*This issue was automatically created by the corridor update checker. It runs monthly on the 1st of each month.*
+`;
+
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['maintenance', 'data-quality', 'automated']
+            });
+
+      - name: Update check successful
+        if: steps.check.outputs.exit_code == '0'
+        run: |
+          echo "✅ All corridor geometries are up to date!"
+          echo "No action needed at this time."
