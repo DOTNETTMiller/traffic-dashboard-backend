@@ -119,6 +119,7 @@ jobs:
           script: |
             const needsUpdate = '${{ steps.check.outputs.needs_update }}';
             const updateOutput = `${{ steps.autoupdate.outputs.update_output }}`;
+            const backupCreated = '${{ steps.backup.outputs.backup_created }}';
 
             const title = `✅ Interstate Corridors Auto-Updated Successfully`;
 
@@ -130,7 +131,7 @@ The monthly automated update has successfully refreshed interstate corridor geom
 - **Corridors Updated:** ${needsUpdate}
 - **Update Type:** Minor changes (auto-approved)
 - **Update Date:** ${new Date().toLocaleString()}
-- **Backup Created:** ${{ steps.backup.outputs.backup_created == 'true' ? 'Yes' : 'Noted in artifacts' }}
+- **Backup Created:** ${backupCreated === 'true' ? 'Yes' : 'Noted in artifacts'}
 
 ### What Was Updated
 The following corridors had minor geometry improvements from OpenStreetMap:
