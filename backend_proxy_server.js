@@ -11979,6 +11979,7 @@ app.get('/api/data-quality/corridors', async (req, res) => {
     await client.connect();
 
     // Get corridors with their average quality scores and geometry
+    // Show ALL corridors that have geometry, regardless of whether they have data feeds
     const query = `
       SELECT
         c.id,
@@ -11994,8 +11995,8 @@ app.get('/api/data-quality/corridors', async (req, res) => {
       LEFT JOIN data_feeds df ON c.id = df.corridor_id
       LEFT JOIN validation_runs vr ON df.id = vr.data_feed_id
       LEFT JOIN quality_scores qs ON vr.id = qs.validation_run_id
+      WHERE c.geometry IS NOT NULL
       GROUP BY c.id, c.name, c.description, c.geometry, c.bounds
-      HAVING COUNT(DISTINCT df.id) > 0
       ORDER BY c.name
     `;
 
