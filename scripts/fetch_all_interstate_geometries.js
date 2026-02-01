@@ -294,10 +294,10 @@ async function upsertCorridor(interstate, direction, geometry) {
     );
     console.log(`   ✅ Updated: ${corridorName}`);
   } else {
-    // Insert
+    // Insert - generate UUID for id
     await pool.query(
-      `INSERT INTO corridors (name, description, geometry, bounds, created_at, updated_at)
-       VALUES ($1, $2, $3::jsonb, $4::jsonb, NOW(), NOW())`,
+      `INSERT INTO corridors (id, name, description, geometry, bounds, created_at, updated_at)
+       VALUES (gen_random_uuid(), $1, $2, $3::jsonb, $4::jsonb, NOW(), NOW())`,
       [corridorName, description, JSON.stringify(geojson), JSON.stringify(bounds)]
     );
     console.log(`   ✅ Created: ${corridorName}`);
