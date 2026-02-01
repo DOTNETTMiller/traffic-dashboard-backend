@@ -23,19 +23,48 @@ const pool = new Pool({
   ssl: DATABASE_URL.includes('railway') ? { rejectUnauthorized: false } : false
 });
 
-// Major interstate corridors to fetch
+// ALL major US Interstate highways
 const INTERSTATES = [
-  { number: '5', name: 'I-5', bounds: { south: 32.5, north: 49.0, west: -124.5, east: -117.0 }, orientation: 'NS' },
+  // Coast-to-coast East-West routes
   { number: '10', name: 'I-10', bounds: { south: 29.5, north: 34.5, west: -118.5, east: -81.5 }, orientation: 'EW' },
-  { number: '15', name: 'I-15', bounds: { south: 32.5, north: 49.0, west: -117.5, east: -111.0 }, orientation: 'NS' },
   { number: '20', name: 'I-20', bounds: { south: 31.5, north: 34.5, west: -96.5, east: -80.0 }, orientation: 'EW' },
-  { number: '25', name: 'I-25', bounds: { south: 31.5, north: 45.0, west: -107.0, east: -104.0 }, orientation: 'NS' },
-  { number: '35', name: 'I-35', bounds: { south: 27.5, north: 48.5, west: -99.5, east: -92.5 }, orientation: 'NS' },
   { number: '40', name: 'I-40', bounds: { south: 34.0, north: 36.5, west: -118.5, east: -77.5 }, orientation: 'EW' },
   { number: '70', name: 'I-70', bounds: { south: 38.5, north: 40.5, west: -112.0, east: -76.5 }, orientation: 'EW' },
   { number: '80', name: 'I-80', bounds: { south: 39.5, north: 42.5, west: -124.0, east: -74.0 }, orientation: 'EW' },
   { number: '90', name: 'I-90', bounds: { south: 41.5, north: 48.5, west: -122.5, east: -71.0 }, orientation: 'EW' },
-  { number: '95', name: 'I-95', bounds: { south: 25.5, north: 47.5, west: -80.5, east: -67.0 }, orientation: 'NS' }
+  { number: '94', name: 'I-94', bounds: { south: 41.5, north: 48.5, west: -112.0, east: -83.0 }, orientation: 'EW' },
+
+  // Border-to-border North-South routes
+  { number: '5', name: 'I-5', bounds: { south: 32.5, north: 49.0, west: -124.5, east: -117.0 }, orientation: 'NS' },
+  { number: '15', name: 'I-15', bounds: { south: 32.5, north: 49.0, west: -117.5, east: -111.0 }, orientation: 'NS' },
+  { number: '25', name: 'I-25', bounds: { south: 31.5, north: 45.0, west: -107.0, east: -104.0 }, orientation: 'NS' },
+  { number: '35', name: 'I-35', bounds: { south: 27.5, north: 48.5, west: -99.5, east: -92.5 }, orientation: 'NS' },
+  { number: '55', name: 'I-55', bounds: { south: 29.5, north: 42.0, west: -91.0, east: -87.5 }, orientation: 'NS' },
+  { number: '65', name: 'I-65', bounds: { south: 30.5, north: 42.0, west: -87.5, east: -85.0 }, orientation: 'NS' },
+  { number: '75', name: 'I-75', bounds: { south: 25.0, north: 46.5, west: -85.0, east: -81.0 }, orientation: 'NS' },
+  { number: '95', name: 'I-95', bounds: { south: 25.5, north: 47.5, west: -80.5, east: -67.0 }, orientation: 'NS' },
+
+  // Major regional routes (60s-80s)
+  { number: '64', name: 'I-64', bounds: { south: 37.0, north: 39.5, west: -91.5, east: -75.5 }, orientation: 'EW' },
+  { number: '66', name: 'I-66', bounds: { south: 38.5, north: 39.0, west: -78.5, east: -77.0 }, orientation: 'EW' },
+  { number: '69', name: 'I-69', bounds: { south: 26.0, north: 46.0, west: -95.5, east: -83.0 }, orientation: 'NS' },
+  { number: '71', name: 'I-71', bounds: { south: 38.0, north: 42.0, west: -85.0, east: -81.0 }, orientation: 'NS' },
+  { number: '74', name: 'I-74', bounds: { south: 39.0, north: 42.0, west: -91.5, east: -80.5 }, orientation: 'EW' },
+  { number: '76', name: 'I-76', bounds: { south: 39.5, north: 41.0, west: -105.0, east: -74.0 }, orientation: 'EW' },
+  { number: '77', name: 'I-77', bounds: { south: 33.5, north: 41.5, west: -82.0, east: -80.0 }, orientation: 'NS' },
+  { number: '78', name: 'I-78', bounds: { south: 40.0, north: 41.0, west: -76.0, east: -74.0 }, orientation: 'EW' },
+  { number: '79', name: 'I-79', bounds: { south: 38.5, north: 42.0, west: -81.0, east: -79.5 }, orientation: 'NS' },
+  { number: '81', name: 'I-81', bounds: { south: 36.0, north: 43.5, west: -82.5, east: -75.5 }, orientation: 'NS' },
+  { number: '84', name: 'I-84', bounds: { south: 41.0, north: 46.0, west: -124.0, east: -73.0 }, orientation: 'EW' },
+  { number: '85', name: 'I-85', bounds: { south: 32.5, north: 39.0, west: -86.0, east: -77.5 }, orientation: 'NS' },
+
+  // Additional routes
+  { number: '8', name: 'I-8', bounds: { south: 32.5, north: 33.5, west: -117.5, east: -109.0 }, orientation: 'EW' },
+  { number: '30', name: 'I-30', bounds: { south: 33.0, north: 35.0, west: -96.0, east: -90.0 }, orientation: 'EW' },
+  { number: '44', name: 'I-44', bounds: { south: 33.5, north: 39.0, west: -100.0, east: -90.5 }, orientation: 'EW' },
+  { number: '45', name: 'I-45', bounds: { south: 29.0, north: 32.5, west: -96.0, east: -94.5 }, orientation: 'NS' },
+  { number: '57', name: 'I-57', bounds: { south: 37.0, north: 41.5, west: -90.0, east: -87.5 }, orientation: 'NS' },
+  { number: '59', name: 'I-59', bounds: { south: 30.0, north: 35.0, west: -91.0, east: -84.5 }, orientation: 'NS' }
 ];
 
 /**
