@@ -11997,7 +11997,7 @@ app.get('/api/data-quality/corridors', async (req, res) => {
       LEFT JOIN validation_runs vr ON df.id = vr.data_feed_id
       LEFT JOIN quality_scores qs ON vr.id = qs.validation_run_id
       WHERE c.geometry IS NOT NULL
-        AND jsonb_array_length(c.geometry->'coordinates') > 1000
+        AND jsonb_array_length(c.geometry->'coordinates') > 5000
         AND c.name ~ '(EB|WB|NB|SB)$'
       GROUP BY c.id, c.name, c.description, c.geometry, c.bounds
       ORDER BY c.name
