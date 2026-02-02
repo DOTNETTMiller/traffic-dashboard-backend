@@ -646,7 +646,7 @@ export default function TrafficMap({
         <InterchangeLayer showInterchanges={showInterchanges} />
 
         {/* TETC Vendor Coverage Corridors - shows data quality scores overlaid with events */}
-        <TETCCorridorsLayer events={events} />
+        {/* <TETCCorridorsLayer events={events} /> */}
 
         {/* Bridge Clearance Layer */}
         {showBridgeClearances && (
