@@ -933,45 +933,55 @@ async function processOSRMQueue() {
   osrmProcessing = false;
 }
 
-// Get interstate geometry from database for a corridor segment
-function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, direction = null) {
+// Get interstate geometry from PostGIS database for a corridor segment
+async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, direction = null) {
   if (!corridor || !state || !corridor.match(/^I-\d+/i)) {
     return null; // Not an interstate
   }
 
   try {
-    // Normalize direction
+    // Normalize direction to 2-letter codes (WB, EB, NB, SB)
     let dir = null;
     if (direction) {
       const d = direction.toLowerCase();
-      if (d.includes('north') || d.includes('nb') || d === 'n') dir = 'northbound';
-      else if (d.includes('south') || d.includes('sb') || d === 's') dir = 'southbound';
-      else if (d.includes('east') || d.includes('eb') || d === 'e') dir = 'eastbound';
-      else if (d.includes('west') || d.includes('wb') || d === 'w') dir = 'westbound';
+      if (d.includes('north') || d.includes('nb') || d === 'n') dir = 'NB';
+      else if (d.includes('south') || d.includes('sb') || d === 's') dir = 'SB';
+      else if (d.includes('east') || d.includes('eb') || d === 'e') dir = 'EB';
+      else if (d.includes('west') || d.includes('wb') || d === 'w') dir = 'WB';
     }
 
-    // Try to get stored interstate geometry
-    const query = dir
-      ? 'SELECT geometry FROM interstate_geometries WHERE corridor = ? AND state = ? AND direction = ?'
-      : 'SELECT geometry FROM interstate_geometries WHERE corridor = ? AND state = ? LIMIT 1';
+    console.log(`🔍 Looking for Interstate geometry: ${corridor} ${state} ${dir || 'any direction'}`);
 
-    const params = dir ? [corridor, state, dir] : [corridor, state];
-    const result = db.db.prepare(query).get(...params);
+    // Connect to PostGIS database
+    const { Pool } = require('pg');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    });
 
-    if (!result) {
-      return null;
-    }
-
-    let fullGeometry;
     try {
-      fullGeometry = JSON.parse(result.geometry);
-    } catch (parseError) {
-      console.error(`❌ Invalid JSON in interstate_geometries for ${corridor} ${state} ${dir || 'any'}`);
-      return null;
-    }
+      // Query PostGIS for the Interstate geometry
+      const query = dir
+        ? 'SELECT ST_AsGeoJSON(geometry) as geojson FROM interstate_geometries WHERE corridor = $1 AND state = $2 AND direction = $3'
+        : 'SELECT ST_AsGeoJSON(geometry) as geojson FROM interstate_geometries WHERE corridor = $1 AND state = $2 LIMIT 1';
 
-    // Extract the segment between our start/end points
-    return extractSegment(fullGeometry, lat1, lng1, lat2, lng2);
+      const params = dir ? [corridor, state, dir] : [corridor, state];
+      const result = await pool.query(query, params);
+
+      if (result.rows.length === 0) {
+        console.log(`❌ No Interstate geometry found for ${corridor} ${state} ${dir || 'any'}`);
+        return null;
+      }
+
+      const fullGeometry = JSON.parse(result.rows[0].geojson);
+      console.log(`✅ Found Interstate geometry with ${fullGeometry.coordinates.length} points`);
+
+      // Extract the segment between our start/end points
+      return extractSegment(fullGeometry.coordinates, lat1, lng1, lat2, lng2);
+
+    } finally {
+      await pool.end();
+    }
 
   } catch (error) {
     console.error('Error fetching interstate geometry:', error.message);
@@ -1069,7 +1079,7 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
 
   // 1. Check for interstate geometry (pre-fetched highway geometries)
   if (corridor && state) {
-    const interstateGeom = getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, direction);
+    const interstateGeom = await getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, direction);
     if (interstateGeom) {
       console.log(`✅ Using interstate geometry for ${corridor} ${state} ${direction}`);
 
