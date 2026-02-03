@@ -61,3 +61,10 @@ DATABASE_INTEGRATION_PLAN.md
 DATA_GOVERNANCE_PLAN.md
 FHWA_RESPONSE.md
 uploads/ifc/
+
+# Claude Code local settings with database passwords
+.claude/settings.local.json
+
+# Scripts with hardcoded database URLs
+scripts/migrate_to_postgis.js
+scripts/sync_to_postgis.js
