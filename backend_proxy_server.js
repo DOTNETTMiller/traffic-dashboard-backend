@@ -20,6 +20,16 @@ const ComplianceAnalyzer = require('./compliance-analyzer');
 const { OpenAI } = require('openai');
 const IFCParser = require('./utils/ifc-parser');
 const multer = require('multer');
+const { Pool } = require('pg');
+
+// Create a single PostGIS connection pool for the entire application
+const pgPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+  max: 10, // Maximum number of clients in the pool
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000
+});
 
 // Initialize volume data from bundled sources on startup
 function initVolumeData() {
@@ -952,36 +962,24 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
 
     console.log(`🔍 Looking for Interstate geometry: ${corridor} ${state} ${dir || 'any direction'}`);
 
-    // Connect to PostGIS database
-    const { Pool } = require('pg');
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false }
-    });
+    // Query PostGIS for the Interstate geometry using the global pool
+    const query = dir
+      ? 'SELECT ST_AsGeoJSON(geometry) as geojson FROM interstate_geometries WHERE corridor = $1 AND state = $2 AND direction = $3'
+      : 'SELECT ST_AsGeoJSON(geometry) as geojson FROM interstate_geometries WHERE corridor = $1 AND state = $2 LIMIT 1';
 
-    try {
-      // Query PostGIS for the Interstate geometry
-      const query = dir
-        ? 'SELECT ST_AsGeoJSON(geometry) as geojson FROM interstate_geometries WHERE corridor = $1 AND state = $2 AND direction = $3'
-        : 'SELECT ST_AsGeoJSON(geometry) as geojson FROM interstate_geometries WHERE corridor = $1 AND state = $2 LIMIT 1';
+    const params = dir ? [corridor, state, dir] : [corridor, state];
+    const result = await pgPool.query(query, params);
 
-      const params = dir ? [corridor, state, dir] : [corridor, state];
-      const result = await pool.query(query, params);
-
-      if (result.rows.length === 0) {
-        console.log(`❌ No Interstate geometry found for ${corridor} ${state} ${dir || 'any'}`);
-        return null;
-      }
-
-      const fullGeometry = JSON.parse(result.rows[0].geojson);
-      console.log(`✅ Found Interstate geometry with ${fullGeometry.coordinates.length} points`);
-
-      // Extract the segment between our start/end points
-      return extractSegment(fullGeometry.coordinates, lat1, lng1, lat2, lng2);
-
-    } finally {
-      await pool.end();
+    if (result.rows.length === 0) {
+      console.log(`❌ No Interstate geometry found for ${corridor} ${state} ${dir || 'any'}`);
+      return null;
     }
+
+    const fullGeometry = JSON.parse(result.rows[0].geojson);
+    console.log(`✅ Found Interstate geometry with ${fullGeometry.coordinates.length} points`);
+
+    // Extract the segment between our start/end points
+    return extractSegment(fullGeometry.coordinates, lat1, lng1, lat2, lng2);
 
   } catch (error) {
     console.error('Error fetching interstate geometry:', error.message);
