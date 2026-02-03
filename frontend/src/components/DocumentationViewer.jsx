@@ -605,10 +605,10 @@ function DocumentationViewer() {
           }
 
           .doc-table th {
-            background: linear-gradient(to bottom, #1e40af 0%, #1e3a8a 100%);
-            color: white !important;
-            border: 1px solid #1e3a8a;
-            border-bottom: 3px solid #1e3a8a;
+            background: linear-gradient(to bottom, #e5e7eb 0%, #d1d5db 100%);
+            color: #1f2937 !important;
+            border: 1px solid #9ca3af;
+            border-bottom: 3px solid #9ca3af;
             padding: 14px 18px;
             text-align: left;
             font-weight: 700;
@@ -622,7 +622,7 @@ function DocumentationViewer() {
           }
 
           .doc-table th * {
-            color: white !important;
+            color: #1f2937 !important;
           }
 
           .doc-table th:not(:last-child) {
