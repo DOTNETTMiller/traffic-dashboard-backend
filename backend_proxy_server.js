@@ -960,14 +960,25 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
       else if (d.includes('west') || d.includes('wb') || d === 'w') dir = 'WB';
     }
 
-    console.log(`🔍 Looking for Interstate geometry: ${corridor} ${state} ${dir || 'any direction'}`);
+    // Normalize state name to 2-letter abbreviation
+    // Database stores states as 2-letter codes (IA, OH, etc), but snapToRoad passes full names (Iowa, Ohio, etc)
+    const stateAbbreviations = {
+      'iowa': 'IA', 'ohio': 'OH', 'pennsylvania': 'PA', 'nevada': 'NV', 'texas': 'TX',
+      'illinois': 'IL', 'kansas': 'KS', 'nebraska': 'NE', 'indiana': 'IN', 'minnesota': 'MN',
+      'utah': 'UT', 'wyoming': 'WY', 'missouri': 'MO', 'wisconsin': 'WI', 'michigan': 'MI',
+      'new jersey': 'NJ', 'california': 'CA', 'oregon': 'OR', 'washington': 'WA',
+      'colorado': 'CO', 'arizona': 'AZ', 'new mexico': 'NM', 'oklahoma': 'OK'
+    };
+    const stateCode = stateAbbreviations[state.toLowerCase()] || state.toUpperCase();
+
+    console.log(`🔍 Looking for Interstate geometry: ${corridor} ${stateCode} ${dir || 'any direction'}`);
 
     // Query PostGIS for the Interstate geometry using the global pool
     const query = dir
       ? 'SELECT ST_AsGeoJSON(geometry) as geojson FROM interstate_geometries WHERE corridor = $1 AND state = $2 AND direction = $3'
       : 'SELECT ST_AsGeoJSON(geometry) as geojson FROM interstate_geometries WHERE corridor = $1 AND state = $2 LIMIT 1';
 
-    const params = dir ? [corridor, state, dir] : [corridor, state];
+    const params = dir ? [corridor, stateCode, dir] : [corridor, stateCode];
     const result = await pgPool.query(query, params);
 
     if (result.rows.length === 0) {
