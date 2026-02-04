@@ -23,13 +23,22 @@ const multer = require('multer');
 const { Pool } = require('pg');
 
 // Create a single PostGIS connection pool for the entire application
-const pgPool = new Pool({
+const pgPool = process.env.DATABASE_URL ? new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
   max: 10, // Maximum number of clients in the pool
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000
-});
+}) : null;
+
+// Log PostGIS connection status on startup
+if (pgPool) {
+  console.log('✅ PostGIS connection pool initialized (DATABASE_URL is set)');
+  console.log(`   Connection string: ${process.env.DATABASE_URL.replace(/:[^:@]+@/, ':***@')}`);
+} else {
+  console.log('❌ PostGIS connection pool NOT initialized - DATABASE_URL environment variable is not set');
+  console.log('   Interstate geometry snapping will NOT work. Events will show as straight lines.');
+}
 
 // Initialize volume data from bundled sources on startup
 function initVolumeData() {
