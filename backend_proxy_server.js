@@ -3577,6 +3577,41 @@ app.get('/api/documentation/auto', (req, res) => {
   }
 });
 
+// Diagnostic endpoint to check Interstate geometries in database
+app.get('/api/debug/geometries', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.json({
+        success: false,
+        error: 'PostGIS connection pool not initialized',
+        databaseUrl: process.env.DATABASE_URL ? 'SET' : 'NOT SET'
+      });
+    }
+
+    const result = await pgPool.query(`
+      SELECT corridor, state, direction,
+             ST_NumPoints(geometry) as num_points,
+             ST_Length(geometry::geography) / 1000 as length_km
+      FROM interstate_geometries
+      ORDER BY corridor, state, direction
+    `);
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      geometries: result.rows,
+      databaseUrl: 'SET'
+    });
+  } catch (error) {
+    res.json({
+      success: false,
+      error: error.message,
+      stack: error.stack,
+      databaseUrl: process.env.DATABASE_URL ? 'SET' : 'NOT SET'
+    });
+  }
+});
+
 app.get('/api/documentation', (req, res) => {
   const fs = require('fs');
   const path = require('path');
