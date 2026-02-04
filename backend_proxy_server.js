@@ -989,10 +989,11 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
     console.log(`🔍 Looking for Interstate geometry: ${corridor} ${stateCode} ${dir || 'any direction'} (pgPool: ${!!pgPool}, DATABASE_URL: ${process.env.DATABASE_URL ? 'set' : 'NOT SET'})`);
 
     // Query database for the Interstate geometry using the global pool
-    // Note: geometry column stores WKB (Well-Known Binary) hex format, must use ST_AsGeoJSON to convert
+    // Note: geometry column is stored as TEXT (GeoJSON string), NOT PostGIS geometry
+    // So we DON'T use ST_AsGeoJSON() - just select the geometry column directly
     const query = dir
-      ? 'SELECT ST_AsGeoJSON(geometry) as geojson FROM interstate_geometries WHERE corridor = $1 AND state = $2 AND direction = $3'
-      : 'SELECT ST_AsGeoJSON(geometry) as geojson FROM interstate_geometries WHERE corridor = $1 AND state = $2 LIMIT 1';
+      ? 'SELECT geometry FROM interstate_geometries WHERE corridor = $1 AND state = $2 AND direction = $3'
+      : 'SELECT geometry FROM interstate_geometries WHERE corridor = $1 AND state = $2 LIMIT 1';
 
     const params = dir ? [corridor, stateCode, dir] : [corridor, stateCode];
     const result = await pgPool.query(query, params);
@@ -1002,7 +1003,8 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
       return null;
     }
 
-    const fullGeometry = JSON.parse(result.rows[0].geojson);
+    // Parse the GeoJSON string directly (geometry is already TEXT/GeoJSON, not WKB)
+    const fullGeometry = JSON.parse(result.rows[0].geometry);
     console.log(`✅ Found Interstate geometry with ${fullGeometry.coordinates.length} points`);
 
     // Extract the segment between our start/end points
@@ -3588,10 +3590,11 @@ app.get('/api/debug/geometries', async (req, res) => {
       });
     }
 
+    // geometry column is stored as TEXT (GeoJSON strings), not PostGIS geometry
     const result = await pgPool.query(`
       SELECT corridor, state, direction,
-             ST_NumPoints(geometry) as num_points,
-             ST_Length(geometry::geography) / 1000 as length_km
+             length(geometry) as geom_length_chars,
+             substring(geometry, 1, 100) as geom_preview
       FROM interstate_geometries
       ORDER BY corridor, state, direction
     `);
@@ -3600,7 +3603,8 @@ app.get('/api/debug/geometries', async (req, res) => {
       success: true,
       count: result.rows.length,
       geometries: result.rows,
-      databaseUrl: 'SET'
+      databaseUrl: 'SET',
+      note: 'geometry column is TEXT (GeoJSON), not PostGIS geometry type'
     });
   } catch (error) {
     res.json({
