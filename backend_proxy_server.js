@@ -950,6 +950,12 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
   }
 
   try {
+    // Check if pgPool is available
+    if (!pgPool) {
+      console.error('❌ pgPool not initialized - DATABASE_URL likely not configured');
+      return null;
+    }
+
     // Normalize direction to 2-letter codes (WB, EB, NB, SB)
     let dir = null;
     if (direction) {
@@ -971,9 +977,10 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
     };
     const stateCode = stateAbbreviations[state.toLowerCase()] || state.toUpperCase();
 
-    console.log(`🔍 Looking for Interstate geometry: ${corridor} ${stateCode} ${dir || 'any direction'}`);
+    console.log(`🔍 Looking for Interstate geometry: ${corridor} ${stateCode} ${dir || 'any direction'} (pgPool: ${!!pgPool}, DATABASE_URL: ${process.env.DATABASE_URL ? 'set' : 'NOT SET'})`);
 
-    // Query PostGIS for the Interstate geometry using the global pool
+    // Query database for the Interstate geometry using the global pool
+    // Note: geometry column stores WKB (Well-Known Binary) hex format, must use ST_AsGeoJSON to convert
     const query = dir
       ? 'SELECT ST_AsGeoJSON(geometry) as geojson FROM interstate_geometries WHERE corridor = $1 AND state = $2 AND direction = $3'
       : 'SELECT ST_AsGeoJSON(geometry) as geojson FROM interstate_geometries WHERE corridor = $1 AND state = $2 LIMIT 1';
@@ -1047,9 +1054,10 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   // Extract segment
   const segment = geometry.slice(startIdx, endIdx + 1);
 
-  // Validation 1: Endpoints must be reasonably close to highway
-  if (minStartDist > 25 || minEndDist > 25) {
-    console.log(`⚠️  Segment rejected: start=${minStartDist.toFixed(1)}km, end=${minEndDist.toFixed(1)}km from highway`);
+  // Validation 1: Endpoints must be reasonably close to highway (2km = ~1.2 miles)
+  // This handles GPS errors, parallel service roads, and slightly misaligned coordinates
+  if (minStartDist > 2 || minEndDist > 2) {
+    console.log(`⚠️  Segment rejected: start=${minStartDist.toFixed(1)}km, end=${minEndDist.toFixed(1)}km from highway (max 2km)`);
     return null;
   }
 
