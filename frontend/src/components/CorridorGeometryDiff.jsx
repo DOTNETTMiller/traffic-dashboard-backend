@@ -3,7 +3,7 @@
  *
  * Shows before/after comparison of corridor geometries:
  * - Grey line: Old geometry (before update)
- * - Red line: New geometry (after update)
+ * - Orange line: New geometry (after update)
  *
  * Useful for:
  * - Visualizing geometry improvements
@@ -54,7 +54,7 @@ export default function CorridorGeometryDiff({ showDiff = false }) {
         // Old geometry - grey line
         const oldPositions = diff.old_geometry?.coordinates?.map(coord => [coord[1], coord[0]]);
 
-        // New geometry - red line
+        // New geometry - orange line
         const newPositions = diff.new_geometry?.coordinates?.map(coord => [coord[1], coord[0]]);
 
         const updateDate = diff.updated_at ? new Date(diff.updated_at).toLocaleDateString() : 'Unknown';
@@ -99,12 +99,12 @@ export default function CorridorGeometryDiff({ showDiff = false }) {
               </Polyline>
             )}
 
-            {/* New geometry (red) */}
+            {/* New geometry (orange) */}
             {newPositions && newPositions.length >= 2 && (
               <Polyline
                 positions={newPositions}
                 pathOptions={{
-                  color: '#ef4444',
+                  color: '#f97316',
                   weight: 4,
                   opacity: 0.9,
                   dashArray: null
@@ -113,7 +113,7 @@ export default function CorridorGeometryDiff({ showDiff = false }) {
                 <Popup>
                   <div style={{ minWidth: '250px' }}>
                     <div style={{
-                      background: '#ef4444',
+                      background: '#f97316',
                       color: 'white',
                       padding: '8px',
                       margin: '-10px -10px 8px -10px',

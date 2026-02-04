@@ -30,7 +30,6 @@ import AdminInterchanges from './components/AdminInterchanges';
 import AdminFeedSubmissions from './components/AdminFeedSubmissions';
 import FeedSubmission from './components/FeedSubmission';
 import Calendar from './components/Calendar';
-import CalendarAdmin from './components/CalendarAdmin';
 import DocumentationViewer from './components/DocumentationViewer';
 import ChatWidget from './components/ChatWidget';
 import UserProfile from './components/UserProfile';
@@ -757,16 +756,6 @@ function App() {
           >
             📅 Calendar
           </button>
-
-          {/* Calendar Admin (admin only) */}
-          {authToken && (
-            <button
-              className={`toggle-btn ${view === 'calendarAdmin' ? 'active' : ''}`}
-              onClick={() => setView('calendarAdmin')}
-            >
-              🗓️ Calendar Admin
-            </button>
-          )}
 
           {/* Data Quality Dropdown */}
           <div style={{ position: 'relative' }}>
@@ -2205,9 +2194,7 @@ function App() {
                 events={filteredEvents}
               />
             ) : view === 'calendar' ? (
-              <Calendar authToken={authToken} />
-            ) : view === 'calendarAdmin' ? (
-              <CalendarAdmin authToken={authToken} />
+              <Calendar authToken={authToken} currentUser={currentUser} />
             ) : view === 'report' ? (
               <DataQualityReport />
             ) : view === 'tetcGrading' ? (
