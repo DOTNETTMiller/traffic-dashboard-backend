@@ -208,37 +208,152 @@ async function fetchInterstateFromOSM(interstate) {
 }
 
 /**
+ * Calculate distance between two coordinates
+ */
+function distance(coord1, coord2) {
+  return Math.sqrt(
+    Math.pow(coord2[0] - coord1[0], 2) + Math.pow(coord2[1] - coord1[1], 2)
+  );
+}
+
+/**
  * Merge multiple way segments and simplify
+ * Properly connects OSM way segments end-to-end instead of sorting by coordinates
  */
 function mergeAndSimplifyWays(ways, direction) {
   if (!ways || ways.length === 0) return null;
-
-  // Flatten all coordinates
-  const allCoords = [];
-  for (const way of ways) {
-    allCoords.push(...way);
+  if (ways.length === 1) {
+    const simplified = simplifyCoordinates(ways[0], 50000);
+    console.log(`   ✓ ${direction.toUpperCase()}: ${ways[0].length} → ${simplified.length} points (single segment)`);
+    return simplified;
   }
 
-  if (allCoords.length === 0) return null;
-
-  // Sort by primary direction
+  // Find the starting segment (westernmost for east, easternmost for west, etc.)
+  let startSegmentIndex = 0;
   if (direction === 'east' || direction === 'west') {
-    allCoords.sort((a, b) => direction === 'east' ? a[0] - b[0] : b[0] - a[0]);
+    // Find segment with most extreme longitude
+    for (let i = 1; i < ways.length; i++) {
+      const currentAvgLon = ways[i].reduce((sum, coord) => sum + coord[0], 0) / ways[i].length;
+      const startAvgLon = ways[startSegmentIndex].reduce((sum, coord) => sum + coord[0], 0) / ways[startSegmentIndex].length;
+      if (direction === 'east') {
+        if (currentAvgLon < startAvgLon) startSegmentIndex = i;
+      } else {
+        if (currentAvgLon > startAvgLon) startSegmentIndex = i;
+      }
+    }
   } else {
-    allCoords.sort((a, b) => direction === 'north' ? a[1] - b[1] : b[1] - a[1]);
+    // Find segment with most extreme latitude
+    for (let i = 1; i < ways.length; i++) {
+      const currentAvgLat = ways[i].reduce((sum, coord) => sum + coord[1], 0) / ways[i].length;
+      const startAvgLat = ways[startSegmentIndex].reduce((sum, coord) => sum + coord[1], 0) / ways[startSegmentIndex].length;
+      if (direction === 'north') {
+        if (currentAvgLat < startAvgLat) startSegmentIndex = i;
+      } else {
+        if (currentAvgLat > startAvgLat) startSegmentIndex = i;
+      }
+    }
   }
 
-  // Deduplicate
-  const deduped = allCoords.filter((coord, i) => {
+  // Start with the first segment
+  const merged = [...ways[startSegmentIndex]];
+  const used = new Set([startSegmentIndex]);
+
+  // Connect segments end-to-end
+  while (used.size < ways.length) {
+    const currentEnd = merged[merged.length - 1];
+    const currentStart = merged[0];
+
+    let closestIndex = -1;
+    let closestDist = Infinity;
+    let appendToEnd = true;
+
+    // Find the closest unused segment
+    for (let i = 0; i < ways.length; i++) {
+      if (used.has(i)) continue;
+
+      const segmentStart = ways[i][0];
+      const segmentEnd = ways[i][ways[i].length - 1];
+
+      // Check distance from current end to segment start
+      const distEndToStart = distance(currentEnd, segmentStart);
+      if (distEndToStart < closestDist) {
+        closestDist = distEndToStart;
+        closestIndex = i;
+        appendToEnd = true;
+      }
+
+      // Check distance from current end to segment end (needs reversal)
+      const distEndToEnd = distance(currentEnd, segmentEnd);
+      if (distEndToEnd < closestDist) {
+        closestDist = distEndToEnd;
+        closestIndex = i;
+        appendToEnd = true;
+      }
+
+      // Check distance from current start to segment end (prepend)
+      const distStartToEnd = distance(currentStart, segmentEnd);
+      if (distStartToEnd < closestDist) {
+        closestDist = distStartToEnd;
+        closestIndex = i;
+        appendToEnd = false;
+      }
+
+      // Check distance from current start to segment start (prepend + reverse)
+      const distStartToStart = distance(currentStart, segmentStart);
+      if (distStartToStart < closestDist) {
+        closestDist = distStartToStart;
+        closestIndex = i;
+        appendToEnd = false;
+      }
+    }
+
+    if (closestIndex === -1) break; // No more segments to connect
+
+    used.add(closestIndex);
+    const nextSegment = ways[closestIndex];
+
+    // Determine if we need to reverse the segment and where to attach it
+    const segmentStart = nextSegment[0];
+    const segmentEnd = nextSegment[nextSegment.length - 1];
+
+    if (appendToEnd) {
+      // Attach to end of merged array
+      const distToStart = distance(merged[merged.length - 1], segmentStart);
+      const distToEnd = distance(merged[merged.length - 1], segmentEnd);
+
+      if (distToStart <= distToEnd) {
+        // Append as-is (skip first point to avoid duplicate)
+        merged.push(...nextSegment.slice(1));
+      } else {
+        // Reverse and append
+        merged.push(...nextSegment.slice().reverse().slice(1));
+      }
+    } else {
+      // Prepend to start of merged array
+      const distToStart = distance(merged[0], segmentStart);
+      const distToEnd = distance(merged[0], segmentEnd);
+
+      if (distToEnd <= distToStart) {
+        // Prepend as-is
+        merged.unshift(...nextSegment.slice(0, -1));
+      } else {
+        // Reverse and prepend
+        merged.unshift(...nextSegment.slice().reverse().slice(0, -1));
+      }
+    }
+  }
+
+  // Deduplicate consecutive points
+  const deduped = merged.filter((coord, i) => {
     if (i === 0) return true;
-    const prev = allCoords[i - 1];
-    return Math.abs(coord[0] - prev[0]) > 0.001 || Math.abs(coord[1] - prev[1]) > 0.001;
+    const prev = merged[i - 1];
+    return Math.abs(coord[0] - prev[0]) > 0.0001 || Math.abs(coord[1] - prev[1]) > 0.0001;
   });
 
-  // Simplify to ~150 points
-  const simplified = simplifyCoordinates(deduped, 150);
+  // Keep full resolution (up to 50000 points)
+  const simplified = simplifyCoordinates(deduped, 50000);
 
-  console.log(`   ✓ ${direction.toUpperCase()}: ${allCoords.length} → ${deduped.length} → ${simplified.length} points`);
+  console.log(`   ✓ ${direction.toUpperCase()}: ${ways.length} segments, ${merged.length} → ${deduped.length} → ${simplified.length} points`);
 
   return simplified;
 }
@@ -246,7 +361,7 @@ function mergeAndSimplifyWays(ways, direction) {
 /**
  * Simplify coordinates
  */
-function simplifyCoordinates(coordinates, targetPoints = 150) {
+function simplifyCoordinates(coordinates, targetPoints = 50000) {
   if (!coordinates || coordinates.length <= targetPoints) {
     return coordinates;
   }

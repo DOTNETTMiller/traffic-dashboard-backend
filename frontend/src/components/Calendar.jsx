@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { config } from '../config';
 
-export default function Calendar({ authToken }) {
+export default function Calendar({ authToken, currentUser }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

@@ -491,6 +491,11 @@ function DocumentationViewer() {
             color: #111827 !important;
           }
 
+          /* Additional fallback for all child elements to ensure no white text on any browser */
+          .markdown-content *:not(pre):not(pre *) {
+            color: #111827 !important;
+          }
+
           .markdown-content h1 {
             font-size: 32px;
             font-weight: 700;
