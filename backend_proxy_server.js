@@ -988,57 +988,39 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
 
     console.log(`🔍 Looking for Interstate geometry: ${corridor} ${dir || 'any direction'} in ${stateCode} (pgPool: ${!!pgPool}, DATABASE_URL: ${process.env.DATABASE_URL ? 'set' : 'NOT SET'})`);
 
-    // Query the corridors table with spatial filtering to get the correct state's geometry
-    // Try multiple naming patterns in order of specificity:
-    // 1. "I-80 Iowa Segment" (undivided state-specific)
-    // 2. "I-80 WB" filtered by distance to event coordinates
-    // 3. "I-80 WB" without filtering (fallback)
+    // Query the interstate_geometries table with state and direction filtering
+    // This table has columns: corridor, state, direction, geometry (PostGIS GEOMETRY type)
 
     let result = null;
 
-    // First, try state-specific segment name (e.g., "I-80 Iowa Segment")
-    const stateSegmentName = `${corridor} ${state} Segment`;
-    result = await pgPool.query('SELECT geometry FROM corridors WHERE name = $1 LIMIT 1', [stateSegmentName]);
-
-    if (result.rows.length > 0) {
-      console.log(`✅ Found state segment: "${stateSegmentName}"`);
-    } else if (dir) {
-      // Second, try direction-specific name with spatial filtering
-      // Query all geometries with this name and find the closest one to our event coordinates
-      const corridorName = `${corridor} ${dir}`;
-      const allResults = await pgPool.query(
-        'SELECT name, geometry FROM corridors WHERE name = $1',
-        [corridorName]
+    if (dir) {
+      // Query by corridor, state, and direction
+      result = await pgPool.query(
+        'SELECT ST_AsGeoJSON(geometry) as geojson FROM interstate_geometries WHERE corridor = $1 AND state = $2 AND direction = $3 LIMIT 1',
+        [corridor, stateCode, dir]
       );
 
-      if (allResults.rows.length > 0) {
-        console.log(`🔍 Found ${allResults.rows.length} geometries named "${corridorName}", finding closest to event (${lat1.toFixed(2)}, ${lng1.toFixed(2)})`);
+      if (result.rows.length > 0) {
+        console.log(`✅ Found Interstate geometry: ${corridor} ${stateCode} ${dir}`);
+        // Parse GeoJSON from PostGIS ST_AsGeoJSON output
+        const geojson = JSON.parse(result.rows[0].geojson);
+        result = { rows: [{ geometry: geojson }] };
+      } else {
+        console.log(`❌ No Interstate geometry found for ${corridor} ${stateCode} ${dir}`);
+      }
+    } else {
+      // No direction specified - try to find any direction for this corridor and state
+      result = await pgPool.query(
+        'SELECT ST_AsGeoJSON(geometry) as geojson FROM interstate_geometries WHERE corridor = $1 AND state = $2 LIMIT 1',
+        [corridor, stateCode]
+      );
 
-        // Find the geometry whose coordinates are closest to the event location
-        let minDist = Infinity;
-        let bestGeometry = null;
-
-        for (const row of allResults.rows) {
-          const geom = row.geometry;
-          if (geom && geom.coordinates && geom.coordinates.length > 0) {
-            // Check distance to first coordinate of this geometry
-            const [lon, lat] = geom.coordinates[0];
-            const dist = haversineDistance(lat1, lng1, lat, lon);
-
-            if (dist < minDist) {
-              minDist = dist;
-              bestGeometry = geom;
-            }
-          }
-        }
-
-        if (bestGeometry && minDist < 200) { // Within 200km (reasonable threshold for state-level matching)
-          console.log(`✅ Found closest geometry: ${minDist.toFixed(1)}km away`);
-          result = { rows: [{ geometry: bestGeometry }] };
-        } else {
-          console.log(`❌ Closest geometry is ${minDist.toFixed(1)}km away (too far, likely wrong state)`);
-          result = { rows: [] };
-        }
+      if (result.rows.length > 0) {
+        console.log(`✅ Found Interstate geometry: ${corridor} ${stateCode} (any direction)`);
+        const geojson = JSON.parse(result.rows[0].geojson);
+        result = { rows: [{ geometry: geojson }] };
+      } else {
+        console.log(`❌ No Interstate geometry found for ${corridor} ${stateCode}`);
       }
     }
 
