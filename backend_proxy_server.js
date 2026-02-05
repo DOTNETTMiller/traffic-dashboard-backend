@@ -986,45 +986,57 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
     };
     const stateCode = stateAbbreviations[state.toLowerCase()] || state.toUpperCase();
 
+    // Reverse mapping: state code -> full state name (for corridor table queries)
+    const stateCodeToName = {
+      'IA': 'Iowa', 'OH': 'Ohio', 'PA': 'Pennsylvania', 'NV': 'Nevada', 'TX': 'Texas',
+      'IL': 'Illinois', 'KS': 'Kansas', 'NE': 'Nebraska', 'IN': 'Indiana', 'MN': 'Minnesota',
+      'UT': 'Utah', 'WY': 'Wyoming', 'MO': 'Missouri', 'WI': 'Wisconsin', 'MI': 'Michigan',
+      'NJ': 'New Jersey', 'CA': 'California', 'OR': 'Oregon', 'WA': 'Washington',
+      'CO': 'Colorado', 'AZ': 'Arizona', 'NM': 'New Mexico', 'OK': 'Oklahoma'
+    };
+    const stateName = stateCodeToName[stateCode] || null;
+
     console.log(`🔍 Looking for Interstate geometry: ${corridor} ${dir || 'any direction'} in ${stateCode} (pgPool: ${!!pgPool}, DATABASE_URL: ${process.env.DATABASE_URL ? 'set' : 'NOT SET'})`);
 
-    // Query the interstate_geometries table with state and direction filtering
-    // This table has columns: corridor, state, direction, geometry (PostGIS GEOMETRY type)
+    // Query the corridors table where geometry is stored as JSONB
+    // Naming conventions in corridors table:
+    //   - State-specific: "I-80 Iowa Segment" (no direction)
+    //   - Directional: "I-80 EB", "I-80 WB" (no state)
 
     let result = null;
 
-    if (dir) {
-      // Query by corridor, state, and direction
+    // Try state-specific segment first (e.g., "I-80 Iowa Segment")
+    if (stateName) {
+      const stateSegmentName = `${corridor} ${stateName} Segment`;
       result = await pgPool.query(
-        'SELECT ST_AsGeoJSON(geometry) as geojson FROM interstate_geometries WHERE corridor = $1 AND state = $2 AND direction = $3 LIMIT 1',
-        [corridor, stateCode, dir]
+        'SELECT geometry FROM corridors WHERE name = $1 LIMIT 1',
+        [stateSegmentName]
       );
 
-      if (result.rows.length > 0) {
-        console.log(`✅ Found Interstate geometry: ${corridor} ${stateCode} ${dir}`);
-        // Parse GeoJSON from PostGIS ST_AsGeoJSON output
-        const geojson = JSON.parse(result.rows[0].geojson);
-        result = { rows: [{ geometry: geojson }] };
+      if (result.rows.length > 0 && result.rows[0].geometry) {
+        console.log(`✅ Found state-specific geometry: ${stateSegmentName}`);
       } else {
-        console.log(`❌ No Interstate geometry found for ${corridor} ${stateCode} ${dir}`);
-      }
-    } else {
-      // No direction specified - try to find any direction for this corridor and state
-      result = await pgPool.query(
-        'SELECT ST_AsGeoJSON(geometry) as geojson FROM interstate_geometries WHERE corridor = $1 AND state = $2 LIMIT 1',
-        [corridor, stateCode]
-      );
-
-      if (result.rows.length > 0) {
-        console.log(`✅ Found Interstate geometry: ${corridor} ${stateCode} (any direction)`);
-        const geojson = JSON.parse(result.rows[0].geojson);
-        result = { rows: [{ geometry: geojson }] };
-      } else {
-        console.log(`❌ No Interstate geometry found for ${corridor} ${stateCode}`);
+        result = null;
       }
     }
 
-    if (!result || result.rows.length === 0) {
+    // If no state-specific segment, try directional corridor (e.g., "I-80 EB")
+    if (!result && dir) {
+      const dirName = `${corridor} ${dir}`;
+      result = await pgPool.query(
+        'SELECT geometry FROM corridors WHERE name = $1 LIMIT 1',
+        [dirName]
+      );
+
+      if (result.rows.length > 0 && result.rows[0].geometry) {
+        console.log(`✅ Found directional geometry: ${dirName}`);
+      } else {
+        console.log(`❌ No geometry found for ${dirName}`);
+        result = null;
+      }
+    }
+
+    if (!result || result.rows.length === 0 || !result.rows[0].geometry) {
       console.log(`❌ No Interstate geometry found for ${corridor} ${dir || ''} in ${stateCode}`);
       return null;
     }
