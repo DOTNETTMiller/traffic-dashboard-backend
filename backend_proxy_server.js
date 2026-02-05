@@ -986,25 +986,22 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
     };
     const stateCode = stateAbbreviations[state.toLowerCase()] || state.toUpperCase();
 
-    console.log(`🔍 Looking for Interstate geometry: ${corridor} ${stateCode} ${dir || 'any direction'} (pgPool: ${!!pgPool}, DATABASE_URL: ${process.env.DATABASE_URL ? 'set' : 'NOT SET'})`);
+    console.log(`🔍 Looking for Interstate geometry: ${corridor} ${dir || 'any direction'} (pgPool: ${!!pgPool}, DATABASE_URL: ${process.env.DATABASE_URL ? 'set' : 'NOT SET'})`);
 
-    // Query database for the Interstate geometry using the global pool
-    // Note: geometry column is stored as TEXT (GeoJSON string), NOT PostGIS geometry
-    // So we DON'T use ST_AsGeoJSON() - just select the geometry column directly
-    const query = dir
-      ? 'SELECT geometry FROM interstate_geometries WHERE corridor = $1 AND state = $2 AND direction = $3'
-      : 'SELECT geometry FROM interstate_geometries WHERE corridor = $1 AND state = $2 LIMIT 1';
-
-    const params = dir ? [corridor, stateCode, dir] : [corridor, stateCode];
-    const result = await pgPool.query(query, params);
+    // Query the corridors table (not interstate_geometries)
+    // The fetch script stores geometries as: name = "I-80 EB", "I-80 WB", etc.
+    // geometry column is JSONB (GeoJSON object), NOT TEXT
+    const corridorName = dir ? `${corridor} ${dir}` : corridor;
+    const query = 'SELECT geometry FROM corridors WHERE name = $1 LIMIT 1';
+    const result = await pgPool.query(query, [corridorName]);
 
     if (result.rows.length === 0) {
-      console.log(`❌ No Interstate geometry found for ${corridor} ${state} ${dir || 'any'}`);
+      console.log(`❌ No Interstate geometry found in corridors table for "${corridorName}"`);
       return null;
     }
 
-    // Parse the GeoJSON string directly (geometry is already TEXT/GeoJSON, not WKB)
-    const fullGeometry = JSON.parse(result.rows[0].geometry);
+    // geometry is stored as JSONB in corridors table
+    const fullGeometry = result.rows[0].geometry;
     console.log(`✅ Found Interstate geometry with ${fullGeometry.coordinates.length} points`);
 
     // Extract the segment between our start/end points
@@ -3590,13 +3587,13 @@ app.get('/api/debug/geometries', async (req, res) => {
       });
     }
 
-    // geometry column is stored as TEXT (GeoJSON strings), not PostGIS geometry
+    // Query the corridors table (new schema)
     const result = await pgPool.query(`
-      SELECT corridor, state, direction,
-             length(geometry) as geom_length_chars,
-             substring(geometry, 1, 100) as geom_preview
-      FROM interstate_geometries
-      ORDER BY corridor, state, direction
+      SELECT id, name,
+             jsonb_array_length(geometry->'coordinates') as num_points
+      FROM corridors
+      WHERE name LIKE 'I-%'
+      ORDER BY name
     `);
 
     res.json({
@@ -3604,7 +3601,7 @@ app.get('/api/debug/geometries', async (req, res) => {
       count: result.rows.length,
       geometries: result.rows,
       databaseUrl: 'SET',
-      note: 'geometry column is TEXT (GeoJSON), not PostGIS geometry type'
+      note: 'Querying corridors table - geometry column is JSONB (GeoJSON)'
     });
   } catch (error) {
     res.json({
