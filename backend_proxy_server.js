@@ -1005,23 +1005,27 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
 
     let result = null;
 
-    // Try state-specific segments first (e.g., "I-80 Iowa Segment")
-    if (stateName) {
-      const stateSegmentName = `${corridor} ${stateName} Segment`;
-      result = await pgPool.query(
-        'SELECT geometry FROM corridors WHERE name = $1 LIMIT 1',
-        [stateSegmentName]
-      );
-
-      if (result.rows.length > 0 && result.rows[0].geometry) {
-        console.log(`✅ Found state-specific geometry: ${stateSegmentName}`);
-      } else {
-        result = null;
-      }
-    }
+    // SKIP state-specific segments - they are placeholder data with only 2 points
+    // The populate_tetc_geometries.js script creates "I-80 Iowa Segment" but it's just
+    // a straight line from first to last OSM coordinate, not proper highway geometry.
+    //
+    // if (stateName) {
+    //   const stateSegmentName = `${corridor} ${stateName} Segment`;
+    //   result = await pgPool.query(
+    //     'SELECT geometry FROM corridors WHERE name = $1 LIMIT 1',
+    //     [stateSegmentName]
+    //   );
+    //
+    //   if (result.rows.length > 0 && result.rows[0].geometry) {
+    //     console.log(`✅ Found state-specific geometry: ${stateSegmentName}`);
+    //   } else {
+    //     result = null;
+    //   }
+    // }
 
     // Use directional corridor (e.g., "I-80 EB" or "I-80 WB")
-    if (!result && dir) {
+    // These are nationwide geometries with proper coordinate ordering (47k+ points)
+    if (dir) {
       const dirName = `${corridor} ${dir}`;
       result = await pgPool.query(
         'SELECT geometry FROM corridors WHERE name = $1 LIMIT 1',
