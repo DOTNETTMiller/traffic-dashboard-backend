@@ -1005,21 +1005,20 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
 
     let result = null;
 
-    // SKIP state-specific segments for now - they have scrambled/out-of-order coordinates
-    // TODO: Fix the source data for state segments like "I-80 Iowa Segment"
-    // if (stateName) {
-    //   const stateSegmentName = `${corridor} ${stateName} Segment`;
-    //   result = await pgPool.query(
-    //     'SELECT geometry FROM corridors WHERE name = $1 LIMIT 1',
-    //     [stateSegmentName]
-    //   );
-    //
-    //   if (result.rows.length > 0 && result.rows[0].geometry) {
-    //     console.log(`✅ Found state-specific geometry: ${stateSegmentName}`);
-    //   } else {
-    //     result = null;
-    //   }
-    // }
+    // Try state-specific segments first (e.g., "I-80 Iowa Segment")
+    if (stateName) {
+      const stateSegmentName = `${corridor} ${stateName} Segment`;
+      result = await pgPool.query(
+        'SELECT geometry FROM corridors WHERE name = $1 LIMIT 1',
+        [stateSegmentName]
+      );
+
+      if (result.rows.length > 0 && result.rows[0].geometry) {
+        console.log(`✅ Found state-specific geometry: ${stateSegmentName}`);
+      } else {
+        result = null;
+      }
+    }
 
     // Use directional corridor (e.g., "I-80 EB" or "I-80 WB")
     if (!result && dir) {
