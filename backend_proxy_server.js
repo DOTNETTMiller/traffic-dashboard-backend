@@ -1112,10 +1112,11 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   // Extract segment
   const segment = geometry.slice(startIdx, endIdx + 1);
 
-  // Validation 1: Endpoints must be reasonably close to highway (2km = ~1.2 miles)
-  // This handles GPS errors, parallel service roads, and slightly misaligned coordinates
-  if (minStartDist > 2 || minEndDist > 2) {
-    console.log(`⚠️  Segment rejected: start=${minStartDist.toFixed(1)}km, end=${minEndDist.toFixed(1)}km from highway (max 2km)`);
+  // Validation 1: Endpoints must be reasonably close to highway (5km = ~3.1 miles)
+  // This handles GPS errors, parallel service roads, slightly misaligned coordinates,
+  // and geocoding inaccuracies from traffic event reporting systems
+  if (minStartDist > 5 || minEndDist > 5) {
+    console.log(`⚠️  Segment rejected: start=${minStartDist.toFixed(1)}km, end=${minEndDist.toFixed(1)}km from highway (max 5km)`);
     return null;
   }
 
