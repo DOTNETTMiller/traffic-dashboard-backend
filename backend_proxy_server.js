@@ -1120,6 +1120,7 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
     return null;
   }
 
+  // TEMPORARY: Disable validations 2-5 to isolate the actual failure cause
   // Validation 2: Calculate actual event distance
   const eventDistance = haversineDistance(lat1, lng1, lat2, lng2);
 
@@ -1131,19 +1132,17 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
     segmentPathLength += haversineDistance(lat1, lon1, lat2, lon2);
   }
 
-  // Validation 4: Segment shouldn't be way longer than event distance
-  // Allow 5x ratio to account for road curves and detours
-  if (segmentPathLength > Math.max(eventDistance * 5, 50)) {
-    console.log(`⚠️  Segment rejected: segment=${segmentPathLength.toFixed(1)}km is too long for event=${eventDistance.toFixed(1)}km`);
-    return null;
-  }
+  // TEMPORARY DISABLE: Validation 4
+  // if (segmentPathLength > Math.max(eventDistance * 5, 50)) {
+  //   console.log(`⚠️  Segment rejected: segment=${segmentPathLength.toFixed(1)}km is too long for event=${eventDistance.toFixed(1)}km`);
+  //   return null;
+  // }
 
-  // Validation 5: Segment shouldn't use too much of the highway
-  // If we're using more than 30% of the full highway geometry, something is wrong
-  if (segment.length > geometry.length * 0.3) {
-    console.log(`⚠️  Segment rejected: ${segment.length} points is ${((segment.length/geometry.length)*100).toFixed(0)}% of full highway`);
-    return null;
-  }
+  // TEMPORARY DISABLE: Validation 5
+  // if (segment.length > geometry.length * 0.3) {
+  //   console.log(`⚠️  Segment rejected: ${segment.length} points is ${((segment.length/geometry.length)*100).toFixed(0)}% of full highway`);
+  //   return null;
+  // }
 
   console.log(`✅ Segment extracted: start=${minStartDist.toFixed(1)}km, end=${minEndDist.toFixed(1)}km, segment=${segmentPathLength.toFixed(1)}km, event=${eventDistance.toFixed(1)}km, ${segment.length} points`);
   return segment.length >= 2 ? segment : null;
