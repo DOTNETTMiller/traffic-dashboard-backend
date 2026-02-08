@@ -1132,67 +1132,23 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
     segmentPathLength += haversineDistance(lat1, lon1, lat2, lon2);
   }
 
-  // Validation 3: Segment path length should not exceed event distance by too much
-  // Highway routes can be curvy, so allow up to 2x the straight-line event distance
-  // This prevents extracting huge segments when closest points are far apart on the highway
-  const maxReasonablePathLength = eventDistance * 2;
+  // Validation 3: Segment path length should be reasonable compared to event distance
+  // We snap to the closest points on the highway to the event start and end.
+  // The path along the highway between those points should not be way longer than
+  // the straight-line event distance (accounting for highway curves).
+  // If it is, it means the highway makes detours beyond the event extent.
+
+  // Allow up to 1.5x for gentle curves, but reject if it's 2x+ longer
+  // For very short events (< 5km), be more lenient (2.5x) since small detours matter more
+  const maxPathMultiplier = eventDistance < 5 ? 2.5 : 1.5;
+  const maxReasonablePathLength = eventDistance * maxPathMultiplier;
 
   if (segmentPathLength > maxReasonablePathLength && eventDistance > 1) {
-    console.log(`⚠️  Segment path too long: ${segmentPathLength.toFixed(1)}km vs event ${eventDistance.toFixed(1)}km (max ${maxReasonablePathLength.toFixed(1)}km)`);
-    console.log(`   This suggests the highway route between closest points includes detours/loops`);
-    console.log(`   Will try to find a better segment that respects the event span`);
-
-    // Instead of using the global closest points, find a segment that:
-    // 1. Contains points near both start and end
-    // 2. Has a path length closer to the event distance
-
-    // Search for a better segment by limiting the search window
-    const maxSearchWindow = Math.ceil(eventDistance * 2); // Search within 2x event distance
-    let bestSegment = null;
-    let bestScore = Infinity;
-
-    for (let i = 0; i < geometry.length - 10; i++) {
-      // Calculate path length from this point forward
-      let pathLen = 0;
-      let j = i;
-
-      while (j < geometry.length - 1 && pathLen < maxSearchWindow) {
-        const [lon1, lat1] = geometry[j];
-        const [lon2, lat2] = geometry[j + 1];
-        pathLen += haversineDistance(lat1, lon1, lat2, lon2);
-
-        // Check if this segment captures the event reasonably
-        const segStart = geometry[i];
-        const segEnd = geometry[j];
-        const distToStart = haversineDistance(lat1, lng1, segStart[1], segStart[0]);
-        const distToEnd = haversineDistance(lat2, lng2, segEnd[1], segEnd[0]);
-
-        // Score: how well does this segment match the event?
-        // Lower score = better match
-        const score = distToStart + distToEnd + Math.abs(pathLen - eventDistance);
-
-        if (distToStart < maxDistanceThreshold && distToEnd < maxDistanceThreshold && score < bestScore) {
-          bestScore = score;
-          bestSegment = geometry.slice(i, j + 1);
-        }
-
-        j++;
-      }
-    }
-
-    if (bestSegment && bestSegment.length >= 2) {
-      // Calculate the path length of the best segment
-      let bestPathLen = 0;
-      for (let i = 0; i < bestSegment.length - 1; i++) {
-        const [lon1, lat1] = bestSegment[i];
-        const [lon2, lat2] = bestSegment[i + 1];
-        bestPathLen += haversineDistance(lat1, lon1, lat2, lon2);
-      }
-      console.log(`✅ Found better segment: ${bestSegment.length} points, path=${bestPathLen.toFixed(1)}km`);
-      return bestSegment;
-    }
-
-    console.log(`⚠️  Could not find better segment, rejecting this geometry`);
+    console.log(`⚠️  Segment rejected: path too long`);
+    console.log(`   Segment path: ${segmentPathLength.toFixed(1)}km`);
+    console.log(`   Event distance: ${eventDistance.toFixed(1)}km`);
+    console.log(`   Max reasonable: ${maxReasonablePathLength.toFixed(1)}km (${maxPathMultiplier}x)`);
+    console.log(`   Highway route extends beyond event extent - falling back to straight line`);
     return null;
   }
 
