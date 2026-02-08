@@ -955,6 +955,7 @@ async function processOSRMQueue() {
 // Get interstate geometry from PostGIS database for a corridor segment
 async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, direction = null) {
   if (!corridor || !state || !corridor.match(/^I-\d+/i)) {
+    console.log(`⚠️  getInterstateGeometry: Not an interstate - corridor="${corridor}", state="${state}"`);
     return null; // Not an interstate
   }
 
@@ -962,6 +963,7 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
     // Check if pgPool is available
     if (!pgPool) {
       console.error('❌ pgPool not initialized - DATABASE_URL likely not configured');
+      console.error('   DATABASE_URL exists:', !!process.env.DATABASE_URL);
       return null;
     }
 
@@ -1107,6 +1109,18 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   // Ensure start comes before end
   if (startIdx > endIdx) {
     [startIdx, endIdx] = [endIdx, startIdx];
+  }
+
+  // Validation: Check if event is too short (start and end very close)
+  const eventDistance = haversineDistance(lat1, lng1, lat2, lng2);
+
+  // If event span is very small (< 1km), expand the segment to include at least 20 points
+  // This handles single-point or very short events
+  if (eventDistance < 1) {
+    const expandBy = 10; // Add 10 points on each side
+    startIdx = Math.max(0, startIdx - expandBy);
+    endIdx = Math.min(geometry.length - 1, endIdx + expandBy);
+    console.log(`🔍 Short event (${eventDistance.toFixed(2)}km), expanded segment to ${endIdx - startIdx + 1} points`);
   }
 
   // Extract segment
