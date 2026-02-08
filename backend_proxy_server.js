@@ -1133,13 +1133,35 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   }
 
   // Validation 3: Prevent segments that are too long (showing entire Interstate)
-  // If segment is > 200km OR > 1000 points, it's likely wrong
-  const MAX_SEGMENT_LENGTH_KM = 200;
-  const MAX_SEGMENT_POINTS = 1000;
+  // If segment > 500 points, trim it to reasonable size around the actual event location
+  const MAX_SEGMENT_POINTS = 500;
 
-  if (segmentPathLength > MAX_SEGMENT_LENGTH_KM || segment.length > MAX_SEGMENT_POINTS) {
-    console.log(`⚠️  Segment too large: ${segmentPathLength.toFixed(1)}km, ${segment.length} points - likely entire Interstate, rejecting`);
-    return null;
+  if (segment.length > MAX_SEGMENT_POINTS) {
+    console.log(`⚠️  Segment too large: ${segment.length} points - trimming to ${MAX_SEGMENT_POINTS} centered on event`);
+    // Keep segment centered around the actual event location
+    // Calculate which part of segment is closest to event midpoint
+    const eventMidLat = (lat1 + lat2) / 2;
+    const eventMidLng = (lng1 + lng2) / 2;
+
+    // Find closest point in segment to event midpoint
+    let closestIdx = 0;
+    let minMidDist = Infinity;
+    for (let i = 0; i < segment.length; i++) {
+      const [lon, lat] = segment[i];
+      const dist = haversineDistance(eventMidLat, eventMidLng, lat, lon);
+      if (dist < minMidDist) {
+        minMidDist = dist;
+        closestIdx = i;
+      }
+    }
+
+    // Extract MAX_SEGMENT_POINTS around the closest point
+    const halfMax = Math.floor(MAX_SEGMENT_POINTS / 2);
+    const trimStart = Math.max(0, closestIdx - halfMax);
+    const trimEnd = Math.min(segment.length, closestIdx + halfMax);
+    const trimmedSegment = segment.slice(trimStart, trimEnd);
+    console.log(`   Trimmed to ${trimmedSegment.length} points around event location`);
+    return trimmedSegment;
   }
 
   // Validation 4: For very short events (< 1km), ensure we don't return just 1-2 points
