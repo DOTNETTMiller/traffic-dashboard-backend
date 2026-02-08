@@ -1155,13 +1155,25 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   const segment = geometry.slice(startIdx, endIdx + 1);
 
   // Validation 1: Endpoints must be reasonably close to highway
-  // For 2-point work zone closures: use 15km threshold (captures most legitimate closures)
-  // For other events (weather, etc.): use 5km threshold (more strict)
-  const is2PointEvent = eventDistance > 0.5; // Event has 2 distinct points (not single point)
-  const maxDistanceThreshold = is2PointEvent ? 15 : 5;
+  // Iowa DOT coordinates are not precise - typically 500m-2km from highway centerline
+  // Based on analysis: 83% of events have endpoints within 2km, only 23% within 500m
+  // We need to be lenient to allow most events to snap
+
+  let maxDistanceThreshold;
+  if (eventDistance < 5) {
+    // Very short events (< 5km): Allow 3km distance
+    // This captures events that are "approximately here" on the highway
+    maxDistanceThreshold = 3; // 3 km
+  } else if (eventDistance < 50) {
+    // Medium events: Moderate threshold
+    maxDistanceThreshold = 5; // 5 km
+  } else {
+    // Long events: Lenient threshold
+    maxDistanceThreshold = 10; // 10 km
+  }
 
   if (minStartDist > maxDistanceThreshold || minEndDist > maxDistanceThreshold) {
-    console.log(`⚠️  Segment rejected: start=${minStartDist.toFixed(1)}km, end=${minEndDist.toFixed(1)}km from highway (max ${maxDistanceThreshold}km, 2-point=${is2PointEvent})`);
+    console.log(`⚠️  Segment rejected: start=${minStartDist.toFixed(3)}km, end=${minEndDist.toFixed(3)}km from highway (max ${maxDistanceThreshold}km for ${eventDistance.toFixed(1)}km event)`);
     return null;
   }
 
@@ -1173,23 +1185,21 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
     segmentPathLength += haversineDistance(lat1, lon1, lat2, lon2);
   }
 
-  // Validation 3: Segment path length should be reasonable compared to event distance
-  // We snap to the closest points on the highway to the event start and end.
-  // The path along the highway between those points should not be way longer than
-  // the straight-line event distance (accounting for highway curves).
-  // If it is, it means the highway makes detours beyond the event extent.
+  // Validation 3: Segment path length should match event distance reasonably
+  // The snapped segment path should be similar to the straight-line event distance
+  // Highway curves add some length, but if it's way off, we matched the wrong points
 
-  // Allow up to 1.5x for gentle curves, but reject if it's 2x+ longer
-  // For very short events (< 5km), be more lenient (2.5x) since small detours matter more
-  const maxPathMultiplier = eventDistance < 5 ? 2.5 : 1.5;
+  // For short events: path should be within 1.3x of event distance (gentle curves)
+  // For longer events: allow up to 1.5x (more curves)
+  const maxPathMultiplier = eventDistance < 10 ? 1.3 : 1.5;
   const maxReasonablePathLength = eventDistance * maxPathMultiplier;
 
   if (segmentPathLength > maxReasonablePathLength && eventDistance > 1) {
     console.log(`⚠️  Segment rejected: path too long`);
-    console.log(`   Segment path: ${segmentPathLength.toFixed(1)}km`);
-    console.log(`   Event distance: ${eventDistance.toFixed(1)}km`);
-    console.log(`   Max reasonable: ${maxReasonablePathLength.toFixed(1)}km (${maxPathMultiplier}x)`);
-    console.log(`   Highway route extends beyond event extent - falling back to straight line`);
+    console.log(`   Segment path: ${segmentPathLength.toFixed(2)}km (${(segmentPathLength * 0.621371).toFixed(2)} mi)`);
+    console.log(`   Event distance: ${eventDistance.toFixed(2)}km (${(eventDistance * 0.621371).toFixed(2)} mi)`);
+    console.log(`   Max reasonable: ${maxReasonablePathLength.toFixed(2)}km (${maxPathMultiplier}x)`);
+    console.log(`   Ratio: ${(segmentPathLength / eventDistance).toFixed(2)}x - segment doesn't match event extent`);
     return null;
   }
 
