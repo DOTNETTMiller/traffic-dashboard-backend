@@ -1112,19 +1112,19 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   // Extract segment
   const segment = geometry.slice(startIdx, endIdx + 1);
 
-  // Validation 1: Endpoints must be reasonably close to highway (5km = ~3.1 miles)
-  // This handles GPS errors, parallel service roads, slightly misaligned coordinates,
-  // and geocoding inaccuracies from traffic event reporting systems
-  if (minStartDist > 5 || minEndDist > 5) {
-    console.log(`⚠️  Segment rejected: start=${minStartDist.toFixed(1)}km, end=${minEndDist.toFixed(1)}km from highway (max 5km)`);
+  // Validation 1: Endpoints must be reasonably close to highway
+  // For 2-point work zone closures: use 15km threshold (captures most legitimate closures)
+  // For other events (weather, etc.): use 5km threshold (more strict)
+  const eventDistance = haversineDistance(lat1, lng1, lat2, lng2);
+  const is2PointEvent = eventDistance > 0.5; // Event has 2 distinct points (not single point)
+  const maxDistanceThreshold = is2PointEvent ? 15 : 5;
+
+  if (minStartDist > maxDistanceThreshold || minEndDist > maxDistanceThreshold) {
+    console.log(`⚠️  Segment rejected: start=${minStartDist.toFixed(1)}km, end=${minEndDist.toFixed(1)}km from highway (max ${maxDistanceThreshold}km, 2-point=${is2PointEvent})`);
     return null;
   }
 
-  // TEMPORARY: Disable validations 2-5 to isolate the actual failure cause
-  // Validation 2: Calculate actual event distance
-  const eventDistance = haversineDistance(lat1, lng1, lat2, lng2);
-
-  // Validation 3: Calculate segment path length
+  // Validation 2: Calculate segment path length
   let segmentPathLength = 0;
   for (let i = 0; i < segment.length - 1; i++) {
     const [lon1, lat1] = segment[i];
@@ -1132,17 +1132,26 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
     segmentPathLength += haversineDistance(lat1, lon1, lat2, lon2);
   }
 
-  // TEMPORARY DISABLE: Validation 4
-  // if (segmentPathLength > Math.max(eventDistance * 5, 50)) {
-  //   console.log(`⚠️  Segment rejected: segment=${segmentPathLength.toFixed(1)}km is too long for event=${eventDistance.toFixed(1)}km`);
-  //   return null;
-  // }
+  // Validation 3: Prevent segments that are too long (showing entire Interstate)
+  // If segment is > 200km OR > 1000 points, it's likely wrong
+  const MAX_SEGMENT_LENGTH_KM = 200;
+  const MAX_SEGMENT_POINTS = 1000;
 
-  // TEMPORARY DISABLE: Validation 5
-  // if (segment.length > geometry.length * 0.3) {
-  //   console.log(`⚠️  Segment rejected: ${segment.length} points is ${((segment.length/geometry.length)*100).toFixed(0)}% of full highway`);
-  //   return null;
-  // }
+  if (segmentPathLength > MAX_SEGMENT_LENGTH_KM || segment.length > MAX_SEGMENT_POINTS) {
+    console.log(`⚠️  Segment too large: ${segmentPathLength.toFixed(1)}km, ${segment.length} points - likely entire Interstate, rejecting`);
+    return null;
+  }
+
+  // Validation 4: For very short events (< 1km), ensure we don't return just 1-2 points
+  // Expand to include at least 10 points for visual clarity
+  if (eventDistance < 1 && segment.length < 10) {
+    const expandBy = Math.floor((10 - segment.length) / 2);
+    const newStartIdx = Math.max(0, startIdx - expandBy);
+    const newEndIdx = Math.min(geometry.length - 1, endIdx + expandBy);
+    const expandedSegment = geometry.slice(newStartIdx, newEndIdx + 1);
+    console.log(`🔍 Short event (${eventDistance.toFixed(2)}km), expanded from ${segment.length} to ${expandedSegment.length} points`);
+    return expandedSegment.length >= 2 ? expandedSegment : segment;
+  }
 
   console.log(`✅ Segment extracted: start=${minStartDist.toFixed(1)}km, end=${minEndDist.toFixed(1)}km, segment=${segmentPathLength.toFixed(1)}km, event=${eventDistance.toFixed(1)}km, ${segment.length} points`);
   return segment.length >= 2 ? segment : null;
