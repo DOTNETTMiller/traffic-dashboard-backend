@@ -1082,25 +1082,67 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
     return null;
   }
 
-  // Find closest points to start and end using proper Haversine distance
+  const eventDistance = haversineDistance(lat1, lng1, lat2, lng2);
+
+  // Strategy: Find closest point to start, then search forward along the highway
+  // within a reasonable window to find the end point.
+  // This prevents matching the end to a point thousands of indices away.
+
+  // Step 1: Find closest point to event start
   let startIdx = 0;
-  let endIdx = geometry.length - 1;
   let minStartDist = Infinity;
-  let minEndDist = Infinity;
 
   for (let i = 0; i < geometry.length; i++) {
     const [lon, lat] = geometry[i];
-
     const startDist = haversineDistance(lat1, lng1, lat, lon);
     if (startDist < minStartDist) {
       minStartDist = startDist;
       startIdx = i;
     }
+  }
 
+  // Step 2: Search forward from startIdx to find end point
+  // Limit search window to 3x event distance (accounting for highway curves)
+  const maxSearchDistance = eventDistance * 3;
+  let endIdx = startIdx;
+  let minEndDist = Infinity;
+  let searchedDistance = 0;
+
+  for (let i = startIdx; i < geometry.length - 1 && searchedDistance < maxSearchDistance; i++) {
+    const [lon, lat] = geometry[i];
+
+    // Check distance to event end
     const endDist = haversineDistance(lat2, lng2, lat, lon);
     if (endDist < minEndDist) {
       minEndDist = endDist;
       endIdx = i;
+    }
+
+    // Accumulate path distance
+    if (i < geometry.length - 1) {
+      const [lon1, lat1] = geometry[i];
+      const [lon2, lat2] = geometry[i + 1];
+      searchedDistance += haversineDistance(lat1, lon1, lat2, lon2);
+    }
+  }
+
+  // If we didn't find a good match going forward, try searching backward
+  if (minEndDist > 5 || endIdx === startIdx) {
+    searchedDistance = 0;
+    for (let i = startIdx; i > 0 && searchedDistance < maxSearchDistance; i--) {
+      const [lon, lat] = geometry[i];
+
+      const endDist = haversineDistance(lat2, lng2, lat, lon);
+      if (endDist < minEndDist) {
+        minEndDist = endDist;
+        endIdx = i;
+      }
+
+      if (i > 0) {
+        const [lon1, lat1] = geometry[i];
+        const [lon2, lat2] = geometry[i - 1];
+        searchedDistance += haversineDistance(lat1, lon1, lat2, lon2);
+      }
     }
   }
 
@@ -1115,7 +1157,6 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   // Validation 1: Endpoints must be reasonably close to highway
   // For 2-point work zone closures: use 15km threshold (captures most legitimate closures)
   // For other events (weather, etc.): use 5km threshold (more strict)
-  const eventDistance = haversineDistance(lat1, lng1, lat2, lng2);
   const is2PointEvent = eventDistance > 0.5; // Event has 2 distinct points (not single point)
   const maxDistanceThreshold = is2PointEvent ? 15 : 5;
 
