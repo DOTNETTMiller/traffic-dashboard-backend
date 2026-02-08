@@ -1005,9 +1005,9 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
 
     let result = null;
 
-    // SKIP state-specific segments - they are placeholder data with only 2 points
-    // The populate_tetc_geometries.js script creates "I-80 Iowa Segment" but it's just
-    // a straight line from first to last OSM coordinate, not proper highway geometry.
+    // SKIP state-specific segments - the "I-80 Iowa Segment" has points in wrong order
+    // Points jump all over Iowa instead of following the highway sequentially
+    // This creates segments of 3,000+ km when extracting between indices
     //
     // if (stateName) {
     //   const stateSegmentName = `${corridor} ${stateName} Segment`;
@@ -1024,7 +1024,7 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
     // }
 
     // Use directional corridor (e.g., "I-80 EB" or "I-80 WB")
-    // These are nationwide geometries with proper coordinate ordering (47k+ points)
+    // These are nationwide geometries with proper coordinate ordering (15k+ points)
     if (dir) {
       // Convert full direction names to abbreviations for database lookup
       const dirAbbrev = dir === 'Westbound' ? 'WB' :
