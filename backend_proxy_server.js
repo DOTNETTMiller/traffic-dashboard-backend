@@ -1189,11 +1189,19 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     if (interstateGeom) {
       console.log(`✅ Using interstate geometry for ${corridor} ${state} ${direction}`);
 
-      // Apply 30-meter offset for Iowa westbound events to separate lanes
-      if (stateKey === 'ia' && direction && (direction.toLowerCase().includes('west') || direction.toLowerCase().includes('wb'))) {
-        const offsetGeom = offsetCoordinates(interstateGeom, direction);
-        console.log(`✅ Applied 30m offset for Iowa WB event`);
-        return { coordinates: offsetGeom, geometrySource: 'interstate' };
+      // Apply lane offset to separate WB/EB traffic visually
+      // WB gets offset to the left (south), EB to the right (north) when viewing west-to-east
+      if (direction) {
+        const dirLower = direction.toLowerCase();
+        if (dirLower.includes('west') || dirLower.includes('wb')) {
+          const offsetGeom = offsetCoordinates(interstateGeom, 'westbound');
+          console.log(`✅ Applied westbound lane offset`);
+          return { coordinates: offsetGeom, geometrySource: 'interstate' };
+        } else if (dirLower.includes('east') || dirLower.includes('eb')) {
+          const offsetGeom = offsetCoordinates(interstateGeom, 'eastbound');
+          console.log(`✅ Applied eastbound lane offset`);
+          return { coordinates: offsetGeom, geometrySource: 'interstate' };
+        }
       }
 
       return { coordinates: interstateGeom, geometrySource: 'interstate' };
