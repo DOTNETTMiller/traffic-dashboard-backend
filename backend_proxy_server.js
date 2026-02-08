@@ -3792,6 +3792,11 @@ app.get('/api/health', (req, res) => {
     states: getAllStateKeys().length,
     version: '1.1.1',
     gdal: gdalAvailable,
+    database: {
+      postgresConnected: !!pgPool,
+      databaseUrl: process.env.DATABASE_URL ? 'SET' : 'NOT SET',
+      interstateGeometryEnabled: !!pgPool
+    },
     features: {
       gisUpload: gdalAvailable ? 'Full support (.gdb, .shp, .geojson, .kml, .csv)' : 'Limited (.shp, .geojson, .kml, .csv)'
     }
