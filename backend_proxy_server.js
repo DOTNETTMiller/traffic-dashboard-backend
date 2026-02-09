@@ -1084,8 +1084,8 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
 
   const eventDistance = haversineDistance(lat1, lng1, lat2, lng2);
 
-  // Simple approach: Snap to closest points and extract segment between them
-  // Now that geometry is properly sorted, we can use straightforward global search
+  // Windowed search approach: Find closest point to start, then search nearby for end
+  // This prevents matching points that are far apart in the geometry array
 
   // Step 1: Find closest point to event start
   let startIdx = 0;
@@ -1100,16 +1100,45 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
     }
   }
 
-  // Step 2: Find closest point to event end
-  let endIdx = 0;
+  // Step 2: Search for end point within a window around start
+  // Window size: 5x the event distance (accounts for curves + buffer)
+  const searchWindow = Math.max(eventDistance * 5, 10); // At least 10km window
+  let endIdx = startIdx;
   let minEndDist = Infinity;
 
-  for (let i = 0; i < geometry.length; i++) {
+  // Search forward from start
+  let searchedDist = 0;
+  for (let i = startIdx; i < geometry.length - 1 && searchedDist < searchWindow; i++) {
     const [lon, lat] = geometry[i];
     const endDist = haversineDistance(lat2, lng2, lat, lon);
     if (endDist < minEndDist) {
       minEndDist = endDist;
       endIdx = i;
+    }
+
+    // Accumulate distance
+    if (i < geometry.length - 1) {
+      const [lon1, lat1] = geometry[i];
+      const [lon2, lat2] = geometry[i + 1];
+      searchedDist += haversineDistance(lat1, lon1, lat2, lon2);
+    }
+  }
+
+  // Search backward from start
+  searchedDist = 0;
+  for (let i = startIdx; i > 0 && searchedDist < searchWindow; i--) {
+    const [lon, lat] = geometry[i];
+    const endDist = haversineDistance(lat2, lng2, lat, lon);
+    if (endDist < minEndDist) {
+      minEndDist = endDist;
+      endIdx = i;
+    }
+
+    // Accumulate distance
+    if (i > 0) {
+      const [lon1, lat1] = geometry[i];
+      const [lon2, lat2] = geometry[i - 1];
+      searchedDist += haversineDistance(lat1, lon1, lat2, lon2);
     }
   }
 
