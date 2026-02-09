@@ -1026,12 +1026,8 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
     // Use directional corridor (e.g., "I-80 EB" or "I-80 WB")
     // These are nationwide geometries with proper coordinate ordering (15k+ points)
     if (dir) {
-      // Convert full direction names to abbreviations for database lookup
-      const dirAbbrev = dir === 'Westbound' ? 'WB' :
-                        dir === 'Eastbound' ? 'EB' :
-                        dir === 'Northbound' ? 'NB' :
-                        dir === 'Southbound' ? 'SB' : dir;
-      const dirName = `${corridor} ${dirAbbrev}`;
+      // dir is already a 2-letter code (WB, EB, NB, SB) from normalization above
+      const dirName = `${corridor} ${dir}`;
       result = await pgPool.query(
         'SELECT geometry FROM corridors WHERE name = $1 LIMIT 1',
         [dirName]
