@@ -1084,32 +1084,25 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
 
   const eventDistance = haversineDistance(lat1, lng1, lat2, lng2);
 
-  // Strategy: Find closest point to start, then search forward along the highway
-  // within a reasonable window to find the end point.
-  // This prevents matching the end to a point thousands of indices away.
+  // Simple approach: Find the closest point on the highway to BOTH start and end
+  // Then extract the segment between them
+  // This works well with properly-ordered geometry (like OSM data)
 
-  // Step 1: Find closest point to event start
   let startIdx = 0;
+  let endIdx = 0;
   let minStartDist = Infinity;
+  let minEndDist = Infinity;
 
+  // Single pass: find closest points to both start and end
   for (let i = 0; i < geometry.length; i++) {
     const [lon, lat] = geometry[i];
+
+    // Check distance to event start
     const startDist = haversineDistance(lat1, lng1, lat, lon);
     if (startDist < minStartDist) {
       minStartDist = startDist;
       startIdx = i;
     }
-  }
-
-  // Step 2: Search forward from startIdx to find end point
-  // Limit search window to 3x event distance (accounting for highway curves)
-  const maxSearchDistance = eventDistance * 3;
-  let endIdx = startIdx;
-  let minEndDist = Infinity;
-  let searchedDistance = 0;
-
-  for (let i = startIdx; i < geometry.length - 1 && searchedDistance < maxSearchDistance; i++) {
-    const [lon, lat] = geometry[i];
 
     // Check distance to event end
     const endDist = haversineDistance(lat2, lng2, lat, lon);
@@ -1117,41 +1110,14 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
       minEndDist = endDist;
       endIdx = i;
     }
-
-    // Accumulate path distance
-    if (i < geometry.length - 1) {
-      const [lon1, lat1] = geometry[i];
-      const [lon2, lat2] = geometry[i + 1];
-      searchedDistance += haversineDistance(lat1, lon1, lat2, lon2);
-    }
   }
 
-  // If we didn't find a good match going forward, try searching backward
-  if (minEndDist > 5 || endIdx === startIdx) {
-    searchedDistance = 0;
-    for (let i = startIdx; i > 0 && searchedDistance < maxSearchDistance; i--) {
-      const [lon, lat] = geometry[i];
-
-      const endDist = haversineDistance(lat2, lng2, lat, lon);
-      if (endDist < minEndDist) {
-        minEndDist = endDist;
-        endIdx = i;
-      }
-
-      if (i > 0) {
-        const [lon1, lat1] = geometry[i];
-        const [lon2, lat2] = geometry[i - 1];
-        searchedDistance += haversineDistance(lat1, lon1, lat2, lon2);
-      }
-    }
-  }
-
-  // Ensure start comes before end
+  // Ensure start comes before end (swap if needed)
   if (startIdx > endIdx) {
     [startIdx, endIdx] = [endIdx, startIdx];
   }
 
-  // Extract segment
+  // Extract segment between the two closest points
   const segment = geometry.slice(startIdx, endIdx + 1);
 
   // Validation 1: Endpoints must be reasonably close to highway
