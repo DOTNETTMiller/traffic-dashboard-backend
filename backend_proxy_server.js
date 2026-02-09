@@ -1144,9 +1144,10 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
 
   // Validation 3: Segment path length should match event distance reasonably
   // Highway curves add length, but should be close to straight-line distance
-  // For short events: allow up to 1.5x (tight curves matter more)
-  // For longer events: allow up to 1.3x (should be mostly straight)
-  const maxPathMultiplier = eventDistance < 5 ? 1.5 : 1.3;
+  // With lower-resolution geometry (596 points), gaps between points can cause
+  // the path to appear longer than the actual highway distance
+  // Use lenient multiplier to accommodate this
+  const maxPathMultiplier = eventDistance < 5 ? 2.5 : 2.0;
   const maxReasonablePathLength = eventDistance * maxPathMultiplier;
 
   if (segmentPathLength > maxReasonablePathLength && eventDistance > 1) {
