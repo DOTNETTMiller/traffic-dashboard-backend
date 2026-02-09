@@ -1086,6 +1086,7 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
 
   // Windowed search approach: Find closest point to start, then search nearby for end
   // This prevents matching points that are far apart in the geometry array
+  // Using sorted high-resolution OSM geometry (33k points) for precision
 
   // Step 1: Find closest point to event start
   let startIdx = 0;
