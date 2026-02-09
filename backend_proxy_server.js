@@ -1122,12 +1122,15 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   const segment = geometry.slice(startIdx, endIdx + 1);
 
   // Validation 1: Endpoints must be reasonably close to highway
-  // Based on analysis: 100% of Iowa I-80 events are within 500m of highway
-  // Most are within 0-60 meters. Use strict threshold.
-  const maxDistanceThreshold = 0.5; // 500 meters
+  // Based on analysis: 100% of Iowa I-80 events are within 500m of actual highway
+  // However, geometry sources vary in resolution:
+  // - High-res OSM: 33k points, most events within 60m
+  // - Google Maps: 596 points, events can be 2-3km from nearest point
+  // Use lenient threshold to work with lower-resolution geometry
+  const maxDistanceThreshold = 5; // 5 km
 
   if (minStartDist > maxDistanceThreshold || minEndDist > maxDistanceThreshold) {
-    console.log(`⚠️  Segment rejected: start=${(minStartDist * 1000).toFixed(0)}m, end=${(minEndDist * 1000).toFixed(0)}m from highway (max 500m)`);
+    console.log(`⚠️  Segment rejected: start=${(minStartDist * 1000).toFixed(0)}m, end=${(minEndDist * 1000).toFixed(0)}m from highway (max ${maxDistanceThreshold}km)`);
     return null;
   }
 
