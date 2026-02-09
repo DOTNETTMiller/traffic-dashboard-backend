@@ -1084,31 +1084,62 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
 
   const eventDistance = haversineDistance(lat1, lng1, lat2, lng2);
 
-  // Simple approach: Find the closest point on the highway to BOTH start and end
-  // Then extract the segment between them
-  // This works well with properly-ordered geometry (like OSM data)
+  // Smart approach: Find closest point to start, then search nearby for end
+  // This prevents matching points that are thousands of indices apart
+  // when the geometry has duplicate coverage of the same geographic area
 
+  // Step 1: Find closest point to event start
   let startIdx = 0;
-  let endIdx = 0;
   let minStartDist = Infinity;
-  let minEndDist = Infinity;
 
-  // Single pass: find closest points to both start and end
   for (let i = 0; i < geometry.length; i++) {
     const [lon, lat] = geometry[i];
-
-    // Check distance to event start
     const startDist = haversineDistance(lat1, lng1, lat, lon);
     if (startDist < minStartDist) {
       minStartDist = startDist;
       startIdx = i;
     }
+  }
 
-    // Check distance to event end
+  // Step 2: Search for end point within a reasonable window around start
+  // Window size: 5x the event distance (accounting for curves + buffer)
+  const searchWindow = Math.max(eventDistance * 5, 10); // At least 10km window
+  let endIdx = startIdx;
+  let minEndDist = Infinity;
+
+  // Search forward from start
+  let searchedDist = 0;
+  for (let i = startIdx; i < geometry.length - 1 && searchedDist < searchWindow; i++) {
+    const [lon, lat] = geometry[i];
     const endDist = haversineDistance(lat2, lng2, lat, lon);
     if (endDist < minEndDist) {
       minEndDist = endDist;
       endIdx = i;
+    }
+
+    // Accumulate distance
+    if (i < geometry.length - 1) {
+      const [lon1, lat1] = geometry[i];
+      const [lon2, lat2] = geometry[i + 1];
+      searchedDist += haversineDistance(lat1, lon1, lat2, lon2);
+    }
+  }
+
+  // Also search backward from start
+  searchedDist = 0;
+  for (let i = startIdx; i > 0 && searchedDist < searchWindow; i--) {
+    const [lon, lat] = geometry[i];
+    const endDist = haversineDistance(lat2, lng2, lat, lon);
+    if (endDist < minEndDist) {
+      minEndDist = endDist;
+      endIdx = i;
+    }
+
+    // Accumulate distance
+    if (i > 0) {
+      const [lon1, lat1] = geometry[i];
+      const [lon2, lat2] = geometry[i - 1];
+      searchedDist += haversineDistance(lat1, lon1, lat2, lon2);
     }
   }
 
