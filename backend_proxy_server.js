@@ -3889,7 +3889,7 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     states: getAllStateKeys().length,
-    version: '1.1.1-b2223aa',
+    version: '1.1.1-384cd61',
     gdal: gdalAvailable,
     database: {
       postgresConnected: !!pgPool,
