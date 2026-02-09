@@ -996,7 +996,7 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
     };
     const stateName = stateCodeToName[stateCode] || null;
 
-    console.log(`🔍 Looking for Interstate geometry: ${corridor} ${dir || 'any direction'} in ${stateCode} (pgPool: ${!!pgPool}, DATABASE_URL: ${process.env.DATABASE_URL ? 'set' : 'NOT SET'})`);
+    console.log(`🔍 [v2] Looking for Interstate geometry: ${corridor} ${dir || 'any direction'} in ${stateCode} (pgPool: ${!!pgPool}, DATABASE_URL: ${process.env.DATABASE_URL ? 'set' : 'NOT SET'})`);
 
     // Query the corridors table where geometry is stored as JSONB
     // Naming conventions in corridors table:
@@ -3893,7 +3893,7 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     states: getAllStateKeys().length,
-    version: '1.1.1',
+    version: '1.1.1-b2223aa',
     gdal: gdalAvailable,
     database: {
       postgresConnected: !!pgPool,
