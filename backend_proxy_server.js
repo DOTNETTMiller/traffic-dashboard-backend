@@ -1900,16 +1900,42 @@ const extractTextValue = (obj) => {
 };
 
 // Helper to extract actual interstate corridor from location text
-const extractCorridor = (locationText) => {
-  if (!locationText) return 'Unknown';
+const extractCorridor = (locationText, description = '', headlineText = '', eventId = '') => {
+  // Try location text first
+  if (locationText) {
+    const text = locationText.toUpperCase();
+    const interstateMatch = text.match(/\b(?:I-?|INTERSTATE\s+)(\d{1,3})\b/);
+    if (interstateMatch) {
+      return `I-${interstateMatch[1]}`;
+    }
+  }
 
-  const text = locationText.toUpperCase();
+  // Try description as fallback
+  if (description) {
+    const descText = description.toUpperCase();
+    const interstateMatch = descText.match(/\b(?:I-?|INTERSTATE\s+)(\d{1,3})\b/);
+    if (interstateMatch) {
+      return `I-${interstateMatch[1]}`;
+    }
+  }
 
-  // Match patterns like "I-80", "I 80", "Interstate 80"
-  const interstateMatch = text.match(/\b(?:I-?|INTERSTATE\s+)(\d{1,3})\b/);
+  // Try headline as fallback
+  if (headlineText) {
+    const headText = headlineText.toUpperCase();
+    const interstateMatch = headText.match(/\b(?:I-?|INTERSTATE\s+)(\d{1,3})\b/);
+    if (interstateMatch) {
+      return `I-${interstateMatch[1]}`;
+    }
+  }
 
-  if (interstateMatch) {
-    return `I-${interstateMatch[1]}`;
+  // Try event ID as last fallback (e.g., "IADOT-21173403930WB" contains I-80 in many Iowa IDs)
+  // Look for patterns like "I80", "I-80", or extract from mile marker references
+  if (eventId) {
+    const idText = eventId.toUpperCase();
+    const interstateMatch = idText.match(/\b(?:I-?|INTERSTATE\s*)(\d{1,3})\b/);
+    if (interstateMatch) {
+      return `I-${interstateMatch[1]}`;
+    }
   }
 
   return 'Unknown';
@@ -2513,7 +2539,8 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
             }
 
             // Extract corridor once for use in both geometry processing and event object
-            const corridor = extractCorridor(locationText);
+            // Pass description, headline, and eventId as fallbacks for Iowa events
+            const corridor = extractCorridor(locationText, descText, headlineText, eventId);
             if (index === 0) {
               console.log(`${stateName}: locationText="${locationText}" → corridor="${corridor}"`);
             }
@@ -2583,7 +2610,7 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
 
             // Only include events on interstate highways
             if (isInterstateRoute(locationText)) {
-            const corridor = extractCorridor(locationText);
+            const corridor = extractCorridor(locationText, descText, headlineText, eventId);
             const startRaw = detail?.['event-times']?.['start-time'] || null;
             const endRaw = detail?.['event-times']?.['end-time'] || null;
             const lanesRaw = extractLaneInfo(descText, headlineText);
