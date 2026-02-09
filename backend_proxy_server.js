@@ -1084,9 +1084,8 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
 
   const eventDistance = haversineDistance(lat1, lng1, lat2, lng2);
 
-  // Smart approach: Find closest point to start, then search nearby for end
-  // This prevents matching points that are thousands of indices apart
-  // when the geometry has duplicate coverage of the same geographic area
+  // Simple approach: Snap to closest points and extract segment between them
+  // Now that geometry is properly sorted, we can use straightforward global search
 
   // Step 1: Find closest point to event start
   let startIdx = 0;
@@ -1101,49 +1100,20 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
     }
   }
 
-  // Step 2: Search for end point within a reasonable window around start
-  // Window size: 5x the event distance (accounting for curves + buffer)
-  const searchWindow = Math.max(eventDistance * 5, 10); // At least 10km window
-  let endIdx = startIdx;
+  // Step 2: Find closest point to event end
+  let endIdx = 0;
   let minEndDist = Infinity;
 
-  // Search forward from start
-  let searchedDist = 0;
-  for (let i = startIdx; i < geometry.length - 1 && searchedDist < searchWindow; i++) {
+  for (let i = 0; i < geometry.length; i++) {
     const [lon, lat] = geometry[i];
     const endDist = haversineDistance(lat2, lng2, lat, lon);
     if (endDist < minEndDist) {
       minEndDist = endDist;
       endIdx = i;
     }
-
-    // Accumulate distance
-    if (i < geometry.length - 1) {
-      const [lon1, lat1] = geometry[i];
-      const [lon2, lat2] = geometry[i + 1];
-      searchedDist += haversineDistance(lat1, lon1, lat2, lon2);
-    }
   }
 
-  // Also search backward from start
-  searchedDist = 0;
-  for (let i = startIdx; i > 0 && searchedDist < searchWindow; i--) {
-    const [lon, lat] = geometry[i];
-    const endDist = haversineDistance(lat2, lng2, lat, lon);
-    if (endDist < minEndDist) {
-      minEndDist = endDist;
-      endIdx = i;
-    }
-
-    // Accumulate distance
-    if (i > 0) {
-      const [lon1, lat1] = geometry[i];
-      const [lon2, lat2] = geometry[i - 1];
-      searchedDist += haversineDistance(lat1, lon1, lat2, lon2);
-    }
-  }
-
-  // Ensure start comes before end (swap if needed)
+  // Ensure start comes before end in the geometry array
   if (startIdx > endIdx) {
     [startIdx, endIdx] = [endIdx, startIdx];
   }
@@ -1152,25 +1122,12 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   const segment = geometry.slice(startIdx, endIdx + 1);
 
   // Validation 1: Endpoints must be reasonably close to highway
-  // Iowa DOT coordinates are not precise - typically 500m-2km from highway centerline
-  // Based on analysis: 83% of events have endpoints within 2km, only 23% within 500m
-  // We need to be lenient to allow most events to snap
-
-  let maxDistanceThreshold;
-  if (eventDistance < 5) {
-    // Very short events (< 5km): Allow 3km distance
-    // This captures events that are "approximately here" on the highway
-    maxDistanceThreshold = 3; // 3 km
-  } else if (eventDistance < 50) {
-    // Medium events: Moderate threshold
-    maxDistanceThreshold = 5; // 5 km
-  } else {
-    // Long events: Lenient threshold
-    maxDistanceThreshold = 10; // 10 km
-  }
+  // Based on analysis: 100% of Iowa I-80 events are within 500m of highway
+  // Most are within 0-60 meters. Use strict threshold.
+  const maxDistanceThreshold = 0.5; // 500 meters
 
   if (minStartDist > maxDistanceThreshold || minEndDist > maxDistanceThreshold) {
-    console.log(`⚠️  Segment rejected: start=${minStartDist.toFixed(3)}km, end=${minEndDist.toFixed(3)}km from highway (max ${maxDistanceThreshold}km for ${eventDistance.toFixed(1)}km event)`);
+    console.log(`⚠️  Segment rejected: start=${(minStartDist * 1000).toFixed(0)}m, end=${(minEndDist * 1000).toFixed(0)}m from highway (max 500m)`);
     return null;
   }
 
@@ -1183,12 +1140,10 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   }
 
   // Validation 3: Segment path length should match event distance reasonably
-  // The snapped segment path should be similar to the straight-line event distance
-  // Highway curves add some length, but if it's way off, we matched the wrong points
-
-  // For short events: path should be within 1.3x of event distance (gentle curves)
-  // For longer events: allow up to 1.5x (more curves)
-  const maxPathMultiplier = eventDistance < 10 ? 1.3 : 1.5;
+  // Highway curves add length, but should be close to straight-line distance
+  // For short events: allow up to 1.5x (tight curves matter more)
+  // For longer events: allow up to 1.3x (should be mostly straight)
+  const maxPathMultiplier = eventDistance < 5 ? 1.5 : 1.3;
   const maxReasonablePathLength = eventDistance * maxPathMultiplier;
 
   if (segmentPathLength > maxReasonablePathLength && eventDistance > 1) {
