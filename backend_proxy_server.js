@@ -1183,7 +1183,9 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   }
   const maxReasonablePathLength = eventDistance * maxPathMultiplier;
 
-  if (segmentPathLength > maxReasonablePathLength && eventDistance > 1) {
+  // DISABLED for Iowa: OSM geometry has ordering issues causing false rejections
+  // Iowa events within 5km of highway should snap regardless of path length
+  if (segmentPathLength > maxReasonablePathLength && eventDistance > 1 && state !== 'Iowa') {
     console.log(`⚠️  Segment rejected: path too long`);
     console.log(`   Segment path: ${segmentPathLength.toFixed(2)}km (${(segmentPathLength * 0.621371).toFixed(2)} mi)`);
     console.log(`   Event distance: ${eventDistance.toFixed(2)}km (${(eventDistance * 0.621371).toFixed(2)} mi)`);
