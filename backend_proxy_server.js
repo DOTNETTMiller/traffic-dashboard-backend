@@ -1079,73 +1079,89 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   }
 
   const eventDistance = haversineDistance(lat1, lng1, lat2, lng2);
+  const toleranceKm = 2; // 2km tolerance for finding candidate points
 
-  // Windowed search approach: Find closest point to start, then search nearby for end
-  // This prevents matching points that are far apart in the geometry array
-  // Using official US Census TIGER/Line 2023 geometry (7456 points)
+  // SMART ALGORITHM: Find ALL candidates within tolerance and select best path
+  // This handles misordered geometry by trying all possible combinations
 
-  // Step 1: Find closest point to event start
-  let startIdx = 0;
-  let minStartDist = Infinity;
-
+  // Step 1: Find ALL candidate start points within tolerance
+  const startCandidates = [];
   for (let i = 0; i < geometry.length; i++) {
     const [lon, lat] = geometry[i];
-    const startDist = haversineDistance(lat1, lng1, lat, lon);
-    if (startDist < minStartDist) {
-      minStartDist = startDist;
-      startIdx = i;
+    const dist = haversineDistance(lat1, lng1, lat, lon);
+    if (dist <= toleranceKm) {
+      startCandidates.push({ index: i, distance: dist });
     }
   }
 
-  // Step 2: Search for end point within a window around start
-  // Window size: 5x the event distance (accounts for curves + buffer)
-  const searchWindow = Math.max(eventDistance * 5, 10); // At least 10km window
-  let endIdx = startIdx;
+  // Step 2: Find ALL candidate end points within tolerance
+  const endCandidates = [];
+  for (let i = 0; i < geometry.length; i++) {
+    const [lon, lat] = geometry[i];
+    const dist = haversineDistance(lat2, lng2, lat, lon);
+    if (dist <= toleranceKm) {
+      endCandidates.push({ index: i, distance: dist });
+    }
+  }
+
+  console.log(`   🔍 Smart search: ${startCandidates.length} start candidates, ${endCandidates.length} end candidates`);
+
+  if (startCandidates.length === 0 || endCandidates.length === 0) {
+    console.log(`   ❌ No candidates within ${toleranceKm}km tolerance`);
+    return null;
+  }
+
+  // Step 3: Try all combinations and find the best path
+  let bestPath = null;
+  let bestScore = Infinity; // Lower is better
+  let minStartDist = Infinity;
   let minEndDist = Infinity;
+  let startIdx = 0;
+  let endIdx = 0;
 
-  // Search forward from start
-  let searchedDist = 0;
-  for (let i = startIdx; i < geometry.length - 1 && searchedDist < searchWindow; i++) {
-    const [lon, lat] = geometry[i];
-    const endDist = haversineDistance(lat2, lng2, lat, lon);
-    if (endDist < minEndDist) {
-      minEndDist = endDist;
-      endIdx = i;
-    }
+  for (const start of startCandidates) {
+    for (const end of endCandidates) {
+      if (start.index === end.index) continue;
 
-    // Accumulate distance
-    if (i < geometry.length - 1) {
-      const [lon1, lat1] = geometry[i];
-      const [lon2, lat2] = geometry[i + 1];
-      searchedDist += haversineDistance(lat1, lon1, lat2, lon2);
+      // Extract path (handle both directions)
+      const pathStartIdx = Math.min(start.index, end.index);
+      const pathEndIdx = Math.max(start.index, end.index);
+      const pathSegment = geometry.slice(pathStartIdx, pathEndIdx + 1);
+
+      // Calculate path length
+      let pathLength = 0;
+      for (let i = 0; i < pathSegment.length - 1; i++) {
+        const [lon1, lat1] = pathSegment[i];
+        const [lon2, lat2] = pathSegment[i + 1];
+        pathLength += haversineDistance(lat1, lon1, lat2, lon2);
+      }
+
+      // Score = weighted combination:
+      // - Distance from actual start/end points (20% each)
+      // - Path length deviation from straight-line (60%)
+      const pathRatio = pathLength / eventDistance;
+      const score = (start.distance * 0.2) + (end.distance * 0.2) + (Math.abs(pathRatio - 1) * eventDistance * 0.6);
+
+      if (score < bestScore) {
+        bestScore = score;
+        bestPath = pathSegment;
+        minStartDist = start.distance;
+        minEndDist = end.distance;
+        startIdx = pathStartIdx;
+        endIdx = pathEndIdx;
+      }
     }
   }
 
-  // Search backward from start
-  searchedDist = 0;
-  for (let i = startIdx; i > 0 && searchedDist < searchWindow; i--) {
-    const [lon, lat] = geometry[i];
-    const endDist = haversineDistance(lat2, lng2, lat, lon);
-    if (endDist < minEndDist) {
-      minEndDist = endDist;
-      endIdx = i;
-    }
-
-    // Accumulate distance
-    if (i > 0) {
-      const [lon1, lat1] = geometry[i];
-      const [lon2, lat2] = geometry[i - 1];
-      searchedDist += haversineDistance(lat1, lon1, lat2, lon2);
-    }
+  if (!bestPath) {
+    console.log(`   ❌ No valid path found among candidates`);
+    return null;
   }
 
-  // Ensure start comes before end in the geometry array
-  if (startIdx > endIdx) {
-    [startIdx, endIdx] = [endIdx, startIdx];
-  }
+  console.log(`   ✅ Best path: indices ${startIdx}-${endIdx}, ${bestPath.length} points`);
 
   // Extract segment between the two closest points
-  const segment = geometry.slice(startIdx, endIdx + 1);
+  const segment = bestPath;
 
   // Validation 1: Endpoints must be reasonably close to highway
   // Based on analysis: 100% of Iowa I-80 events are within 500m of actual highway
