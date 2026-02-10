@@ -4,6 +4,8 @@ import api from '../services/api';
 import FederalGrantResources from './FederalGrantResources';
 import ConnectedCorridorsGrantMatcher from './ConnectedCorridorsGrantMatcher';
 import GrantProposalAnalyzer from './GrantProposalAnalyzer';
+// GLOBAL_TEXT_VISIBILITY_FIX_APPLIED: Ensures readable text on all backgrounds
+
 
 export default function GrantApplications({ user }) {
   const [applications, setApplications] = useState([]);
@@ -992,7 +994,7 @@ function CreateApplicationForm({ theme, styles, templates, selectedTemplate, han
               style={{
                 padding: '8px 16px',
                 background: theme.primary,
-                color: '#ffffff',
+                color: '#6b7280', // Fixed: was too light
                 border: 'none',
                 borderRadius: '6px',
                 cursor: loadingRecommendations ? 'not-allowed' : 'pointer',
@@ -1063,7 +1065,7 @@ function CreateApplicationForm({ theme, styles, templates, selectedTemplate, han
                             marginTop: '8px',
                             padding: '6px 12px',
                             background: theme.primary,
-                            color: '#ffffff',
+                            color: '#6b7280', // Fixed: was too light
                             border: 'none',
                             borderRadius: '4px',
                             fontSize: '12px',

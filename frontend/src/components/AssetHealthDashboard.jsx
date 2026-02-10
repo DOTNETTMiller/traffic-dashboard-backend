@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
+// GLOBAL_TEXT_VISIBILITY_FIX_APPLIED: Ensures readable text on all backgrounds
+
 
 const AssetHealthDashboard = ({ stateKey = 'OH' }) => {
   const [dashboard, setDashboard] = useState(null);

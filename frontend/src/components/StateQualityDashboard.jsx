@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
+// GLOBAL_TEXT_VISIBILITY_FIX_APPLIED: Ensures readable text on all backgrounds
+
 
 const StateQualityDashboard = () => {
   const [rankings, setRankings] = useState([]);
@@ -501,11 +503,11 @@ const StateQualityDashboard = () => {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                      <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600' }}>Corridor</th>
-                      <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600' }}>Service</th>
-                      <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600' }}>Provider</th>
-                      <th style={{ padding: '12px', textAlign: 'center', fontSize: '12px', fontWeight: '600' }}>DQI</th>
-                      <th style={{ padding: '12px', textAlign: 'center', fontSize: '12px', fontWeight: '600' }}>Grade</th>
+                      <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600' , color: '#111827'}}>Corridor</th>
+                      <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600' , color: '#111827'}}>Service</th>
+                      <th style={{ padding: '12px', textAlign: 'left', fontSize: '12px', fontWeight: '600' , color: '#111827'}}>Provider</th>
+                      <th style={{ padding: '12px', textAlign: 'center', fontSize: '12px', fontWeight: '600' , color: '#111827'}}>DQI</th>
+                      <th style={{ padding: '12px', textAlign: 'center', fontSize: '12px', fontWeight: '600' , color: '#111827'}}>Grade</th>
                     </tr>
                   </thead>
                   <tbody>

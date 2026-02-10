@@ -1,0 +1,106 @@
+/**
+ * Text Visibility Utility Classes
+ * Ensures readable text on all backgrounds across Windows/Mac/Linux
+ */
+
+/* Force dark text on light backgrounds */
+.force-dark-text,
+.force-dark-text * {
+  color: #111827 !important;
+}
+
+.force-dark-text h1,
+.force-dark-text h2,
+.force-dark-text h3,
+.force-dark-text h4,
+.force-dark-text h5,
+.force-dark-text h6 {
+  color: #111827 !important;
+}
+
+.force-dark-text th {
+  color: #111827 !important;
+}
+
+.force-dark-text td {
+  color: #374151 !important;
+}
+
+/* Modal/Dialog containers - always light background with dark text */
+.modal-container,
+[role="dialog"],
+.dialog-container {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+}
+
+/* Ensure table visibility */
+table thead th {
+  color: #111827;
+}
+
+table tbody td {
+  color: #374151;
+}
+
+/* Fix common button text */
+button {
+  color: inherit;
+}
+
+button.btn-primary {
+  color: white;
+  background-color: #3b82f6;
+}
+
+button.btn-secondary {
+  color: #111827;
+  background-color: #e5e7eb;
+}
+
+/* Status badges - ensure contrast */
+.badge,
+.status-badge {
+  font-weight: 600;
+}
+
+/* Ensure form labels are visible */
+label,
+.form-label {
+  color: #374151;
+  font-weight: 500;
+}
+
+/* Gray text helpers with guaranteed visibility */
+.text-gray-light {
+  color: #6b7280 !important;
+}
+
+.text-gray {
+  color: #4b5563 !important;
+}
+
+.text-gray-dark {
+  color: #374151 !important;
+}
+
+.text-black {
+  color: #111827 !important;
+}
+
+/* Safe colored text (maintains readability) */
+.text-blue {
+  color: #1e40af !important;
+}
+
+.text-green {
+  color: #065f46 !important;
+}
+
+.text-red {
+  color: #991b1b !important;
+}
+
+.text-yellow {
+  color: #92400e !important;
+}

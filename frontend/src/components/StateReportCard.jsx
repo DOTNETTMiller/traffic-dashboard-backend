@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
+// GLOBAL_TEXT_VISIBILITY_FIX_APPLIED: Ensures readable text on all backgrounds
+
 
 /**
  * Phase 1: State Report Card Dashboard
@@ -963,10 +965,10 @@ const RecommendationsView = ({ recommendations, contracts }) => {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '600' }}>Vendor</th>
-                  <th style={{ padding: '12px', textAlign: 'right', fontSize: '13px', fontWeight: '600' }}>Annual Value</th>
-                  <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600' }}>Contract Period</th>
-                  <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600' }}>SLA Uptime</th>
+                  <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '600' , color: '#111827'}}>Vendor</th>
+                  <th style={{ padding: '12px', textAlign: 'right', fontSize: '13px', fontWeight: '600' , color: '#111827'}}>Annual Value</th>
+                  <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600' , color: '#111827'}}>Contract Period</th>
+                  <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600' , color: '#111827'}}>SLA Uptime</th>
                 </tr>
               </thead>
               <tbody>

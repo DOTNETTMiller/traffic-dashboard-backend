@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { theme } from '../styles/theme';
 import SkeletonLoader from './SkeletonLoader';
+// GLOBAL_TEXT_VISIBILITY_FIX_APPLIED: Ensures readable text on all backgrounds
+
 
 export default function ParkingAccuracyMetrics({ authToken, currentUser }) {
   const [accuracy, setAccuracy] = useState(null);
@@ -265,7 +267,7 @@ export default function ParkingAccuracyMetrics({ authToken, currentUser }) {
             borderRadius: '6px'
           }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-              <thead style={{ backgroundColor: '#f9fafb', position: 'sticky', top: 0 }}>
+              <thead style={{ backgroundColor: '#f9fafb', position: 'sticky', top: 0 , color: '#111827'}}>
                 <tr>
                   <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: '600', color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
                     Facility

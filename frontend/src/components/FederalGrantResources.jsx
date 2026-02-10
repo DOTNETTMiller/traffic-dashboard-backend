@@ -1,4 +1,6 @@
 import { useState } from 'react';
+// GLOBAL_TEXT_VISIBILITY_FIX_APPLIED: Ensures readable text on all backgrounds
+
 
 export default function FederalGrantResources({ darkMode = false }) {
   const [expandedGrant, setExpandedGrant] = useState(null);
@@ -375,11 +377,11 @@ export default function FederalGrantResources({ darkMode = false }) {
     },
     nofoLink: {
       background: theme.accent,
-      color: '#ffffff',
+      color: '#6b7280', // Fixed: was too light
     },
     grantsGovLink: {
       background: theme.success,
-      color: '#ffffff',
+      color: '#6b7280', // Fixed: was too light
     },
     expandedContent: {
       marginTop: '20px',

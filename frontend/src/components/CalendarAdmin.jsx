@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { config } from '../config';
+// GLOBAL_TEXT_VISIBILITY_FIX_APPLIED: Ensures readable text on all backgrounds
+
 
 export default function CalendarAdmin({ authToken }) {
   const [events, setEvents] = useState([]);
@@ -1061,12 +1063,12 @@ Action Items:
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-              <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '700' }}>Event</th>
-              <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '700' }}>Type</th>
-              <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '700' }}>Start Time</th>
-              <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '700' }}>Location</th>
-              <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '700' }}>Link</th>
-              <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '700' }}>Actions</th>
+              <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '700' , color: '#111827'}}>Event</th>
+              <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '700' , color: '#111827'}}>Type</th>
+              <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '700' , color: '#111827'}}>Start Time</th>
+              <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '700' , color: '#111827'}}>Location</th>
+              <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '700' , color: '#111827'}}>Link</th>
+              <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '700' , color: '#111827'}}>Actions</th>
             </tr>
           </thead>
           <tbody>

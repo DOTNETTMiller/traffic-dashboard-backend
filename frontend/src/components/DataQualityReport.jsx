@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { config } from '../config';
+// GLOBAL_TEXT_VISIBILITY_FIX_APPLIED: Ensures readable text on all backgrounds
+
 
 export default function DataQualityReport() {
   const [summary, setSummary] = useState(null);

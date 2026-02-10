@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { config } from '../config';
+// GLOBAL_TEXT_VISIBILITY_FIX_APPLIED: Ensures readable text on all backgrounds
+
 
 const defaultUserForm = {
   email: '',
@@ -581,13 +583,13 @@ export default function AdminUsers({ user, authToken }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                <th style={{ padding: '12px', textAlign: 'left' }}>Username</th>
-                <th style={{ padding: '12px', textAlign: 'left' }}>Email</th>
-                <th style={{ padding: '12px', textAlign: 'left' }}>Role</th>
-                <th style={{ padding: '12px', textAlign: 'left' }}>State</th>
-                <th style={{ padding: '12px', textAlign: 'left' }}>Status</th>
-                <th style={{ padding: '12px', textAlign: 'left' }}>Last Login</th>
-                <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
+                <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Username</th>
+                <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Email</th>
+                <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Role</th>
+                <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>State</th>
+                <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Status</th>
+                <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Last Login</th>
+                <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Actions</th>
               </tr>
             </thead>
             <tbody>

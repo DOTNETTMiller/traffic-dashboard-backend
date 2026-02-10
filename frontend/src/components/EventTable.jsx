@@ -3,6 +3,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { isNearBorder } from '../utils/borderProximity';
 import { theme } from '../styles/theme';
 import EnhancedEventCard from './EnhancedEventCard';
+// GLOBAL_TEXT_VISIBILITY_FIX_APPLIED: Ensures readable text on all backgrounds
+
 
 const normalizeSeverity = (severity) => {
   if (!severity) return 'medium';
@@ -156,7 +158,7 @@ export default function EventTable({ events, messages = {}, onEventSelect }) {
           backgroundColor: '#f3f4f6',
           boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
           zIndex: 10
-        }}>
+        , color: '#111827'}}>
           <tr>
             <th onClick={() => handleSort('requiresCollaboration')} style={headerStyle}>
               🤝 <SortIcon field="requiresCollaboration" />

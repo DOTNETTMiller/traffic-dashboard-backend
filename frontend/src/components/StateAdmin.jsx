@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { config } from '../config';
+// GLOBAL_TEXT_VISIBILITY_FIX_APPLIED: Ensures readable text on all backgrounds
+
 
 const getStoredAdminToken = () => {
   if (typeof window === 'undefined') {
@@ -945,12 +947,12 @@ export default function StateAdmin({ user, authToken }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                <th style={{ padding: '12px', textAlign: 'left' }}>State</th>
-                <th style={{ padding: '12px', textAlign: 'left' }}>API URL</th>
-                <th style={{ padding: '12px', textAlign: 'left' }}>Type</th>
-                <th style={{ padding: '12px', textAlign: 'left' }}>Format</th>
-                <th style={{ padding: '12px', textAlign: 'left' }}>Auth</th>
-                <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
+                <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>State</th>
+                <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>API URL</th>
+                <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Type</th>
+                <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Format</th>
+                <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Auth</th>
+                <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Actions</th>
               </tr>
             </thead>
             <tbody>

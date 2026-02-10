@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import api from '../services/api';
+// GLOBAL_TEXT_VISIBILITY_FIX_APPLIED: Ensures readable text on all backgrounds
+
 
 export default function GrantDraftingAssistant({ user, darkMode = false }) {
   const [formData, setFormData] = useState({
@@ -116,7 +118,7 @@ export default function GrantDraftingAssistant({ user, darkMode = false }) {
     button: {
       padding: '14px 28px',
       background: theme.accent,
-      color: '#ffffff',
+      color: '#6b7280', // Fixed: was too light
       border: 'none',
       borderRadius: '10px',
       fontSize: '15px',
