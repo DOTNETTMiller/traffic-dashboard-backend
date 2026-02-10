@@ -195,21 +195,21 @@ export default function DataQualityReport() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ backgroundColor: '#e5e7eb', textAlign: 'left' }}>
-                <th style={{ padding: '8px', minWidth: '160px' }}>Required Field</th>
-                <th style={{ padding: '8px', minWidth: '180px' }}>Spec Field</th>
-                <th style={{ padding: '8px', minWidth: '80px' }}>Severity</th>
-                <th style={{ padding: '8px', minWidth: '70px', textAlign: 'center' }}>Raw %</th>
-                <th style={{ padding: '8px', minWidth: '70px', textAlign: 'center' }}>Extract %</th>
-                <th style={{ padding: '8px', minWidth: '70px', textAlign: 'center' }}>Norm %</th>
-                <th style={{ padding: '8px', minWidth: '140px' }}>Raw Sample</th>
-                <th style={{ padding: '8px', minWidth: '140px' }}>Extracted Sample</th>
-                <th style={{ padding: '8px', minWidth: '140px' }}>Normalized Sample</th>
+                <th style={{ padding: '8px', minWidth: '160px', color: '#111827' }}>Required Field</th>
+                <th style={{ padding: '8px', minWidth: '180px', color: '#111827' }}>Spec Field</th>
+                <th style={{ padding: '8px', minWidth: '80px', color: '#111827' }}>Severity</th>
+                <th style={{ padding: '8px', minWidth: '70px', textAlign: 'center', color: '#111827' }}>Raw %</th>
+                <th style={{ padding: '8px', minWidth: '70px', textAlign: 'center', color: '#111827' }}>Extract %</th>
+                <th style={{ padding: '8px', minWidth: '70px', textAlign: 'center', color: '#111827' }}>Norm %</th>
+                <th style={{ padding: '8px', minWidth: '140px', color: '#111827' }}>Raw Sample</th>
+                <th style={{ padding: '8px', minWidth: '140px', color: '#111827' }}>Extracted Sample</th>
+                <th style={{ padding: '8px', minWidth: '140px', color: '#111827' }}>Normalized Sample</th>
               </tr>
             </thead>
             <tbody>
               {coverage.map((row, idx) => (
                 <tr key={row.field || idx} style={{ borderBottom: '1px solid #e5e7eb', backgroundColor: idx % 2 === 0 ? 'white' : '#f3f4f6' }}>
-                  <td style={{ padding: '8px', fontWeight: 600 }}>{row.description || row.field}</td>
+                  <td style={{ padding: '8px', fontWeight: 600, color: '#111827' }}>{row.description || row.field}</td>
                   <td style={{ padding: '8px', color: '#4b5563' }}>{row.specField || '—'}</td>
                   <td style={{ padding: '8px' }}>
                     <span style={{
@@ -826,10 +826,11 @@ export default function DataQualityReport() {
               width: '100%',
               maxHeight: 'none',
               overflow: 'visible',
-              backgroundColor: 'white',
+              backgroundColor: '#ffffff',
               borderRadius: '12px',
               boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
-              marginBottom: '40px'
+              marginBottom: '40px',
+              color: '#111827' // Force dark text for readability on white background
             }}
             onClick={(e) => e.stopPropagation()}
           >
