@@ -64,153 +64,53 @@ export default function NASCOCorridorRegulationsView({ darkMode = false }) {
     }
   };
 
-  const downloadAnalysisAsPDF = () => {
+  const downloadAnalysisAsPDF = async () => {
     if (!aiAnalysis) return;
 
-    const pdf = new jsPDF('p', 'mm', 'letter');
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 20;
-    const maxWidth = pageWidth - (margin * 2);
-    let yPosition = margin;
+    try {
+      const pdfUtils = await import('../utils/pdfExport');
+      const doc = pdfUtils.createPDF();
 
-    // Helper function to add text with automatic page breaks
-    const addText = (text, fontSize, isBold = false, color = [0, 0, 0]) => {
-      pdf.setFontSize(fontSize);
-      pdf.setFont('helvetica', isBold ? 'bold' : 'normal');
-      pdf.setTextColor(...color);
+      // Add header
+      let yPos = pdfUtils.addHeader(
+        doc,
+        'NASCO Corridor OS/OW Regulations',
+        'Harmonization Analysis Report',
+        { titleColor: pdfUtils.COLORS.success }
+      );
 
-      const lines = pdf.splitTextToSize(text, maxWidth);
-      lines.forEach((line) => {
-        if (yPosition + 10 > pageHeight - margin) {
-          pdf.addPage();
-          yPosition = margin;
-        }
-        pdf.text(line, margin, yPosition);
-        yPosition += fontSize / 2 + 2;
+      // States analyzed
+      yPos = pdfUtils.addSectionHeading(doc, 'States Analyzed', yPos, 3);
+      const statesList = aiAnalysis.statesAnalyzed?.map(s => `${s.key.toUpperCase()} - ${s.name}`).join(' • ') || '';
+      yPos = pdfUtils.addParagraph(doc, statesList, yPos, {
+        color: pdfUtils.COLORS.gray,
+        fontSize: 9
       });
-    };
 
-    // Header
-    pdf.setFillColor(16, 185, 129); // Green
-    pdf.rect(0, 0, pageWidth, 30, 'F');
-    pdf.setTextColor(255, 255, 255);
-    pdf.setFontSize(22);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('NASCO Corridor OS/OW Regulations', margin, 20);
+      yPos += 5;
 
-    yPosition = 40;
-    pdf.setTextColor(0, 0, 0);
-    pdf.setFontSize(11);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(`Harmonization Analysis Report`, margin, yPosition);
-    yPosition += 6;
-    pdf.text(`Generated: ${new Date(aiAnalysis.timestamp).toLocaleString()}`, margin, yPosition);
-    yPosition += 10;
-
-    // States analyzed
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('States Analyzed:', margin, yPosition);
-    yPosition += 5;
-    pdf.setFont('helvetica', 'normal');
-    const statesList = aiAnalysis.statesAnalyzed?.map(s => s.name).join(', ') || '';
-    const statesLines = pdf.splitTextToSize(statesList, maxWidth);
-    statesLines.forEach(line => {
-      pdf.text(line, margin, yPosition);
-      yPosition += 5;
-    });
-    yPosition += 8;
-
-    // Parse and format the AI analysis
-    const analysisText = aiAnalysis.analysis || '';
-    const sections = analysisText.split(/\n(?=\d+\.\s+\*\*|#+\s+)/); // Split on numbered sections or headers
-
-    sections.forEach(section => {
-      if (!section.trim()) return;
-
-      // Handle headers (##)
-      if (section.startsWith('#')) {
-        const headerMatch = section.match(/^#+\s+(.+)$/m);
-        if (headerMatch) {
-          yPosition += 5;
-          addText(headerMatch[1], 14, true, [16, 105, 129]);
-          section = section.substring(headerMatch[0].length).trim();
-          yPosition += 3;
-        }
-      }
-
-      // Handle numbered sections (1. **Title**)
-      const numberMatch = section.match(/^(\d+)\.\s+\*\*(.+?)\*\*/);
-      if (numberMatch) {
-        yPosition += 5;
-        addText(`${numberMatch[1]}. ${numberMatch[2]}`, 12, true);
-        section = section.substring(numberMatch[0].length).trim();
-        yPosition += 2;
-      }
-
-      // Handle bullet points and regular text
-      const lines = section.split('\n');
-      lines.forEach(line => {
-        line = line.trim();
-        if (!line) {
-          yPosition += 3;
-          return;
-        }
-
-        // Bold text (**text**)
-        if (line.includes('**')) {
-          const parts = line.split(/\*\*(.+?)\*\*/g);
-          let currentX = margin;
-          parts.forEach((part, idx) => {
-            if (!part) return;
-            const isBold = idx % 2 === 1;
-            pdf.setFont('helvetica', isBold ? 'bold' : 'normal');
-            pdf.setFontSize(10);
-
-            if (yPosition + 6 > pageHeight - margin) {
-              pdf.addPage();
-              yPosition = margin;
-              currentX = margin;
-            }
-
-            pdf.text(part, currentX, yPosition);
-            currentX += pdf.getTextWidth(part);
-          });
-          yPosition += 5;
-        }
-        // Bullet points
-        else if (line.startsWith('- ') || line.startsWith('• ')) {
-          const bulletText = line.substring(2);
-          pdf.setFont('helvetica', 'normal');
-          pdf.setFontSize(10);
-          pdf.text('•', margin + 2, yPosition);
-          const bulletLines = pdf.splitTextToSize(bulletText, maxWidth - 8);
-          bulletLines.forEach((bLine, idx) => {
-            if (yPosition + 6 > pageHeight - margin) {
-              pdf.addPage();
-              yPosition = margin;
-            }
-            pdf.text(bLine, margin + 8, yPosition);
-            yPosition += 5;
-          });
-        }
-        // Regular text
-        else {
-          addText(line, 10, false);
-        }
+      // Process AI analysis
+      yPos = pdfUtils.processMarkdownForPDF(doc, aiAnalysis.analysis, yPos, {
+        margin: pdfUtils.DEFAULT_MARGINS
       });
-    });
 
-    // Footer on last page
-    const finalY = pageHeight - 15;
-    pdf.setFontSize(8);
-    pdf.setTextColor(100, 100, 100);
-    pdf.setFont('helvetica', 'italic');
-    pdf.text(`AI Model: ${aiAnalysis.model || 'GPT-4'} | NASCO SuperCorridor Coalition`, margin, finalY);
+      // Add footer
+      const pageHeight = doc.internal.pageSize.getHeight();
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(...pdfUtils.COLORS.gray);
+      doc.text(
+        `AI Model: ${aiAnalysis.model || 'GPT-4'} | NASCO SuperCorridor Coalition`,
+        pdfUtils.DEFAULT_MARGINS.left,
+        pageHeight - 15
+      );
 
-    // Save PDF
-    pdf.save(`NASCO-Corridor-Harmonization-Analysis-${new Date().toISOString().split('T')[0]}.pdf`);
+      // Save PDF
+      pdfUtils.savePDF(doc, 'NASCO-Corridor-Harmonization-Analysis');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+    }
   };
 
   const handleEdit = (regulation) => {

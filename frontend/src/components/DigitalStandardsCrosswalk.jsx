@@ -47,76 +47,44 @@ function DigitalStandardsCrosswalk() {
   const downloadPDF = async () => {
     setDownloading(true);
     try {
-      const { jsPDF } = await import('jspdf');
-      const doc = new jsPDF();
+      const pdfUtils = await import('../utils/pdfExport');
+      const doc = pdfUtils.createPDF();
 
-      const pageWidth = doc.internal.pageSize.getWidth();
+      // Add header
+      let yPos = pdfUtils.addHeader(
+        doc,
+        documents[activeTab].title,
+        documents[activeTab].description,
+        { titleColor: pdfUtils.COLORS.success }
+      );
+
+      // Add organization badge
+      yPos = pdfUtils.addSectionHeading(
+        doc,
+        'DOT Corridor Communicator Digital Infrastructure Suite',
+        yPos,
+        3,
+        { color: pdfUtils.COLORS.gray }
+      );
+
+      // Process content
+      yPos = pdfUtils.processMarkdownForPDF(doc, content, yPos, {
+        margin: pdfUtils.DEFAULT_MARGINS
+      });
+
+      // Add footer note
       const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 20;
-      const maxWidth = pageWidth - (margin * 2);
-      let yPosition = margin;
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(...pdfUtils.COLORS.gray);
+      doc.text(
+        'For questions about implementing standards crosswalks, contact your administrator.',
+        pdfUtils.DEFAULT_MARGINS.left,
+        pageHeight - 20
+      );
 
-      // Title
-      doc.setFontSize(16);
-      doc.setFont(undefined, 'bold');
-      doc.text(documents[activeTab].title, margin, yPosition);
-      yPosition += 10;
-
-      // Description
-      doc.setFontSize(10);
-      doc.setFont(undefined, 'normal');
-      const descLines = doc.splitTextToSize(documents[activeTab].description, maxWidth);
-      doc.text(descLines, margin, yPosition);
-      yPosition += (descLines.length * 5) + 10;
-
-      // Content
-      const lines = content.split('\n');
-      doc.setFontSize(10);
-
-      for (const line of lines) {
-        if (yPosition > pageHeight - margin) {
-          doc.addPage();
-          yPosition = margin;
-        }
-
-        // Handle headers
-        if (line.startsWith('# ')) {
-          doc.setFontSize(14);
-          doc.setFont(undefined, 'bold');
-          const text = line.replace(/^#\s+/, '');
-          doc.text(text, margin, yPosition);
-          yPosition += 8;
-          doc.setFontSize(10);
-          doc.setFont(undefined, 'normal');
-        } else if (line.startsWith('## ')) {
-          doc.setFontSize(12);
-          doc.setFont(undefined, 'bold');
-          const text = line.replace(/^##\s+/, '');
-          doc.text(text, margin, yPosition);
-          yPosition += 7;
-          doc.setFontSize(10);
-          doc.setFont(undefined, 'normal');
-        } else if (line.startsWith('### ')) {
-          doc.setFontSize(11);
-          doc.setFont(undefined, 'bold');
-          const text = line.replace(/^###\s+/, '');
-          doc.text(text, margin, yPosition);
-          yPosition += 6;
-          doc.setFontSize(10);
-          doc.setFont(undefined, 'normal');
-        } else if (line.trim() === '') {
-          yPosition += 4;
-        } else {
-          // Regular text
-          const cleanedLine = line.replace(/\*\*/g, '').replace(/\*/g, '').replace(/`/g, '');
-          const textLines = doc.splitTextToSize(cleanedLine, maxWidth);
-          doc.text(textLines, margin, yPosition);
-          yPosition += textLines.length * 5;
-        }
-      }
-
-      // Save PDF
-      doc.save(documents[activeTab].filename);
+      // Save
+      pdfUtils.savePDF(doc, documents[activeTab].filename);
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Failed to generate PDF. Please try again.');

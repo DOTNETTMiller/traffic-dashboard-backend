@@ -62,60 +62,118 @@ const APIDocumentationViewer = () => {
     }
   };
 
-  const downloadAsPDF = () => {
-    const pdf = new jsPDF('p', 'pt', 'letter');
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 40;
-    const maxWidth = pageWidth - (margin * 2);
-    let yPosition = margin;
+  const downloadAsPDF = async () => {
+    try {
+      const pdfUtils = await import('../utils/pdfExport');
+      const doc = pdfUtils.createPDF();
 
-    // Get document title
-    const docTitle = currentDoc === 'api'
-      ? 'API Reference'
-      : currentDoc === 'roadmap'
-      ? 'Strategic Roadmap'
-      : currentDoc.replace(/_/g, ' ').replace(/-/g, ' ');
+      // Get document title
+      const docTitle = currentDoc === 'api'
+        ? 'API Reference'
+        : currentDoc === 'roadmap'
+        ? 'Strategic Roadmap'
+        : currentDoc.replace(/_/g, ' ').replace(/-/g, ' ');
 
-    // Title
-    pdf.setFontSize(18);
-    pdf.setFont(undefined, 'bold');
-    pdf.text(docTitle, margin, yPosition);
-    yPosition += 30;
+      // Add header
+      let yPos = pdfUtils.addHeader(
+        doc,
+        docTitle,
+        'DOT Corridor Communicator Documentation',
+        { titleColor: pdfUtils.COLORS.primary }
+      );
 
-    // Subtitle
-    pdf.setFontSize(10);
-    pdf.setFont(undefined, 'normal');
-    pdf.text('DOT Corridor Communicator Documentation', margin, yPosition);
-    yPosition += 10;
-    pdf.text(`Generated: ${new Date().toLocaleDateString()}`, margin, yPosition);
-    yPosition += 30;
+      // Parse markdown to extract tables
+      const lines = documentation.split('\n');
+      let inTable = false;
+      let tableHeaders = [];
+      let tableData = [];
 
-    // Convert markdown to plain text (remove markdown syntax)
-    const plainText = documentation
-      .replace(/#{1,6}\s/g, '') // Remove header markers
-      .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
-      .replace(/`([^`]+)`/g, '$1') // Remove inline code
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove links
-      .replace(/^-\s/gm, '• ') // Convert list markers
-      .replace(/---/g, '───────────────────────────'); // Horizontal rules
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
 
-    // Split into lines and add to PDF
-    const lines = pdf.splitTextToSize(plainText, maxWidth);
+        // Detect table start
+        if (line.startsWith('|') && line.endsWith('|')) {
+          if (!inTable) {
+            inTable = true;
+            // Extract headers
+            const headers = line.slice(1, -1).split('|').map(h => h.trim().replace(/\*\*/g, ''));
+            tableHeaders = headers;
+            // Skip separator line
+            if (i + 1 < lines.length && lines[i + 1].includes('---')) {
+              i++;
+            }
+            continue;
+          } else {
+            // Extract data row
+            const row = line.slice(1, -1).split('|').map(c => c.trim().replace(/\*\*/g, '').replace(/`/g, ''));
+            tableData.push(row);
+          }
+        } else {
+          // End of table
+          if (inTable && tableHeaders.length > 0 && tableData.length > 0) {
+            yPos = pdfUtils.addTable(doc, tableHeaders, tableData, yPos, {
+              headStyles: {
+                fillColor: pdfUtils.COLORS.primary,
+                textColor: pdfUtils.COLORS.white,
+                fontStyle: 'bold',
+                fontSize: 9,
+                cellPadding: 3
+              },
+              bodyStyles: {
+                fontSize: 8,
+                cellPadding: 3
+              }
+            });
+            inTable = false;
+            tableHeaders = [];
+            tableData = [];
+          }
 
-    pdf.setFontSize(9);
-    for (let i = 0; i < lines.length; i++) {
-      if (yPosition > pageHeight - margin) {
-        pdf.addPage();
-        yPosition = margin;
+          // Process non-table content
+          if (line) {
+            if (line.startsWith('### ')) {
+              yPos = pdfUtils.addSectionHeading(doc, line.substring(4), yPos, 3);
+            } else if (line.startsWith('## ')) {
+              yPos = pdfUtils.addSectionHeading(doc, line.substring(3), yPos, 2);
+            } else if (line.startsWith('# ')) {
+              yPos = pdfUtils.addSectionHeading(doc, line.substring(2), yPos, 1);
+            } else if (line.startsWith('- ') || line.startsWith('* ')) {
+              yPos = pdfUtils.addParagraph(doc, '• ' + line.substring(2).replace(/\*\*/g, '').replace(/`/g, ''), yPos);
+            } else if (line.trim() !== '') {
+              yPos = pdfUtils.addParagraph(doc, line.replace(/\*\*/g, '').replace(/`/g, ''), yPos);
+            }
+          }
+        }
       }
-      pdf.text(lines[i], margin, yPosition);
-      yPosition += 12;
-    }
 
-    // Save PDF
-    const filename = `${docTitle.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
-    pdf.save(filename);
+      // Add final table if still in table mode
+      if (inTable && tableHeaders.length > 0 && tableData.length > 0) {
+        pdfUtils.addTable(doc, tableHeaders, tableData, yPos, {
+          headStyles: {
+            fillColor: pdfUtils.COLORS.primary,
+            textColor: pdfUtils.COLORS.white
+          }
+        });
+      }
+
+      // Add footer info
+      const pageHeight = doc.internal.pageSize.getHeight();
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...pdfUtils.COLORS.gray);
+      doc.text(
+        'Base URL: https://corridor-communication-dashboard-production.up.railway.app',
+        pdfUtils.DEFAULT_MARGINS.left,
+        pageHeight - 20
+      );
+
+      // Save PDF
+      const filename = `${docTitle.replace(/\s+/g, '_')}.pdf`;
+      pdfUtils.savePDF(doc, filename);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+    }
   };
 
   // Simple markdown-to-HTML converter for basic formatting
