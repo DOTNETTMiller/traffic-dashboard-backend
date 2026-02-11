@@ -53,11 +53,11 @@ const StateQualityDashboard = () => {
     }
   };
 
-  const getGradeColor = (grade) => {
-    if (grade === 'A+' || grade === 'A' || grade === 'A-') return '#10b981';
-    if (grade.startsWith('B')) return '#3b82f6';
-    if (grade.startsWith('C')) return '#f59e0b';
-    if (grade.startsWith('D')) return '#f97316';
+  const getComplianceColor = (percentage) => {
+    if (percentage >= 90) return '#10b981';
+    if (percentage >= 75) return '#3b82f6';
+    if (percentage >= 60) return '#f59e0b';
+    if (percentage >= 40) return '#f97316';
     return '#ef4444';
   };
 
@@ -201,13 +201,13 @@ const StateQualityDashboard = () => {
                     <div style={{
                       display: 'inline-block',
                       padding: '2px 8px',
-                      background: getGradeColor(state.letter_grade),
-                      color: '#111827',
+                      background: getComplianceColor(state.avg_dqi),
+                      color: 'white',
                       borderRadius: '4px',
                       fontSize: '14px',
                       fontWeight: 'bold'
                     }}>
-                      {state.letter_grade}
+                      {state.avg_dqi}%
                     </div>
                   </div>
                   <div style={{
@@ -332,20 +332,17 @@ const StateQualityDashboard = () => {
                 <div style={{
                   display: 'inline-block',
                   padding: '8px 20px',
-                  background: getGradeColor(state.letter_grade),
-                  color: '#111827',
+                  background: getComplianceColor(state.avg_dqi),
+                  color: 'white',
                   borderRadius: '8px',
                   marginBottom: '4px'
                 }}>
                   <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
-                    {state.avg_dqi}
-                  </div>
-                  <div style={{ fontSize: '16px', fontWeight: 'bold' }}>
-                    {state.letter_grade}
+                    {state.avg_dqi}%
                   </div>
                 </div>
                 <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-                  Average DQI
+                  Average Compliance
                 </div>
               </div>
             </div>
@@ -524,13 +521,13 @@ const StateQualityDashboard = () => {
                           <td style={{ padding: '12px', textAlign: 'center' }}>
                             <span style={{
                               padding: '4px 8px',
-                              background: getGradeColor(feed.letter_grade),
-                              color: '#111827',
+                              background: getComplianceColor(feed.dqi),
+                              color: 'white',
                               borderRadius: '4px',
                               fontSize: '12px',
                               fontWeight: 'bold'
                             }}>
-                              {feed.letter_grade}
+                              {feed.dqi}%
                             </span>
                           </td>
                         </tr>

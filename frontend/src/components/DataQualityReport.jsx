@@ -50,23 +50,12 @@ export default function DataQualityReport() {
     }
   };
 
-  const getGradeColor = (grade) => {
-    const colors = {
-      'A': '#10b981',
-      'B': '#3b82f6',
-      'C': '#f59e0b',
-      'D': '#ef4444',
-      'F': '#991b1b'
-    };
-    return colors[grade] || '#6b7280';
-  };
-
-  const getScoreColor = (score) => {
-    if (score >= 90) return '#10b981';
-    if (score >= 80) return '#3b82f6';
-    if (score >= 70) return '#f59e0b';
-    if (score >= 60) return '#ef4444';
-    return '#991b1b';
+  const getComplianceColor = (percentage) => {
+    if (percentage >= 90) return '#10b981';
+    if (percentage >= 75) return '#3b82f6';
+    if (percentage >= 60) return '#f59e0b';
+    if (percentage >= 40) return '#f97316';
+    return '#ef4444';
   };
 
   const severityLevels = [
@@ -226,13 +215,13 @@ export default function DataQualityReport() {
                       {row.severity || 'medium'}
                     </span>
                   </td>
-                  <td style={{ padding: '8px', fontWeight: 600, textAlign: 'center', color: getScoreColor(row.rawCoveragePercentage || 0) }}>
+                  <td style={{ padding: '8px', fontWeight: 600, textAlign: 'center', color: getComplianceColor(row.rawCoveragePercentage || 0) }}>
                     {typeof row.rawCoveragePercentage === 'number' ? `${row.rawCoveragePercentage}%` : '—'}
                   </td>
-                  <td style={{ padding: '8px', fontWeight: 600, textAlign: 'center', color: getScoreColor(row.extractedCoveragePercentage || 0) }}>
+                  <td style={{ padding: '8px', fontWeight: 600, textAlign: 'center', color: getComplianceColor(row.extractedCoveragePercentage || 0) }}>
                     {typeof row.extractedCoveragePercentage === 'number' ? `${row.extractedCoveragePercentage}%` : '—'}
                   </td>
-                  <td style={{ padding: '8px', fontWeight: 600, textAlign: 'center', color: getScoreColor(row.normalizedCoveragePercentage || 0) }}>
+                  <td style={{ padding: '8px', fontWeight: 600, textAlign: 'center', color: getComplianceColor(row.normalizedCoveragePercentage || 0) }}>
                     {typeof row.normalizedCoveragePercentage === 'number' ? `${row.normalizedCoveragePercentage}%` : '—'}
                   </td>
                   <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: '12px', color: row.rawSampleValid ? '#065f46' : '#9ca3af' }}>
@@ -267,8 +256,8 @@ export default function DataQualityReport() {
       rows.push([`${stateGuide.state} - SAE J2735 & C2C Compliance Report`]);
       rows.push([`Generated: ${new Date(stateGuide.generatedAt).toLocaleString()}`]);
       rows.push([`Current Format: ${stateGuide.currentFormat?.apiType || 'Unknown'}`]);
-      rows.push([`Overall Score: ${stateGuide.overallScore?.percentage}/100 (Grade ${stateGuide.overallScore?.grade})`]);
-      rows.push([`C2C Compliance: ${stateGuide.c2cCompliance?.score}/100 - ${stateGuide.c2cCompliance?.grade}`]);
+      rows.push([`Overall Compliance Score: ${stateGuide.overallScore?.percentage}%`]);
+      rows.push([`C2C Compliance: ${stateGuide.c2cCompliance?.score}%`]);
       rows.push([]);
 
       // Field-level mapping table
@@ -384,7 +373,7 @@ export default function DataQualityReport() {
         padding: '20px',
         backgroundColor: 'white',
         borderRadius: '8px',
-        border: `2px solid ${getGradeColor(displayData.grade)}`,
+        border: `2px solid ${getComplianceColor(displayData.percentage)}`,
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
         position: 'relative'
       }}>
@@ -422,23 +411,22 @@ export default function DataQualityReport() {
             </div>
           </div>
           <div style={{
-            width: '50px',
-            height: '50px',
+            padding: '8px 16px',
             borderRadius: '8px',
-            backgroundColor: getGradeColor(displayData.grade),
-            color: '#111827',
+            backgroundColor: getComplianceColor(displayData.percentage),
+            color: 'white',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '20px',
+            fontSize: '18px',
             fontWeight: 'bold'
           }}>
-            {displayData.grade}
+            {displayData.percentage}%
           </div>
         </div>
 
         <div style={{ marginBottom: '8px' }}>
-          <div style={{ fontSize: '28px', fontWeight: 'bold', color: getGradeColor(displayData.grade) }}>
+          <div style={{ fontSize: '28px', fontWeight: 'bold', color: getComplianceColor(displayData.percentage) }}>
             {displayData.percentage}%
           </div>
           <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>
@@ -457,7 +445,7 @@ export default function DataQualityReport() {
           <div style={{
             height: '100%',
             width: `${displayData.percentage}%`,
-            backgroundColor: getGradeColor(displayData.grade),
+            backgroundColor: getComplianceColor(displayData.percentage),
             transition: 'width 0.3s ease'
           }} />
         </div>
@@ -478,13 +466,13 @@ export default function DataQualityReport() {
               <div style={{ flex: 1 }}>
                 <div style={{ color: '#92400e', fontWeight: 600 }}>Raw Feed</div>
                 <div style={{ color: '#6b7280' }}>
-                  {standard.percentage}% ({standard.grade})
+                  {standard.percentage}%
                 </div>
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ color: '#1e40af', fontWeight: 600 }}>Enhanced</div>
                 <div style={{ color: '#6b7280' }}>
-                  {enhancedData.percentage}% ({enhancedData.grade})
+                  {enhancedData.percentage}%
                 </div>
               </div>
               <div style={{ flex: 1 }}>
@@ -655,9 +643,9 @@ export default function DataQualityReport() {
             {state.overallScore && (
               <div style={{
                 padding: '12px',
-                background: `linear-gradient(135deg, ${getGradeColor(state.overallScore.grade)}15 0%, ${getGradeColor(state.overallScore.grade)}05 100%)`,
+                background: `linear-gradient(135deg, ${getComplianceColor(state.overallScore.percentage)}15 0%, ${getComplianceColor(state.overallScore.percentage)}05 100%)`,
                 borderRadius: '8px',
-                border: `2px solid ${getGradeColor(state.overallScore.grade)}`,
+                border: `2px solid ${getComplianceColor(state.overallScore.percentage)}`,
                 marginBottom: '12px',
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -672,11 +660,10 @@ export default function DataQualityReport() {
                   </div>
                 </div>
                 <div style={{
-                  width: '55px',
-                  height: '55px',
+                  padding: '10px 16px',
                   borderRadius: '10px',
-                  backgroundColor: getGradeColor(state.overallScore.grade),
-                  color: '#111827',
+                  backgroundColor: getComplianceColor(state.overallScore.percentage),
+                  color: 'white',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
@@ -684,9 +671,6 @@ export default function DataQualityReport() {
                   boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
                 }}>
                   <div style={{ fontSize: '28px', fontWeight: 'bold', lineHeight: 1 }}>
-                    {state.overallScore.grade}
-                  </div>
-                  <div style={{ fontSize: '11px', fontWeight: '600', marginTop: '2px' }}>
                     {state.overallScore.percentage}%
                   </div>
                 </div>
@@ -711,9 +695,6 @@ export default function DataQualityReport() {
                 }}>
                   <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px', fontWeight: '600' }}>WZDx</div>
                   <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#3b82f6', lineHeight: 1 }}>
-                    {state.overallScore.breakdown.wzdx.grade}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', fontWeight: '600' }}>
                     {state.overallScore.breakdown.wzdx.percentage}%
                   </div>
                   {state.overallScore.breakdown.wzdx.severityBreakdown && (
@@ -732,9 +713,6 @@ export default function DataQualityReport() {
                 }}>
                   <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px', fontWeight: '600' }}>SAE J2735</div>
                   <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#10b981', lineHeight: 1 }}>
-                    {state.overallScore.breakdown.sae.grade}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', fontWeight: '600' }}>
                     {state.overallScore.breakdown.sae.percentage}%
                   </div>
                   {state.overallScore.breakdown.sae.severityBreakdown && (
@@ -753,9 +731,6 @@ export default function DataQualityReport() {
                 }}>
                   <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px', fontWeight: '600' }}>TMDD</div>
                   <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6b7280', lineHeight: 1 }}>
-                    {state.overallScore.breakdown.tmdd.grade}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', fontWeight: '600' }}>
                     {state.overallScore.breakdown.tmdd.percentage}%
                   </div>
                   {state.overallScore.breakdown.tmdd.severityBreakdown && (
@@ -778,7 +753,7 @@ export default function DataQualityReport() {
                 <div style={{
                   fontSize: '28px',
                   fontWeight: 'bold',
-                  color: getScoreColor(state.dataCompletenessScore),
+                  color: getComplianceColor(state.dataCompletenessScore),
                   marginBottom: '4px',
                   lineHeight: 1
                 }}>
@@ -899,9 +874,9 @@ export default function DataQualityReport() {
                     <div style={{
                       marginBottom: '24px',
                       padding: '24px',
-                      background: `linear-gradient(135deg, ${getGradeColor(stateGuide.overallScore.grade)}15 0%, ${getGradeColor(stateGuide.overallScore.grade)}05 100%)`,
+                      background: `linear-gradient(135deg, ${getComplianceColor(stateGuide.overallScore.percentage)}15 0%, ${getComplianceColor(stateGuide.overallScore.percentage)}05 100%)`,
                       borderRadius: '12px',
-                      border: `2px solid ${getGradeColor(stateGuide.overallScore.grade)}`
+                      border: `2px solid ${getComplianceColor(stateGuide.overallScore.percentage)}`
                     }}>
                       <div style={{
                         display: 'flex',
@@ -913,8 +888,8 @@ export default function DataQualityReport() {
                           <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px', fontWeight: '600' }}>
                             COMPOSITE OVERALL GRADE
                           </div>
-                          <div style={{ fontSize: '48px', fontWeight: 'bold', color: getGradeColor(stateGuide.overallScore.grade), lineHeight: 1, marginBottom: '8px' }}>
-                            {stateGuide.overallScore.grade}
+                          <div style={{ fontSize: '48px', fontWeight: 'bold', color: getComplianceColor(stateGuide.overallScore.percentage), lineHeight: 1, marginBottom: '8px' }}>
+                            {stateGuide.overallScore.percentage}%
                           </div>
                           <div style={{ fontSize: '16px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>
                             {stateGuide.overallScore.rank}
@@ -924,11 +899,10 @@ export default function DataQualityReport() {
                           </div>
                         </div>
                         <div style={{
-                          width: '120px',
-                          height: '120px',
+                          padding: '20px 24px',
                           borderRadius: '16px',
-                          backgroundColor: getGradeColor(stateGuide.overallScore.grade),
-                          color: '#111827',
+                          backgroundColor: getComplianceColor(stateGuide.overallScore.percentage),
+                          color: 'white',
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
@@ -936,9 +910,6 @@ export default function DataQualityReport() {
                           boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
                         }}>
                           <div style={{ fontSize: '56px', fontWeight: 'bold', lineHeight: 1 }}>
-                            {stateGuide.overallScore.grade}
-                          </div>
-                          <div style={{ fontSize: '18px', fontWeight: '600', marginTop: '4px' }}>
                             {stateGuide.overallScore.percentage}%
                           </div>
                         </div>
@@ -963,11 +934,8 @@ export default function DataQualityReport() {
                           }}>
                             <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>WZDx</div>
                             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#3b82f6' }}>
-                              {stateGuide.overallScore.breakdown.wzdx.grade}
+                              {stateGuide.overallScore.breakdown.wzdx.percentage}%
                             </div>
-                          <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-                            {stateGuide.overallScore.breakdown.wzdx.percentage}%
-                          </div>
                           {renderSeverityBreakdown(stateGuide.overallScore.breakdown.wzdx.severityBreakdown)}
                         </div>
                         <div style={{
@@ -979,11 +947,8 @@ export default function DataQualityReport() {
                           }}>
                             <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>SAE J2735</div>
                             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#10b981' }}>
-                              {stateGuide.overallScore.breakdown.sae.grade}
+                              {stateGuide.overallScore.breakdown.sae.percentage}%
                             </div>
-                          <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-                            {stateGuide.overallScore.breakdown.sae.percentage}%
-                          </div>
                           {renderSeverityBreakdown(stateGuide.overallScore.breakdown.sae.severityBreakdown)}
                         </div>
                         <div style={{
@@ -995,11 +960,8 @@ export default function DataQualityReport() {
                           }}>
                             <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>TMDD</div>
                             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6b7280' }}>
-                              {stateGuide.overallScore.breakdown.tmdd.grade}
+                              {stateGuide.overallScore.breakdown.tmdd.percentage}%
                             </div>
-                          <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-                            {stateGuide.overallScore.breakdown.tmdd.percentage}%
-                          </div>
                           {renderSeverityBreakdown(stateGuide.overallScore.breakdown.tmdd.severityBreakdown)}
                         </div>
                       </div>
@@ -1306,9 +1268,9 @@ export default function DataQualityReport() {
                       <div style={{
                         marginBottom: '12px',
                         padding: '20px',
-                        backgroundColor: stateGuide.c2cCompliance.grade === 'PASS' ? '#d1fae5' : '#fee2e2',
+                        backgroundColor: stateGuide.c2cCompliance.score >= 80 ? '#d1fae5' : '#fee2e2',
                         borderRadius: '8px',
-                        border: `1px solid ${stateGuide.c2cCompliance.grade === 'PASS' ? '#10b981' : '#ef4444'}`
+                        border: `1px solid ${stateGuide.c2cCompliance.score >= 80 ? '#10b981' : '#ef4444'}`
                       }}>
                         <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <span>C2C/ngTMDD Compliance ({stateGuide.c2cCompliance.validationTool})</span>
@@ -1328,7 +1290,7 @@ export default function DataQualityReport() {
                           </button>
                         </div>
                         <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '8px' }}>
-                          {stateGuide.c2cCompliance.score}/100 - {stateGuide.c2cCompliance.grade}
+                          {stateGuide.c2cCompliance.score}%
                         </div>
                         <div style={{ fontSize: '14px' }}>
                           {stateGuide.c2cCompliance.message}
@@ -1631,7 +1593,7 @@ export default function DataQualityReport() {
                             <div style={{
                               padding: '8px 16px',
                               borderRadius: '6px',
-                              backgroundColor: getScoreColor(category.percentage),
+                              backgroundColor: getComplianceColor(category.percentage),
                               color: '#111827',
                               fontWeight: 'bold',
                               height: 'fit-content'
@@ -1667,7 +1629,7 @@ export default function DataQualityReport() {
                                 <div style={{
                                   height: '100%',
                                   width: `${field.score}%`,
-                                  backgroundColor: getScoreColor(field.score)
+                                  backgroundColor: getComplianceColor(field.score)
                                 }} />
                               </div>
                               <div style={{ fontSize: '12px', color: '#6b7280' }}>

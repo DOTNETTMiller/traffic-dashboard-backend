@@ -76,8 +76,6 @@ class FeedQualityScorer {
       usability.usability_score * this.weights.usability
     );
 
-    const letterGrade = this.getLetterGrade(overallScore);
-
     return {
       feed_key: feedKey,
       total_events: events.length,
@@ -88,8 +86,7 @@ class FeedQualityScorer {
       ...standardization,
       ...timeliness,
       ...usability,
-      overall_quality_score: Math.round(overallScore * 10) / 10,
-      letter_grade: letterGrade
+      overall_quality_score: Math.round(overallScore * 10) / 10
     };
   }
 
@@ -534,16 +531,7 @@ class FeedQualityScorer {
     return true;
   }
 
-  /**
-   * Convert numeric score (0-100) to letter grade
-   */
-  getLetterGrade(score) {
-    if (score >= 90) return 'A';
-    if (score >= 80) return 'B';
-    if (score >= 70) return 'C';
-    if (score >= 60) return 'D';
-    return 'F';
-  }
+  // Letter grade system removed - using percentage-based compliance scores only
 
   /**
    * Get empty metrics object for feeds with no data
@@ -583,8 +571,7 @@ class FeedQualityScorer {
       events_with_restrictions: 0,
       events_with_work_zone_type: 0,
       usability_score: 0,
-      overall_quality_score: 0,
-      letter_grade: 'F'
+      overall_quality_score: 0
     };
   }
 
@@ -645,10 +632,9 @@ class FeedQualityScorer {
         events_with_restrictions,
         events_with_work_zone_type,
         usability_score,
-        overall_quality_score,
-        letter_grade
+        overall_quality_score
       ) VALUES (
-        ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `);
 
@@ -689,10 +675,9 @@ class FeedQualityScorer {
         metrics.events_with_restrictions,
         metrics.events_with_work_zone_type,
         metrics.usability_score,
-        metrics.overall_quality_score,
-        metrics.letter_grade
+        metrics.overall_quality_score
       );
-      console.log(`✅ Stored quality metrics for feed: ${metrics.feed_key} (Score: ${metrics.overall_quality_score}, Grade: ${metrics.letter_grade})`);
+      console.log(`✅ Stored quality metrics for feed: ${metrics.feed_key} (Score: ${metrics.overall_quality_score}%)`);
     } catch (err) {
       console.error(`Error storing metrics for ${metrics.feed_key}:`, err.message);
     }

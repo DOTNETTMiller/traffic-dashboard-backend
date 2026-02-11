@@ -16,20 +16,7 @@ class ReportCardService {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }
 
-  // Calculate letter grade from score
-  calculateLetterGrade(score) {
-    if (score >= 97) return 'A+';
-    if (score >= 93) return 'A';
-    if (score >= 90) return 'A-';
-    if (score >= 87) return 'B+';
-    if (score >= 83) return 'B';
-    if (score >= 80) return 'B-';
-    if (score >= 77) return 'C+';
-    if (score >= 73) return 'C';
-    if (score >= 70) return 'C-';
-    if (score >= 60) return 'D';
-    return 'F';
-  }
+  // Letter grade system removed - using percentage-based compliance scores only
 
   // Aggregate monthly scores for a state
   async aggregateStateScores(stateCode, monthYear) {
@@ -121,8 +108,8 @@ class ReportCardService {
         await this.db.runAsync(
           `INSERT OR REPLACE INTO state_monthly_scores
           (state_code, month_year, reliability_score, safety_score, congestion_score,
-           data_quality_score, overall_score, letter_grade, event_count, provider_count)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           data_quality_score, overall_score, event_count, provider_count)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             state.state_code,
             monthYear,
@@ -131,7 +118,6 @@ class ReportCardService {
             scores.congestion_score,
             scores.data_quality_score,
             scores.overall_score,
-            this.calculateLetterGrade(scores.overall_score),
             scores.event_count,
             scores.provider_count
           ]
@@ -140,11 +126,10 @@ class ReportCardService {
         results.push({
           state_code: state.state_code,
           state_name: state.state_name,
-          ...scores,
-          letter_grade: this.calculateLetterGrade(scores.overall_score)
+          ...scores
         });
 
-        console.log(`  ✅ ${state.state_code}: ${scores.overall_score.toFixed(1)} (${this.calculateLetterGrade(scores.overall_score)})`);
+        console.log(`  ✅ ${state.state_code}: ${scores.overall_score.toFixed(1)}%`);
       } catch (error) {
         console.error(`  ❌ Error processing ${state.state_code}:`, error.message);
       }
@@ -347,6 +332,14 @@ class ReportCardService {
     const rankEmoji = scores.national_rank <= 10 ? '🏆' : scores.national_rank <= 25 ? '⭐' : '📊';
     const trendEmoji = scores.rank_change > 0 ? '📈' : scores.rank_change < 0 ? '📉' : '➡️';
 
+    const getComplianceColor = (percentage) => {
+      if (percentage >= 90) return '#10b981';
+      if (percentage >= 75) return '#3b82f6';
+      if (percentage >= 60) return '#f59e0b';
+      if (percentage >= 40) return '#f97316';
+      return '#ef4444';
+    };
+
     return `
 <!DOCTYPE html>
 <html>
@@ -364,10 +357,8 @@ class ReportCardService {
     .grade-card { background: white; border: 2px solid #e2e8f0; border-radius: 8px; padding: 15px; text-align: center; flex: 1; margin: 0 5px; }
     .grade-card .score { font-size: 32px; font-weight: bold; margin: 10px 0; }
     .grade-card .label { color: #718096; font-size: 12px; text-transform: uppercase; }
-    .grade-A { color: #48bb78; }
-    .grade-B { color: #4299e1; }
-    .grade-C { color: #ed8936; }
-    .grade-D { color: #f56565; }
+    .compliance-bar { width: 100%; height: 24px; background-color: #e5e7eb; border-radius: 4px; overflow: hidden; }
+    .compliance-fill { height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px; }
     .section { margin: 30px 0; }
     .section h3 { color: #2d3748; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
     .peer-list { background: #f7fafc; border-radius: 8px; padding: 15px; }
@@ -401,22 +392,38 @@ class ReportCardService {
     <div class="grades">
       <div class="grade-card">
         <div class="label">Reliability</div>
-        <div class="score grade-${this.calculateLetterGrade(scores.reliability_score)[0]}">${scores.reliability_score.toFixed(1)}</div>
+        <div class="compliance-bar">
+          <div class="compliance-fill" style="width: ${scores.reliability_score}%; background-color: ${getComplianceColor(scores.reliability_score)};">
+            ${scores.reliability_score.toFixed(1)}%
+          </div>
+        </div>
         <div class="label">#${this.getCategoryRank(scores.reliability_score, month_year, 'reliability_score')}</div>
       </div>
       <div class="grade-card">
         <div class="label">Safety</div>
-        <div class="score grade-${this.calculateLetterGrade(scores.safety_score)[0]}">${scores.safety_score.toFixed(1)}</div>
+        <div class="compliance-bar">
+          <div class="compliance-fill" style="width: ${scores.safety_score}%; background-color: ${getComplianceColor(scores.safety_score)};">
+            ${scores.safety_score.toFixed(1)}%
+          </div>
+        </div>
         <div class="label">#${this.getCategoryRank(scores.safety_score, month_year, 'safety_score')}</div>
       </div>
       <div class="grade-card">
         <div class="label">Congestion</div>
-        <div class="score grade-${this.calculateLetterGrade(scores.congestion_score)[0]}">${scores.congestion_score.toFixed(1)}</div>
+        <div class="compliance-bar">
+          <div class="compliance-fill" style="width: ${scores.congestion_score}%; background-color: ${getComplianceColor(scores.congestion_score)};">
+            ${scores.congestion_score.toFixed(1)}%
+          </div>
+        </div>
         <div class="label">#${this.getCategoryRank(scores.congestion_score, month_year, 'congestion_score')}</div>
       </div>
       <div class="grade-card">
         <div class="label">Data Quality</div>
-        <div class="score grade-${this.calculateLetterGrade(scores.data_quality_score)[0]}">${scores.data_quality_score.toFixed(1)}</div>
+        <div class="compliance-bar">
+          <div class="compliance-fill" style="width: ${scores.data_quality_score}%; background-color: ${getComplianceColor(scores.data_quality_score)};">
+            ${scores.data_quality_score.toFixed(1)}%
+          </div>
+        </div>
         <div class="label">#${this.getCategoryRank(scores.data_quality_score, month_year, 'data_quality_score')}</div>
       </div>
     </div>
@@ -431,7 +438,7 @@ class ReportCardService {
             <span class="peer-rank">#${state.national_rank}</span>
             <strong>${state.state_name}</strong>
           </div>
-          <div class="peer-score">${state.overall_score.toFixed(1)} (${state.letter_grade})</div>
+          <div class="peer-score">${state.overall_score.toFixed(1)}%</div>
         </div>
       `).join('')}
     </div>

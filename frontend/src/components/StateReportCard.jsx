@@ -90,19 +90,11 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
     fetchNationalReport();
   };
 
-  const getLetterGradeColor = (grade) => {
-    if (grade === 'A') return '#10b981';
-    if (grade === 'B') return '#3b82f6';
-    if (grade === 'C') return '#f59e0b';
-    if (grade === 'D') return '#f97316';
-    return '#ef4444';
-  };
-
-  const getDimensionColor = (score) => {
-    if (score >= 90) return '#10b981';
-    if (score >= 80) return '#3b82f6';
-    if (score >= 70) return '#f59e0b';
-    if (score >= 60) return '#f97316';
+  const getComplianceColor = (percentage) => {
+    if (percentage >= 90) return '#10b981';
+    if (percentage >= 75) return '#3b82f6';
+    if (percentage >= 60) return '#f59e0b';
+    if (percentage >= 40) return '#f97316';
     return '#ef4444';
   };
 
@@ -251,9 +243,9 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
                       borderRadius: '12px',
                       fontSize: '18px',
                       fontWeight: 'bold',
-                      color: getLetterGradeColor(state.letter_grade)
+                      color: getComplianceColor(state.dqi)
                     }}>
-                      Grade {state.letter_grade}
+                      {state.dqi}%
                     </div>
                   </div>
                 );
@@ -313,10 +305,10 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
                         padding: '4px 12px',
                         borderRadius: '6px',
                         fontWeight: 'bold',
-                        backgroundColor: getLetterGradeColor(state.letter_grade) + '20',
-                        color: getLetterGradeColor(state.letter_grade)
+                        backgroundColor: getComplianceColor(state.dqi) + '20',
+                        color: getComplianceColor(state.dqi)
                       }}>
-                        {state.letter_grade}
+                        {state.dqi}%
                       </span>
                     </td>
                     <td style={{ padding: '16px', textAlign: 'right', color: '#6b7280' }}>
@@ -334,7 +326,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
                               width: '8px',
                               height: '24px',
                               borderRadius: '2px',
-                              backgroundColor: getDimensionColor(value),
+                              backgroundColor: getComplianceColor(value),
                               title: `${key}: ${value}`
                             }}
                           />
@@ -402,7 +394,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
                 fontSize: '24px',
                 fontWeight: 'bold'
               }}>
-                Grade {reportCard.current_metrics.letter_grade}
+                {reportCard.current_metrics.overall_dqi}%
               </div>
             </div>
           </div>
@@ -496,7 +488,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
                     backgroundColor: 'white',
                     borderRadius: '12px',
                     border: '2px solid #e5e7eb',
-                    borderLeft: `4px solid ${getDimensionColor(value)}`
+                    borderLeft: `4px solid ${getComplianceColor(value)}`
                   }}
                 >
                   <div style={{
@@ -516,7 +508,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
                     <div style={{
                       fontSize: '24px',
                       fontWeight: 'bold',
-                      color: getDimensionColor(value)
+                      color: getComplianceColor(value)
                     }}>
                       {value}
                     </div>
@@ -530,7 +522,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
                     <div style={{
                       height: '100%',
                       width: `${value}%`,
-                      backgroundColor: getDimensionColor(value),
+                      backgroundColor: getComplianceColor(value),
                       transition: 'width 0.3s'
                     }} />
                   </div>
@@ -579,10 +571,10 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
                         padding: '6px 16px',
                         borderRadius: '6px',
                         fontWeight: 'bold',
-                        backgroundColor: getLetterGradeColor(feed.grade) + '20',
-                        color: getLetterGradeColor(feed.grade)
+                        backgroundColor: getComplianceColor(feed.dqi) + '20',
+                        color: getComplianceColor(feed.dqi)
                       }}>
-                        {feed.grade}
+                        {feed.dqi}%
                       </div>
                     </div>
                   </div>
@@ -705,7 +697,7 @@ const DimensionsDetailView = ({ dimensions }) => {
     }
   };
 
-  const getDimensionColor = (score) => {
+  const getComplianceColor = (score) => {
     if (score >= 90) return '#10b981';
     if (score >= 80) return '#3b82f6';
     if (score >= 70) return '#f59e0b';
@@ -727,7 +719,7 @@ const DimensionsDetailView = ({ dimensions }) => {
               backgroundColor: 'white',
               borderRadius: '12px',
               border: '2px solid #e5e7eb',
-              borderLeft: `6px solid ${getDimensionColor(value)}`
+              borderLeft: `6px solid ${getComplianceColor(value)}`
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '16px' }}>
@@ -748,7 +740,7 @@ const DimensionsDetailView = ({ dimensions }) => {
                 </p>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '48px', fontWeight: 'bold', color: getDimensionColor(value) }}>
+                <div style={{ fontSize: '48px', fontWeight: 'bold', color: getComplianceColor(value) }}>
                   {value}
                 </div>
               </div>
@@ -762,7 +754,7 @@ const DimensionsDetailView = ({ dimensions }) => {
               <div style={{
                 height: '100%',
                 width: `${value}%`,
-                backgroundColor: getDimensionColor(value),
+                backgroundColor: getComplianceColor(value),
                 transition: 'width 0.5s ease-out'
               }} />
             </div>
