@@ -80,24 +80,12 @@ export default function CorridorDataQuality() {
     }
   };
 
-  const getGradeColor = (grade) => {
-    const baseGrade = grade ? grade.replace(/[+-]/g, '') : 'F';
-    const colors = {
-      'A': '#10b981',
-      'B': '#3b82f6',
-      'C': '#f59e0b',
-      'D': '#ef4444',
-      'F': '#991b1b'
-    };
-    return colors[baseGrade] || '#6b7280';
-  };
-
-  const getDQIColor = (dqi) => {
-    if (dqi >= 90) return '#10b981';
-    if (dqi >= 80) return '#3b82f6';
-    if (dqi >= 70) return '#f59e0b';
-    if (dqi >= 60) return '#ef4444';
-    return '#991b1b';
+  const getComplianceColor = (percentage) => {
+    if (percentage >= 90) return '#10b981';
+    if (percentage >= 75) return '#3b82f6';
+    if (percentage >= 60) return '#f59e0b';
+    if (percentage >= 40) return '#f97316';
+    return '#ef4444';
   };
 
   if (loading) {
@@ -207,34 +195,30 @@ export default function CorridorDataQuality() {
             <div style={{
               fontSize: '28px',
               fontWeight: '700',
-              color: getDQIColor(summary.avgDQI)
+              color: getComplianceColor(summary.avgDQI)
             }}>
-              {(summary.avgDQI || 0).toFixed(1)}
+              {(summary.avgDQI || 0).toFixed(1)}%
             </div>
           </div>
 
-          {summary.gradeDistribution && Object.entries(summary.gradeDistribution)
-            .slice(0, 3)
-            .map(([grade, count]) => (
-              <div key={grade} style={{
-                padding: '16px',
-                backgroundColor: 'white',
-                borderRadius: '8px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                border: '1px solid #e5e7eb'
-              }}>
-                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
-                  Grade {grade}
-                </div>
-                <div style={{
-                  fontSize: '28px',
-                  fontWeight: '700',
-                  color: getGradeColor(grade)
-                }}>
-                  {count}
-                </div>
-              </div>
-            ))}
+          <div style={{
+            padding: '16px',
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            border: '1px solid #e5e7eb'
+          }}>
+            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
+              Compliance Range
+            </div>
+            <div style={{
+              fontSize: '20px',
+              fontWeight: '700',
+              color: '#1f2937'
+            }}>
+              See Services
+            </div>
+          </div>
         </div>
       )}
 
@@ -344,13 +328,13 @@ export default function CorridorDataQuality() {
                     </div>
                     <div style={{
                       padding: '4px 12px',
-                      backgroundColor: getGradeColor(service.letter_grade),
+                      backgroundColor: getComplianceColor(service.dqi),
                       color: '#111827',
                       borderRadius: '12px',
                       fontSize: '14px',
                       fontWeight: '700'
                     }}>
-                      {service.letter_grade}
+                      {Math.round(service.dqi)}%
                     </div>
                   </div>
 
@@ -399,9 +383,9 @@ export default function CorridorDataQuality() {
                         <div style={{
                           fontSize: '14px',
                           fontWeight: '600',
-                          color: getDQIColor(score)
+                          color: getComplianceColor(score)
                         }}>
-                          {score}
+                          {score}%
                         </div>
                       </div>
                     ))}
@@ -464,17 +448,17 @@ export default function CorridorDataQuality() {
               }}>
                 <div>
                   <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
-                    Current Grade
+                    Compliance Score
                   </div>
                   <div style={{
                     fontSize: '48px',
                     fontWeight: '700',
-                    color: getGradeColor(serviceDetails.service.letter_grade)
+                    color: getComplianceColor(serviceDetails.service.dqi)
                   }}>
-                    {serviceDetails.service.letter_grade}
+                    {Math.round(serviceDetails.service.dqi)}%
                   </div>
                   <div style={{ fontSize: '14px', color: '#6b7280' }}>
-                    DQI: {serviceDetails.service.dqi}
+                    Data Quality Index
                   </div>
                 </div>
 
@@ -519,16 +503,16 @@ export default function CorridorDataQuality() {
                       <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                         <div style={{
                           padding: '2px 8px',
-                          backgroundColor: getGradeColor(run.letter_grade),
+                          backgroundColor: getComplianceColor(run.dqi),
                           color: '#111827',
                           borderRadius: '8px',
                           fontSize: '12px',
                           fontWeight: '600'
                         }}>
-                          {run.letter_grade}
+                          {Math.round(run.dqi)}%
                         </div>
                         <div style={{ color: '#6b7280' }}>
-                          DQI: {run.dqi}
+                          DQI
                         </div>
                       </div>
                     </div>
@@ -574,9 +558,9 @@ export default function CorridorDataQuality() {
                         <div style={{
                           fontSize: '14px',
                           fontWeight: '600',
-                          color: getDQIColor(metric.score_0_100)
+                          color: getComplianceColor(metric.score_0_100)
                         }}>
-                          {metric.score_0_100}
+                          {metric.score_0_100}%
                         </div>
                       </div>
                       <div style={{

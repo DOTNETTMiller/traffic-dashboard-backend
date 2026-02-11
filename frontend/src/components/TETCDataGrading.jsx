@@ -76,15 +76,12 @@ export default function TETCDataGrading() {
     }
   };
 
-  const getGradeColor = (grade) => {
-    const colors = {
-      'A': '#10b981',
-      'B': '#3b82f6',
-      'C': '#f59e0b',
-      'D': '#ef4444',
-      'F': '#991b1b'
-    };
-    return colors[grade] || '#6b7280';
+  const getComplianceColor = (percentage) => {
+    if (percentage >= 90) return '#10b981';
+    if (percentage >= 75) return '#3b82f6';
+    if (percentage >= 60) return '#f59e0b';
+    if (percentage >= 40) return '#f97316';
+    return '#ef4444';
   };
 
   if (loading) {
@@ -242,7 +239,7 @@ export default function TETCDataGrading() {
                 borderRadius: '12px',
                 padding: '20px',
                 boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                border: `2px solid ${getGradeColor(feed.letter_grade)}`,
+                border: `2px solid ${getComplianceColor(feed.dqi)}`,
                 transition: 'all 0.3s'
               }}
               onMouseEnter={(e) => {
@@ -303,7 +300,7 @@ export default function TETCDataGrading() {
                   width: '70px',
                   height: '70px',
                   borderRadius: '12px',
-                  backgroundColor: getGradeColor(feed.letter_grade),
+                  backgroundColor: getComplianceColor(feed.dqi),
                   color: '#111827',
                   display: 'flex',
                   flexDirection: 'column',
@@ -312,11 +309,11 @@ export default function TETCDataGrading() {
                   boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                   flexShrink: 0
                 }}>
-                  <div style={{ fontSize: '36px', fontWeight: 'bold', lineHeight: 1 }}>
-                    {feed.letter_grade}
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', lineHeight: 1 }}>
+                    {Math.round(feed.dqi)}%
                   </div>
-                  <div style={{ fontSize: '11px', fontWeight: '600', marginTop: '4px' }}>
-                    {Math.round(feed.dqi)}
+                  <div style={{ fontSize: '10px', fontWeight: '600', marginTop: '4px' }}>
+                    DQI
                   </div>
                 </div>
               </div>
@@ -337,12 +334,12 @@ export default function TETCDataGrading() {
                     <div style={{
                       height: '100%',
                       width: `${feed.dqi}%`,
-                      backgroundColor: getGradeColor(feed.letter_grade),
+                      backgroundColor: getComplianceColor(feed.dqi),
                       transition: 'width 0.3s ease'
                     }} />
                   </div>
-                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: getGradeColor(feed.letter_grade), minWidth: '50px', textAlign: 'right' }}>
-                    {Math.round(feed.dqi)}
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: getComplianceColor(feed.dqi), minWidth: '50px', textAlign: 'right' }}>
+                    {Math.round(feed.dqi)}%
                   </div>
                 </div>
               </div>
@@ -611,7 +608,7 @@ export default function TETCDataGrading() {
           </p>
         </div>
 
-        {/* Grade Scale */}
+        {/* Compliance Scale */}
         <div style={{
           marginBottom: '24px',
           padding: '16px',
@@ -620,18 +617,18 @@ export default function TETCDataGrading() {
           border: '1px solid #e5e7eb'
         }}>
           <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: '#374151' }}>
-            Letter Grade Scale
+            Compliance Scale
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {[
-              { grade: 'A', min: 90, color: '#10b981', label: 'Excellent' },
-              { grade: 'B', min: 80, color: '#3b82f6', label: 'Good' },
-              { grade: 'C', min: 70, color: '#6b7280', label: 'Fair' },
-              { grade: 'D', min: 60, color: '#ef4444', label: 'Poor' },
-              { grade: 'F', min: 0, color: '#991b1b', label: 'Failing' }
-            ].map(({ grade, min, color, label }) => (
+              { range: '90-100%', color: '#10b981', label: 'Excellent' },
+              { range: '75-89%', color: '#3b82f6', label: 'Good' },
+              { range: '60-74%', color: '#f59e0b', label: 'Moderate' },
+              { range: '40-59%', color: '#f97316', label: 'Below Standard' },
+              { range: '0-39%', color: '#ef4444', label: 'Poor' }
+            ].map(({ range, color, label }) => (
               <div
-                key={grade}
+                key={range}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -643,7 +640,7 @@ export default function TETCDataGrading() {
                 }}
               >
                 <div style={{
-                  width: '32px',
+                  width: '60px',
                   height: '32px',
                   borderRadius: '6px',
                   backgroundColor: color,
@@ -651,18 +648,15 @@ export default function TETCDataGrading() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '16px',
+                  fontSize: '12px',
                   fontWeight: 'bold',
                   flexShrink: 0
                 }}>
-                  {grade}
+                  {range}
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '12px', fontWeight: '600', color: '#374151' }}>
                     {label}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#6b7280' }}>
-                    {min}+ points
                   </div>
                 </div>
               </div>
