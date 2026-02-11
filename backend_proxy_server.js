@@ -1051,7 +1051,7 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
     console.log(`✅ Found Interstate geometry with ${fullGeometry.coordinates.length} points`);
 
     // Extract the segment between our start/end points
-    return extractSegment(fullGeometry.coordinates, lat1, lng1, lat2, lng2);
+    return extractSegment(fullGeometry.coordinates, lat1, lng1, lat2, lng2, stateCode);
 
   } catch (error) {
     console.error('Error fetching interstate geometry:', error.message);
@@ -1073,7 +1073,7 @@ function haversineDistance(lat1, lng1, lat2, lng2) {
 }
 
 // Extract a segment from a full highway geometry
-function extractSegment(geometry, lat1, lng1, lat2, lng2) {
+function extractSegment(geometry, lat1, lng1, lat2, lng2, state = null) {
   if (!geometry || geometry.length < 2) {
     return null;
   }
@@ -1201,7 +1201,9 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
 
   // DISABLED for Iowa: OSM geometry has ordering issues causing false rejections
   // Iowa events within 5km of highway should snap regardless of path length
-  if (segmentPathLength > maxReasonablePathLength && eventDistance > 1 && state !== 'Iowa') {
+  // State can be passed as either "Iowa" or "IA"
+  const isIowa = state && (state.toUpperCase() === 'IA' || state.toLowerCase() === 'iowa');
+  if (segmentPathLength > maxReasonablePathLength && eventDistance > 1 && !isIowa) {
     console.log(`⚠️  Segment rejected: path too long`);
     console.log(`   Segment path: ${segmentPathLength.toFixed(2)}km (${(segmentPathLength * 0.621371).toFixed(2)} mi)`);
     console.log(`   Event distance: ${eventDistance.toFixed(2)}km (${(eventDistance * 0.621371).toFixed(2)} mi)`);
