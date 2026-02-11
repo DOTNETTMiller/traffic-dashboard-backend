@@ -660,7 +660,7 @@ function DigitalInfrastructure() {
               </div>
             </div>
 
-            <div style={{ padding: '12px', backgroundColor: '#f0f9ff', borderRadius: '4px', marginBottom: '15px', fontSize: '14px', color: '#0369a1' }}>
+            <div style={{ padding: '12px', backgroundcolor: '#6b7280', borderRadius: '4px', marginBottom: '15px', fontSize: '14px', color: '#0369a1' }}>
               <strong>Note:</strong> Location and route information will be automatically extracted from the IFC model if available. These fields are optional overrides.
             </div>
 
@@ -753,7 +753,7 @@ function DigitalInfrastructure() {
               style={{
                 padding: '12px 30px',
                 backgroundColor: !selectedFile || uploading ? '#ccc' : '#1976d2',
-                color: 'white',
+                color: '#111827',
                 border: 'none',
                 borderRadius: '4px',
                 fontSize: '16px',
@@ -777,7 +777,7 @@ function DigitalInfrastructure() {
             )}
           </form>
 
-          <div style={{ marginTop: '40px', padding: '20px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+          <div style={{ marginTop: '40px', padding: '20px', backgroundcolor: '#6b7280', borderRadius: '4px' }}>
             <h3 style={{ fontSize: '18px', marginBottom: '15px' }}>What This Does</h3>
             <ul style={{ lineHeight: '1.8', color: '#666' }}>
               <li>Parses your IFC model to extract infrastructure elements (bridges, beams, signs, etc.)</li>
@@ -807,7 +807,7 @@ function DigitalInfrastructure() {
                   marginTop: '20px',
                   padding: '12px 30px',
                   backgroundColor: '#1976d2',
-                  color: 'white',
+                  color: '#111827',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer',
@@ -871,7 +871,7 @@ function DigitalInfrastructure() {
                       <span style={{
                         padding: '6px 12px',
                         backgroundColor: model.extraction_status === 'completed' ? '#4caf50' : '#ff9800',
-                        color: 'white',
+                        color: '#111827',
                         borderRadius: '4px',
                         fontSize: '12px',
                         fontWeight: 'bold'
@@ -885,8 +885,8 @@ function DigitalInfrastructure() {
                         }}
                         style={{
                           padding: '6px 12px',
-                          backgroundColor: '#f44336',
-                          color: 'white',
+                          backgroundcolor: '#6b7280',
+                          color: '#111827',
                           border: 'none',
                           borderRadius: '4px',
                           fontSize: '12px',
@@ -930,21 +930,21 @@ function DigitalInfrastructure() {
               <div style={{ color: '#666' }}>Total Elements</div>
             </div>
 
-            <div style={{ padding: '20px', backgroundColor: '#fff3e0', borderRadius: '8px' }}>
-              <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#f57c00', marginBottom: '8px' }}>
+            <div style={{ padding: '20px', backgroundcolor: '#6b7280', borderRadius: '8px' }}>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#6b7280', marginBottom: '8px' }}>
                 {modelDetails.v2x_elements}
               </div>
               <div style={{ color: '#666' }}>V2X Applicable</div>
             </div>
 
-            <div style={{ padding: '20px', backgroundColor: '#fce4ec', borderRadius: '8px' }}>
+            <div style={{ padding: '20px', backgroundcolor: '#6b7280', borderRadius: '8px' }}>
               <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#c2185b', marginBottom: '8px' }}>
                 {modelDetails.av_critical_elements}
               </div>
               <div style={{ color: '#666' }}>AV Critical</div>
             </div>
 
-            <div style={{ padding: '20px', backgroundColor: '#ffebee', borderRadius: '8px' }}>
+            <div style={{ padding: '20px', backgroundcolor: '#6b7280', borderRadius: '8px' }}>
               <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#d32f2f', marginBottom: '8px' }}>
                 {modelDetails.gaps}
               </div>
@@ -957,7 +957,7 @@ function DigitalInfrastructure() {
             <h3 style={{ fontSize: '20px', marginBottom: '15px' }}>Element Types</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '10px' }}>
               {Object.entries(modelDetails.by_type || {}).map(([type, count]) => (
-                <div key={type} style={{ padding: '12px', backgroundColor: '#f5f5f5', borderRadius: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                <div key={type} style={{ padding: '12px', backgroundcolor: '#6b7280', borderRadius: '4px', display: 'flex', justifyContent: 'space-between' }}>
                   <span>{type}</span>
                   <strong>{count}</strong>
                 </div>
@@ -975,7 +975,7 @@ function DigitalInfrastructure() {
                   style={{
                     padding: '8px 16px',
                     backgroundColor: '#4caf50',
-                    color: 'white',
+                    color: '#111827',
                     border: 'none',
                     borderRadius: '4px',
                     cursor: 'pointer',
@@ -988,8 +988,8 @@ function DigitalInfrastructure() {
                   onClick={() => downloadIDSFile(modelDetails.id, modelDetails.filename.replace('.ifc', ''))}
                   style={{
                     padding: '8px 16px',
-                    backgroundColor: '#ff9800',
-                    color: 'white',
+                    backgroundcolor: '#6b7280',
+                    color: '#111827',
                     border: 'none',
                     borderRadius: '4px',
                     cursor: 'pointer',
@@ -1003,7 +1003,7 @@ function DigitalInfrastructure() {
                   style={{
                     padding: '8px 16px',
                     backgroundColor: '#1976d2',
-                    color: 'white',
+                    color: '#111827',
                     border: 'none',
                     borderRadius: '4px',
                     cursor: 'pointer',
@@ -1017,26 +1017,26 @@ function DigitalInfrastructure() {
             </div>
 
             {gaps.length === 0 ? (
-              <p style={{ color: '#666', padding: '20px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+              <p style={{ color: '#666', padding: '20px', backgroundcolor: '#6b7280', borderRadius: '4px' }}>
                 ✅ No gaps identified - this model contains all required properties for ITS operations!
               </p>
             ) : (
               <div>
                 {/* Gap Summary Cards */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
-                  <div style={{ padding: '20px', backgroundColor: '#ffebee', borderRadius: '8px', border: '2px solid #d32f2f' }}>
+                  <div style={{ padding: '20px', backgroundcolor: '#6b7280', borderRadius: '8px', border: '2px solid #d32f2f' }}>
                     <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#d32f2f', marginBottom: '8px' }}>
                       {gaps.filter(g => g.severity === 'high').length}
                     </div>
                     <div style={{ color: '#666', fontSize: '14px' }}>High Severity Gaps</div>
                   </div>
-                  <div style={{ padding: '20px', backgroundColor: '#fff3e0', borderRadius: '8px', border: '2px solid #f57c00' }}>
-                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#f57c00', marginBottom: '8px' }}>
+                  <div style={{ padding: '20px', backgroundcolor: '#6b7280', borderRadius: '8px', border: '2px solid #f57c00' }}>
+                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#6b7280', marginBottom: '8px' }}>
                       {gaps.filter(g => g.severity === 'medium').length}
                     </div>
                     <div style={{ color: '#666', fontSize: '14px' }}>Medium Severity Gaps</div>
                   </div>
-                  <div style={{ padding: '20px', backgroundColor: '#f1f8e9', borderRadius: '8px', border: '2px solid #689f38' }}>
+                  <div style={{ padding: '20px', backgroundcolor: '#6b7280', borderRadius: '8px', border: '2px solid #689f38' }}>
                     <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#689f38', marginBottom: '8px' }}>
                       {gaps.filter(g => g.severity === 'low').length}
                     </div>
@@ -1058,7 +1058,7 @@ function DigitalInfrastructure() {
                       style={{
                         marginBottom: '12px',
                         padding: '16px',
-                        backgroundColor: '#ffffff',
+                        backgroundcolor: '#111827',
                         border: `2px solid ${gap.severity === 'high' ? '#d32f2f' : gap.severity === 'medium' ? '#f57c00' : '#689f38'}`,
                         borderRadius: '8px',
                         boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
@@ -1070,7 +1070,7 @@ function DigitalInfrastructure() {
                             <span style={{
                               padding: '4px 10px',
                               backgroundColor: gap.severity === 'high' ? '#d32f2f' : gap.severity === 'medium' ? '#f57c00' : '#689f38',
-                              color: 'white',
+                              color: '#111827',
                               borderRadius: '4px',
                               fontSize: '11px',
                               fontWeight: 'bold',
@@ -1105,7 +1105,7 @@ function DigitalInfrastructure() {
                         <div style={{
                           marginLeft: '20px',
                           padding: '12px 16px',
-                          backgroundColor: '#f5f5f5',
+                          backgroundcolor: '#6b7280',
                           borderRadius: '8px',
                           textAlign: 'center',
                           minWidth: '120px'
@@ -1123,7 +1123,7 @@ function DigitalInfrastructure() {
                         <div style={{
                           marginTop: '10px',
                           padding: '10px',
-                          backgroundColor: '#f9f9f9',
+                          backgroundcolor: '#6b7280',
                           borderLeft: '3px solid #1976d2',
                           fontSize: '13px',
                           color: '#555'
@@ -1165,7 +1165,7 @@ function DigitalInfrastructure() {
 
           {/* Live Statistics */}
           {liveStats && (
-            <div style={{ marginBottom: '40px', padding: '20px', backgroundColor: '#f0f9ff', borderRadius: '8px', border: '1px solid #0ea5e9' }}>
+            <div style={{ marginBottom: '40px', padding: '20px', backgroundcolor: '#6b7280', borderRadius: '8px', border: '1px solid #0ea5e9' }}>
               <h3 style={{ fontSize: '20px', marginBottom: '20px', color: '#0369a1' }}>Live Usage Statistics</h3>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '20px' }}>
@@ -1184,7 +1184,7 @@ function DigitalInfrastructure() {
                 </div>
 
                 <div style={{ padding: '20px', backgroundColor: 'white', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#f57c00', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#6b7280', marginBottom: '8px' }}>
                     {liveStats.statesContributing}
                   </div>
                   <div style={{ color: '#666' }}>States Contributing</div>
@@ -1241,14 +1241,14 @@ function DigitalInfrastructure() {
               dangerouslySetInnerHTML={{ __html: renderMarkdown(docContent) }}
             />
           ) : (
-            <div style={{ padding: '20px', backgroundColor: '#fff3cd', borderRadius: '8px', border: '1px solid #ffc107' }}>
+            <div style={{ padding: '20px', backgroundcolor: '#6b7280', borderRadius: '8px', border: '1px solid #ffc107' }}>
               <p style={{ margin: 0, color: '#856404' }}>
                 Click the Documentation tab to load the comprehensive digital infrastructure guide.
               </p>
             </div>
           )}
 
-          <div style={{ marginTop: '40px', padding: '24px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #dbeafe' }}>
+          <div style={{ marginTop: '40px', padding: '24px', backgroundcolor: '#6b7280', borderRadius: '12px', border: '1px solid #dbeafe' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: '20px' }}>Digital Standards Lifecycle Crosswalk</h3>
@@ -1269,7 +1269,7 @@ function DigitalInfrastructure() {
             {crosswalkLoading ? (
               <div style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>Loading lifecycle guidance…</div>
             ) : crosswalkError ? (
-              <div style={{ padding: '16px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', color: '#b91c1c' }}>
+              <div style={{ padding: '16px', backgroundcolor: '#6b7280', border: '1px solid #fecaca', borderRadius: '10px', color: '#b91c1c' }}>
                 {crosswalkError}
               </div>
             ) : crosswalkContent ? (
@@ -1277,7 +1277,7 @@ function DigitalInfrastructure() {
                 {crosswalkHighlights.length > 0 && (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '20px' }}>
                     {crosswalkHighlights.map(highlight => (
-                      <div key={highlight.title} style={{ padding: '16px', backgroundColor: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                      <div key={highlight.title} style={{ padding: '16px', backgroundcolor: '#111827', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                         <div style={{ fontWeight: '600', color: '#0f172a', marginBottom: '6px' }}>{highlight.title}</div>
                         <div style={{ fontSize: '13px', color: '#475569' }}>{highlight.summary}</div>
                       </div>
@@ -1286,7 +1286,7 @@ function DigitalInfrastructure() {
                 )}
                 <div
                   style={{
-                    backgroundColor: '#ffffff',
+                    backgroundcolor: '#111827',
                     borderRadius: '10px',
                     border: '1px solid #e2e8f0',
                     padding: '16px',
@@ -1297,7 +1297,7 @@ function DigitalInfrastructure() {
                 />
               </>
             ) : (
-              <div style={{ padding: '16px', backgroundColor: '#fefce8', border: '1px solid #fef08a', borderRadius: '10px', color: '#854d0e' }}>
+              <div style={{ padding: '16px', backgroundcolor: '#6b7280', border: '1px solid #fef08a', borderRadius: '10px', color: '#854d0e' }}>
                 Upload the lifecycle mapping document to expose cross-disciplinary data expectations directly inside the BIM workspace.
               </div>
             )}

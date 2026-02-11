@@ -229,7 +229,7 @@ export default function CorridorBriefing({ events, detourAlerts, onClose }) {
               margin: 0,
               fontSize: '24px',
               fontWeight: '700',
-              color: 'white'
+              color: '#111827'
             }}>
               🛣️ Corridor Travel Briefing
             </h2>
@@ -238,7 +238,7 @@ export default function CorridorBriefing({ events, detourAlerts, onClose }) {
               style={{
                 background: 'rgba(255, 255, 255, 0.2)',
                 border: 'none',
-                color: 'white',
+                color: '#111827',
                 cursor: 'pointer',
                 fontSize: '24px',
                 width: '32px',
@@ -281,7 +281,7 @@ export default function CorridorBriefing({ events, detourAlerts, onClose }) {
                   borderRadius: '8px',
                   border: '1px solid rgba(255, 255, 255, 0.3)',
                   background: 'rgba(255, 255, 255, 0.1)',
-                  color: 'white',
+                  color: '#111827',
                   fontSize: '14px',
                   fontWeight: '600',
                   cursor: 'pointer',
@@ -317,7 +317,7 @@ export default function CorridorBriefing({ events, detourAlerts, onClose }) {
                   borderRadius: '8px',
                   border: '1px solid rgba(255, 255, 255, 0.3)',
                   background: 'rgba(255, 255, 255, 0.1)',
-                  color: 'white',
+                  color: '#111827',
                   fontSize: '14px',
                   fontWeight: '600',
                   cursor: selectedCorridor ? 'pointer' : 'not-allowed',
@@ -342,7 +342,7 @@ export default function CorridorBriefing({ events, detourAlerts, onClose }) {
                   borderRadius: '8px',
                   border: '1px solid rgba(255, 255, 255, 0.3)',
                   background: 'rgba(255, 255, 255, 0.2)',
-                  color: 'white',
+                  color: '#111827',
                   fontSize: '14px',
                   fontWeight: '600',
                   cursor: selectedCorridor ? 'pointer' : 'not-allowed',
@@ -737,7 +737,7 @@ export default function CorridorBriefing({ events, detourAlerts, onClose }) {
                                 padding: '2px 8px',
                                 borderRadius: '6px',
                                 background: theme.colors.accentBlue,
-                                color: 'white',
+                                color: '#111827',
                                 fontSize: '11px',
                                 fontWeight: '700'
                               }}>

@@ -378,7 +378,7 @@ function DocumentationViewer() {
     const doc = docs.find(d => d.key === activeDoc);
     return (
       <div ref={contentRef} className="documentation-viewer" style={{
-        backgroundColor: '#ffffff',
+        backgroundcolor: '#111827',
         borderRadius: '8px',
         padding: '24px',
         maxWidth: '1200px',
@@ -437,7 +437,7 @@ function DocumentationViewer() {
                 borderRadius: '6px',
                 border: 'none',
                 backgroundColor: generatingPdf ? '#9ca3af' : '#10b981',
-                color: 'white',
+                color: '#111827',
                 cursor: generatingPdf ? 'wait' : 'pointer',
                 fontSize: '14px',
                 fontWeight: '500',
@@ -726,7 +726,7 @@ function DocumentationViewer() {
   // Document library view (grid of cards)
   return (
     <div className="documentation-library" style={{
-      backgroundColor: '#ffffff',
+      backgroundcolor: '#111827',
       borderRadius: '8px',
       padding: '32px',
       maxWidth: '1400px',
@@ -822,7 +822,7 @@ function DocumentationViewer() {
                     borderRadius: '6px',
                     border: '1px solid #3b82f6',
                     backgroundColor: '#3b82f6',
-                    color: 'white',
+                    color: '#111827',
                     cursor: 'pointer',
                     fontSize: '14px',
                     fontWeight: '500',
@@ -843,7 +843,7 @@ function DocumentationViewer() {
                       borderRadius: '6px',
                       border: '1px solid #3b82f6',
                       backgroundColor: '#3b82f6',
-                      color: 'white',
+                      color: '#111827',
                       cursor: 'pointer',
                       fontSize: '14px',
                       fontWeight: '500',
@@ -862,7 +862,7 @@ function DocumentationViewer() {
                       borderRadius: '6px',
                       border: '1px solid #10b981',
                       backgroundColor: '#10b981',
-                      color: 'white',
+                      color: '#111827',
                       cursor: 'pointer',
                       fontSize: '14px',
                       fontWeight: '500',
@@ -884,7 +884,7 @@ function DocumentationViewer() {
       <div style={{
         marginTop: '40px',
         padding: '20px',
-        backgroundColor: '#f9fafb',
+        backgroundcolor: '#6b7280',
         borderRadius: '8px',
         border: '1px solid #e5e7eb'
       }}>
@@ -912,7 +912,7 @@ function DocumentationViewer() {
               padding: '10px 20px',
               borderRadius: '6px',
               backgroundColor: '#3b82f6',
-              color: 'white',
+              color: '#111827',
               textDecoration: 'none',
               fontSize: '14px',
               fontWeight: '500',
@@ -931,7 +931,7 @@ function DocumentationViewer() {
               padding: '10px 20px',
               borderRadius: '6px',
               backgroundColor: '#8b5cf6',
-              color: 'white',
+              color: '#111827',
               textDecoration: 'none',
               fontSize: '14px',
               fontWeight: '500',

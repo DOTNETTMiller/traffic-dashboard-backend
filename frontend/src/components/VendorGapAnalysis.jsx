@@ -167,7 +167,7 @@ const VendorGapAnalysis = () => {
                     display: 'inline-block',
                     padding: '4px 12px',
                     background: getGradeColor(feed.current_grade),
-                    color: 'white',
+                    color: '#111827',
                     borderRadius: '4px',
                     fontWeight: 'bold',
                     fontSize: '18px'
@@ -244,7 +244,7 @@ const VendorGapAnalysis = () => {
                     <div style={{
                       padding: '2px 8px',
                       background: getPriorityColor(gap.priority),
-                      color: 'white',
+                      color: '#111827',
                       borderRadius: '3px',
                       fontSize: '11px',
                       fontWeight: 'bold',

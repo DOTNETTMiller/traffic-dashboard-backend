@@ -155,7 +155,7 @@ export default function EventTable({ events, messages = {}, onEventSelect }) {
         <thead style={{
           position: 'sticky',
           top: 0,
-          backgroundColor: '#f3f4f6',
+          backgroundcolor: '#6b7280',
           boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
           zIndex: 10
         , color: '#111827'}}>
@@ -223,7 +223,7 @@ export default function EventTable({ events, messages = {}, onEventSelect }) {
                   )}
                   {event.requiresCollaboration && (
                     <span style={{
-                      backgroundColor: '#fef3c7',
+                      backgroundcolor: '#6b7280',
                       color: '#92400e',
                       padding: '2px 6px',
                       borderRadius: '4px',
@@ -273,7 +273,7 @@ export default function EventTable({ events, messages = {}, onEventSelect }) {
                 {messageCount > 0 ? (
                   <span style={{
                     backgroundColor: '#10b981',
-                    color: 'white',
+                    color: '#111827',
                     padding: '4px 8px',
                     borderRadius: '12px',
                     fontSize: '12px',
@@ -294,7 +294,7 @@ export default function EventTable({ events, messages = {}, onEventSelect }) {
                   style={{
                     padding: '4px 12px',
                     backgroundColor: messageCount > 0 ? '#10b981' : '#3b82f6',
-                    color: 'white',
+                    color: '#111827',
                     border: 'none',
                     borderRadius: '4px',
                     cursor: 'pointer',

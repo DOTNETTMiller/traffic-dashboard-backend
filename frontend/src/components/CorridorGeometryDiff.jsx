@@ -79,7 +79,7 @@ export default function CorridorGeometryDiff({ showDiff = false }) {
                   <div style={{ minWidth: '250px' }}>
                     <div style={{
                       background: '#9ca3af',
-                      color: 'white',
+                      color: '#111827',
                       padding: '8px',
                       margin: '-10px -10px 8px -10px',
                       fontWeight: 'bold'
@@ -104,7 +104,7 @@ export default function CorridorGeometryDiff({ showDiff = false }) {
               <Polyline
                 positions={newPositions}
                 pathOptions={{
-                  color: '#f97316',
+                  color: '#6b7280',
                   weight: 4,
                   opacity: 0.9,
                   dashArray: null
@@ -114,7 +114,7 @@ export default function CorridorGeometryDiff({ showDiff = false }) {
                   <div style={{ minWidth: '250px' }}>
                     <div style={{
                       background: '#f97316',
-                      color: 'white',
+                      color: '#111827',
                       padding: '8px',
                       margin: '-10px -10px 8px -10px',
                       fontWeight: 'bold'

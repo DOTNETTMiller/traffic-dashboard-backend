@@ -71,7 +71,7 @@ export default function DataQualityReport() {
 
   const severityLevels = [
     { key: 'critical', label: 'Critical', color: '#dc2626' },
-    { key: 'high', label: 'High', color: '#f97316' },
+    { key: 'high', label: 'High', color: '#6b7280' },
     { key: 'medium', label: 'Medium', color: '#3b82f6' }
   ];
 
@@ -126,7 +126,7 @@ export default function DataQualityReport() {
       <div style={{
         marginTop: '10px',
         padding: '10px 12px',
-        backgroundColor: '#f9fafb',
+        backgroundcolor: '#6b7280',
         borderRadius: '8px',
         border: '1px solid #e5e7eb'
       }}>
@@ -179,7 +179,7 @@ export default function DataQualityReport() {
       <div style={{
         marginTop: '16px',
         padding: '16px',
-        backgroundColor: '#f9fafb',
+        backgroundcolor: '#6b7280',
         borderRadius: '8px',
         border: '1px solid #e5e7eb'
       }}>
@@ -426,7 +426,7 @@ export default function DataQualityReport() {
             height: '50px',
             borderRadius: '8px',
             backgroundColor: getGradeColor(displayData.grade),
-            color: 'white',
+            color: '#111827',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -466,7 +466,7 @@ export default function DataQualityReport() {
         {hasEnhancedData && standard.percentage !== enhancedData.percentage && (
           <div style={{
             padding: '10px',
-            backgroundColor: '#f9fafb',
+            backgroundcolor: '#6b7280',
             borderRadius: '6px',
             marginBottom: '12px',
             border: '1px solid #e5e7eb'
@@ -525,7 +525,7 @@ export default function DataQualityReport() {
   return (
     <div style={{
       padding: '20px',
-      backgroundColor: '#f9fafb',
+      backgroundcolor: '#6b7280',
       height: '100%',
       overflowY: 'auto'
     }}>
@@ -676,7 +676,7 @@ export default function DataQualityReport() {
                   height: '55px',
                   borderRadius: '10px',
                   backgroundColor: getGradeColor(state.overallScore.grade),
-                  color: 'white',
+                  color: '#111827',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
@@ -752,7 +752,7 @@ export default function DataQualityReport() {
                   boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
                 }}>
                   <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px', fontWeight: '600' }}>TMDD</div>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f59e0b', lineHeight: 1 }}>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6b7280', lineHeight: 1 }}>
                     {state.overallScore.breakdown.tmdd.grade}
                   </div>
                   <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', fontWeight: '600' }}>
@@ -769,7 +769,7 @@ export default function DataQualityReport() {
               /* Fallback for states without breakdown - show data quality */
               <div style={{
                 padding: '16px',
-                backgroundColor: '#f3f4f6',
+                backgroundcolor: '#6b7280',
                 borderRadius: '8px',
                 marginBottom: '12px',
                 textAlign: 'center',
@@ -828,7 +828,7 @@ export default function DataQualityReport() {
               width: '100%',
               maxHeight: 'none',
               overflow: 'visible',
-              backgroundColor: '#ffffff',
+              backgroundcolor: '#111827',
               borderRadius: '12px',
               boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
               marginBottom: '40px',
@@ -866,7 +866,7 @@ export default function DataQualityReport() {
                         borderRadius: '6px',
                         border: '1px solid #10b981',
                         backgroundColor: '#10b981',
-                        color: 'white',
+                        color: '#111827',
                         cursor: 'pointer',
                         fontSize: '14px',
                         fontWeight: '600'
@@ -928,7 +928,7 @@ export default function DataQualityReport() {
                           height: '120px',
                           borderRadius: '16px',
                           backgroundColor: getGradeColor(stateGuide.overallScore.grade),
-                          color: 'white',
+                          color: '#111827',
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
@@ -994,7 +994,7 @@ export default function DataQualityReport() {
                             textAlign: 'center'
                           }}>
                             <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>TMDD</div>
-                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f59e0b' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6b7280' }}>
                               {stateGuide.overallScore.breakdown.tmdd.grade}
                             </div>
                           <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
@@ -1015,7 +1015,7 @@ export default function DataQualityReport() {
                       </h3>
                       <div style={{
                         padding: '16px',
-                        backgroundColor: '#f9fafb',
+                        backgroundcolor: '#6b7280',
                         borderRadius: '8px',
                         border: '1px solid #e5e7eb',
                         marginBottom: '16px',
@@ -1185,7 +1185,7 @@ export default function DataQualityReport() {
                     <div style={{
                       marginBottom: '24px',
                       padding: '20px',
-                      backgroundColor: '#f9fafb',
+                      backgroundcolor: '#6b7280',
                       borderRadius: '8px',
                       border: '1px solid #e5e7eb'
                     }}>
@@ -1233,7 +1233,7 @@ export default function DataQualityReport() {
                       {selectedState.tmddStandards.hasCustomHandler && (
                         <div style={{
                           padding: '12px',
-                          backgroundColor: '#fffbeb',
+                          backgroundcolor: '#6b7280',
                           borderRadius: '6px',
                           border: '1px solid #fde68a',
                           marginBottom: '16px'
@@ -1340,7 +1340,7 @@ export default function DataQualityReport() {
                         <div style={{
                           marginBottom: '24px',
                           padding: '20px',
-                          backgroundColor: '#f9fafb',
+                          backgroundcolor: '#6b7280',
                           borderRadius: '8px',
                           border: '1px solid #e5e7eb'
                         }}>
@@ -1398,7 +1398,7 @@ export default function DataQualityReport() {
                             <div style={{
                               marginTop: '16px',
                               padding: '12px',
-                              backgroundColor: '#fef3c7',
+                              backgroundcolor: '#6b7280',
                               borderRadius: '6px',
                               border: '1px solid #f59e0b'
                             }}>
@@ -1455,7 +1455,7 @@ export default function DataQualityReport() {
                         color: '#6b7280',
                         marginBottom: '16px',
                         padding: '12px',
-                        backgroundColor: '#f9fafb',
+                        backgroundcolor: '#6b7280',
                         borderRadius: '6px',
                         border: '1px solid #e5e7eb'
                       }}>
@@ -1465,7 +1465,7 @@ export default function DataQualityReport() {
                         {stateGuide.fieldLevelAnalysis.note && (
                           <>
                             <br />
-                            <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#fffbeb', borderRadius: '4px', border: '1px solid #fde68a' }}>
+                            <div style={{ marginTop: '8px', padding: '8px', backgroundcolor: '#6b7280', borderRadius: '4px', border: '1px solid #fde68a' }}>
                               ℹ️ {stateGuide.fieldLevelAnalysis.note}
                             </div>
                           </>
@@ -1513,7 +1513,7 @@ export default function DataQualityReport() {
                                 padding: '4px 12px',
                                 borderRadius: '6px',
                                 backgroundColor: severityColor,
-                                color: 'white',
+                                color: '#111827',
                                 fontSize: '12px',
                                 fontWeight: '600'
                               }}>
@@ -1632,7 +1632,7 @@ export default function DataQualityReport() {
                               padding: '8px 16px',
                               borderRadius: '6px',
                               backgroundColor: getScoreColor(category.percentage),
-                              color: 'white',
+                              color: '#111827',
                               fontWeight: 'bold',
                               height: 'fit-content'
                             }}>
@@ -1700,7 +1700,7 @@ export default function DataQualityReport() {
                           {stateGuide.actionPlan.immediate.map((action, idx) => (
                             <div key={idx} style={{
                               padding: '12px',
-                              backgroundColor: '#fee2e2',
+                              backgroundcolor: '#6b7280',
                               borderRadius: '6px',
                               marginBottom: '8px',
                               border: '1px solid #fecaca'
@@ -1725,14 +1725,14 @@ export default function DataQualityReport() {
                             fontSize: '14px',
                             fontWeight: '600',
                             marginBottom: '8px',
-                            color: '#f59e0b'
+                            color: '#6b7280'
                           }}>
                             📅 SHORT-TERM IMPROVEMENTS ({stateGuide.actionPlan.shortTerm.length})
                           </div>
                           {stateGuide.actionPlan.shortTerm.map((action, idx) => (
                             <div key={idx} style={{
                               padding: '12px',
-                              backgroundColor: '#fef3c7',
+                              backgroundcolor: '#6b7280',
                               borderRadius: '6px',
                               marginBottom: '8px',
                               border: '1px solid #fde68a',

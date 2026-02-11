@@ -194,7 +194,7 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
         {!isStateLoggedIn && (
           <div style={{
             padding: '20px',
-            backgroundColor: '#fef3c7',
+            backgroundcolor: '#6b7280',
             borderBottom: '1px solid #e5e7eb'
           }}>
             <p style={{ margin: 0, fontSize: '14px', color: '#92400e' }}>
@@ -208,7 +208,7 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
           flex: 1,
           overflowY: 'auto',
           padding: '20px',
-          backgroundColor: '#f9fafb'
+          backgroundcolor: '#6b7280'
         }}>
           {groupedComments.length === 0 ? (
             <div style={{
@@ -252,7 +252,7 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
                       <span style={{
                         fontSize: '11px',
                         backgroundColor: '#3b82f6',
-                        color: 'white',
+                        color: '#111827',
                         padding: '3px 8px',
                         borderRadius: '12px',
                         fontWeight: '600',
@@ -309,7 +309,7 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
                 style={{
                   padding: '8px 16px',
                   backgroundColor: '#3b82f6',
-                  color: 'white',
+                  color: '#111827',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: newComment.trim() && !loading ? 'pointer' : 'not-allowed',

@@ -105,7 +105,7 @@ export default function FederalGrantResources({ darkMode = false }) {
       ],
       typicalAward: '$500K - $3M',
       matchRequired: '20% match',
-      color: '#f59e0b'
+      color: '#6b7280'
     },
     {
       id: 'protect',

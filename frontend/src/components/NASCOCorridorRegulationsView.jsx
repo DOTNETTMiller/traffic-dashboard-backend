@@ -451,7 +451,7 @@ export default function NASCOCorridorRegulationsView({ darkMode = false }) {
     },
     toggleButtonActive: {
       background: colors.accent,
-      color: 'white',
+      color: '#111827',
       borderColor: colors.accent
     },
     table: {
@@ -575,7 +575,7 @@ export default function NASCOCorridorRegulationsView({ darkMode = false }) {
             style={{
               ...styles.button,
               background: colors.success,
-              color: 'white'
+              color: '#111827'
             }}
           >
             📥 Export CSV
@@ -589,7 +589,7 @@ export default function NASCOCorridorRegulationsView({ darkMode = false }) {
               style={{
                 ...styles.button,
                 background: loadingAnalysis ? colors.textSecondary : colors.accent,
-                color: 'white',
+                color: '#111827',
                 cursor: loadingAnalysis ? 'wait' : 'pointer'
               }}
             >
@@ -705,7 +705,7 @@ export default function NASCOCorridorRegulationsView({ darkMode = false }) {
                         <span style={{
                           ...styles.badge,
                           background: colors.accent,
-                          color: 'white'
+                          color: '#111827'
                         }}>
                           NASCO
                         </span>
@@ -743,7 +743,7 @@ export default function NASCOCorridorRegulationsView({ darkMode = false }) {
                           padding: '6px 12px',
                           fontSize: '11px',
                           background: colors.accent,
-                          color: 'white'
+                          color: '#111827'
                         }}
                       >
                         Edit
@@ -796,7 +796,7 @@ export default function NASCOCorridorRegulationsView({ darkMode = false }) {
                   style={{
                     ...styles.button,
                     background: loadingAnalysis ? colors.textSecondary : colors.success,
-                    color: 'white'
+                    color: '#111827'
                   }}
                 >
                   {loadingAnalysis ? 'Regenerating...' : '🔄 Regenerate'}
@@ -830,7 +830,7 @@ export default function NASCOCorridorRegulationsView({ darkMode = false }) {
                       style={{
                         padding: '6px 12px',
                         background: colors.accent,
-                        color: 'white',
+                        color: '#111827',
                         borderRadius: '16px',
                         fontSize: '11px',
                         fontWeight: '600'
@@ -874,7 +874,7 @@ export default function NASCOCorridorRegulationsView({ darkMode = false }) {
                   style={{
                     ...styles.button,
                     background: colors.accentBlue || colors.accent,
-                    color: 'white'
+                    color: '#111827'
                   }}
                 >
                   📄 Download PDF Report
@@ -1077,7 +1077,7 @@ export default function NASCOCorridorRegulationsView({ darkMode = false }) {
                   flex: 1,
                   ...styles.button,
                   background: colors.success,
-                  color: 'white',
+                  color: '#111827',
                   justifyContent: 'center'
                 }}
               >
@@ -1089,7 +1089,7 @@ export default function NASCOCorridorRegulationsView({ darkMode = false }) {
                   flex: 1,
                   ...styles.button,
                   background: colors.textSecondary,
-                  color: 'white',
+                  color: '#111827',
                   justifyContent: 'center'
                 }}
               >

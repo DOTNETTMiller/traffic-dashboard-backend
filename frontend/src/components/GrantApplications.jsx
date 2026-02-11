@@ -208,7 +208,7 @@ export default function GrantApplications({ user }) {
       case 'denied':
         return { color: '#ef4444', bg: '#fee2e2', icon: '❌' };
       case 'withdrawn':
-        return { color: '#f59e0b', bg: '#fef3c7', icon: '⏸️' };
+        return { color: '#6b7280', bg: '#fef3c7', icon: '⏸️' };
       default:
         return { color: '#6b7280', bg: '#f3f4f6', icon: '📋' };
     }
@@ -284,7 +284,7 @@ export default function GrantApplications({ user }) {
     button: {
       padding: '12px 24px',
       background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.primaryHover} 100%)`,
-      color: 'white',
+      color: '#111827',
       border: 'none',
       borderRadius: '12px',
       fontSize: '14px',
@@ -842,7 +842,7 @@ function CreateApplicationForm({ theme, styles, templates, selectedTemplate, han
                   height: '24px',
                   borderRadius: '50%',
                   background: theme.primary,
-                  color: 'white',
+                  color: '#111827',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1471,7 +1471,7 @@ function ApplicationDetails({ theme, styles, selectedApp, getStatusConfig, handl
                 style={{
                   padding: '8px 16px',
                   background: theme.primary,
-                  color: 'white',
+                  color: '#111827',
                   border: 'none',
                   borderRadius: '8px',
                   fontSize: '13px',
@@ -1548,7 +1548,7 @@ function ApplicationDetails({ theme, styles, selectedApp, getStatusConfig, handl
             style={{
               padding: '10px 18px',
               background: theme.accent,
-              color: 'white',
+              color: '#111827',
               border: 'none',
               borderRadius: '10px',
               fontSize: '13px',
@@ -1625,7 +1625,7 @@ function ApplicationDetails({ theme, styles, selectedApp, getStatusConfig, handl
             style={{
               padding: '10px 18px',
               background: theme.primary,
-              color: 'white',
+              color: '#111827',
               border: 'none',
               borderRadius: '10px',
               fontSize: '13px',
@@ -1679,7 +1679,7 @@ function ApplicationDetails({ theme, styles, selectedApp, getStatusConfig, handl
                   display: 'inline-block',
                   padding: '8px 16px',
                   background: theme.primary,
-                  color: 'white',
+                  color: '#111827',
                   borderRadius: '8px',
                   fontSize: '13px',
                   fontWeight: '600',
@@ -1832,7 +1832,7 @@ function ApplicationDetails({ theme, styles, selectedApp, getStatusConfig, handl
                         <span style={{
                           padding: '4px 8px',
                           background: theme.success,
-                          color: 'white',
+                          color: '#111827',
                           borderRadius: '6px',
                           fontSize: '10px',
                           fontWeight: '700',

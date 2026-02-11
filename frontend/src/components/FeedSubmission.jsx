@@ -370,7 +370,7 @@ export default function FeedSubmission({ authToken, user }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.md }}>
             <span style={{
               background: theme.colors.success,
-              color: 'white',
+              color: '#111827',
               padding: '4px 10px',
               borderRadius: '12px',
               fontSize: '12px',
@@ -714,7 +714,7 @@ export default function FeedSubmission({ authToken, user }) {
             style={{
               padding: '10px 20px',
               backgroundColor: !gisFile || uploadingGIS ? theme.colors.textSecondary : theme.colors.accentPurple,
-              color: 'white',
+              color: '#111827',
               border: 'none',
               borderRadius: '8px',
               fontWeight: 600,
@@ -771,7 +771,7 @@ export default function FeedSubmission({ authToken, user }) {
                   style={{
                     padding: '8px 16px',
                     backgroundColor: theme.colors.accentBlue,
-                    color: 'white',
+                    color: '#111827',
                     border: 'none',
                     borderRadius: '6px',
                     fontWeight: '600',
@@ -791,7 +791,7 @@ export default function FeedSubmission({ authToken, user }) {
                   style={{
                     padding: '8px 16px',
                     backgroundColor: theme.colors.accentPurple,
-                    color: 'white',
+                    color: '#111827',
                     border: 'none',
                     borderRadius: '6px',
                     fontWeight: '600',
@@ -811,7 +811,7 @@ export default function FeedSubmission({ authToken, user }) {
                   style={{
                     padding: '8px 16px',
                     backgroundColor: theme.colors.accentGreen,
-                    color: 'white',
+                    color: '#111827',
                     border: 'none',
                     borderRadius: '6px',
                     fontWeight: '600',
@@ -831,7 +831,7 @@ export default function FeedSubmission({ authToken, user }) {
                   style={{
                     padding: '8px 16px',
                     backgroundColor: theme.colors.accent,
-                    color: 'white',
+                    color: '#111827',
                     border: 'none',
                     borderRadius: '6px',
                     fontWeight: '600',
@@ -906,7 +906,7 @@ export default function FeedSubmission({ authToken, user }) {
       </h3>
 
       {error && (
-        <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '6px', backgroundColor: '#fee2e2', color: '#991b1b' }}>
+        <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '6px', backgroundcolor: '#6b7280', color: '#991b1b' }}>
           {error}
         </div>
       )}
@@ -924,7 +924,7 @@ export default function FeedSubmission({ authToken, user }) {
         border: '1px solid #e5e7eb',
         borderRadius: '8px',
         padding: '20px',
-        backgroundColor: '#f8fafc'
+        backgroundcolor: '#6b7280'
       }}>
         <div>
           <label style={labelStyle}>Feed Name *</label>
@@ -995,7 +995,7 @@ const inputStyle = {
 const buttonStyle = {
   padding: '10px 16px',
   backgroundColor: '#2563eb',
-  color: 'white',
+  color: '#111827',
   border: 'none',
   borderRadius: '6px',
   fontWeight: 600,

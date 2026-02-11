@@ -69,22 +69,22 @@ export default function ToastContainer() {
       success: {
         background: 'rgba(16, 185, 129, 0.95)',
         borderColor: '#10b981',
-        color: 'white'
+        color: '#111827'
       },
       error: {
         background: 'rgba(239, 68, 68, 0.95)',
         borderColor: '#ef4444',
-        color: 'white'
+        color: '#111827'
       },
       warning: {
         background: 'rgba(251, 191, 36, 0.95)',
-        borderColor: '#fbbf24',
+        bordercolor: '#6b7280',
         color: '#1f2937'
       },
       info: {
         background: 'rgba(59, 130, 246, 0.95)',
         borderColor: '#3b82f6',
-        color: 'white'
+        color: '#111827'
       }
     };
 

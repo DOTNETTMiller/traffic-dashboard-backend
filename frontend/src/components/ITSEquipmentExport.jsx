@@ -209,7 +209,7 @@ export default function ITSEquipmentExport({ user }) {
           style={{
             padding: '8px 16px',
             backgroundColor: theme.colors.accentBlue,
-            color: 'white',
+            color: '#111827',
             border: 'none',
             borderRadius: '6px',
             fontWeight: '600',
@@ -230,7 +230,7 @@ export default function ITSEquipmentExport({ user }) {
           style={{
             padding: '8px 16px',
             backgroundColor: theme.colors.accentPurple,
-            color: 'white',
+            color: '#111827',
             border: 'none',
             borderRadius: '6px',
             fontWeight: '600',
@@ -251,7 +251,7 @@ export default function ITSEquipmentExport({ user }) {
           style={{
             padding: '8px 16px',
             backgroundColor: '#16a34a',
-            color: 'white',
+            color: '#111827',
             border: 'none',
             borderRadius: '6px',
             fontWeight: '600',
@@ -272,7 +272,7 @@ export default function ITSEquipmentExport({ user }) {
           style={{
             padding: '8px 16px',
             backgroundColor: '#ea580c',
-            color: 'white',
+            color: '#111827',
             border: 'none',
             borderRadius: '6px',
             fontWeight: '600',

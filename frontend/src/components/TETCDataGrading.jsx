@@ -129,7 +129,7 @@ export default function TETCDataGrading() {
     <div style={{
       display: 'flex',
       height: '100vh',
-      backgroundColor: '#f9fafb',
+      backgroundcolor: '#6b7280',
       overflow: 'hidden'
     }}>
       {/* Main Content Area */}
@@ -162,7 +162,7 @@ export default function TETCDataGrading() {
               style={{
                 padding: '10px 20px',
                 backgroundColor: '#3b82f6',
-                color: 'white',
+                color: '#111827',
                 textDecoration: 'none',
                 borderRadius: '8px',
                 fontSize: '14px',
@@ -304,7 +304,7 @@ export default function TETCDataGrading() {
                   height: '70px',
                   borderRadius: '12px',
                   backgroundColor: getGradeColor(feed.letter_grade),
-                  color: 'white',
+                  color: '#111827',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
@@ -356,7 +356,7 @@ export default function TETCDataGrading() {
               }}>
                 <div style={{
                   padding: '10px',
-                  backgroundColor: '#f0fdf4',
+                  backgroundcolor: '#6b7280',
                   borderRadius: '6px',
                   border: '1px solid #86efac'
                 }}>
@@ -382,7 +382,7 @@ export default function TETCDataGrading() {
                 </div>
                 <div style={{
                   padding: '10px',
-                  backgroundColor: '#fef3c7',
+                  backgroundcolor: '#6b7280',
                   borderRadius: '6px',
                   border: '1px solid #fde68a'
                 }}>
@@ -395,7 +395,7 @@ export default function TETCDataGrading() {
                 </div>
                 <div style={{
                   padding: '10px',
-                  backgroundColor: '#f5f3ff',
+                  backgroundcolor: '#6b7280',
                   borderRadius: '6px',
                   border: '1px solid #c4b5fd'
                 }}>
@@ -412,7 +412,7 @@ export default function TETCDataGrading() {
               {feed.gov_score !== null && feed.gov_score !== undefined && (
                 <div style={{
                   padding: '10px',
-                  backgroundColor: '#fdf2f8',
+                  backgroundcolor: '#6b7280',
                   borderRadius: '6px',
                   border: '1px solid #fbcfe8',
                   display: 'flex',
@@ -433,7 +433,7 @@ export default function TETCDataGrading() {
                 <div style={{
                   marginTop: '12px',
                   padding: '8px',
-                  backgroundColor: '#f9fafb',
+                  backgroundcolor: '#6b7280',
                   borderRadius: '4px',
                   fontSize: '11px',
                   color: '#6b7280'
@@ -599,7 +599,7 @@ export default function TETCDataGrading() {
         <div style={{
           marginBottom: '24px',
           padding: '16px',
-          backgroundColor: '#f9fafb',
+          backgroundcolor: '#6b7280',
           borderRadius: '8px',
           border: '1px solid #e5e7eb'
         }}>
@@ -615,7 +615,7 @@ export default function TETCDataGrading() {
         <div style={{
           marginBottom: '24px',
           padding: '16px',
-          backgroundColor: '#f9fafb',
+          backgroundcolor: '#6b7280',
           borderRadius: '8px',
           border: '1px solid #e5e7eb'
         }}>
@@ -626,7 +626,7 @@ export default function TETCDataGrading() {
             {[
               { grade: 'A', min: 90, color: '#10b981', label: 'Excellent' },
               { grade: 'B', min: 80, color: '#3b82f6', label: 'Good' },
-              { grade: 'C', min: 70, color: '#f59e0b', label: 'Fair' },
+              { grade: 'C', min: 70, color: '#6b7280', label: 'Fair' },
               { grade: 'D', min: 60, color: '#ef4444', label: 'Poor' },
               { grade: 'F', min: 0, color: '#991b1b', label: 'Failing' }
             ].map(({ grade, min, color, label }) => (
@@ -647,7 +647,7 @@ export default function TETCDataGrading() {
                   height: '32px',
                   borderRadius: '6px',
                   backgroundColor: color,
-                  color: 'white',
+                  color: '#111827',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -681,7 +681,7 @@ export default function TETCDataGrading() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{
               padding: '12px',
-              backgroundColor: '#f0fdf4',
+              backgroundcolor: '#6b7280',
               borderRadius: '6px',
               border: '1px solid #86efac'
             }}>
@@ -709,7 +709,7 @@ export default function TETCDataGrading() {
 
             <div style={{
               padding: '12px',
-              backgroundColor: '#fef3c7',
+              backgroundcolor: '#6b7280',
               borderRadius: '6px',
               border: '1px solid #fde68a'
             }}>
@@ -723,7 +723,7 @@ export default function TETCDataGrading() {
 
             <div style={{
               padding: '12px',
-              backgroundColor: '#f5f3ff',
+              backgroundcolor: '#6b7280',
               borderRadius: '6px',
               border: '1px solid #c4b5fd'
             }}>
@@ -737,7 +737,7 @@ export default function TETCDataGrading() {
 
             <div style={{
               padding: '12px',
-              backgroundColor: '#fdf2f8',
+              backgroundcolor: '#6b7280',
               borderRadius: '6px',
               border: '1px solid #fbcfe8'
             }}>

@@ -33,7 +33,7 @@ const IFCViewer = ({ model, width = '100%', height = 200 }) => {
       position: 'relative',
       display: 'flex',
       flexDirection: 'column',
-      color: 'white'
+      color: '#111827'
     }}>
       {/* Header with icon and title */}
       <div style={{

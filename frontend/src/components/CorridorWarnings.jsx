@@ -86,7 +86,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
     };
 
     if (severeCounts.severe > 0) return { level: 'severe', count: severeCounts.severe, color: '#dc2626' };
-    if (severeCounts.high > 0) return { level: 'high', count: severeCounts.high, color: '#f59e0b' };
+    if (severeCounts.high > 0) return { level: 'high', count: severeCounts.high, color: '#6b7280' };
     return { level: 'moderate', count: severeCounts.moderate, color: '#3b82f6' };
   };
 
@@ -108,7 +108,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
         <div style={{
           padding: '8px 12px',
           backgroundColor: '#3b82f6',
-          color: 'white',
+          color: '#111827',
           display: 'flex',
           alignItems: 'center',
           gap: '8px'
@@ -138,7 +138,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
     return (
       <div style={{
         padding: '8px 12px',
-        backgroundColor: '#fee2e2',
+        backgroundcolor: '#6b7280',
         borderRadius: '6px',
         marginBottom: '8px',
         color: '#991b1b',
@@ -173,13 +173,13 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
     switch (level) {
       case 'severe':
         return {
-          backgroundColor: '#fef2f2',
+          backgroundcolor: '#6b7280',
           borderLeft: '4px solid #dc2626',
           color: '#991b1b'
         };
       case 'high':
         return {
-          backgroundColor: '#fef3c7',
+          backgroundcolor: '#6b7280',
           borderLeft: '4px solid #f59e0b',
           color: '#92400e'
         };
@@ -191,7 +191,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
         };
       default:
         return {
-          backgroundColor: '#f3f4f6',
+          backgroundcolor: '#6b7280',
           borderLeft: '4px solid #6b7280',
           color: '#374151'
         };
@@ -258,7 +258,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
           {/* Summary Stats */}
           <div style={{
             padding: '8px 12px',
-            backgroundColor: '#f9fafb',
+            backgroundcolor: '#6b7280',
             borderBottom: '1px solid #e5e7eb',
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))',
@@ -277,7 +277,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
               <div style={{ fontSize: '10px', color: '#6b7280' }}>Severe</div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#f59e0b' }}>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#6b7280' }}>
                 {stats?.high || 0}
               </div>
               <div style={{ fontSize: '10px', color: '#6b7280' }}>High</div>
@@ -336,7 +336,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
                           fontSize: '10px',
                           fontWeight: '600',
                           backgroundColor: severity.color,
-                          color: 'white',
+                          color: '#111827',
                           padding: '2px 8px',
                           borderRadius: '10px'
                         }}>
@@ -359,7 +359,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
                   {/* Expanded Group - Show Top Events */}
                   {isGroupExpanded && (
                     <div style={{
-                      backgroundColor: '#fafafa',
+                      backgroundcolor: '#6b7280',
                       padding: '0 12px 10px 12px'
                     }}>
                       {topWarnings.map((warning, index) => (
@@ -405,7 +405,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
                               backgroundColor:
                                 warning.warningLevel === 'severe' ? '#dc2626' :
                                 warning.warningLevel === 'high' ? '#f59e0b' : '#3b82f6',
-                              color: 'white',
+                              color: '#111827',
                               padding: '2px 6px',
                               borderRadius: '10px',
                               marginLeft: '6px',
@@ -422,7 +422,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
                                 marginTop: '4px',
                                 padding: '4px 8px',
                                 backgroundColor: '#3b82f6',
-                                color: 'white',
+                                color: '#111827',
                                 border: 'none',
                                 borderRadius: '3px',
                                 fontSize: '11px',
@@ -459,14 +459,14 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
           {/* Footer with legend */}
           <div style={{
             padding: '6px 12px',
-            backgroundColor: '#f9fafb',
+            backgroundcolor: '#6b7280',
             borderTop: '1px solid #e5e7eb',
             fontSize: '10px',
             color: '#6b7280'
           }}>
             <strong>Impact:</strong>{' '}
             <span style={{ color: '#dc2626' }}>⛔ Severe (70+)</span> •{' '}
-            <span style={{ color: '#f59e0b' }}>⚠️ High (50-69)</span> •{' '}
+            <span style={{ color: '#6b7280' }}>⚠️ High (50-69)</span> •{' '}
             <span style={{ color: '#3b82f6' }}>⚡ Moderate (30-49)</span>
           </div>
         </div>

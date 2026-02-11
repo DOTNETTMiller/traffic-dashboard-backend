@@ -205,7 +205,7 @@ export default function FeedScoring() {
             <div style={{
               display: 'inline-block',
               padding: '4px 12px',
-              backgroundColor: '#f3f4f6',
+              backgroundcolor: '#6b7280',
               borderRadius: '6px',
               fontSize: '12px',
               fontWeight: '600',
@@ -245,7 +245,7 @@ export default function FeedScoring() {
                 width: '50px',
                 height: '50px',
                 backgroundColor: getGradeColor(feed.letter_grade),
-                color: 'white',
+                color: '#111827',
                 borderRadius: '8px',
                 display: 'flex',
                 alignItems: 'center',
@@ -273,7 +273,7 @@ export default function FeedScoring() {
                 width: '100%',
                 padding: '12px',
                 backgroundColor: currentUser ? '#3b82f6' : '#d1d5db',
-                color: 'white',
+                color: '#111827',
                 border: 'none',
                 borderRadius: '8px',
                 fontSize: '14px',
@@ -298,7 +298,7 @@ export default function FeedScoring() {
         <div style={{
           textAlign: 'center',
           padding: '60px 20px',
-          backgroundColor: '#f9fafb',
+          backgroundcolor: '#6b7280',
           borderRadius: '12px',
           border: '2px dashed #d1d5db'
         }}>

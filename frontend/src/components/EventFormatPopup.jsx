@@ -44,7 +44,7 @@ export default function EventFormatPopup({
         display: 'flex',
         borderBottom: '2px solid #e5e7eb',
         marginBottom: '6px',
-        backgroundColor: '#f9fafb',
+        backgroundcolor: '#6b7280',
         flexShrink: 0
       }}>
         {tabs.map(tab => (
@@ -115,7 +115,7 @@ export default function EventFormatPopup({
         borderTop: '1px solid #e5e7eb',
         display: 'flex',
         gap: '8px',
-        backgroundColor: '#f9fafb'
+        backgroundcolor: '#6b7280'
       }}>
         {hasMessages && (
           <div style={{
@@ -137,7 +137,7 @@ export default function EventFormatPopup({
             flex: hasMessages ? 1 : 2,
             padding: '8px 16px',
             backgroundColor: '#3b82f6',
-            color: 'white',
+            color: '#111827',
             border: 'none',
             borderRadius: '4px',
             cursor: 'pointer',
@@ -161,7 +161,7 @@ function RawFormatView({ event, borderInfo, showCVTIM }) {
       {/* Header */}
       <div style={{
         padding: '6px',
-        backgroundColor: '#f3f4f6',
+        backgroundcolor: '#6b7280',
         borderRadius: '4px',
         marginBottom: '8px',
         borderLeft: '3px solid #6b7280'
@@ -191,7 +191,7 @@ function RawFormatView({ event, borderInfo, showCVTIM }) {
             padding: '2px 8px',
             borderRadius: '3px',
             backgroundColor: getSeverityColor(event.severity),
-            color: 'white',
+            color: '#111827',
             fontSize: '10px',
             fontWeight: '700'
           }}>
@@ -228,7 +228,7 @@ function RawFormatView({ event, borderInfo, showCVTIM }) {
         <div style={{
           margin: '8px 0',
           padding: '5px 6px',
-          backgroundColor: '#fef3c7',
+          backgroundcolor: '#6b7280',
           borderRadius: '3px',
           fontSize: '10px',
           color: '#92400e',
@@ -266,7 +266,7 @@ function TIMFormatView({ event, timFormat, showCVTIM }) {
       {showCVTIM && (
         <div style={{
           padding: '5px 6px',
-          backgroundColor: '#fef3c7',
+          backgroundcolor: '#6b7280',
           borderRadius: '3px',
           marginBottom: '6px',
           fontSize: '10px',
@@ -333,7 +333,7 @@ function CIFSFormatView({ event, cifsFormat }) {
           padding: '3px 8px',
           borderRadius: '3px',
           backgroundColor: getStatusColor(cifsFormat.data.status),
-          color: 'white',
+          color: '#111827',
           fontSize: '10px',
           fontWeight: '700'
         }}>
@@ -344,7 +344,7 @@ function CIFSFormatView({ event, cifsFormat }) {
           padding: '3px 8px',
           borderRadius: '3px',
           backgroundColor: getCIFSSeverityColor(cifsFormat.data.severity),
-          color: 'white',
+          color: '#111827',
           fontSize: '10px',
           fontWeight: '700'
         }}>
@@ -443,7 +443,7 @@ function getCIFSSeverityColor(severity) {
 function GeometryDiagnosticsView({ diagnostics }) {
   if (!diagnostics || !diagnostics.valid) {
     return (
-      <div style={{ padding: '8px', backgroundColor: '#fef2f2', borderRadius: '4px', marginBottom: '8px' }}>
+      <div style={{ padding: '8px', backgroundcolor: '#6b7280', borderRadius: '4px', marginBottom: '8px' }}>
         <strong style={{ color: '#dc2626' }}>⚠️ Invalid Geometry</strong>
         <div style={{ fontSize: '13px', marginTop: '4px', color: '#991b1b' }}>
           {diagnostics?.issue || 'Geometry data is malformed or missing'}
@@ -471,7 +471,7 @@ function GeometryDiagnosticsView({ diagnostics }) {
       {/* Coordinates */}
       <div style={{ marginBottom: '12px' }}>
         <strong>📍 Start Coordinate</strong>
-        <div style={{ fontFamily: 'monospace', fontSize: '12px', padding: '4px', backgroundColor: '#f3f4f6', borderRadius: '3px', marginTop: '4px' }}>
+        <div style={{ fontFamily: 'monospace', fontSize: '12px', padding: '4px', backgroundcolor: '#6b7280', borderRadius: '3px', marginTop: '4px' }}>
           Lat: {diagnostics.startCoordinate.lat}<br/>
           Lng: {diagnostics.startCoordinate.lng}
         </div>
@@ -479,7 +479,7 @@ function GeometryDiagnosticsView({ diagnostics }) {
 
       <div style={{ marginBottom: '12px' }}>
         <strong>📍 End Coordinate</strong>
-        <div style={{ fontFamily: 'monospace', fontSize: '12px', padding: '4px', backgroundColor: '#f3f4f6', borderRadius: '3px', marginTop: '4px' }}>
+        <div style={{ fontFamily: 'monospace', fontSize: '12px', padding: '4px', backgroundcolor: '#6b7280', borderRadius: '3px', marginTop: '4px' }}>
           Lat: {diagnostics.endCoordinate.lat}<br/>
           Lng: {diagnostics.endCoordinate.lng}
         </div>
@@ -531,7 +531,7 @@ function GeometryDiagnosticsView({ diagnostics }) {
               </li>
             ))}
           </ul>
-          <div style={{ marginTop: '8px', padding: '6px', backgroundColor: '#fef2f2', borderRadius: '3px', fontSize: '12px', color: '#7f1d1d' }}>
+          <div style={{ marginTop: '8px', padding: '6px', backgroundcolor: '#6b7280', borderRadius: '3px', fontSize: '12px', color: '#7f1d1d' }}>
             💡 These issues may indicate incorrect polyline data from the source feed. The route shown may not accurately follow the roadway.
           </div>
         </div>

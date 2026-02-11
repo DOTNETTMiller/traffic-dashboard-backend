@@ -125,7 +125,7 @@ export default function MiniMapControl({ parentMapRef, isVisible, onToggle }) {
         <span style={{
           fontSize: '11px',
           fontWeight: '700',
-          color: 'white',
+          color: '#111827',
           textTransform: 'uppercase',
           letterSpacing: '0.5px'
         }}>
@@ -136,7 +136,7 @@ export default function MiniMapControl({ parentMapRef, isVisible, onToggle }) {
           style={{
             background: 'transparent',
             border: 'none',
-            color: 'white',
+            color: '#111827',
             cursor: 'pointer',
             fontSize: '16px',
             padding: '0 4px',
@@ -213,7 +213,7 @@ export default function MiniMapControl({ parentMapRef, isVisible, onToggle }) {
         background: 'rgba(0, 0, 0, 0.6)',
         backdropFilter: 'blur(10px)',
         fontSize: '9px',
-        color: 'white',
+        color: '#111827',
         textAlign: 'center',
         opacity: 0.8
       }}>

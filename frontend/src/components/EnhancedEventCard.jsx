@@ -88,7 +88,7 @@ export default function EnhancedEventCard({
             padding: '2px 8px',
             borderRadius: '12px',
             background: getSeverityColor(),
-            color: 'white',
+            color: '#111827',
             fontSize: '10px',
             fontWeight: '700',
             textTransform: 'uppercase'
@@ -101,7 +101,7 @@ export default function EnhancedEventCard({
               padding: '2px 8px',
               borderRadius: '12px',
               background: theme.colors.accentBlue,
-              color: 'white',
+              color: '#111827',
               fontSize: '10px',
               fontWeight: '700'
             }}>
@@ -160,7 +160,7 @@ export default function EnhancedEventCard({
             <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.sm }}>
               <span style={{ fontSize: '28px' }}>{getEventTypeIcon()}</span>
               <div>
-                <div style={{ fontSize: '18px', fontWeight: '700', color: 'white' }}>
+                <div style={{ fontSize: '18px', fontWeight: '700', color: '#111827' }}>
                   {event.corridor}
                 </div>
                 <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.9)', fontWeight: '600' }}>
@@ -175,7 +175,7 @@ export default function EnhancedEventCard({
               backdropFilter: 'blur(10px)',
               fontSize: '11px',
               fontWeight: '700',
-              color: 'white',
+              color: '#111827',
               textTransform: 'uppercase',
               border: '1px solid rgba(255,255,255,0.3)'
             }}>
@@ -409,7 +409,7 @@ export default function EnhancedEventCard({
               background: theme.colors.gradients.primary,
               border: 'none',
               borderRadius: '8px',
-              color: 'white',
+              color: '#111827',
               fontSize: '13px',
               fontWeight: '600',
               cursor: 'pointer',

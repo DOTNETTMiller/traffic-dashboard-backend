@@ -383,7 +383,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
 
   const getConfidenceLabel = (confidence) => {
     if (confidence === 'high') return { text: 'High', color: '#22c55e' };
-    if (confidence === 'medium') return { text: 'Medium', color: '#f59e0b' };
+    if (confidence === 'medium') return { text: 'Medium', color: '#6b7280' };
     return { text: 'Low', color: '#ef4444' };
   };
 
@@ -407,7 +407,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
       padding: '20px',
       maxWidth: '1400px',
       margin: '0 auto',
-      backgroundColor: '#f9fafb'
+      backgroundcolor: '#6b7280'
     }}>
       {/* Header */}
       <div style={{
@@ -493,7 +493,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
       {/* Error Message */}
       {error && (
         <div style={{
-          backgroundColor: '#fee2e2',
+          backgroundcolor: '#6b7280',
           border: '1px solid #ef4444',
           borderRadius: '8px',
           padding: '16px',
@@ -528,7 +528,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
             >
               {/* Facility Header */}
               <div style={{
-                backgroundColor: '#f3f4f6',
+                backgroundcolor: '#6b7280',
                 padding: '16px',
                 borderBottom: '1px solid #e5e7eb'
               }}>
@@ -596,7 +596,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                     </select>
                   </div>
                   <div style={{
-                    backgroundColor: '#f9fafb',
+                    backgroundcolor: '#6b7280',
                     borderRadius: '6px',
                     overflow: 'hidden',
                     border: '1px solid #e5e7eb'
@@ -699,7 +699,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
 
                   {pred ? (
                     <div style={{
-                      backgroundColor: '#f9fafb',
+                      backgroundcolor: '#6b7280',
                       borderRadius: '6px',
                       padding: '12px',
                       border: '1px solid #e5e7eb'
@@ -848,7 +848,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                             alignItems: 'flex-end',
                             gap: '3px',
                             height: '80px',
-                            backgroundColor: '#f9fafb',
+                            backgroundcolor: '#6b7280',
                             padding: '8px',
                             paddingLeft: '32px',
                             borderRadius: '6px',
@@ -974,11 +974,11 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                               <span>Low (&lt;30%)</span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                              <div style={{ width: '8px', height: '8px', backgroundColor: '#fbbf24', borderRadius: '1px' }} />
+                              <div style={{ width: '8px', height: '8px', backgroundcolor: '#6b7280', borderRadius: '1px' }} />
                               <span>Med (30-60%)</span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                              <div style={{ width: '8px', height: '8px', backgroundColor: '#f59e0b', borderRadius: '1px' }} />
+                              <div style={{ width: '8px', height: '8px', backgroundcolor: '#6b7280', borderRadius: '1px' }} />
                               <span>High (60-80%)</span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -995,7 +995,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                     </div>
                   ) : (
                     <div style={{
-                      backgroundColor: '#fef3c7',
+                      backgroundcolor: '#6b7280',
                       borderRadius: '6px',
                       padding: '16px',
                       border: '1px solid #f59e0b',
@@ -1025,7 +1025,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                         borderRadius: '4px',
                         border: 'none',
                         backgroundColor: aiCountLoading[facility.facilityId] ? '#9ca3af' : '#8b5cf6',
-                        color: 'white',
+                        color: '#111827',
                         fontSize: '13px',
                         fontWeight: '600',
                         cursor: aiCountLoading[facility.facilityId] ? 'not-allowed' : 'pointer',
@@ -1065,7 +1065,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                         borderRadius: '4px',
                         border: 'none',
                         backgroundColor: consensusLoading[facility.facilityId] ? '#9ca3af' : '#10b981',
-                        color: 'white',
+                        color: '#111827',
                         fontSize: '13px',
                         fontWeight: '600',
                         cursor: consensusLoading[facility.facilityId] ? 'not-allowed' : 'pointer',
@@ -1189,7 +1189,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                           borderRadius: '4px',
                           border: 'none',
                           backgroundColor: submitStatus[facility.facilityId]?.type === 'submitting' ? '#9ca3af' : '#3b82f6',
-                          color: 'white',
+                          color: '#111827',
                           fontSize: '13px',
                           fontWeight: '600',
                           cursor: submitStatus[facility.facilityId]?.type === 'submitting' ? 'not-allowed' : 'pointer'

@@ -127,7 +127,7 @@ const AssetHealthDashboard = ({ stateKey = 'OH' }) => {
         </div>
         <div style={{ background: 'white', border: '2px solid #f59e0b', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
           <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>Degraded</div>
-          <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#f59e0b' }}>{summary.degraded || 0}</div>
+          <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#6b7280' }}>{summary.degraded || 0}</div>
         </div>
         <div style={{ background: 'white', border: '2px solid #ef4444', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
           <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>Failed</div>
@@ -161,7 +161,7 @@ const AssetHealthDashboard = ({ stateKey = 'OH' }) => {
                 </div>
                 <div style={{ display: 'flex', gap: '8px', marginTop: '8px', fontSize: '11px' }}>
                   <span style={{ color: '#10b981' }}>✓ {data.operational}</span>
-                  <span style={{ color: '#f59e0b' }}>⚠ {data.degraded}</span>
+                  <span style={{ color: '#6b7280' }}>⚠ {data.degraded}</span>
                   <span style={{ color: '#ef4444' }}>✗ {data.failed}</span>
                 </div>
               </div>
@@ -204,7 +204,7 @@ const AssetHealthDashboard = ({ stateKey = 'OH' }) => {
                     <span style={{
                       padding: '2px 8px',
                       background: getAlertPriorityColor(alert.alert_type),
-                      color: 'white',
+                      color: '#111827',
                       borderRadius: '4px',
                       fontWeight: '600'
                     }}>
@@ -274,7 +274,7 @@ const AssetHealthDashboard = ({ stateKey = 'OH' }) => {
                       <span style={{
                         padding: '4px 8px',
                         background: maint.priority === 'CRITICAL' ? '#ef4444' : maint.priority === 'HIGH' ? '#f59e0b' : '#10b981',
-                        color: 'white',
+                        color: '#111827',
                         borderRadius: '4px',
                         fontSize: '11px',
                         fontWeight: '600'
@@ -380,7 +380,7 @@ const AssetHealthDashboard = ({ stateKey = 'OH' }) => {
                     style={{
                       padding: '8px 16px',
                       background: getStatusColor(asset.status),
-                      color: 'white',
+                      color: '#111827',
                       borderRadius: '6px',
                       fontSize: '12px',
                       fontWeight: 'bold',
@@ -475,7 +475,7 @@ const AssetHealthDashboard = ({ stateKey = 'OH' }) => {
                   display: 'inline-block',
                   padding: '6px 12px',
                   background: getStatusColor(selectedAsset.status),
-                  color: 'white',
+                  color: '#111827',
                   borderRadius: '6px',
                   fontSize: '14px',
                   fontWeight: 'bold'
@@ -506,7 +506,7 @@ const AssetHealthDashboard = ({ stateKey = 'OH' }) => {
                 width: '100%',
                 padding: '12px',
                 background: '#3b82f6',
-                color: 'white',
+                color: '#111827',
                 border: 'none',
                 borderRadius: '8px',
                 fontSize: '14px',

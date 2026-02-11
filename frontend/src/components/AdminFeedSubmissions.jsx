@@ -59,7 +59,7 @@ export default function AdminFeedSubmissions({ authToken }) {
       <h2 style={{ marginBottom: '16px' }}>Feed Submissions</h2>
 
       {error && (
-        <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '6px', backgroundColor: '#fee2e2', color: '#991b1b' }}>
+        <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '6px', backgroundcolor: '#6b7280', color: '#991b1b' }}>
           {error}
         </div>
       )}
@@ -108,7 +108,7 @@ export default function AdminFeedSubmissions({ authToken }) {
           gridTemplateColumns: '1.4fr 1.2fr 1fr 0.6fr 0.6fr 0.8fr',
           gap: '12px',
           padding: '12px 16px',
-          backgroundColor: '#f1f5f9',
+          backgroundcolor: '#6b7280',
           fontSize: '12px',
           fontWeight: 600,
           textTransform: 'uppercase',
@@ -197,7 +197,7 @@ const filterButtonStyle = (active) => ({
 const smallButtonStyle = (color) => ({
   padding: '6px 10px',
   backgroundColor: color,
-  color: 'white',
+  color: '#111827',
   border: 'none',
   borderRadius: '4px',
   fontSize: '12px',

@@ -405,7 +405,7 @@ export default function UserLogin({ onLoginSuccess }) {
                   style={{
                     flex: 1,
                     padding: '10px 20px',
-                    backgroundColor: '#f3f4f6',
+                    backgroundcolor: '#6b7280',
                     color: '#374151',
                     border: 'none',
                     borderRadius: '6px',
@@ -423,7 +423,7 @@ export default function UserLogin({ onLoginSuccess }) {
                     flex: 1,
                     padding: '10px 20px',
                     backgroundColor: loading ? '#9ca3af' : '#3b82f6',
-                    color: 'white',
+                    color: '#111827',
                     border: 'none',
                     borderRadius: '6px',
                     fontSize: '14px',

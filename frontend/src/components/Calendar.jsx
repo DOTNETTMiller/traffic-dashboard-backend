@@ -273,7 +273,7 @@ export default function Calendar({ authToken, currentUser }) {
             style={{
               padding: '12px 24px',
               backgroundColor: '#3b82f6',
-              color: 'white',
+              color: '#111827',
               border: 'none',
               borderRadius: '8px',
               fontWeight: '600',
@@ -435,7 +435,7 @@ export default function Calendar({ authToken, currentUser }) {
 
           {/* Key Goals */}
           <div style={{
-            backgroundColor: '#f0fdf4',
+            backgroundcolor: '#6b7280',
             border: '2px solid #10b981',
             borderRadius: '8px',
             padding: '16px'
@@ -455,7 +455,7 @@ export default function Calendar({ authToken, currentUser }) {
 
           {/* Achievements */}
           <div style={{
-            backgroundColor: '#fef3c7',
+            backgroundcolor: '#6b7280',
             border: '2px solid #f59e0b',
             borderRadius: '8px',
             padding: '16px'
@@ -482,19 +482,19 @@ export default function Calendar({ authToken, currentUser }) {
           gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
           gap: '12px'
         }}>
-          <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '6px', textAlign: 'center' }}>
+          <div style={{ padding: '12px', backgroundcolor: '#6b7280', borderRadius: '6px', textAlign: 'center' }}>
             <div style={{ fontSize: '24px', fontWeight: '700', color: '#3b82f6' }}>11</div>
             <div style={{ fontSize: '12px', color: '#6b7280' }}>States in Coalition</div>
           </div>
-          <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '6px', textAlign: 'center' }}>
+          <div style={{ padding: '12px', backgroundcolor: '#6b7280', borderRadius: '6px', textAlign: 'center' }}>
             <div style={{ fontSize: '24px', fontWeight: '700', color: '#10b981' }}>9/11</div>
             <div style={{ fontSize: '12px', color: '#6b7280' }}>SDX Trial Participants</div>
           </div>
-          <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '6px', textAlign: 'center' }}>
-            <div style={{ fontSize: '24px', fontWeight: '700', color: '#f59e0b' }}>$2M</div>
+          <div style={{ padding: '12px', backgroundcolor: '#6b7280', borderRadius: '6px', textAlign: 'center' }}>
+            <div style={{ fontSize: '24px', fontWeight: '700', color: '#6b7280' }}>$2M</div>
             <div style={{ fontSize: '12px', color: '#6b7280' }}>SMART Grant (NV)</div>
           </div>
-          <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '6px', textAlign: 'center' }}>
+          <div style={{ padding: '12px', backgroundcolor: '#6b7280', borderRadius: '6px', textAlign: 'center' }}>
             <div style={{ fontSize: '24px', fontWeight: '700', color: '#8b5cf6' }}>181</div>
             <div style={{ fontSize: '12px', color: '#6b7280' }}>Data Fields Cataloged</div>
           </div>
@@ -515,7 +515,7 @@ export default function Calendar({ authToken, currentUser }) {
             <div style={{
               padding: '40px',
               textAlign: 'center',
-              backgroundColor: '#f9fafb',
+              backgroundcolor: '#6b7280',
               borderRadius: '12px'
             }}>
               {searchQuery || filterType !== 'all'
@@ -557,7 +557,7 @@ export default function Calendar({ authToken, currentUser }) {
                     minWidth: '60px',
                     textAlign: 'center',
                     padding: '8px',
-                    backgroundColor: '#f9fafb',
+                    backgroundcolor: '#6b7280',
                     borderRadius: '8px'
                   }}>
                     <div style={{ fontSize: '24px', fontWeight: '700', color: '#1f2937' }}>
@@ -586,7 +586,7 @@ export default function Calendar({ authToken, currentUser }) {
                       {event.is_tentative && (
                         <span style={{
                           padding: '2px 8px',
-                          backgroundColor: '#fef3c7',
+                          backgroundcolor: '#6b7280',
                           color: '#92400e',
                           fontSize: '11px',
                           fontWeight: '600',
@@ -629,7 +629,7 @@ export default function Calendar({ authToken, currentUser }) {
                     }}
                     style={{
                       padding: '6px 12px',
-                      backgroundColor: '#f3f4f6',
+                      backgroundcolor: '#6b7280',
                       border: '1px solid #e5e7eb',
                       borderRadius: '6px',
                       fontSize: '12px',
@@ -806,7 +806,7 @@ export default function Calendar({ authToken, currentUser }) {
                   style={{
                     padding: '12px 24px',
                     backgroundColor: '#10b981',
-                    color: 'white',
+                    color: '#111827',
                     border: 'none',
                     borderRadius: '8px',
                     fontWeight: '600',
@@ -824,7 +824,7 @@ export default function Calendar({ authToken, currentUser }) {
                   style={{
                     padding: '12px 24px',
                     backgroundColor: '#6b7280',
-                    color: 'white',
+                    color: '#111827',
                     border: 'none',
                     borderRadius: '8px',
                     fontWeight: '600',
@@ -873,7 +873,7 @@ export default function Calendar({ authToken, currentUser }) {
                     style={{
                       padding: '6px 12px',
                       backgroundColor: '#3b82f6',
-                      color: 'white',
+                      color: '#111827',
                       border: 'none',
                       borderRadius: '6px',
                       cursor: 'pointer',
@@ -902,7 +902,7 @@ export default function Calendar({ authToken, currentUser }) {
 
             <div style={{
               padding: '12px',
-              backgroundColor: '#f9fafb',
+              backgroundcolor: '#6b7280',
               borderRadius: '8px',
               marginBottom: '20px'
             }}>
@@ -963,7 +963,7 @@ export default function Calendar({ authToken, currentUser }) {
                       flex: 1,
                       padding: '10px',
                       backgroundColor: '#10b981',
-                      color: 'white',
+                      color: '#111827',
                       border: 'none',
                       borderRadius: '6px',
                       fontSize: '13px',
@@ -978,8 +978,8 @@ export default function Calendar({ authToken, currentUser }) {
                     style={{
                       flex: 1,
                       padding: '10px',
-                      backgroundColor: '#f59e0b',
-                      color: 'white',
+                      backgroundcolor: '#6b7280',
+                      color: '#111827',
                       border: 'none',
                       borderRadius: '6px',
                       fontSize: '13px',
@@ -995,7 +995,7 @@ export default function Calendar({ authToken, currentUser }) {
                       flex: 1,
                       padding: '10px',
                       backgroundColor: '#ef4444',
-                      color: 'white',
+                      color: '#111827',
                       border: 'none',
                       borderRadius: '6px',
                       fontSize: '13px',
@@ -1054,7 +1054,7 @@ export default function Calendar({ authToken, currentUser }) {
                       rel="noopener noreferrer"
                       style={{
                         padding: '10px 12px',
-                        backgroundColor: '#f9fafb',
+                        backgroundcolor: '#6b7280',
                         border: '1px solid #e5e7eb',
                         borderRadius: '6px',
                         textDecoration: 'none',

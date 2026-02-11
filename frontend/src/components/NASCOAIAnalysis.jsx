@@ -144,7 +144,7 @@ export default function NASCOAIAnalysis() {
           style={{
             padding: '12px 20px',
             background: loading ? theme.colors.textSecondary : theme.colors.accent,
-            color: 'white',
+            color: '#111827',
             border: 'none',
             borderRadius: '8px',
             fontWeight: '700',
@@ -274,7 +274,7 @@ export default function NASCOAIAnalysis() {
               style={{
                 padding: '4px 10px',
                 background: theme.colors.accent,
-                color: 'white',
+                color: '#111827',
                 borderRadius: '12px',
                 fontSize: '10px',
                 fontWeight: '600'
@@ -334,7 +334,7 @@ export default function NASCOAIAnalysis() {
             flex: 1,
             padding: '10px',
             background: theme.colors.accentBlue,
-            color: 'white',
+            color: '#111827',
             border: 'none',
             borderRadius: '6px',
             fontWeight: '600',
@@ -351,7 +351,7 @@ export default function NASCOAIAnalysis() {
             flex: 1,
             padding: '10px',
             background: loading ? theme.colors.textSecondary : theme.colors.accentGreen,
-            color: 'white',
+            color: '#111827',
             border: 'none',
             borderRadius: '6px',
             fontWeight: '600',

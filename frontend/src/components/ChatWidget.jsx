@@ -185,7 +185,7 @@ export default function ChatWidget({ user, context, isDarkMode }) {
           <div style={{
             padding: '16px',
             backgroundColor: '#3b82f6',
-            color: 'white',
+            color: '#111827',
             borderTopLeftRadius: '12px',
             borderTopRightRadius: '12px',
             display: 'flex',
@@ -207,7 +207,7 @@ export default function ChatWidget({ user, context, isDarkMode }) {
                 style={{
                   background: 'rgba(255,255,255,0.2)',
                   border: 'none',
-                  color: 'white',
+                  color: '#111827',
                   padding: '4px 8px',
                   borderRadius: '4px',
                   cursor: 'pointer',
@@ -222,7 +222,7 @@ export default function ChatWidget({ user, context, isDarkMode }) {
                 style={{
                   background: 'rgba(255,255,255,0.2)',
                   border: 'none',
-                  color: 'white',
+                  color: '#111827',
                   width: '28px',
                   height: '28px',
                   borderRadius: '4px',
@@ -347,7 +347,7 @@ export default function ChatWidget({ user, context, isDarkMode }) {
             {error && (
               <div style={{
                 padding: '12px',
-                backgroundColor: '#fee2e2',
+                backgroundcolor: '#6b7280',
                 borderRadius: '8px',
                 fontSize: '13px',
                 color: '#991b1b',
@@ -395,7 +395,7 @@ export default function ChatWidget({ user, context, isDarkMode }) {
                 style={{
                   padding: '10px 20px',
                   backgroundColor: isLoading || !inputMessage.trim() ? '#9ca3af' : '#3b82f6',
-                  color: 'white',
+                  color: '#111827',
                   border: 'none',
                   borderRadius: '8px',
                   fontSize: '14px',
@@ -419,7 +419,7 @@ export default function ChatWidget({ user, context, isDarkMode }) {
           height: '60px',
           borderRadius: '50%',
           backgroundColor: '#3b82f6',
-          color: 'white',
+          color: '#111827',
           border: 'none',
           boxShadow: '0 4px 12px rgba(59,130,246,0.4)',
           cursor: 'pointer',

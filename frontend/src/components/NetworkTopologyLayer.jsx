@@ -25,7 +25,7 @@ const connectionStyles = {
     icon: '📱'
   },
   ethernet: {
-    color: '#f59e0b',      // orange
+    color: '#6b7280',      // orange
     label: 'Ethernet',
     icon: '🔌'
   }

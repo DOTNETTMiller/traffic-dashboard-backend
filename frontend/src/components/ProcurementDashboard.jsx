@@ -126,7 +126,7 @@ const ProcurementDashboard = () => {
                     style={{
                       padding: '8px 16px',
                       background: getAlertColor(alert.alert_level),
-                      color: 'white',
+                      color: '#111827',
                       borderRadius: '6px',
                       fontSize: '12px',
                       fontWeight: 'bold',
@@ -446,7 +446,7 @@ const ProcurementDashboard = () => {
                 width: '100%',
                 padding: '12px',
                 background: '#3b82f6',
-                color: 'white',
+                color: '#111827',
                 border: 'none',
                 borderRadius: '8px',
                 fontSize: '14px',

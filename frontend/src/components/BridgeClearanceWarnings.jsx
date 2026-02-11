@@ -142,7 +142,7 @@ export default function BridgeClearanceWarnings({ onViewOnMap, isDarkMode }) {
             style={{
               padding: '8px 16px',
               backgroundColor: '#3b82f6',
-              color: 'white',
+              color: '#111827',
               border: 'none',
               borderRadius: '6px',
               fontSize: '14px',
@@ -161,7 +161,7 @@ export default function BridgeClearanceWarnings({ onViewOnMap, isDarkMode }) {
       {error && (
         <div style={{
           padding: '12px 16px',
-          backgroundColor: '#fee2e2',
+          backgroundcolor: '#6b7280',
           borderRadius: '6px',
           color: '#991b1b',
           fontSize: '14px',

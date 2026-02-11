@@ -179,7 +179,7 @@ const EventConfidenceDashboard = () => {
                     style={{
                       padding: '4px 12px',
                       background: getConfidenceColor(event.confidence_level),
-                      color: 'white',
+                      color: '#111827',
                       borderRadius: '6px',
                       fontSize: '12px',
                       fontWeight: 'bold',
@@ -315,7 +315,7 @@ const EventConfidenceDashboard = () => {
                 width: '100%',
                 padding: '12px',
                 background: '#3b82f6',
-                color: 'white',
+                color: '#111827',
                 border: 'none',
                 borderRadius: '8px',
                 fontSize: '14px',

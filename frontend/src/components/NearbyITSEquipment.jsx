@@ -40,7 +40,7 @@ export default function NearbyITSEquipment({ event }) {
       <div style={{
         margin: '8px 0',
         padding: '8px',
-        backgroundColor: '#f3f4f6',
+        backgroundcolor: '#6b7280',
         borderRadius: '4px',
         fontSize: '12px',
         color: '#6b7280'
@@ -60,7 +60,7 @@ export default function NearbyITSEquipment({ event }) {
     <div style={{
       margin: '12px 0',
       padding: '10px',
-      backgroundColor: '#f0fdf4',
+      backgroundcolor: '#6b7280',
       borderRadius: '6px',
       border: '1px solid #86efac'
     }}>
@@ -115,7 +115,7 @@ export default function NearbyITSEquipment({ event }) {
             {byType.dms > 0 && (
               <div style={{
                 padding: '6px',
-                backgroundColor: '#fed7aa',
+                backgroundcolor: '#6b7280',
                 borderRadius: '4px',
                 fontSize: '11px',
                 textAlign: 'center'
@@ -173,7 +173,7 @@ export default function NearbyITSEquipment({ event }) {
                   <div key={cam.id} style={{
                     fontSize: '10px',
                     padding: '4px 6px',
-                    backgroundColor: '#f0f9ff',
+                    backgroundcolor: '#6b7280',
                     borderRadius: '3px',
                     marginBottom: '3px',
                     display: 'flex',
@@ -196,7 +196,7 @@ export default function NearbyITSEquipment({ event }) {
                           fontSize: '9px',
                           padding: '2px 6px',
                           backgroundColor: '#3b82f6',
-                          color: 'white',
+                          color: '#111827',
                           borderRadius: '3px',
                           textDecoration: 'none'
                         }}
@@ -217,14 +217,14 @@ export default function NearbyITSEquipment({ event }) {
             {/* DMS recommendations */}
             {grouped.dms.length > 0 && (
               <div style={{ marginBottom: '8px' }}>
-                <div style={{ fontSize: '10px', fontWeight: '600', color: '#f59e0b', marginBottom: '4px' }}>
+                <div style={{ fontSize: '10px', fontWeight: '600', color: '#6b7280', marginBottom: '4px' }}>
                   🚏 Activate Message Boards ({grouped.dms.length})
                 </div>
                 {grouped.dms.slice(0, 3).map((dms, idx) => (
                   <div key={dms.id} style={{
                     fontSize: '10px',
                     padding: '4px 6px',
-                    backgroundColor: '#fffbeb',
+                    backgroundcolor: '#6b7280',
                     borderRadius: '3px',
                     marginBottom: '3px'
                   }}>
@@ -257,7 +257,7 @@ export default function NearbyITSEquipment({ event }) {
                 <div style={{
                   fontSize: '9px',
                   padding: '4px 6px',
-                  backgroundColor: '#f0fdf4',
+                  backgroundcolor: '#6b7280',
                   borderRadius: '3px',
                   color: '#6b7280'
                 }}>
@@ -276,7 +276,7 @@ export default function NearbyITSEquipment({ event }) {
                 <div style={{
                   fontSize: '9px',
                   padding: '4px 6px',
-                  backgroundColor: '#faf5ff',
+                  backgroundcolor: '#6b7280',
                   borderRadius: '3px',
                   color: '#6b7280'
                 }}>
@@ -299,7 +299,7 @@ export default function NearbyITSEquipment({ event }) {
               width: '100%',
               padding: '6px',
               backgroundColor: '#166534',
-              color: 'white',
+              color: '#111827',
               border: 'none',
               borderRadius: '4px',
               fontSize: '11px',

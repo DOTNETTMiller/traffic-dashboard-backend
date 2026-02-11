@@ -208,7 +208,7 @@ const TETCCorridorsLayer = ({ events = [] }) => {
               <div style={{ minWidth: '280px' }}>
                 <div style={{
                   background: `linear-gradient(135deg, ${color}, ${color}dd)`,
-                  color: 'white',
+                  color: '#111827',
                   padding: '12px',
                   margin: '-10px -10px 12px -10px',
                   borderRadius: '4px 4px 0 0'

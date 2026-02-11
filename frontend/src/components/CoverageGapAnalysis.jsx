@@ -168,7 +168,7 @@ const CoverageGapAnalysis = () => {
             borderRadius: '8px'
           }}>
             <div style={{ fontSize: '12px', color: '#92400e', fontWeight: '500' }}>MODERATE</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#f59e0b' }}>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#6b7280' }}>
               {summary.moderate_priority}
             </div>
             <div style={{ fontSize: '11px', color: '#92400e' }}>Opportunity score 30-60</div>
@@ -273,7 +273,7 @@ const CoverageGapAnalysis = () => {
                     marginTop: '8px',
                     padding: '6px 12px',
                     background: '#3b82f6',
-                    color: 'white',
+                    color: '#111827',
                     border: 'none',
                     borderRadius: '6px',
                     cursor: 'pointer',
@@ -289,7 +289,7 @@ const CoverageGapAnalysis = () => {
                   display: 'inline-block',
                   padding: '6px 16px',
                   background: getOpportunityColor(corridor.opportunity_score),
-                  color: 'white',
+                  color: '#111827',
                   borderRadius: '6px',
                   fontWeight: 'bold',
                   fontSize: '24px'
@@ -391,7 +391,7 @@ const CoverageGapAnalysis = () => {
                       <div style={{
                         padding: '3px 10px',
                         background: getSeverityColor(gap.severity),
-                        color: 'white',
+                        color: '#111827',
                         borderRadius: '4px',
                         fontSize: '11px',
                         fontWeight: 'bold',
@@ -437,7 +437,7 @@ const CoverageGapAnalysis = () => {
                       <div style={{
                         padding: '2px 8px',
                         background: getSeverityColor(opp.priority),
-                        color: 'white',
+                        color: '#111827',
                         borderRadius: '3px',
                         fontSize: '10px',
                         fontWeight: 'bold',
@@ -526,7 +526,7 @@ const CoverageGapAnalysis = () => {
                 style={{
                   padding: '8px 16px',
                   background: '#ef4444',
-                  color: 'white',
+                  color: '#111827',
                   border: 'none',
                   borderRadius: '6px',
                   cursor: 'pointer',

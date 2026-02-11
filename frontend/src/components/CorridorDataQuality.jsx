@@ -118,7 +118,7 @@ export default function CorridorDataQuality() {
     return (
       <div style={{
         padding: '20px',
-        backgroundColor: '#fee2e2',
+        backgroundcolor: '#6b7280',
         borderRadius: '8px',
         color: '#991b1b',
         border: '1px solid #fecaca'
@@ -147,7 +147,7 @@ export default function CorridorDataQuality() {
             style={{
               padding: '10px 16px',
               backgroundColor: '#3b82f6',
-              color: 'white',
+              color: '#111827',
               borderRadius: '6px',
               fontSize: '14px',
               fontWeight: '600',
@@ -318,7 +318,7 @@ export default function CorridorDataQuality() {
                   onClick={() => setSelectedService(service)}
                   style={{
                     padding: '16px',
-                    backgroundColor: '#f9fafb',
+                    backgroundcolor: '#6b7280',
                     borderRadius: '8px',
                     border: '1px solid #e5e7eb',
                     cursor: 'pointer',
@@ -345,7 +345,7 @@ export default function CorridorDataQuality() {
                     <div style={{
                       padding: '4px 12px',
                       backgroundColor: getGradeColor(service.letter_grade),
-                      color: 'white',
+                      color: '#111827',
                       borderRadius: '12px',
                       fontSize: '14px',
                       fontWeight: '700'
@@ -437,7 +437,7 @@ export default function CorridorDataQuality() {
                 }}
                 style={{
                   padding: '6px 12px',
-                  backgroundColor: '#f3f4f6',
+                  backgroundcolor: '#6b7280',
                   border: '1px solid #e5e7eb',
                   borderRadius: '6px',
                   cursor: 'pointer',
@@ -452,7 +452,7 @@ export default function CorridorDataQuality() {
             {/* Current Grade Card */}
             <div style={{
               padding: '16px',
-              backgroundColor: '#f9fafb',
+              backgroundcolor: '#6b7280',
               borderRadius: '8px',
               border: '1px solid #e5e7eb',
               marginBottom: '20px'
@@ -508,7 +508,7 @@ export default function CorridorDataQuality() {
                         display: 'flex',
                         justifyContent: 'space-between',
                         padding: '10px',
-                        backgroundColor: '#f9fafb',
+                        backgroundcolor: '#6b7280',
                         borderRadius: '6px',
                         fontSize: '13px'
                       }}
@@ -520,7 +520,7 @@ export default function CorridorDataQuality() {
                         <div style={{
                           padding: '2px 8px',
                           backgroundColor: getGradeColor(run.letter_grade),
-                          color: 'white',
+                          color: '#111827',
                           borderRadius: '8px',
                           fontSize: '12px',
                           fontWeight: '600'
@@ -554,7 +554,7 @@ export default function CorridorDataQuality() {
                       key={metric.id}
                       style={{
                         padding: '12px',
-                        backgroundColor: '#f9fafb',
+                        backgroundcolor: '#6b7280',
                         borderRadius: '6px',
                         border: '1px solid #e5e7eb'
                       }}
@@ -608,7 +608,7 @@ export default function CorridorDataQuality() {
       <div style={{
         marginTop: '24px',
         padding: '16px',
-        backgroundColor: '#f9fafb',
+        backgroundcolor: '#6b7280',
         borderRadius: '8px',
         border: '1px solid #e5e7eb'
       }}>

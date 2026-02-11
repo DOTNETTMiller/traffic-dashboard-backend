@@ -173,7 +173,7 @@ const PredictiveAnalyticsDashboard = () => {
                     style={{
                       padding: '4px 8px',
                       background: getCongestionColor(forecast.congestion_level),
-                      color: 'white',
+                      color: '#111827',
                       borderRadius: '4px',
                       fontSize: '11px',
                       fontWeight: 'bold'
@@ -270,7 +270,7 @@ const PredictiveAnalyticsDashboard = () => {
                   style={{
                     padding: '8px 16px',
                     background: prediction.confidence_level === 'HIGH' ? '#10b981' : '#f59e0b',
-                    color: 'white',
+                    color: '#111827',
                     borderRadius: '6px',
                     fontSize: '13px',
                     fontWeight: 'bold'
@@ -384,7 +384,7 @@ const PredictiveAnalyticsDashboard = () => {
                     style={{
                       padding: '8px 16px',
                       background: getRiskColor(score.risk_level),
-                      color: 'white',
+                      color: '#111827',
                       borderRadius: '6px',
                       fontSize: '13px',
                       fontWeight: 'bold'
@@ -486,7 +486,7 @@ const PredictiveAnalyticsDashboard = () => {
                     right: '24px',
                     padding: '6px 16px',
                     background: '#10b981',
-                    color: 'white',
+                    color: '#111827',
                     borderRadius: '16px',
                     fontSize: '12px',
                     fontWeight: 'bold'

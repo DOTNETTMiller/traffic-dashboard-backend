@@ -202,7 +202,7 @@ const StateQualityDashboard = () => {
                       display: 'inline-block',
                       padding: '2px 8px',
                       background: getGradeColor(state.letter_grade),
-                      color: 'white',
+                      color: '#111827',
                       borderRadius: '4px',
                       fontSize: '14px',
                       fontWeight: 'bold'
@@ -333,7 +333,7 @@ const StateQualityDashboard = () => {
                   display: 'inline-block',
                   padding: '8px 20px',
                   background: getGradeColor(state.letter_grade),
-                  color: 'white',
+                  color: '#111827',
                   borderRadius: '8px',
                   marginBottom: '4px'
                 }}>
@@ -525,7 +525,7 @@ const StateQualityDashboard = () => {
                             <span style={{
                               padding: '4px 8px',
                               background: getGradeColor(feed.letter_grade),
-                              color: 'white',
+                              color: '#111827',
                               borderRadius: '4px',
                               fontSize: '12px',
                               fontWeight: 'bold'

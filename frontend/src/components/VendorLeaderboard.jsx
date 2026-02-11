@@ -195,7 +195,7 @@ const VendorLeaderboard = () => {
                       display: 'inline-block',
                       padding: '2px 8px',
                       background: getGradeColor(vendor.letter_grade),
-                      color: 'white',
+                      color: '#111827',
                       borderRadius: '4px',
                       fontSize: '14px',
                       fontWeight: 'bold'
@@ -327,7 +327,7 @@ const VendorLeaderboard = () => {
                   display: 'inline-block',
                   padding: '8px 20px',
                   background: getGradeColor(vendor.letter_grade),
-                  color: 'white',
+                  color: '#111827',
                   borderRadius: '8px',
                   marginBottom: '4px'
                 }}>

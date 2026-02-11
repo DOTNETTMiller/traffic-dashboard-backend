@@ -119,7 +119,7 @@ export default function AdminInterchanges({ authToken }) {
       <h2 style={{ marginBottom: '16px' }}>Detour Interchanges</h2>
 
       {error && (
-        <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '6px', backgroundColor: '#fee2e2', color: '#991b1b' }}>
+        <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '6px', backgroundcolor: '#6b7280', color: '#991b1b' }}>
           {error}
         </div>
       )}
@@ -138,7 +138,7 @@ export default function AdminInterchanges({ authToken }) {
         border: '1px solid #e5e7eb',
         borderRadius: '8px',
         marginBottom: '24px',
-        backgroundColor: '#f8fafc'
+        backgroundcolor: '#6b7280'
       }}>
         <div>
           <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>Name *</label>
@@ -197,7 +197,7 @@ export default function AdminInterchanges({ authToken }) {
           gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr',
           gap: '12px',
           padding: '12px 16px',
-          backgroundColor: '#f1f5f9',
+          backgroundcolor: '#6b7280',
           fontSize: '12px',
           fontWeight: 600,
           textTransform: 'uppercase',
@@ -268,7 +268,7 @@ const inputStyle = {
 const buttonStyle = {
   padding: '10px 16px',
   backgroundColor: '#2563eb',
-  color: 'white',
+  color: '#111827',
   border: 'none',
   borderRadius: '6px',
   fontWeight: 600,
@@ -278,7 +278,7 @@ const buttonStyle = {
 const smallButtonStyle = {
   padding: '6px 10px',
   backgroundColor: '#2563eb',
-  color: 'white',
+  color: '#111827',
   border: 'none',
   borderRadius: '4px',
   fontSize: '12px',

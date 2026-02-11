@@ -454,7 +454,7 @@ const APIDocumentationViewer = () => {
               style={{
                 padding: '8px 16px',
                 background: '#3b82f6',
-                color: 'white',
+                color: '#111827',
                 border: 'none',
                 borderRadius: '6px',
                 cursor: 'pointer',
@@ -470,7 +470,7 @@ const APIDocumentationViewer = () => {
             style={{
               padding: '8px 16px',
               background: loading || !documentation ? '#d1d5db' : '#10b981',
-              color: 'white',
+              color: '#111827',
               border: 'none',
               borderRadius: '6px',
               cursor: loading || !documentation ? 'not-allowed' : 'pointer',

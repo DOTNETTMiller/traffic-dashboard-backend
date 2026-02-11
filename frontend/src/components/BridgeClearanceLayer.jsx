@@ -66,7 +66,7 @@ export default function BridgeClearanceLayer({ onBridgeClick }) {
 
   const getClearanceStatus = (clearanceFeet) => {
     if (clearanceFeet < 13.67) return { label: 'CRITICAL', color: '#dc2626' };
-    if (clearanceFeet < 14.0) return { label: 'WARNING', color: '#f59e0b' };
+    if (clearanceFeet < 14.0) return { label: 'WARNING', color: '#6b7280' };
     if (clearanceFeet < 14.5) return { label: 'CAUTION', color: '#3b82f6' };
     return { label: 'SAFE', color: '#10b981' };
   };
@@ -198,7 +198,7 @@ export default function BridgeClearanceLayer({ onBridgeClick }) {
                   <div style={{
                     marginTop: '12px',
                     padding: '10px',
-                    backgroundColor: '#fef3c7',
+                    backgroundcolor: '#6b7280',
                     borderLeft: '3px solid #f59e0b',
                     borderRadius: '4px',
                     fontSize: '12px',

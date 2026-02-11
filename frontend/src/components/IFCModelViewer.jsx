@@ -491,13 +491,13 @@ const IFCModelViewer = ({ modelId, filename }) => {
 
   const highlightOptions = [
     { value: 'none', label: 'No Highlighting', color: '#666', icon: '○' },
-    { value: 'gaps', label: `Elements with Gaps (${gaps.length})`, color: '#ffa500', icon: '⚠️' },
+    { value: 'gaps', label: `Elements with Gaps (${gaps.length})`, color: '#6b7280', icon: '⚠️' },
     { value: 'v2x', label: `V2X Elements (${elements.filter(e => e.v2x_applicable).length})`, color: '#00ff00', icon: '📡' },
     { value: 'av', label: `AV Critical (${elements.filter(e => e.av_critical).length})`, color: '#0000ff', icon: '🚗' }
   ];
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '600px', backgroundColor: '#f0f0f0', borderRadius: '8px', overflow: 'hidden' }}>
+    <div style={{ position: 'relative', width: '100%', height: '600px', backgroundcolor: '#6b7280', borderRadius: '8px', overflow: 'hidden' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 
       {/* Highlight Controls */}

@@ -127,7 +127,7 @@ export default function LiveStatistics({ events, isExpanded = true, onToggle }) 
         </div>
         <div style={{
           background: theme.colors.accentBlue,
-          color: 'white',
+          color: '#111827',
           padding: '4px 12px',
           borderRadius: '12px',
           fontSize: '14px',
@@ -389,7 +389,7 @@ export default function LiveStatistics({ events, isExpanded = true, onToggle }) 
                   fontSize: '11px',
                   fontWeight: '700',
                   background: theme.colors.accentBlue,
-                  color: 'white',
+                  color: '#111827',
                   padding: '2px 8px',
                   borderRadius: '8px'
                 }}>
@@ -431,7 +431,7 @@ export default function LiveStatistics({ events, isExpanded = true, onToggle }) 
                   fontSize: '11px',
                   fontWeight: '700',
                   background: theme.colors.accentPurple,
-                  color: 'white',
+                  color: '#111827',
                   padding: '2px 8px',
                   borderRadius: '8px'
                 }}>

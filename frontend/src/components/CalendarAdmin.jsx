@@ -299,7 +299,7 @@ export default function CalendarAdmin({ authToken }) {
           style={{
             padding: '12px 24px',
             backgroundColor: '#10b981',
-            color: 'white',
+            color: '#111827',
             border: 'none',
             borderRadius: '8px',
             fontWeight: '600',
@@ -334,7 +334,7 @@ export default function CalendarAdmin({ authToken }) {
               style={{
                 padding: '8px 16px',
                 backgroundColor: '#6b7280',
-                color: 'white',
+                color: '#111827',
                 border: 'none',
                 borderRadius: '6px',
                 cursor: 'pointer',
@@ -347,7 +347,7 @@ export default function CalendarAdmin({ authToken }) {
 
           {/* Add New Artifact */}
           <div style={{
-            backgroundColor: '#f9fafb',
+            backgroundcolor: '#6b7280',
             padding: '16px',
             borderRadius: '8px',
             marginBottom: '20px'
@@ -419,7 +419,7 @@ export default function CalendarAdmin({ authToken }) {
                 style={{
                   padding: '10px 20px',
                   backgroundColor: '#10b981',
-                  color: 'white',
+                  color: '#111827',
                   border: 'none',
                   borderRadius: '6px',
                   fontSize: '14px',
@@ -445,7 +445,7 @@ export default function CalendarAdmin({ authToken }) {
               <div style={{
                 padding: '40px',
                 textAlign: 'center',
-                backgroundColor: '#f9fafb',
+                backgroundcolor: '#6b7280',
                 borderRadius: '8px',
                 color: '#6b7280'
               }}>
@@ -458,7 +458,7 @@ export default function CalendarAdmin({ authToken }) {
                     key={artifact.id}
                     style={{
                       padding: '12px',
-                      backgroundColor: '#f9fafb',
+                      backgroundcolor: '#6b7280',
                       border: '1px solid #e5e7eb',
                       borderRadius: '8px',
                       display: 'flex',
@@ -488,7 +488,7 @@ export default function CalendarAdmin({ authToken }) {
                       style={{
                         padding: '6px 12px',
                         backgroundColor: '#3b82f6',
-                        color: 'white',
+                        color: '#111827',
                         textDecoration: 'none',
                         borderRadius: '6px',
                         fontSize: '12px',
@@ -502,7 +502,7 @@ export default function CalendarAdmin({ authToken }) {
                       style={{
                         padding: '6px 12px',
                         backgroundColor: '#ef4444',
-                        color: 'white',
+                        color: '#111827',
                         border: 'none',
                         borderRadius: '6px',
                         fontSize: '12px',
@@ -543,7 +543,7 @@ export default function CalendarAdmin({ authToken }) {
               style={{
                 padding: '8px 16px',
                 backgroundColor: '#6b7280',
-                color: 'white',
+                color: '#111827',
                 border: 'none',
                 borderRadius: '6px',
                 cursor: 'pointer',
@@ -592,7 +592,7 @@ Action Items:
                   marginTop: '12px',
                   padding: '12px 24px',
                   backgroundColor: analyzingMinutes ? '#9ca3af' : '#10b981',
-                  color: 'white',
+                  color: '#111827',
                   border: 'none',
                   borderRadius: '8px',
                   fontSize: '14px',
@@ -611,7 +611,7 @@ Action Items:
             {/* Analysis Results Panel */}
             {minutesAnalysis && (
               <div style={{
-                backgroundColor: '#f9fafb',
+                backgroundcolor: '#6b7280',
                 border: '1px solid #e5e7eb',
                 borderRadius: '8px',
                 padding: '16px',
@@ -722,7 +722,7 @@ Action Items:
                 {minutesAnalysis.risks && minutesAnalysis.risks.length > 0 && (
                   <div style={{
                     padding: '12px',
-                    backgroundColor: '#fef3c7',
+                    backgroundcolor: '#6b7280',
                     border: '1px solid #f59e0b',
                     borderRadius: '6px'
                   }}>
@@ -1021,7 +1021,7 @@ Action Items:
               style={{
                 padding: '12px 24px',
                 backgroundColor: '#3b82f6',
-                color: 'white',
+                color: '#111827',
                 border: 'none',
                 borderRadius: '8px',
                 fontWeight: '600',
@@ -1039,7 +1039,7 @@ Action Items:
               style={{
                 padding: '12px 24px',
                 backgroundColor: '#6b7280',
-                color: 'white',
+                color: '#111827',
                 border: 'none',
                 borderRadius: '8px',
                 fontWeight: '600',
@@ -1062,7 +1062,7 @@ Action Items:
       }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+            <tr style={{ backgroundcolor: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>
               <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '700' , color: '#111827'}}>Event</th>
               <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '700' , color: '#111827'}}>Type</th>
               <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '700' , color: '#111827'}}>Start Time</th>
@@ -1086,7 +1086,7 @@ Action Items:
                     {event.is_tentative && (
                       <span style={{
                         padding: '2px 6px',
-                        backgroundColor: '#fef3c7',
+                        backgroundcolor: '#6b7280',
                         color: '#92400e',
                         fontSize: '11px',
                         fontWeight: '600',
@@ -1138,7 +1138,7 @@ Action Items:
                       style={{
                         padding: '6px 12px',
                         backgroundColor: '#3b82f6',
-                        color: 'white',
+                        color: '#111827',
                         border: 'none',
                         borderRadius: '6px',
                         fontSize: '12px',
@@ -1154,7 +1154,7 @@ Action Items:
                       style={{
                         padding: '6px 12px',
                         backgroundColor: '#8b5cf6',
-                        color: 'white',
+                        color: '#111827',
                         border: 'none',
                         borderRadius: '6px',
                         fontSize: '12px',
@@ -1170,7 +1170,7 @@ Action Items:
                       style={{
                         padding: '6px 12px',
                         backgroundColor: '#10b981',
-                        color: 'white',
+                        color: '#111827',
                         border: 'none',
                         borderRadius: '6px',
                         fontSize: '12px',
@@ -1186,7 +1186,7 @@ Action Items:
                       style={{
                         padding: '6px 12px',
                         backgroundColor: '#ef4444',
-                        color: 'white',
+                        color: '#111827',
                         border: 'none',
                         borderRadius: '6px',
                         fontSize: '12px',

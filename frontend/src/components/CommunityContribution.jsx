@@ -167,7 +167,7 @@ const CommunityContribution = () => {
           onClick={() => setShowForm(!showForm)}
           style={{
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: 'white',
+            color: '#111827',
             padding: '12px 24px',
             borderRadius: '8px',
             border: 'none',
@@ -351,7 +351,7 @@ const CommunityContribution = () => {
               disabled={loading}
               style={{
                 background: '#28a745',
-                color: 'white',
+                color: '#111827',
                 padding: '10px 20px',
                 borderRadius: '4px',
                 border: 'none',
@@ -458,7 +458,7 @@ const CommunityContribution = () => {
                         width: '100%',
                         padding: '8px',
                         background: votedStates.has(gap.state_code) ? '#6c757d' : '#667eea',
-                        color: 'white',
+                        color: '#111827',
                         border: 'none',
                         borderRadius: '4px',
                         cursor: 'pointer',
@@ -546,7 +546,7 @@ const CommunityContribution = () => {
                 top: '50%',
                 left: '50%',
                 transform: 'translate(-50%, -50%)',
-                color: 'white',
+                color: '#111827',
                 fontWeight: 'bold',
                 textShadow: '0 1px 2px rgba(0,0,0,0.5)'
               }}>

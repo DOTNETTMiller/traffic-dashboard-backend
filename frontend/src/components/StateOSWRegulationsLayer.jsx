@@ -330,7 +330,7 @@ export default function StateOSWRegulationsLayer({ nascoOnly = false }) {
                         marginTop: '8px',
                         padding: '8px 16px',
                         background: theme.colors.accentGreen,
-                        color: 'white',
+                        color: '#111827',
                         border: 'none',
                         borderRadius: '6px',
                         fontWeight: '600',
@@ -360,7 +360,7 @@ export default function StateOSWRegulationsLayer({ nascoOnly = false }) {
                       <span style={{
                         padding: '2px 8px',
                         background: theme.colors.accent,
-                        color: 'white',
+                        color: '#111827',
                         borderRadius: '4px',
                         fontSize: '10px',
                         fontWeight: '700'
@@ -485,7 +485,7 @@ export default function StateOSWRegulationsLayer({ nascoOnly = false }) {
                         width: '100%',
                         padding: '8px',
                         background: theme.colors.accent,
-                        color: 'white',
+                        color: '#111827',
                         border: 'none',
                         borderRadius: '6px',
                         fontWeight: '600',

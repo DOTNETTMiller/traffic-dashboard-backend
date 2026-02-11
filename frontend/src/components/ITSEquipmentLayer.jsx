@@ -13,7 +13,7 @@ const equipmentStyles = {
   },
   dms: {
     icon: '🚏',
-    color: '#f59e0b', // orange
+    color: '#6b7280', // orange
     label: 'DMS Sign'
   },
   rsu: {
@@ -235,7 +235,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
                   <div style={{
                     marginBottom: '12px',
                     padding: '8px',
-                    backgroundColor: '#f9fafb',
+                    backgroundcolor: '#6b7280',
                     borderRadius: '6px',
                     border: '1px solid #e5e7eb'
                   }}>
@@ -309,7 +309,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
                   gap: '8px',
                   marginTop: '12px',
                   padding: '8px',
-                  backgroundColor: '#f9fafb',
+                  backgroundcolor: '#6b7280',
                   borderRadius: '6px'
                 }}>
                   {item.manufacturer && (
@@ -348,7 +348,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
                   <div style={{
                     marginTop: '12px',
                     padding: '8px',
-                    backgroundColor: '#faf5ff',
+                    backgroundcolor: '#6b7280',
                     borderRadius: '6px',
                     border: '1px solid #e9d5ff'
                   }}>
@@ -418,7 +418,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
                                 height: '120px',
                                 objectFit: 'cover',
                                 display: 'block',
-                                backgroundColor: '#f3f4f6'
+                                backgroundcolor: '#6b7280'
                               }}
                               onError={(e) => {
                                 e.target.style.display = 'none';
@@ -427,7 +427,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
                             <div style={{
                               padding: '6px',
                               backgroundColor: 'rgba(0,0,0,0.7)',
-                              color: 'white',
+                              color: '#111827',
                               fontSize: '10px',
                               textAlign: 'center',
                               fontWeight: '500'
@@ -439,7 +439,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
                           <div style={{
                             padding: '12px',
                             backgroundColor: style.color,
-                            color: 'white',
+                            color: '#111827',
                             textAlign: 'center',
                             fontWeight: '600',
                             fontSize: '11px'

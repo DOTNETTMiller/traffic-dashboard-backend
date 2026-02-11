@@ -139,7 +139,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
             marginTop: '16px',
             padding: '8px 16px',
             backgroundColor: '#3b82f6',
-            color: 'white',
+            color: '#111827',
             border: 'none',
             borderRadius: '6px',
             cursor: 'pointer'
@@ -176,7 +176,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
             padding: '24px',
             background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
             borderRadius: '12px',
-            color: 'white'
+            color: '#111827'
           }}>
             <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '4px' }}>Total States</div>
             <div style={{ fontSize: '36px', fontWeight: 'bold' }}>{nationalReport.total_states}</div>
@@ -185,7 +185,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
             padding: '24px',
             background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
             borderRadius: '12px',
-            color: 'white'
+            color: '#111827'
           }}>
             <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '4px' }}>National Avg DQI</div>
             <div style={{ fontSize: '36px', fontWeight: 'bold' }}>{nationalReport.national_avg_dqi}</div>
@@ -194,7 +194,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
             padding: '24px',
             background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
             borderRadius: '12px',
-            color: 'white'
+            color: '#111827'
           }}>
             <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '4px' }}>Report Date</div>
             <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
@@ -275,7 +275,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
           }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                <tr style={{ backgroundcolor: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>
                   <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Rank</th>
                   <th style={{ padding: '16px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>State</th>
                   <th style={{ padding: '16px', textAlign: 'right', fontWeight: '600', color: '#374151' }}>DQI</th>
@@ -361,7 +361,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
           style={{
             marginBottom: '16px',
             padding: '8px 16px',
-            backgroundColor: '#f3f4f6',
+            backgroundcolor: '#6b7280',
             border: '1px solid #e5e7eb',
             borderRadius: '6px',
             cursor: 'pointer',
@@ -378,7 +378,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
           padding: '32px',
           background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
           borderRadius: '16px',
-          color: 'white'
+          color: '#111827'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <div>
@@ -523,7 +523,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
                   </div>
                   <div style={{
                     height: '8px',
-                    backgroundColor: '#f3f4f6',
+                    backgroundcolor: '#6b7280',
                     borderRadius: '4px',
                     overflow: 'hidden'
                   }}>
@@ -558,7 +558,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       padding: '16px',
-                      backgroundColor: '#f9fafb',
+                      backgroundcolor: '#6b7280',
                       borderRadius: '8px',
                       border: '1px solid #e5e7eb'
                     }}
@@ -608,7 +608,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
                       onClick={() => handleStateSelect(peer.state_key)}
                       style={{
                         padding: '16px 24px',
-                        backgroundColor: '#f9fafb',
+                        backgroundcolor: '#6b7280',
                         borderRadius: '8px',
                         border: '1px solid #e5e7eb',
                         cursor: 'pointer',
@@ -755,7 +755,7 @@ const DimensionsDetailView = ({ dimensions }) => {
             </div>
             <div style={{
               height: '12px',
-              backgroundColor: '#f3f4f6',
+              backgroundcolor: '#6b7280',
               borderRadius: '6px',
               overflow: 'hidden'
             }}>
@@ -843,7 +843,7 @@ const HistoryView = ({ history }) => {
       }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+            <tr style={{ backgroundcolor: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>
               <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Date</th>
               <th style={{ padding: '12px', textAlign: 'right', fontSize: '13px', fontWeight: '600', color: '#374151' }}>DQI</th>
               <th style={{ padding: '12px', textAlign: 'right', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Feeds</th>
@@ -885,7 +885,7 @@ const RecommendationsView = ({ recommendations, contracts }) => {
           <div style={{
             padding: '48px',
             textAlign: 'center',
-            backgroundColor: '#f0fdf4',
+            backgroundcolor: '#6b7280',
             borderRadius: '12px',
             border: '2px solid #86efac'
           }}>
@@ -937,7 +937,7 @@ const RecommendationsView = ({ recommendations, contracts }) => {
                 </div>
                 <div style={{
                   padding: '16px',
-                  backgroundColor: '#f9fafb',
+                  backgroundcolor: '#6b7280',
                   borderRadius: '8px',
                   fontSize: '14px',
                   lineHeight: '1.6'
@@ -964,7 +964,7 @@ const RecommendationsView = ({ recommendations, contracts }) => {
           }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                <tr style={{ backgroundcolor: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>
                   <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '600' , color: '#111827'}}>Vendor</th>
                   <th style={{ padding: '12px', textAlign: 'right', fontSize: '13px', fontWeight: '600' , color: '#111827'}}>Annual Value</th>
                   <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600' , color: '#111827'}}>Contract Period</th>

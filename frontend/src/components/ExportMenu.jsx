@@ -628,7 +628,7 @@ export default function ExportMenu({ events, messages, onClose }) {
               border: 'none',
               borderRadius: '12px',
               background: isExporting ? theme.colors.gray[400] : theme.colors.accentBlue,
-              color: 'white',
+              color: '#111827',
               cursor: isExporting ? 'not-allowed' : 'pointer',
               transition: `all ${theme.transitions.fast}`,
               boxShadow: isExporting ? 'none' : theme.shadows.md

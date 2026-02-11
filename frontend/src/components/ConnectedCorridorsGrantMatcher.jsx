@@ -134,7 +134,7 @@ export default function ConnectedCorridorsGrantMatcher({ user, darkMode = false 
     button: {
       padding: '12px 24px',
       background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.primaryHover} 100%)`,
-      color: 'white',
+      color: '#111827',
       border: 'none',
       borderRadius: '12px',
       fontSize: '14px',
@@ -238,7 +238,7 @@ export default function ConnectedCorridorsGrantMatcher({ user, darkMode = false 
               style={{
                 padding: '8px 16px',
                 background: theme.error,
-                color: 'white',
+                color: '#111827',
                 border: 'none',
                 borderRadius: '8px',
                 fontSize: '13px',
@@ -479,7 +479,7 @@ function MatcherView({ projectData, setProjectData, results, loading, handleSubm
                         borderRadius: '12px',
                         background: rec.priority === 'CRITICAL' ? theme.error :
                                   rec.priority === 'HIGH' ? theme.warning : theme.primary,
-                        color: 'white',
+                        color: '#111827',
                         fontSize: '11px',
                         fontWeight: '700',
                       }}>
@@ -706,7 +706,7 @@ function GrantCard({ grant, theme, source }) {
           padding: '6px 12px',
           borderRadius: '20px',
           background: grant.score >= 80 ? theme.success : grant.score >= 60 ? theme.warning : theme.primary,
-          color: 'white',
+          color: '#111827',
           fontSize: '13px',
           fontWeight: '700',
         }}>
@@ -761,7 +761,7 @@ function LiveOpportunityCard({ opportunity, theme, expanded = false }) {
               <span style={{
                 padding: '3px 8px',
                 background: theme.success,
-                color: 'white',
+                color: '#111827',
                 borderRadius: '10px',
                 fontSize: '10px',
                 fontWeight: '700',
@@ -821,7 +821,7 @@ function LiveOpportunityCard({ opportunity, theme, expanded = false }) {
           display: 'inline-block',
           padding: '8px 16px',
           background: theme.primary,
-          color: 'white',
+          color: '#111827',
           borderRadius: '8px',
           fontSize: '13px',
           fontWeight: '600',
