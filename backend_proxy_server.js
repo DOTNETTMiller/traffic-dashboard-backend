@@ -2556,11 +2556,17 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
               if (roadwayText) locationText = roadwayText;
             }
 
+            // Extract FEU-G link location fields (per FEU-G v2.2 spec section 1.5.7.2)
+            const linkDirection = locationOnLink?.['link-direction']; // "positive direction" | "negative direction" | "both directions" | "not directional"
+            const linkAlignment = locationOnLink?.['link-alignment']; // Cardinal direction: N, S, E, W
+            const linearReference = locationOnLink?.['primary-location']?.['linear-reference']; // Mile marker
+
             // Extract corridor once for use in both geometry processing and event object
             // Pass description, headline, and eventId as fallbacks for Iowa events
             const corridor = extractCorridor(locationText, descText, headlineText, eventId);
             if (index === 0) {
               console.log(`${stateName}: locationText="${locationText}" → corridor="${corridor}"`);
+              console.log(`${stateName}: FEU-G fields: link-direction="${linkDirection}", link-alignment="${linkAlignment}", linear-reference="${linearReference}"`);
             }
 
             if (locationOnLink) {
@@ -2580,8 +2586,17 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
                 const secondaryLng = parseFloat(secondaryLoc.longitude) / 1000000;
 
                 if (primaryLat && primaryLng && secondaryLat && secondaryLng) {
-                  // Use corridor extracted above
-                  const direction = extractDirection(descText, headlineText, corridor, primaryLat, primaryLng);
+                  // Use FEU-G link-direction if available, otherwise extract from text
+                  let direction;
+                  if (linkDirection && linkAlignment) {
+                    // Convert FEU-G direction to standard format
+                    direction = convertFEUGDirection(linkDirection, linkAlignment, corridor);
+                    if (index === 0) {
+                      console.log(`${stateName}: Using FEU-G direction: link-direction="${linkDirection}", link-alignment="${linkAlignment}" → "${direction}"`);
+                    }
+                  } else {
+                    direction = extractDirection(descText, headlineText, corridor, primaryLat, primaryLng);
+                  }
 
                   // Use event geometries (if stored) → Google Directions → Google Roads → interstate geometry → OSRM cache → straight line
                   // Pass event ID so geometry is stored permanently and reused
@@ -2617,22 +2632,31 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
               }
             }
 
-            return { update, index, eventId, headlineText, detail, lat, lng, geometry, locationText, descText };
+            return { update, index, eventId, headlineText, detail, lat, lng, geometry, locationText, descText, corridor, linkDirection, linkAlignment, linearReference };
           });
 
           // Wait for all road-snapping to complete
           const processedUpdates = await Promise.all(feuPromises);
 
           // Now process the results
-          processedUpdates.forEach(({ update, index, eventId, headlineText, detail, lat, lng, geometry, locationText, descText }) => {
+          processedUpdates.forEach(({ update, index, eventId, headlineText, detail, lat, lng, geometry, locationText, descText, corridor, linkDirection, linkAlignment, linearReference }) => {
 
             // Only include events on interstate highways
             if (isInterstateRoute(locationText)) {
-            const corridor = extractCorridor(locationText, descText, headlineText, eventId);
+            // Corridor already extracted above (passed from previous section)
             const startRaw = detail?.['event-times']?.['start-time'] || null;
             const endRaw = detail?.['event-times']?.['end-time'] || null;
             const lanesRaw = extractLaneInfo(descText, headlineText);
-            const directionRaw = extractDirection(descText, headlineText, corridor, lat, lng);
+
+            // Use FEU-G link-direction if available, otherwise extract from text
+            let directionRaw;
+            if (linkDirection && linkAlignment) {
+              // Convert FEU-G direction to standard format
+              directionRaw = convertFEUGDirection(linkDirection, linkAlignment, corridor);
+            } else {
+              directionRaw = extractDirection(descText, headlineText, corridor, lat, lng);
+            }
+
             const severityRaw = determineSeverityFromText(descText, headlineText);
 
             const normalizedEvent = {
@@ -3050,6 +3074,47 @@ const extractLaneInfo = (description, title = '') => {
   }
 
   return 'Check conditions';
+};
+
+/**
+ * Convert FEU-G link-direction and link-alignment to standard direction format
+ * Per FEU-G spec section 1.5.7.2:
+ * - link-direction: "positive direction" | "negative direction" | "both directions" | "not directional"
+ * - link-alignment: Cardinal direction (N, S, E, W) for positive direction
+ *
+ * Example: I-80 in Iowa
+ * - Eastbound: link-direction="positive direction", link-alignment="E"
+ * - Westbound: link-direction="negative direction", link-alignment="E" (opposite of positive)
+ */
+const convertFEUGDirection = (linkDirection, linkAlignment, corridor = '') => {
+  if (!linkDirection || !linkAlignment) {
+    return 'Both'; // Default if fields missing
+  }
+
+  // Handle "both directions" or "not directional"
+  if (linkDirection === 'both directions' || linkDirection === 'not directional') {
+    return 'Both';
+  }
+
+  // Determine if positive or negative
+  const isPositive = linkDirection === 'positive direction';
+
+  // Map alignment to direction based on corridor orientation
+  // For E-W highways (I-80, I-90, I-70, etc.), alignment is E/W
+  // For N-S highways (I-35, I-5, I-95, etc.), alignment is N/S
+
+  if (linkAlignment === 'E') {
+    return isPositive ? 'Eastbound' : 'Westbound';
+  } else if (linkAlignment === 'W') {
+    return isPositive ? 'Westbound' : 'Eastbound';
+  } else if (linkAlignment === 'N') {
+    return isPositive ? 'Northbound' : 'Southbound';
+  } else if (linkAlignment === 'S') {
+    return isPositive ? 'Southbound' : 'Northbound';
+  }
+
+  // Fallback
+  return 'Both';
 };
 
 const extractDirection = (description, title, corridor = '', latitude = 0, longitude = 0) => {
