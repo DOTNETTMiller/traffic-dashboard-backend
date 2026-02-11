@@ -697,3 +697,4 @@ function BoundingBoxSelector({ isDarkMode }) {
 }
 
 export default BoundingBoxSelector;
+

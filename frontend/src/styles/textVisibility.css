@@ -3,6 +3,22 @@
  * Ensures readable text on all backgrounds across Windows/Mac/Linux
  */
 
+/* Global text color baseline - prevents white text inheritance on Windows */
+body, html {
+  color: #111827;
+}
+
+* {
+  /* Prevent accidental white text on light backgrounds */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Default text colors for common elements */
+p, span, div, section, article, main, aside {
+  color: inherit; /* But inherit from body which is dark */
+}
+
 /* Force dark text on light backgrounds */
 .force-dark-text,
 .force-dark-text * {
@@ -45,11 +61,11 @@ table tbody td {
 
 /* Fix common button text */
 button {
-  color: inherit;
+  color: #374151; /* Never inherit white text */
 }
 
 button.btn-primary {
-  color: white;
+  color: #ffffff !important;
   background-color: #3b82f6;
 }
 

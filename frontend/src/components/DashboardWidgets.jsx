@@ -408,7 +408,7 @@ export default function DashboardWidgets({ events }) {
           style={{
             padding: '8px 16px',
             background: showConfig ? theme.colors.accentBlue : theme.colors.glassDark,
-            color: showConfig ? 'white' : theme.colors.text,
+            color: showConfig ? '#111827' : theme.colors.text,
             border: `1px solid ${theme.colors.border}`,
             borderRadius: '8px',
             cursor: 'pointer',
@@ -465,7 +465,7 @@ export default function DashboardWidgets({ events }) {
                 style={{
                   padding: theme.spacing.sm,
                   background: visibleWidgets.includes(widget.id) ? theme.colors.accentBlue : theme.colors.glassLight,
-                  color: visibleWidgets.includes(widget.id) ? 'white' : theme.colors.text,
+                  color: visibleWidgets.includes(widget.id) ? '#111827' : theme.colors.text,
                   border: `1px solid ${visibleWidgets.includes(widget.id) ? theme.colors.accentBlue : theme.colors.border}`,
                   borderRadius: '8px',
                   cursor: 'pointer',
@@ -525,3 +525,4 @@ export default function DashboardWidgets({ events }) {
     </div>
   );
 }
+

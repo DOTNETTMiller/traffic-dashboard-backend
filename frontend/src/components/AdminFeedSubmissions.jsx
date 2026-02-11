@@ -188,7 +188,7 @@ const filterButtonStyle = (active) => ({
   borderRadius: '20px',
   border: 'none',
   backgroundColor: active ? '#2563eb' : '#e5e7eb',
-  color: active ? 'white' : '#1f2937',
+  color: active ? '#111827' : '#1f2937',
   cursor: 'pointer',
   fontSize: '12px',
   fontWeight: 600
@@ -203,3 +203,4 @@ const smallButtonStyle = (color) => ({
   fontSize: '12px',
   cursor: 'pointer'
 });
+

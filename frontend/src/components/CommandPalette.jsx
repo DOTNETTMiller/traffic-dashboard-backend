@@ -409,7 +409,7 @@ export default function CommandPalette({
                         margin: `${theme.spacing.xs} 0`,
                         borderRadius: '8px',
                         backgroundColor: isSelected ? theme.colors.accentBlue : theme.colors.glassLight,
-                        color: isSelected ? 'white' : theme.colors.text,
+                        color: isSelected ? '#111827' : theme.colors.text,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
@@ -442,7 +442,7 @@ export default function CommandPalette({
                           backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : theme.colors.gray[200],
                           fontSize: '11px',
                           fontWeight: '700',
-                          color: isSelected ? 'white' : theme.colors.textSecondary,
+                          color: isSelected ? '#111827' : theme.colors.textSecondary,
                           fontFamily: 'monospace'
                         }}>
                           {cmd.shortcut}
@@ -513,3 +513,4 @@ const kbdStyle = {
   fontSize: '11px',
   fontWeight: '700'
 };
+

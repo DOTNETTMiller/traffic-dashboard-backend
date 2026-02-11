@@ -314,7 +314,7 @@ function TabButton({ active, onClick, label, count, urgent, theme }) {
           padding: '2px 8px',
           borderRadius: '12px',
           background: urgent ? theme.error : active ? 'rgba(255,255,255,0.2)' : theme.primaryLight,
-          color: urgent ? 'white' : active ? 'white' : theme.primary,
+          color: urgent ? '#111827' : active ? 'white' : theme.primary,
           fontSize: '12px',
           fontWeight: '700',
         }}>
@@ -931,3 +931,4 @@ function DeadlineAlert({ alert, urgency, theme }) {
     </div>
   );
 }
+

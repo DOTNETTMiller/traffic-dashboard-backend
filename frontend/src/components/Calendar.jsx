@@ -347,7 +347,7 @@ export default function Calendar({ authToken, currentUser }) {
             style={{
               padding: '10px 16px',
               backgroundColor: !showPastEvents ? '#3b82f6' : '#f3f4f6',
-              color: !showPastEvents ? 'white' : '#374151',
+              color: !showPastEvents ? '#111827' : '#374151',
               border: '1px solid #d1d5db',
               borderRadius: '6px',
               fontSize: '14px',
@@ -362,7 +362,7 @@ export default function Calendar({ authToken, currentUser }) {
             style={{
               padding: '10px 16px',
               backgroundColor: showPastEvents ? '#3b82f6' : '#f3f4f6',
-              color: showPastEvents ? 'white' : '#374151',
+              color: showPastEvents ? '#111827' : '#374151',
               border: '1px solid #d1d5db',
               borderRadius: '6px',
               fontSize: '14px',
@@ -1098,3 +1098,4 @@ export default function Calendar({ authToken, currentUser }) {
     </div>
   );
 }
+

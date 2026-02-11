@@ -458,3 +458,4 @@ export default function ChatWidget({ user, context, isDarkMode }) {
     </div>
   );
 }
+
