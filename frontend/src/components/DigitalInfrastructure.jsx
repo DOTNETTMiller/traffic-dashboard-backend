@@ -446,8 +446,9 @@ function DigitalInfrastructure() {
       tempDiv.innerHTML = htmlContent;
       tempDiv.style.padding = '20px';
       tempDiv.style.fontFamily = 'Arial, sans-serif';
-      tempDiv.style.fontSize = '12px';
+      tempDiv.style.fontSize = '14px';
       tempDiv.style.lineHeight = '1.6';
+      tempDiv.style.color = '#111827';
       document.body.appendChild(tempDiv);
 
       // Import jsPDF dynamically
@@ -473,9 +474,9 @@ function DigitalInfrastructure() {
         },
         x: 10,
         y: 10,
-        width: 190,
+        width: 180,
         windowWidth: 800,
-        margin: [10, 10, 10, 10]
+        margin: [15, 15, 15, 15]
       });
 
     } catch (error) {
