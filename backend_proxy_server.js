@@ -1371,13 +1371,37 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     console.error(`❌ Cache lookup error:`, error.message);
   }
 
-  // 5. Not in cache - return straight line as final fallback
-  // Use the pre-population script to fill the cache: node scripts/prepopulate_osrm_cache.js
-  console.log(`⚠️  Returning straight line for ${lat1},${lng1} -> ${lat2},${lng2} direction=${direction}`);
-  const straightLine = [[lng1, lat1], [lng2, lat2]];
+  // 5. Not in cache - fetch from OSRM and cache the result
+  console.log(`🌐 Cache MISS - fetching from OSRM API: ${lat1},${lng1} -> ${lat2},${lng2} direction=${direction}`);
 
-  // Straight lines are simple point-to-point - no offset needed
-  return { coordinates: straightLine, geometrySource: 'straight_line' };
+  try {
+    const osrmCoordinates = await snapToRoadImmediate(lat1, lng1, lat2, lng2, direction);
+
+    // Cache the result if it's more than just a straight line (OSRM succeeded)
+    if (osrmCoordinates.length > 2) {
+      console.log(`✅ OSRM returned ${osrmCoordinates.length} points - caching result`);
+      try {
+        db.db.prepare('INSERT OR REPLACE INTO osrm_geometry_cache (cache_key, geometry) VALUES (?, ?)').run(
+          cacheKey,
+          JSON.stringify(osrmCoordinates)
+        );
+        console.log(`💾 Cached geometry for key: ${cacheKey}`);
+      } catch (cacheError) {
+        console.error(`❌ Failed to cache OSRM result:`, cacheError.message);
+        // Continue anyway - we still have the geometry
+      }
+      return { coordinates: osrmCoordinates, geometrySource: 'osrm' };
+    } else {
+      console.log(`⚠️  OSRM returned straight line (${osrmCoordinates.length} points) - likely routing failed`);
+      return { coordinates: osrmCoordinates, geometrySource: 'straight_line' };
+    }
+  } catch (osrmError) {
+    console.error(`❌ OSRM fetch failed:`, osrmError.message);
+    // Final fallback to straight line
+    console.log(`⚠️  Returning straight line fallback for ${lat1},${lng1} -> ${lat2},${lng2}`);
+    const straightLine = [[lng1, lat1], [lng2, lat2]];
+    return { coordinates: straightLine, geometrySource: 'straight_line' };
+  }
 }
 
 // Internal OSRM call (not queued)
