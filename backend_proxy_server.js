@@ -1051,7 +1051,7 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
     console.log(`✅ Found Interstate geometry with ${fullGeometry.coordinates.length} points`);
 
     // Extract the segment between our start/end points
-    return extractSegment(fullGeometry.coordinates, lat1, lng1, lat2, lng2, stateCode);
+    return extractSegment(fullGeometry.coordinates, lat1, lng1, lat2, lng2);
 
   } catch (error) {
     console.error('Error fetching interstate geometry:', error.message);
@@ -1072,121 +1072,96 @@ function haversineDistance(lat1, lng1, lat2, lng2) {
   return R * c;
 }
 
-// Project a point perpendicular onto a line segment
-// Returns the closest point on the segment and position along segment (0 to 1)
-function projectPointOntoSegment(px, py, x1, y1, x2, y2) {
-  // Vector from point 1 to point 2
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-
-  // Vector from point 1 to our point
-  const dpx = px - x1;
-  const dpy = py - y1;
-
-  // Project onto the segment (dot product / length squared)
-  const segmentLengthSq = dx * dx + dy * dy;
-
-  if (segmentLengthSq === 0) {
-    // Segment is a point
-    return { lng: x1, lat: y1, t: 0 };
-  }
-
-  const t = Math.max(0, Math.min(1, (dpx * dx + dpy * dy) / segmentLengthSq));
-
-  // Find the projected point
-  return {
-    lng: x1 + t * dx,
-    lat: y1 + t * dy,
-    t: t  // position along segment (0 to 1)
-  };
-}
-
-// Project a point onto a polyline, finding the closest position
-// Returns: { segmentIndex, t, point: {lng, lat}, distance }
-function projectPointOntoLine(px, py, lineCoords) {
-  let minDist = Infinity;
-  let bestProjection = null;
-
-  // For each segment of the line
-  for (let i = 0; i < lineCoords.length - 1; i++) {
-    const [x1, y1] = lineCoords[i];
-    const [x2, y2] = lineCoords[i + 1];
-
-    // Project point onto this segment
-    const projected = projectPointOntoSegment(px, py, x1, y1, x2, y2);
-    const dist = haversineDistance(py, px, projected.lat, projected.lng);
-
-    if (dist < minDist) {
-      minDist = dist;
-      bestProjection = {
-        segmentIndex: i,
-        t: projected.t,
-        point: [projected.lng, projected.lat],
-        distance: dist
-      };
-    }
-  }
-
-  return bestProjection;
-}
-
-// Extract a segment from a full highway geometry using perpendicular projection
-function extractSegment(geometry, lat1, lng1, lat2, lng2, state = null) {
+// Extract a segment from a full highway geometry
+function extractSegment(geometry, lat1, lng1, lat2, lng2) {
   if (!geometry || geometry.length < 2) {
     return null;
   }
 
   const eventDistance = haversineDistance(lat1, lng1, lat2, lng2);
+  const toleranceKm = 2; // 2km tolerance for finding candidate points
 
-  // Use perpendicular projection to find exact positions on the line
-  const startProj = projectPointOntoLine(lng1, lat1, geometry);
-  const endProj = projectPointOntoLine(lng2, lat2, geometry);
+  // SMART ALGORITHM: Find ALL candidates within tolerance and select best path
+  // This handles misordered geometry by trying all possible combinations
 
-  if (!startProj || !endProj) {
-    console.log(`   ❌ Failed to project points onto geometry`);
+  // Step 1: Find ALL candidate start points within tolerance
+  const startCandidates = [];
+  for (let i = 0; i < geometry.length; i++) {
+    const [lon, lat] = geometry[i];
+    const dist = haversineDistance(lat1, lng1, lat, lon);
+    if (dist <= toleranceKm) {
+      startCandidates.push({ index: i, distance: dist });
+    }
+  }
+
+  // Step 2: Find ALL candidate end points within tolerance
+  const endCandidates = [];
+  for (let i = 0; i < geometry.length; i++) {
+    const [lon, lat] = geometry[i];
+    const dist = haversineDistance(lat2, lng2, lat, lon);
+    if (dist <= toleranceKm) {
+      endCandidates.push({ index: i, distance: dist });
+    }
+  }
+
+  console.log(`   🔍 Smart search: ${startCandidates.length} start candidates, ${endCandidates.length} end candidates`);
+
+  if (startCandidates.length === 0 || endCandidates.length === 0) {
+    console.log(`   ❌ No candidates within ${toleranceKm}km tolerance`);
     return null;
   }
 
-  const minStartDist = startProj.distance;
-  const minEndDist = endProj.distance;
+  // Step 3: Try all combinations and find the best path
+  let bestPath = null;
+  let bestScore = Infinity; // Lower is better
+  let minStartDist = Infinity;
+  let minEndDist = Infinity;
+  let startIdx = 0;
+  let endIdx = 0;
 
-  console.log(`   🔍 Perpendicular projection:`);
-  console.log(`      Start: segment ${startProj.segmentIndex}, t=${startProj.t.toFixed(3)}, dist=${(minStartDist * 1000).toFixed(0)}m`);
-  console.log(`      End: segment ${endProj.segmentIndex}, t=${endProj.t.toFixed(3)}, dist=${(minEndDist * 1000).toFixed(0)}m`);
+  for (const start of startCandidates) {
+    for (const end of endCandidates) {
+      if (start.index === end.index) continue;
 
-  // Determine direction (which projection is earlier on the line)
-  const startIdx = startProj.segmentIndex;
-  const endIdx = endProj.segmentIndex;
+      // Extract path (handle both directions)
+      const pathStartIdx = Math.min(start.index, end.index);
+      const pathEndIdx = Math.max(start.index, end.index);
+      const pathSegment = geometry.slice(pathStartIdx, pathEndIdx + 1);
 
-  // Build segment with interpolated start/end points
-  let segment = [];
+      // Calculate path length
+      let pathLength = 0;
+      for (let i = 0; i < pathSegment.length - 1; i++) {
+        const [lon1, lat1] = pathSegment[i];
+        const [lon2, lat2] = pathSegment[i + 1];
+        pathLength += haversineDistance(lat1, lon1, lat2, lon2);
+      }
 
-  if (startIdx === endIdx) {
-    // Both projections on same segment - use direct interpolation
-    if (startProj.t < endProj.t) {
-      segment = [startProj.point, endProj.point];
-    } else {
-      segment = [endProj.point, startProj.point];
+      // Score = weighted combination:
+      // - Distance from actual start/end points (20% each)
+      // - Path length deviation from straight-line (60%)
+      const pathRatio = pathLength / eventDistance;
+      const score = (start.distance * 0.2) + (end.distance * 0.2) + (Math.abs(pathRatio - 1) * eventDistance * 0.6);
+
+      if (score < bestScore) {
+        bestScore = score;
+        bestPath = pathSegment;
+        minStartDist = start.distance;
+        minEndDist = end.distance;
+        startIdx = pathStartIdx;
+        endIdx = pathEndIdx;
+      }
     }
-  } else if (startIdx < endIdx) {
-    // Normal order: start comes before end
-    segment = [
-      startProj.point,
-      ...geometry.slice(startIdx + 1, endIdx + 1),
-      endProj.point
-    ];
-  } else {
-    // Reversed: end comes before start in geometry
-    segment = [
-      endProj.point,
-      ...geometry.slice(endIdx + 1, startIdx + 1),
-      startProj.point
-    ];
   }
 
-  console.log(`   ✅ Built segment: ${segment.length} points (indices ${Math.min(startIdx, endIdx)}-${Math.max(startIdx, endIdx)})`);
+  if (!bestPath) {
+    console.log(`   ❌ No valid path found among candidates`);
+    return null;
+  }
 
-  // Extract segment between the two projected points
+  console.log(`   ✅ Best path: indices ${startIdx}-${endIdx}, ${bestPath.length} points`);
+
+  // Extract segment between the two closest points
+  const segment = bestPath;
 
   // Validation 1: Endpoints must be reasonably close to highway
   // Based on analysis: 100% of Iowa I-80 events are within 500m of actual highway
@@ -1226,9 +1201,7 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2, state = null) {
 
   // DISABLED for Iowa: OSM geometry has ordering issues causing false rejections
   // Iowa events within 5km of highway should snap regardless of path length
-  // State can be passed as either "Iowa" or "IA"
-  const isIowa = state && (state.toUpperCase() === 'IA' || state.toLowerCase() === 'iowa');
-  if (segmentPathLength > maxReasonablePathLength && eventDistance > 1 && !isIowa) {
+  if (segmentPathLength > maxReasonablePathLength && eventDistance > 1 && state !== 'Iowa') {
     console.log(`⚠️  Segment rejected: path too long`);
     console.log(`   Segment path: ${segmentPathLength.toFixed(2)}km (${(segmentPathLength * 0.621371).toFixed(2)} mi)`);
     console.log(`   Event distance: ${eventDistance.toFixed(2)}km (${(eventDistance * 0.621371).toFixed(2)} mi)`);
@@ -2583,17 +2556,11 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
               if (roadwayText) locationText = roadwayText;
             }
 
-            // Extract FEU-G link location fields (per FEU-G v2.2 spec section 1.5.7.2)
-            const linkDirection = locationOnLink?.['link-direction']; // "positive direction" | "negative direction" | "both directions" | "not directional"
-            const linkAlignment = locationOnLink?.['link-alignment']; // Cardinal direction: N, S, E, W
-            const linearReference = locationOnLink?.['primary-location']?.['linear-reference']; // Mile marker
-
             // Extract corridor once for use in both geometry processing and event object
             // Pass description, headline, and eventId as fallbacks for Iowa events
             const corridor = extractCorridor(locationText, descText, headlineText, eventId);
             if (index === 0) {
               console.log(`${stateName}: locationText="${locationText}" → corridor="${corridor}"`);
-              console.log(`${stateName}: FEU-G fields: link-direction="${linkDirection}", link-alignment="${linkAlignment}", linear-reference="${linearReference}"`);
             }
 
             if (locationOnLink) {
@@ -2613,17 +2580,8 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
                 const secondaryLng = parseFloat(secondaryLoc.longitude) / 1000000;
 
                 if (primaryLat && primaryLng && secondaryLat && secondaryLng) {
-                  // Use FEU-G link-direction if available, otherwise extract from text
-                  let direction;
-                  if (linkDirection && linkAlignment) {
-                    // Convert FEU-G direction to standard format
-                    direction = convertFEUGDirection(linkDirection, linkAlignment, corridor);
-                    if (index === 0) {
-                      console.log(`${stateName}: Using FEU-G direction: link-direction="${linkDirection}", link-alignment="${linkAlignment}" → "${direction}"`);
-                    }
-                  } else {
-                    direction = extractDirection(descText, headlineText, corridor, primaryLat, primaryLng);
-                  }
+                  // Use corridor extracted above
+                  const direction = extractDirection(descText, headlineText, corridor, primaryLat, primaryLng);
 
                   // Use event geometries (if stored) → Google Directions → Google Roads → interstate geometry → OSRM cache → straight line
                   // Pass event ID so geometry is stored permanently and reused
@@ -2659,31 +2617,22 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
               }
             }
 
-            return { update, index, eventId, headlineText, detail, lat, lng, geometry, locationText, descText, corridor, linkDirection, linkAlignment, linearReference };
+            return { update, index, eventId, headlineText, detail, lat, lng, geometry, locationText, descText };
           });
 
           // Wait for all road-snapping to complete
           const processedUpdates = await Promise.all(feuPromises);
 
           // Now process the results
-          processedUpdates.forEach(({ update, index, eventId, headlineText, detail, lat, lng, geometry, locationText, descText, corridor, linkDirection, linkAlignment, linearReference }) => {
+          processedUpdates.forEach(({ update, index, eventId, headlineText, detail, lat, lng, geometry, locationText, descText }) => {
 
             // Only include events on interstate highways
             if (isInterstateRoute(locationText)) {
-            // Corridor already extracted above (passed from previous section)
+            const corridor = extractCorridor(locationText, descText, headlineText, eventId);
             const startRaw = detail?.['event-times']?.['start-time'] || null;
             const endRaw = detail?.['event-times']?.['end-time'] || null;
             const lanesRaw = extractLaneInfo(descText, headlineText);
-
-            // Use FEU-G link-direction if available, otherwise extract from text
-            let directionRaw;
-            if (linkDirection && linkAlignment) {
-              // Convert FEU-G direction to standard format
-              directionRaw = convertFEUGDirection(linkDirection, linkAlignment, corridor);
-            } else {
-              directionRaw = extractDirection(descText, headlineText, corridor, lat, lng);
-            }
-
+            const directionRaw = extractDirection(descText, headlineText, corridor, lat, lng);
             const severityRaw = determineSeverityFromText(descText, headlineText);
 
             const normalizedEvent = {
@@ -3101,47 +3050,6 @@ const extractLaneInfo = (description, title = '') => {
   }
 
   return 'Check conditions';
-};
-
-/**
- * Convert FEU-G link-direction and link-alignment to standard direction format
- * Per FEU-G spec section 1.5.7.2:
- * - link-direction: "positive direction" | "negative direction" | "both directions" | "not directional"
- * - link-alignment: Cardinal direction (N, S, E, W) for positive direction
- *
- * Example: I-80 in Iowa
- * - Eastbound: link-direction="positive direction", link-alignment="E"
- * - Westbound: link-direction="negative direction", link-alignment="E" (opposite of positive)
- */
-const convertFEUGDirection = (linkDirection, linkAlignment, corridor = '') => {
-  if (!linkDirection || !linkAlignment) {
-    return 'Both'; // Default if fields missing
-  }
-
-  // Handle "both directions" or "not directional"
-  if (linkDirection === 'both directions' || linkDirection === 'not directional') {
-    return 'Both';
-  }
-
-  // Determine if positive or negative
-  const isPositive = linkDirection === 'positive direction';
-
-  // Map alignment to direction based on corridor orientation
-  // For E-W highways (I-80, I-90, I-70, etc.), alignment is E/W
-  // For N-S highways (I-35, I-5, I-95, etc.), alignment is N/S
-
-  if (linkAlignment === 'E') {
-    return isPositive ? 'Eastbound' : 'Westbound';
-  } else if (linkAlignment === 'W') {
-    return isPositive ? 'Westbound' : 'Eastbound';
-  } else if (linkAlignment === 'N') {
-    return isPositive ? 'Northbound' : 'Southbound';
-  } else if (linkAlignment === 'S') {
-    return isPositive ? 'Southbound' : 'Northbound';
-  }
-
-  // Fallback
-  return 'Both';
 };
 
 const extractDirection = (description, title, corridor = '', latitude = 0, longitude = 0) => {
