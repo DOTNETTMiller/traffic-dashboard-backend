@@ -17144,6 +17144,22 @@ app.get('/api/its-equipment/nearby', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error fetching nearby equipment:', error);
+
+    // Gracefully handle missing table (return empty results instead of 500 error)
+    if (error.message && error.message.includes('does not exist')) {
+      console.log('ℹ️  ITS equipment table not yet created, returning empty results');
+      return res.json({
+        success: true,
+        location: { latitude: parseFloat(req.query.latitude), longitude: parseFloat(req.query.longitude) },
+        radius: parseFloat(req.query.radius || 5),
+        equipment: [],
+        total: 0,
+        byType: { cameras: 0, dms: 0, sensors: 0, rsu: 0 },
+        grouped: { cameras: [], dms: [], sensors: [], rsu: [] },
+        note: 'ITS equipment inventory table not yet initialized'
+      });
+    }
+
     res.status(500).json({ success: false, error: error.message });
   }
 });
