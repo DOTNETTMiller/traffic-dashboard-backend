@@ -1007,7 +1007,8 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
 
     // SKIP state-specific segments - the "I-80 Iowa Segment" has points in wrong order
     // Points jump all over Iowa instead of following the highway sequentially
-    // This creates segments of 3,000+ km when extracting between indices
+    // This creates segments of 10,000+ km when extracting between indices
+    // Even perpendicular projection can't fix fundamentally misordered geometry
     //
     // if (stateName) {
     //   const stateSegmentName = `${corridor} ${stateName} Segment`;
@@ -1024,7 +1025,8 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
     // }
 
     // Use directional corridor (e.g., "I-80 EB" or "I-80 WB")
-    // These are nationwide geometries with proper coordinate ordering (15k+ points)
+    // Lower resolution (219 points) but correctly ordered
+    // For low-res geometry, most events fall back to OSRM for better detail
     if (dir) {
       // dir is already a 2-letter code (WB, EB, NB, SB) from normalization above
       const dirName = `${corridor} ${dir}`;
@@ -1284,36 +1286,15 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2, state = null) {
   return segment.length >= 2 ? segment : null;
 }
 
-// Snap a straight line to road network (interstate geometry → OSRM cache → straight line)
+// Snap a straight line to road network (OSRM cache → straight line)
 async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = null, state = null, eventId = null, stateKey = null) {
   console.log(`📍 snapToRoad called: eventId=${eventId}, stateKey="${stateKey}", direction="${direction}", corridor="${corridor}", state="${state}"`);
 
-  // 1. Check for interstate geometry (pre-fetched highway geometries)
-  if (corridor && state) {
-    const interstateGeom = await getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, direction);
-    if (interstateGeom) {
-      console.log(`✅ Using interstate geometry for ${corridor} ${state} ${direction}`);
+  // SKIP database geometry extraction - low resolution creates straight lines
+  // Go straight to OSRM which provides dense, road-snapped geometry
+  console.log(`⏩ Skipping database geometry, using OSRM for road-snapped routing`);
 
-      // Apply lane offset to separate WB/EB traffic visually
-      // WB gets offset to the left (south), EB to the right (north) when viewing west-to-east
-      if (direction) {
-        const dirLower = direction.toLowerCase();
-        if (dirLower.includes('west') || dirLower.includes('wb')) {
-          const offsetGeom = offsetCoordinates(interstateGeom, 'westbound');
-          console.log(`✅ Applied westbound lane offset`);
-          return { coordinates: offsetGeom, geometrySource: 'interstate' };
-        } else if (dirLower.includes('east') || dirLower.includes('eb')) {
-          const offsetGeom = offsetCoordinates(interstateGeom, 'eastbound');
-          console.log(`✅ Applied eastbound lane offset`);
-          return { coordinates: offsetGeom, geometrySource: 'interstate' };
-        }
-      }
-
-      return { coordinates: interstateGeom, geometrySource: 'interstate' };
-    }
-  }
-
-  // 2. Check OSRM cache (fallback routing)
+  // 1. Check OSRM cache (primary routing source)
   const cacheKey = getOSRMCacheKey(lat1, lng1, lat2, lng2, direction);
   console.log(`🔍 Cache lookup: ${cacheKey}`);
 
