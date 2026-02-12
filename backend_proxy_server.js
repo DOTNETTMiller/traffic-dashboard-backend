@@ -996,7 +996,7 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
     };
     const stateName = stateCodeToName[stateCode] || null;
 
-    console.log(`🔍 [v2] Looking for Interstate geometry: ${corridor} ${dir || 'any direction'} in ${stateCode} (pgPool: ${!!pgPool}, DATABASE_URL: ${process.env.DATABASE_URL ? 'set' : 'NOT SET'})`);
+    console.log(`🔍 Looking for Interstate geometry: ${corridor} ${dir || 'any direction'} in ${stateCode} (pgPool: ${!!pgPool}, DATABASE_URL: ${process.env.DATABASE_URL ? 'set' : 'NOT SET'})`);
 
     // Query the corridors table where geometry is stored as JSONB
     // Naming conventions in corridors table:
@@ -1005,9 +1005,9 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
 
     let result = null;
 
-    // SKIP state-specific segments - the "I-80 Iowa Segment" has points in wrong order
-    // Points jump all over Iowa instead of following the highway sequentially
-    // This creates segments of 3,000+ km when extracting between indices
+    // SKIP state-specific segments - they are placeholder data with only 2 points
+    // The populate_tetc_geometries.js script creates "I-80 Iowa Segment" but it's just
+    // a straight line from first to last OSM coordinate, not proper highway geometry.
     //
     // if (stateName) {
     //   const stateSegmentName = `${corridor} ${stateName} Segment`;
@@ -1024,10 +1024,14 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
     // }
 
     // Use directional corridor (e.g., "I-80 EB" or "I-80 WB")
-    // These are nationwide geometries with proper coordinate ordering (15k+ points)
+    // These are nationwide geometries with proper coordinate ordering (47k+ points)
     if (dir) {
-      // dir is already a 2-letter code (WB, EB, NB, SB) from normalization above
-      const dirName = `${corridor} ${dir}`;
+      // Convert full direction names to abbreviations for database lookup
+      const dirAbbrev = dir === 'Westbound' ? 'WB' :
+                        dir === 'Eastbound' ? 'EB' :
+                        dir === 'Northbound' ? 'NB' :
+                        dir === 'Southbound' ? 'SB' : dir;
+      const dirName = `${corridor} ${dirAbbrev}`;
       result = await pgPool.query(
         'SELECT geometry FROM corridors WHERE name = $1 LIMIT 1',
         [dirName]
@@ -1078,105 +1082,49 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
     return null;
   }
 
-  const eventDistance = haversineDistance(lat1, lng1, lat2, lng2);
-  const toleranceKm = 2; // 2km tolerance for finding candidate points
-
-  // SMART ALGORITHM: Find ALL candidates within tolerance and select best path
-  // This handles misordered geometry by trying all possible combinations
-
-  // Step 1: Find ALL candidate start points within tolerance
-  const startCandidates = [];
-  for (let i = 0; i < geometry.length; i++) {
-    const [lon, lat] = geometry[i];
-    const dist = haversineDistance(lat1, lng1, lat, lon);
-    if (dist <= toleranceKm) {
-      startCandidates.push({ index: i, distance: dist });
-    }
-  }
-
-  // Step 2: Find ALL candidate end points within tolerance
-  const endCandidates = [];
-  for (let i = 0; i < geometry.length; i++) {
-    const [lon, lat] = geometry[i];
-    const dist = haversineDistance(lat2, lng2, lat, lon);
-    if (dist <= toleranceKm) {
-      endCandidates.push({ index: i, distance: dist });
-    }
-  }
-
-  console.log(`   🔍 Smart search: ${startCandidates.length} start candidates, ${endCandidates.length} end candidates`);
-
-  if (startCandidates.length === 0 || endCandidates.length === 0) {
-    console.log(`   ❌ No candidates within ${toleranceKm}km tolerance`);
-    return null;
-  }
-
-  // Step 3: Try all combinations and find the best path
-  let bestPath = null;
-  let bestScore = Infinity; // Lower is better
+  // Find closest points to start and end using proper Haversine distance
+  let startIdx = 0;
+  let endIdx = geometry.length - 1;
   let minStartDist = Infinity;
   let minEndDist = Infinity;
-  let startIdx = 0;
-  let endIdx = 0;
 
-  for (const start of startCandidates) {
-    for (const end of endCandidates) {
-      if (start.index === end.index) continue;
+  for (let i = 0; i < geometry.length; i++) {
+    const [lon, lat] = geometry[i];
 
-      // Extract path (handle both directions)
-      const pathStartIdx = Math.min(start.index, end.index);
-      const pathEndIdx = Math.max(start.index, end.index);
-      const pathSegment = geometry.slice(pathStartIdx, pathEndIdx + 1);
+    const startDist = haversineDistance(lat1, lng1, lat, lon);
+    if (startDist < minStartDist) {
+      minStartDist = startDist;
+      startIdx = i;
+    }
 
-      // Calculate path length
-      let pathLength = 0;
-      for (let i = 0; i < pathSegment.length - 1; i++) {
-        const [lon1, lat1] = pathSegment[i];
-        const [lon2, lat2] = pathSegment[i + 1];
-        pathLength += haversineDistance(lat1, lon1, lat2, lon2);
-      }
-
-      // Score = weighted combination:
-      // - Distance from actual start/end points (20% each)
-      // - Path length deviation from straight-line (60%)
-      const pathRatio = pathLength / eventDistance;
-      const score = (start.distance * 0.2) + (end.distance * 0.2) + (Math.abs(pathRatio - 1) * eventDistance * 0.6);
-
-      if (score < bestScore) {
-        bestScore = score;
-        bestPath = pathSegment;
-        minStartDist = start.distance;
-        minEndDist = end.distance;
-        startIdx = pathStartIdx;
-        endIdx = pathEndIdx;
-      }
+    const endDist = haversineDistance(lat2, lng2, lat, lon);
+    if (endDist < minEndDist) {
+      minEndDist = endDist;
+      endIdx = i;
     }
   }
 
-  if (!bestPath) {
-    console.log(`   ❌ No valid path found among candidates`);
+  // Ensure start comes before end
+  if (startIdx > endIdx) {
+    [startIdx, endIdx] = [endIdx, startIdx];
+  }
+
+  // Extract segment
+  const segment = geometry.slice(startIdx, endIdx + 1);
+
+  // Validation 1: Endpoints must be reasonably close to highway (5km = ~3.1 miles)
+  // This handles GPS errors, parallel service roads, slightly misaligned coordinates,
+  // and geocoding inaccuracies from traffic event reporting systems
+  if (minStartDist > 5 || minEndDist > 5) {
+    console.log(`⚠️  Segment rejected: start=${minStartDist.toFixed(1)}km, end=${minEndDist.toFixed(1)}km from highway (max 5km)`);
     return null;
   }
 
-  console.log(`   ✅ Best path: indices ${startIdx}-${endIdx}, ${bestPath.length} points`);
+  // TEMPORARY: Disable validations 2-5 to isolate the actual failure cause
+  // Validation 2: Calculate actual event distance
+  const eventDistance = haversineDistance(lat1, lng1, lat2, lng2);
 
-  // Extract segment between the two closest points
-  const segment = bestPath;
-
-  // Validation 1: Endpoints must be reasonably close to highway
-  // Based on analysis: 100% of Iowa I-80 events are within 500m of actual highway
-  // However, geometry sources vary in resolution:
-  // - High-res OSM: 33k points, most events within 60m
-  // - Google Maps: 596 points, events can be 2-3km from nearest point
-  // Use lenient threshold to work with lower-resolution geometry
-  const maxDistanceThreshold = 5; // 5 km
-
-  if (minStartDist > maxDistanceThreshold || minEndDist > maxDistanceThreshold) {
-    console.log(`⚠️  Segment rejected: start=${(minStartDist * 1000).toFixed(0)}m, end=${(minEndDist * 1000).toFixed(0)}m from highway (max ${maxDistanceThreshold}km)`);
-    return null;
-  }
-
-  // Validation 2: Calculate segment path length
+  // Validation 3: Calculate segment path length
   let segmentPathLength = 0;
   for (let i = 0; i < segment.length - 1; i++) {
     const [lon1, lat1] = segment[i];
@@ -1184,74 +1132,17 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2) {
     segmentPathLength += haversineDistance(lat1, lon1, lat2, lon2);
   }
 
-  // Validation 3: Segment path length should match event distance reasonably
-  // Highway curves add length, especially on longer segments
-  // Short events: 1.3x (tight curves on short segments)
-  // Medium events: 1.5x (moderate curves)
-  // Long events: 2.0x (I-80 can curve significantly over long distances)
-  let maxPathMultiplier;
-  if (eventDistance < 10) {
-    maxPathMultiplier = 1.3;
-  } else if (eventDistance < 30) {
-    maxPathMultiplier = 1.5;
-  } else {
-    maxPathMultiplier = 2.0;
-  }
-  const maxReasonablePathLength = eventDistance * maxPathMultiplier;
+  // TEMPORARY DISABLE: Validation 4
+  // if (segmentPathLength > Math.max(eventDistance * 5, 50)) {
+  //   console.log(`⚠️  Segment rejected: segment=${segmentPathLength.toFixed(1)}km is too long for event=${eventDistance.toFixed(1)}km`);
+  //   return null;
+  // }
 
-  // DISABLED for Iowa: OSM geometry has ordering issues causing false rejections
-  // Iowa events within 5km of highway should snap regardless of path length
-  if (segmentPathLength > maxReasonablePathLength && eventDistance > 1 && state !== 'Iowa') {
-    console.log(`⚠️  Segment rejected: path too long`);
-    console.log(`   Segment path: ${segmentPathLength.toFixed(2)}km (${(segmentPathLength * 0.621371).toFixed(2)} mi)`);
-    console.log(`   Event distance: ${eventDistance.toFixed(2)}km (${(eventDistance * 0.621371).toFixed(2)} mi)`);
-    console.log(`   Max reasonable: ${maxReasonablePathLength.toFixed(2)}km (${maxPathMultiplier}x)`);
-    console.log(`   Ratio: ${(segmentPathLength / eventDistance).toFixed(2)}x - segment doesn't match event extent`);
-    return null;
-  }
-
-  // Validation 4: Prevent segments that are too long (showing entire Interstate)
-  // If segment > 500 points, trim it to reasonable size around the actual event location
-  const MAX_SEGMENT_POINTS = 500;
-
-  if (segment.length > MAX_SEGMENT_POINTS) {
-    console.log(`⚠️  Segment too large: ${segment.length} points - trimming to ${MAX_SEGMENT_POINTS} centered on event`);
-    // Keep segment centered around the actual event location
-    // Calculate which part of segment is closest to event midpoint
-    const eventMidLat = (lat1 + lat2) / 2;
-    const eventMidLng = (lng1 + lng2) / 2;
-
-    // Find closest point in segment to event midpoint
-    let closestIdx = 0;
-    let minMidDist = Infinity;
-    for (let i = 0; i < segment.length; i++) {
-      const [lon, lat] = segment[i];
-      const dist = haversineDistance(eventMidLat, eventMidLng, lat, lon);
-      if (dist < minMidDist) {
-        minMidDist = dist;
-        closestIdx = i;
-      }
-    }
-
-    // Extract MAX_SEGMENT_POINTS around the closest point
-    const halfMax = Math.floor(MAX_SEGMENT_POINTS / 2);
-    const trimStart = Math.max(0, closestIdx - halfMax);
-    const trimEnd = Math.min(segment.length, closestIdx + halfMax);
-    const trimmedSegment = segment.slice(trimStart, trimEnd);
-    console.log(`   Trimmed to ${trimmedSegment.length} points around event location`);
-    return trimmedSegment;
-  }
-
-  // Validation 5: For very short events (< 1km), ensure we don't return just 1-2 points
-  // Expand to include at least 10 points for visual clarity
-  if (eventDistance < 1 && segment.length < 10) {
-    const expandBy = Math.floor((10 - segment.length) / 2);
-    const newStartIdx = Math.max(0, startIdx - expandBy);
-    const newEndIdx = Math.min(geometry.length - 1, endIdx + expandBy);
-    const expandedSegment = geometry.slice(newStartIdx, newEndIdx + 1);
-    console.log(`🔍 Short event (${eventDistance.toFixed(2)}km), expanded from ${segment.length} to ${expandedSegment.length} points`);
-    return expandedSegment.length >= 2 ? expandedSegment : segment;
-  }
+  // TEMPORARY DISABLE: Validation 5
+  // if (segment.length > geometry.length * 0.3) {
+  //   console.log(`⚠️  Segment rejected: ${segment.length} points is ${((segment.length/geometry.length)*100).toFixed(0)}% of full highway`);
+  //   return null;
+  // }
 
   console.log(`✅ Segment extracted: start=${minStartDist.toFixed(1)}km, end=${minEndDist.toFixed(1)}km, segment=${segmentPathLength.toFixed(1)}km, event=${eventDistance.toFixed(1)}km, ${segment.length} points`);
   return segment.length >= 2 ? segment : null;
@@ -1267,19 +1158,11 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     if (interstateGeom) {
       console.log(`✅ Using interstate geometry for ${corridor} ${state} ${direction}`);
 
-      // Apply lane offset to separate WB/EB traffic visually
-      // WB gets offset to the left (south), EB to the right (north) when viewing west-to-east
-      if (direction) {
-        const dirLower = direction.toLowerCase();
-        if (dirLower.includes('west') || dirLower.includes('wb')) {
-          const offsetGeom = offsetCoordinates(interstateGeom, 'westbound');
-          console.log(`✅ Applied westbound lane offset`);
-          return { coordinates: offsetGeom, geometrySource: 'interstate' };
-        } else if (dirLower.includes('east') || dirLower.includes('eb')) {
-          const offsetGeom = offsetCoordinates(interstateGeom, 'eastbound');
-          console.log(`✅ Applied eastbound lane offset`);
-          return { coordinates: offsetGeom, geometrySource: 'interstate' };
-        }
+      // Apply 30-meter offset for Iowa westbound events to separate lanes
+      if (stateKey === 'ia' && direction && (direction.toLowerCase().includes('west') || direction.toLowerCase().includes('wb'))) {
+        const offsetGeom = offsetCoordinates(interstateGeom, direction);
+        console.log(`✅ Applied 30m offset for Iowa WB event`);
+        return { coordinates: offsetGeom, geometrySource: 'interstate' };
       }
 
       return { coordinates: interstateGeom, geometrySource: 'interstate' };
@@ -1918,42 +1801,16 @@ const extractTextValue = (obj) => {
 };
 
 // Helper to extract actual interstate corridor from location text
-const extractCorridor = (locationText, description = '', headlineText = '', eventId = '') => {
-  // Try location text first
-  if (locationText) {
-    const text = locationText.toUpperCase();
-    const interstateMatch = text.match(/\b(?:I-?|INTERSTATE\s+)(\d{1,3})\b/);
-    if (interstateMatch) {
-      return `I-${interstateMatch[1]}`;
-    }
-  }
+const extractCorridor = (locationText) => {
+  if (!locationText) return 'Unknown';
 
-  // Try description as fallback
-  if (description) {
-    const descText = description.toUpperCase();
-    const interstateMatch = descText.match(/\b(?:I-?|INTERSTATE\s+)(\d{1,3})\b/);
-    if (interstateMatch) {
-      return `I-${interstateMatch[1]}`;
-    }
-  }
+  const text = locationText.toUpperCase();
 
-  // Try headline as fallback
-  if (headlineText) {
-    const headText = headlineText.toUpperCase();
-    const interstateMatch = headText.match(/\b(?:I-?|INTERSTATE\s+)(\d{1,3})\b/);
-    if (interstateMatch) {
-      return `I-${interstateMatch[1]}`;
-    }
-  }
+  // Match patterns like "I-80", "I 80", "Interstate 80"
+  const interstateMatch = text.match(/\b(?:I-?|INTERSTATE\s+)(\d{1,3})\b/);
 
-  // Try event ID as last fallback (e.g., "IADOT-21173403930WB" contains I-80 in many Iowa IDs)
-  // Look for patterns like "I80", "I-80", or extract from mile marker references
-  if (eventId) {
-    const idText = eventId.toUpperCase();
-    const interstateMatch = idText.match(/\b(?:I-?|INTERSTATE\s*)(\d{1,3})\b/);
-    if (interstateMatch) {
-      return `I-${interstateMatch[1]}`;
-    }
+  if (interstateMatch) {
+    return `I-${interstateMatch[1]}`;
   }
 
   return 'Unknown';
@@ -2557,8 +2414,7 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
             }
 
             // Extract corridor once for use in both geometry processing and event object
-            // Pass description, headline, and eventId as fallbacks for Iowa events
-            const corridor = extractCorridor(locationText, descText, headlineText, eventId);
+            const corridor = extractCorridor(locationText);
             if (index === 0) {
               console.log(`${stateName}: locationText="${locationText}" → corridor="${corridor}"`);
             }
@@ -2628,7 +2484,7 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
 
             // Only include events on interstate highways
             if (isInterstateRoute(locationText)) {
-            const corridor = extractCorridor(locationText, descText, headlineText, eventId);
+            const corridor = extractCorridor(locationText);
             const startRaw = detail?.['event-times']?.['start-time'] || null;
             const endRaw = detail?.['event-times']?.['end-time'] || null;
             const lanesRaw = extractLaneInfo(descText, headlineText);
@@ -3934,13 +3790,8 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     states: getAllStateKeys().length,
-    version: '1.1.1-99f587c',
+    version: '1.1.1',
     gdal: gdalAvailable,
-    database: {
-      postgresConnected: !!pgPool,
-      databaseUrl: process.env.DATABASE_URL ? 'SET' : 'NOT SET',
-      interstateGeometryEnabled: !!pgPool
-    },
     features: {
       gisUpload: gdalAvailable ? 'Full support (.gdb, .shp, .geojson, .kml, .csv)' : 'Limited (.shp, .geojson, .kml, .csv)'
     }
