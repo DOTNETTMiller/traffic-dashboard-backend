@@ -176,6 +176,14 @@ function DocumentationViewer() {
       external: true,
       description: 'Official FHWA Pooled Fund Study TPF-5(566): Connected Corridors Advancement Initiative (CCAI). Multi-state collaboration for I-80/I-35 corridors with participating states, funding details, and study objectives.',
       icon: '🏛️'
+    },
+    {
+      key: 'tdi-policy-response',
+      title: 'TDI Policy Response',
+      url: '/docs/TDI_POLICY_RESPONSE.md',
+      pdfUrl: `${config.apiUrl}/docs/TDI_POLICY_RESPONSE.md?format=pdf`,
+      description: 'Strategic policy response to USDOT Transportation Digital Infrastructure (TDI) initiative. Platform-agnostic guidance on emerging technologies, data governance, open data sharing, and workforce development for state DOTs. Includes both executive-level strategic recommendations and practitioner-level implementation steps.',
+      icon: '🏛️'
     }
   ];
 
