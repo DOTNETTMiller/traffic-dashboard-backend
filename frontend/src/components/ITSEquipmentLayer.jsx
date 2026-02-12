@@ -121,9 +121,10 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
         }
 
         // Filter by route if specified
-        if (route) {
-          filtered = filtered.filter(e => e.route === route);
-        }
+        // TEMP FIX: Route field not populated in database yet
+        // if (route) {
+        //   filtered = filtered.filter(e => e.route === route);
+        // }
 
         setEquipment(filtered);
         console.log(`📡 Loaded ${filtered.length} ITS equipment items${route ? ` for route ${route}` : ''}`);
