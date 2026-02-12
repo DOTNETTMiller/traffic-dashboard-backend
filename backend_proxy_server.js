@@ -1072,96 +1072,121 @@ function haversineDistance(lat1, lng1, lat2, lng2) {
   return R * c;
 }
 
-// Extract a segment from a full highway geometry
+// Project a point perpendicular onto a line segment
+// Returns the closest point on the segment and position along segment (0 to 1)
+function projectPointOntoSegment(px, py, x1, y1, x2, y2) {
+  // Vector from point 1 to point 2
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+
+  // Vector from point 1 to our point
+  const dpx = px - x1;
+  const dpy = py - y1;
+
+  // Project onto the segment (dot product / length squared)
+  const segmentLengthSq = dx * dx + dy * dy;
+
+  if (segmentLengthSq === 0) {
+    // Segment is a point
+    return { lng: x1, lat: y1, t: 0 };
+  }
+
+  const t = Math.max(0, Math.min(1, (dpx * dx + dpy * dy) / segmentLengthSq));
+
+  // Find the projected point
+  return {
+    lng: x1 + t * dx,
+    lat: y1 + t * dy,
+    t: t  // position along segment (0 to 1)
+  };
+}
+
+// Project a point onto a polyline, finding the closest position
+// Returns: { segmentIndex, t, point: {lng, lat}, distance }
+function projectPointOntoLine(px, py, lineCoords) {
+  let minDist = Infinity;
+  let bestProjection = null;
+
+  // For each segment of the line
+  for (let i = 0; i < lineCoords.length - 1; i++) {
+    const [x1, y1] = lineCoords[i];
+    const [x2, y2] = lineCoords[i + 1];
+
+    // Project point onto this segment
+    const projected = projectPointOntoSegment(px, py, x1, y1, x2, y2);
+    const dist = haversineDistance(py, px, projected.lat, projected.lng);
+
+    if (dist < minDist) {
+      minDist = dist;
+      bestProjection = {
+        segmentIndex: i,
+        t: projected.t,
+        point: [projected.lng, projected.lat],
+        distance: dist
+      };
+    }
+  }
+
+  return bestProjection;
+}
+
+// Extract a segment from a full highway geometry using perpendicular projection
 function extractSegment(geometry, lat1, lng1, lat2, lng2, state = null) {
   if (!geometry || geometry.length < 2) {
     return null;
   }
 
   const eventDistance = haversineDistance(lat1, lng1, lat2, lng2);
-  const toleranceKm = 2; // 2km tolerance for finding candidate points
 
-  // SMART ALGORITHM: Find ALL candidates within tolerance and select best path
-  // This handles misordered geometry by trying all possible combinations
+  // Use perpendicular projection to find exact positions on the line
+  const startProj = projectPointOntoLine(lng1, lat1, geometry);
+  const endProj = projectPointOntoLine(lng2, lat2, geometry);
 
-  // Step 1: Find ALL candidate start points within tolerance
-  const startCandidates = [];
-  for (let i = 0; i < geometry.length; i++) {
-    const [lon, lat] = geometry[i];
-    const dist = haversineDistance(lat1, lng1, lat, lon);
-    if (dist <= toleranceKm) {
-      startCandidates.push({ index: i, distance: dist });
-    }
-  }
-
-  // Step 2: Find ALL candidate end points within tolerance
-  const endCandidates = [];
-  for (let i = 0; i < geometry.length; i++) {
-    const [lon, lat] = geometry[i];
-    const dist = haversineDistance(lat2, lng2, lat, lon);
-    if (dist <= toleranceKm) {
-      endCandidates.push({ index: i, distance: dist });
-    }
-  }
-
-  console.log(`   🔍 Smart search: ${startCandidates.length} start candidates, ${endCandidates.length} end candidates`);
-
-  if (startCandidates.length === 0 || endCandidates.length === 0) {
-    console.log(`   ❌ No candidates within ${toleranceKm}km tolerance`);
+  if (!startProj || !endProj) {
+    console.log(`   ❌ Failed to project points onto geometry`);
     return null;
   }
 
-  // Step 3: Try all combinations and find the best path
-  let bestPath = null;
-  let bestScore = Infinity; // Lower is better
-  let minStartDist = Infinity;
-  let minEndDist = Infinity;
-  let startIdx = 0;
-  let endIdx = 0;
+  const minStartDist = startProj.distance;
+  const minEndDist = endProj.distance;
 
-  for (const start of startCandidates) {
-    for (const end of endCandidates) {
-      if (start.index === end.index) continue;
+  console.log(`   🔍 Perpendicular projection:`);
+  console.log(`      Start: segment ${startProj.segmentIndex}, t=${startProj.t.toFixed(3)}, dist=${(minStartDist * 1000).toFixed(0)}m`);
+  console.log(`      End: segment ${endProj.segmentIndex}, t=${endProj.t.toFixed(3)}, dist=${(minEndDist * 1000).toFixed(0)}m`);
 
-      // Extract path (handle both directions)
-      const pathStartIdx = Math.min(start.index, end.index);
-      const pathEndIdx = Math.max(start.index, end.index);
-      const pathSegment = geometry.slice(pathStartIdx, pathEndIdx + 1);
+  // Determine direction (which projection is earlier on the line)
+  const startIdx = startProj.segmentIndex;
+  const endIdx = endProj.segmentIndex;
 
-      // Calculate path length
-      let pathLength = 0;
-      for (let i = 0; i < pathSegment.length - 1; i++) {
-        const [lon1, lat1] = pathSegment[i];
-        const [lon2, lat2] = pathSegment[i + 1];
-        pathLength += haversineDistance(lat1, lon1, lat2, lon2);
-      }
+  // Build segment with interpolated start/end points
+  let segment = [];
 
-      // Score = weighted combination:
-      // - Distance from actual start/end points (20% each)
-      // - Path length deviation from straight-line (60%)
-      const pathRatio = pathLength / eventDistance;
-      const score = (start.distance * 0.2) + (end.distance * 0.2) + (Math.abs(pathRatio - 1) * eventDistance * 0.6);
-
-      if (score < bestScore) {
-        bestScore = score;
-        bestPath = pathSegment;
-        minStartDist = start.distance;
-        minEndDist = end.distance;
-        startIdx = pathStartIdx;
-        endIdx = pathEndIdx;
-      }
+  if (startIdx === endIdx) {
+    // Both projections on same segment - use direct interpolation
+    if (startProj.t < endProj.t) {
+      segment = [startProj.point, endProj.point];
+    } else {
+      segment = [endProj.point, startProj.point];
     }
+  } else if (startIdx < endIdx) {
+    // Normal order: start comes before end
+    segment = [
+      startProj.point,
+      ...geometry.slice(startIdx + 1, endIdx + 1),
+      endProj.point
+    ];
+  } else {
+    // Reversed: end comes before start in geometry
+    segment = [
+      endProj.point,
+      ...geometry.slice(endIdx + 1, startIdx + 1),
+      startProj.point
+    ];
   }
 
-  if (!bestPath) {
-    console.log(`   ❌ No valid path found among candidates`);
-    return null;
-  }
+  console.log(`   ✅ Built segment: ${segment.length} points (indices ${Math.min(startIdx, endIdx)}-${Math.max(startIdx, endIdx)})`);
 
-  console.log(`   ✅ Best path: indices ${startIdx}-${endIdx}, ${bestPath.length} points`);
-
-  // Extract segment between the two closest points
-  const segment = bestPath;
+  // Extract segment between the two projected points
 
   // Validation 1: Endpoints must be reasonably close to highway
   // Based on analysis: 100% of Iowa I-80 events are within 500m of actual highway
