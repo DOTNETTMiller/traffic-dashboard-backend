@@ -437,6 +437,46 @@ function getCIFSSeverityColor(severity) {
   return '#10b981';
 }
 
+function getSourceLabel(source) {
+  const sourceMap = {
+    'osrm': '🛣️ OSRM Routing Engine',
+    'interstate': '🏛️ Database Interstate Geometry',
+    'straight': '📏 Straight Line (Fallback)',
+    'unknown': '❓ Unknown Source'
+  };
+  return sourceMap[source] || sourceMap['unknown'];
+}
+
+function getSourceDescription(source) {
+  const descMap = {
+    'osrm': 'High-quality road-snapped geometry from OpenStreetMap routing service. Dense polyline follows actual highway path.',
+    'interstate': 'Pre-loaded Interstate corridor geometry from database. May have lower resolution between points.',
+    'straight': 'Direct line between start and end coordinates. Used when road-snapped geometry unavailable.',
+    'unknown': 'Geometry source not specified by backend.'
+  };
+  return descMap[source] || descMap['unknown'];
+}
+
+function getSourceBackgroundColor(source) {
+  const colorMap = {
+    'osrm': '#d1fae5',
+    'interstate': '#dbeafe',
+    'straight': '#fef3c7',
+    'unknown': '#f3f4f6'
+  };
+  return colorMap[source] || colorMap['unknown'];
+}
+
+function getSourceBorderColor(source) {
+  const colorMap = {
+    'osrm': '#10b981',
+    'interstate': '#3b82f6',
+    'straight': '#f59e0b',
+    'unknown': '#6b7280'
+  };
+  return colorMap[source] || colorMap['unknown'];
+}
+
 /**
  * Geometry Diagnostics View - Shows polyline analysis
  */
@@ -506,19 +546,22 @@ function GeometryDiagnosticsView({ diagnostics }) {
       </div>
 
       {/* Source Info */}
-      {diagnostics.source && diagnostics.source !== 'unknown' && (
-        <div style={{ marginBottom: '12px' }}>
-          <strong>📡 Data Source</strong>
-          <div style={{ marginTop: '4px', padding: '4px 8px', backgroundColor: '#eff6ff', borderLeft: '3px solid #3b82f6', borderRadius: '3px' }}>
-            {diagnostics.source}
-            {diagnostics.corrected && (
-              <div style={{ marginTop: '4px', fontSize: '12px', color: '#1e40af' }}>
-                ✨ Client-side corrected (smoothed/simplified)
-              </div>
-            )}
+      <div style={{ marginBottom: '12px' }}>
+        <strong>📡 Geometry Source</strong>
+        <div style={{ marginTop: '4px', padding: '6px 8px', backgroundColor: getSourceBackgroundColor(diagnostics.source), borderLeft: `3px solid ${getSourceBorderColor(diagnostics.source)}`, borderRadius: '3px' }}>
+          <div style={{ fontWeight: '600', marginBottom: '2px' }}>
+            {getSourceLabel(diagnostics.source)}
           </div>
+          <div style={{ fontSize: '11px', color: '#374151', marginTop: '4px' }}>
+            {getSourceDescription(diagnostics.source)}
+          </div>
+          {diagnostics.corrected && (
+            <div style={{ marginTop: '4px', fontSize: '12px', color: '#1e40af' }}>
+              ✨ Client-side corrected (smoothed/simplified)
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Issues */}
       {hasIssues && (
