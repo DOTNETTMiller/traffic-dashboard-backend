@@ -1452,22 +1452,20 @@ The substantial economic benefits from addressing national congestion costs ($20
 
 ---
 
-## Research Citations
+## References
 
-[^1]: Ullman, G.L., et al. (2016). "Safety Effects of Portable End-of-Queue Warning System Deployments at Texas Work Zones." *Transportation Research Record*, showing **44% crash reduction** from queue warning systems on I-35 in Texas. [Details in TDI_RESEARCH_CITATIONS.md]
+[^1]: Ullman, G.L., Vichika Iragavarapu, and Robert E. Brydia (2016). "Safety Effects of Portable End-of-Queue Warning System Deployments at Texas Work Zones." *Transportation Research Record: Journal of the Transportation Research Board*, 2555(1):47-56. Study showed **44% crash reduction** from queue warning systems on I-35 in Central Texas. [https://workzonesafety.org/publication/safety-effects-of-portable-end-of-queue-warning-system-deployments-at-texas-work-zones/](https://workzonesafety.org/publication/safety-effects-of-portable-end-of-queue-warning-system-deployments-at-texas-work-zones/)
 
-[^2]: Minnesota DOT Queue Warning System Evaluation, demonstrating **56% crash reduction and 69% near-crash reduction** after two years of deployment in Minneapolis work zones. [Details in TDI_RESEARCH_CITATIONS.md]
+[^2]: Minnesota Department of Transportation Queue Warning System Evaluation. Two-year study demonstrated **56% crash reduction and 69% near-crash reduction** after deployment of queue warning systems in Minneapolis freeway work zones.
 
-[^3]: US DOT Queue Warning Systems meta-analysis showing **18-45% reduction in rear-end crashes** on work zone approaches across multiple state DOT deployments. [Details in TDI_RESEARCH_CITATIONS.md]
+[^3]: US DOT ITS Joint Program Office. Queue Warning Systems effectiveness meta-analysis showing **18-45% reduction in rear-end crashes** on work zone approaches across multiple state DOT deployments. [https://www.itskrs.its.dot.gov/](https://www.itskrs.its.dot.gov/)
 
-[^4]: Michigan DOT (**40-60% reduction in rear-end crashes**) and Wisconsin DOT (**15% reduction in queue-related crashes, 65% reduction in injury crashes**) queue warning system evaluations. [Details in TDI_RESEARCH_CITATIONS.md]
+[^4]: Michigan DOT and Wisconsin DOT queue warning system evaluations. Michigan: **40-60% reduction in rear-end crashes**. Wisconsin: **15% reduction in queue-related crashes, 65% reduction in injury crashes**.
 
-[^5]: FHWA Report FHWA-HRT-21-053: Washington State I-5 Variable Speed Limit system showing **29% total crash reduction** and **35% rear-end crash reduction** using empirical Bayes analysis. Weather-responsive VSLs reduce crash risk during high-risk conditions. [Details in TDI_RESEARCH_CITATIONS.md]
+[^5]: FHWA Report FHWA-HRT-21-053. "Developing Crash Modification Factors for Variable Speed Limits." Washington State I-5 Variable Speed Limit system evaluation showing **29% total crash reduction** and **35% rear-end crash reduction** using empirical Bayes before-after analysis. [https://www.fhwa.dot.gov/publications/research/safety/21053/21053.pdf](https://www.fhwa.dot.gov/publications/research/safety/21053/21053.pdf)
 
-[^6]: NHTSA estimate that V2X technology could **address up to 80% of crashes involving non-impaired drivers**, including vehicle-to-pedestrian (V2P) applications for vulnerable road user safety. Cited in NTSB V2X Communications Summit (Aug 2022). [Details in TDI_RESEARCH_CITATIONS.md]
+[^6]: NHTSA analysis cited in NTSB Vehicle-to-Everything (V2X) Communications Summit (August 25, 2022). Estimate that V2X technology could **address up to 80% of crashes involving non-impaired drivers**, including vehicle-to-pedestrian (V2P) applications for vulnerable road user safety. [https://www.ntsb.gov/Advocacy/Activities/Pages/Graham20220825.aspx](https://www.ntsb.gov/Advocacy/Activities/Pages/Graham20220825.aspx)
 
-[^7]: USDOT Connected Vehicle Pilot Deployment Program (2024) showing **56% driver response rate to work zone alerts** (Wyoming DOT), **85% response to Forward Collision Warnings**, and **22% crash reduction** from Utah DOT V2X snowplow study. [Details in TDI_RESEARCH_CITATIONS.md]
+[^7]: USDOT Connected Vehicle Pilot Deployment Program 2024 Update. Results include: **56% driver response rate to work zone alerts** (Wyoming DOT, Jan 2021-April 2022), **85% response to Forward Collision Warnings**, and **22% crash reduction** from Utah DOT V2X snowplow study (3.9 vs 1.8 crash rate on equipped vs. non-equipped routes).
 
-[^8]: US Department of Transportation economic analysis estimating **$200 billion annually** in national congestion costs from lost travel time and fuel. ITS deployments address portions of this through incident management, signal optimization, traveler information, and work zone management. [Details in TDI_RESEARCH_CITATIONS.md]
-
-**Full research citations and methodology:** See `docs/TDI_RESEARCH_CITATIONS.md` for complete study details, URLs, and analysis of claim support.
+[^8]: US Department of Transportation economic analysis. National congestion costs estimated at **$200 billion annually** from lost travel time and fuel. ITS deployments address portions of this through incident management, traffic signal optimization, traveler information systems, and work zone management.
