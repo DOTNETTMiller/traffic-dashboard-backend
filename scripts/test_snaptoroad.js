@@ -5,7 +5,7 @@
 // Simulating the exact snapToRoad logic from backend_proxy_server.js
 const { Pool } = require('pg');
 
-const DATABASE_URL = process.env.DATABASE_URL || "postgres://postgres:FE11Bg4EgEfdD4E46CD3c2CdAF1E5DDC@tramway.proxy.rlwy.net:14217/railway";
+const DATABASE_URL = process.env.DATABASE_URL || "postgres://postgres:REDACTED_PASSWORD@tramway.proxy.rlwy.net:14217/railway";
 const pgPool = new Pool({ connectionString: DATABASE_URL });
 
 // Haversine distance formula

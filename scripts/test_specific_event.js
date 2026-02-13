@@ -8,7 +8,7 @@
 
 const { Pool } = require('pg');
 
-const DATABASE_URL = process.env.DATABASE_URL || "postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@nozomi.proxy.rlwy.net:48537/railway";
+const DATABASE_URL = process.env.DATABASE_URL || "postgresql://postgres:REDACTED_PASSWORD@nozomi.proxy.rlwy.net:48537/railway";
 
 function haversineDistance(lat1, lng1, lat2, lng2) {
   const R = 6371;

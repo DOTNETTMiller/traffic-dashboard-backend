@@ -68,3 +68,8 @@ uploads/ifc/
 # Scripts with hardcoded database URLs
 scripts/migrate_to_postgis.js
 scripts/sync_to_postgis.js
+
+# Security audit and remediation files
+SECURITY_BREACH_REMEDIATION.md
+SECURITY_AUDIT_RESULTS.md
+check_db_production.js

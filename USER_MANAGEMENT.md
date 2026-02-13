@@ -3,7 +3,7 @@
 ## Your Login Credentials
 
 **Email/Username:** `matthew.miller@iowadot.us`
-**Password:** `Bim4infra`
+**Password:** [Contact system administrator for credentials]
 
 ## System Changes
 

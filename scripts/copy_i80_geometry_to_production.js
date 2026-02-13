@@ -7,8 +7,8 @@
 
 const { Pool } = require('pg');
 
-const OLD_DB = "postgres://postgres:FE11Bg4EgEfdD4E46CD3c2CdAF1E5DDC@tramway.proxy.rlwy.net:14217/railway";
-const PROD_DB = "postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@nozomi.proxy.rlwy.net:48537/railway";
+const OLD_DB = "postgres://postgres:REDACTED_PASSWORD@tramway.proxy.rlwy.net:14217/railway";
+const PROD_DB = "postgresql://postgres:REDACTED_PASSWORD@nozomi.proxy.rlwy.net:48537/railway";
 
 async function main() {
   console.log('📦 Copying I-80 WB/EB Geometry to Production\n');

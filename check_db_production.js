@@ -18,8 +18,8 @@ try {
   users.forEach(u => console.log(`  ${u.id}: ${u.username} (${u.email}) - Active: ${u.active}`));
   
   // Test login query
-  const testUser = 'matthew.miller@iowadot.us';
-  const testPass = 'Bim4infra';
+  const testUser = process.env.TEST_USER || 'matthew.miller@iowadot.us';
+  const testPass = process.env.TEST_PASSWORD || 'test-password';
   const hash = crypto.createHash('sha256').update(testPass).digest('hex');
   
   console.log(`\nTesting query for ${testUser}...`);

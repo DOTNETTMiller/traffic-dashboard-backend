@@ -12305,7 +12305,7 @@ app.get('/api/data-quality/corridors/test', async (req, res) => {
 
   try {
     const connectionString = process.env.DATABASE_URL ||
-      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+      'postgresql://postgres:REDACTED_PASSWORD@postgres-246e.railway.internal:5432/railway';
 
     const client = new Client({
       connectionString: connectionString,
@@ -12337,7 +12337,7 @@ app.get('/api/data-quality/corridors', async (req, res) => {
 
   try {
     const connectionString = process.env.DATABASE_URL ||
-      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+      'postgresql://postgres:REDACTED_PASSWORD@postgres-246e.railway.internal:5432/railway';
 
     const client = new Client({
       connectionString: connectionString,
@@ -12418,7 +12418,7 @@ app.post('/api/data-quality/populate-geometries', async (req, res) => {
 
   try {
     const connectionString = process.env.DATABASE_URL ||
-      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+      'postgresql://postgres:REDACTED_PASSWORD@postgres-246e.railway.internal:5432/railway';
 
     const client = new Client({
       connectionString: connectionString,
@@ -12690,7 +12690,7 @@ app.post('/api/data-quality/cron/update-corridor-geometry', async (req, res) => 
 
   try {
     const connectionString = process.env.DATABASE_URL ||
-      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+      'postgresql://postgres:REDACTED_PASSWORD@postgres-246e.railway.internal:5432/railway';
 
     const client = new Client({
       connectionString: connectionString,
@@ -12895,7 +12895,7 @@ app.get('/api/data-quality/check-geometries', async (req, res) => {
 
   try {
     const connectionString = process.env.DATABASE_URL ||
-      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+      'postgresql://postgres:REDACTED_PASSWORD@postgres-246e.railway.internal:5432/railway';
 
     const client = new Client({
       connectionString: connectionString,
@@ -12957,7 +12957,7 @@ app.get('/api/data-quality/gap-analysis', async (req, res) => {
     const { provider, minDQI, maxDQI } = req.query;
 
     const connectionString = process.env.DATABASE_URL ||
-      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+      'postgresql://postgres:REDACTED_PASSWORD@postgres-246e.railway.internal:5432/railway';
 
     const client = new Client({
       connectionString: connectionString,
@@ -13089,7 +13089,7 @@ app.get('/api/data-quality/coverage-gaps', async (req, res) => {
 
   try {
     const connectionString = process.env.DATABASE_URL ||
-      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+      'postgresql://postgres:REDACTED_PASSWORD@postgres-246e.railway.internal:5432/railway';
 
     const client = new Client({
       connectionString: connectionString,
@@ -13316,7 +13316,7 @@ app.get('/api/data-quality/leaderboard', async (req, res) => {
   try {
     const { Client } = require('pg');
     const connectionString = process.env.DATABASE_URL ||
-      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+      'postgresql://postgres:REDACTED_PASSWORD@postgres-246e.railway.internal:5432/railway';
 
     const client = new Client({
       connectionString: connectionString,
@@ -13457,7 +13457,7 @@ app.get('/api/data-quality/state-rankings', async (req, res) => {
   try {
     const { Client } = require('pg');
     const connectionString = process.env.DATABASE_URL ||
-      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+      'postgresql://postgres:REDACTED_PASSWORD@postgres-246e.railway.internal:5432/railway';
 
     const client = new Client({
       connectionString: connectionString,
@@ -15550,7 +15550,7 @@ app.post('/api/data-quality/migrate', async (req, res) => {
 
     // Check if DATABASE_URL is configured, or try fallback connection string
     const connectionString = process.env.DATABASE_URL ||
-      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+      'postgresql://postgres:REDACTED_PASSWORD@postgres-246e.railway.internal:5432/railway';
 
     if (!process.env.DATABASE_URL) {
       console.warn('⚠️  DATABASE_URL not set, using hardcoded fallback connection');
@@ -15712,7 +15712,7 @@ app.get('/api/data-quality/summary', async (req, res) => {
 
   try {
     const connectionString = process.env.DATABASE_URL ||
-      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+      'postgresql://postgres:REDACTED_PASSWORD@postgres-246e.railway.internal:5432/railway';
 
     const client = new Client({
       connectionString: connectionString,
@@ -16292,7 +16292,7 @@ app.post('/api/admin/fix-tetc-urls', async (req, res) => {
     const results = [];
 
     const connectionString = process.env.DATABASE_URL ||
-      'postgresql://postgres:SqymvRjWoiitTNUpEyHZoJOKRPcVHusW@postgres-246e.railway.internal:5432/railway';
+      'postgresql://postgres:REDACTED_PASSWORD@postgres-246e.railway.internal:5432/railway';
 
     const client = new Client({
       connectionString: connectionString,
