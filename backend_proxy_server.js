@@ -18471,31 +18471,32 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
     console.log(`   ✅ Parsed ${extractionResult.statistics.total_entities} IFC entities`);
     console.log(`   ✅ Extracted ${extractionResult.elements.length} infrastructure elements`);
 
-    // Move uploaded file to persistent storage so IFC viewer can access it later
+    // Read file data for database storage (instead of filesystem)
     const fs = require('fs');
-    const uploadsDir = path.join(__dirname, 'uploads', 'ifc_models');
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
+    const fileBuffer = fs.readFileSync(tempFilePath);
+
+    // Store file path for backwards compatibility (but file won't persist on Railway)
     const safeName = `${Date.now()}-${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-    storedFilePath = path.join(uploadsDir, safeName);
-    fs.renameSync(tempFilePath, storedFilePath);
+    storedFilePath = path.join('uploads', 'ifc_models', safeName);
+
+    // Clean up temp file
+    fs.unlinkSync(tempFilePath);
 
     // Generate gap analysis
     const gaps = parser.identifyGaps(extractionResult.elements);
     console.log(`   ✅ Identified ${gaps.length} data gaps for ITS operations`);
 
-    // Store in database
+    // Store in database (including file_data BYTEA column)
     const modelInsert = db.isPostgres
       ? `INSERT INTO ifc_models (filename, file_path, file_size, ifc_schema, project_name, uploaded_by,
          state_key, latitude, longitude, route, milepost, extraction_status,
-         extraction_log, total_elements, metadata)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+         extraction_log, total_elements, metadata, file_data)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          RETURNING id`
       : `INSERT INTO ifc_models (filename, file_path, file_size, ifc_schema, project_name, uploaded_by,
          state_key, latitude, longitude, route, milepost, extraction_status,
-         extraction_log, total_elements, metadata)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+         extraction_log, total_elements, metadata, file_data)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const metadata = JSON.stringify({
       entity_types: extractionResult.statistics.by_type,
@@ -18520,7 +18521,8 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
         'completed',
         JSON.stringify(extractionResult.extractionLog),
         extractionResult.elements.length,
-        metadata
+        metadata,
+        fileBuffer  // Store file data in database
       ]);
       modelId = result.rows[0].id;
     } else {
@@ -18540,7 +18542,8 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
         'completed',
         JSON.stringify(extractionResult.extractionLog),
         extractionResult.elements.length,
-        metadata
+        metadata,
+        fileBuffer  // Store file data in database
       );
       modelId = result.lastInsertRowid;
     }
@@ -18852,14 +18855,25 @@ app.get('/api/digital-infrastructure/models/:modelId/file', async (req, res) => 
       return res.status(404).json({ success: false, error: 'Model not found in database' });
     }
 
-    // Try multiple possible file paths (local dev vs production)
+    // Check if file_data exists in database (new method)
+    if (model.file_data) {
+      // Serve file from database BYTEA
+      console.log(`✅ Serving IFC file from database for model ${modelId}: ${model.filename}`);
+      res.setHeader('Content-Type', 'application/x-step');
+      res.setHeader('Content-Disposition', `inline; filename="${model.filename}"`);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Content-Length', model.file_data.length);
+      return res.send(model.file_data);
+    }
+
+    // Fallback: Try to find file on filesystem (for backward compatibility with old uploads)
     const fs = require('fs');
     let filePath = null;
     const possiblePaths = [
-      model.file_path, // Original path from database
-      path.join(__dirname, 'uploads', 'ifc_models', path.basename(model.file_path)), // Relative path 1
-      path.join(__dirname, 'uploads', 'ifc', path.basename(model.file_path)), // Relative path 2
-      path.join(__dirname, 'uploads', path.basename(model.file_path)) // Relative path 3
+      model.file_path,
+      path.join(__dirname, 'uploads', 'ifc_models', path.basename(model.file_path)),
+      path.join(__dirname, 'uploads', 'ifc', path.basename(model.file_path)),
+      path.join(__dirname, 'uploads', path.basename(model.file_path))
     ];
 
     for (const testPath of possiblePaths) {
@@ -18870,16 +18884,17 @@ app.get('/api/digital-infrastructure/models/:modelId/file', async (req, res) => 
     }
 
     if (!filePath) {
-      console.error(`❌ IFC file not found for model ${modelId}. Tried paths:`, possiblePaths);
+      console.error(`❌ IFC file not found for model ${modelId}. No file_data in database and file not on filesystem.`);
       return res.status(404).json({
         success: false,
-        error: 'IFC file not found on server. File may need to be re-uploaded.',
+        error: 'IFC file not found. The file needs to be re-uploaded.',
         filename: model.filename,
-        hint: 'The file exists in the database but the actual .ifc file is missing from the server.'
+        hint: 'Files uploaded before database storage migration must be re-uploaded through the UI.'
       });
     }
 
-    // Serve the file
+    // Serve from filesystem (legacy)
+    console.log(`⚠️  Serving legacy IFC file from filesystem for model ${modelId}`);
     res.setHeader('Content-Type', 'application/x-step');
     res.setHeader('Content-Disposition', `inline; filename="${model.filename}"`);
     res.setHeader('Access-Control-Allow-Origin', '*');
