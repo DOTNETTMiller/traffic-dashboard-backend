@@ -557,6 +557,12 @@ const API_CONFIG = {
     format: 'wzdx',
     corridor: 'I-80'
   },
+  oklahoma: {
+    name: 'Oklahoma',
+    eventsUrl: 'https://oktraffic.org/api/Geojsons/workzones?&access_token=feOPynfHRJ5sdx8tf3IN5yOsGz89TAUuzHsN3V0jo1Fg41LcpoLhIRltaTPmDngD',
+    format: 'wzdx',
+    corridor: 'I-35'
+  },
   iowa: {
     name: 'Iowa',
     eventsUrl: 'https://ia.carsprogram.org/hub/data/feu-g.xml',
