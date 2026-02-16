@@ -1,51 +1,55 @@
+/**
+ * Test Database Connection
+ */
+
 const { Pool } = require('pg');
 
+const DATABASE_URL = process.env.DATABASE_URL;
+
+if (!DATABASE_URL) {
+  console.error('ERROR: DATABASE_URL environment variable is not set');
+  process.exit(1);
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
+  connectionString: DATABASE_URL,
+  ssl: DATABASE_URL.includes('railway') ? { rejectUnauthorized: false } : false
 });
 
 async function testConnection() {
+  console.log('Testing database connection...');
+
   try {
-    console.log('Testing database connection...');
-    console.log('DATABASE_URL set:', !!process.env.DATABASE_URL);
+    const result = await pool.query('SELECT NOW() as current_time, current_database() as database');
+    console.log('SUCCESS: Connected to database');
+    console.log('  Database:', result.rows[0].database);
 
-    // Test simple query
-    const result = await pool.query('SELECT NOW()');
-    console.log('✓ Connection successful');
-    console.log('Server time:', result.rows[0].now);
+    const tableCheck = await pool.query("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'corridors') as table_exists");
 
-    // Check if table exists
-    const tableCheck = await pool.query(`
-      SELECT column_name, data_type
-      FROM information_schema.columns
-      WHERE table_name = 'corridor_service_quality_latest'
-      ORDER BY ordinal_position
-    `);
+    if (tableCheck.rows[0].table_exists) {
+      console.log('SUCCESS: corridors table exists');
 
-    console.log('\n✓ Table columns:');
-    tableCheck.rows.forEach(row => {
-      console.log(`  - ${row.column_name} (${row.data_type})`);
-    });
+      const dataCheck = await pool.query("SELECT name, CASE WHEN geometry IS NOT NULL THEN jsonb_array_length(geometry->'coordinates') ELSE 0 END as point_count FROM corridors WHERE name LIKE 'I-80%' OR name LIKE 'I-35%' ORDER BY name");
 
-    // Check current data
-    const dataCheck = await pool.query(`
-      SELECT corridor_id,
-             geometry IS NULL as geo_null,
-             bounds IS NULL as bounds_null,
-             pg_typeof(geometry) as geo_type,
-             pg_typeof(bounds) as bounds_type
-      FROM corridor_service_quality_latest
-      LIMIT 3
-    `);
+      if (dataCheck.rows.length > 0) {
+        console.log('\nExisting Interstate data:');
+        dataCheck.rows.forEach(row => {
+          console.log('  ' + row.name + ': ' + row.point_count + ' points');
+        });
+      } else {
+        console.log('\nNo existing I-80 or I-35 data found');
+      }
 
-    console.log('\n✓ Current corridor data:');
-    dataCheck.rows.forEach(row => {
-      console.log(`  - ${row.corridor_id}: geometry=${row.geo_null ? 'NULL' : 'has data'} (type: ${row.geo_type}), bounds=${row.bounds_null ? 'NULL' : 'has data'} (type: ${row.bounds_type})`);
-    });
+    } else {
+      console.error('ERROR: corridors table does not exist');
+      process.exit(1);
+    }
+
+    console.log('\nREADY: You can now run build_interstate_polylines.js');
 
   } catch (error) {
-    console.error('❌ Error:', error.message);
-    console.error('Stack:', error.stack);
+    console.error('ERROR:', error.message);
+    process.exit(1);
   } finally {
     await pool.end();
   }
