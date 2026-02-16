@@ -1110,6 +1110,11 @@ async function loadInterstatePolylines() {
 // Snap 2-point event geometry to Interstate polyline (I-80, I-35 only)
 // Returns curved geometry by extracting polyline segment between start and end points
 function snapToInterstatePolyline(lat1, lng1, lat2, lng2, corridor, direction) {
+  // TEMPORARY: Disable Interstate snapping due to bidirectional carriageway issues
+  // The polylines contain points from both EB/WB lanes mixed together,
+  // causing zigzag geometry. Need to rebuild polylines with single-direction data.
+  return null;
+
   // Only snap I-80 and I-35
   if (!corridor || (!corridor.match(/I-?80/) && !corridor.match(/I-?35/))) {
     return null;
