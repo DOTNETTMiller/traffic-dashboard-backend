@@ -1067,6 +1067,96 @@ async function getInterstateGeometry(corridor, state, lat1, lng1, lat2, lng2, di
   }
 }
 
+// Load Interstate polylines (I-80, I-35) from database into memory cache at startup
+async function loadInterstatePolylines() {
+  if (!pgPool) {
+    console.log('⚠️  PostgreSQL not available - skipping Interstate polyline loading');
+    return;
+  }
+
+  try {
+    console.log('\n🛣️  Loading Interstate polylines from database...');
+
+    const corridorIds = ['i-80-eb', 'i-80-wb', 'i-35-nb', 'i-35-sb'];
+    let loadedCount = 0;
+
+    for (const corridorId of corridorIds) {
+      const result = await pgPool.query(
+        'SELECT id, name, geometry FROM corridors WHERE id = $1',
+        [corridorId]
+      );
+
+      if (result.rows.length > 0 && result.rows[0].geometry) {
+        const geom = result.rows[0].geometry;
+        if (geom.type === 'LineString' && geom.coordinates && geom.coordinates.length > 0) {
+          interstatePolylinesCache[corridorId] = geom.coordinates;
+          loadedCount++;
+          console.log(`   ✅ Loaded ${corridorId}: ${geom.coordinates.length.toLocaleString()} points`);
+        } else {
+          console.log(`   ⚠️  ${corridorId}: Invalid geometry format`);
+        }
+      } else {
+        console.log(`   ⚠️  ${corridorId}: Not found in database`);
+      }
+    }
+
+    console.log(`✅ Interstate polylines loaded: ${loadedCount}/${corridorIds.length} corridors\n`);
+  } catch (error) {
+    console.error('❌ Error loading Interstate polylines:', error.message);
+    console.error('   Events will fall back to OSRM routing or straight lines');
+  }
+}
+
+// Snap 2-point event geometry to Interstate polyline (I-80, I-35 only)
+// Returns curved geometry by extracting polyline segment between start and end points
+function snapToInterstatePolyline(lat1, lng1, lat2, lng2, corridor, direction) {
+  // Only snap I-80 and I-35
+  if (!corridor || (!corridor.match(/I-?80/) && !corridor.match(/I-?35/))) {
+    return null;
+  }
+
+  // Map corridor and direction to polyline ID
+  let polylineId = null;
+
+  if (corridor.match(/I-?80/)) {
+    if (direction && direction.toLowerCase().includes('east')) {
+      polylineId = 'i-80-eb';
+    } else if (direction && direction.toLowerCase().includes('west')) {
+      polylineId = 'i-80-wb';
+    }
+  } else if (corridor.match(/I-?35/)) {
+    if (direction && direction.toLowerCase().includes('north')) {
+      polylineId = 'i-35-nb';
+    } else if (direction && direction.toLowerCase().includes('south')) {
+      polylineId = 'i-35-sb';
+    }
+  }
+
+  if (!polylineId) {
+    console.log(`   ⚠️  No direction match for ${corridor} ${direction || '(no direction)'} - cannot snap to Interstate`);
+    return null;
+  }
+
+  const polyline = interstatePolylinesCache[polylineId];
+  if (!polyline || polyline.length < 2) {
+    console.log(`   ⚠️  Interstate polyline not loaded: ${polylineId}`);
+    return null;
+  }
+
+  console.log(`   🛣️  Snapping to Interstate polyline: ${polylineId} (${polyline.length.toLocaleString()} points)`);
+
+  // Use existing extractSegment function to get polyline segment
+  const segment = extractSegment(polyline, lat1, lng1, lat2, lng2);
+
+  if (!segment || segment.length < 2) {
+    console.log(`   ⚠️  Failed to extract segment from ${polylineId}`);
+    return null;
+  }
+
+  console.log(`   ✅ Extracted ${segment.length} points from Interstate polyline`);
+  return segment;
+}
+
 // Haversine distance formula (in kilometers)
 function haversineDistance(lat1, lng1, lat2, lng2) {
   const R = 6371; // Earth's radius in kilometers
@@ -1399,10 +1489,31 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
       return { coordinates: osrmCoordinates, geometrySource: 'osrm' };
     } else {
       console.log(`⚠️  OSRM returned straight line (${osrmCoordinates.length} points) - likely routing failed`);
+
+      // Before returning straight line, try Interstate snapping for I-80 and I-35
+      if (corridor && (corridor.match(/I-?80/) || corridor.match(/I-?35/))) {
+        console.log(`   🔍 Trying Interstate polyline snapping for ${corridor}...`);
+        const interstateSegment = snapToInterstatePolyline(lat1, lng1, lat2, lng2, corridor, direction);
+        if (interstateSegment && interstateSegment.length > 2) {
+          return { coordinates: interstateSegment, geometrySource: 'interstate_polyline' };
+        }
+      }
+
       return { coordinates: osrmCoordinates, geometrySource: 'straight_line' };
     }
   } catch (osrmError) {
     console.error(`❌ OSRM fetch failed:`, osrmError.message);
+
+    // Before final fallback, try Interstate snapping for I-80 and I-35
+    if (corridor && (corridor.match(/I-?80/) || corridor.match(/I-?35/))) {
+      console.log(`   🔍 Trying Interstate polyline snapping for ${corridor}...`);
+      const interstateSegment = snapToInterstatePolyline(lat1, lng1, lat2, lng2, corridor, direction);
+      if (interstateSegment && interstateSegment.length > 2) {
+        console.log(`   ✅ Using Interstate geometry instead of straight line`);
+        return { coordinates: interstateSegment, geometrySource: 'interstate_polyline' };
+      }
+    }
+
     // Final fallback to straight line
     console.log(`⚠️  Returning straight line fallback for ${lat1},${lng1} -> ${lat2},${lng2}`);
     const straightLine = [[lng1, lat1], [lng2, lat2]];
@@ -3492,6 +3603,10 @@ let eventsCache = {
   refreshAfter: 45000, // 45 seconds (trigger background refresh after this)
   isRefreshing: false
 };
+
+// Cache for Interstate polylines (I-80, I-35) loaded at startup
+// Structure: { 'i-80-eb': [...coords], 'i-80-wb': [...coords], 'i-35-nb': [...coords], 'i-35-sb': [...coords] }
+let interstatePolylinesCache = {};
 
 // Function to fetch and cache events (used by endpoint and background refresh)
 async function fetchAndCacheEvents() {
@@ -27551,6 +27666,9 @@ function startServer() {
 
   const allStates = await db.getAllStates();
   console.log(`\n🌐 Connected to ${allStates.length} state DOT APIs`);
+
+  // Load Interstate polylines (I-80, I-35) into memory cache
+  await loadInterstatePolylines();
 
   // Run parking data migration on startup
   try {
