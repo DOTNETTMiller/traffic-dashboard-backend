@@ -739,6 +739,26 @@ export default function DataQualityReport() {
                     </div>
                   )}
                 </div>
+                {state.overallScore.breakdown.cwz && (
+                  <div style={{
+                    padding: '12px',
+                    backgroundColor: 'white',
+                    borderRadius: '8px',
+                    border: '2px solid #8b5cf6',
+                    textAlign: 'center',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                  }}>
+                    <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px', fontWeight: '600' }}>CWZ</div>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#8b5cf6', lineHeight: 1 }}>
+                      {state.overallScore.breakdown.cwz.percentage}%
+                    </div>
+                    {state.overallScore.breakdown.cwz.severityBreakdown && (
+                      <div style={{ fontSize: '10px', color: '#4b5563', marginTop: '4px' }}>
+                        Critical cover: {Math.round((state.overallScore.breakdown.cwz.severityBreakdown.critical || 0) * 100)}%
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               /* Fallback for states without breakdown - show data quality */
@@ -919,7 +939,7 @@ export default function DataQualityReport() {
                       {stateGuide.overallScore.breakdown && (
                         <div style={{
                           display: 'grid',
-                          gridTemplateColumns: 'repeat(3, 1fr)',
+                          gridTemplateColumns: 'repeat(4, 1fr)',
                           gap: '12px',
                           marginTop: '16px',
                           paddingTop: '16px',
@@ -964,6 +984,21 @@ export default function DataQualityReport() {
                             </div>
                           {renderSeverityBreakdown(stateGuide.overallScore.breakdown.tmdd.severityBreakdown)}
                         </div>
+                        {stateGuide.overallScore.breakdown.cwz && (
+                          <div style={{
+                            padding: '12px',
+                            backgroundColor: 'white',
+                            borderRadius: '8px',
+                            border: '2px solid #8b5cf6',
+                            textAlign: 'center'
+                          }}>
+                            <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>CWZ</div>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#8b5cf6' }}>
+                              {stateGuide.overallScore.breakdown.cwz.percentage}%
+                            </div>
+                            {renderSeverityBreakdown(stateGuide.overallScore.breakdown.cwz.severityBreakdown)}
+                          </div>
+                        )}
                       </div>
                       )}
                     </div>
@@ -1070,11 +1105,19 @@ export default function DataQualityReport() {
                           'Center-to-Center',
                           stateGuide.multiStandardCompliance.tmdd?.enhanced
                         )}
+
+                        {stateGuide.multiStandardCompliance.cwz && renderStandardCard(
+                          stateGuide.multiStandardCompliance.cwz,
+                          'CWZ v1.0',
+                          'Connected Work Zone',
+                          stateGuide.multiStandardCompliance.cwz?.enhanced
+                        )}
                       </div>
 
                       {renderFieldCoverageTable(stateGuide.multiStandardCompliance.wzdx?.fieldCoverage, 'WZDx v4.x')}
                       {renderFieldCoverageTable(stateGuide.multiStandardCompliance.sae?.fieldCoverage, 'SAE J2735')}
                       {renderFieldCoverageTable(stateGuide.multiStandardCompliance.tmdd?.fieldCoverage, 'TMDD v3.1 / ngTMDD')}
+                      {renderFieldCoverageTable(stateGuide.multiStandardCompliance.cwz?.fieldCoverage, 'ITE CWZ v1.0')}
 
                       {/* Cross-Standard Recommendations */}
                       {stateGuide.multiStandardCompliance.crossStandardRecommendations && stateGuide.multiStandardCompliance.crossStandardRecommendations.length > 0 && (

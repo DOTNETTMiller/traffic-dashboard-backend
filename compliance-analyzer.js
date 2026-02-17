@@ -63,6 +63,32 @@ const STANDARD_REQUIREMENTS = {
       { field: 'detourRoute', description: 'Structured detour routing', benefit: 'Improves C2C coordination' },
       { field: 'contact', description: 'Incident command contact', benefit: 'Supports center-to-center escalation' }
     ]
+  },
+  CWZ_v1: {
+    label: 'ITE Connected Work Zone Standard v1.0',
+    reference: 'https://www.ite.org/technical-resources/standards/cwz/',
+    requiredFields: [
+      // WZDx v4.1 base fields (CWZ inherits from WZDx 4.1) — critical
+      { field: 'id', specField: 'WorkZoneRoadEvent.id', description: 'Unique work zone event identifier', severity: 'critical' },
+      { field: 'eventType', specField: 'coreDetails.event_type', description: 'CWZ event classification (work-zone or closure)', severity: 'critical', enum: ['work-zone', 'work zone', 'closure', 'construction', 'maintenance'] },
+      { field: 'startTime', fallbackFields: ['startDate', 'start_date', 'start_time', 'created_at', 'event-update-time', 'eventUpdateTime'], specField: 'coreDetails.start_date', description: 'Work zone start time (ISO 8601)', severity: 'critical', format: 'ISO8601' },
+      { field: 'coordinates', specField: 'geometry.coordinates', description: 'Geospatial location of work zone', severity: 'critical', validator: 'coordinates' },
+      // CWZ-specific required fields (§5.4.2.1) — high
+      { field: 'workerPresence', fallbackFields: ['worker_presence'], specField: 'WorkZoneRoadEvent.worker_presence', description: 'Worker presence status in work zone (§5.4.2.1.16)', severity: 'high' },
+      { field: 'restrictions', specField: 'WorkZoneRoadEvent.restrictions', description: 'Vehicle height/weight restrictions in work zone (§5.4.2.1.18)', severity: 'high' },
+      { field: 'typesOfWork', fallbackFields: ['types_of_work', 'workType'], specField: 'WorkZoneRoadEvent.types_of_work', description: 'Type of work being performed (§5.4.2.1.19)', severity: 'high' },
+      { field: 'lanesAffected', fallbackFields: ['lanesClosed'], specField: 'WorkZoneRoadEvent.lanes', description: 'Lane impact details — required for CV messaging (§5.4.2.1.20)', severity: 'high' },
+      { field: 'direction', specField: 'coreDetails.direction', description: 'Direction of travel affected', severity: 'high', enum: ['northbound','southbound','eastbound','westbound','both','unknown','n','s','e','w','nb','sb','eb','wb'] },
+      { field: 'corridor', fallbackFields: ['location'], specField: 'coreDetails.road_names', description: 'Roadway name/number (for V2X broadcast targeting)', severity: 'high', minLength: 3 },
+      // Medium — reduced speed limit and description
+      { field: 'reducedSpeedLimit', fallbackFields: ['speedLimit', 'speed_limit'], specField: 'WorkZoneRoadEvent.reduced_speed_limit_kph', description: 'Posted reduced speed limit in work zone kph (§5.4.2.1.17)', severity: 'medium' },
+      { field: 'description', specField: 'coreDetails.description', description: 'Human-readable work zone description', severity: 'medium', minLength: 10 },
+      { field: 'endTime', fallbackFields: ['endDate'], specField: 'coreDetails.end_date', description: 'Estimated end time', severity: 'medium', format: 'ISO8601', optional: true }
+    ],
+    optionalEnhancements: [
+      { field: 'impactedCdsCurbZones', description: 'Impacted curb zones (§5.4.2.1.21)', benefit: 'Supports multimodal CWZ data for micro-mobility and freight' },
+      { field: 'geometry', description: 'Full GeoJSON LineString geometry', benefit: 'Required for SAE J2945/4 V2X broadcast path (Table 8)' }
+    ]
   }
 };
 
@@ -742,9 +768,10 @@ class ComplianceAnalyzer {
     const wzdxScore = this.analyzeWZDxCompliance(events);
     const saeScore = this.analyzeSAEJ2735Compliance(events);
     const tmddScore = this.analyzeTMDDCompliance(events);
+    const cwzScore = this.analyzeCWZCompliance(events);
 
     // Calculate overall composite score
-    const overallScore = this.calculateCompositeScore(wzdxScore, saeScore, tmddScore);
+    const overallScore = this.calculateCompositeScore(wzdxScore, saeScore, tmddScore, cwzScore);
 
     // Generate action plan
     const actionPlan = this.generateActionPlan(fieldAnalysis, events);
@@ -754,7 +781,7 @@ class ComplianceAnalyzer {
 
     // Multi-standard compliance
     const multiStandardCompliance = this.analyzeMultiStandardCompliance(
-      wzdxScore, saeScore, tmddScore, events
+      wzdxScore, saeScore, tmddScore, events, cwzScore
     );
 
     return {
@@ -916,23 +943,74 @@ class ComplianceAnalyzer {
     };
   }
 
+  // Analyze ITE Connected Work Zone (CWZ) Standard v1.0 compliance
+  analyzeCWZCompliance(events) {
+    const spec = STANDARD_REQUIREMENTS.CWZ_v1;
+
+    // Compute normalized compliance (default behavior)
+    const normalizedEval = computeStandardCompliance(events, spec, false);
+    let normalizedPercentage = Math.round(normalizedEval.weightedScore * 100);
+    let normalizedGrade = this.getLetterGrade(normalizedPercentage);
+    const normalizedStatus = deriveStatus(normalizedPercentage, normalizedEval.severityRatios.critical, {
+      compliant: 'CWZ Ready',
+      partial: 'Partial CWZ Support',
+      non: 'Not CWZ Ready'
+    });
+
+    // Compute raw compliance (based on original feed data)
+    const rawEval = computeStandardCompliance(events, spec, true);
+    let rawPercentage = Math.round(rawEval.weightedScore * 100);
+    let rawGrade = this.getLetterGrade(rawPercentage);
+    const rawStatus = deriveStatus(rawPercentage, rawEval.severityRatios.critical, {
+      compliant: 'CWZ Ready',
+      partial: 'Partial CWZ Support',
+      non: 'Not CWZ Ready'
+    });
+
+    return {
+      // Primary scores (RAW - what feed actually provides)
+      percentage: rawPercentage,
+      grade: rawGrade,
+      status: rawStatus,
+      severityBreakdown: rawEval.severityRatios,
+      fieldCoverage: rawEval.fieldCoverage,
+      violations: rawEval.violations.slice(0, 15),
+      optionalRecommendations: [
+        ...rawEval.optionalMissing,
+        ...(spec.optionalEnhancements || [])
+      ].slice(0, 10),
+      // Enhanced scores (with normalization/inference)
+      enhanced: {
+        percentage: normalizedPercentage,
+        grade: normalizedGrade,
+        status: normalizedStatus,
+        severityBreakdown: normalizedEval.severityRatios,
+        fieldCoverage: normalizedEval.fieldCoverage
+      }
+    };
+  }
+
   // Calculate composite score across all standards
-  calculateCompositeScore(wzdx, sae, tmdd) {
-    // Weighted average: WZDx 40%, SAE 35%, TMDD 25%
+  calculateCompositeScore(wzdx, sae, tmdd, cwz) {
+    // Weighted average: WZDx 35%, SAE 30%, TMDD 20%, CWZ 15%
     // Primary scores are now RAW (actual feed data)
+    const cwzPct = cwz ? cwz.percentage : 0;
     const percentage = Math.round(
-      (wzdx.percentage * 0.4) +
-      (sae.percentage * 0.35) +
-      (tmdd.percentage * 0.25)
+      (wzdx.percentage * 0.35) +
+      (sae.percentage * 0.30) +
+      (tmdd.percentage * 0.20) +
+      (cwzPct * 0.15)
     );
 
     const grade = this.getLetterGrade(percentage);
 
     // Calculate enhanced composite score (with normalization)
+    const cwzEnhancedPct = cwz ? cwz.enhanced.percentage : 0;
     const enhancedPercentage = Math.round(
-      (wzdx.enhanced.percentage * 0.4) +
-      (sae.enhanced.percentage * 0.35) +
-      (tmdd.enhanced.percentage * 0.25)
+      (wzdx.enhanced.percentage * 0.35) +
+      (sae.enhanced.percentage * 0.30) +
+      (tmdd.enhanced.percentage * 0.20) +
+      (cwzEnhancedPct * 0.15)
     );
 
     const enhancedGrade = this.getLetterGrade(enhancedPercentage);
@@ -1213,37 +1291,54 @@ class ComplianceAnalyzer {
   }
 
   // Analyze multi-standard compliance
-  analyzeMultiStandardCompliance(wzdx, sae, tmdd, events) {
+  analyzeMultiStandardCompliance(wzdx, sae, tmdd, events, cwz) {
     const crossStandardRecommendations = [];
 
     // Find cross-standard improvement opportunities
-    if (wzdx.percentage < 90 || sae.percentage < 90 || tmdd.percentage < 90) {
+    if (wzdx.percentage < 90 || sae.percentage < 90 || tmdd.percentage < 90 || (cwz && cwz.percentage < 90)) {
       const missingCoords = events.filter(e => !e.coordinates).length;
       if (missingCoords > 0) {
         crossStandardRecommendations.push({
           issue: 'Missing Coordinates',
           currentCoverage: `${Math.round((events.length - missingCoords) / events.length * 100)}%`,
           recommendation: 'Add latitude/longitude coordinates to all events',
-          benefitsStandards: ['WZDx', 'SAE J2735', 'TMDD'],
+          benefitsStandards: ['WZDx', 'SAE J2735', 'TMDD', 'CWZ'],
           priority: 'CRITICAL',
           pointsGained: {
             wzdx: 15,
             sae: 20,
-            tmdd: 15
+            tmdd: 15,
+            cwz: 15
           }
         });
+      }
+
+      // CWZ-specific: missing worker presence data
+      if (cwz && cwz.percentage < 90) {
+        const missingWorkerPresence = events.filter(e => !e.workerPresence && !e.worker_presence).length;
+        if (missingWorkerPresence > 0) {
+          crossStandardRecommendations.push({
+            issue: 'Missing Worker Presence Data',
+            currentCoverage: `${Math.round((events.length - missingWorkerPresence) / events.length * 100)}%`,
+            recommendation: 'Add worker_presence field to work zone events (required by CWZ §5.4.2.1.16)',
+            benefitsStandards: ['CWZ', 'WZDx'],
+            priority: 'HIGH',
+            pointsGained: { cwz: 12, wzdx: 5 }
+          });
+        }
       }
     }
 
     return {
       summary: {
-        message: `Analyzed ${events.length} events across 3 industry standards`,
+        message: `Analyzed ${events.length} events across 4 industry standards`,
         eventsAnalyzed: events.length,
         evaluationDate: new Date().toISOString()
       },
       wzdx: wzdx,
       sae: sae,
       tmdd: tmdd,
+      cwz: cwz || null,
       crossStandardRecommendations: crossStandardRecommendations,
       gradeRoadmap: {
         wzdx: {
@@ -1257,7 +1352,11 @@ class ComplianceAnalyzer {
         tmdd: {
           pointsNeeded: Math.max(0, 90 - tmdd.percentage),
           estimatedEffort: tmdd.percentage >= 80 ? 'Low (1-2 weeks)' : 'Medium (1-2 months)'
-        }
+        },
+        cwz: cwz ? {
+          pointsNeeded: Math.max(0, 90 - cwz.percentage),
+          estimatedEffort: cwz.percentage >= 80 ? 'Low (1-2 weeks)' : 'Medium (1-2 months)'
+        } : null
       }
     };
   }
