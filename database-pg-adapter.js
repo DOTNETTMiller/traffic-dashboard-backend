@@ -97,6 +97,26 @@ class PostgreSQLAdapter {
     // REAL -> DOUBLE PRECISION
     converted = converted.replace(/\bREAL\b/gi, 'DOUBLE PRECISION');
 
+    // INSERT OR REPLACE -> INSERT ... ON CONFLICT ... DO UPDATE
+    // Match: INSERT OR REPLACE INTO table_name (col1, col2) VALUES (?, ?)
+    const insertOrReplaceMatch = converted.match(/INSERT\s+OR\s+REPLACE\s+INTO\s+(\w+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i);
+    if (insertOrReplaceMatch) {
+      const tableName = insertOrReplaceMatch[1];
+      const columns = insertOrReplaceMatch[2].split(',').map(c => c.trim());
+      const valuePlaceholders = insertOrReplaceMatch[3];
+
+      // Assume first column is the primary key for ON CONFLICT
+      const pkColumn = columns[0];
+
+      // Build UPDATE SET clause for all columns except PK
+      const updateSetClauses = columns.slice(1).map((col, idx) => {
+        const placeholderNum = idx + 2; // Skip first placeholder (PK)
+        return `${col} = $${placeholderNum}`;
+      }).join(', ');
+
+      converted = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${valuePlaceholders}) ON CONFLICT (${pkColumn}) DO UPDATE SET ${updateSetClauses}`;
+    }
+
     return converted;
   }
 
