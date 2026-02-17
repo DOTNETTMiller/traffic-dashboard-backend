@@ -106,7 +106,7 @@ export default function CorridorDataQuality() {
     return (
       <div style={{
         padding: '20px',
-        backgroundcolor: '#6b7280',
+        backgroundColor: '#6b7280',
         borderRadius: '8px',
         color: '#991b1b',
         border: '1px solid #fecaca'
@@ -302,7 +302,7 @@ export default function CorridorDataQuality() {
                   onClick={() => setSelectedService(service)}
                   style={{
                     padding: '16px',
-                    backgroundcolor: '#6b7280',
+                    backgroundColor: '#6b7280',
                     borderRadius: '8px',
                     border: '1px solid #e5e7eb',
                     cursor: 'pointer',
@@ -421,7 +421,7 @@ export default function CorridorDataQuality() {
                 }}
                 style={{
                   padding: '6px 12px',
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   border: '1px solid #e5e7eb',
                   borderRadius: '6px',
                   cursor: 'pointer',
@@ -436,7 +436,7 @@ export default function CorridorDataQuality() {
             {/* Current Grade Card */}
             <div style={{
               padding: '16px',
-              backgroundcolor: '#6b7280',
+              backgroundColor: '#6b7280',
               borderRadius: '8px',
               border: '1px solid #e5e7eb',
               marginBottom: '20px'
@@ -492,7 +492,7 @@ export default function CorridorDataQuality() {
                         display: 'flex',
                         justifyContent: 'space-between',
                         padding: '10px',
-                        backgroundcolor: '#6b7280',
+                        backgroundColor: '#6b7280',
                         borderRadius: '6px',
                         fontSize: '13px'
                       }}
@@ -538,7 +538,7 @@ export default function CorridorDataQuality() {
                       key={metric.id}
                       style={{
                         padding: '12px',
-                        backgroundcolor: '#6b7280',
+                        backgroundColor: '#6b7280',
                         borderRadius: '6px',
                         border: '1px solid #e5e7eb'
                       }}
@@ -592,7 +592,7 @@ export default function CorridorDataQuality() {
       <div style={{
         marginTop: '24px',
         padding: '16px',
-        backgroundcolor: '#6b7280',
+        backgroundColor: '#6b7280',
         borderRadius: '8px',
         border: '1px solid #e5e7eb'
       }}>

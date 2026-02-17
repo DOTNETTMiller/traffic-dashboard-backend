@@ -334,7 +334,7 @@ export default function UserProfile({ user, authToken, onProfileUpdate }) {
                 padding: '8px',
                 border: '1px solid #e5e7eb',
                 borderRadius: '6px',
-                backgroundcolor: '#6b7280'
+                backgroundColor: '#6b7280'
               }}>
                 {states.map(state => (
                   <div

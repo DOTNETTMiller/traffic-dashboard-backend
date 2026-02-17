@@ -497,7 +497,7 @@ const IFCModelViewer = ({ modelId, filename }) => {
   ];
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '600px', backgroundcolor: '#6b7280', borderRadius: '8px', overflow: 'hidden' }}>
+    <div style={{ position: 'relative', width: '100%', height: '600px', backgroundColor: '#6b7280', borderRadius: '8px', overflow: 'hidden' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 
       {/* Highlight Controls */}

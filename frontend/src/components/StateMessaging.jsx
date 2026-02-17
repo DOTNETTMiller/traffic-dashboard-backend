@@ -336,7 +336,7 @@ export default function StateMessaging({ user, authToken }) {
       {activeTab === 'inbox' && (
         <div className="messages-list">
           {inbox.some(msg => msg.subject?.includes('Detour Advisory')) && (
-            <div style={{ padding: '12px', marginBottom: '16px', backgroundcolor: '#6b7280', borderRadius: '8px', border: '1px solid #fbbf24' }}>
+            <div style={{ padding: '12px', marginBottom: '16px', backgroundColor: '#6b7280', borderRadius: '8px', border: '1px solid #fbbf24' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <strong style={{ color: '#92400e' }}>🚗 Detour Advisories</strong>

@@ -140,7 +140,7 @@ export default function OSWRegulationsLayer({ corridor = 'I-35' }) {
                     }}>
                       <div style={{
                         padding: '8px',
-                        backgroundcolor: '#6b7280',
+                        backgroundColor: '#6b7280',
                         borderRadius: '6px',
                         textAlign: 'center'
                       }}>
@@ -157,7 +157,7 @@ export default function OSWRegulationsLayer({ corridor = 'I-35' }) {
                       </div>
                       <div style={{
                         padding: '8px',
-                        backgroundcolor: '#6b7280',
+                        backgroundColor: '#6b7280',
                         borderRadius: '6px',
                         textAlign: 'center'
                       }}>
@@ -174,7 +174,7 @@ export default function OSWRegulationsLayer({ corridor = 'I-35' }) {
                       </div>
                       <div style={{
                         padding: '8px',
-                        backgroundcolor: '#6b7280',
+                        backgroundColor: '#6b7280',
                         borderRadius: '6px',
                         textAlign: 'center',
                         border: '1.5px solid #f59e0b'
@@ -251,7 +251,7 @@ export default function OSWRegulationsLayer({ corridor = 'I-35' }) {
                       </div>
                       <div style={{
                         padding: '8px',
-                        backgroundcolor: '#6b7280',
+                        backgroundColor: '#6b7280',
                         borderRadius: '6px',
                         border: '1px solid #86efac',
                         fontSize: '11px'

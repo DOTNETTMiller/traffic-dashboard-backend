@@ -205,7 +205,7 @@ export default function FeedScoring() {
             <div style={{
               display: 'inline-block',
               padding: '4px 12px',
-              backgroundcolor: '#6b7280',
+              backgroundColor: '#6b7280',
               borderRadius: '6px',
               fontSize: '12px',
               fontWeight: '600',
@@ -298,7 +298,7 @@ export default function FeedScoring() {
         <div style={{
           textAlign: 'center',
           padding: '60px 20px',
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           borderRadius: '12px',
           border: '2px dashed #d1d5db'
         }}>

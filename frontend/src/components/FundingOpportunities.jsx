@@ -88,7 +88,7 @@ export default function FundingOpportunities() {
         gap: '12px',
         marginBottom: '24px',
         padding: '16px',
-        backgroundcolor: '#6b7280',
+        backgroundColor: '#6b7280',
         borderRadius: '8px'
       }}>
         <button
@@ -148,7 +148,7 @@ export default function FundingOpportunities() {
               <div style={{
                 textAlign: 'center',
                 padding: '60px',
-                backgroundcolor: '#6b7280',
+                backgroundColor: '#6b7280',
                 borderRadius: '8px',
                 color: '#64748b'
               }}>
@@ -286,7 +286,7 @@ export default function FundingOpportunities() {
 
                 <div style={{
                   padding: '12px',
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   border: '1px solid #86efac',
                   borderRadius: '6px',
                   marginBottom: '16px'

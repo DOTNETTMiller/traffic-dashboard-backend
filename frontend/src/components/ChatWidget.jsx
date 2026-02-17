@@ -347,7 +347,7 @@ export default function ChatWidget({ user, context, isDarkMode }) {
             {error && (
               <div style={{
                 padding: '12px',
-                backgroundcolor: '#6b7280',
+                backgroundColor: '#6b7280',
                 borderRadius: '8px',
                 fontSize: '13px',
                 color: '#991b1b',

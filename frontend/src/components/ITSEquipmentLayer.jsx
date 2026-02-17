@@ -236,7 +236,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
                   <div style={{
                     marginBottom: '12px',
                     padding: '8px',
-                    backgroundcolor: '#6b7280',
+                    backgroundColor: '#6b7280',
                     borderRadius: '6px',
                     border: '1px solid #e5e7eb'
                   }}>
@@ -310,7 +310,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
                   gap: '8px',
                   marginTop: '12px',
                   padding: '8px',
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   borderRadius: '6px'
                 }}>
                   {item.manufacturer && (
@@ -349,7 +349,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
                   <div style={{
                     marginTop: '12px',
                     padding: '8px',
-                    backgroundcolor: '#6b7280',
+                    backgroundColor: '#6b7280',
                     borderRadius: '6px',
                     border: '1px solid #e9d5ff'
                   }}>
@@ -419,7 +419,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
                                 height: '120px',
                                 objectFit: 'cover',
                                 display: 'block',
-                                backgroundcolor: '#6b7280'
+                                backgroundColor: '#6b7280'
                               }}
                               onError={(e) => {
                                 e.target.style.display = 'none';

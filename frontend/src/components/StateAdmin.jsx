@@ -547,7 +547,7 @@ export default function StateAdmin({ user, authToken }) {
       )}
 
       {(showAddForm || editingState) && (
-        <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #ddd', borderRadius: '4px', backgroundcolor: '#6b7280' }}>
+        <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #ddd', borderRadius: '4px', backgroundColor: '#6b7280' }}>
           <h3>{editingState ? 'Edit State' : 'Add New State'}</h3>
           <form onSubmit={editingState ? handleUpdateState : handleAddState}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
@@ -729,7 +729,7 @@ export default function StateAdmin({ user, authToken }) {
                 onClick={editingState ? cancelEdit : () => setShowAddForm(false)}
                 style={{
                   padding: '10px 20px',
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   color: '#111827',
                   border: 'none',
                   borderRadius: '4px',
@@ -744,7 +744,7 @@ export default function StateAdmin({ user, authToken }) {
       )}
 
       {showPasswordForm && (
-        <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #007bff', borderRadius: '4px', backgroundcolor: '#6b7280' }}>
+        <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #007bff', borderRadius: '4px', backgroundColor: '#6b7280' }}>
           <h3>Set State Password for Messaging</h3>
           <p style={{ marginBottom: '15px', color: '#666', fontSize: '14px' }}>
             Set a password for a state to allow them to log in to the state-to-state messaging system.
@@ -815,7 +815,7 @@ export default function StateAdmin({ user, authToken }) {
                 }}
                 style={{
                   padding: '10px 20px',
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   color: '#111827',
                   border: 'none',
                   borderRadius: '4px',
@@ -925,7 +925,7 @@ export default function StateAdmin({ user, authToken }) {
                 }}
                 style={{
                   padding: '10px 20px',
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   color: '#111827',
                   border: 'none',
                   borderRadius: '4px',
@@ -946,7 +946,7 @@ export default function StateAdmin({ user, authToken }) {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
             <thead>
-              <tr style={{ backgroundcolor: '#6b7280', borderBottom: '2px solid #dee2e6' }}>
+              <tr style={{ backgroundColor: '#6b7280', borderBottom: '2px solid #dee2e6' }}>
                 <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>State</th>
                 <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>API URL</th>
                 <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Type</th>
@@ -994,7 +994,7 @@ export default function StateAdmin({ user, authToken }) {
                         onClick={() => startEdit(state)}
                         style={{
                           padding: '5px 10px',
-                          backgroundcolor: '#6b7280',
+                          backgroundColor: '#6b7280',
                           color: 'black',
                           border: 'none',
                           borderRadius: '3px',

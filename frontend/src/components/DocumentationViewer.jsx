@@ -386,7 +386,7 @@ function DocumentationViewer() {
     const doc = docs.find(d => d.key === activeDoc);
     return (
       <div ref={contentRef} className="documentation-viewer" style={{
-        backgroundcolor: '#111827',
+        backgroundColor: '#111827',
         borderRadius: '8px',
         padding: '24px',
         maxWidth: '1200px',
@@ -734,7 +734,7 @@ function DocumentationViewer() {
   // Document library view (grid of cards)
   return (
     <div className="documentation-library" style={{
-      backgroundcolor: '#111827',
+      backgroundColor: '#111827',
       borderRadius: '8px',
       padding: '32px',
       maxWidth: '1400px',
@@ -892,7 +892,7 @@ function DocumentationViewer() {
       <div style={{
         marginTop: '40px',
         padding: '20px',
-        backgroundcolor: '#6b7280',
+        backgroundColor: '#6b7280',
         borderRadius: '8px',
         border: '1px solid #e5e7eb'
       }}>

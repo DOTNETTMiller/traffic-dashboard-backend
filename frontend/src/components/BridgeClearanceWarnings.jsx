@@ -161,7 +161,7 @@ export default function BridgeClearanceWarnings({ onViewOnMap, isDarkMode }) {
       {error && (
         <div style={{
           padding: '12px 16px',
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           borderRadius: '6px',
           color: '#991b1b',
           fontSize: '14px',

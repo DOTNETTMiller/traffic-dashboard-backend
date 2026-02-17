@@ -296,7 +296,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
         }}>
           <div style={{
             padding: '12px 16px',
-            backgroundcolor: '#6b7280',
+            backgroundColor: '#6b7280',
             borderBottom: '1px solid #ef4444',
             borderRadius: '6px 6px 0 0',
             fontWeight: 'bold',
@@ -345,7 +345,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
         }}>
           <div style={{
             padding: '12px 16px',
-            backgroundcolor: '#6b7280',
+            backgroundColor: '#6b7280',
             borderBottom: '1px solid #f59e0b',
             borderRadius: '6px 6px 0 0',
             fontWeight: 'bold',
@@ -486,7 +486,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                 <div style={{
                   margin: '12px 0',
                   padding: '8px',
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   borderRadius: '4px'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
@@ -512,7 +512,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                     <div style={{
                       marginTop: '8px',
                       padding: '6px',
-                      backgroundcolor: '#6b7280',
+                      backgroundColor: '#6b7280',
                       borderRadius: '4px',
                       fontSize: '11px',
                       color: '#92400e',
@@ -528,7 +528,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                   <div style={{
                     margin: '12px 0',
                     padding: '12px',
-                    backgroundcolor: '#6b7280',
+                    backgroundColor: '#6b7280',
                     borderRadius: '6px',
                     border: '1px solid #e5e7eb'
                   }}>
@@ -549,7 +549,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                       alignItems: 'flex-end',
                       gap: '3px',
                       height: '100px',
-                      backgroundcolor: '#6b7280',
+                      backgroundColor: '#6b7280',
                       padding: '8px',
                       paddingLeft: '32px',
                       borderRadius: '6px',
@@ -674,11 +674,11 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                         <span>Low (&lt;30%)</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                        <div style={{ width: '8px', height: '8px', backgroundcolor: '#6b7280', borderRadius: '1px' }} />
+                        <div style={{ width: '8px', height: '8px', backgroundColor: '#6b7280', borderRadius: '1px' }} />
                         <span>Med (30-60%)</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                        <div style={{ width: '8px', height: '8px', backgroundcolor: '#6b7280', borderRadius: '1px' }} />
+                        <div style={{ width: '8px', height: '8px', backgroundColor: '#6b7280', borderRadius: '1px' }} />
                         <span>High (60-80%)</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -781,7 +781,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                               height: '80px',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              backgroundcolor: '#6b7280',
+                              backgroundColor: '#6b7280',
                               color: '#6b7280',
                               fontSize: '11px'
                             }}>
@@ -789,7 +789,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                             </div>
                             <div style={{
                               padding: '4px',
-                              backgroundcolor: '#6b7280',
+                              backgroundColor: '#6b7280',
                               fontSize: '10px',
                               color: '#374151',
                               textAlign: 'center',
@@ -882,7 +882,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                       {observations[facility.facilityId]?.error && (
                         <div style={{
                           padding: '6px 10px',
-                          backgroundcolor: '#6b7280',
+                          backgroundColor: '#6b7280',
                           color: '#991b1b',
                           borderRadius: '4px',
                           fontSize: '12px',
@@ -992,7 +992,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
               <div
                 key={`${camera.facilityName}-${camera.view}`}
                 style={{
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   borderRadius: '8px',
                   overflow: 'hidden',
                   border: '1px solid #e5e7eb'
@@ -1019,7 +1019,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                     height: '200px',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundcolor: '#6b7280',
+                    backgroundColor: '#6b7280',
                     color: '#6b7280',
                     fontSize: '14px'
                   }}>

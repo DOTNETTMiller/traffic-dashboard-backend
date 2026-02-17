@@ -125,7 +125,7 @@ export default function MessagesPanel({ events = [], messages = {}, detourAlerts
       <div style={{
         padding: '16px',
         borderBottom: '1px solid #e5e7eb',
-        backgroundcolor: '#6b7280',
+        backgroundColor: '#6b7280',
         position: 'relative'
       }}>
         {/* Mobile close button */}
@@ -189,7 +189,7 @@ export default function MessagesPanel({ events = [], messages = {}, detourAlerts
       {detourAlerts.length > 0 && (
         <div style={{
           padding: '12px 16px',
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           borderBottom: '1px solid #fde68a'
         }}>
           <div style={{
@@ -213,7 +213,7 @@ export default function MessagesPanel({ events = [], messages = {}, detourAlerts
                 <div key={alert.id} style={{
                   padding: '10px',
                   borderRadius: '6px',
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   border: '1px solid #facc15'
                 }}>
                   <div style={{ fontWeight: 600, color: '#b45309', marginBottom: '4px' }}>
@@ -233,7 +233,7 @@ export default function MessagesPanel({ events = [], messages = {}, detourAlerts
                       style={{
                         marginTop: '8px',
                         padding: '6px 12px',
-                        backgroundcolor: '#6b7280',
+                        backgroundColor: '#6b7280',
                         color: '#111827',
                         border: 'none',
                         borderRadius: '4px',
@@ -287,14 +287,14 @@ export default function MessagesPanel({ events = [], messages = {}, detourAlerts
                 style={{
                   padding: '12px',
                   marginBottom: '8px',
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   borderRadius: '8px',
                   border: '1px solid #e5e7eb',
                   borderLeft: borderInfo && borderInfo.nearBorder ? '4px solid #6366f1' : '1px solid #e5e7eb',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
                   ':hover': {
-                    backgroundcolor: '#6b7280',
+                    backgroundColor: '#6b7280',
                     borderColor: '#3b82f6'
                   }
                 }}
@@ -447,7 +447,7 @@ export default function MessagesPanel({ events = [], messages = {}, detourAlerts
         <div style={{
           padding: '12px 16px',
           borderTop: '1px solid #e5e7eb',
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           fontSize: '12px',
           color: '#6b7280',
           textAlign: 'center'

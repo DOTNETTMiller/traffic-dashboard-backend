@@ -44,7 +44,7 @@ export default function EventFormatPopup({
         display: 'flex',
         borderBottom: '2px solid #e5e7eb',
         marginBottom: '6px',
-        backgroundcolor: '#6b7280',
+        backgroundColor: '#6b7280',
         flexShrink: 0
       }}>
         {tabs.map(tab => (
@@ -115,7 +115,7 @@ export default function EventFormatPopup({
         borderTop: '1px solid #e5e7eb',
         display: 'flex',
         gap: '8px',
-        backgroundcolor: '#6b7280'
+        backgroundColor: '#6b7280'
       }}>
         {hasMessages && (
           <div style={{
@@ -161,7 +161,7 @@ function RawFormatView({ event, borderInfo, showCVTIM }) {
       {/* Header */}
       <div style={{
         padding: '6px',
-        backgroundcolor: '#6b7280',
+        backgroundColor: '#6b7280',
         borderRadius: '4px',
         marginBottom: '8px',
         borderLeft: '3px solid #6b7280'
@@ -228,7 +228,7 @@ function RawFormatView({ event, borderInfo, showCVTIM }) {
         <div style={{
           margin: '8px 0',
           padding: '5px 6px',
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           borderRadius: '3px',
           fontSize: '10px',
           color: '#92400e',
@@ -266,7 +266,7 @@ function TIMFormatView({ event, timFormat, showCVTIM }) {
       {showCVTIM && (
         <div style={{
           padding: '5px 6px',
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           borderRadius: '3px',
           marginBottom: '6px',
           fontSize: '10px',
@@ -483,7 +483,7 @@ function getSourceBorderColor(source) {
 function GeometryDiagnosticsView({ diagnostics }) {
   if (!diagnostics || !diagnostics.valid) {
     return (
-      <div style={{ padding: '8px', backgroundcolor: '#6b7280', borderRadius: '4px', marginBottom: '8px' }}>
+      <div style={{ padding: '8px', backgroundColor: '#6b7280', borderRadius: '4px', marginBottom: '8px' }}>
         <strong style={{ color: '#dc2626' }}>⚠️ Invalid Geometry</strong>
         <div style={{ fontSize: '13px', marginTop: '4px', color: '#991b1b' }}>
           {diagnostics?.issue || 'Geometry data is malformed or missing'}
@@ -511,7 +511,7 @@ function GeometryDiagnosticsView({ diagnostics }) {
       {/* Coordinates */}
       <div style={{ marginBottom: '12px' }}>
         <strong>📍 Start Coordinate</strong>
-        <div style={{ fontFamily: 'monospace', fontSize: '12px', padding: '4px', backgroundcolor: '#6b7280', borderRadius: '3px', marginTop: '4px' }}>
+        <div style={{ fontFamily: 'monospace', fontSize: '12px', padding: '4px', backgroundColor: '#6b7280', borderRadius: '3px', marginTop: '4px' }}>
           Lat: {diagnostics.startCoordinate.lat}<br/>
           Lng: {diagnostics.startCoordinate.lng}
         </div>
@@ -519,7 +519,7 @@ function GeometryDiagnosticsView({ diagnostics }) {
 
       <div style={{ marginBottom: '12px' }}>
         <strong>📍 End Coordinate</strong>
-        <div style={{ fontFamily: 'monospace', fontSize: '12px', padding: '4px', backgroundcolor: '#6b7280', borderRadius: '3px', marginTop: '4px' }}>
+        <div style={{ fontFamily: 'monospace', fontSize: '12px', padding: '4px', backgroundColor: '#6b7280', borderRadius: '3px', marginTop: '4px' }}>
           Lat: {diagnostics.endCoordinate.lat}<br/>
           Lng: {diagnostics.endCoordinate.lng}
         </div>
@@ -574,7 +574,7 @@ function GeometryDiagnosticsView({ diagnostics }) {
               </li>
             ))}
           </ul>
-          <div style={{ marginTop: '8px', padding: '6px', backgroundcolor: '#6b7280', borderRadius: '3px', fontSize: '12px', color: '#7f1d1d' }}>
+          <div style={{ marginTop: '8px', padding: '6px', backgroundColor: '#6b7280', borderRadius: '3px', fontSize: '12px', color: '#7f1d1d' }}>
             💡 These issues may indicate incorrect polyline data from the source feed. The route shown may not accurately follow the roadway.
           </div>
         </div>

@@ -382,7 +382,7 @@ export default function AdminUsers({ user, authToken }) {
       )}
 
       {showForm && (
-        <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #ddd', borderRadius: '4px', backgroundcolor: '#6b7280' }}>
+        <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #ddd', borderRadius: '4px', backgroundColor: '#6b7280' }}>
           <h3>{editingUser ? `Edit ${editingUser.username}` : 'Create New User'}</h3>
           {!editingUser && (
             <p style={{ fontSize: '0.9em', color: '#666', margin: '0 0 15px 0' }}>
@@ -562,7 +562,7 @@ export default function AdminUsers({ user, authToken }) {
                 }}
                 style={{
                   padding: '10px 20px',
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   color: '#111827',
                   border: 'none',
                   borderRadius: '4px',
@@ -582,7 +582,7 @@ export default function AdminUsers({ user, authToken }) {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
             <thead>
-              <tr style={{ backgroundcolor: '#6b7280', borderBottom: '2px solid #dee2e6' }}>
+              <tr style={{ backgroundColor: '#6b7280', borderBottom: '2px solid #dee2e6' }}>
                 <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Username</th>
                 <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Email</th>
                 <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Role</th>
@@ -658,7 +658,7 @@ export default function AdminUsers({ user, authToken }) {
                         onClick={() => handleEditClick(userRecord)}
                         style={{
                           padding: '6px 10px',
-                          backgroundcolor: '#6b7280',
+                          backgroundColor: '#6b7280',
                           color: '#222',
                           border: 'none',
                           borderRadius: '3px',

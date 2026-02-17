@@ -906,7 +906,7 @@ export default function FeedSubmission({ authToken, user }) {
       </h3>
 
       {error && (
-        <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '6px', backgroundcolor: '#6b7280', color: '#991b1b' }}>
+        <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '6px', backgroundColor: '#6b7280', color: '#991b1b' }}>
           {error}
         </div>
       )}
@@ -924,7 +924,7 @@ export default function FeedSubmission({ authToken, user }) {
         border: '1px solid #e5e7eb',
         borderRadius: '8px',
         padding: '20px',
-        backgroundcolor: '#6b7280'
+        backgroundColor: '#6b7280'
       }}>
         <div>
           <label style={labelStyle}>Feed Name *</label>

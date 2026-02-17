@@ -98,7 +98,7 @@ function DigitalStandardsCrosswalk() {
       maxWidth: '1400px',
       margin: '0 auto',
       padding: '20px',
-      backgroundcolor: '#111827',
+      backgroundColor: '#111827',
       borderRadius: '8px',
       boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
     }}>
@@ -186,7 +186,7 @@ function DigitalStandardsCrosswalk() {
 
       {/* Document Info */}
       <div style={{
-        backgroundcolor: '#6b7280',
+        backgroundColor: '#6b7280',
         border: '1px solid #86efac',
         borderRadius: '6px',
         padding: '15px',

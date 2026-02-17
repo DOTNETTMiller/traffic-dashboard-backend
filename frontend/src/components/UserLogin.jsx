@@ -405,7 +405,7 @@ export default function UserLogin({ onLoginSuccess }) {
                   style={{
                     flex: 1,
                     padding: '10px 20px',
-                    backgroundcolor: '#6b7280',
+                    backgroundColor: '#6b7280',
                     color: '#374151',
                     border: 'none',
                     borderRadius: '6px',

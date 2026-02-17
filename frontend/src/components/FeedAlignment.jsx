@@ -52,7 +52,7 @@ export default function FeedAlignment() {
     return (
       <div style={{ padding: '20px' }}>
         <div style={{
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           border: '1px solid #fecaca',
           borderRadius: '8px',
           padding: '16px',
@@ -107,7 +107,7 @@ export default function FeedAlignment() {
           </div>
         </div>
         <div style={{
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           padding: '16px',
           borderRadius: '8px',
           border: '1px solid #fde68a'
@@ -118,7 +118,7 @@ export default function FeedAlignment() {
           </div>
         </div>
         <div style={{
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           padding: '16px',
           borderRadius: '8px',
           border: '1px solid #e9d5ff'
@@ -163,7 +163,7 @@ export default function FeedAlignment() {
                   {rec.priority}
                 </span>
                 <span style={{
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   color: '#374151',
                   padding: '4px 12px',
                   borderRadius: '12px',
@@ -198,7 +198,7 @@ export default function FeedAlignment() {
                     <span
                       key={i}
                       style={{
-                        backgroundcolor: '#6b7280',
+                        backgroundColor: '#6b7280',
                         padding: '2px 8px',
                         borderRadius: '4px',
                         fontSize: '12px',
@@ -320,7 +320,7 @@ export default function FeedAlignment() {
                   {mapping.apiType}
                 </span>
                 <span style={{
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   color: '#374151',
                   padding: '2px 8px',
                   borderRadius: '4px'

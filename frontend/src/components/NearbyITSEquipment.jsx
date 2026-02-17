@@ -40,7 +40,7 @@ export default function NearbyITSEquipment({ event }) {
       <div style={{
         margin: '8px 0',
         padding: '8px',
-        backgroundcolor: '#6b7280',
+        backgroundColor: '#6b7280',
         borderRadius: '4px',
         fontSize: '12px',
         color: '#6b7280'
@@ -60,7 +60,7 @@ export default function NearbyITSEquipment({ event }) {
     <div style={{
       margin: '12px 0',
       padding: '10px',
-      backgroundcolor: '#6b7280',
+      backgroundColor: '#6b7280',
       borderRadius: '6px',
       border: '1px solid #86efac'
     }}>
@@ -115,7 +115,7 @@ export default function NearbyITSEquipment({ event }) {
             {byType.dms > 0 && (
               <div style={{
                 padding: '6px',
-                backgroundcolor: '#6b7280',
+                backgroundColor: '#6b7280',
                 borderRadius: '4px',
                 fontSize: '11px',
                 textAlign: 'center'
@@ -173,7 +173,7 @@ export default function NearbyITSEquipment({ event }) {
                   <div key={cam.id} style={{
                     fontSize: '10px',
                     padding: '4px 6px',
-                    backgroundcolor: '#6b7280',
+                    backgroundColor: '#6b7280',
                     borderRadius: '3px',
                     marginBottom: '3px',
                     display: 'flex',
@@ -224,7 +224,7 @@ export default function NearbyITSEquipment({ event }) {
                   <div key={dms.id} style={{
                     fontSize: '10px',
                     padding: '4px 6px',
-                    backgroundcolor: '#6b7280',
+                    backgroundColor: '#6b7280',
                     borderRadius: '3px',
                     marginBottom: '3px'
                   }}>
@@ -257,7 +257,7 @@ export default function NearbyITSEquipment({ event }) {
                 <div style={{
                   fontSize: '9px',
                   padding: '4px 6px',
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   borderRadius: '3px',
                   color: '#6b7280'
                 }}>
@@ -276,7 +276,7 @@ export default function NearbyITSEquipment({ event }) {
                 <div style={{
                   fontSize: '9px',
                   padding: '4px 6px',
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   borderRadius: '3px',
                   color: '#6b7280'
                 }}>

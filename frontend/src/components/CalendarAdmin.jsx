@@ -347,7 +347,7 @@ export default function CalendarAdmin({ authToken }) {
 
           {/* Add New Artifact */}
           <div style={{
-            backgroundcolor: '#6b7280',
+            backgroundColor: '#6b7280',
             padding: '16px',
             borderRadius: '8px',
             marginBottom: '20px'
@@ -445,7 +445,7 @@ export default function CalendarAdmin({ authToken }) {
               <div style={{
                 padding: '40px',
                 textAlign: 'center',
-                backgroundcolor: '#6b7280',
+                backgroundColor: '#6b7280',
                 borderRadius: '8px',
                 color: '#6b7280'
               }}>
@@ -458,7 +458,7 @@ export default function CalendarAdmin({ authToken }) {
                     key={artifact.id}
                     style={{
                       padding: '12px',
-                      backgroundcolor: '#6b7280',
+                      backgroundColor: '#6b7280',
                       border: '1px solid #e5e7eb',
                       borderRadius: '8px',
                       display: 'flex',
@@ -611,7 +611,7 @@ Action Items:
             {/* Analysis Results Panel */}
             {minutesAnalysis && (
               <div style={{
-                backgroundcolor: '#6b7280',
+                backgroundColor: '#6b7280',
                 border: '1px solid #e5e7eb',
                 borderRadius: '8px',
                 padding: '16px',
@@ -722,7 +722,7 @@ Action Items:
                 {minutesAnalysis.risks && minutesAnalysis.risks.length > 0 && (
                   <div style={{
                     padding: '12px',
-                    backgroundcolor: '#6b7280',
+                    backgroundColor: '#6b7280',
                     border: '1px solid #f59e0b',
                     borderRadius: '6px'
                   }}>
@@ -1062,7 +1062,7 @@ Action Items:
       }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
-            <tr style={{ backgroundcolor: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>
+            <tr style={{ backgroundColor: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>
               <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '700' , color: '#111827'}}>Event</th>
               <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '700' , color: '#111827'}}>Type</th>
               <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '700' , color: '#111827'}}>Start Time</th>
@@ -1086,7 +1086,7 @@ Action Items:
                     {event.is_tentative && (
                       <span style={{
                         padding: '2px 6px',
-                        backgroundcolor: '#6b7280',
+                        backgroundColor: '#6b7280',
                         color: '#92400e',
                         fontSize: '11px',
                         fontWeight: '600',

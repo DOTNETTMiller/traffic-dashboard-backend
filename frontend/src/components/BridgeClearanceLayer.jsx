@@ -198,7 +198,7 @@ export default function BridgeClearanceLayer({ onBridgeClick }) {
                   <div style={{
                     marginTop: '12px',
                     padding: '10px',
-                    backgroundcolor: '#6b7280',
+                    backgroundColor: '#6b7280',
                     borderLeft: '3px solid #f59e0b',
                     borderRadius: '4px',
                     fontSize: '12px',

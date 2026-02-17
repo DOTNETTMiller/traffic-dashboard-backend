@@ -189,7 +189,7 @@ const FeedScoringModal = ({ feed, onClose, onSubmit, currentUser }) => {
             <div style={{
               marginTop: '16px',
               padding: '16px',
-              backgroundcolor: '#6b7280',
+              backgroundColor: '#6b7280',
               borderRadius: '8px',
               border: '1px solid #0ea5e9'
             }}>
@@ -226,7 +226,7 @@ const FeedScoringModal = ({ feed, onClose, onSubmit, currentUser }) => {
             <div key={category.key} style={{
               marginBottom: '32px',
               padding: '20px',
-              backgroundcolor: '#6b7280',
+              backgroundColor: '#6b7280',
               borderRadius: '8px',
               border: '1px solid #e5e7eb'
             }}>
@@ -311,7 +311,7 @@ const FeedScoringModal = ({ feed, onClose, onSubmit, currentUser }) => {
           {/* Overall Notes */}
           <div style={{
             padding: '20px',
-            backgroundcolor: '#6b7280',
+            backgroundColor: '#6b7280',
             borderRadius: '8px',
             border: '1px solid #fbbf24',
             marginBottom: '24px'

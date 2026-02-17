@@ -115,7 +115,7 @@ export default function VendorDQIComparison() {
     <div style={{
       display: 'flex',
       height: '100vh',
-      backgroundcolor: '#6b7280',
+      backgroundColor: '#6b7280',
       overflow: 'hidden'
     }}>
       {/* Main Content Area */}
@@ -341,7 +341,7 @@ export default function VendorDQIComparison() {
                       key={idx}
                       style={{
                         padding: '4px 8px',
-                        backgroundcolor: '#6b7280',
+                        backgroundColor: '#6b7280',
                         borderRadius: '4px',
                         fontSize: '10px',
                         color: '#374151',
@@ -389,7 +389,7 @@ export default function VendorDQIComparison() {
               }}>
                 <div style={{
                   padding: '10px',
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   borderRadius: '6px',
                   border: '1px solid #86efac'
                 }}>
@@ -415,7 +415,7 @@ export default function VendorDQIComparison() {
                 </div>
                 <div style={{
                   padding: '10px',
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   borderRadius: '6px',
                   border: '1px solid #fde68a'
                 }}>
@@ -428,7 +428,7 @@ export default function VendorDQIComparison() {
                 </div>
                 <div style={{
                   padding: '10px',
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   borderRadius: '6px',
                   border: '1px solid #c4b5fd'
                 }}>
@@ -445,7 +445,7 @@ export default function VendorDQIComparison() {
               {vendor.gov_score !== null && vendor.gov_score !== undefined && (
                 <div style={{
                   padding: '10px',
-                  backgroundcolor: '#6b7280',
+                  backgroundColor: '#6b7280',
                   borderRadius: '6px',
                   border: '1px solid #fbcfe8',
                   display: 'flex',
@@ -588,7 +588,7 @@ export default function VendorDQIComparison() {
         <div style={{
           marginBottom: '24px',
           padding: '16px',
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           borderRadius: '8px',
           border: '1px solid #e5e7eb'
         }}>
@@ -604,7 +604,7 @@ export default function VendorDQIComparison() {
         <div style={{
           marginBottom: '24px',
           padding: '16px',
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           borderRadius: '8px',
           border: '1px solid #e5e7eb'
         }}>

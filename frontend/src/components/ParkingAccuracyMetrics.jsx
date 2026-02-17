@@ -195,7 +195,7 @@ export default function ParkingAccuracyMetrics({ authToken, currentUser }) {
       }}>
         <div style={{
           padding: '16px',
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           borderRadius: '6px',
           border: '1px solid #e5e7eb'
         }}>
@@ -212,7 +212,7 @@ export default function ParkingAccuracyMetrics({ authToken, currentUser }) {
 
         <div style={{
           padding: '16px',
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           borderRadius: '6px',
           border: '1px solid #e5e7eb'
         }}>
@@ -229,7 +229,7 @@ export default function ParkingAccuracyMetrics({ authToken, currentUser }) {
 
         <div style={{
           padding: '16px',
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           borderRadius: '6px',
           border: `2px solid ${getAccuracyColor(accuracy.metrics.mape)}`
         }}>
@@ -267,7 +267,7 @@ export default function ParkingAccuracyMetrics({ authToken, currentUser }) {
             borderRadius: '6px'
           }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-              <thead style={{ backgroundcolor: '#6b7280', position: 'sticky', top: 0 , color: '#111827'}}>
+              <thead style={{ backgroundColor: '#6b7280', position: 'sticky', top: 0 , color: '#111827'}}>
                 <tr>
                   <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: '600', color: '#374151', borderBottom: '1px solid #e5e7eb' }}>
                     Facility

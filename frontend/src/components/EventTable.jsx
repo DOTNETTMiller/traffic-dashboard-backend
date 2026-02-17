@@ -155,7 +155,7 @@ export default function EventTable({ events, messages = {}, onEventSelect }) {
         <thead style={{
           position: 'sticky',
           top: 0,
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
           zIndex: 10
         , color: '#111827'}}>
@@ -223,7 +223,7 @@ export default function EventTable({ events, messages = {}, onEventSelect }) {
                   )}
                   {event.requiresCollaboration && (
                     <span style={{
-                      backgroundcolor: '#6b7280',
+                      backgroundColor: '#6b7280',
                       color: '#92400e',
                       padding: '2px 6px',
                       borderRadius: '4px',

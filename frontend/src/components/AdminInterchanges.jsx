@@ -119,7 +119,7 @@ export default function AdminInterchanges({ authToken }) {
       <h2 style={{ marginBottom: '16px' }}>Detour Interchanges</h2>
 
       {error && (
-        <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '6px', backgroundcolor: '#6b7280', color: '#991b1b' }}>
+        <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '6px', backgroundColor: '#6b7280', color: '#991b1b' }}>
           {error}
         </div>
       )}
@@ -138,7 +138,7 @@ export default function AdminInterchanges({ authToken }) {
         border: '1px solid #e5e7eb',
         borderRadius: '8px',
         marginBottom: '24px',
-        backgroundcolor: '#6b7280'
+        backgroundColor: '#6b7280'
       }}>
         <div>
           <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>Name *</label>
@@ -197,7 +197,7 @@ export default function AdminInterchanges({ authToken }) {
           gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr',
           gap: '12px',
           padding: '12px 16px',
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           fontSize: '12px',
           fontWeight: 600,
           textTransform: 'uppercase',

@@ -138,7 +138,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
     return (
       <div style={{
         padding: '8px 12px',
-        backgroundcolor: '#6b7280',
+        backgroundColor: '#6b7280',
         borderRadius: '6px',
         marginBottom: '8px',
         color: '#991b1b',
@@ -173,13 +173,13 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
     switch (level) {
       case 'severe':
         return {
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           borderLeft: '4px solid #dc2626',
           color: '#991b1b'
         };
       case 'high':
         return {
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           borderLeft: '4px solid #f59e0b',
           color: '#92400e'
         };
@@ -191,7 +191,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
         };
       default:
         return {
-          backgroundcolor: '#6b7280',
+          backgroundColor: '#6b7280',
           borderLeft: '4px solid #6b7280',
           color: '#374151'
         };
@@ -258,7 +258,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
           {/* Summary Stats */}
           <div style={{
             padding: '8px 12px',
-            backgroundcolor: '#6b7280',
+            backgroundColor: '#6b7280',
             borderBottom: '1px solid #e5e7eb',
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))',
@@ -359,7 +359,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
                   {/* Expanded Group - Show Top Events */}
                   {isGroupExpanded && (
                     <div style={{
-                      backgroundcolor: '#6b7280',
+                      backgroundColor: '#6b7280',
                       padding: '0 12px 10px 12px'
                     }}>
                       {topWarnings.map((warning, index) => (
@@ -459,7 +459,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
           {/* Footer with legend */}
           <div style={{
             padding: '6px 12px',
-            backgroundcolor: '#6b7280',
+            backgroundColor: '#6b7280',
             borderTop: '1px solid #e5e7eb',
             fontSize: '10px',
             color: '#6b7280'

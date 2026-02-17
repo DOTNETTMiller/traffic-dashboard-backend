@@ -194,7 +194,7 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
         {!isStateLoggedIn && (
           <div style={{
             padding: '20px',
-            backgroundcolor: '#6b7280',
+            backgroundColor: '#6b7280',
             borderBottom: '1px solid #e5e7eb'
           }}>
             <p style={{ margin: 0, fontSize: '14px', color: '#92400e' }}>
@@ -208,7 +208,7 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
           flex: 1,
           overflowY: 'auto',
           padding: '20px',
-          backgroundcolor: '#6b7280'
+          backgroundColor: '#6b7280'
         }}>
           {groupedComments.length === 0 ? (
             <div style={{
