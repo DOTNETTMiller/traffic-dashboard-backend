@@ -115,7 +115,7 @@ export default function DataQualityReport() {
       <div style={{
         marginTop: '10px',
         padding: '10px 12px',
-        backgroundcolor: '#6b7280',
+        backgroundColor: 'white',
         borderRadius: '8px',
         border: '1px solid #e5e7eb'
       }}>
@@ -168,7 +168,7 @@ export default function DataQualityReport() {
       <div style={{
         marginTop: '16px',
         padding: '16px',
-        backgroundcolor: '#6b7280',
+        backgroundColor: 'white',
         borderRadius: '8px',
         border: '1px solid #e5e7eb'
       }}>
@@ -454,7 +454,7 @@ export default function DataQualityReport() {
         {hasEnhancedData && standard.percentage !== enhancedData.percentage && (
           <div style={{
             padding: '10px',
-            backgroundcolor: '#6b7280',
+            backgroundColor: '#f9fafb',
             borderRadius: '6px',
             marginBottom: '12px',
             border: '1px solid #e5e7eb'
@@ -513,7 +513,7 @@ export default function DataQualityReport() {
   return (
     <div style={{
       padding: '20px',
-      backgroundcolor: '#6b7280',
+      backgroundColor: '#f3f4f6',
       height: '100%',
       overflowY: 'auto'
     }}>
@@ -744,7 +744,7 @@ export default function DataQualityReport() {
               /* Fallback for states without breakdown - show data quality */
               <div style={{
                 padding: '16px',
-                backgroundcolor: '#6b7280',
+                backgroundColor: 'white',
                 borderRadius: '8px',
                 marginBottom: '12px',
                 textAlign: 'center',
@@ -803,7 +803,7 @@ export default function DataQualityReport() {
               width: '100%',
               maxHeight: 'none',
               overflow: 'visible',
-              backgroundcolor: '#111827',
+              backgroundColor: 'white',
               borderRadius: '12px',
               boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
               marginBottom: '40px',
@@ -977,7 +977,7 @@ export default function DataQualityReport() {
                       </h3>
                       <div style={{
                         padding: '16px',
-                        backgroundcolor: '#6b7280',
+                        backgroundColor: 'white',
                         borderRadius: '8px',
                         border: '1px solid #e5e7eb',
                         marginBottom: '16px',
@@ -1147,7 +1147,7 @@ export default function DataQualityReport() {
                     <div style={{
                       marginBottom: '24px',
                       padding: '20px',
-                      backgroundcolor: '#6b7280',
+                      backgroundColor: 'white',
                       borderRadius: '8px',
                       border: '1px solid #e5e7eb'
                     }}>
@@ -1195,7 +1195,7 @@ export default function DataQualityReport() {
                       {selectedState.tmddStandards.hasCustomHandler && (
                         <div style={{
                           padding: '12px',
-                          backgroundcolor: '#6b7280',
+                          backgroundColor: 'white',
                           borderRadius: '6px',
                           border: '1px solid #fde68a',
                           marginBottom: '16px'
@@ -1302,7 +1302,7 @@ export default function DataQualityReport() {
                         <div style={{
                           marginBottom: '24px',
                           padding: '20px',
-                          backgroundcolor: '#6b7280',
+                          backgroundColor: 'white',
                           borderRadius: '8px',
                           border: '1px solid #e5e7eb'
                         }}>
@@ -1360,7 +1360,7 @@ export default function DataQualityReport() {
                             <div style={{
                               marginTop: '16px',
                               padding: '12px',
-                              backgroundcolor: '#6b7280',
+                              backgroundColor: 'white',
                               borderRadius: '6px',
                               border: '1px solid #f59e0b'
                             }}>
@@ -1417,7 +1417,7 @@ export default function DataQualityReport() {
                         color: '#6b7280',
                         marginBottom: '16px',
                         padding: '12px',
-                        backgroundcolor: '#6b7280',
+                        backgroundColor: 'white',
                         borderRadius: '6px',
                         border: '1px solid #e5e7eb'
                       }}>
@@ -1427,7 +1427,7 @@ export default function DataQualityReport() {
                         {stateGuide.fieldLevelAnalysis.note && (
                           <>
                             <br />
-                            <div style={{ marginTop: '8px', padding: '8px', backgroundcolor: '#6b7280', borderRadius: '4px', border: '1px solid #fde68a' }}>
+                            <div style={{ marginTop: '8px', padding: '8px', backgroundColor: 'white', borderRadius: '4px', border: '1px solid #fde68a' }}>
                               ℹ️ {stateGuide.fieldLevelAnalysis.note}
                             </div>
                           </>
@@ -1662,7 +1662,7 @@ export default function DataQualityReport() {
                           {stateGuide.actionPlan.immediate.map((action, idx) => (
                             <div key={idx} style={{
                               padding: '12px',
-                              backgroundcolor: '#6b7280',
+                              backgroundColor: 'white',
                               borderRadius: '6px',
                               marginBottom: '8px',
                               border: '1px solid #fecaca'
@@ -1694,7 +1694,7 @@ export default function DataQualityReport() {
                           {stateGuide.actionPlan.shortTerm.map((action, idx) => (
                             <div key={idx} style={{
                               padding: '12px',
-                              backgroundcolor: '#6b7280',
+                              backgroundColor: 'white',
                               borderRadius: '6px',
                               marginBottom: '8px',
                               border: '1px solid #fde68a',

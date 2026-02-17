@@ -127,6 +127,8 @@ class PostgreSQLAdapter {
     let pgSql = sql;
     let paramIndex = 1;
     pgSql = pgSql.replace(/\?/g, () => `$${paramIndex++}`);
+    // Convert SQLite-specific syntax (INSERT OR REPLACE, etc.) to PostgreSQL
+    pgSql = self.convertSQLiteToPostgreSQL(pgSql);
 
     return {
       // Run a statement (INSERT, UPDATE, DELETE) - returns Promise
