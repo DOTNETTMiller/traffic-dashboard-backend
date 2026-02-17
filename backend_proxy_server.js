@@ -832,21 +832,16 @@ function offsetCoordinates(coordinates, direction) {
     const dir = direction.toLowerCase();
     if (dir.includes('west') || dir.includes('wb') || dir === 'w') {
       latOffset = offsetDegrees; // Westbound = offset north (positive latitude)
-      console.log(`🧭 Westbound detected: offsetting NORTH by ${offsetDegrees} degrees`);
     } else if (dir.includes('east') || dir.includes('eb') || dir === 'e') {
       latOffset = -offsetDegrees; // Eastbound = offset south (negative latitude)
-      console.log(`🧭 Eastbound detected: offsetting SOUTH by ${offsetDegrees} degrees`);
     } else if (dir.includes('north') || dir.includes('nb') || dir === 'n') {
       lngOffset = offsetDegrees; // Northbound = offset east (positive longitude)
-      console.log(`🧭 Northbound detected: offsetting EAST by ${offsetDegrees} degrees`);
     } else if (dir.includes('south') || dir.includes('sb') || dir === 's') {
       lngOffset = -offsetDegrees; // Southbound = offset west (negative longitude)
-      console.log(`🧭 Southbound detected: offsetting WEST by ${offsetDegrees} degrees`);
     }
   }
 
   if (latOffset === 0 && lngOffset === 0) {
-    console.log(`⚠️  No offset applied for direction: "${direction}"`);
     return coordinates; // No offset for "Both" or unknown directions
   }
 
@@ -855,10 +850,6 @@ function offsetCoordinates(coordinates, direction) {
     const [lng, lat] = coord;
     return [lng + lngOffset, lat + latOffset];
   });
-
-  console.log(`✅ Applied offset: latOffset=${latOffset}, lngOffset=${lngOffset}`);
-  console.log(`   Original: [${coordinates[0][0]}, ${coordinates[0][1]}]`);
-  console.log(`   Offset:   [${result[0][0]}, ${result[0][1]}]`);
 
   return result;
 }
@@ -1379,33 +1370,24 @@ function extractSegment(geometry, lat1, lng1, lat2, lng2, state = null) {
     const newStartIdx = Math.max(0, startIdx - expandBy);
     const newEndIdx = Math.min(geometry.length - 1, endIdx + expandBy);
     const expandedSegment = geometry.slice(newStartIdx, newEndIdx + 1);
-    console.log(`🔍 Short event (${eventDistance.toFixed(2)}km), expanded from ${segment.length} to ${expandedSegment.length} points`);
     return expandedSegment.length >= 2 ? expandedSegment : segment;
   }
 
-  console.log(`✅ Segment extracted: start=${minStartDist.toFixed(1)}km, end=${minEndDist.toFixed(1)}km, segment=${segmentPathLength.toFixed(1)}km, event=${eventDistance.toFixed(1)}km, ${segment.length} points`);
   return segment.length >= 2 ? segment : null;
 }
 
 // Snap a straight line to road network (OSRM cache → straight line)
 async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = null, state = null, eventId = null, stateKey = null) {
-  console.log(`📍 snapToRoad called: eventId=${eventId}, stateKey="${stateKey}", direction="${direction}", corridor="${corridor}", state="${state}"`);
-
   // SKIP database geometry extraction - low resolution creates straight lines
   // Go straight to OSRM which provides dense, road-snapped geometry
-  console.log(`⏩ Skipping database geometry, using OSRM for road-snapped routing`);
-
   // 1. Check OSRM cache (primary routing source)
   const cacheKey = getOSRMCacheKey(lat1, lng1, lat2, lng2, direction);
-  console.log(`🔍 Cache lookup: ${cacheKey}`);
 
   try {
     let cached = db.db.prepare('SELECT geometry FROM osrm_geometry_cache WHERE cache_key = ?').get(cacheKey);
 
     // If direction="Both" and cache miss, retrieve BOTH direction geometries and combine them
     if (!cached && direction && direction.toLowerCase().includes('both')) {
-      console.log(`⚠️  Cache MISS for "Both" - retrieving both directional routes...`);
-
       // Determine which pair of directions to use based on corridor
       let directionPair = [];
       if (corridor) {
@@ -1433,9 +1415,8 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
           try {
             const coords = JSON.parse(result.geometry);
             geometries.push({ direction: dir, coords });
-            console.log(`✅ Found ${dir} geometry (${coords.length} points)`);
           } catch (parseError) {
-            console.log(`❌ Invalid JSON in cache for ${dir}, skipping`);
+            // Skip invalid cache entries silently
           }
         }
       }
@@ -1447,11 +1428,9 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
         const route1 = geometries[0].coords;
         const route2 = [...geometries[1].coords].reverse();
         const combined = [...route1, ...route2];
-        console.log(`✅ Combined ${geometries[0].direction} + ${geometries[1].direction} into ${combined.length} total points`);
         return { coordinates: combined, geometrySource: 'osrm' };
       } else if (geometries.length === 1) {
         // Only found one direction, use it
-        console.log(`✅ Using single direction: ${geometries[0].direction}`);
         return { coordinates: geometries[0].coords, geometrySource: 'osrm' };
       }
     }
@@ -1459,45 +1438,35 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     if (cached) {
       try {
         const geom = JSON.parse(cached.geometry);
-        console.log(`✅ Cache HIT! Returning ${geom.length} coordinates`);
         // OSRM returns centerlines - no offset needed
         return { coordinates: geom, geometrySource: 'osrm' };
       } catch (parseError) {
-        console.log(`❌ Invalid JSON in cache for key ${cacheKey}, treating as MISS`);
+        // Invalid JSON in cache - treat as miss
       }
-    } else {
-      console.log(`❌ Cache MISS for key: ${cacheKey}`);
     }
   } catch (error) {
     console.error(`❌ Cache lookup error:`, error.message);
   }
 
   // 5. Not in cache - fetch from OSRM and cache the result
-  console.log(`🌐 Cache MISS - fetching from OSRM API: ${lat1},${lng1} -> ${lat2},${lng2} direction=${direction}`);
-
   try {
     const osrmCoordinates = await snapToRoadImmediate(lat1, lng1, lat2, lng2, direction);
 
     // Cache the result if it's more than just a straight line (OSRM succeeded)
     if (osrmCoordinates.length > 2) {
-      console.log(`✅ OSRM returned ${osrmCoordinates.length} points - caching result`);
       try {
         db.db.prepare('INSERT OR REPLACE INTO osrm_geometry_cache (cache_key, geometry) VALUES (?, ?)').run(
           cacheKey,
           JSON.stringify(osrmCoordinates)
         );
-        console.log(`💾 Cached geometry for key: ${cacheKey}`);
       } catch (cacheError) {
         console.error(`❌ Failed to cache OSRM result:`, cacheError.message);
         // Continue anyway - we still have the geometry
       }
       return { coordinates: osrmCoordinates, geometrySource: 'osrm' };
     } else {
-      console.log(`⚠️  OSRM returned straight line (${osrmCoordinates.length} points) - likely routing failed`);
-
       // Before returning straight line, try Interstate snapping for I-80 and I-35
       if (corridor && (corridor.match(/I-?80/) || corridor.match(/I-?35/))) {
-        console.log(`   🔍 Trying Interstate polyline snapping for ${corridor}...`);
         const interstateSegment = snapToInterstatePolyline(lat1, lng1, lat2, lng2, corridor, direction);
         if (interstateSegment && interstateSegment.length > 2) {
           return { coordinates: interstateSegment, geometrySource: 'interstate_polyline' };
@@ -1511,16 +1480,13 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
 
     // Before final fallback, try Interstate snapping for I-80 and I-35
     if (corridor && (corridor.match(/I-?80/) || corridor.match(/I-?35/))) {
-      console.log(`   🔍 Trying Interstate polyline snapping for ${corridor}...`);
       const interstateSegment = snapToInterstatePolyline(lat1, lng1, lat2, lng2, corridor, direction);
       if (interstateSegment && interstateSegment.length > 2) {
-        console.log(`   ✅ Using Interstate geometry instead of straight line`);
         return { coordinates: interstateSegment, geometrySource: 'interstate_polyline' };
       }
     }
 
     // Final fallback to straight line
-    console.log(`⚠️  Returning straight line fallback for ${lat1},${lng1} -> ${lat2},${lng2}`);
     const straightLine = [[lng1, lat1], [lng2, lat2]];
     return { coordinates: straightLine, geometrySource: 'straight_line' };
   }
