@@ -13,6 +13,9 @@ const RCRS_ENDPOINTS = {
 const PENNDOT_USERNAME = process.env.PENNDOT_USERNAME;
 const PENNDOT_PASSWORD = process.env.PENNDOT_PASSWORD;
 
+// Track if we've already logged the missing credentials warning
+let missingCredsWarningLogged = false;
+
 async function fetchJSON(url, username, password) {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(url);
@@ -263,10 +266,13 @@ function isEventRelevant(event, isPlanned = false) {
 async function fetchPennDOTRCRS() {
   console.log('🛣️  Fetching PennDOT RCRS road events...\n');
 
-  // Check for credentials
+  // Check for credentials (log warning only once)
   if (!PENNDOT_USERNAME || !PENNDOT_PASSWORD) {
-    console.error('❌ Missing PennDOT credentials!');
-    console.error('   Set PENNDOT_USERNAME and PENNDOT_PASSWORD environment variables');
+    if (!missingCredsWarningLogged) {
+      console.error('❌ Missing PennDOT credentials!');
+      console.error('   Set PENNDOT_USERNAME and PENNDOT_PASSWORD environment variables');
+      missingCredsWarningLogged = true;
+    }
     return [];
   }
 
