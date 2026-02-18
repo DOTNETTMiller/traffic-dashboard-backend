@@ -141,18 +141,17 @@ function generateMultiEventICS(events) {
  * Get all upcoming events
  */
 async function getUpcomingEvents(limit = 50) {
-  const query = `
-    SELECT * FROM calendar_events
-    WHERE start_time >= datetime('now')
-    ORDER BY start_time ASC
-    LIMIT ?
-  `;
-
-  const events = db.isPostgres
-    ? await db.db.prepare(query).all(limit)
-    : db.db.prepare(query).all(limit);
-
-  return events;
+  if (db.isPostgres) {
+    const result = await db.db.query(
+      `SELECT * FROM calendar_events WHERE start_time >= NOW() ORDER BY start_time ASC LIMIT $1`,
+      [limit]
+    );
+    return result.rows;
+  } else {
+    return db.db.prepare(
+      `SELECT * FROM calendar_events WHERE start_time >= datetime('now') ORDER BY start_time ASC LIMIT ?`
+    ).all(limit);
+  }
 }
 
 /**
@@ -196,15 +195,18 @@ async function getEventDetails(eventId) {
  * Create or update RSVP
  */
 async function upsertRSVP(eventId, userEmail, userName, response) {
-  const query = `
-    INSERT OR REPLACE INTO calendar_rsvps (event_id, user_email, user_name, response, updated_at)
-    VALUES (?, ?, ?, ?, datetime('now'))
-  `;
-
   if (db.isPostgres) {
-    await db.db.prepare(query).run(eventId, userEmail, userName, response);
+    await db.db.query(
+      `INSERT INTO calendar_rsvps (event_id, user_email, user_name, response, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (event_id, user_email) DO UPDATE SET response = $4, updated_at = NOW()`,
+      [eventId, userEmail, userName, response]
+    );
   } else {
-    db.db.prepare(query).run(eventId, userEmail, userName, response);
+    db.db.prepare(
+      `INSERT OR REPLACE INTO calendar_rsvps (event_id, user_email, user_name, response, updated_at)
+       VALUES (?, ?, ?, ?, datetime('now'))`
+    ).run(eventId, userEmail, userName, response);
   }
 
   return { success: true };
