@@ -26432,6 +26432,158 @@ ${minutes_text}`;
   }
 });
 
+// ==================== COALITION PROGRESS API ENDPOINTS ====================
+
+// GET all progress items (tasks, goals, achievements)
+app.get('/api/calendar/progress', async (req, res) => {
+  try {
+    let items;
+    if (db.isPostgres) {
+      const result = await db.db.query(
+        'SELECT * FROM coalition_progress_items ORDER BY type, sort_order ASC'
+      );
+      items = result.rows;
+    } else {
+      items = db.db.prepare(
+        'SELECT * FROM coalition_progress_items ORDER BY type, sort_order ASC'
+      ).all();
+    }
+
+    const grouped = {
+      tasks: items.filter(i => i.type === 'task'),
+      goals: items.filter(i => i.type === 'goal'),
+      achievements: items.filter(i => i.type === 'achievement')
+    };
+
+    res.json(grouped);
+  } catch (error) {
+    console.error('Error fetching progress items:', error);
+    res.status(500).json({ error: 'Failed to fetch progress items' });
+  }
+});
+
+// POST to add a single progress item (admin)
+app.post('/api/calendar/progress', requireAdmin, async (req, res) => {
+  try {
+    const { type, content, source_meeting } = req.body;
+    if (!type || !content) {
+      return res.status(400).json({ error: 'type and content are required' });
+    }
+    if (!['task', 'goal', 'achievement'].includes(type)) {
+      return res.status(400).json({ error: 'type must be task, goal, or achievement' });
+    }
+
+    let newItem;
+    if (db.isPostgres) {
+      const result = await db.db.query(
+        `INSERT INTO coalition_progress_items (type, content, source_meeting)
+         VALUES ($1, $2, $3) RETURNING *`,
+        [type, content.trim(), source_meeting || null]
+      );
+      newItem = result.rows[0];
+    } else {
+      const result = db.db.prepare(
+        `INSERT INTO coalition_progress_items (type, content, source_meeting) VALUES (?, ?, ?)`
+      ).run(type, content.trim(), source_meeting || null);
+      newItem = db.db.prepare('SELECT * FROM coalition_progress_items WHERE id = ?').get(result.lastInsertRowid);
+    }
+
+    res.json({ success: true, item: newItem });
+  } catch (error) {
+    console.error('Error adding progress item:', error);
+    res.status(500).json({ error: 'Failed to add progress item' });
+  }
+});
+
+// DELETE a progress item (admin)
+app.delete('/api/calendar/progress/:id', requireAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (db.isPostgres) {
+      await db.db.query('DELETE FROM coalition_progress_items WHERE id = $1', [id]);
+    } else {
+      db.db.prepare('DELETE FROM coalition_progress_items WHERE id = ?').run(id);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting progress item:', error);
+    res.status(500).json({ error: 'Failed to delete progress item' });
+  }
+});
+
+// POST to upload meeting minutes text and extract items (admin)
+// Simple extraction: parses lines starting with ACTION:, GOAL:, or ACHIEVEMENT:
+app.post('/api/calendar/progress/upload-minutes', requireAdmin, async (req, res) => {
+  try {
+    const { minutes_text, meeting_name } = req.body;
+    if (!minutes_text) {
+      return res.status(400).json({ error: 'minutes_text is required' });
+    }
+
+    const lines = minutes_text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const extracted = [];
+
+    for (const line of lines) {
+      const upperLine = line.toUpperCase();
+      let type = null;
+      let content = null;
+
+      if (upperLine.startsWith('ACTION:') || upperLine.startsWith('ACTION ITEM:') || upperLine.startsWith('TASK:')) {
+        type = 'task';
+        content = line.replace(/^(ACTION ITEM|ACTION|TASK):\s*/i, '').trim();
+      } else if (upperLine.startsWith('GOAL:') || upperLine.startsWith('OBJECTIVE:')) {
+        type = 'goal';
+        content = line.replace(/^(GOAL|OBJECTIVE):\s*/i, '').trim();
+      } else if (upperLine.startsWith('ACHIEVEMENT:') || upperLine.startsWith('ACCOMPLISHED:') || upperLine.startsWith('COMPLETED:')) {
+        type = 'achievement';
+        content = line.replace(/^(ACHIEVEMENT|ACCOMPLISHED|COMPLETED):\s*/i, '').trim();
+      }
+
+      if (type && content) {
+        extracted.push({ type, content });
+      }
+    }
+
+    if (extracted.length === 0) {
+      return res.json({
+        success: true,
+        added: 0,
+        message: 'No items extracted. Use prefixes ACTION:, GOAL:, or ACHIEVEMENT: on lines to extract items.',
+        hint: 'Example: "ACTION: Complete SDX trial for Nevada"'
+      });
+    }
+
+    const added = [];
+    for (const item of extracted) {
+      let newItem;
+      if (db.isPostgres) {
+        const result = await db.db.query(
+          `INSERT INTO coalition_progress_items (type, content, source_meeting)
+           VALUES ($1, $2, $3) RETURNING *`,
+          [item.type, item.content, meeting_name || null]
+        );
+        newItem = result.rows[0];
+      } else {
+        const result = db.db.prepare(
+          `INSERT INTO coalition_progress_items (type, content, source_meeting) VALUES (?, ?, ?)`
+        ).run(item.type, item.content, meeting_name || null);
+        newItem = { id: result.lastInsertRowid, ...item };
+      }
+      added.push(newItem);
+    }
+
+    res.json({
+      success: true,
+      added: added.length,
+      items: added,
+      message: `Added ${added.length} item(s) from meeting minutes`
+    });
+  } catch (error) {
+    console.error('Error uploading meeting minutes:', error);
+    res.status(500).json({ error: 'Failed to process meeting minutes' });
+  }
+});
+
 // ==================== CHATGPT API ENDPOINTS ====================
 
 // Generate API key for ChatGPT (admin only)
