@@ -18849,7 +18849,7 @@ app.get('/api/digital-infrastructure/models', async (req, res) => {
 
     const { stateKey } = req.query;
 
-    let query = 'SELECT * FROM ifc_models';
+    let query = 'SELECT * FROM bim_models';
     const params = [];
 
     if (stateKey && stateKey !== 'multi-state') {
@@ -18861,7 +18861,7 @@ app.get('/api/digital-infrastructure/models', async (req, res) => {
       params.push(stateKey);
     }
 
-    query += ' ORDER BY upload_date DESC';
+    query += ' ORDER BY created_at DESC';
 
     let models;
     if (db.isPostgres) {
