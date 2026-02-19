@@ -18736,6 +18736,60 @@ async function checkDigitalInfraTables(res) {
   }
 }
 
+// List all BIM models from bim_models table
+app.get('/api/bim/models', async (req, res) => {
+  try {
+    const { stateKey } = req.query;
+
+    let query = 'SELECT * FROM bim_models';
+    const params = [];
+
+    if (stateKey) {
+      query += db.isPostgres ? ' WHERE state_key = $1' : ' WHERE state_key = ?';
+      params.push(stateKey);
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    let models;
+    if (db.isPostgres) {
+      const result = await db.db.query(query, params);
+      models = result.rows || [];
+    } else {
+      const stmt = db.db.prepare(query);
+      models = params.length > 0 ? stmt.all(...params) : stmt.all();
+    }
+
+    res.json({
+      success: true,
+      models: models.map(m => ({
+        id: m.id,
+        filename: m.filename,
+        originalFilename: m.original_filename,
+        filePath: m.file_path,
+        fileType: m.file_type,
+        fileSize: m.file_size,
+        stateKey: m.state_key,
+        uploadedBy: m.uploaded_by,
+        latitude: m.latitude,
+        longitude: m.longitude,
+        route: m.route,
+        milepost: m.milepost,
+        elementsExtracted: m.elements_extracted,
+        gapsIdentified: m.gaps_identified,
+        v2xApplicable: m.v2x_applicable,
+        avCritical: m.av_critical,
+        processingStatus: m.processing_status,
+        createdAt: m.created_at,
+        updatedAt: m.updated_at
+      }))
+    });
+  } catch (err) {
+    console.error('Error fetching BIM models:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Get BIM model details (simplified endpoint for bim_models table)
 app.get('/api/bim/models/:id', async (req, res) => {
   try {
