@@ -19273,8 +19273,8 @@ app.delete('/api/digital-infrastructure/models/:modelId', async (req, res) => {
 
     // Check if model exists
     const modelQuery = db.isPostgres
-      ? 'SELECT * FROM ifc_models WHERE id = $1'
-      : 'SELECT * FROM ifc_models WHERE id = ?';
+      ? 'SELECT * FROM bim_models WHERE id = $1'
+      : 'SELECT * FROM bim_models WHERE id = ?';
 
     let model;
     if (db.isPostgres) {
@@ -19312,8 +19312,8 @@ app.delete('/api/digital-infrastructure/models/:modelId', async (req, res) => {
 
     // Delete model record
     const deleteModel = db.isPostgres
-      ? 'DELETE FROM ifc_models WHERE id = $1'
-      : 'DELETE FROM ifc_models WHERE id = ?';
+      ? 'DELETE FROM bim_models WHERE id = $1'
+      : 'DELETE FROM bim_models WHERE id = ?';
 
     if (db.isPostgres) {
       await db.db.query(deleteModel, [modelId]);
