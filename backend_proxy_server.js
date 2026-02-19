@@ -917,7 +917,7 @@ function getOSRMCacheKey(lat1, lng1, lat2, lng2, direction) {
 // Throttle OSRM requests to avoid overwhelming the public API
 const osrmQueue = [];
 let osrmProcessing = false;
-const OSRM_DELAY_MS = 100; // Delay between requests
+const OSRM_DELAY_MS = 1500; // Delay between requests (public API rate limit)
 
 async function processOSRMQueue() {
   if (osrmProcessing || osrmQueue.length === 0) return;
@@ -1507,10 +1507,7 @@ async function snapToRoadImmediate(lat1, lng1, lat2, lng2, direction = null) {
       }
     }
   } catch (error) {
-    // If OSRM fails (network error, rate limit, etc.), fall back to straight line
-    if (!error.message.includes('timeout')) {
-      console.log('OSRM road-snapping failed, using straight line:', error.message);
-    }
+    // If OSRM fails (network error, rate limit, etc.), fall back to straight line silently
   }
 
   // 5. Fallback to straight line between the two points
@@ -2711,7 +2708,7 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
                   if (linkDirection && linkAlignment) {
                     // Convert FEU-G direction to standard format
                     direction = convertFEUGDirection(linkDirection, linkAlignment, corridor);
-                    if (index === 0) {
+                    if (false) { // Debug logging disabled to reduce log volume
                       console.log(`${stateName}: Using FEU-G direction: link-direction="${linkDirection}", link-alignment="${linkAlignment}" → "${direction}"`);
                     }
                   } else {
@@ -2742,13 +2739,7 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
                     source,
                     geometrySource // Include the actual API source for visual distinction
                   };
-                  if (index === 0) {
-                    console.log(`${stateName}: Extracted geometry with ${roadSnappedCoords.length} points (${source}, direction: ${direction})`);
-                  }
                 }
-              } else if (index === 0) {
-                // Single-point event - geometry remains null (no polyline)
-                console.log(`${stateName}: Single-point event (no secondary location) - no polyline generated`);
               }
             }
 
