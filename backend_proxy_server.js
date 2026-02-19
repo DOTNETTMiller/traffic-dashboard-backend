@@ -18949,66 +18949,18 @@ app.get('/api/digital-infrastructure/models/:modelId', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Model not found' });
     }
 
-    // Get element statistics
-    const statsQuery = db.isPostgres
-      ? 'SELECT ifc_type, COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 GROUP BY ifc_type'
-      : 'SELECT ifc_type, COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? GROUP BY ifc_type';
-
-    let stats;
-    if (db.isPostgres) {
-      const result = await db.db.query(statsQuery, [modelId]);
-      stats = result.rows || [];
-    } else {
-      stats = db.db.prepare(statsQuery).all(modelId);
-    }
-
-    const by_type = {};
-    stats.forEach(s => {
-      by_type[s.ifc_type] = parseInt(s.count);
-    });
-
-    // Get V2X and AV counts
-    const v2xQuery = db.isPostgres
-      ? 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 AND v2x_applicable = 1'
-      : 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? AND v2x_applicable = 1';
-
-    const avQuery = db.isPostgres
-      ? 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 AND av_critical = 1'
-      : 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? AND av_critical = 1';
-
-    let v2xCount, avCount;
-    if (db.isPostgres) {
-      const v2xResult = await db.db.query(v2xQuery, [modelId]);
-      const avResult = await db.db.query(avQuery, [modelId]);
-      v2xCount = v2xResult.rows?.[0]?.count || 0;
-      avCount = avResult.rows?.[0]?.count || 0;
-    } else {
-      v2xCount = db.db.prepare(v2xQuery).get(modelId)?.count || 0;
-      avCount = db.db.prepare(avQuery).get(modelId)?.count || 0;
-    }
-
-    // Get gap count
-    const gapQuery = db.isPostgres
-      ? 'SELECT COUNT(*) as count FROM infrastructure_gaps WHERE model_id = $1'
-      : 'SELECT COUNT(*) as count FROM infrastructure_gaps WHERE model_id = ?';
-
-    let gapCount;
-    if (db.isPostgres) {
-      const result = await db.db.query(gapQuery, [modelId]);
-      gapCount = result.rows?.[0]?.count || 0;
-    } else {
-      gapCount = db.db.prepare(gapQuery).get(modelId)?.count || 0;
-    }
-
+    // Return model with basic stats from bim_models table
+    // Note: infrastructure_elements and infrastructure_gaps tables may not be populated yet
     res.json({
       success: true,
       model: {
         ...model,
-        by_type,
-        v2x_elements: parseInt(v2xCount),
-        av_critical_elements: parseInt(avCount),
-        gaps: parseInt(gapCount),
-        compliance_score: gapCount > 0 ? 0 : 100
+        by_type: {},
+        v2x_elements: model.v2x_applicable || 0,
+        av_critical_elements: model.av_critical || 0,
+        gaps: model.gaps_identified || 0,
+        compliance_score: (model.gaps_identified || 0) > 0 ? 0 : 100,
+        elements_extracted: model.elements_extracted || 0
       }
     });
 
