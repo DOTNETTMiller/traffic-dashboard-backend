@@ -844,13 +844,13 @@ function DigitalInfrastructure() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
                       <span style={{
                         padding: '6px 12px',
-                        backgroundColor: model.extraction_status === 'completed' ? '#4caf50' : '#ff9800',
+                        backgroundColor: model.processing_status === 'completed' ? '#4caf50' : '#ff9800',
                         color: '#111827',
                         borderRadius: '4px',
                         fontSize: '12px',
                         fontWeight: 'bold'
                       }}>
-                        {model.extraction_status.toUpperCase()}
+                        {model.processing_status?.toUpperCase() || 'PENDING'}
                       </span>
                       <button
                         onClick={(e) => {
