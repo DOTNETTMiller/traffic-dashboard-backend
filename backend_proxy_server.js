@@ -18548,79 +18548,82 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
     console.log(`   ✅ Parsed ${extractionResult.statistics.total_entities} IFC entities`);
     console.log(`   ✅ Extracted ${extractionResult.elements.length} infrastructure elements`);
 
-    // Read file data for database storage (instead of filesystem)
+    // Move file to permanent storage (Railway volume at /app/uploads/ifc/)
     const fs = require('fs');
-    const fileBuffer = fs.readFileSync(tempFilePath);
+    const uploadDir = path.join(__dirname, 'uploads', 'ifc');
 
-    // Store file path for backwards compatibility (but file won't persist on Railway)
+    // Ensure upload directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    // Create safe filename
     const safeName = `${Date.now()}-${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-    storedFilePath = path.join('uploads', 'ifc_models', safeName);
+    const permanentPath = path.join(uploadDir, safeName);
+    storedFilePath = path.join('uploads', 'ifc', safeName);
 
-    // Clean up temp file
-    fs.unlinkSync(tempFilePath);
+    // Move file from temp location to permanent storage
+    fs.renameSync(tempFilePath, permanentPath);
 
     // Generate gap analysis
     const gaps = parser.identifyGaps(extractionResult.elements);
     console.log(`   ✅ Identified ${gaps.length} data gaps for ITS operations`);
 
-    // Store in database (including file_data BYTEA column)
+    // Store metadata in bim_models table (file is saved to volume)
     const modelInsert = db.isPostgres
-      ? `INSERT INTO ifc_models (filename, file_path, file_size, ifc_schema, project_name, uploaded_by,
-         state_key, latitude, longitude, route, milepost, extraction_status,
-         extraction_log, total_elements, metadata, file_data)
+      ? `INSERT INTO bim_models (filename, original_filename, file_path, file_type, file_size,
+         state_key, uploaded_by, latitude, longitude, route, milepost,
+         elements_extracted, gaps_identified, v2x_applicable, av_critical, processing_status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          RETURNING id`
-      : `INSERT INTO ifc_models (filename, file_path, file_size, ifc_schema, project_name, uploaded_by,
-         state_key, latitude, longitude, route, milepost, extraction_status,
-         extraction_log, total_elements, metadata, file_data)
+      : `INSERT INTO bim_models (filename, original_filename, file_path, file_type, file_size,
+         state_key, uploaded_by, latitude, longitude, route, milepost,
+         elements_extracted, gaps_identified, v2x_applicable, av_critical, processing_status)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
-    const metadata = JSON.stringify({
-      entity_types: extractionResult.statistics.by_type,
-      v2x_elements: extractionResult.elements.filter(e => e.v2x_applicable).length,
-      av_critical_elements: extractionResult.elements.filter(e => e.av_critical).length
-    });
+    const v2xCount = extractionResult.elements.filter(e => e.v2x_applicable).length;
+    const avCount = extractionResult.elements.filter(e => e.av_critical).length;
 
     let modelId;
     if (db.isPostgres) {
       const result = await db.db.query(modelInsert, [
-        req.file.originalname,
-        storedFilePath,
-        req.file.size,
-        extractionResult.schema,
-        extractionResult.project,
-        uploadedBy || 'anonymous',
-        stateKey || null,
+        safeName,                          // filename (generated safe name)
+        req.file.originalname,             // original_filename (user's upload name)
+        storedFilePath,                    // file_path (relative path)
+        fileExt,                           // file_type (.ifc, .dxf, etc.)
+        req.file.size,                     // file_size (bytes)
+        stateKey || null,                  // state_key
+        uploadedBy || 'anonymous',         // uploaded_by
         latitude ? parseFloat(latitude) : null,
         longitude ? parseFloat(longitude) : null,
         route || null,
-        milepost ? parseFloat(milepost) : null,
-        'completed',
-        JSON.stringify(extractionResult.extractionLog),
-        extractionResult.elements.length,
-        metadata,
-        fileBuffer  // Store file data in database
+        milepost || null,
+        extractionResult.elements.length,  // elements_extracted
+        gaps.length,                       // gaps_identified
+        v2xCount,                          // v2x_applicable
+        avCount,                           // av_critical
+        'completed'                        // processing_status
       ]);
       modelId = result.rows[0].id;
     } else {
       const stmt = db.db.prepare(modelInsert);
       const result = stmt.run(
+        safeName,
         req.file.originalname,
         storedFilePath,
+        fileExt,
         req.file.size,
-        extractionResult.schema,
-        extractionResult.project,
-        uploadedBy || 'anonymous',
         stateKey || null,
+        uploadedBy || 'anonymous',
         latitude ? parseFloat(latitude) : null,
         longitude ? parseFloat(longitude) : null,
         route || null,
-        milepost ? parseFloat(milepost) : null,
-        'completed',
-        JSON.stringify(extractionResult.extractionLog),
+        milepost || null,
         extractionResult.elements.length,
-        metadata,
-        fileBuffer  // Store file data in database
+        gaps.length,
+        v2xCount,
+        avCount,
+        'completed'
       );
       modelId = result.lastInsertRowid;
     }
@@ -18732,6 +18735,57 @@ async function checkDigitalInfraTables(res) {
     return false;
   }
 }
+
+// Get BIM model details (simplified endpoint for bim_models table)
+app.get('/api/bim/models/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const modelQuery = db.isPostgres
+      ? 'SELECT * FROM bim_models WHERE id = $1'
+      : 'SELECT * FROM bim_models WHERE id = ?';
+
+    let model;
+    if (db.isPostgres) {
+      const result = await db.db.query(modelQuery, [id]);
+      model = result.rows?.[0];
+    } else {
+      model = db.db.prepare(modelQuery).get(id);
+    }
+
+    if (!model) {
+      return res.status(404).json({ success: false, error: 'Model not found' });
+    }
+
+    res.json({
+      success: true,
+      model: {
+        id: model.id,
+        filename: model.filename,
+        originalFilename: model.original_filename,
+        filePath: model.file_path,
+        fileType: model.file_type,
+        fileSize: model.file_size,
+        stateKey: model.state_key,
+        uploadedBy: model.uploaded_by,
+        latitude: model.latitude,
+        longitude: model.longitude,
+        route: model.route,
+        milepost: model.milepost,
+        elementsExtracted: model.elements_extracted,
+        gapsIdentified: model.gaps_identified,
+        v2xApplicable: model.v2x_applicable,
+        avCritical: model.av_critical,
+        processingStatus: model.processing_status,
+        createdAt: model.created_at,
+        updatedAt: model.updated_at
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching BIM model:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // List all IFC models
 app.get('/api/digital-infrastructure/models', async (req, res) => {
