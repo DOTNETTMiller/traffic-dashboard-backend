@@ -18934,8 +18934,8 @@ app.get('/api/digital-infrastructure/models/:modelId', async (req, res) => {
 
     // Get model
     const modelQuery = db.isPostgres
-      ? 'SELECT * FROM ifc_models WHERE id = $1'
-      : 'SELECT * FROM ifc_models WHERE id = ?';
+      ? 'SELECT * FROM bim_models WHERE id = $1'
+      : 'SELECT * FROM bim_models WHERE id = ?';
 
     let model;
     if (db.isPostgres) {
