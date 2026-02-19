@@ -13,7 +13,7 @@ The **DOT Corridor Communicator** serves as a **reference implementation** for A
 **J-Stan** = Joint Subcommittee on Data Standardization
 
 **Established**: October 2019 (Administrative Resolution AR-1-19 approved by AASHTO Board of Directors)
-**Chair**: Trisha Stefanski, Minnesota DOT
+**Chair**: Mike Bousliman, Montana DOT
 **Vice Chair**: Will Holmes, Kentucky Transportation Cabinet
 **Mission**: Champion and coordinate efficient information flow throughout the lifecycle of all assets and related information that comprise our transportation systems. This is achieved through open data standards, data governance, schema development, and collaborative public/private partnerships.
 
@@ -235,7 +235,7 @@ https://api.aashto.org/tmdd/v3.1/
 
 4. **Multi-Committee Coalition Building**: Platform demonstrates value across all committees (Design gets IFC, SCOTE gets TMDD, CAV gets J2735). Shared benefits = shared mandate.
 
-5. **Private Sector Alignment**: Show vendors/OEMs that AASHTO standards enable a $290M+ market. Industry pressure on states = faster adoption.
+5. **Private Sector Alignment**: Show vendors/OEMs that AASHTO standards enable a significant addressable market for ITS products and services. Industry pressure on states = faster adoption.
 
 ### Recommended Next Steps for JSTAN Leadership
 
@@ -297,12 +297,12 @@ https://api.aashto.org/tmdd/v3.1/
 - **Audience**: Pooled fund study managers, regional coalitions, interstate partnerships
 - **Purpose**: Show how DOT Corridor Communicator enables Connected Corridors Advancement Initiative (CCAI)
 - **Key Sections**:
-  - CCAI pooled fund overview (8 states, $2M budget)
+  - CCAI pooled fund overview (8 states)
   - Gap analysis of existing state data feeds
   - WZDx standardization engine
   - Digital infrastructure module (BIM/IFC integration)
   - Multi-state grant coordination support
-  - ROI analysis: $150K investment → $10.5M-$17.5M benefits
+  - ROI analysis framework and methodology for calculating benefits
 
 **Best For**: States considering or participating in multi-state corridor initiatives
 
@@ -314,11 +314,10 @@ https://api.aashto.org/tmdd/v3.1/
 - **Audience**: AASHTO leadership, investors, strategic partners, DOT executives
 - **Purpose**: Business strategy and market opportunity for digital infrastructure platform
 - **Key Sections**:
-  - Market opportunity ($290M addressable market)
+  - Market opportunity and addressable market analysis
   - Value proposition and competitive advantages
-  - ROI calculations (35x-118x for individual states)
+  - ROI calculation methodology for state agencies
   - Strategic partnerships (AASHTO, FHWA, buildingSMART)
-  - 3-year revenue projections and financial model
   - Long-term vision (national standard for corridor data)
 
 **Best For**: Leadership evaluating platform partnerships or investment
@@ -393,8 +392,8 @@ https://api.aashto.org/tmdd/v3.1/
 **Iowa DOT BIM Integration:**
 - Uploaded IFC bridge models (IFC 4.3)
 - Automated gap analysis identified missing NTCIP device IDs
-- 25% reduction in emergency closures via predictive maintenance
-- $3M annual savings
+- Measurable reduction in emergency closures via predictive maintenance
+- Significant operational cost savings through improved asset management
 
 **Texas/Oklahoma WZDx Standardization:**
 - Normalized custom DriveTexas API to WZDx v4.2
@@ -424,9 +423,9 @@ https://api.aashto.org/tmdd/v3.1/
 - Open architecture allows states to replicate or customize
 
 **4. Industry Leadership**
-- Platform positioned to become "AASHTO recommended practice"
+- Platform provides foundation for potential AASHTO recommended practices
 - FHWA Every Day Counts (EDC) adoption potential
-- International expansion opportunity (EU, Asia-Pacific)
+- Opportunities for international collaboration (EU, Asia-Pacific)
 
 ---
 
@@ -446,7 +445,7 @@ https://api.aashto.org/tmdd/v3.1/
 
 **3. Pooled Fund Study Support**
 - Technical foundation for multi-state corridor initiatives
-- Shared platform reduces per-state costs
+- Shared platform approach enables cost efficiencies
 - Enables regional digital twin capabilities
 
 **4. Standards Development Feedback**
@@ -502,7 +501,7 @@ https://api.aashto.org/tmdd/v3.1/
 ## Frequently Asked Questions
 
 **Q: Is this platform free for state DOTs?**
-A: Basic tier (dashboard access, public APIs) is free. Professional tier ($2,500/month) includes unlimited API access and custom integrations. Many states fund subscriptions through SMART/RAISE grants.
+A: Yes, this is an open platform funded through pooled fund studies and federal grants. State DOTs can access the dashboard, APIs, and integration support at no cost.
 
 **Q: Does our state need to be WZDx-compliant first?**
 A: No. The platform includes normalization engine that converts custom formats to WZDx. We've successfully integrated 15+ states with non-standard APIs.
