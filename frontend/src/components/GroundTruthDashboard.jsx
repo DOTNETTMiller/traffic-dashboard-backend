@@ -1148,6 +1148,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                           padding: '8px',
                           borderRadius: '4px',
                           border: '1px solid #bfdbfe',
+                          backgroundColor: '#ffffff',
                           fontSize: '13px'
                         }}
                       />
@@ -1178,6 +1179,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                           padding: '8px',
                           borderRadius: '4px',
                           border: '1px solid #bfdbfe',
+                          backgroundColor: '#ffffff',
                           fontSize: '13px'
                         }}
                       />
