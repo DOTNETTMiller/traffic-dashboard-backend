@@ -930,7 +930,7 @@ async function processOSRMQueue() {
     // Save to cache if OSRM succeeded (more than 2 points = road-snapped)
     if (result.length > 2) {
       try {
-        db.db.prepare('INSERT OR REPLACE INTO osrm_geometry_cache (cache_key, geometry) VALUES (?, ?)').run(
+        await db.db.prepare('INSERT OR REPLACE INTO osrm_geometry_cache (cache_key, geometry) VALUES (?, ?)').run(
           cacheKey,
           JSON.stringify(result)
         );
@@ -1455,7 +1455,7 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     // Cache the result if it's more than just a straight line (OSRM succeeded)
     if (osrmCoordinates.length > 2) {
       try {
-        db.db.prepare('INSERT OR REPLACE INTO osrm_geometry_cache (cache_key, geometry) VALUES (?, ?)').run(
+        await db.db.prepare('INSERT OR REPLACE INTO osrm_geometry_cache (cache_key, geometry) VALUES (?, ?)').run(
           cacheKey,
           JSON.stringify(osrmCoordinates)
         );
