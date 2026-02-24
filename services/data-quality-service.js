@@ -1,5 +1,6 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const FeedTrackingService = require('./feed-tracking-service');
 
 const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, '..', 'traffic_data.db');
 
@@ -290,31 +291,36 @@ class DataQualityService {
   /**
    * DIMENSION 4: Availability
    * Measures feed uptime and reliability (based on historical fetch success/failure)
-   * For now, we'll estimate based on whether events exist
    */
   calculateAvailability(stateKey) {
-    // TODO: Track fetch success/failure in separate table
-    // For now, assume 100% if events exist, 50% if no events
-    const db = this.getDb();
-    const eventCount = db.prepare('SELECT COUNT(*) as count FROM cached_events WHERE state_key = ?')
-      .get(stateKey).count;
+    const feedTracker = new FeedTrackingService();
+    const metrics = feedTracker.getAvailabilityMetrics(stateKey);
 
-    let availabilityScore = 100;
-    let uptimePercentage = 100;
-    let fetchSuccess = 100;
-    let fetchFailure = 0;
+    // Use 30-day uptime as primary availability score
+    const availabilityScore = metrics.uptime_percentage_30d || 100;
 
-    if (eventCount === 0) {
-      availabilityScore = 50;
-      uptimePercentage = 50;
-      fetchSuccess = 50;
-      fetchFailure = 50;
+    // If no fetch history exists, fall back to event-based estimate
+    if (metrics.total_fetches === 0) {
+      const db = this.getDb();
+      const eventCount = db.prepare('SELECT COUNT(*) as count FROM cached_events WHERE state_key = ?')
+        .get(stateKey).count;
+
+      return {
+        fetch_success_count: eventCount > 0 ? 1 : 0,
+        fetch_failure_count: eventCount > 0 ? 0 : 1,
+        uptime_percentage: eventCount > 0 ? 100 : 0,
+        availability_score: eventCount > 0 ? 100 : 0
+      };
     }
 
     return {
-      fetch_success_count: fetchSuccess,
-      fetch_failure_count: fetchFailure,
-      uptime_percentage: uptimePercentage,
+      fetch_success_count: metrics.successful_fetches,
+      fetch_failure_count: metrics.failed_fetches,
+      uptime_percentage: metrics.uptime_percentage_30d,
+      uptime_percentage_24h: metrics.uptime_percentage_24h,
+      uptime_percentage_7d: metrics.uptime_percentage_7d,
+      avg_response_time_ms: metrics.avg_response_time_ms,
+      consecutive_failures: metrics.consecutive_failures,
       availability_score: availabilityScore
     };
   }
