@@ -3361,13 +3361,212 @@ class StateDatabase {
         };
       }
 
-      // TODO: Implement pathfinding algorithm (Dijkstra's or A*)
-      // For now, return null (requires graph traversal implementation)
-      return null;
+      // Build graph from network topology
+      const topology = this.getNetworkTopology();
+      if (!topology || topology.length === 0) {
+        return null;
+      }
+
+      // Create adjacency list
+      const graph = new Map();
+      for (const conn of topology) {
+        if (!graph.has(conn.from_device_id)) {
+          graph.set(conn.from_device_id, []);
+        }
+        graph.get(conn.from_device_id).push({
+          to: conn.to_device_id,
+          connectionId: conn.connection_id,
+          weight: this._calculateEdgeWeight(conn, pathType)
+        });
+
+        // Add reverse edge for bidirectional connections
+        if (conn.connection_type === 'bidirectional' || conn.connection_type === 'fiber') {
+          if (!graph.has(conn.to_device_id)) {
+            graph.set(conn.to_device_id, []);
+          }
+          graph.get(conn.to_device_id).push({
+            to: conn.from_device_id,
+            connectionId: conn.connection_id,
+            weight: this._calculateEdgeWeight(conn, pathType)
+          });
+        }
+      }
+
+      // Run Dijkstra's algorithm
+      const path = this._dijkstra(graph, fromDeviceId, toDeviceId);
+
+      if (!path) {
+        return null;
+      }
+
+      // Cache the result
+      const connectionPath = [];
+      for (let i = 0; i < path.devices.length - 1; i++) {
+        const fromId = path.devices[i];
+        const toId = path.devices[i + 1];
+
+        // Find connection ID
+        const edges = graph.get(fromId) || [];
+        const edge = edges.find(e => e.to === toId);
+        if (edge) {
+          connectionPath.push(edge.connectionId);
+        }
+      }
+
+      const result = {
+        device_from_id: fromDeviceId,
+        device_to_id: toDeviceId,
+        path_type: pathType,
+        device_path: path.devices,
+        connection_path: connectionPath,
+        total_hops: path.devices.length - 1,
+        total_distance: path.totalCost,
+        cached: false
+      };
+
+      // Store in cache (expires in 1 hour)
+      try {
+        this.db.prepare(`
+          INSERT INTO network_path_cache (
+            device_from_id, device_to_id, path_type, device_path, connection_path,
+            total_hops, total_distance, expires_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', '+1 hour'))
+        `).run(
+          fromDeviceId,
+          toDeviceId,
+          pathType,
+          JSON.stringify(result.device_path),
+          JSON.stringify(result.connection_path),
+          result.total_hops,
+          result.total_distance
+        );
+      } catch (cacheError) {
+        console.warn('Failed to cache network path:', cacheError.message);
+      }
+
+      return result;
     } catch (error) {
       console.error('Error finding network path:', error);
       return null;
     }
+  }
+
+  /**
+   * Calculate edge weight for pathfinding based on path type
+   * @private
+   */
+  _calculateEdgeWeight(connection, pathType) {
+    switch (pathType) {
+      case 'shortest':
+        // Minimize hops
+        return 1;
+
+      case 'fastest':
+        // Consider bandwidth and health
+        let weight = 1;
+        if (connection.bandwidth_mbps) {
+          weight = 1000 / Math.max(connection.bandwidth_mbps, 1);
+        }
+        if (connection.health_status === 'degraded') {
+          weight *= 2;
+        } else if (connection.health_status === 'failed') {
+          weight *= 100; // Avoid failed connections
+        }
+        return weight;
+
+      case 'reliable':
+        // Prefer fiber and operational connections
+        let reliabilityWeight = 1;
+        if (connection.connection_type === 'fiber') {
+          reliabilityWeight *= 0.5;
+        } else if (connection.connection_type === 'wireless') {
+          reliabilityWeight *= 2;
+        }
+        if (connection.operational_status !== 'operational') {
+          reliabilityWeight *= 10;
+        }
+        return reliabilityWeight;
+
+      default:
+        return 1;
+    }
+  }
+
+  /**
+   * Dijkstra's shortest path algorithm
+   * @private
+   */
+  _dijkstra(graph, startNode, endNode) {
+    const distances = new Map();
+    const previous = new Map();
+    const unvisited = new Set();
+
+    // Initialize
+    for (const node of graph.keys()) {
+      distances.set(node, Infinity);
+      unvisited.add(node);
+    }
+    distances.set(startNode, 0);
+
+    while (unvisited.size > 0) {
+      // Find node with minimum distance
+      let currentNode = null;
+      let minDistance = Infinity;
+      for (const node of unvisited) {
+        const dist = distances.get(node);
+        if (dist < minDistance) {
+          minDistance = dist;
+          currentNode = node;
+        }
+      }
+
+      // No path exists
+      if (currentNode === null || minDistance === Infinity) {
+        break;
+      }
+
+      // Found destination
+      if (currentNode === endNode) {
+        break;
+      }
+
+      unvisited.delete(currentNode);
+
+      // Check neighbors
+      const neighbors = graph.get(currentNode) || [];
+      for (const neighbor of neighbors) {
+        if (!unvisited.has(neighbor.to)) {
+          continue;
+        }
+
+        const altDistance = distances.get(currentNode) + neighbor.weight;
+        if (altDistance < distances.get(neighbor.to)) {
+          distances.set(neighbor.to, altDistance);
+          previous.set(neighbor.to, currentNode);
+        }
+      }
+    }
+
+    // Reconstruct path
+    if (!previous.has(endNode) && startNode !== endNode) {
+      return null; // No path found
+    }
+
+    const path = [];
+    let current = endNode;
+    while (current !== undefined) {
+      path.unshift(current);
+      current = previous.get(current);
+    }
+
+    if (path[0] !== startNode) {
+      return null; // Path doesn't start at start node
+    }
+
+    return {
+      devices: path,
+      totalCost: distances.get(endNode)
+    };
   }
 
   updateConnectionStatus(connectionId, status, healthStatus = null) {
