@@ -134,16 +134,206 @@ async function fetchIowaEvents() {
 }
 
 /**
+ * Fetch and parse Ohio DOT feed (GeoJSON format)
+ */
+async function fetchOhioEvents() {
+  try {
+    const API_KEY = process.env.OHIO_API_KEY || '';
+    const response = await axios.get('https://publicapi.ohgo.com/api/v1/roadconditions/events', {
+      headers: {
+        'Authorization': `APIKEY ${API_KEY}`,
+        'Accept-Encoding': 'gzip, deflate'
+      },
+      timeout: 30000,
+      decompress: true
+    });
+
+    const data = response.data;
+    const events = [];
+
+    if (data.features && Array.isArray(data.features)) {
+      for (const feature of data.features) {
+        if (feature.geometry && feature.geometry.coordinates) {
+          events.push({
+            organization: 'Ohio DOT',
+            route: feature.properties?.roadName || '',
+            direction: feature.properties?.direction || '',
+            headline: feature.properties?.type || '',
+            description: feature.properties?.description || '',
+            geometry: JSON.stringify(feature.geometry),
+            start_road_name: feature.properties?.roadName || '',
+            end_road_name: feature.properties?.roadName || ''
+          });
+        }
+      }
+    }
+
+    return events;
+  } catch (error) {
+    console.error(`  ❌ Ohio fetch failed: ${error.message}`);
+    return [];
+  }
+}
+
+/**
+ * Fetch and parse Minnesota DOT feed (WZDx format)
+ */
+async function fetchMinnesotaEvents() {
+  try {
+    const response = await axios.get('https://lb.mn.gov/wzdx', {
+      timeout: 30000
+    });
+
+    const data = response.data;
+    const events = [];
+
+    if (data.features && Array.isArray(data.features)) {
+      for (const feature of data.features) {
+        const props = feature.properties?.core_details || feature.properties || {};
+
+        if (feature.geometry && feature.geometry.coordinates) {
+          events.push({
+            organization: 'Minnesota DOT',
+            route: props.road_names?.[0] || '',
+            direction: props.direction || '',
+            headline: props.event_type || props.description || '',
+            description: props.description || '',
+            geometry: JSON.stringify(feature.geometry),
+            start_road_name: props.road_names?.[0] || '',
+            end_road_name: props.road_names?.[0] || ''
+          });
+        }
+      }
+    }
+
+    return events;
+  } catch (error) {
+    console.error(`  ❌ Minnesota fetch failed: ${error.message}`);
+    return [];
+  }
+}
+
+/**
+ * Fetch and parse Utah DOT feed
+ */
+async function fetchUtahEvents() {
+  try {
+    const response = await axios.get('https://udottraffic.utah.gov/map/geojson', {
+      timeout: 30000
+    });
+
+    const data = response.data;
+    const events = [];
+
+    if (data.features && Array.isArray(data.features)) {
+      for (const feature of data.features) {
+        if (feature.geometry && feature.geometry.coordinates) {
+          const props = feature.properties || {};
+          events.push({
+            organization: 'Utah DOT',
+            route: props.roadway || props.route || '',
+            direction: props.direction || '',
+            headline: props.event_category || props.type || '',
+            description: props.description || props.title || '',
+            geometry: JSON.stringify(feature.geometry),
+            start_road_name: props.roadway || props.route || '',
+            end_road_name: props.roadway || props.route || ''
+          });
+        }
+      }
+    }
+
+    return events;
+  } catch (error) {
+    console.error(`  ❌ Utah fetch failed: ${error.message}`);
+    return [];
+  }
+}
+
+/**
+ * Fetch and parse Nevada DOT feed
+ */
+async function fetchNevadaEvents() {
+  try {
+    const API_KEY = process.env.NEVADA_API_KEY || '';
+    const response = await axios.get('https://www.nvroads.com/api/v2/get/roadconditions', {
+      params: { key: API_KEY },
+      timeout: 30000
+    });
+
+    const data = response.data;
+    const events = [];
+
+    if (data && Array.isArray(data)) {
+      for (const item of data) {
+        if (item.coordinates && item.coordinates.length > 0) {
+          // Convert Nevada's coordinate array to GeoJSON LineString
+          const coordinates = item.coordinates.map(coord => [coord.longitude, coord.latitude]);
+
+          events.push({
+            organization: 'Nevada DOT',
+            route: item.roadName || item.road || '',
+            direction: item.direction || '',
+            headline: item.type || item.category || '',
+            description: item.description || item.headline || '',
+            geometry: JSON.stringify({
+              type: 'LineString',
+              coordinates: coordinates
+            }),
+            start_road_name: item.roadName || item.road || '',
+            end_road_name: item.roadName || item.road || ''
+          });
+        }
+      }
+    }
+
+    return events;
+  } catch (error) {
+    console.error(`  ❌ Nevada fetch failed: ${error.message}`);
+    return [];
+  }
+}
+
+/**
  * Fetch events from all state feeds
  */
 async function fetchAllStateEvents() {
   const allEvents = [];
 
-  // Fetch Iowa (we know this works)
+  // Fetch from multiple states with good geometry data
+  console.log('🌎 Harvesting event geometries from multiple states...\n');
+
+  // Iowa (WZDx format with good geometries)
+  console.log('📍 Fetching Iowa events...');
   const iowaEvents = await fetchIowaEvents();
   allEvents.push(...iowaEvents);
+  console.log(`   ✓ Iowa: ${iowaEvents.length} events\n`);
 
-  // TODO: Add more state feeds as we discover them
+  // Ohio (GeoJSON format with good geometries)
+  console.log('📍 Fetching Ohio events...');
+  const ohioEvents = await fetchOhioEvents();
+  allEvents.push(...ohioEvents);
+  console.log(`   ✓ Ohio: ${ohioEvents.length} events\n`);
+
+  // Minnesota (WZDx format)
+  console.log('📍 Fetching Minnesota events...');
+  const mnEvents = await fetchMinnesotaEvents();
+  allEvents.push(...mnEvents);
+  console.log(`   ✓ Minnesota: ${mnEvents.length} events\n`);
+
+  // Utah (JSON format with coordinates)
+  console.log('📍 Fetching Utah events...');
+  const utahEvents = await fetchUtahEvents();
+  allEvents.push(...utahEvents);
+  console.log(`   ✓ Utah: ${utahEvents.length} events\n`);
+
+  // Nevada (JSON format with coordinates)
+  console.log('📍 Fetching Nevada events...');
+  const nevadaEvents = await fetchNevadaEvents();
+  allEvents.push(...nevadaEvents);
+  console.log(`   ✓ Nevada: ${nevadaEvents.length} events\n`);
+
+  console.log(`📊 Total events harvested: ${allEvents.length}`);
 
   return allEvents;
 }
