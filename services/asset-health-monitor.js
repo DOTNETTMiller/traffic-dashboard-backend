@@ -312,9 +312,14 @@ class AssetHealthMonitor {
     console.log(`   Performance: ${health.performance_metric}`);
     console.log(`   Uptime: ${health.uptime_percentage}%`);
 
-    // TODO: Integrate with email/SMS notification system
-    // TODO: Post to Slack/Teams webhook
-    // TODO: Create ticket in maintenance system
+    // Send notifications via all enabled channels
+    try {
+      const NotificationService = require('./notification-service');
+      const notifier = new NotificationService();
+      await notifier.sendAssetHealthAlert(health);
+    } catch (error) {
+      console.error('   ⚠️  Notification error:', error.message);
+    }
   }
 
   /**
