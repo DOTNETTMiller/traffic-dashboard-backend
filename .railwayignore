@@ -1,12 +1,58 @@
-# Ignore frontend source files (but keep the built dist/)
-frontend/src/
-frontend/node_modules/
-frontend/public/
+# Railway ignore file - exclude large/unnecessary files from deployment
 
-# Ignore other unnecessary files
-.git/
-.DS_Store
+# Frontend (separate service, 326MB)
+frontend/
+
+# Database files (use PostgreSQL in production, 24MB)
+states.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Backups (120MB)
+backups/
+*.backup
+
+# Uploads (use Railway volume for persistent storage, 19MB)
+uploads/
+
+# Logs (3MB+)
 *.log
-node_modules/
+logs/
+backend.log
+
+# Temporary files
+temp/
+tmp/
+.tmp/
+
+# Development files
+.env
 .env.local
-.env.*.local
+.vscode/
+.idea/
+
+# Documentation (2MB+)
+docs/
+
+# Git
+.git/
+.gitignore
+
+# Mac
+.DS_Store
+
+# Node modules (Railway will install these, 73MB)
+node_modules/
+**/node_modules/
+
+# Large data files (3MB)
+data/
+
+# Test/debug scripts (not needed in production)
+scripts/test_*.js
+scripts/diagnose_*.js
+scripts/check_*.js
+scripts/debug_*.js
+scripts/manual_*.js
+scripts/measure_*.js
