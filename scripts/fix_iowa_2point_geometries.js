@@ -57,6 +57,8 @@ function extractRouteNumber(routeName) {
 
 /**
  * Query Iowa DOT Road Network for route geometry
+ * Note: Returns coordinates in WGS84 (EPSG:4326) when f=geojson
+ * This matches OpenStreetMap's coordinate system for proper alignment
  */
 async function queryIowaRoadNetwork(routeId, bbox = null) {
   try {
@@ -64,7 +66,9 @@ async function queryIowaRoadNetwork(routeId, bbox = null) {
       where: `ROUTEID LIKE '%${routeId}%'`,
       outFields: 'ROUTEID,STATE_ROUTE_NAME_1,STATE_ROUTE_NAME_2,COUNTY_NUMBER',
       returnGeometry: true,
-      f: 'geojson'
+      f: 'geojson',
+      // Explicitly request WGS84 output (though geojson format does this automatically)
+      outSR: 4326
     };
 
     // Add bounding box if provided (helps filter to specific segment)
@@ -141,11 +145,59 @@ function findBestMatchingSegment(event, roadFeatures) {
 }
 
 /**
+ * Validate geometry alignment with OSRM (optional quality check)
+ */
+async function validateAlignmentWithOSRM(event, iowaDOTGeometry) {
+  try {
+    const [startLon, startLat] = event.geometry.coordinates[0];
+    const [endLon, endLat] = event.geometry.coordinates[1];
+
+    // Get OSRM route for comparison
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${endLon},${endLat}?overview=full&geometries=geojson`;
+    const response = await axios.get(osrmUrl, { timeout: 5000 });
+
+    if (response.data?.routes?.[0]?.geometry?.coordinates) {
+      const osrmCoords = response.data.routes[0].geometry.coordinates;
+      const iowaDOTCoords = iowaDOTGeometry.coordinates;
+
+      // Sample a few points and calculate average offset
+      const sampleSize = Math.min(5, Math.floor(osrmCoords.length / 2), Math.floor(iowaDOTCoords.length / 2));
+      let totalOffset = 0;
+      let samples = 0;
+
+      for (let i = 0; i < sampleSize; i++) {
+        const osrmIdx = Math.floor((osrmCoords.length - 1) * i / (sampleSize - 1));
+        const iowaDOTIdx = Math.floor((iowaDOTCoords.length - 1) * i / (sampleSize - 1));
+
+        const offset = calculateDistance(
+          osrmCoords[osrmIdx][1], osrmCoords[osrmIdx][0],
+          iowaDOTCoords[iowaDOTIdx][1], iowaDOTCoords[iowaDOTIdx][0]
+        );
+
+        totalOffset += offset;
+        samples++;
+      }
+
+      const avgOffset = (totalOffset / samples) * 1000; // Convert to meters
+      return {
+        avgOffsetMeters: Math.round(avgOffset),
+        aligned: avgOffset < 50 // Within 50 meters considered "aligned"
+      };
+    }
+  } catch (error) {
+    // OSRM check is optional, continue if it fails
+  }
+
+  return { avgOffsetMeters: null, aligned: null };
+}
+
+/**
  * Fix 2-point geometries for Iowa events
  */
 async function fixIowa2PointGeometries() {
   console.log('🚛 Fixing Iowa 2-Point Geometries\n');
-  console.log('Data Source: Iowa DOT Road Network FeatureServer\n');
+  console.log('Data Source: Iowa DOT Road Network FeatureServer');
+  console.log('Coordinate System: WGS84 (EPSG:4326) - matches OpenStreetMap\n');
 
   const db = new Database(DB_PATH);
   db.pragma('journal_mode = WAL');
@@ -177,6 +229,7 @@ async function fixIowa2PointGeometries() {
     let fixed = 0;
     let failed = 0;
     let skipped = 0;
+    let alignmentChecks = [];
 
     for (const event of events) {
       try {
@@ -229,6 +282,9 @@ async function fixIowa2PointGeometries() {
           coordinates: bestMatch.geometry.coordinates
         };
 
+        // Validate alignment with OpenStreetMap (via OSRM comparison)
+        const alignment = await validateAlignmentWithOSRM(event, newGeometry);
+
         db.prepare(`
           UPDATE cached_events
           SET
@@ -236,6 +292,12 @@ async function fixIowa2PointGeometries() {
             geometry_source = 'Iowa DOT Road Network FeatureServer'
           WHERE id = ?
         `).run(JSON.stringify(newGeometry), event.id);
+
+        if (alignment.avgOffsetMeters !== null) {
+          const alignmentIcon = alignment.aligned ? '✅' : '⚠️';
+          console.log(`   ${alignmentIcon} Alignment check: ${alignment.avgOffsetMeters}m avg offset from OSM`);
+          alignmentChecks.push(alignment.avgOffsetMeters);
+        }
 
         console.log(`   ✅ Fixed! Geometry updated from 2 points to ${newGeometry.coordinates.length} points\n`);
         fixed++;
@@ -254,6 +316,25 @@ async function fixIowa2PointGeometries() {
     console.log(`   ❌ Failed: ${failed}`);
     console.log(`   ⏭️  Skipped: ${skipped}`);
     console.log(`   📍 Total: ${events.length}`);
+
+    if (alignmentChecks.length > 0) {
+      const avgOffset = Math.round(alignmentChecks.reduce((a, b) => a + b, 0) / alignmentChecks.length);
+      const wellAligned = alignmentChecks.filter(o => o < 50).length;
+      const alignmentPct = Math.round((wellAligned / alignmentChecks.length) * 100);
+
+      console.log('\n🗺️  OpenStreetMap Alignment:');
+      console.log(`   Average offset: ${avgOffset} meters`);
+      console.log(`   Well-aligned (<50m): ${alignmentPct}% (${wellAligned}/${alignmentChecks.length})`);
+
+      if (avgOffset < 20) {
+        console.log('   ✅ Excellent alignment with OpenStreetMap!');
+      } else if (avgOffset < 50) {
+        console.log('   ✅ Good alignment with OpenStreetMap');
+      } else {
+        console.log('   ⚠️  Some offset detected - Iowa DOT survey data may differ from OSM');
+        console.log('   ℹ️  This is normal - official survey data can be more accurate than crowdsourced OSM');
+      }
+    }
 
     if (fixed > 0) {
       console.log('\n✨ Success! Iowa event geometries have been enhanced with detailed polylines.');
