@@ -3554,6 +3554,16 @@ const fetchStateData = async (stateKey) => {
   //   console.error(`Error tracking quality metrics for ${stateName}:`, error);
   // }
 
+  // Enrich Iowa events with detailed geometries from Iowa DOT Road Network
+  if (normalizedStateKey === 'ia' && results.events.length > 0) {
+    try {
+      const iowaGeometryService = require('./services/iowa-geometry-service');
+      results.events = await iowaGeometryService.enrichIowaEvents(results.events);
+    } catch (error) {
+      console.error('Failed to enrich Iowa geometries:', error.message);
+    }
+  }
+
   return results;
 };
 
@@ -27843,6 +27853,14 @@ function startServer() {
 
   // Load Interstate polylines (I-80, I-35) into memory cache
   await loadInterstatePolylines();
+
+  // Schedule cleanup of expired Iowa geometries (runs every hour)
+  const iowaGeometryService = require('./services/iowa-geometry-service');
+  await iowaGeometryService.cleanupExpiredGeometries(); // Initial cleanup
+  setInterval(async () => {
+    await iowaGeometryService.cleanupExpiredGeometries();
+  }, 60 * 60 * 1000); // 1 hour
+  console.log('✅ Iowa geometry cleanup job scheduled (hourly)');
 
   // Run parking data migration on startup
   try {
