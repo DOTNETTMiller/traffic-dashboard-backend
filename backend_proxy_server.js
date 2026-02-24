@@ -3557,10 +3557,14 @@ const fetchStateData = async (stateKey) => {
   // Enrich Iowa events with detailed geometries from Iowa DOT Road Network
   if (normalizedStateKey === 'ia' && results.events.length > 0) {
     try {
+      console.log(`🔄 Enriching ${results.events.length} Iowa events with Iowa DOT Road Network geometries...`);
       const iowaGeometryService = require('./services/iowa-geometry-service');
-      results.events = await iowaGeometryService.enrichIowaEvents(results.events);
+      const enrichedEvents = await iowaGeometryService.enrichIowaEvents(results.events);
+      const enrichedCount = enrichedEvents.filter(e => e.geometry_source === 'Iowa DOT Road Network').length;
+      results.events = enrichedEvents;
+      console.log(`✅ Iowa enrichment complete: ${enrichedCount}/${results.events.length} events enriched`);
     } catch (error) {
-      console.error('Failed to enrich Iowa geometries:', error.message);
+      console.error('❌ Failed to enrich Iowa geometries:', error.message);
     }
   }
 
