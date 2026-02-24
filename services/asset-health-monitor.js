@@ -85,7 +85,7 @@ class AssetHealthMonitor {
 
       // Trigger alerts if needed
       if (health.alert_triggered) {
-        this.sendAlert(asset, health);
+        await this.sendAlert(asset, health);
       }
 
       return health;
@@ -305,7 +305,7 @@ class AssetHealthMonitor {
   /**
    * Send alert (placeholder for notification system)
    */
-  sendAlert(asset, health) {
+  async sendAlert(asset, health) {
     console.log(`🚨 ALERT: ${asset.asset_id} (${asset.asset_type})`);
     console.log(`   Status: ${health.status}`);
     console.log(`   Alert Type: ${health.alert_type}`);
