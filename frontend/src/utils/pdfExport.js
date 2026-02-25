@@ -250,12 +250,15 @@ export function addTable(doc, headers, data, yPosition, options = {}) {
     alternateRowStyles: alternateRowStyles,
     columnStyles: columnStyles,
     margin: { top: margin.top, right: margin.right, bottom: margin.bottom, left: margin.left },
+    tableWidth: 'auto',  // Auto-size to fit within margins
     styles: {
       overflow: 'linebreak',
       cellWidth: 'wrap',
       fontSize: 9,
-      cellPadding: 4,
-      valign: 'middle'
+      cellPadding: 3,  // Slightly reduced padding
+      valign: 'middle',
+      halign: 'left',
+      minCellWidth: 15  // Minimum column width in mm
     },
     didDrawPage: function(data) {
       // Add footer on each page
@@ -288,7 +291,6 @@ export async function addHTMLElement(doc, element, yPosition, options = {}) {
       backgroundColor: backgroundColor,
       imageTimeout: 0,
       removeContainer: true,
-      letterRendering: true,
       allowTaint: true
     });
 
@@ -327,8 +329,10 @@ export function processMarkdownForPDF(doc, markdown, yPosition, options = {}) {
       continue;
     }
 
-    // Headers
-    if (trimmed.startsWith('### ')) {
+    // Headers (check longer patterns first to avoid false matches)
+    if (trimmed.startsWith('#### ')) {
+      yPosition = addSectionHeading(doc, trimmed.substring(5), yPosition, 3, { margin });
+    } else if (trimmed.startsWith('### ')) {
       yPosition = addSectionHeading(doc, trimmed.substring(4), yPosition, 3, { margin });
     } else if (trimmed.startsWith('## ')) {
       yPosition = addSectionHeading(doc, trimmed.substring(3), yPosition, 2, { margin });
