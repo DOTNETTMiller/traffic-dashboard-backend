@@ -169,7 +169,7 @@ class IowaGeometryService {
         startToSegEnd + endToSegStart
       );
 
-      if (score < bestScore && score < 5) { // Within 5km threshold
+      if (score < bestScore && score < 20) { // Within 20km threshold (increased from 5km)
         bestScore = score;
         bestMatch = feature;
       }
