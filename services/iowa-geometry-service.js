@@ -212,14 +212,12 @@ class IowaGeometryService {
       const roadData = await this.queryIowaRoadNetwork(routeNumber, bbox);
 
       if (!roadData || !roadData.features || roadData.features.length === 0) {
-        console.log(`⚠️  No Iowa DOT data for ${event.corridor} (route ${routeNumber}) in bbox`);
         return event;
       }
 
       const bestMatch = this.findBestMatchingSegment(geometry, roadData.features);
 
       if (!bestMatch) {
-        console.log(`⚠️  No matching segment for ${event.corridor} event ${event.id} (searched ${roadData.features.length} features)`);
         return event;
       }
 
