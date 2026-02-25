@@ -146,7 +146,7 @@ export function addSectionHeading(doc, text, yPosition, level = 1, options = {})
   }
 
   // Add spacing before heading
-  yPosition += 8;
+  yPosition += 5;  // Reduced from 8 to 5
 
   // Set font based on level
   const fonts = {
@@ -163,17 +163,17 @@ export function addSectionHeading(doc, text, yPosition, level = 1, options = {})
   // Add heading text
   const lines = doc.splitTextToSize(text, maxWidth);
   doc.text(lines, margin.left, yPosition);
-  yPosition += (lines.length * (font.size / 2 + 2));
+  yPosition += (lines.length * (font.size / 2 + 1.5));  // Reduced from +2 to +1.5
 
   // Add underline for h1
   if (level === 1) {
     doc.setDrawColor(...COLORS.lightGray);
     doc.setLineWidth(0.5);
     doc.line(margin.left, yPosition + 2, pageWidth - margin.right, yPosition + 2);
-    yPosition += 5;
+    yPosition += 3;  // Reduced from 5 to 3
   }
 
-  yPosition += 5;
+  yPosition += 3;  // Reduced from 5 to 3
 
   // Reset color
   doc.setTextColor(...COLORS.black);
@@ -208,10 +208,10 @@ export function addParagraph(doc, text, yPosition, options = {}) {
       yPosition = margin.top;
     }
     doc.text(line, margin.left, yPosition);
-    yPosition += fontSize / 2 + 2;
+    yPosition += fontSize / 2 + 1;  // Reduced from +2 to +1
   });
 
-  yPosition += 5;
+  yPosition += 3;  // Reduced from 5 to 3
 
   return yPosition;
 }
@@ -323,7 +323,7 @@ export function processMarkdownForPDF(doc, markdown, yPosition, options = {}) {
     const trimmed = line.trim();
 
     if (!trimmed) {
-      yPosition += 3;
+      yPosition += 2;  // Reduced from 3 to 2
       continue;
     }
 
