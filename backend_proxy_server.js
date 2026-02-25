@@ -3556,7 +3556,7 @@ const fetchStateData = async (stateKey) => {
 
   // Enrich Iowa events with detailed geometries from Iowa DOT Road Network
   console.log(`[DEBUG] fetchStateData: normalizedStateKey="${normalizedStateKey}", results.events.length=${results.events.length}`);
-  if (normalizedStateKey === 'ia' && results.events.length > 0) {
+  if (normalizedStateKey === 'iowa' && results.events.length > 0) {
     try {
       console.log(`🔄 Enriching ${results.events.length} Iowa events with Iowa DOT Road Network geometries...`);
       const iowaGeometryService = require('./services/iowa-geometry-service');
@@ -3568,7 +3568,7 @@ const fetchStateData = async (stateKey) => {
       console.error('❌ Failed to enrich Iowa geometries:', error.message);
       console.error('❌ Full error:', error);
     }
-  } else if (normalizedStateKey === 'ia') {
+  } else if (normalizedStateKey === 'iowa') {
     console.log(`⚠️  Iowa enrichment skipped: no events to enrich`);
   }
 
