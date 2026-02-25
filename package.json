@@ -5,7 +5,6 @@
   "main": "backend_proxy_server.js",
   "scripts": {
     "start": "node start.js",
-    "postinstall": "node scripts/ensure-frontend-build.js",
     "test": "node tests/compliance-analyzer.test.js"
   },
   "keywords": [
