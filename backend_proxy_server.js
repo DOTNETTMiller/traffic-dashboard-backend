@@ -8706,6 +8706,120 @@ app.get('/api/events/comments/all', async (req, res) => {
 });
 
 // ============================================================================
+// IPAWS ALERT GENERATION API - Wireless Emergency Alerts for Transportation
+// ============================================================================
+const ipawsService = require('./services/ipaws-alert-service');
+
+// POST /api/ipaws/generate - Generate IPAWS alert for an event
+app.post('/api/ipaws/generate', async (req, res) => {
+  try {
+    const { eventId, event } = req.body;
+
+    if (!event && !eventId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Either event object or eventId is required'
+      });
+    }
+
+    let eventData = event;
+
+    // If eventId provided, fetch event from cache
+    if (eventId && !event) {
+      if (!eventsCache.data || !eventsCache.data.events) {
+        return res.status(404).json({
+          success: false,
+          error: 'Event cache not available. Please try again in a moment.'
+        });
+      }
+
+      eventData = eventsCache.data.events.find(e => e.id === eventId);
+      if (!eventData) {
+        return res.status(404).json({
+          success: false,
+          error: 'Event not found'
+        });
+      }
+    }
+
+    // Generate alert package
+    const alert = await ipawsService.generateAlert(eventData);
+
+    res.json(alert);
+  } catch (error) {
+    console.error('Error generating IPAWS alert:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/ipaws/evaluate - Evaluate if event qualifies for IPAWS
+app.post('/api/ipaws/evaluate', async (req, res) => {
+  try {
+    const { event } = req.body;
+
+    if (!event) {
+      return res.status(400).json({
+        success: false,
+        error: 'Event object is required'
+      });
+    }
+
+    const qualification = ipawsService.evaluateQualification(event);
+
+    res.json({
+      success: true,
+      ...qualification
+    });
+  } catch (error) {
+    console.error('Error evaluating IPAWS qualification:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/ipaws/summary/:eventId - Get alert summary for display
+app.get('/api/ipaws/summary/:eventId', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    if (!eventsCache.data || !eventsCache.data.events) {
+      return res.status(404).json({
+        success: false,
+        error: 'Event cache not available'
+      });
+    }
+
+    const event = eventsCache.data.events.find(e => e.id === eventId);
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        error: 'Event not found'
+      });
+    }
+
+    const alert = await ipawsService.generateAlert(event);
+    const summary = ipawsService.formatAlertSummary(alert);
+
+    res.json({
+      success: true,
+      eventId,
+      summary
+    });
+  } catch (error) {
+    console.error('Error generating IPAWS summary:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
 // PLUGIN SYSTEM API - Third-Party Data Provider Integration
 // ============================================================================
 const PluginService = require('./plugin-service');

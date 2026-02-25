@@ -18,6 +18,7 @@
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",
     "@tmcw/togeojson": "^7.1.2",
+    "@turf/turf": "^7.3.4",
     "@xmldom/xmldom": "^0.8.11",
     "axios": "^1.6.0",
     "better-sqlite3": "^12.4.1",
