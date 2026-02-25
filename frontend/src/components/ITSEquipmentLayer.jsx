@@ -115,9 +115,16 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
       if (response.data.success && Array.isArray(response.data.equipment)) {
         let filtered = response.data.equipment;
 
+        console.log(`📡 RAW API Response: ${filtered.length} total items`);
+        console.log('📡 State breakdown:', filtered.reduce((acc, e) => {
+          acc[e.state_key] = (acc[e.state_key] || 0) + 1;
+          return acc;
+        }, {}));
+
         // Filter by equipment type if specified
         if (equipmentType) {
           filtered = filtered.filter(e => e.equipment_type === equipmentType);
+          console.log(`📡 After equipment type filter: ${filtered.length} items`);
         }
 
         // Filter by route if specified
@@ -127,7 +134,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
         // }
 
         setEquipment(filtered);
-        console.log(`📡 Loaded ${filtered.length} ITS equipment items${route ? ` for route ${route}` : ''}`);
+        console.log(`📡 FINAL: Loaded ${filtered.length} ITS equipment items${route ? ` for route ${route}` : ''}`);
       }
     } catch (error) {
       console.error('Error fetching ITS equipment:', error);
