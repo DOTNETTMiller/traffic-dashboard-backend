@@ -106,7 +106,7 @@ class IowaGeometryService {
     try {
       const params = {
         where: `OFFICIAL_ROUTE_NUMBER=${routeInfo.number} AND OFFICIAL_ROUTE_PREFIX='${routeInfo.prefix}'`,
-        outFields: 'ROUTE_ID,ROUTE_NAME,OFFICIAL_ROUTE_NUMBER,OFFICIAL_ROUTE_PREFIX',
+        outFields: 'ROUTE_ID,ROUTE_NAME,OFFICIAL_ROUTE_NUMBER,OFFICIAL_ROUTE_PREFIX,OFFICIAL_ROUTE_DIRECTION,RAMP_CLASSIFICATION',
         returnGeometry: true,
         f: 'geojson',
         outSR: 4326
@@ -137,20 +137,52 @@ class IowaGeometryService {
   }
 
   /**
+   * Extract direction code from event direction
+   */
+  getDirectionCode(direction) {
+    if (!direction) return null;
+    const dir = direction.toLowerCase();
+    if (dir.includes('west') || dir.includes('wb')) return 'W';
+    if (dir.includes('east') || dir.includes('eb')) return 'E';
+    if (dir.includes('north') || dir.includes('nb')) return 'N';
+    if (dir.includes('south') || dir.includes('sb')) return 'S';
+    return null;
+  }
+
+  /**
    * Find best matching road segment for an event
    */
-  findBestMatchingSegment(geometry, roadFeatures) {
+  findBestMatchingSegment(geometry, roadFeatures, event) {
     if (!roadFeatures || roadFeatures.length === 0) {
       return null;
     }
 
     const [startLon, startLat] = geometry.coordinates[0];
     const [endLon, endLat] = geometry.coordinates[geometry.coordinates.length - 1];
+    const eventDirection = this.getDirectionCode(event.direction);
+
+    // Filter features: prefer mainline (not ramps), match direction
+    const mainlineFeatures = roadFeatures.filter(f => {
+      const props = f.properties || {};
+      // Exclude ramps unless event specifically mentions ramp
+      const isRamp = props.RAMP_CLASSIFICATION === 'Y';
+      const eventIsRamp = event.description && event.description.toLowerCase().includes('ramp');
+      if (isRamp && !eventIsRamp) return false;
+
+      // Match direction if we have one
+      if (eventDirection && props.OFFICIAL_ROUTE_DIRECTION) {
+        return props.OFFICIAL_ROUTE_DIRECTION === eventDirection;
+      }
+      return true;
+    });
+
+    // Use mainline features if available, otherwise fall back to all features
+    const featuresToSearch = mainlineFeatures.length > 0 ? mainlineFeatures : roadFeatures;
 
     let bestMatch = null;
     let bestScore = Infinity;
 
-    for (const feature of roadFeatures) {
+    for (const feature of featuresToSearch) {
       if (!feature.geometry || !feature.geometry.coordinates) {
         continue;
       }
@@ -219,7 +251,7 @@ class IowaGeometryService {
         return event;
       }
 
-      const bestMatch = this.findBestMatchingSegment(geometry, roadData.features);
+      const bestMatch = this.findBestMatchingSegment(geometry, roadData.features, event);
 
       if (!bestMatch) {
         return event;
