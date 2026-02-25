@@ -179,23 +179,11 @@ class IowaGeometryService {
   }
 
   /**
-   * Check if geometry is 2-point
-   */
-  is2PointGeometry(geometry) {
-    try {
-      const geom = typeof geometry === 'string' ? JSON.parse(geometry) : geometry;
-      return geom && geom.coordinates && geom.coordinates.length === 2;
-    } catch (error) {
-      return false;
-    }
-  }
-
-  /**
    * Enrich a single Iowa event's geometry
    */
   async enrichEventGeometry(event) {
-    if (!event || !event.geometry || !this.is2PointGeometry(event.geometry)) {
-      return event; // Return unchanged if not a 2-point geometry
+    if (!event || !event.geometry) {
+      return event; // Return unchanged if no geometry
     }
 
     const routeNumber = this.extractRouteNumber(event.corridor);
@@ -205,8 +193,14 @@ class IowaGeometryService {
 
     try {
       const geometry = typeof event.geometry === 'string' ? JSON.parse(event.geometry) : event.geometry;
+
+      // Use first and last coordinates regardless of how many points
+      if (!geometry.coordinates || geometry.coordinates.length < 2) {
+        return event; // Need at least start and end point
+      }
+
       const [startLon, startLat] = geometry.coordinates[0];
-      const [endLon, endLat] = geometry.coordinates[1];
+      const [endLon, endLat] = geometry.coordinates[geometry.coordinates.length - 1];
 
       const bbox = {
         minLat: Math.min(startLat, endLat) - 0.1,
