@@ -17153,12 +17153,35 @@ app.get('/api/its-equipment', async (req, res) => {
 app.get('/api/equipment/health', async (req, res) => {
   try {
     const { stateKey } = req.query;
-    const health = db.getEquipmentHealthDashboard(stateKey);
+
+    let equipment;
+
+    // For now, just return basic equipment list from its_equipment table
+    // Health dashboard view doesn't exist in production PostgreSQL yet
+    let query = 'SELECT * FROM its_equipment WHERE 1=1';
+    const params = [];
+
+    if (stateKey) {
+      query += ' AND state_key = ?';
+      params.push(stateKey);
+    }
+
+    query += ' ORDER BY state_key, equipment_type';
+
+    if (db.isPostgres) {
+      let pgQuery = query;
+      let paramIndex = 1;
+      pgQuery = pgQuery.replace(/\?/g, () => `$${paramIndex++}`);
+      const result = await db.db.query(pgQuery, params);
+      equipment = result.rows || [];
+    } else {
+      equipment = db.db.prepare(query).all(...params);
+    }
 
     res.json({
       success: true,
-      equipment: health,
-      total: health.length
+      equipment: Array.isArray(equipment) ? equipment : [],
+      total: Array.isArray(equipment) ? equipment.length : 0
     });
   } catch (error) {
     console.error('❌ Error fetching equipment health:', error);
