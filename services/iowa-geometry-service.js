@@ -1,15 +1,15 @@
 /**
  * Iowa Geometry Enrichment Service
  *
- * Enriches 2-point Iowa event geometries with detailed polylines from Iowa DOT
- * Road Network FeatureServer. Automatically stores and cleans up expired geometries.
+ * Enriches Iowa event geometries with detailed polylines from Iowa DOT
+ * All Routes FeatureServer. Automatically stores and cleans up expired geometries.
  */
 
 const axios = require('axios');
 const { Pool } = require('pg');
 
 const DATABASE_URL = process.env.DATABASE_URL;
-const IOWA_ROAD_NETWORK_API = 'https://gis.iowadot.gov/agshost/rest/services/RAMS/Road_Network/FeatureServer/0/query';
+const IOWA_ROAD_NETWORK_API = 'https://gis.iowadot.gov/agshost/rest/services/RAMS/All_Routes/FeatureServer/0/query';
 
 class IowaGeometryService {
   constructor() {
@@ -73,22 +73,26 @@ class IowaGeometryService {
   }
 
   /**
-   * Extract route number from various formats
+   * Extract route number and prefix from various formats
+   * Returns { number, prefix } where prefix is 'I', 'US', or 'IA'
    */
-  extractRouteNumber(routeName) {
+  extractRouteInfo(routeName) {
     if (!routeName) return null;
 
     const patterns = [
-      /I-?(\d+)/i,           // Interstate
-      /US-?(\d+)/i,          // US Highway
-      /IA-?(\d+)/i,          // Iowa Highway
-      /INTERSTATE\s+(\d+)/i  // Full word
+      { regex: /I-?(\d+)/i, prefix: 'I' },           // Interstate
+      { regex: /US-?(\d+)/i, prefix: 'US' },         // US Highway
+      { regex: /IA-?(\d+)/i, prefix: 'IA' },         // Iowa Highway
+      { regex: /INTERSTATE\s+(\d+)/i, prefix: 'I' }  // Full word
     ];
 
     for (const pattern of patterns) {
-      const match = routeName.match(pattern);
+      const match = routeName.match(pattern.regex);
       if (match) {
-        return match[1];
+        return {
+          number: parseInt(match[1]),
+          prefix: pattern.prefix
+        };
       }
     }
 
@@ -96,13 +100,13 @@ class IowaGeometryService {
   }
 
   /**
-   * Query Iowa DOT Road Network for route geometry
+   * Query Iowa DOT All Routes for route geometry
    */
-  async queryIowaRoadNetwork(routeId, bbox) {
+  async queryIowaRoadNetwork(routeInfo, bbox) {
     try {
       const params = {
-        where: `ROUTEID LIKE '%${routeId}%'`,
-        outFields: 'ROUTEID,STATE_ROUTE_NAME_1',
+        where: `OFFICIAL_ROUTE_NUMBER=${routeInfo.number} AND OFFICIAL_ROUTE_PREFIX='${routeInfo.prefix}'`,
+        outFields: 'ROUTE_ID,ROUTE_NAME,OFFICIAL_ROUTE_NUMBER,OFFICIAL_ROUTE_PREFIX',
         returnGeometry: true,
         f: 'geojson',
         outSR: 4326
@@ -186,9 +190,9 @@ class IowaGeometryService {
       return event; // Return unchanged if no geometry
     }
 
-    const routeNumber = this.extractRouteNumber(event.corridor);
-    if (!routeNumber) {
-      return event; // Can't enrich without route number
+    const routeInfo = this.extractRouteInfo(event.corridor);
+    if (!routeInfo) {
+      return event; // Can't enrich without route info
     }
 
     try {
@@ -209,7 +213,7 @@ class IowaGeometryService {
         maxLon: Math.max(startLon, endLon) + 0.1
       };
 
-      const roadData = await this.queryIowaRoadNetwork(routeNumber, bbox);
+      const roadData = await this.queryIowaRoadNetwork(routeInfo, bbox);
 
       if (!roadData || !roadData.features || roadData.features.length === 0) {
         return event;
@@ -235,7 +239,7 @@ class IowaGeometryService {
       return {
         ...event,
         geometry: newGeometry,
-        geometry_source: 'Iowa DOT Road Network'
+        geometry_source: 'Iowa DOT All Routes'
       };
 
     } catch (error) {
@@ -271,7 +275,7 @@ class IowaGeometryService {
         'ia',
         JSON.stringify(geometry),
         event.direction,
-        'Iowa DOT Road Network',
+        'Iowa DOT All Routes',
         now,
         now,
         event.startTime ? new Date(event.startTime).getTime() : now,
