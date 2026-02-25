@@ -88,28 +88,40 @@ const createEquipmentIcon = (type, healthCategory, isOnline) => {
 };
 
 export default function ITSEquipmentLayer({ visible = true, stateKey = null, equipmentType = null, route = null }) {
+  console.log('🚀 ITSEquipmentLayer MOUNTED', { visible, stateKey, equipmentType, route });
+
   const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('🔄 ITSEquipmentLayer useEffect TRIGGERED', { visible, stateKey, equipmentType, route });
     if (visible) {
+      console.log('✅ Calling fetchEquipment()');
       fetchEquipment();
+    } else {
+      console.log('❌ Skipping fetchEquipment - visible is false');
     }
   }, [visible, stateKey, equipmentType, route]);
 
   const fetchEquipment = async () => {
+    console.log('📞 fetchEquipment() CALLED');
     try {
       setLoading(true);
       const params = {};
       if (stateKey) params.stateKey = stateKey;
+      console.log('📋 Request params:', params);
 
       // Try to fetch equipment with health data first, fall back to basic equipment
       let response;
       try {
+        console.log('🏥 Trying health endpoint...');
         response = await api.get('/api/equipment/health', { params });
+        console.log('✅ Health endpoint succeeded');
       } catch (healthError) {
-        console.warn('Health data unavailable, falling back to basic equipment:', healthError);
+        console.warn('Health data unavailable, falling back to basic equipment:', healthError.message);
+        console.log('🔧 Trying basic equipment endpoint...');
         response = await api.get('/api/its-equipment', { params });
+        console.log('✅ Basic equipment endpoint succeeded');
       }
 
       if (response.data.success && Array.isArray(response.data.equipment)) {
@@ -135,10 +147,14 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
 
         setEquipment(filtered);
         console.log(`📡 FINAL: Loaded ${filtered.length} ITS equipment items${route ? ` for route ${route}` : ''}`);
+      } else {
+        console.error('❌ API response invalid:', response.data);
       }
     } catch (error) {
-      console.error('Error fetching ITS equipment:', error);
+      console.error('❌ CRITICAL ERROR fetching ITS equipment:', error);
+      console.error('Error stack:', error.stack);
     } finally {
+      console.log('🏁 fetchEquipment COMPLETE, setting loading = false');
       setLoading(false);
     }
   };
