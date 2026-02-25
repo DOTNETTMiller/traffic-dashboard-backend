@@ -173,7 +173,7 @@ class IowaGeometryService {
         startToSegEnd + endToSegStart
       );
 
-      if (score < bestScore && score < 20) { // Within 20km threshold (increased from 5km)
+      if (score < bestScore && score < 50) { // Within 50km threshold for long highway segments
         bestScore = score;
         bestMatch = feature;
       }
