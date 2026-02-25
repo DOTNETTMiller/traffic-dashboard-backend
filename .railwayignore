@@ -1,7 +1,14 @@
 # Railway ignore file - exclude large/unnecessary files from deployment
 
-# Frontend (separate service, 326MB)
-frontend/
+# Frontend source files (exclude source, keep dist for serving)
+frontend/node_modules/
+frontend/src/
+frontend/public/
+frontend/index.html
+frontend/vite.config.js
+frontend/package.json
+frontend/package-lock.json
+frontend/.gitignore
 
 # Database files (use PostgreSQL in production, 24MB)
 states.db
