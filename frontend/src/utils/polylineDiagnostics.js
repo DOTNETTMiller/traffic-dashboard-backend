@@ -99,7 +99,7 @@ export function analyzePolyline(geometry) {
       from: longestSegment.from,
       to: longestSegment.to
     },
-    source: geometry.source || 'unknown',
+    source: geometry.geometrySource || geometry.source || 'unknown', // Use geometrySource first
     corrected: geometry.corrected || false,
     issues: issues
   };
