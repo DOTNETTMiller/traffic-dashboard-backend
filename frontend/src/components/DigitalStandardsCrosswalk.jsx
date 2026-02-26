@@ -98,7 +98,7 @@ function DigitalStandardsCrosswalk() {
       maxWidth: '1400px',
       margin: '0 auto',
       padding: '20px',
-      backgroundColor: '#111827',
+      backgroundColor: '#ffffff',
       borderRadius: '8px',
       boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
     }}>
@@ -168,7 +168,7 @@ function DigitalStandardsCrosswalk() {
             style={{
               padding: '10px 20px',
               backgroundColor: '#3b82f6',
-              color: '#111827',
+              color: '#ffffff',
               border: 'none',
               borderRadius: '6px',
               cursor: downloading ? 'not-allowed' : 'pointer',
@@ -186,7 +186,7 @@ function DigitalStandardsCrosswalk() {
 
       {/* Document Info */}
       <div style={{
-        backgroundColor: '#6b7280',
+        backgroundColor: '#f0fdf4',
         border: '1px solid #86efac',
         borderRadius: '6px',
         padding: '15px',
