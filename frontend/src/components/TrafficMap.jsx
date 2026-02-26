@@ -167,12 +167,17 @@ const isInterstateEvent = (event) => {
 
 // Custom marker icons based on event type with traffic sign symbols
 const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
-  const { eventType, description = '', lanesAffected = '', severity, severityLevel } = event;
+  const { eventType, description = '', lanesAffected = '', severity, severityLevel, geometry } = event;
   const normalizedSeverity = normalizeSeverity(severityLevel || severity);
 
   // Check if event is near a state border
   const borderInfo = isNearBorder(event);
   const isNearStateBorder = borderInfo && borderInfo.nearBorder;
+
+  // Determine geometry enhancement status
+  const geometrySource = geometry?.geometrySource;
+  const isEnhanced = geometrySource === 'osrm' || geometrySource === 'state_dot_wfs';
+  const isFallback = geometrySource === 'straight_line';
 
   let iconSvg = '';
 
@@ -368,6 +373,28 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
               <!-- Count badge -->
               <circle cx="38" cy="12" r="10" fill="#dc2626" stroke="white" stroke-width="3"/>
               <text x="38" y="17" font-size="14" font-weight="bold" fill="white" text-anchor="middle">${messageCount > 9 ? '9+' : messageCount}</text>
+            </svg>
+          </div>
+        ` : ''}
+        ${isEnhanced || isFallback ? `
+          <!-- Geometry enhancement badge -->
+          <div style="
+            position: absolute;
+            bottom: -8px;
+            right: -8px;
+            z-index: 1500;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+          ">
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <circle cx="10" cy="10" r="9" fill="${isEnhanced ? '#10b981' : '#dc2626'}" stroke="white" stroke-width="2"/>
+              ${isEnhanced ? `
+                <!-- Checkmark -->
+                <path d="M 6 10 L 9 13 L 14 7" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              ` : `
+                <!-- X mark -->
+                <line x1="7" y1="7" x2="13" y2="13" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                <line x1="13" y1="7" x2="7" y2="13" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+              `}
             </svg>
           </div>
         ` : ''}

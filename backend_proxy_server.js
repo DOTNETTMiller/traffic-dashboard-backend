@@ -1132,7 +1132,7 @@ async function loadInterstatePolylines() {
 async function queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey) {
   if (!corridor || !stateKey) return null;
 
-  const stateConfig = STATE_CONFIGS[stateKey];
+  const stateConfig = API_CONFIG[stateKey];
   if (!stateConfig || !stateConfig.wfsConfig || stateConfig.wfsConfig.enabled === false) {
     return null;
   }
