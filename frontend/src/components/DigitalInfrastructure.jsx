@@ -1033,7 +1033,7 @@ function DigitalInfrastructure() {
                       style={{
                         marginBottom: '12px',
                         padding: '16px',
-                        backgroundColor: '#111827',
+                        backgroundColor: '#ffffff',
                         border: `2px solid ${gap.severity === 'high' ? '#d32f2f' : gap.severity === 'medium' ? '#f57c00' : '#689f38'}`,
                         borderRadius: '8px',
                         boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
@@ -1252,7 +1252,7 @@ function DigitalInfrastructure() {
                 {crosswalkHighlights.length > 0 && (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '20px' }}>
                     {crosswalkHighlights.map(highlight => (
-                      <div key={highlight.title} style={{ padding: '16px', backgroundColor: '#111827', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                      <div key={highlight.title} style={{ padding: '16px', backgroundColor: '#ffffff', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                         <div style={{ fontWeight: '600', color: '#0f172a', marginBottom: '6px' }}>{highlight.title}</div>
                         <div style={{ fontSize: '13px', color: '#475569' }}>{highlight.summary}</div>
                       </div>
@@ -1261,7 +1261,7 @@ function DigitalInfrastructure() {
                 )}
                 <div
                   style={{
-                    backgroundColor: '#111827',
+                    backgroundColor: '#ffffff',
                     borderRadius: '10px',
                     border: '1px solid #e2e8f0',
                     padding: '16px',
