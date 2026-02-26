@@ -18717,16 +18717,20 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
     // Move file from temp location to permanent storage
     fs.renameSync(tempFilePath, permanentPath);
 
+    // Read file contents for database storage (BYTEA)
+    const fileBuffer = fs.readFileSync(permanentPath);
+    console.log(`   📦 Read ${fileBuffer.length} bytes for database storage`);
+
     // Generate gap analysis
     const gaps = parser.identifyGaps(extractionResult.elements);
     console.log(`   ✅ Identified ${gaps.length} data gaps for ITS operations`);
 
-    // Store metadata in bim_models table (file is saved to volume)
+    // Store metadata in bim_models table (file is saved to volume AND database)
     const modelInsert = db.isPostgres
       ? `INSERT INTO bim_models (filename, original_filename, file_path, file_type, file_size,
          state_key, uploaded_by, latitude, longitude, route, milepost,
-         elements_extracted, gaps_identified, v2x_applicable, av_critical, processing_status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+         elements_extracted, gaps_identified, v2x_applicable, av_critical, processing_status, file_data)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
          RETURNING id`
       : `INSERT INTO bim_models (filename, original_filename, file_path, file_type, file_size,
          state_key, uploaded_by, latitude, longitude, route, milepost,
@@ -18754,7 +18758,8 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
         gaps.length,                       // gaps_identified
         v2xCount,                          // v2x_applicable
         avCount,                           // av_critical
-        'completed'                        // processing_status
+        'completed',                       // processing_status
+        fileBuffer                         // file_data (BYTEA binary data)
       ]);
       modelId = result.rows[0].id;
     } else {
