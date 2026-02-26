@@ -441,7 +441,9 @@ function getSourceLabel(source) {
   const sourceMap = {
     'osrm': '🛣️ OSRM Routing Engine',
     'interstate': '🏛️ Database Interstate Geometry',
+    'interstate_polyline': '🏛️ Database Interstate Geometry',
     'straight': '📏 Straight Line (Fallback)',
+    'straight_line': '📏 Straight Line (Fallback)',
     'unknown': '❓ Unknown Source'
   };
   return sourceMap[source] || sourceMap['unknown'];
@@ -451,7 +453,9 @@ function getSourceDescription(source) {
   const descMap = {
     'osrm': 'High-quality road-snapped geometry from OpenStreetMap routing service. Dense polyline follows actual highway path.',
     'interstate': 'Pre-loaded Interstate corridor geometry from database. May have lower resolution between points.',
+    'interstate_polyline': 'Pre-loaded Interstate corridor geometry from database. May have lower resolution between points.',
     'straight': 'Direct line between start and end coordinates. Used when road-snapped geometry unavailable.',
+    'straight_line': 'Direct line between start and end coordinates. Used when road-snapped geometry unavailable.',
     'unknown': 'Geometry source not specified by backend.'
   };
   return descMap[source] || descMap['unknown'];
@@ -461,7 +465,9 @@ function getSourceBackgroundColor(source) {
   const colorMap = {
     'osrm': '#d1fae5',
     'interstate': '#dbeafe',
+    'interstate_polyline': '#dbeafe',
     'straight': '#fef3c7',
+    'straight_line': '#fef3c7',
     'unknown': '#f3f4f6'
   };
   return colorMap[source] || colorMap['unknown'];
@@ -471,7 +477,9 @@ function getSourceBorderColor(source) {
   const colorMap = {
     'osrm': '#10b981',
     'interstate': '#3b82f6',
+    'interstate_polyline': '#3b82f6',
     'straight': '#f59e0b',
+    'straight_line': '#f59e0b',
     'unknown': '#6b7280'
   };
   return colorMap[source] || colorMap['unknown'];
