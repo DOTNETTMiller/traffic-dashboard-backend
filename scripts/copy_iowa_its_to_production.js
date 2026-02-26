@@ -102,11 +102,12 @@ async function copyIowaITSToProduction() {
       const placeholders = [];
 
       batch.forEach((item, idx) => {
-        const baseIdx = idx * 8; // 8 fields (matching production schema)
+        const baseIdx = idx * 11; // 11 fields including stream_url, notes, location_description
 
         placeholders.push(`(
           $${baseIdx + 1}, $${baseIdx + 2}, $${baseIdx + 3}, $${baseIdx + 4},
-          $${baseIdx + 5}, $${baseIdx + 6}, $${baseIdx + 7}, $${baseIdx + 8}
+          $${baseIdx + 5}, $${baseIdx + 6}, $${baseIdx + 7}, $${baseIdx + 8},
+          $${baseIdx + 9}, $${baseIdx + 10}, $${baseIdx + 11}
         )`);
 
         values.push(
@@ -117,6 +118,9 @@ async function copyIowaITSToProduction() {
           item.latitude,
           item.longitude,
           item.status || 'active',
+          item.stream_url || null,
+          item.notes || null,
+          item.location_description || null,
           new Date()
         );
       });
@@ -125,7 +129,8 @@ async function copyIowaITSToProduction() {
         const insertQuery = `
           INSERT INTO its_equipment (
             id, state_key, equipment_type, equipment_subtype,
-            latitude, longitude, status, updated_at
+            latitude, longitude, status, stream_url, notes,
+            location_description, updated_at
           ) VALUES ${placeholders.join(', ')}
           ON CONFLICT (id) DO UPDATE SET
             equipment_type = EXCLUDED.equipment_type,
@@ -133,6 +138,9 @@ async function copyIowaITSToProduction() {
             latitude = EXCLUDED.latitude,
             longitude = EXCLUDED.longitude,
             status = EXCLUDED.status,
+            stream_url = EXCLUDED.stream_url,
+            notes = EXCLUDED.notes,
+            location_description = EXCLUDED.location_description,
             updated_at = EXCLUDED.updated_at
         `;
 
