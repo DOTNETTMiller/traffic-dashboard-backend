@@ -1312,16 +1312,17 @@ function DigitalInfrastructure() {
               color: #be123c;
             }
             .markdown-content pre {
-              background-color: #1f2937;
-              color: #f9fafb;
+              background-color: #f3f4f6;
+              color: #1f2937;
               padding: 16px;
               border-radius: 6px;
               overflow-x: auto;
               margin: 16px 0;
+              border: 1px solid #e5e7eb;
             }
             .markdown-content pre code {
               background-color: transparent;
-              color: #f9fafb;
+              color: #1f2937;
               padding: 0;
             }
             .markdown-content strong {
