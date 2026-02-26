@@ -649,6 +649,122 @@ if (!geometry && event.road && event.road.match(/^I-?\d+/)) {
 
 ---
 
+### Pattern 5: Bidirectional Route Combination (Both Directions)
+
+**Use When**: Event affects both directions of travel on a divided Interstate (direction = "Both")
+
+**Problem**: Divided Interstates have separate eastbound/westbound (or northbound/southbound) carriageways. When an incident affects ALL traffic (e.g., major weather event, bridge closure), we need to display geometry for BOTH directions.
+
+**Implementation** (backend_proxy_server.js Lines 1561-1607):
+
+```javascript
+// If direction="Both" and cache miss, retrieve BOTH direction geometries and combine them
+if (!cached && direction && direction.toLowerCase().includes('both')) {
+  // Determine which pair of directions to use based on corridor
+  let directionPair = [];
+  if (corridor) {
+    // East-West interstates (even numbers: I-80, I-70, I-90, etc.)
+    if (corridor.match(/I-\d*[02468]0?$/)) {
+      directionPair = ['Eastbound', 'Westbound'];
+    }
+    // North-South interstates (odd numbers: I-35, I-75, I-95, etc.)
+    else if (corridor.match(/I-\d*[13579]5?$/)) {
+      directionPair = ['Northbound', 'Southbound'];
+    }
+  }
+
+  const geometries = [];
+  for (const dir of directionPair) {
+    const dirCacheKey = getOSRMCacheKey(lat1, lng1, lat2, lng2, dir);
+    const dirCached = db.db.prepare('SELECT geometry FROM osrm_geometry_cache WHERE cache_key = ?').get(dirCacheKey);
+
+    if (dirCached && dirCached.geometry) {
+      try {
+        const coords = JSON.parse(dirCached.geometry);
+        geometries.push({ dir, coords });
+      } catch (e) {
+        // Skip invalid cache entries
+      }
+    }
+  }
+
+  // If we found both directions, combine them
+  if (geometries.length >= 2) {
+    // Combine: route1 forward + route2 reversed to create a loop showing both sides
+    const route1 = geometries[0].coords;
+    const route2 = [...geometries[1].coords].reverse();
+    const combined = [...route1, ...route2];
+    return { coordinates: combined, geometrySource: 'osrm' };
+  }
+}
+```
+
+**How It Works**:
+1. **Detect "Both" direction**: Check if event.direction contains "both" (case-insensitive)
+2. **Determine route orientation**:
+   - Even-numbered Interstates (I-80, I-70) → East-West routes
+   - Odd-numbered Interstates (I-35, I-75) → North-South routes
+3. **Query both directions separately**:
+   - For I-80: Query "Eastbound" cache + "Westbound" cache
+   - For I-35: Query "Northbound" cache + "Southbound" cache
+4. **Combine geometries**:
+   - Take route1 coordinates forward: `[start → end]`
+   - Take route2 coordinates reversed: `[end → start]`
+   - Concatenate: `[route1_forward, route2_reversed]`
+   - Creates a "loop" showing both carriageways
+
+**Visual Result**:
+- Single polyline that traces both sides of the divided highway
+- Clearly shows that ALL lanes in BOTH directions are affected
+- More accurate than single-direction geometry for bi-directional incidents
+
+**Example Use Cases**:
+- **Major weather event**: "I-80 BOTH DIRECTIONS closed due to blizzard"
+- **Bridge closure**: "I-35 BOTH DIRECTIONS bridge work, all traffic detoured"
+- **Multi-vehicle crash**: "I-70 BOTH DIRECTIONS blocked by collision"
+
+**FEU-G Specification**:
+
+Per FEU-G v2.2 spec section 1.5.7.2, link-direction values:
+- `"positive direction"` - One direction (determined by link-alignment)
+- `"negative direction"` - Opposite direction
+- `"both directions"` - **ALL traffic affected** (triggers bidirectional query)
+- `"not directional"` - Direction not applicable
+
+**convertFEUGDirection() Function** (backend_proxy_server.js Lines 3389-3415):
+```javascript
+const convertFEUGDirection = (linkDirection, linkAlignment, corridor = '') => {
+  if (!linkDirection || !linkAlignment) {
+    return 'Both'; // Default if fields missing
+  }
+
+  // Handle "both directions" or "not directional"
+  if (linkDirection === 'both directions' || linkDirection === 'not directional') {
+    return 'Both';  // Triggers bidirectional geometry combination
+  }
+
+  // Determine if positive or negative
+  const isPositive = linkDirection === 'positive direction';
+
+  // Return the actual cardinal direction
+  if (isPositive) {
+    return linkAlignment; // 'E', 'W', 'N', or 'S'
+  } else {
+    // Negative direction is opposite of alignment
+    const opposites = { 'E': 'W', 'W': 'E', 'N': 'S', 'S': 'N' };
+    return opposites[linkAlignment] || 'Both';
+  }
+};
+```
+
+**Important Notes**:
+- This pattern applies to **OSRM cached geometries** primarily
+- For State DOT WFS, most services don't separate by direction, so single query returns centerline
+- Database Interstate polylines may have directional variants (I-80 EB, I-80 WB) that can be combined similarly
+- Straight-line fallback geometry doesn't benefit from bidirectional handling (already shows full extent)
+
+---
+
 ## Frontend Integration
 
 ### Geometry Source Display
