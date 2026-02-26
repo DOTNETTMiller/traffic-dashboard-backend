@@ -847,10 +847,38 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 // Offset coordinates perpendicular to the route based on direction
-function offsetCoordinates(coordinates, direction) {
+function offsetCoordinates(coordinates, direction, corridor = '') {
   // Offset distance for divided highways - visible at highway zoom levels
   const offsetMeters = 35;
   const offsetDegrees = offsetMeters / 111320; // meters to degrees conversion
+
+  // Handle "Both" directions - create loop showing both carriageways
+  if (direction && typeof direction === 'string' && direction.toLowerCase().includes('both')) {
+    // Determine the two directions based on corridor orientation
+    let direction1, direction2;
+
+    // East-West interstates (even numbers: I-80, I-70, I-90, etc.)
+    if (corridor && corridor.match(/I-\d*[02468]0?$/)) {
+      direction1 = 'Eastbound';
+      direction2 = 'Westbound';
+    }
+    // North-South interstates (odd numbers: I-35, I-75, I-95, etc.)
+    else if (corridor && corridor.match(/I-\d*[13579]5?$/)) {
+      direction1 = 'Northbound';
+      direction2 = 'Southbound';
+    } else {
+      // Unknown corridor type - return centerline
+      return coordinates;
+    }
+
+    // Create two offset lines and combine them into a loop
+    const offset1Coords = offsetCoordinates(coordinates, direction1, corridor);
+    const offset2Coords = offsetCoordinates(coordinates, direction2, corridor);
+
+    // Combine: direction1 forward + direction2 reversed to create visible loop
+    const combined = [...offset1Coords, ...offset2Coords.reverse()];
+    return combined;
+  }
 
   // Determine offset direction based on US right-hand traffic
   // Westbound = north side, Eastbound = south side
@@ -872,7 +900,7 @@ function offsetCoordinates(coordinates, direction) {
   }
 
   if (latOffset === 0 && lngOffset === 0) {
-    return coordinates; // No offset for "Both" or unknown directions
+    return coordinates; // No offset for unknown directions
   }
 
   // Apply fixed offset to all coordinates
@@ -1641,7 +1669,9 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
       if (corridor && stateKey) {
         const wfsGeometry = await queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey);
         if (wfsGeometry && wfsGeometry.length > 2) {
-          return { coordinates: wfsGeometry, geometrySource: 'state_dot_wfs' };
+          // Apply directional offset to WFS centerline geometry
+          const offsetGeometry = offsetCoordinates(wfsGeometry, direction, corridor);
+          return { coordinates: offsetGeometry, geometrySource: 'state_dot_wfs' };
         }
       }
 
@@ -1662,7 +1692,9 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     if (corridor && stateKey) {
       const wfsGeometry = await queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey);
       if (wfsGeometry && wfsGeometry.length > 2) {
-        return { coordinates: wfsGeometry, geometrySource: 'state_dot_wfs' };
+        // Apply directional offset to WFS centerline geometry
+        const offsetGeometry = offsetCoordinates(wfsGeometry, direction, corridor);
+        return { coordinates: offsetGeometry, geometrySource: 'state_dot_wfs' };
       }
     }
 
