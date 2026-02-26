@@ -572,7 +572,11 @@ const API_CONFIG = {
       password: process.env.CARS_PASSWORD
     }),
     format: 'xml',
-    corridor: 'both'
+    corridor: 'both',
+    wfsConfig: {
+      // Iowa uses same WFS as in snapToInterstatePolyline - already integrated
+      enabled: false
+    }
   },
   kansas: {
     name: 'Kansas',
@@ -582,7 +586,13 @@ const API_CONFIG = {
       password: process.env.CARS_PASSWORD
     }),
     format: 'xml',
-    corridor: 'I-35'
+    corridor: 'I-35',
+    wfsConfig: {
+      url: 'https://wfs.ksdot.org/arcgis_web_adaptor/rest/services/Transportation/State_System/MapServer/0/query',
+      routeIdField: 'RouteID',
+      routeIdFormat: (num) => `I-${num}`, // '35' → 'I-35'
+      spatialRef: 6923 // NAD83(2011) Kansas
+    }
   },
   nebraska: {
     name: 'Nebraska',
@@ -592,7 +602,13 @@ const API_CONFIG = {
       password: process.env.CARS_PASSWORD
     }),
     format: 'xml',
-    corridor: 'I-80'
+    corridor: 'I-80',
+    wfsConfig: {
+      url: 'https://giscat.ne.gov/enterprise/rest/services/Highways_DOT_NE/FeatureServer/0/query',
+      routeIdField: 'RouteID',
+      routeIdFormat: (num) => num.padStart(3, '0'), // '80' → '080'
+      spatialRef: 3857 // Web Mercator
+    }
   },
   indiana: {
     name: 'Indiana',
@@ -602,7 +618,13 @@ const API_CONFIG = {
       password: process.env.CARS_PASSWORD
     }),
     format: 'xml',
-    corridor: 'I-80'
+    corridor: 'I-80',
+    wfsConfig: {
+      url: 'https://gisdata.in.gov/server/rest/services/Hosted/Highways_RO/FeatureServer/1/query',
+      routeIdField: 'RouteID',
+      routeIdFormat: (num) => `I-${num}`, // '80' → 'I-80'
+      spatialRef: 26916 // NAD83 UTM Zone 16N
+    }
   },
   minnesota: {
     name: 'Minnesota',
@@ -612,7 +634,13 @@ const API_CONFIG = {
       password: process.env.CARS_PASSWORD
     }),
     format: 'xml',
-    corridor: 'I-35'
+    corridor: 'I-35',
+    wfsConfig: {
+      url: 'https://webgis.dot.state.mn.us/65agsf1/rest/services/sdw_trans/ROUTES/FeatureServer/0/query',
+      routeIdField: 'ROUTE_ID',
+      routeIdFormat: (num) => `00${num}`, // '35' → '0035'
+      spatialRef: 26915 // NAD83 UTM Zone 15N
+    }
   },
   utah: {
     name: 'Utah',
@@ -1099,6 +1127,100 @@ async function loadInterstatePolylines() {
   }
 }
 
+// Query State DOT WFS service for official Interstate highway geometry
+// Returns high-resolution polyline from state DOT GIS services
+async function queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey) {
+  if (!corridor || !stateKey) return null;
+
+  const stateConfig = STATE_CONFIGS[stateKey];
+  if (!stateConfig || !stateConfig.wfsConfig || stateConfig.wfsConfig.enabled === false) {
+    return null;
+  }
+
+  // Extract Interstate number from corridor (e.g., "I-80" → "80")
+  const interstateMatch = corridor.match(/I-?(\d+)/);
+  if (!interstateMatch) return null;
+
+  const interstateNum = interstateMatch[1];
+  const wfs = stateConfig.wfsConfig;
+
+  try {
+    // Format the route ID according to state's convention
+    const routeId = wfs.routeIdFormat(interstateNum);
+
+    // Build WFS query URL
+    const params = new URLSearchParams({
+      where: `${wfs.routeIdField}='${routeId}'`,
+      outFields: '*',
+      returnGeometry: 'true',
+      f: 'json',
+      outSR: '4326' // Request WGS84 coordinates
+    });
+
+    const url = `${wfs.url}?${params.toString()}`;
+
+    console.log(`🗺️  Querying ${stateConfig.name} DOT WFS for ${corridor}...`);
+
+    const response = await axios.get(url, { timeout: 10000 });
+
+    if (!response.data || !response.data.features || response.data.features.length === 0) {
+      console.log(`⚠️  No WFS geometry found for ${corridor} in ${stateConfig.name}`);
+      return null;
+    }
+
+    // Combine all route segments into one polyline
+    let allCoordinates = [];
+    for (const feature of response.data.features) {
+      if (feature.geometry && feature.geometry.paths) {
+        // ArcGIS returns paths array, each path is an array of [lng, lat] pairs
+        for (const path of feature.geometry.paths) {
+          allCoordinates = allCoordinates.concat(path);
+        }
+      }
+    }
+
+    if (allCoordinates.length < 2) {
+      console.log(`⚠️  WFS geometry too short for ${corridor}`);
+      return null;
+    }
+
+    console.log(`✅ Retrieved ${allCoordinates.length} WFS coordinates for ${corridor}`);
+
+    // Project start and end points onto the polyline
+    const projection1 = projectPointOntoLine(lng1, lat1, allCoordinates);
+    const projection2 = projectPointOntoLine(lng2, lat2, allCoordinates);
+
+    if (!projection1 || !projection2) {
+      console.log(`⚠️  Could not project event points onto ${corridor} geometry`);
+      return null;
+    }
+
+    // Determine which projection comes first along the route
+    const startIdx = Math.min(projection1.segmentIndex, projection2.segmentIndex);
+    const endIdx = Math.max(projection1.segmentIndex, projection2.segmentIndex);
+
+    // Extract the segment between the two projections
+    const segment = allCoordinates.slice(startIdx, endIdx + 2);
+
+    // Replace first and last points with actual projected points
+    if (projection1.segmentIndex < projection2.segmentIndex) {
+      segment[0] = projection1.point;
+      segment[segment.length - 1] = projection2.point;
+    } else {
+      segment[0] = projection2.point;
+      segment[segment.length - 1] = projection1.point;
+    }
+
+    console.log(`✅ Extracted ${segment.length} coordinates from ${stateConfig.name} DOT WFS`);
+
+    return segment.length >= 2 ? segment : null;
+
+  } catch (error) {
+    console.error(`❌ ${stateConfig.name} WFS query failed:`, error.message);
+    return null;
+  }
+}
+
 // Snap 2-point event geometry to Interstate polyline (I-80, I-35 only)
 // Returns curved geometry by extracting polyline segment between start and end points
 function snapToInterstatePolyline(lat1, lng1, lat2, lng2, corridor, direction) {
@@ -1466,7 +1588,15 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
       }
       return { coordinates: osrmCoordinates, geometrySource: 'osrm' };
     } else {
-      // Before returning straight line, try Interstate snapping for I-80 and I-35
+      // OSRM returned straight line - try State DOT WFS for official geometry
+      if (corridor && stateKey) {
+        const wfsGeometry = await queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey);
+        if (wfsGeometry && wfsGeometry.length > 2) {
+          return { coordinates: wfsGeometry, geometrySource: 'state_dot_wfs' };
+        }
+      }
+
+      // If WFS failed, try Interstate polyline fallback for I-80 and I-35
       if (corridor && (corridor.match(/I-?80/) || corridor.match(/I-?35/))) {
         const interstateSegment = snapToInterstatePolyline(lat1, lng1, lat2, lng2, corridor, direction);
         if (interstateSegment && interstateSegment.length > 2) {
@@ -1479,7 +1609,15 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
   } catch (osrmError) {
     console.error(`❌ OSRM fetch failed:`, osrmError.message);
 
-    // Before final fallback, try Interstate snapping for I-80 and I-35
+    // Try State DOT WFS for official geometry
+    if (corridor && stateKey) {
+      const wfsGeometry = await queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey);
+      if (wfsGeometry && wfsGeometry.length > 2) {
+        return { coordinates: wfsGeometry, geometrySource: 'state_dot_wfs' };
+      }
+    }
+
+    // If WFS failed, try Interstate polyline fallback for I-80 and I-35
     if (corridor && (corridor.match(/I-?80/) || corridor.match(/I-?35/))) {
       const interstateSegment = snapToInterstatePolyline(lat1, lng1, lat2, lng2, corridor, direction);
       if (interstateSegment && interstateSegment.length > 2) {

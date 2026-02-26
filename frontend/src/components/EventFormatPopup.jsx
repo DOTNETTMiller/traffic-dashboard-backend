@@ -440,6 +440,7 @@ function getCIFSSeverityColor(severity) {
 function getSourceLabel(source) {
   const sourceMap = {
     'osrm': '🛣️ OSRM Routing Engine',
+    'state_dot_wfs': '🏛️ State DOT Official Geometry',
     'interstate': '🏛️ Database Interstate Geometry',
     'interstate_polyline': '🏛️ Database Interstate Geometry',
     'straight': '📏 Straight Line (Fallback)',
@@ -452,6 +453,7 @@ function getSourceLabel(source) {
 function getSourceDescription(source) {
   const descMap = {
     'osrm': 'High-quality road-snapped geometry from OpenStreetMap routing service. Dense polyline follows actual highway path.',
+    'state_dot_wfs': 'Official high-resolution Interstate centerline geometry from state Department of Transportation GIS services. Authoritative government source with 3,000+ coordinates per highway segment.',
     'interstate': 'Pre-loaded Interstate corridor geometry from database. May have lower resolution between points.',
     'interstate_polyline': 'Pre-loaded Interstate corridor geometry from database. May have lower resolution between points.',
     'straight': 'Direct line between start and end coordinates. Used when road-snapped geometry unavailable.',
@@ -464,6 +466,7 @@ function getSourceDescription(source) {
 function getSourceBackgroundColor(source) {
   const colorMap = {
     'osrm': '#d1fae5',
+    'state_dot_wfs': '#e0e7ff',
     'interstate': '#dbeafe',
     'interstate_polyline': '#dbeafe',
     'straight': '#fef3c7',
@@ -476,6 +479,7 @@ function getSourceBackgroundColor(source) {
 function getSourceBorderColor(source) {
   const colorMap = {
     'osrm': '#10b981',
+    'state_dot_wfs': '#6366f1',
     'interstate': '#3b82f6',
     'interstate_polyline': '#3b82f6',
     'straight': '#f59e0b',
