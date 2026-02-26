@@ -589,8 +589,8 @@ const API_CONFIG = {
     corridor: 'I-35',
     wfsConfig: {
       url: 'https://wfs.ksdot.org/arcgis_web_adaptor/rest/services/Transportation/State_System/MapServer/0/query',
-      routeIdField: 'RouteID',
-      routeIdFormat: (num) => `I-${num}`, // '35' → 'I-35'
+      routeIdField: 'interstate_routes',
+      routeIdFormat: (num) => num, // '35' → '35' (just the number)
       spatialRef: 6923 // NAD83(2011) Kansas
     }
   },
@@ -620,6 +620,7 @@ const API_CONFIG = {
     format: 'xml',
     corridor: 'I-80',
     wfsConfig: {
+      enabled: false, // Disabled: Highways_RO service doesn't contain Interstate routes (only state routes)
       url: 'https://gisdata.in.gov/server/rest/services/Hosted/Highways_RO/FeatureServer/1/query',
       routeIdField: 'RouteID',
       routeIdFormat: (num) => `I-${num}`, // '80' → 'I-80'
@@ -637,8 +638,8 @@ const API_CONFIG = {
     corridor: 'I-35',
     wfsConfig: {
       url: 'https://webgis.dot.state.mn.us/65agsf1/rest/services/sdw_trans/ROUTES/FeatureServer/0/query',
-      routeIdField: 'ROUTE_ID',
-      routeIdFormat: (num) => `00${num}`, // '35' → '0035'
+      routeIdField: 'ROUTE_NUMBER',
+      routeIdFormat: (num) => num, // '35' → '35'
       spatialRef: 26915 // NAD83 UTM Zone 15N
     }
   },
