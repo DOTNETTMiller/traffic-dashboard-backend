@@ -881,8 +881,8 @@ function offsetCoordinates(coordinates, direction, corridor = '') {
   }
 
   // Determine offset direction based on US right-hand traffic
-  // Westbound = north side, Eastbound = south side
-  // Northbound = east side, Southbound = west side
+  // On North-South Interstates: Northbound = west side, Southbound = east side
+  // On East-West Interstates: Westbound = north side, Eastbound = south side
   let latOffset = 0;
   let lngOffset = 0;
 
@@ -893,9 +893,9 @@ function offsetCoordinates(coordinates, direction, corridor = '') {
     } else if (dir.includes('east') || dir.includes('eb') || dir === 'e') {
       latOffset = -offsetDegrees; // Eastbound = offset south (negative latitude)
     } else if (dir.includes('north') || dir.includes('nb') || dir === 'n') {
-      lngOffset = offsetDegrees; // Northbound = offset east (positive longitude)
+      lngOffset = -offsetDegrees; // Northbound = offset west (negative longitude)
     } else if (dir.includes('south') || dir.includes('sb') || dir === 's') {
-      lngOffset = -offsetDegrees; // Southbound = offset west (negative longitude)
+      lngOffset = offsetDegrees; // Southbound = offset east (positive longitude)
     }
   }
 
