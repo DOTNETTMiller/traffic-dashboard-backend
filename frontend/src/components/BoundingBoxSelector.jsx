@@ -209,8 +209,8 @@ function BoundingBoxSelector({ isDarkMode }) {
           onClick={() => setIsExpanded(true)}
           style={{
             position: 'absolute',
-            top: '10px',
-            right: '10px',
+            bottom: '24px',
+            left: '24px',
             zIndex: 1000,
             background: theme.colors.accentBlue,
             color: '#111827',
@@ -244,8 +244,8 @@ function BoundingBoxSelector({ isDarkMode }) {
       {isExpanded && (
         <div style={{
           position: 'absolute',
-          top: '10px',
-          right: '10px',
+          bottom: '24px',
+          left: '24px',
           zIndex: 1000,
           background: theme.colors.glassDark,
           backdropFilter: 'blur(20px)',

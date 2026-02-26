@@ -19,7 +19,6 @@ import EventFormatPopup from './EventFormatPopup';
 import BoundingBoxSelector from './BoundingBoxSelector';
 import HeatMapControl from './HeatMapControl';
 import HeatMapLayer from './HeatMapLayer';
-import MiniMapControl from './MiniMapControl';
 import NASCOAIAnalysis from './NASCOAIAnalysis';
 import NearbyITSEquipment from './NearbyITSEquipment';
 
@@ -403,15 +402,6 @@ export default function TrafficMap({
   // Debug: Verify geometry filter props are being received
 
   const mapRef = useRef(null);
-  const [showMiniMap, setShowMiniMap] = useState(() => {
-    const saved = localStorage.getItem('showMiniMap');
-    return saved ? JSON.parse(saved) : false;
-  });
-
-  // Save mini-map visibility to localStorage
-  useEffect(() => {
-    localStorage.setItem('showMiniMap', JSON.stringify(showMiniMap));
-  }, [showMiniMap]);
 
   // Filter out events without valid coordinates
   const validEvents = events.filter(e => {
@@ -690,13 +680,6 @@ export default function TrafficMap({
         mode={heatMapMode}
         onToggle={onHeatMapToggle}
         onModeChange={onHeatMapModeChange}
-      />
-
-      {/* Mini Map Navigation Control */}
-      <MiniMapControl
-        parentMapRef={mapRef}
-        isVisible={showMiniMap}
-        onToggle={() => setShowMiniMap(!showMiniMap)}
       />
 
       {/* AI Harmonization Analysis - shown when corridor regulations are active */}
