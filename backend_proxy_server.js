@@ -1,6 +1,7 @@
 // Traffic Dashboard Backend Proxy Server
 // This server fetches data from state DOT APIs and serves it to your dashboard
 // OpenAI API integration enabled for AI chat features
+// Database connection pool managed automatically
 
 const express = require('express');
 const compression = require('compression');
