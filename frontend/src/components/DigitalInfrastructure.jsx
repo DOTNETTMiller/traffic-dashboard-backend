@@ -305,7 +305,8 @@ function DigitalInfrastructure() {
         `${API_BASE}/api/digital-infrastructure/upload`,
         formData,
         {
-          headers: { 'Content-Type': 'multipart/form-data' }
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 600000 // 10 minutes for large IFC files
         }
       );
 

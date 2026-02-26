@@ -27961,7 +27961,7 @@ app.get('*', (req, res) => {
 
 // Start server function - called after database initialization
 function startServer() {
-  app.listen(PORT, async () => {
+  const server = app.listen(PORT, async () => {
   console.log(`\n🚀 Traffic Dashboard Backend Server (Email Login Enabled)`);
   console.log(`✅ Server running on http://localhost:${PORT}`);
   console.log(`📊 API Endpoints:`);
@@ -28088,6 +28088,11 @@ function startServer() {
 
   console.log(`\nPress Ctrl+C to stop the server\n`);
   });
+
+  // Increase timeout for large file uploads (IFC/BIM models)
+  server.timeout = 600000; // 10 minutes (600,000ms)
+  server.keepAliveTimeout = 610000; // Slightly higher than timeout
+  console.log('⏱️  Server timeout: 10 minutes (for large file uploads)');
 }
 // Force redeploy Mon Nov  3 02:54:25 PST 2025
 // Trigger deployment to pick up DATABASE_URL - Sun Jan 18 10:26:19 CST 2026
