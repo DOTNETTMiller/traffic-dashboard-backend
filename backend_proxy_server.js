@@ -857,13 +857,13 @@ function offsetCoordinates(coordinates, direction, corridor = '') {
     // Determine the two directions based on corridor orientation
     let direction1, direction2;
 
-    // East-West interstates (even numbers: I-80, I-70, I-90, etc.)
-    if (corridor && corridor.match(/I-\d*[02468]0?$/)) {
+    // East-West interstates (end in X0 where X is even: I-80, I-280, I-70, etc.)
+    if (corridor && corridor.match(/[02468]0$/)) {
       direction1 = 'Eastbound';
       direction2 = 'Westbound';
     }
-    // North-South interstates (odd numbers: I-35, I-75, I-95, etc.)
-    else if (corridor && corridor.match(/I-\d*[13579]5?$/)) {
+    // North-South interstates (end in X5 where X is odd: I-35, I-335, I-75, I-95, etc.)
+    else if (corridor && corridor.match(/[13579]5$/)) {
       direction1 = 'Northbound';
       direction2 = 'Southbound';
     } else {
