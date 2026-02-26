@@ -757,11 +757,101 @@ const convertFEUGDirection = (linkDirection, linkAlignment, corridor = '') => {
 };
 ```
 
+### State DOT WFS Bidirectional Rendering
+
+**Problem**: State DOT WFS services return **centerline geometry** (single line down the middle of the Interstate). For "Both" direction events, this doesn't visually show that both carriageways are affected.
+
+**Solution** (backend_proxy_server.js Lines 850-906): The `offsetCoordinates()` function creates two parallel offset lines from the WFS centerline:
+
+```javascript
+// Offset coordinates perpendicular to the route based on direction
+function offsetCoordinates(coordinates, direction, corridor = '') {
+  const offsetMeters = 35;  // 35 meters (~115 feet) lateral offset
+  const offsetDegrees = offsetMeters / 111320; // Convert to degrees
+
+  // Handle "Both" directions - create loop showing both carriageways
+  if (direction && typeof direction === 'string' && direction.toLowerCase().includes('both')) {
+    // Determine the two directions based on corridor orientation
+    let direction1, direction2;
+
+    // East-West interstates (even numbers: I-80, I-70, I-90, etc.)
+    if (corridor && corridor.match(/I-\d*[02468]0?$/)) {
+      direction1 = 'Eastbound';
+      direction2 = 'Westbound';
+    }
+    // North-South interstates (odd numbers: I-35, I-75, I-95, etc.)
+    else if (corridor && corridor.match(/I-\d*[13579]5?$/)) {
+      direction1 = 'Northbound';
+      direction2 = 'Southbound';
+    } else {
+      return coordinates; // Unknown corridor type - return centerline
+    }
+
+    // Create two offset lines and combine them into a loop
+    const offset1Coords = offsetCoordinates(coordinates, direction1, corridor);
+    const offset2Coords = offsetCoordinates(coordinates, direction2, corridor);
+
+    // Combine: direction1 forward + direction2 reversed to create visible loop
+    const combined = [...offset1Coords, ...offset2Coords.reverse()];
+    return combined;
+  }
+
+  // Single direction offset logic
+  // Westbound = north side, Eastbound = south side
+  // Northbound = east side, Southbound = west side
+  let latOffset = 0;
+  let lngOffset = 0;
+
+  if (direction && typeof direction === 'string') {
+    const dir = direction.toLowerCase();
+    if (dir.includes('west') || dir.includes('wb') || dir === 'w') {
+      latOffset = offsetDegrees;  // Westbound = offset north
+    } else if (dir.includes('east') || dir.includes('eb') || dir === 'e') {
+      latOffset = -offsetDegrees; // Eastbound = offset south
+    } else if (dir.includes('north') || dir.includes('nb') || dir === 'n') {
+      lngOffset = offsetDegrees;  // Northbound = offset east
+    } else if (dir.includes('south') || dir.includes('sb') || dir === 's') {
+      lngOffset = -offsetDegrees; // Southbound = offset west
+    }
+  }
+
+  // Apply offset to all coordinates
+  return coordinates.map(coord => {
+    const [lng, lat] = coord;
+    return [lng + lngOffset, lat + latOffset];
+  });
+}
+```
+
+**Applied to State DOT WFS Geometry** (Lines 1670-1674, 1691-1695):
+```javascript
+// OSRM fallback case - use State DOT WFS
+const wfsGeometry = await queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey);
+if (wfsGeometry && wfsGeometry.length > 2) {
+  // Apply directional offset to WFS centerline geometry
+  const offsetGeometry = offsetCoordinates(wfsGeometry, direction, corridor);
+  return { coordinates: offsetGeometry, geometrySource: 'state_dot_wfs' };
+}
+```
+
+**How It Works for I-335 "Both" Direction**:
+1. WFS query returns centerline with 464 coordinates
+2. `offsetCoordinates()` detects "Both" direction
+3. Identifies I-335 (odd number) → North-South orientation
+4. Creates **Northbound offset**: shifts centerline 35m east (right side in US)
+5. Creates **Southbound offset**: shifts centerline 35m west (left side in US)
+6. Combines: `[NB coords forward] + [SB coords reversed]`
+7. Result: **Loop geometry** showing both carriageways as two parallel lines
+
+**Visual Improvement**:
+- **Before**: Single orange centerline (misleading - looks like one direction)
+- **After**: Two parallel orange lines forming a loop (clearly shows divided highway with both directions affected)
+
 **Important Notes**:
-- This pattern applies to **OSRM cached geometries** primarily
-- For State DOT WFS, most services don't separate by direction, so single query returns centerline
-- Database Interstate polylines may have directional variants (I-80 EB, I-80 WB) that can be combined similarly
-- Straight-line fallback geometry doesn't benefit from bidirectional handling (already shows full extent)
+- **OSRM cached geometries**: Uses separate queries for EB/WB or NB/SB, combines cached routes
+- **State DOT WFS geometries**: Uses `offsetCoordinates()` to create parallel lines from centerline (implemented 2024-02-26)
+- **Database Interstate polylines**: May have directional variants (I-80 EB, I-80 WB) that can be combined similarly
+- **Straight-line fallback**: Doesn't benefit from bidirectional handling (already shows full extent)
 
 ---
 
