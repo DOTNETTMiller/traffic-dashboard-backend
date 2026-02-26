@@ -1183,13 +1183,47 @@ async function queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey)
       return null;
     }
 
-    // Combine all route segments into one polyline
+    // For states with multiple disconnected segments (like Kansas with 20+ I-70 segments),
+    // find the segment closest to the event instead of concatenating all segments
     let allCoordinates = [];
-    for (const feature of response.data.features) {
-      if (feature.geometry && feature.geometry.paths) {
-        // ArcGIS returns paths array, each path is an array of [lng, lat] pairs
-        for (const path of feature.geometry.paths) {
+
+    if (response.data.features.length > 5) {
+      // Multiple segments - find the closest one to event midpoint
+      const eventMidLat = (lat1 + lat2) / 2;
+      const eventMidLng = (lng1 + lng2) / 2;
+
+      let closestFeature = null;
+      let minDistance = Infinity;
+
+      for (const feature of response.data.features) {
+        if (feature.geometry && feature.geometry.paths) {
+          // Get first point of this feature to check proximity
+          const firstPath = feature.geometry.paths[0];
+          if (firstPath && firstPath.length > 0) {
+            const [lng, lat] = firstPath[0];
+            const dist = Math.sqrt(Math.pow(lat - eventMidLat, 2) + Math.pow(lng - eventMidLng, 2));
+            if (dist < minDistance) {
+              minDistance = dist;
+              closestFeature = feature;
+            }
+          }
+        }
+      }
+
+      // Use only the closest feature's paths
+      if (closestFeature && closestFeature.geometry && closestFeature.geometry.paths) {
+        for (const path of closestFeature.geometry.paths) {
           allCoordinates = allCoordinates.concat(path);
+        }
+        console.log(`📍 Using closest segment (${allCoordinates.length} coords) out of ${response.data.features.length} features`);
+      }
+    } else {
+      // Few segments - combine all (works for continuous routes)
+      for (const feature of response.data.features) {
+        if (feature.geometry && feature.geometry.paths) {
+          for (const path of feature.geometry.paths) {
+            allCoordinates = allCoordinates.concat(path);
+          }
         }
       }
     }
