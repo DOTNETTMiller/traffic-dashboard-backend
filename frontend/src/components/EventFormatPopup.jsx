@@ -437,56 +437,49 @@ function getCIFSSeverityColor(severity) {
   return '#10b981';
 }
 
-function getSourceLabel(source) {
-  const sourceMap = {
-    'osrm': '🛣️ OSRM Routing Engine',
-    'state_dot_wfs': '🏛️ State DOT Official Geometry',
-    'interstate': '🏛️ Database Interstate Geometry',
-    'interstate_polyline': '🏛️ Database Interstate Geometry',
-    'straight': '📏 Straight Line (Fallback)',
-    'straight_line': '📏 Straight Line (Fallback)',
-    'unknown': '❓ Unknown Source'
-  };
-  return sourceMap[source] || sourceMap['unknown'];
+function isCorrectedGeometry(source) {
+  return source === 'osrm' || source === 'state_dot_wfs' || source === 'interstate' || source === 'interstate_polyline';
 }
 
-function getSourceDescription(source) {
-  const descMap = {
-    'osrm': 'High-quality road-snapped geometry from OpenStreetMap routing service. Dense polyline follows actual highway path.',
-    'state_dot_wfs': 'Official high-resolution Interstate centerline geometry from state Department of Transportation GIS services. Authoritative government source with 3,000+ coordinates per highway segment.',
-    'interstate': 'Pre-loaded Interstate corridor geometry from database. May have lower resolution between points.',
-    'interstate_polyline': 'Pre-loaded Interstate corridor geometry from database. May have lower resolution between points.',
-    'straight': 'Direct line between start and end coordinates. Used when road-snapped geometry unavailable.',
-    'straight_line': 'Direct line between start and end coordinates. Used when road-snapped geometry unavailable.',
-    'unknown': 'Geometry source not specified by backend.'
+function getSourceLabel(source) {
+  if (isCorrectedGeometry(source)) {
+    return '✅ Corrected Geometry';
+  }
+  // straight_line, straight, or unknown
+  return '📍 Original Feed Geometry';
+}
+
+function getCorrectionSource(source) {
+  const sourceMap = {
+    'osrm': 'OpenStreetMap Routing (OSRM)',
+    'state_dot_wfs': 'State DOT Official GIS Service',
+    'interstate_polyline': 'Database Interstate Polyline',
+    'interstate': 'Database Interstate Polyline'
   };
-  return descMap[source] || descMap['unknown'];
+  return sourceMap[source] || 'Unknown';
+}
+
+function getSourceDescription(source, feedUrl) {
+  if (isCorrectedGeometry(source)) {
+    const correctionSource = getCorrectionSource(source);
+    return `Geometry has been enhanced with road-snapped coordinates from ${correctionSource}. This provides accurate highway alignment instead of a straight line between endpoints.`;
+  }
+  // Original feed geometry
+  return `Direct line between start and end coordinates from the original feed. No geometry correction applied.${feedUrl ? ` Source: ${feedUrl}` : ''}`;
 }
 
 function getSourceBackgroundColor(source) {
-  const colorMap = {
-    'osrm': '#d1fae5',
-    'state_dot_wfs': '#e0e7ff',
-    'interstate': '#dbeafe',
-    'interstate_polyline': '#dbeafe',
-    'straight': '#fef3c7',
-    'straight_line': '#fef3c7',
-    'unknown': '#f3f4f6'
-  };
-  return colorMap[source] || colorMap['unknown'];
+  if (isCorrectedGeometry(source)) {
+    return '#d1fae5'; // Green for corrected
+  }
+  return '#fef3c7'; // Yellow for original
 }
 
 function getSourceBorderColor(source) {
-  const colorMap = {
-    'osrm': '#10b981',
-    'state_dot_wfs': '#6366f1',
-    'interstate': '#3b82f6',
-    'interstate_polyline': '#3b82f6',
-    'straight': '#f59e0b',
-    'straight_line': '#f59e0b',
-    'unknown': '#6b7280'
-  };
-  return colorMap[source] || colorMap['unknown'];
+  if (isCorrectedGeometry(source)) {
+    return '#10b981'; // Green border for corrected
+  }
+  return '#f59e0b'; // Orange border for original
 }
 
 /**
@@ -564,8 +557,13 @@ function GeometryDiagnosticsView({ diagnostics }) {
           <div style={{ fontWeight: '600', marginBottom: '2px' }}>
             {getSourceLabel(diagnostics.source)}
           </div>
+          {isCorrectedGeometry(diagnostics.source) && (
+            <div style={{ fontSize: '12px', color: '#065f46', marginTop: '2px', marginBottom: '4px' }}>
+              Source: {getCorrectionSource(diagnostics.source)}
+            </div>
+          )}
           <div style={{ fontSize: '11px', color: '#374151', marginTop: '4px' }}>
-            {getSourceDescription(diagnostics.source)}
+            {getSourceDescription(diagnostics.source, diagnostics.feedUrl)}
           </div>
           {diagnostics.corrected && (
             <div style={{ marginTop: '4px', fontSize: '12px', color: '#1e40af' }}>
