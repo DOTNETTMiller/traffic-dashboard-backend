@@ -2423,7 +2423,8 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
             if (decodedPolyline.length > 0) {
               geometry = {
                 type: 'LineString',
-                coordinates: decodedPolyline.map(point => [point.longitude, point.latitude])
+                coordinates: decodedPolyline.map(point => [point.longitude, point.latitude]),
+                geometrySource: 'feed_polyline' // Feed-provided geometry (e.g., Maryland)
               };
             }
           }

@@ -438,7 +438,7 @@ function getCIFSSeverityColor(severity) {
 }
 
 function isCorrectedGeometry(source) {
-  return source === 'osrm' || source === 'state_dot_wfs' || source === 'interstate' || source === 'interstate_polyline';
+  return source === 'osrm' || source === 'state_dot_wfs' || source === 'interstate' || source === 'interstate_polyline' || source === 'feed_polyline';
 }
 
 function getSourceLabel(source) {
@@ -454,7 +454,8 @@ function getCorrectionSource(source) {
     'osrm': 'OpenStreetMap Routing (OSRM)',
     'state_dot_wfs': 'State DOT Official GIS Service',
     'interstate_polyline': 'Database Interstate Polyline',
-    'interstate': 'Database Interstate Polyline'
+    'interstate': 'Database Interstate Polyline',
+    'feed_polyline': 'Feed-Provided Polyline Geometry'
   };
   return sourceMap[source] || 'Unknown';
 }

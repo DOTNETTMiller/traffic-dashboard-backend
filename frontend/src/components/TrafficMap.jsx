@@ -176,7 +176,7 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
 
   // Determine geometry enhancement status
   const geometrySource = geometry?.geometrySource;
-  const isEnhanced = geometrySource === 'osrm' || geometrySource === 'state_dot_wfs' || geometrySource === 'interstate_polyline' || geometrySource === 'interstate';
+  const isEnhanced = geometrySource === 'osrm' || geometrySource === 'state_dot_wfs' || geometrySource === 'interstate_polyline' || geometrySource === 'interstate' || geometrySource === 'feed_polyline';
   const isFallback = geometrySource === 'straight_line' || geometrySource === 'straight';
 
   let iconSvg = '';
