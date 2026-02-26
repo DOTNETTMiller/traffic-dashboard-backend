@@ -620,10 +620,10 @@ const API_CONFIG = {
     format: 'xml',
     corridor: 'I-80',
     wfsConfig: {
-      enabled: false, // Disabled: Highways_RO service doesn't contain Interstate routes (only state routes)
       url: 'https://gisdata.in.gov/server/rest/services/Hosted/Highways_RO/FeatureServer/1/query',
-      routeIdField: 'RouteID',
-      routeIdFormat: (num) => `I-${num}`, // '80' → 'I-80'
+      routeIdField: 'route_name',
+      routeIdFormat: (num) => `I-${num}`, // Used to generate multiple segment names
+      useMultipleSegments: true, // Query for main route plus A/B/C/D/E segments
       spatialRef: 26916 // NAD83 UTM Zone 16N
     }
   },
@@ -1149,9 +1149,23 @@ async function queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey)
     // Format the route ID according to state's convention
     const routeId = wfs.routeIdFormat(interstateNum);
 
+    // Build WHERE clause - Indiana uses multiple segments (I-80, I-80A, I-80B, etc.)
+    let whereClause;
+    if (wfs.useMultipleSegments) {
+      // Query for main route plus common segment suffixes (A, B, C, D, E, WB, EB, etc.)
+      const segments = [
+        `'${routeId}'`,
+        `'${routeId}A'`, `'${routeId}B'`, `'${routeId}C'`, `'${routeId}D'`, `'${routeId}E'`,
+        `'${routeId} D'`, `'${routeId} WB'`, `'${routeId} EB'`
+      ];
+      whereClause = `${wfs.routeIdField} IN (${segments.join(',')})`;
+    } else {
+      whereClause = `${wfs.routeIdField}='${routeId}'`;
+    }
+
     // Build WFS query URL
     const params = new URLSearchParams({
-      where: `${wfs.routeIdField}='${routeId}'`,
+      where: whereClause,
       outFields: '*',
       returnGeometry: 'true',
       f: 'json',
