@@ -848,8 +848,8 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 
 // Offset coordinates perpendicular to the route based on direction
 function offsetCoordinates(coordinates, direction, corridor = '') {
-  // Offset distance for divided highways - visible at highway zoom levels
-  const offsetMeters = 35;
+  // Offset distance for divided highways - realistic separation for US Interstates
+  const offsetMeters = 12;
   const offsetDegrees = offsetMeters / 111320; // meters to degrees conversion
 
   // Handle "Both" directions - create loop showing both carriageways
@@ -1624,22 +1624,25 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
       // If we found both directions, return them combined
       // For split interstates, we want to show both roadways
       if (geometries.length >= 2) {
+        // Apply directional offset to each route before combining
+        const route1 = offsetCoordinates(geometries[0].coords, geometries[0].direction, corridor);
+        const route2 = offsetCoordinates(geometries[1].coords, geometries[1].direction, corridor);
         // Combine: route1 forward + route2 reversed to create a loop showing both sides
-        const route1 = geometries[0].coords;
-        const route2 = [...geometries[1].coords].reverse();
-        const combined = [...route1, ...route2];
+        const combined = [...route1, ...route2.reverse()];
         return { coordinates: combined, geometrySource: 'osrm' };
       } else if (geometries.length === 1) {
-        // Only found one direction, use it
-        return { coordinates: geometries[0].coords, geometrySource: 'osrm' };
+        // Only found one direction, apply offset
+        const offsetGeometry = offsetCoordinates(geometries[0].coords, geometries[0].direction, corridor);
+        return { coordinates: offsetGeometry, geometrySource: 'osrm' };
       }
     }
 
     if (cached) {
       try {
         const geom = JSON.parse(cached.geometry);
-        // OSRM returns centerlines - no offset needed
-        return { coordinates: geom, geometrySource: 'osrm' };
+        // Apply directional offset to OSRM centerline geometry
+        const offsetGeometry = offsetCoordinates(geom, direction, corridor);
+        return { coordinates: offsetGeometry, geometrySource: 'osrm' };
       } catch (parseError) {
         // Invalid JSON in cache - treat as miss
       }
@@ -1663,7 +1666,9 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
         console.error(`❌ Failed to cache OSRM result:`, cacheError.message);
         // Continue anyway - we still have the geometry
       }
-      return { coordinates: osrmCoordinates, geometrySource: 'osrm' };
+      // Apply directional offset to OSRM centerline geometry
+      const offsetGeometry = offsetCoordinates(osrmCoordinates, direction, corridor);
+      return { coordinates: offsetGeometry, geometrySource: 'osrm' };
     } else {
       // OSRM returned straight line - try State DOT WFS for official geometry
       if (corridor && stateKey) {
@@ -1679,7 +1684,9 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
       if (corridor && (corridor.match(/I-?80/) || corridor.match(/I-?35/))) {
         const interstateSegment = snapToInterstatePolyline(lat1, lng1, lat2, lng2, corridor, direction);
         if (interstateSegment && interstateSegment.length > 2) {
-          return { coordinates: interstateSegment, geometrySource: 'interstate_polyline' };
+          // Apply directional offset to Interstate polyline centerline geometry
+          const offsetGeometry = offsetCoordinates(interstateSegment, direction, corridor);
+          return { coordinates: offsetGeometry, geometrySource: 'interstate_polyline' };
         }
       }
 
@@ -1702,7 +1709,9 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     if (corridor && (corridor.match(/I-?80/) || corridor.match(/I-?35/))) {
       const interstateSegment = snapToInterstatePolyline(lat1, lng1, lat2, lng2, corridor, direction);
       if (interstateSegment && interstateSegment.length > 2) {
-        return { coordinates: interstateSegment, geometrySource: 'interstate_polyline' };
+        // Apply directional offset to Interstate polyline centerline geometry
+        const offsetGeometry = offsetCoordinates(interstateSegment, direction, corridor);
+        return { coordinates: offsetGeometry, geometrySource: 'interstate_polyline' };
       }
     }
 
