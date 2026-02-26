@@ -8,9 +8,85 @@ This guide documents the comprehensive solution for integrating State Department
 
 **Geometry Enhancement Hierarchy**:
 1. **State DOT WFS** (highest priority) - Official highway centerlines from state GIS services
-2. **Database Interstate Polylines** - Pre-stored polyline geometry from previous enrichments
-3. **OSRM Routing** - OpenStreetMap-based routing fallback
-4. **Straight Line** (lowest priority) - Direct line between coordinates
+2. **Feed-Provided Polylines** - Encoded polyline geometry from state feeds (e.g., Maryland)
+3. **Database Interstate Polylines** - Pre-stored polyline geometry from previous enrichments
+4. **OSRM Routing** - OpenStreetMap-based routing fallback
+5. **Straight Line** (lowest priority) - Direct line between coordinates
+
+**Bidirectional Route Handling**:
+
+When an event's direction is marked as "Both" (meaning both directions of travel are affected), the system queries for BOTH eastbound/westbound or northbound/southbound geometries and combines them to display the full Interstate corridor. For example:
+- **I-80 Both Directions**: Queries both EB and WB geometries, combines them (route1 forward + route2 reversed) to create a loop showing both carriageways
+- This provides complete visualization for incidents affecting all traffic on divided highways
+- See `backend_proxy_server.js` lines 1561-1599 for implementation details
+
+**Geometry Source Types**:
+- `state_dot_wfs` - Queried from State DOT Web Feature Services
+- `feed_polyline` - Encoded polyline provided directly by state feed
+- `interstate_polyline` / `interstate` - Database-stored Interstate geometries
+- `osrm` - OpenStreetMap routing service
+- `straight_line` / `straight` - Fallback straight line between coordinates
+
+## Critical Implementation Details
+
+### The geometrySource Field
+
+**CRITICAL**: Every geometry object MUST include a `geometrySource` field. This field determines how the frontend displays the geometry status and badges.
+
+**Common Bug**: Creating geometry objects without the `geometrySource` field causes the frontend to show enhanced geometry as "Original Feed Geometry" and prevents green checkmark badges from appearing on map markers.
+
+**All Geometry Objects Must Include**:
+```javascript
+{
+  type: 'LineString',
+  coordinates: [...],
+  geometrySource: 'state_dot_wfs'  // REQUIRED - must be one of the valid source types
+}
+```
+
+**Valid geometrySource Values**:
+- `'state_dot_wfs'` - State DOT WFS query result
+- `'feed_polyline'` - Feed-provided encoded polyline
+- `'interstate_polyline'` or `'interstate'` - Database polylines
+- `'osrm'` - OSRM routing result
+- `'straight_line'` or `'straight'` - Fallback straight line
+
+### Frontend Detection Logic
+
+The frontend uses `geometrySource` to determine visual display:
+
+**Enhanced Geometry** (green checkmark badge):
+```javascript
+// TrafficMap.jsx line 179
+const isEnhanced = geometrySource === 'osrm' ||
+                   geometrySource === 'state_dot_wfs' ||
+                   geometrySource === 'interstate_polyline' ||
+                   geometrySource === 'interstate' ||
+                   geometrySource === 'feed_polyline';
+```
+
+**Fallback Geometry** (red X badge):
+```javascript
+// TrafficMap.jsx line 180
+const isFallback = geometrySource === 'straight_line' ||
+                   geometrySource === 'straight';
+```
+
+**Event Popup Classification**:
+```javascript
+// EventFormatPopup.jsx line 441
+function isCorrectedGeometry(source) {
+  return source === 'osrm' ||
+         source === 'state_dot_wfs' ||
+         source === 'interstate' ||
+         source === 'interstate_polyline' ||
+         source === 'feed_polyline';
+}
+```
+
+Shows as:
+- ✅ **Corrected Geometry** (green badge) - For all enhanced sources
+- 📍 **Original Feed Geometry** (yellow badge) - For straight lines only
 
 ## Architecture Overview
 
@@ -881,21 +957,51 @@ whereClause = `${wfs.routeIdField}='${routeId}' AND JURISDICTION='1'`;
 
 ### Issue: "Original Feed Geometry" Label for Corrected Geometry
 
-**Cause**: polylineDiagnostics.js reading `geometry.source` instead of `geometry.geometrySource`
+**CRITICAL BUG FIXED (2024-02-26)**: This was a major issue causing all enhanced geometry to display incorrectly.
 
-**Fix** (polylineDiagnostics.js Line 102):
-```javascript
-source: geometry.geometrySource || geometry.source || 'unknown',
-```
+**Root Causes**:
 
-**Verify** (EventFormatPopup.jsx Lines 440-445):
+1. **Missing geometrySource field** - Backend code creating geometry objects without `geometrySource`
+   - **Example**: Encoded polyline geometry from feeds (line 2424)
+   - **Fix**: Added `geometrySource: 'feed_polyline'` to all geometry objects
+
+2. **polylineDiagnostics.js reading wrong field** - Reading `geometry.source` instead of `geometry.geometrySource`
+   - **Fix** (polylineDiagnostics.js Line 102):
+   ```javascript
+   source: geometry.geometrySource || geometry.source || 'unknown',
+   ```
+
+3. **Frontend not recognizing all geometry types** - Missing 'feed_polyline' from enhanced detection
+   - **Fix**: Added to all frontend detection functions
+
+**Verify Complete Fix** (EventFormatPopup.jsx):
 ```javascript
 function isCorrectedGeometry(source) {
   return source === 'osrm' ||
          source === 'state_dot_wfs' ||
          source === 'interstate' ||
-         source === 'interstate_polyline';
+         source === 'interstate_polyline' ||
+         source === 'feed_polyline';  // ADDED - feed-provided polylines
 }
+```
+
+**ALL Backend Geometry Creation Points Must Include geometrySource**:
+```javascript
+// Example 1: State DOT WFS (line 1644)
+return { coordinates: wfsGeometry, geometrySource: 'state_dot_wfs' };
+
+// Example 2: OSRM routing (line 1606)
+return { coordinates: geom, geometrySource: 'osrm' };
+
+// Example 3: Feed polyline (line 2427) - FIXED
+geometry = {
+  type: 'LineString',
+  coordinates: decodedPolyline.map(point => [point.longitude, point.latitude]),
+  geometrySource: 'feed_polyline'  // CRITICAL - was missing
+};
+
+// Example 4: Straight line fallback (line 1679)
+return { coordinates: straightLine, geometrySource: 'straight_line' };
 ```
 
 ### Issue: Green Checkmark Not Showing on Map
@@ -907,8 +1013,11 @@ function isCorrectedGeometry(source) {
 const isEnhanced = geometrySource === 'osrm' ||
                    geometrySource === 'state_dot_wfs' ||
                    geometrySource === 'interstate_polyline' ||
-                   geometrySource === 'interstate';
+                   geometrySource === 'interstate' ||
+                   geometrySource === 'feed_polyline';  // ADDED
 ```
+
+**IMPORTANT**: The green checkmark badge appears on the **event marker** (bottom-right corner), NOT in the middle of the polyline.
 
 ---
 
@@ -1226,15 +1335,33 @@ for (const state of testStates) {
 
 ## Changelog
 
+### 2024-02-26: Critical geometrySource Field Fix
+**MAJOR BUG FIX**: Fixed geometry source detection that was causing all enhanced geometry to display as "Original Feed Geometry"
+
+**Backend Changes**:
+- ✅ Added `geometrySource: 'feed_polyline'` to encoded polyline geometry (line 2427)
+- ✅ Ensures ALL geometry objects include geometrySource field
+- ✅ Prevents corrected geometry from showing as original feed data
+
+**Frontend Changes**:
+- ✅ Added 'feed_polyline' to enhanced geometry detection in TrafficMap.jsx (line 179)
+- ✅ Added 'feed_polyline' to corrected geometry check in EventFormatPopup.jsx (line 441)
+- ✅ Added "Feed-Provided Polyline Geometry" source label (line 457)
+
+**Impact**:
+- Green checkmark badges now appear correctly on all enhanced geometry markers
+- Event popups correctly show "✅ Corrected Geometry" for State DOT WFS, OSRM, Database, and Feed polylines
+- Only straight-line fallback geometry shows as "📍 Original Feed Geometry"
+
 ### 2024-02-26: Initial FEU-G Implementation
-- ✅ Nebraska (NE) - I-80 WFS integration
-- ✅ Kansas (KS) - I-70 WFS with proximity filtering
-- ✅ Minnesota (MN) - I-35 WFS integration
-- ✅ Indiana (IN) - Multi-segment IN clause queries for I-80, I-70, I-69, I-65, I-74
+- ✅ Nebraska (NE) - I-80 WFS integration (41,669 coordinates)
+- ✅ Kansas (KS) - I-70 WFS with proximity filtering to handle 20+ disconnected segments (9,016 coordinates)
+- ✅ Minnesota (MN) - I-35 WFS integration (23,621 coordinates)
+- ✅ Indiana (IN) - Multi-segment IN clause queries for I-80, I-70, I-69, I-65, I-74 (3,469-9,016 coordinates)
 - ✅ Iowa (IA) - Database batch enrichment for all 11 Interstates
-- ✅ Frontend geometry source display simplified to two categories
+- ✅ Frontend geometry source display simplified to two categories: Corrected vs Original
 - ✅ Map marker badge enhancement detection for all corrected geometry types
-- ✅ Fixed polylineDiagnostics.js to read geometrySource field correctly
+- ✅ Fixed polylineDiagnostics.js to read geometrySource field correctly (line 102)
 
 ---
 
