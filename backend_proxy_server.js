@@ -3859,9 +3859,12 @@ const fetchStateData = async (stateKey) => {
   }
 
   // Enrich events with ARNOLD (All Roads Network of Linear Referenced Data)
-  // ARNOLD provides detailed Interstate geometries for states without dedicated WFS
-  const arnoldStates = ['utah', 'texas'];
-  if (arnoldStates.includes(normalizedStateKey) && results.events.length > 0) {
+  // ARNOLD provides detailed Interstate geometries for I-35 and I-80 corridor states
+  // Skip Iowa (has dedicated Iowa DOT WFS), Kansas/Indiana/Minnesota (FEU-G with own enrichment)
+  const skipArnoldStates = ['iowa', 'kansas', 'indiana', 'minnesota'];
+  const shouldUseArnold = !skipArnoldStates.includes(normalizedStateKey);
+
+  if (shouldUseArnold && results.events.length > 0) {
     try {
       console.log(`🔄 Enriching ${results.events.length} ${stateName} events with FHWA ARNOLD geometries...`);
       const arnoldGeometryService = require('./services/arnold-geometry-service');

@@ -12,15 +12,28 @@ const axios = require('axios');
 
 // State code mapping for ARNOLD API
 const STATE_CODES = {
+  // I-80 corridor (west to east)
+  'ca': 'CA',  // California
+  'nv': 'NV',  // Nevada
   'ut': 'UT',  // Utah
+  'wy': 'WY',  // Wyoming
+  'ne': 'NE',  // Nebraska (also FEU-G, but ARNOLD provides better data)
+  'il': 'IL',  // Illinois
+  'oh': 'OH',  // Ohio
+  'pa': 'PA',  // Pennsylvania
+  'nj': 'NJ',  // New Jersey
+
+  // I-35 corridor (north to south)
+  'mo': 'MO',  // Missouri
+  'ok': 'OK',  // Oklahoma
   'tx': 'TX',  // Texas
+
+  // Other western states
   'az': 'AZ',  // Arizona
   'nm': 'NM',  // New Mexico
   'co': 'CO',  // Colorado
-  'wy': 'WY',  // Wyoming
   'id': 'ID',  // Idaho
   'mt': 'MT',  // Montana
-  'nv': 'NV',  // Nevada
   'or': 'OR',  // Oregon
   'wa': 'WA'   // Washington
 };
