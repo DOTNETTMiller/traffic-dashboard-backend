@@ -531,20 +531,43 @@ export default function TrafficMap({
           const messageCount = hasMessages ? messages[event.id].length : 0;
           const borderInfo = isNearBorder(event);
 
-          // Check if event has linear geometry (LineString)
+          // Check if event has linear geometry (LineString or MultiLineString)
           const hasGeometry = event.geometry &&
-                             event.geometry.type === 'LineString' &&
+                             (event.geometry.type === 'LineString' || event.geometry.type === 'MultiLineString') &&
                              event.geometry.coordinates &&
                              Array.isArray(event.geometry.coordinates) &&
-                             event.geometry.coordinates.length > 1;
+                             event.geometry.coordinates.length > 0;
 
-          // Convert GeoJSON coordinates [lng, lat] to Leaflet format [lat, lng]
-          const polylinePositions = hasGeometry
-            ? event.geometry.coordinates.map(coord => [coord[1], coord[0]])
-            : [];
+          // Convert GeoJSON coordinates to Leaflet format [lat, lng]
+          // For LineString: [[lng, lat], ...] -> [[lat, lng], ...]
+          // For MultiLineString: [[[lng, lat], ...], ...] -> [[[lat, lng], ...], ...]
+          let polylinePositions = [];
+          if (hasGeometry) {
+            if (event.geometry.type === 'LineString') {
+              polylinePositions = event.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+            } else if (event.geometry.type === 'MultiLineString') {
+              // MultiLineString: array of LineStrings
+              polylinePositions = event.geometry.coordinates.map(line =>
+                line.map(coord => [coord[1], coord[0]])
+              );
+            }
+          }
 
-          // Analyze geometry for diagnostics
-          const geometryDiagnostics = hasGeometry ? analyzePolyline(event.geometry) : null;
+          // Analyze geometry for diagnostics (use first line for MultiLineString)
+          let geometryDiagnostics = null;
+          if (hasGeometry) {
+            if (event.geometry.type === 'LineString') {
+              geometryDiagnostics = analyzePolyline(event.geometry);
+            } else if (event.geometry.type === 'MultiLineString') {
+              // Analyze first line of MultiLineString
+              const firstLine = {
+                type: 'LineString',
+                coordinates: event.geometry.coordinates[0],
+                geometrySource: event.geometry.geometrySource
+              };
+              geometryDiagnostics = analyzePolyline(firstLine);
+            }
+          }
 
           // Tooltip content (shared between marker and polyline)
           const tooltipContent = (
