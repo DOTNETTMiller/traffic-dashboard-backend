@@ -215,6 +215,63 @@ class IowaGeometryService {
   }
 
   /**
+   * Apply bidirectional offset for "Both" direction events
+   * Creates two parallel offset lines to show both carriageways
+   */
+  applyBidirectionalOffset(coordinates, corridor) {
+    const offsetMeters = 12; // Realistic separation for US Interstates
+    const offsetDegrees = offsetMeters / 111320; // meters to degrees
+
+    let direction1, direction2;
+
+    // Determine directions based on Interstate numbering
+    // East-West interstates (even last digit)
+    if (corridor && corridor.match(/[02468]$/)) {
+      direction1 = 'Eastbound';
+      direction2 = 'Westbound';
+    }
+    // North-South interstates (odd last digit)
+    else if (corridor && corridor.match(/[13579]$/)) {
+      direction1 = 'Northbound';
+      direction2 = 'Southbound';
+    } else {
+      // Unknown corridor - return centerline unchanged
+      return { type: 'LineString', coordinates };
+    }
+
+    // Create offsets for both directions
+    const offset1 = this.offsetCoordinatesForDirection(coordinates, direction1, offsetDegrees);
+    const offset2 = this.offsetCoordinatesForDirection(coordinates, direction2, offsetDegrees);
+
+    // Combine into a loop (direction1 forward + direction2 reversed)
+    return {
+      type: 'LineString',
+      coordinates: [...offset1, ...offset2.reverse()]
+    };
+  }
+
+  /**
+   * Offset coordinates perpendicular to direction
+   */
+  offsetCoordinatesForDirection(coords, direction, offsetDegrees) {
+    const dir = direction.toLowerCase();
+    let latOffset = 0, lngOffset = 0;
+
+    // US right-hand traffic patterns
+    if (dir.includes('west')) {
+      latOffset = offsetDegrees; // Westbound = north side
+    } else if (dir.includes('east')) {
+      latOffset = -offsetDegrees; // Eastbound = south side
+    } else if (dir.includes('north')) {
+      lngOffset = -offsetDegrees; // Northbound = west side
+    } else if (dir.includes('south')) {
+      lngOffset = offsetDegrees; // Southbound = east side
+    }
+
+    return coords.map(([lng, lat]) => [lng + lngOffset, lat + latOffset]);
+  }
+
+  /**
    * Enrich a single Iowa event's geometry
    */
   async enrichEventGeometry(event) {
@@ -248,29 +305,52 @@ class IowaGeometryService {
       const roadData = await this.queryIowaRoadNetwork(routeInfo, bbox);
 
       if (!roadData || !roadData.features || roadData.features.length === 0) {
+        // No Iowa DOT geometry - apply bidirectional offset to original geometry if direction=Both
+        if (event.direction && event.direction.toLowerCase().includes('both')) {
+          const offsetGeometry = this.applyBidirectionalOffset(geometry.coordinates, event.corridor);
+          return {
+            ...event,
+            geometry: offsetGeometry,
+            geometry_source: 'Original Feed Geometry (offset)'
+          };
+        }
         return event;
       }
 
       const bestMatch = this.findBestMatchingSegment(geometry, roadData.features, event);
 
       if (!bestMatch) {
+        // No matching segment - apply bidirectional offset to original geometry if direction=Both
+        if (event.direction && event.direction.toLowerCase().includes('both')) {
+          const offsetGeometry = this.applyBidirectionalOffset(geometry.coordinates, event.corridor);
+          return {
+            ...event,
+            geometry: offsetGeometry,
+            geometry_source: 'Original Feed Geometry (offset)'
+          };
+        }
         return event;
       }
 
-      const newGeometry = {
+      let finalGeometry = {
         type: 'LineString',
         coordinates: bestMatch.geometry.coordinates
       };
 
+      // Apply bidirectional rendering for "Both" direction
+      if (event.direction && event.direction.toLowerCase().includes('both')) {
+        finalGeometry = this.applyBidirectionalOffset(finalGeometry.coordinates, event.corridor);
+      }
+
       // Store enriched geometry in database
       if (this.pool && event.id) {
-        await this.storeEnrichedGeometry(event, newGeometry);
+        await this.storeEnrichedGeometry(event, finalGeometry);
       }
 
       // Return event with enriched geometry
       return {
         ...event,
-        geometry: newGeometry,
+        geometry: finalGeometry,
         geometry_source: 'Iowa DOT All Routes'
       };
 
