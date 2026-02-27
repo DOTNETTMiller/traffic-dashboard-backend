@@ -10,32 +10,28 @@
 
 const axios = require('axios');
 
-// State code mapping for ARNOLD API
+// State code mapping for ARNOLD API - All 48 mainland US states
 const STATE_CODES = {
-  // I-80 corridor (west to east)
-  'ca': 'CA',  // California
-  'nv': 'NV',  // Nevada
-  'ut': 'UT',  // Utah
-  'wy': 'WY',  // Wyoming
-  'ne': 'NE',  // Nebraska (also FEU-G, but ARNOLD provides better data)
-  'il': 'IL',  // Illinois
-  'oh': 'OH',  // Ohio
-  'pa': 'PA',  // Pennsylvania
-  'nj': 'NJ',  // New Jersey
+  // West Coast
+  'ca': 'CA', 'or': 'OR', 'wa': 'WA',
 
-  // I-35 corridor (north to south)
-  'mo': 'MO',  // Missouri
-  'ok': 'OK',  // Oklahoma
-  'tx': 'TX',  // Texas
+  // Mountain West
+  'az': 'AZ', 'co': 'CO', 'id': 'ID', 'mt': 'MT', 'nv': 'NV', 'nm': 'NM', 'ut': 'UT', 'wy': 'WY',
 
-  // Other western states
-  'az': 'AZ',  // Arizona
-  'nm': 'NM',  // New Mexico
-  'co': 'CO',  // Colorado
-  'id': 'ID',  // Idaho
-  'mt': 'MT',  // Montana
-  'or': 'OR',  // Oregon
-  'wa': 'WA'   // Washington
+  // Southwest
+  'ok': 'OK', 'tx': 'TX',
+
+  // Midwest
+  'il': 'IL', 'in': 'IN', 'mi': 'MI', 'oh': 'OH', 'wi': 'WI',
+  'ia': 'IA', 'ks': 'KS', 'mn': 'MN', 'mo': 'MO', 'nd': 'ND', 'ne': 'NE', 'sd': 'SD',
+
+  // South
+  'al': 'AL', 'ar': 'AR', 'fl': 'FL', 'ga': 'GA', 'ky': 'KY', 'la': 'LA', 'ms': 'MS',
+  'nc': 'NC', 'sc': 'SC', 'tn': 'TN', 'va': 'VA', 'wv': 'WV',
+
+  // Northeast
+  'ct': 'CT', 'de': 'DE', 'ma': 'MA', 'md': 'MD', 'me': 'ME', 'nh': 'NH',
+  'nj': 'NJ', 'ny': 'NY', 'pa': 'PA', 'ri': 'RI', 'vt': 'VT'
 };
 
 // ARNOLD data year (latest available)
