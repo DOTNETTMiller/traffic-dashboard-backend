@@ -136,18 +136,118 @@ class ArnoldGeometryService {
   }
 
   /**
+   * Stitch multiple ARNOLD segments together into a continuous route
+   * ARNOLD often returns many short 2-point segments that need to be combined
+   */
+  stitchSegments(segments, eventStart, eventEnd) {
+    if (!segments || segments.length === 0) return null;
+    if (segments.length === 1) return segments[0];
+
+    // Calculate connectivity score for each segment to event endpoints
+    const scoredSegments = segments.map(seg => {
+      const coords = seg.geometry.coordinates;
+      const segStart = coords[0];
+      const segEnd = coords[coords.length - 1];
+
+      const distToEventStart = Math.min(
+        this.calculateDistance(eventStart[1], eventStart[0], segStart[1], segStart[0]),
+        this.calculateDistance(eventStart[1], eventStart[0], segEnd[1], segEnd[0])
+      );
+
+      const distToEventEnd = Math.min(
+        this.calculateDistance(eventEnd[1], eventEnd[0], segStart[1], segStart[0]),
+        this.calculateDistance(eventEnd[1], eventEnd[0], segEnd[1], segEnd[0])
+      );
+
+      return {
+        feature: seg,
+        coords: coords,
+        distToEventStart,
+        distToEventEnd,
+        totalDist: distToEventStart + distToEventEnd
+      };
+    });
+
+    // Sort by proximity to event endpoints
+    scoredSegments.sort((a, b) => a.totalDist - b.totalDist);
+
+    // Start with closest segment to event endpoints
+    const orderedCoords = [...scoredSegments[0].coords];
+    const usedSegments = new Set([scoredSegments[0].feature]);
+
+    // Iteratively add connected segments
+    let addedSegment = true;
+    while (addedSegment && usedSegments.size < segments.length) {
+      addedSegment = false;
+
+      for (const scored of scoredSegments) {
+        if (usedSegments.has(scored.feature)) continue;
+
+        const currentStart = orderedCoords[0];
+        const currentEnd = orderedCoords[orderedCoords.length - 1];
+        const segStart = scored.coords[0];
+        const segEnd = scored.coords[scored.coords.length - 1];
+
+        // Check if this segment connects to the start
+        const distToStart = Math.min(
+          this.calculateDistance(currentStart[1], currentStart[0], segStart[1], segStart[0]),
+          this.calculateDistance(currentStart[1], currentStart[0], segEnd[1], segEnd[0])
+        );
+
+        // Check if this segment connects to the end
+        const distToEnd = Math.min(
+          this.calculateDistance(currentEnd[1], currentEnd[0], segStart[1], segStart[0]),
+          this.calculateDistance(currentEnd[1], currentEnd[0], segEnd[1], segEnd[0])
+        );
+
+        const connectionThreshold = 0.5; // 500 meters - segments should be nearly adjacent
+
+        if (distToEnd < connectionThreshold) {
+          // Add to end
+          const needsReverse = this.calculateDistance(currentEnd[1], currentEnd[0], segEnd[1], segEnd[0]) <
+                               this.calculateDistance(currentEnd[1], currentEnd[0], segStart[1], segStart[0]);
+          const coordsToAdd = needsReverse ? [...scored.coords].reverse() : scored.coords;
+          orderedCoords.push(...coordsToAdd.slice(1)); // Skip first point to avoid duplication
+          usedSegments.add(scored.feature);
+          addedSegment = true;
+        } else if (distToStart < connectionThreshold) {
+          // Add to start
+          const needsReverse = this.calculateDistance(currentStart[1], currentStart[0], segStart[1], segStart[0]) <
+                               this.calculateDistance(currentStart[1], currentStart[0], segEnd[1], segEnd[0]);
+          const coordsToAdd = needsReverse ? [...scored.coords].reverse() : scored.coords;
+          orderedCoords.unshift(...coordsToAdd.slice(0, -1)); // Skip last point to avoid duplication
+          usedSegments.add(scored.feature);
+          addedSegment = true;
+        }
+      }
+    }
+
+    // Return stitched geometry
+    return {
+      geometry: {
+        type: 'LineString',
+        coordinates: orderedCoords
+      },
+      properties: scoredSegments[0].feature.properties,
+      stitchedFrom: usedSegments.size
+    };
+  }
+
+  /**
    * Find best matching road segment for an event
+   * Now returns stitched segments if multiple segments are found
    */
   findBestMatchingSegment(geometry, arnoldFeatures, event) {
     if (!arnoldFeatures || arnoldFeatures.length === 0) {
+      console.log(`   [ARNOLD] No features to match`);
       return null;
     }
 
     const [startLon, startLat] = geometry.coordinates[0];
     const [endLon, endLat] = geometry.coordinates[geometry.coordinates.length - 1];
 
-    let bestMatch = null;
-    let bestScore = Infinity;
+    // Filter segments that are reasonably close to event bbox
+    const nearbySegments = [];
 
     for (const feature of arnoldFeatures) {
       if (!feature.geometry || !feature.geometry.coordinates) {
@@ -173,13 +273,46 @@ class ArnoldGeometryService {
         startToSegEnd + endToSegStart    // Reverse direction
       );
 
-      if (score < bestScore && score < 50) { // Within 50km threshold for long highway segments
-        bestScore = score;
-        bestMatch = feature;
+      // Relaxed threshold - accept segments within 100km (was 50km)
+      if (score < 100) {
+        nearbySegments.push({
+          feature,
+          score,
+          coords: coords.length
+        });
       }
     }
 
-    return bestMatch;
+    if (nearbySegments.length === 0) {
+      console.log(`   [ARNOLD] No segments within 100km threshold`);
+      return null;
+    }
+
+    // Sort by score
+    nearbySegments.sort((a, b) => a.score - b.score);
+
+    console.log(`   [ARNOLD] Found ${nearbySegments.length} nearby segments (best score: ${nearbySegments[0].score.toFixed(2)}km)`);
+
+    // If we have multiple short segments, try to stitch them together
+    if (nearbySegments.length > 1 && nearbySegments[0].coords <= 5) {
+      console.log(`   [ARNOLD] Attempting to stitch ${nearbySegments.length} segments...`);
+      const stitched = this.stitchSegments(
+        nearbySegments.map(s => s.feature),
+        [startLon, startLat],
+        [endLon, endLat]
+      );
+
+      if (stitched && stitched.coordinates && stitched.coordinates.length > nearbySegments[0].coords) {
+        console.log(`   [ARNOLD] ✅ Stitched ${stitched.stitchedFrom} segments into ${stitched.geometry.coordinates.length} points`);
+        return stitched;
+      } else {
+        console.log(`   [ARNOLD] ⚠️  Stitching failed, using best single segment`);
+      }
+    }
+
+    // Return best single segment
+    console.log(`   [ARNOLD] Using single best segment (${nearbySegments[0].coords} points)`);
+    return nearbySegments[0].feature;
   }
 
   /**
@@ -244,24 +377,31 @@ class ArnoldGeometryService {
    */
   async enrichEventGeometry(event, stateKey) {
     if (!event || !event.geometry) {
+      console.log(`   [ARNOLD] Event ${event?.id} has no geometry`);
       return event; // Return unchanged if no geometry
     }
 
     const routeId = this.extractRouteId(event.corridor);
     if (!routeId) {
+      console.log(`   [ARNOLD] Event ${event.id}: Cannot extract route ID from corridor "${event.corridor}"`);
       return event; // Can't enrich without route info
     }
+
+    console.log(`   [ARNOLD] Event ${event.id}: ${event.corridor} (route_id=${routeId}) direction=${event.direction}`);
 
     try {
       const geometry = typeof event.geometry === 'string' ? JSON.parse(event.geometry) : event.geometry;
 
       // Use first and last coordinates regardless of how many points
       if (!geometry.coordinates || geometry.coordinates.length < 2) {
+        console.log(`   [ARNOLD] Event ${event.id}: Insufficient coordinates (${geometry.coordinates?.length || 0} points)`);
         return event; // Need at least start and end point
       }
 
       const [startLon, startLat] = geometry.coordinates[0];
       const [endLon, endLat] = geometry.coordinates[geometry.coordinates.length - 1];
+
+      console.log(`   [ARNOLD] Event ${event.id}: Start [${startLon.toFixed(4)}, ${startLat.toFixed(4)}], End [${endLon.toFixed(4)}, ${endLat.toFixed(4)}]`);
 
       const bbox = {
         minLat: Math.min(startLat, endLat) - 0.15,
@@ -273,9 +413,11 @@ class ArnoldGeometryService {
       const arnoldData = await this.queryArnold(stateKey, routeId, bbox);
 
       if (!arnoldData || !arnoldData.features || arnoldData.features.length === 0) {
+        console.log(`   [ARNOLD] Event ${event.id}: No ARNOLD features returned from API`);
         // No ARNOLD geometry - apply bidirectional offset to original geometry if direction=Both
         if (event.direction && event.direction.toLowerCase().includes('both')) {
           const offsetGeometry = this.applyBidirectionalOffset(geometry.coordinates, event.corridor);
+          console.log(`   [ARNOLD] Event ${event.id}: Applied bidirectional offset to original geometry`);
           return {
             ...event,
             geometry: offsetGeometry,
@@ -285,12 +427,16 @@ class ArnoldGeometryService {
         return event;
       }
 
+      console.log(`   [ARNOLD] Event ${event.id}: ARNOLD API returned ${arnoldData.features.length} features`);
+
       const bestMatch = this.findBestMatchingSegment(geometry, arnoldData.features, event);
 
       if (!bestMatch) {
+        console.log(`   [ARNOLD] Event ${event.id}: No suitable match found`);
         // No matching segment - apply bidirectional offset to original geometry if direction=Both
         if (event.direction && event.direction.toLowerCase().includes('both')) {
           const offsetGeometry = this.applyBidirectionalOffset(geometry.coordinates, event.corridor);
+          console.log(`   [ARNOLD] Event ${event.id}: Applied bidirectional offset to original geometry`);
           return {
             ...event,
             geometry: offsetGeometry,
@@ -305,9 +451,12 @@ class ArnoldGeometryService {
         coordinates: bestMatch.geometry.coordinates
       };
 
+      console.log(`   [ARNOLD] Event ${event.id}: ✅ Matched! Enriched from ${geometry.coordinates.length} to ${finalGeometry.coordinates.length} points`);
+
       // Apply bidirectional rendering for "Both" direction
       if (event.direction && event.direction.toLowerCase().includes('both')) {
         finalGeometry = this.applyBidirectionalOffset(finalGeometry.coordinates, event.corridor);
+        console.log(`   [ARNOLD] Event ${event.id}: Applied bidirectional offset`);
       }
 
       // Return event with enriched geometry
@@ -318,6 +467,7 @@ class ArnoldGeometryService {
       };
 
     } catch (error) {
+      console.error(`   [ARNOLD] Event ${event.id}: ERROR - ${error.message}`);
       // On error, return original event
       return event;
     }
