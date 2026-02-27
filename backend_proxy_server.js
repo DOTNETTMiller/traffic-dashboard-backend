@@ -3858,6 +3858,22 @@ const fetchStateData = async (stateKey) => {
     }
   }
 
+  // Enrich events with ARNOLD (All Roads Network of Linear Referenced Data)
+  // ARNOLD provides detailed Interstate geometries for states without dedicated WFS
+  const arnoldStates = ['utah', 'texas'];
+  if (arnoldStates.includes(normalizedStateKey) && results.events.length > 0) {
+    try {
+      console.log(`🔄 Enriching ${results.events.length} ${stateName} events with FHWA ARNOLD geometries...`);
+      const arnoldGeometryService = require('./services/arnold-geometry-service');
+      const enrichedEvents = await arnoldGeometryService.enrichEvents(results.events, normalizedStateKey);
+      const enrichedCount = enrichedEvents.filter(e => e.geometry_source === 'FHWA ARNOLD').length;
+      results.events = enrichedEvents;
+      console.log(`✅ ARNOLD enrichment complete: ${enrichedCount}/${results.events.length} events enriched`);
+    } catch (error) {
+      console.error('❌ Failed to enrich geometries with ARNOLD:', error.message);
+    }
+  }
+
   return results;
 };
 
