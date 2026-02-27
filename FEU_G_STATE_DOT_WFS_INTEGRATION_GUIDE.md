@@ -21,7 +21,8 @@ When an event's direction is marked as "Both" (meaning both directions of travel
 - See `backend_proxy_server.js` lines 1561-1599 for implementation details
 
 **Geometry Source Types**:
-- `state_dot_wfs` - Queried from State DOT Web Feature Services
+- `state_dot_wfs_directional` - Minnesota native directional WFS geometry (no synthetic offset)
+- `state_dot_wfs` - Kansas/Nebraska WFS centerline with synthetic offset
 - `feed_polyline` - Encoded polyline provided directly by state feed
 - `interstate_polyline` / `interstate` - Database-stored Interstate geometries
 - `osrm` - OpenStreetMap routing service
@@ -45,7 +46,8 @@ When an event's direction is marked as "Both" (meaning both directions of travel
 ```
 
 **Valid geometrySource Values**:
-- `'state_dot_wfs'` - State DOT WFS query result
+- `'state_dot_wfs_directional'` - Minnesota native directional WFS geometry
+- `'state_dot_wfs'` - Kansas/Nebraska WFS centerline with synthetic offset
 - `'feed_polyline'` - Feed-provided encoded polyline
 - `'interstate_polyline'` or `'interstate'` - Database polylines
 - `'osrm'` - OSRM routing result
@@ -60,6 +62,7 @@ The frontend uses `geometrySource` to determine visual display:
 // TrafficMap.jsx line 179
 const isEnhanced = geometrySource === 'osrm' ||
                    geometrySource === 'state_dot_wfs' ||
+                   geometrySource === 'state_dot_wfs_directional' ||
                    geometrySource === 'interstate_polyline' ||
                    geometrySource === 'interstate' ||
                    geometrySource === 'feed_polyline';
@@ -78,6 +81,7 @@ const isFallback = geometrySource === 'straight_line' ||
 function isCorrectedGeometry(source) {
   return source === 'osrm' ||
          source === 'state_dot_wfs' ||
+         source === 'state_dot_wfs_directional' ||
          source === 'interstate' ||
          source === 'interstate_polyline' ||
          source === 'feed_polyline';
@@ -766,7 +770,7 @@ const convertFEUGDirection = (linkDirection, linkAlignment, corridor = '') => {
 ```javascript
 // Offset coordinates perpendicular to the route based on direction
 function offsetCoordinates(coordinates, direction, corridor = '') {
-  const offsetMeters = 35;  // 35 meters (~115 feet) lateral offset
+  const offsetMeters = 12;  // 12 meters (~40 feet) - realistic Interstate carriageway separation
   const offsetDegrees = offsetMeters / 111320; // Convert to degrees
 
   // Handle "Both" directions - create loop showing both carriageways
@@ -797,21 +801,22 @@ function offsetCoordinates(coordinates, direction, corridor = '') {
   }
 
   // Single direction offset logic
+  // US right-hand traffic patterns:
   // Westbound = north side, Eastbound = south side
-  // Northbound = east side, Southbound = west side
+  // Northbound = west side, Southbound = east side
   let latOffset = 0;
   let lngOffset = 0;
 
   if (direction && typeof direction === 'string') {
     const dir = direction.toLowerCase();
     if (dir.includes('west') || dir.includes('wb') || dir === 'w') {
-      latOffset = offsetDegrees;  // Westbound = offset north
+      latOffset = offsetDegrees;  // Westbound = offset north (positive latitude)
     } else if (dir.includes('east') || dir.includes('eb') || dir === 'e') {
-      latOffset = -offsetDegrees; // Eastbound = offset south
+      latOffset = -offsetDegrees; // Eastbound = offset south (negative latitude)
     } else if (dir.includes('north') || dir.includes('nb') || dir === 'n') {
-      lngOffset = offsetDegrees;  // Northbound = offset east
+      lngOffset = -offsetDegrees;  // Northbound = offset west (negative longitude)
     } else if (dir.includes('south') || dir.includes('sb') || dir === 's') {
-      lngOffset = -offsetDegrees; // Southbound = offset west
+      lngOffset = offsetDegrees; // Southbound = offset east (positive longitude)
     }
   }
 
@@ -852,6 +857,102 @@ if (wfsGeometry && wfsGeometry.length > 2) {
 - **State DOT WFS geometries**: Uses `offsetCoordinates()` to create parallel lines from centerline (implemented 2024-02-26)
 - **Database Interstate polylines**: May have directional variants (I-80 EB, I-80 WB) that can be combined similarly
 - **Straight-line fallback**: Doesn't benefit from bidirectional handling (already shows full extent)
+
+### Hybrid Approach: Native vs. Synthetic Directional Geometry
+
+**Research Finding** (2024-02-26): Not all State DOT WFS services provide the same level of directional data:
+
+| State | WFS Data Type | Implementation |
+|-------|--------------|----------------|
+| **Minnesota** | ✅ Native directional geometries | Queries actual NB/SB/EB/WB carriageways (~50m apart) |
+| **Kansas** | ❌ Centerline only | Synthetic 12m offset from centerline |
+| **Nebraska** | ❌ Centerline only | Synthetic 12m offset from centerline |
+| **Indiana** | ❓ Likely directional | Needs investigation (has I-80 WB, I-80 EB segments) |
+| **Iowa** | ❓ Unknown | Needs investigation |
+
+**Minnesota WFS Directional Fields** (backend_proxy_server.js Lines 639-658):
+```javascript
+wfsConfig: {
+  url: 'https://webgis.dot.state.mn.us/65agsf1/rest/services/sdw_trans/ROUTES/FeatureServer/0/query',
+  routeIdField: 'ROUTE_NUMBER',
+  hasDirectionalGeometry: true,
+  directionField: 'TRAFFIC_DIRECTION', // 'I' (Increasing/NB) or 'D' (Decreasing/SB)
+  cardinalDirectionField: 'ROUTE_CARDINAL_DIRECTION', // 'NB', 'SB', 'EB', 'WB'
+  directionMapping: {
+    northbound: 'I', north: 'I', nb: 'I', n: 'I',
+    southbound: 'D', south: 'D', sb: 'D', s: 'D',
+    eastbound: 'I', east: 'I', eb: 'I', e: 'I',
+    westbound: 'D', west: 'D', wb: 'D', w: 'D'
+  }
+}
+```
+
+**queryStateDOTGeometry() - Directional Query Support** (Lines 1161-1203):
+```javascript
+async function queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey, direction = null) {
+  // ... standard route ID query setup ...
+
+  // Minnesota: Add directional filter if state has separate directional geometries
+  if (wfs.hasDirectionalGeometry && direction && wfs.directionField && wfs.directionMapping) {
+    const dirLower = direction.toLowerCase();
+    const trafficDirection = wfs.directionMapping[dirLower];
+
+    if (trafficDirection) {
+      // Add TRAFFIC_DIRECTION filter to WHERE clause
+      whereClause += ` AND ${wfs.directionField}='${trafficDirection}'`;
+      console.log(`🧭 Minnesota directional query: ${corridor} ${direction} (${wfs.directionField}='${trafficDirection}')`);
+    }
+  }
+
+  // ... execute query and return ...
+
+  // Return geometry with metadata indicating if it's already directional (skip offset)
+  const isDirectional = wfs.hasDirectionalGeometry && direction && wfs.directionField;
+
+  return segment.length >= 2 ? {
+    coordinates: segment,
+    isDirectional: isDirectional // If true, geometry is already directional - skip offset
+  } : null;
+}
+```
+
+**Hybrid Rendering Logic** (Lines 1673-1690):
+```javascript
+// Check if geometry is already directional before applying offset
+const wfsResult = await queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey, direction);
+if (wfsResult && wfsResult.coordinates && wfsResult.coordinates.length > 2) {
+  // If geometry is already directional (Minnesota), use as-is. Otherwise apply offset.
+  const finalGeometry = wfsResult.isDirectional
+    ? wfsResult.coordinates // Minnesota native directional - skip offset
+    : offsetCoordinates(wfsResult.coordinates, direction, corridor); // Other states - apply offset
+
+  return {
+    coordinates: finalGeometry,
+    geometrySource: wfsResult.isDirectional ? 'state_dot_wfs_directional' : 'state_dot_wfs'
+  };
+}
+```
+
+**Why Hybrid Approach?**
+1. **Accuracy**: Minnesota's actual NB/SB carriageways are ~50m apart (real separation)
+2. **Diverging Routes**: Handles cases where carriageways split around obstacles
+3. **Backward Compatible**: Kansas/Nebraska continue using 12m synthetic offset
+4. **Extensible**: Easy to add Indiana/Iowa when directional data is confirmed
+
+**Minnesota I-35 Example**:
+- **Northbound query**: `ROUTE_NUMBER='35' AND TRAFFIC_DIRECTION='I'` → 2,747 coordinates
+- **Southbound query**: `ROUTE_NUMBER='35' AND TRAFFIC_DIRECTION='D'` → 1,800+ coordinates
+- **Spatial separation**: ~50 meters (actual divided highway geometry)
+- **No offset needed**: Geometries represent actual carriageway positions
+
+**Kansas I-35 Example**:
+- **WFS query**: `interstate_routes='35'` → 464 coordinates (centerline only)
+- **Synthetic offset**: 12m perpendicular offset applied via `offsetCoordinates()`
+- **Limitation**: Assumes parallel carriageways (fails when routes diverge)
+
+**geometrySource Values**:
+- `'state_dot_wfs_directional'` - Minnesota native directional geometry (no offset)
+- `'state_dot_wfs'` - Kansas/Nebraska centerline with synthetic offset
 
 ---
 
