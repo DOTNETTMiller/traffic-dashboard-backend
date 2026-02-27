@@ -1741,7 +1741,9 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
         }
       }
 
-      return { coordinates: osrmCoordinates, geometrySource: 'straight_line' };
+      // Apply bidirectional offset to straight line for "Both" direction events
+      const offsetStraightLine = offsetCoordinates(osrmCoordinates, direction, corridor);
+      return { coordinates: offsetStraightLine, geometrySource: 'straight_line' };
     }
   } catch (osrmError) {
     console.error(`❌ OSRM fetch failed:`, osrmError.message);
@@ -1772,9 +1774,10 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
       }
     }
 
-    // Final fallback to straight line
+    // Final fallback to straight line with bidirectional offset for "Both" direction
     const straightLine = [[lng1, lat1], [lng2, lat2]];
-    return { coordinates: straightLine, geometrySource: 'straight_line' };
+    const offsetStraightLine = offsetCoordinates(straightLine, direction, corridor);
+    return { coordinates: offsetStraightLine, geometrySource: 'straight_line' };
   }
 }
 
