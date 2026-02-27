@@ -344,10 +344,10 @@ class ArnoldGeometryService {
     const offset1 = this.offsetCoordinatesForDirection(coordinates, direction1, offsetDegrees);
     const offset2 = this.offsetCoordinatesForDirection(coordinates, direction2, offsetDegrees);
 
-    // Combine into a loop (direction1 forward + direction2 reversed)
+    // Return as MultiLineString with two separate parallel lines
     return {
-      type: 'LineString',
-      coordinates: [...offset1, ...offset2.reverse()]
+      type: 'MultiLineString',
+      coordinates: [offset1, offset2]
     };
   }
 

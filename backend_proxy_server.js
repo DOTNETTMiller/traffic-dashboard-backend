@@ -857,6 +857,23 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+// Helper function to create geometry from offsetCoordinates result
+function createGeometryFromOffset(offsetResult, geometrySource) {
+  if (offsetResult &&typeof offsetResult === 'object' && offsetResult.isMultiLine) {
+    return {
+      type: 'MultiLineString',
+      coordinates: offsetResult.coordinates,
+      geometrySource
+    };
+  } else {
+    return {
+      type: 'LineString',
+      coordinates: offsetResult || [],
+      geometrySource
+    };
+  }
+}
+
 // Offset coordinates perpendicular to the route based on direction
 function offsetCoordinates(coordinates, direction, corridor = '') {
   // Offset distance for divided highways - realistic separation for US Interstates
@@ -887,13 +904,15 @@ function offsetCoordinates(coordinates, direction, corridor = '') {
       return coordinates;
     }
 
-    // Create two offset lines and combine them into a loop
+    // Create two offset lines and return as MultiLineString
     const offset1Coords = offsetCoordinates(coordinates, direction1, corridor);
     const offset2Coords = offsetCoordinates(coordinates, direction2, corridor);
 
-    // Combine: direction1 forward + direction2 reversed to create visible loop
-    const combined = [...offset1Coords, ...offset2Coords.reverse()];
-    return combined;
+    // Return as MultiLineString with two separate parallel lines (not a loop)
+    return {
+      isMultiLine: true,
+      coordinates: [offset1Coords, offset2Coords]
+    };
   }
 
   // Determine offset direction based on US right-hand traffic
@@ -1669,16 +1688,24 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
       // If we found both directions, return them combined
       // For split interstates, we want to show both roadways
       if (geometries.length >= 2) {
-        // Apply directional offset to each route before combining
+        // Apply directional offset to each route
         const route1 = offsetCoordinates(geometries[0].coords, geometries[0].direction, corridor);
         const route2 = offsetCoordinates(geometries[1].coords, geometries[1].direction, corridor);
-        // Combine: route1 forward + route2 reversed to create a loop showing both sides
-        const combined = [...route1, ...route2.reverse()];
-        return { coordinates: combined, geometrySource: 'osrm' };
+        // Return as MultiLineString with two separate parallel lines
+        return {
+          coordinates: [
+            route1.isMultiLine ? route1.coordinates[0] : route1,
+            route2.isMultiLine ? route2.coordinates[0] : route2
+          ],
+          geometrySource: 'osrm',
+          isMultiLine: true
+        };
       } else if (geometries.length === 1) {
         // Only found one direction, apply offset
         const offsetGeometry = offsetCoordinates(geometries[0].coords, geometries[0].direction, corridor);
-        return { coordinates: offsetGeometry, geometrySource: 'osrm' };
+        return offsetGeometry.isMultiLine
+          ? { coordinates: offsetGeometry.coordinates, geometrySource: 'osrm', isMultiLine: true }
+          : { coordinates: offsetGeometry, geometrySource: 'osrm' };
       }
     }
 
@@ -1687,7 +1714,9 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
         const geom = JSON.parse(cached.geometry);
         // Apply directional offset to OSRM centerline geometry
         const offsetGeometry = offsetCoordinates(geom, direction, corridor);
-        return { coordinates: offsetGeometry, geometrySource: 'osrm' };
+        return offsetGeometry.isMultiLine
+          ? { coordinates: offsetGeometry.coordinates, geometrySource: 'osrm', isMultiLine: true }
+          : { coordinates: offsetGeometry, geometrySource: 'osrm' };
       } catch (parseError) {
         // Invalid JSON in cache - treat as miss
       }
@@ -1713,21 +1742,26 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
       }
       // Apply directional offset to OSRM centerline geometry
       const offsetGeometry = offsetCoordinates(osrmCoordinates, direction, corridor);
-      return { coordinates: offsetGeometry, geometrySource: 'osrm' };
+      return offsetGeometry.isMultiLine
+        ? { coordinates: offsetGeometry.coordinates, geometrySource: 'osrm', isMultiLine: true }
+        : { coordinates: offsetGeometry, geometrySource: 'osrm' };
     } else {
       // OSRM returned straight line - try State DOT WFS for official geometry
       if (corridor && stateKey) {
         const wfsResult = await queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey, direction);
         if (wfsResult && wfsResult.coordinates && wfsResult.coordinates.length > 2) {
           // If geometry is already directional (Minnesota), use as-is. Otherwise apply offset.
-          const finalGeometry = wfsResult.isDirectional
-            ? wfsResult.coordinates // Minnesota native directional - skip offset
-            : offsetCoordinates(wfsResult.coordinates, direction, corridor); // Other states - apply offset
-
-          return {
-            coordinates: finalGeometry,
-            geometrySource: wfsResult.isDirectional ? 'state_dot_wfs_directional' : 'state_dot_wfs'
-          };
+          if (wfsResult.isDirectional) {
+            return {
+              coordinates: wfsResult.coordinates,
+              geometrySource: 'state_dot_wfs_directional'
+            };
+          } else {
+            const offsetGeometry = offsetCoordinates(wfsResult.coordinates, direction, corridor);
+            return offsetGeometry.isMultiLine
+              ? { coordinates: offsetGeometry.coordinates, geometrySource: 'state_dot_wfs', isMultiLine: true }
+              : { coordinates: offsetGeometry, geometrySource: 'state_dot_wfs' };
+          }
         }
       }
 
@@ -1737,13 +1771,17 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
         if (interstateSegment && interstateSegment.length > 2) {
           // Apply directional offset to Interstate polyline centerline geometry
           const offsetGeometry = offsetCoordinates(interstateSegment, direction, corridor);
-          return { coordinates: offsetGeometry, geometrySource: 'interstate_polyline' };
+          return offsetGeometry.isMultiLine
+            ? { coordinates: offsetGeometry.coordinates, geometrySource: 'interstate_polyline', isMultiLine: true }
+            : { coordinates: offsetGeometry, geometrySource: 'interstate_polyline' };
         }
       }
 
       // Apply bidirectional offset to straight line for "Both" direction events
       const offsetStraightLine = offsetCoordinates(osrmCoordinates, direction, corridor);
-      return { coordinates: offsetStraightLine, geometrySource: 'straight_line' };
+      return offsetStraightLine.isMultiLine
+        ? { coordinates: offsetStraightLine.coordinates, geometrySource: 'straight_line', isMultiLine: true }
+        : { coordinates: offsetStraightLine, geometrySource: 'straight_line' };
     }
   } catch (osrmError) {
     console.error(`❌ OSRM fetch failed:`, osrmError.message);
@@ -1753,14 +1791,17 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
       const wfsResult = await queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey, direction);
       if (wfsResult && wfsResult.coordinates && wfsResult.coordinates.length > 2) {
         // If geometry is already directional (Minnesota), use as-is. Otherwise apply offset.
-        const finalGeometry = wfsResult.isDirectional
-          ? wfsResult.coordinates // Minnesota native directional - skip offset
-          : offsetCoordinates(wfsResult.coordinates, direction, corridor); // Other states - apply offset
-
-        return {
-          coordinates: finalGeometry,
-          geometrySource: wfsResult.isDirectional ? 'state_dot_wfs_directional' : 'state_dot_wfs'
-        };
+        if (wfsResult.isDirectional) {
+          return {
+            coordinates: wfsResult.coordinates,
+            geometrySource: 'state_dot_wfs_directional'
+          };
+        } else {
+          const offsetGeometry = offsetCoordinates(wfsResult.coordinates, direction, corridor);
+          return offsetGeometry.isMultiLine
+            ? { coordinates: offsetGeometry.coordinates, geometrySource: 'state_dot_wfs', isMultiLine: true }
+            : { coordinates: offsetGeometry, geometrySource: 'state_dot_wfs' };
+        }
       }
     }
 
@@ -1770,14 +1811,18 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
       if (interstateSegment && interstateSegment.length > 2) {
         // Apply directional offset to Interstate polyline centerline geometry
         const offsetGeometry = offsetCoordinates(interstateSegment, direction, corridor);
-        return { coordinates: offsetGeometry, geometrySource: 'interstate_polyline' };
+        return offsetGeometry.isMultiLine
+          ? { coordinates: offsetGeometry.coordinates, geometrySource: 'interstate_polyline', isMultiLine: true }
+          : { coordinates: offsetGeometry, geometrySource: 'interstate_polyline' };
       }
     }
 
     // Final fallback to straight line with bidirectional offset for "Both" direction
     const straightLine = [[lng1, lat1], [lng2, lat2]];
     const offsetStraightLine = offsetCoordinates(straightLine, direction, corridor);
-    return { coordinates: offsetStraightLine, geometrySource: 'straight_line' };
+    return offsetStraightLine.isMultiLine
+      ? { coordinates: offsetStraightLine.coordinates, geometrySource: 'straight_line', isMultiLine: true }
+      : { coordinates: offsetStraightLine, geometrySource: 'straight_line' };
   }
 }
 
@@ -3014,17 +3059,21 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
 
                   const roadSnappedCoords = snapResult.coordinates;
                   const geometrySource = snapResult.geometrySource;
+                  const isMultiLine = snapResult.isMultiLine;
 
                   // Determine descriptive source based on geometry
                   let source = 'FEU-G primary+secondary';
-                  if (roadSnappedCoords.length > 10) {
+                  const coordCount = isMultiLine
+                    ? roadSnappedCoords.reduce((sum, line) => sum + line.length, 0)
+                    : roadSnappedCoords.length;
+                  if (coordCount > 10) {
                     source = corridor && corridor.match(/^I-\d+/i)
                       ? 'FEU-G + Interstate geometry'
                       : 'FEU-G + OSRM road-snapped';
                   }
 
                   geometry = {
-                    type: 'LineString',
+                    type: isMultiLine ? 'MultiLineString' : 'LineString',
                     coordinates: roadSnappedCoords,
                     source,
                     geometrySource // Include the actual API source for visual distinction
