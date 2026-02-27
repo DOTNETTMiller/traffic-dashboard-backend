@@ -868,17 +868,22 @@ function offsetCoordinates(coordinates, direction, corridor = '') {
     // Determine the two directions based on corridor orientation
     let direction1, direction2;
 
+    console.log(`🔍 offsetCoordinates: direction="${direction}", corridor="${corridor}"`);
+
     // East-West interstates (even last digit: I-4, I-10, I-40, I-70, I-80, I-90, I-280, etc.)
     if (corridor && corridor.match(/[02468]$/)) {
       direction1 = 'Eastbound';
       direction2 = 'Westbound';
+      console.log(`✅ Matched E-W Interstate: ${corridor} → ${direction1}/${direction2}`);
     }
     // North-South interstates (odd last digit: I-5, I-15, I-25, I-29, I-35, I-75, I-95, I-335, etc.)
     else if (corridor && corridor.match(/[13579]$/)) {
       direction1 = 'Northbound';
       direction2 = 'Southbound';
+      console.log(`✅ Matched N-S Interstate: ${corridor} → ${direction1}/${direction2}`);
     } else {
       // Unknown corridor type - return centerline
+      console.log(`⚠️  NO MATCH for corridor="${corridor}" - returning centerline`);
       return coordinates;
     }
 
