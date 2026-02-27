@@ -640,7 +640,18 @@ const API_CONFIG = {
       url: 'https://webgis.dot.state.mn.us/65agsf1/rest/services/sdw_trans/ROUTES/FeatureServer/0/query',
       routeIdField: 'ROUTE_NUMBER',
       routeIdFormat: (num) => num, // '35' → '35'
-      spatialRef: 26915 // NAD83 UTM Zone 15N
+      spatialRef: 26915, // NAD83 UTM Zone 15N
+      hasDirectionalGeometry: true, // Minnesota has separate NB/SB/EB/WB geometries
+      directionField: 'TRAFFIC_DIRECTION', // Primary field: 'I' (Increasing/NB) or 'D' (Decreasing/SB)
+      cardinalDirectionField: 'ROUTE_CARDINAL_DIRECTION', // Alternative: 'NB', 'SB', 'EB', 'WB'
+      directionMapping: {
+        // Map event directions to MN DOT TRAFFIC_DIRECTION values
+        northbound: 'I', north: 'I', nb: 'I', n: 'I',
+        southbound: 'D', south: 'D', sb: 'D', s: 'D',
+        // For E-W routes, 'I' typically = Eastbound, 'D' = Westbound (increasing/decreasing milepost)
+        eastbound: 'I', east: 'I', eb: 'I', e: 'I',
+        westbound: 'D', west: 'D', wb: 'D', w: 'D'
+      }
     }
   },
   utah: {
@@ -1158,7 +1169,7 @@ async function loadInterstatePolylines() {
 
 // Query State DOT WFS service for official Interstate highway geometry
 // Returns high-resolution polyline from state DOT GIS services
-async function queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey) {
+async function queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey, direction = null) {
   if (!corridor || !stateKey) return null;
 
   const stateConfig = API_CONFIG[stateKey];
@@ -1189,6 +1200,18 @@ async function queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey)
       whereClause = `${wfs.routeIdField} IN (${segments.join(',')})`;
     } else {
       whereClause = `${wfs.routeIdField}='${routeId}'`;
+    }
+
+    // Minnesota: Add directional filter if state has separate directional geometries
+    if (wfs.hasDirectionalGeometry && direction && wfs.directionField && wfs.directionMapping) {
+      const dirLower = direction.toLowerCase();
+      const trafficDirection = wfs.directionMapping[dirLower];
+
+      if (trafficDirection) {
+        // Add TRAFFIC_DIRECTION filter to WHERE clause
+        whereClause += ` AND ${wfs.directionField}='${trafficDirection}'`;
+        console.log(`🧭 Minnesota directional query: ${corridor} ${direction} (${wfs.directionField}='${trafficDirection}')`);
+      }
     }
 
     // Build WFS query URL
@@ -1290,7 +1313,13 @@ async function queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey)
 
     console.log(`✅ Extracted ${segment.length} coordinates from ${stateConfig.name} DOT WFS`);
 
-    return segment.length >= 2 ? segment : null;
+    // Return geometry with metadata indicating if it's already directional (skip offset)
+    const isDirectional = wfs.hasDirectionalGeometry && direction && wfs.directionField;
+
+    return segment.length >= 2 ? {
+      coordinates: segment,
+      isDirectional: isDirectional // If true, geometry is already directional - skip offset
+    } : null;
 
   } catch (error) {
     console.error(`❌ ${stateConfig.name} WFS query failed:`, error.message);
@@ -1672,11 +1701,17 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
     } else {
       // OSRM returned straight line - try State DOT WFS for official geometry
       if (corridor && stateKey) {
-        const wfsGeometry = await queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey);
-        if (wfsGeometry && wfsGeometry.length > 2) {
-          // Apply directional offset to WFS centerline geometry
-          const offsetGeometry = offsetCoordinates(wfsGeometry, direction, corridor);
-          return { coordinates: offsetGeometry, geometrySource: 'state_dot_wfs' };
+        const wfsResult = await queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey, direction);
+        if (wfsResult && wfsResult.coordinates && wfsResult.coordinates.length > 2) {
+          // If geometry is already directional (Minnesota), use as-is. Otherwise apply offset.
+          const finalGeometry = wfsResult.isDirectional
+            ? wfsResult.coordinates // Minnesota native directional - skip offset
+            : offsetCoordinates(wfsResult.coordinates, direction, corridor); // Other states - apply offset
+
+          return {
+            coordinates: finalGeometry,
+            geometrySource: wfsResult.isDirectional ? 'state_dot_wfs_directional' : 'state_dot_wfs'
+          };
         }
       }
 
@@ -1697,11 +1732,17 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
 
     // Try State DOT WFS for official geometry
     if (corridor && stateKey) {
-      const wfsGeometry = await queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey);
-      if (wfsGeometry && wfsGeometry.length > 2) {
-        // Apply directional offset to WFS centerline geometry
-        const offsetGeometry = offsetCoordinates(wfsGeometry, direction, corridor);
-        return { coordinates: offsetGeometry, geometrySource: 'state_dot_wfs' };
+      const wfsResult = await queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey, direction);
+      if (wfsResult && wfsResult.coordinates && wfsResult.coordinates.length > 2) {
+        // If geometry is already directional (Minnesota), use as-is. Otherwise apply offset.
+        const finalGeometry = wfsResult.isDirectional
+          ? wfsResult.coordinates // Minnesota native directional - skip offset
+          : offsetCoordinates(wfsResult.coordinates, direction, corridor); // Other states - apply offset
+
+        return {
+          coordinates: finalGeometry,
+          geometrySource: wfsResult.isDirectional ? 'state_dot_wfs_directional' : 'state_dot_wfs'
+        };
       }
     }
 
