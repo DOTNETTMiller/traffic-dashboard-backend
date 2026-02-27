@@ -296,10 +296,10 @@ class IowaGeometryService {
       const [endLon, endLat] = geometry.coordinates[geometry.coordinates.length - 1];
 
       const bbox = {
-        minLat: Math.min(startLat, endLat) - 0.1,
-        maxLat: Math.max(startLat, endLat) + 0.1,
-        minLon: Math.min(startLon, endLon) - 0.1,
-        maxLon: Math.max(startLon, endLon) + 0.1
+        minLat: Math.min(startLat, endLat) - 0.15,
+        maxLat: Math.max(startLat, endLat) + 0.15,
+        minLon: Math.min(startLon, endLon) - 0.15,
+        maxLon: Math.max(startLon, endLon) + 0.15
       };
 
       const roadData = await this.queryIowaRoadNetwork(routeInfo, bbox);
