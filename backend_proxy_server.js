@@ -1205,12 +1205,19 @@ async function queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey,
     // Minnesota: Add directional filter if state has separate directional geometries
     if (wfs.hasDirectionalGeometry && direction && wfs.directionField && wfs.directionMapping) {
       const dirLower = direction.toLowerCase();
-      const trafficDirection = wfs.directionMapping[dirLower];
 
-      if (trafficDirection) {
-        // Add TRAFFIC_DIRECTION filter to WHERE clause
-        whereClause += ` AND ${wfs.directionField}='${trafficDirection}'`;
-        console.log(`🧭 Minnesota directional query: ${corridor} ${direction} (${wfs.directionField}='${trafficDirection}')`);
+      // Special handling for "Both" direction - query for both NB+SB or EB+WB and combine them
+      if (dirLower.includes('both')) {
+        console.log(`🧭 Minnesota "Both" direction detected - will query for both NB+SB or EB+WB geometries`);
+        // Don't add direction filter yet - we'll query both directions separately below
+      } else {
+        const trafficDirection = wfs.directionMapping[dirLower];
+
+        if (trafficDirection) {
+          // Add TRAFFIC_DIRECTION filter to WHERE clause
+          whereClause += ` AND ${wfs.directionField}='${trafficDirection}'`;
+          console.log(`🧭 Minnesota directional query: ${corridor} ${direction} (${wfs.directionField}='${trafficDirection}')`);
+        }
       }
     }
 
@@ -1314,7 +1321,11 @@ async function queryStateDOTGeometry(lat1, lng1, lat2, lng2, corridor, stateKey,
     console.log(`✅ Extracted ${segment.length} coordinates from ${stateConfig.name} DOT WFS`);
 
     // Return geometry with metadata indicating if it's already directional (skip offset)
-    const isDirectional = wfs.hasDirectionalGeometry && direction && wfs.directionField;
+    // For "Both" direction, return centerline (isDirectional=false) so offsetCoordinates creates the loop
+    const isDirectional = wfs.hasDirectionalGeometry &&
+                          direction &&
+                          wfs.directionField &&
+                          !direction.toLowerCase().includes('both');
 
     return segment.length >= 2 ? {
       coordinates: segment,
@@ -1620,12 +1631,12 @@ async function snapToRoad(lat1, lng1, lat2, lng2, direction = null, corridor = n
       // Determine which pair of directions to use based on corridor
       let directionPair = [];
       if (corridor) {
-        // East-West interstates (even numbers: I-80, I-70, I-90, etc.)
-        if (corridor.match(/I-?(10|20|30|40|70|80|90|94|)/)) {
+        // East-West interstates (even last digit: I-4, I-10, I-40, I-70, I-80, I-90, I-280, etc.)
+        if (corridor.match(/[02468]$/)) {
           directionPair = ['Westbound', 'Eastbound'];
         }
-        // North-South interstates (odd numbers: I-35, I-29, I-65, etc.)
-        else if (corridor.match(/I-?(5|15|25|29|35|45|55|65|69|75|95)/)) {
+        // North-South interstates (odd last digit: I-5, I-15, I-25, I-29, I-35, I-75, I-95, I-335, etc.)
+        else if (corridor.match(/[13579]$/)) {
           directionPair = ['Northbound', 'Southbound'];
         }
         // Default: try all four
