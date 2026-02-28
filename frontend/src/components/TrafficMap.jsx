@@ -601,30 +601,68 @@ export default function TrafficMap({
               {/* Render polyline for linear features (work zones, closures along road segments) */}
               {/* Skip polylines for Weather events - only show markers */}
               {hasGeometry && event.eventType !== 'Weather' && (
-                <Polyline
-                  key={`polyline-${event.id}`}
-                  positions={polylinePositions}
-                  pathOptions={{
-                    color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)),
-                    weight: 5,
-                    opacity: 0.7,
-                    lineJoin: 'round',
-                    lineCap: 'round'
-                  }}
-                >
-                  <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
-                    {tooltipContent}
-                  </Tooltip>
-                  <Popup
-                    maxWidth={340}
-                    autoPan={true}
-                    autoPanPadding={[50, 50]}
-                    keepInView={true}
-                    closeButton={true}
-                  >
-                    {popupContent}
-                  </Popup>
-                </Polyline>
+                <>
+                  {event.geometry.type === 'LineString' ? (
+                    // Single polyline for LineString
+                    <Polyline
+                      key={`polyline-${event.id}`}
+                      positions={polylinePositions}
+                      pathOptions={{
+                        color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)),
+                        weight: 5,
+                        opacity: 0.7,
+                        lineJoin: 'round',
+                        lineCap: 'round'
+                      }}
+                    >
+                      <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
+                        {tooltipContent}
+                      </Tooltip>
+                      <Popup
+                        maxWidth={340}
+                        autoPan={true}
+                        autoPanPadding={[50, 50]}
+                        keepInView={true}
+                        closeButton={true}
+                      >
+                        {popupContent}
+                      </Popup>
+                    </Polyline>
+                  ) : (
+                    // Multiple polylines for MultiLineString (bidirectional rendering)
+                    polylinePositions.map((linePositions, index) => (
+                      <Polyline
+                        key={`polyline-${event.id}-${index}`}
+                        positions={linePositions}
+                        pathOptions={{
+                          color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)),
+                          weight: 5,
+                          opacity: 0.7,
+                          lineJoin: 'round',
+                          lineCap: 'round'
+                        }}
+                      >
+                        {/* Only attach tooltip/popup to first line to avoid duplicates */}
+                        {index === 0 && (
+                          <>
+                            <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
+                              {tooltipContent}
+                            </Tooltip>
+                            <Popup
+                              maxWidth={340}
+                              autoPan={true}
+                              autoPanPadding={[50, 50]}
+                              keepInView={true}
+                              closeButton={true}
+                            >
+                              {popupContent}
+                            </Popup>
+                          </>
+                        )}
+                      </Polyline>
+                    ))
+                  )}
+                </>
               )}
 
               {/* Always render marker for the event location */}
