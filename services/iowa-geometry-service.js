@@ -268,7 +268,8 @@ class IowaGeometryService {
       lngOffset = offsetDegrees; // Southbound = east side
     }
 
-    return coords.map(([lng, lat]) => [lng + lngOffset, lat + latOffset]);
+    // Ensure coordinates are numbers (parseFloat handles string coordinates from feed)
+    return coords.map(([lng, lat]) => [parseFloat(lng) + lngOffset, parseFloat(lat) + latOffset]);
   }
 
   /**
