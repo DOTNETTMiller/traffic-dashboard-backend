@@ -939,9 +939,10 @@ function offsetCoordinates(coordinates, direction, corridor = '') {
   }
 
   // Apply fixed offset to all coordinates
+  // Ensure coordinates are numbers (parseFloat handles string coordinates from feed)
   const result = coordinates.map(coord => {
     const [lng, lat] = coord;
-    return [lng + lngOffset, lat + latOffset];
+    return [parseFloat(lng) + lngOffset, parseFloat(lat) + latOffset];
   });
 
   return result;
