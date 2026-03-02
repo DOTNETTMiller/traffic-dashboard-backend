@@ -122,7 +122,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             color: '#111827',
             marginTop: 0,
             marginBottom: '16px',
-            fontSize: '20px',
+            fontSize: '16px',
             fontWeight: '700'
           }}>
             Event Does Not Qualify for IPAWS Alert
@@ -142,7 +142,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             <h4 style={{
               color: '#374151',
               marginBottom: theme.spacing.sm,
-              fontSize: '16px',
+              fontSize: '14px',
               fontWeight: '600'
             }}>
               Qualification Requirements:
@@ -167,7 +167,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           color: '#111827',
           marginTop: 0,
           marginBottom: '16px',
-          fontSize: '20px',
+          fontSize: '16px',
           fontWeight: '700'
         }}>
           Qualification Summary
@@ -189,7 +189,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           <h4 style={{
             color: '#374151',
             marginBottom: theme.spacing.sm,
-            fontSize: '16px'
+            fontSize: '14px'
           }}>
             Criteria Met:
           </h4>
@@ -218,7 +218,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             border: '1px solid #e5e7eb'
           }}>
             <div style={{
-              fontSize: '12px',
+              fontSize: '11px',
               color: '#6b7280',
               marginBottom: theme.spacing.xs,
               fontWeight: '600'
@@ -226,7 +226,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               Priority
             </div>
             <div style={{
-              fontSize: '20px',
+              fontSize: '16px',
               color: '#111827',
               fontWeight: '700'
             }}>
@@ -241,7 +241,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             border: '1px solid #e5e7eb'
           }}>
             <div style={{
-              fontSize: '12px',
+              fontSize: '11px',
               color: '#6b7280',
               marginBottom: theme.spacing.xs,
               fontWeight: '600'
@@ -249,7 +249,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               Status
             </div>
             <div style={{
-              fontSize: '20px',
+              fontSize: '16px',
               color: '#f59e0b',
               fontWeight: '700'
             }}>
@@ -272,7 +272,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           color: '#111827',
           marginTop: 0,
           marginBottom: '16px',
-          fontSize: '20px',
+          fontSize: '16px',
           fontWeight: '700'
         }}>
           Geofence & Population Analysis
@@ -290,10 +290,10 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             alignItems: 'center',
             gap: theme.spacing.sm
           }}>
-            <div style={{ fontSize: '24px' }}>🗺️</div>
+            <div style={{ fontSize: '18px' }}>🗺️</div>
             <div style={{ flex: 1 }}>
               <div style={{
-                fontSize: '14px',
+                fontSize: '13px',
                 fontWeight: '700',
                 color: '#1e40af',
                 marginBottom: '4px'
@@ -301,7 +301,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                 Geofence Displayed on Map
               </div>
               <div style={{
-                fontSize: '13px',
+                fontSize: '12px',
                 color: '#1e3a8a'
               }}>
                 The suggested {alert.geofence.bufferMiles?.toFixed(2) || '1.00'} mile buffer zone is shown on the background map.
@@ -324,10 +324,10 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               alignItems: 'start',
               gap: theme.spacing.sm
             }}>
-              <div style={{ fontSize: '24px' }}>💡</div>
+              <div style={{ fontSize: '18px' }}>💡</div>
               <div style={{ flex: 1 }}>
                 <div style={{
-                  fontSize: '14px',
+                  fontSize: '13px',
                   fontWeight: '700',
                   color: "#111827",
                   marginBottom: theme.spacing.xs
@@ -335,7 +335,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                   Intelligent Geofence Recommendation
                 </div>
                 <div style={{
-                  fontSize: '13px',
+                  fontSize: '12px',
                   color: "#4b5563",
                   marginBottom: theme.spacing.sm
                 }}>
@@ -343,7 +343,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                   <strong> {alert.geofence.recommendation.adjustedBufferMiles} mile buffer</strong>
                 </div>
                 <div style={{
-                  fontSize: '12px',
+                  fontSize: '11px',
                   color: "#6b7280",
                   fontStyle: 'italic'
                 }}>
@@ -351,7 +351,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                 </div>
                 {alert.geofence.recommendation.adjustments.severityAdjusted && (
                   <div style={{
-                    fontSize: '11px',
+                    fontSize: '10px',
                     color: "#9ca3af",
                     marginTop: theme.spacing.xs
                   }}>
@@ -360,7 +360,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                 )}
                 {alert.geofence.recommendation.adjustments.lanesAdjusted && (
                   <div style={{
-                    fontSize: '11px',
+                    fontSize: '10px',
                     color: "#9ca3af",
                     marginTop: '2px'
                   }}>
@@ -387,9 +387,9 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               gap: theme.spacing.sm,
               marginBottom: theme.spacing.sm
             }}>
-              <div style={{ fontSize: '20px' }}>👥</div>
+              <div style={{ fontSize: '16px' }}>👥</div>
               <div style={{
-                fontSize: '14px',
+                fontSize: '13px',
                 fontWeight: '700',
                 color: "#111827"
               }}>
@@ -408,8 +408,8 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                 background: "#f3f4f6",
                 borderRadius: '8px'
               }}>
-                <div style={{ fontSize: '11px', color: "#9ca3af" }}>🌾 Rural</div>
-                <div style={{ fontSize: '18px', fontWeight: '700', color: theme.colors.success.main }}>
+                <div style={{ fontSize: '10px', color: "#9ca3af" }}>🌾 Rural</div>
+                <div style={{ fontSize: '15px', fontWeight: '700', color: theme.colors.success.main }}>
                   {alert.geofence.populationBreakdown.rural.toLocaleString()}
                 </div>
               </div>
@@ -418,8 +418,8 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                 background: "#f3f4f6",
                 borderRadius: '8px'
               }}>
-                <div style={{ fontSize: '11px', color: "#9ca3af" }}>🏙️ Urban</div>
-                <div style={{ fontSize: '18px', fontWeight: '700', color: theme.colors.warning.main }}>
+                <div style={{ fontSize: '10px', color: "#9ca3af" }}>🏙️ Urban</div>
+                <div style={{ fontSize: '15px', fontWeight: '700', color: theme.colors.warning.main }}>
                   {alert.geofence.populationBreakdown.urban.toLocaleString()}
                 </div>
               </div>
@@ -427,7 +427,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
 
             {alert.geofence.populationBreakdown.affectedCities?.length > 0 && (
               <div style={{
-                fontSize: '12px',
+                fontSize: '11px',
                 color: "#6b7280",
                 borderTop: "1px solid #e5e7eb",
                 paddingTop: theme.spacing.sm
@@ -451,14 +451,14 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             borderRadius: '8px'
           }}>
             <div style={{
-              fontSize: '12px',
+              fontSize: '11px',
               color: "#6b7280",
               marginBottom: theme.spacing.xs
             }}>
               Area ({alert.geofence?.bufferMiles?.toFixed(2) || '1.00'} mi buffer)
             </div>
             <div style={{
-              fontSize: '20px',
+              fontSize: '16px',
               color: "#111827",
               fontWeight: '700'
             }}>
@@ -472,14 +472,14 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             borderRadius: '8px'
           }}>
             <div style={{
-              fontSize: '12px',
+              fontSize: '11px',
               color: "#6b7280",
               marginBottom: theme.spacing.xs
             }}>
               Total Population
             </div>
             <div style={{
-              fontSize: '20px',
+              fontSize: '16px',
               color: "#111827",
               fontWeight: '700'
             }}>
@@ -503,14 +503,14 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             borderRadius: '8px'
           }}>
             <div style={{
-              fontSize: '12px',
+              fontSize: '11px',
               color: "#6b7280",
               marginBottom: theme.spacing.xs
             }}>
               Est. Reach (85%)
             </div>
             <div style={{
-              fontSize: '20px',
+              fontSize: '16px',
               color: theme.colors.success.main,
               fontWeight: '700'
             }}>
@@ -525,7 +525,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           borderRadius: '8px',
           borderLeft: `4px solid ${alert.geofence?.estimatedPopulation < 5000 ? theme.colors.success.main : theme.colors.warning.main}`
         }}>
-          <p style={{ color: 'white', margin: 0, fontSize: '14px', marginBottom: theme.spacing.sm }}>
+          <p style={{ color: 'white', margin: 0, fontSize: '13px', marginBottom: theme.spacing.sm }}>
             <strong>Policy Compliance:</strong> Population {alert.geofence?.estimatedPopulation?.toLocaleString()} is{' '}
             {alert.geofence?.estimatedPopulation < 5000 ? 'below' : 'above'} the 5,000 threshold.
             {alert.geofence?.estimatedPopulation < 5000
@@ -556,7 +556,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                 border: 'none',
                 borderRadius: '6px',
                 color: theme.colors.warning.main,
-                fontSize: '12px',
+                fontSize: '11px',
                 fontWeight: '700',
                 cursor: 'pointer',
                 display: 'flex',
@@ -573,7 +573,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           <h4 style={{
             color: "#374151",
             marginBottom: theme.spacing.sm,
-            fontSize: '16px'
+            fontSize: '14px'
           }}>
             Geofence Details:
           </h4>
@@ -581,7 +581,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             color: "#6b7280",
             paddingLeft: theme.spacing.lg,
             margin: 0,
-            fontSize: '14px',
+            fontSize: '13px',
             lineHeight: '1.8'
           }}>
             <li>
@@ -614,7 +614,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           color: "#111827",
           marginTop: 0,
           marginBottom: '16px',
-          fontSize: '20px',
+          fontSize: '16px',
           fontWeight: '700'
         }}>
           Alert Messages
@@ -625,7 +625,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           <h4 style={{
             color: "#374151",
             marginBottom: theme.spacing.sm,
-            fontSize: '16px',
+            fontSize: '14px',
             display: 'flex',
             alignItems: 'center',
             gap: theme.spacing.xs
@@ -639,7 +639,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             marginBottom: theme.spacing.sm
           }}>
             <div style={{
-              fontSize: '12px',
+              fontSize: '11px',
               color: "#6b7280",
               marginBottom: theme.spacing.xs,
               textTransform: 'uppercase',
@@ -648,7 +648,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               Headline
             </div>
             <div style={{
-              fontSize: '16px',
+              fontSize: '14px',
               color: "#111827",
               fontWeight: '700',
               marginBottom: theme.spacing.sm
@@ -657,7 +657,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             </div>
 
             <div style={{
-              fontSize: '12px',
+              fontSize: '11px',
               color: "#6b7280",
               marginBottom: theme.spacing.xs,
               textTransform: 'uppercase',
@@ -666,7 +666,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               Instruction
             </div>
             <div style={{
-              fontSize: '14px',
+              fontSize: '13px',
               color: "#374151"
             }}>
               {alert.messages?.english.instruction}
@@ -679,7 +679,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           <h4 style={{
             color: "#374151",
             marginBottom: theme.spacing.sm,
-            fontSize: '16px',
+            fontSize: '14px',
             display: 'flex',
             alignItems: 'center',
             gap: theme.spacing.xs
@@ -692,7 +692,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             borderRadius: '8px'
           }}>
             <div style={{
-              fontSize: '12px',
+              fontSize: '11px',
               color: "#6b7280",
               marginBottom: theme.spacing.xs,
               textTransform: 'uppercase',
@@ -701,7 +701,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               Headline
             </div>
             <div style={{
-              fontSize: '16px',
+              fontSize: '14px',
               color: "#111827",
               fontWeight: '700',
               marginBottom: theme.spacing.sm
@@ -710,7 +710,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             </div>
 
             <div style={{
-              fontSize: '12px',
+              fontSize: '11px',
               color: "#6b7280",
               marginBottom: theme.spacing.xs,
               textTransform: 'uppercase',
@@ -719,7 +719,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               Instruction
             </div>
             <div style={{
-              fontSize: '14px',
+              fontSize: '13px',
               color: "#374151"
             }}>
               {alert.messages?.spanish.instruction}
@@ -731,7 +731,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           padding: theme.spacing.md,
           backgroundColor: "#f3f4f6",
           borderRadius: '8px',
-          fontSize: '12px',
+          fontSize: '11px',
           color: "#6b7280"
         }}>
           <strong>Note:</strong> Lao and Somali translations will be added when PSAPs indicate need per Iowa DOT policy.
@@ -749,7 +749,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           color: "#111827",
           marginTop: 0,
           marginBottom: '16px',
-          fontSize: '20px',
+          fontSize: '16px',
           fontWeight: '700'
         }}>
           CAP-XML Message
@@ -765,7 +765,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         }}>
           <pre style={{
             margin: 0,
-            fontSize: '12px',
+            fontSize: '11px',
             color: "#4b5563",
             fontFamily: 'monospace',
             whiteSpace: 'pre-wrap',
@@ -787,14 +787,14 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             borderRadius: '8px'
           }}>
             <div style={{
-              fontSize: '12px',
+              fontSize: '11px',
               color: "#6b7280",
               marginBottom: theme.spacing.xs
             }}>
               Alert ID
             </div>
             <div style={{
-              fontSize: '14px',
+              fontSize: '13px',
               color: "#111827",
               fontFamily: 'monospace'
             }}>
@@ -808,14 +808,14 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             borderRadius: '8px'
           }}>
             <div style={{
-              fontSize: '12px',
+              fontSize: '11px',
               color: "#6b7280",
               marginBottom: theme.spacing.xs
             }}>
               Expires
             </div>
             <div style={{
-              fontSize: '14px',
+              fontSize: '13px',
               color: "#111827"
             }}>
               {alert.capMessage?.info?.expires ? new Date(alert.capMessage.info.expires).toLocaleString() : 'N/A'}
@@ -896,14 +896,14 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             <h2 style={{
               margin: 0,
               color: '#111827',
-              fontSize: '24px',
+              fontSize: '18px',
               marginBottom: theme.spacing.xs,
               fontWeight: 'bold'
             }}>
               🚨 IPAWS Alert Generator
             </h2>
             <div style={{
-              fontSize: '14px',
+              fontSize: '13px',
               color: '#374151'
             }}>
               {event.corridor} • {event.location || event.county}
@@ -918,7 +918,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               background: '#ef4444',
               border: 'none',
               color: '#111827',
-              fontSize: '20px',
+              fontSize: '18px',
               cursor: 'pointer',
               padding: '8px 12px',
               borderRadius: '8px',

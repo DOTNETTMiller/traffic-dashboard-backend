@@ -9068,6 +9068,7 @@ app.get('/api/events/comments/all', async (req, res) => {
 // IPAWS ALERT GENERATION API - Wireless Emergency Alerts for Transportation
 // ============================================================================
 const ipawsService = require('./services/ipaws-alert-service');
+const populationService = require('./services/population-density-service');
 
 // POST /api/ipaws/generate - Generate IPAWS alert for an event
 app.post('/api/ipaws/generate', async (req, res) => {
@@ -9171,6 +9172,524 @@ app.get('/api/ipaws/summary/:eventId', async (req, res) => {
     });
   } catch (error) {
     console.error('Error generating IPAWS summary:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
+// IPAWS RULES MANAGEMENT API
+// ============================================================================
+
+// GET /api/ipaws/rules - Get all IPAWS alert rules
+app.get('/api/ipaws/rules', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+
+    const result = await pgPool.query(
+      'SELECT * FROM ipaws_rules ORDER BY created_at DESC'
+    );
+
+    res.json({
+      success: true,
+      rules: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching IPAWS rules:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/ipaws/rules - Create new IPAWS alert rule
+app.post('/api/ipaws/rules', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+
+    const {
+      name,
+      description,
+      enabled,
+      conditions,
+      geofenceConfig,
+      populationConfig,
+      requiresApproval
+    } = req.body;
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        error: 'Rule name is required'
+      });
+    }
+
+    const result = await pgPool.query(
+      `INSERT INTO ipaws_rules (
+        name, description, enabled, conditions, geofence_config,
+        population_config, requires_approval, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+      RETURNING *`,
+      [
+        name,
+        description,
+        enabled !== false,
+        JSON.stringify(conditions),
+        JSON.stringify(geofenceConfig),
+        JSON.stringify(populationConfig),
+        requiresApproval !== false
+      ]
+    );
+
+    res.json({
+      success: true,
+      rule: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating IPAWS rule:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// PUT /api/ipaws/rules/:id - Update IPAWS alert rule
+app.put('/api/ipaws/rules/:id', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+
+    const { id } = req.params;
+    const {
+      name,
+      description,
+      enabled,
+      conditions,
+      geofenceConfig,
+      populationConfig,
+      requiresApproval
+    } = req.body;
+
+    const result = await pgPool.query(
+      `UPDATE ipaws_rules SET
+        name = $1,
+        description = $2,
+        enabled = $3,
+        conditions = $4,
+        geofence_config = $5,
+        population_config = $6,
+        requires_approval = $7,
+        updated_at = NOW()
+      WHERE id = $8
+      RETURNING *`,
+      [
+        name,
+        description,
+        enabled,
+        JSON.stringify(conditions),
+        JSON.stringify(geofenceConfig),
+        JSON.stringify(populationConfig),
+        requiresApproval,
+        id
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Rule not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      rule: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating IPAWS rule:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// DELETE /api/ipaws/rules/:id - Delete IPAWS alert rule
+app.delete('/api/ipaws/rules/:id', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+
+    const { id } = req.params;
+
+    const result = await pgPool.query(
+      'DELETE FROM ipaws_rules WHERE id = $1 RETURNING *',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Rule not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Rule deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting IPAWS rule:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/ipaws/evaluate-rules - Evaluate event against all active rules
+app.post('/api/ipaws/evaluate-rules', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+
+    const { event } = req.body;
+
+    if (!event) {
+      return res.status(400).json({
+        success: false,
+        error: 'Event is required'
+      });
+    }
+
+    // Get all enabled rules
+    const rulesResult = await pgPool.query(
+      'SELECT * FROM ipaws_rules WHERE enabled = true'
+    );
+
+    const matchedRules = [];
+    const alerts = [];
+
+    for (const rule of rulesResult.rows) {
+      const conditions = typeof rule.conditions === 'string'
+        ? JSON.parse(rule.conditions)
+        : rule.conditions;
+      const geofenceConfig = typeof rule.geofence_config === 'string'
+        ? JSON.parse(rule.geofence_config)
+        : rule.geofence_config;
+      const populationConfig = typeof rule.population_config === 'string'
+        ? JSON.parse(rule.population_config)
+        : rule.population_config;
+
+      // Evaluate if event matches rule conditions
+      if (evaluateRuleConditions(event, conditions)) {
+        matchedRules.push(rule);
+
+        // Generate alert with custom geofence settings
+        const alert = await ipawsService.generateAlert(event);
+
+        if (alert.success) {
+          // Apply rule-specific geofence and population config
+          if (geofenceConfig.type === 'auto' && geofenceConfig.bufferMiles) {
+            // Regenerate geofence with custom buffer
+            const turf = require('@turf/turf');
+            const line = turf.lineString(event.geometry.coordinates);
+            const buffered = turf.buffer(line, geofenceConfig.bufferMiles * 1609, { units: 'meters' });
+            alert.geofence = {
+              type: 'Polygon',
+              coordinates: buffered.geometry.coordinates,
+              areaSquareMiles: turf.area(buffered) / 2589988.11
+            };
+          }
+
+          // Apply population filtering
+          if (populationConfig.excludeUrbanAreas) {
+            alert.metadata.excludedUrbanAreas = true;
+          }
+
+          alert.ruleId = rule.id;
+          alert.ruleName = rule.name;
+          alert.requiresApproval = rule.requires_approval;
+
+          alerts.push(alert);
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      matchedRules: matchedRules.length,
+      alerts
+    });
+  } catch (error) {
+    console.error('Error evaluating IPAWS rules:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/ipaws/submit - Submit IPAWS alert for supervisor approval
+app.post('/api/ipaws/submit', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+
+    const { event, alert, capXml } = req.body;
+
+    if (!event || !alert || !capXml) {
+      return res.status(400).json({
+        success: false,
+        error: 'Event, alert, and CAP-XML are required'
+      });
+    }
+
+    // Store the submission in database for supervisor approval
+    const result = await pgPool.query(
+      `INSERT INTO ipaws_submissions
+       (event_id, event_data, alert_data, cap_xml, status, submitted_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       RETURNING id`,
+      [
+        event.id,
+        JSON.stringify(event),
+        JSON.stringify(alert),
+        capXml,
+        'pending_approval'
+      ]
+    );
+
+    res.json({
+      success: true,
+      submissionId: result.rows[0].id,
+      message: 'IPAWS alert submitted for supervisor approval'
+    });
+  } catch (error) {
+    console.error('Error submitting IPAWS alert:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Helper function to evaluate if an event matches rule conditions
+ */
+function evaluateRuleConditions(event, conditions) {
+  // Check corridor match
+  if (conditions.corridors && conditions.corridors.length > 0) {
+    const matches = conditions.corridors.some(corridor =>
+      event.corridor && event.corridor.toLowerCase().includes(corridor.toLowerCase())
+    );
+    if (!matches) return false;
+  }
+
+  // Check event type match
+  if (conditions.eventTypes && conditions.eventTypes.length > 0) {
+    const matches = conditions.eventTypes.some(type =>
+      event.eventType && event.eventType.toLowerCase().includes(type.toLowerCase())
+    );
+    if (!matches) return false;
+  }
+
+  // Check severity match
+  if (conditions.severity && conditions.severity.length > 0) {
+    const matches = conditions.severity.some(sev =>
+      event.severity && event.severity.toLowerCase() === sev.toLowerCase()
+    );
+    if (!matches) return false;
+  }
+
+  // Check lanes affected
+  if (conditions.minLanesAffected) {
+    const lanesAffected = parseInt(event.lanesAffected) || 0;
+    if (lanesAffected < conditions.minLanesAffected) return false;
+  }
+
+  if (conditions.maxLanesAffected) {
+    const lanesAffected = parseInt(event.lanesAffected) || 0;
+    if (lanesAffected > conditions.maxLanesAffected) return false;
+  }
+
+  return true;
+}
+
+// ============================================================================
+// POPULATION DENSITY API - GIS-Based Population Analysis for IPAWS
+// ============================================================================
+
+// POST /api/population/estimate - Estimate population within geofence
+app.post('/api/population/estimate', async (req, res) => {
+  try {
+    const { geofence, excludeUrban } = req.body;
+
+    if (!geofence) {
+      return res.status(400).json({
+        success: false,
+        error: 'Geofence is required'
+      });
+    }
+
+    const population = populationService.estimatePopulation(geofence, { excludeUrban });
+
+    res.json({
+      success: true,
+      population
+    });
+  } catch (error) {
+    console.error('Error estimating population:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/population/visualization - Get population visualization data for map
+app.post('/api/population/visualization', async (req, res) => {
+  try {
+    const { geofence, excludeUrban } = req.body;
+
+    if (!geofence) {
+      return res.status(400).json({
+        success: false,
+        error: 'Geofence is required'
+      });
+    }
+
+    const visualization = populationService.getVisualizationData(geofence, { excludeUrban });
+
+    res.json({
+      success: true,
+      ...visualization
+    });
+  } catch (error) {
+    console.error('Error generating population visualization:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/population/heatmap - Get population density heatmap for bounds
+app.get('/api/population/heatmap', (req, res) => {
+  try {
+    const { north, south, east, west, gridSize } = req.query;
+
+    if (!north || !south || !east || !west) {
+      return res.status(400).json({
+        success: false,
+        error: 'Bounds parameters required: north, south, east, west'
+      });
+    }
+
+    const bounds = {
+      north: parseFloat(north),
+      south: parseFloat(south),
+      east: parseFloat(east),
+      west: parseFloat(west)
+    };
+
+    const heatmap = populationService.getPopulationHeatmap(bounds, gridSize ? parseInt(gridSize) : 20);
+
+    res.json({
+      success: true,
+      heatmap,
+      bounds
+    });
+  } catch (error) {
+    console.error('Error generating heatmap:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/population/suggest-adjustment - Suggest geofence adjustment to meet population target
+app.post('/api/population/suggest-adjustment', async (req, res) => {
+  try {
+    const { event, geofence, targetPopulation } = req.body;
+
+    if (!event || !geofence) {
+      return res.status(400).json({
+        success: false,
+        error: 'Event and geofence are required'
+      });
+    }
+
+    const suggestion = populationService.suggestGeofenceAdjustment(
+      event,
+      geofence,
+      targetPopulation || 5000
+    );
+
+    res.json({
+      success: true,
+      ...suggestion
+    });
+  } catch (error) {
+    console.error('Error suggesting geofence adjustment:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/population/exclude-urban - Exclude urban areas from geofence
+app.post('/api/population/exclude-urban', async (req, res) => {
+  try {
+    const { geofence, maxPopulation } = req.body;
+
+    if (!geofence) {
+      return res.status(400).json({
+        success: false,
+        error: 'Geofence is required'
+      });
+    }
+
+    const result = populationService.excludeUrbanAreas(geofence, maxPopulation || 5000);
+
+    res.json({
+      success: true,
+      ...result
+    });
+  } catch (error) {
+    console.error('Error excluding urban areas:', error);
     res.status(500).json({
       success: false,
       error: error.message

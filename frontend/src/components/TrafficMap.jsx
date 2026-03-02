@@ -634,7 +634,8 @@ export default function TrafficMap({
             ((Array.isArray(polylinePositions[0]) && polylinePositions.length >= 2) || // LineString
              (Array.isArray(polylinePositions) && polylinePositions.length > 0)); // MultiLineString
 
-          // For 2-point LineStrings, check if distance is too large for a line display
+          // Transform 2-point geometries: use midpoint for better representation
+          let transformedMarkerPos = null;
           if (shouldDrawLine &&
               event.geometry?.type === 'LineString' &&
               Array.isArray(polylinePositions) &&
@@ -643,9 +644,13 @@ export default function TrafficMap({
             const [lat2, lng2] = polylinePositions[1];
             const distance = calculateDistance(lat1, lng1, lat2, lng2);
 
-            // If 2-point line is > 0.5 miles, don't draw it (show as single point instead)
+            // If 2-point line is > 0.5 miles, transform to midpoint and show as single point
             if (distance > 0.5) {
-              console.log(`🔍 Suppressing long 2-point line for ${event.eventType}: ${distance.toFixed(2)} miles (${event.id})`);
+              // Calculate midpoint for better geometric representation
+              const midLat = (lat1 + lat2) / 2;
+              const midLng = (lng1 + lng2) / 2;
+              transformedMarkerPos = [midLat, midLng];
+              console.log(`🔄 Transformed long 2-point line to midpoint for ${event.eventType}: ${distance.toFixed(2)} miles (${event.id})`);
               shouldDrawLine = false;
             }
           }
@@ -730,10 +735,10 @@ export default function TrafficMap({
                 </>
               )}
 
-              {/* Always render marker for the event location */}
+              {/* Always render marker for the event location (use transformed midpoint if available) */}
               <Marker
                 key={event.id}
-                position={[parseFloat(event.latitude), parseFloat(event.longitude)]}
+                position={transformedMarkerPos || [parseFloat(event.latitude), parseFloat(event.longitude)]}
                 icon={getMarkerIcon(event, hasMessages, messageCount)}
                 zIndexOffset={hasMessages ? 1000 : 0}
                 eventId={event.id}
