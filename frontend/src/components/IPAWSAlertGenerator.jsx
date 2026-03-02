@@ -24,9 +24,9 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
 
   // Update parent with geofence data when alert is loaded
   useEffect(() => {
-    if (alert?.success && alert?.geofence?.polygon && onGeofenceUpdate) {
-      console.log('🗺️ Sending geofence to map:', alert.geofence.polygon);
-      onGeofenceUpdate(alert.geofence.polygon);
+    if (alert?.success && alert?.geofence && onGeofenceUpdate) {
+      console.log('🗺️ Sending geofence to map:', alert.geofence);
+      onGeofenceUpdate(alert.geofence);
     }
   }, [alert, onGeofenceUpdate]);
 
@@ -280,7 +280,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         </h3>
 
         {/* Map Display Notice */}
-        {alert.geofence?.polygon && (
+        {alert.geofence && (
           <div style={{
             padding: theme.spacing.md,
             background: '#dbeafe',
@@ -1024,12 +1024,12 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             <button
               onClick={onClose}
               style={{
-                padding: '10px 24px',
+                padding: '8px 20px',
                 backgroundColor: '#e5e7eb',
                 color: '#374151',
                 border: '1px solid #d1d5db',
                 borderRadius: '8px',
-                fontSize: '14px',
+                fontSize: '13px',
                 fontWeight: '600',
                 cursor: 'pointer',
                 transition: 'all 0.2s'
@@ -1046,12 +1046,12 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             <button
               onClick={handleSubmitForApproval}
               style={{
-                padding: '10px 32px',
+                padding: '8px 24px',
                 background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
                 color: '#111827',
                 border: 'none',
                 borderRadius: '8px',
-                fontSize: '14px',
+                fontSize: '13px',
                 fontWeight: '700',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
