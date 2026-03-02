@@ -877,16 +877,16 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
         {/* Tabs */}
         <div style={{
           display: 'flex',
-          gap: '8px',
+          gap: '4px',
           borderBottom: '2px solid #e5e7eb',
           padding: `0 ${theme.spacing.lg}`,
           backgroundColor: '#f9fafb'
         }}>
           {[
-            { id: 'qualification', label: 'Qualification' },
-            { id: 'geofence', label: 'Geofence', disabled: !alert?.success },
-            { id: 'messages', label: 'Messages', disabled: !alert?.success },
-            { id: 'cap', label: 'CAP-XML', disabled: !alert?.success }
+            { id: 'qualification', label: '✓ Qualify' },
+            { id: 'geofence', label: '📍 Area', disabled: !alert?.success },
+            { id: 'messages', label: '💬 Message', disabled: !alert?.success },
+            { id: 'cap', label: '📄 CAP', disabled: !alert?.success }
           ].map(tab => (
             <button
               key={tab.id}
@@ -895,9 +895,9 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
               style={{
                 background: activeTab === tab.id ? 'white' : 'transparent',
                 border: 'none',
-                padding: '14px 24px',
+                padding: '12px 20px',
                 color: activeTab === tab.id ? '#3b82f6' : '#6b7280',
-                fontSize: '15px',
+                fontSize: '14px',
                 fontWeight: '600',
                 cursor: tab.disabled ? 'not-allowed' : 'pointer',
                 borderBottom: activeTab === tab.id ? '3px solid #3b82f6' : '3px solid transparent',
@@ -907,7 +907,9 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
                 borderRadius: '8px 8px 0 0',
                 marginBottom: '-2px',
                 transition: 'all 0.2s',
-                opacity: tab.disabled ? 0.4 : 1
+                opacity: tab.disabled ? 0.4 : 1,
+                whiteSpace: 'nowrap',
+                flex: '1'
               }}
             >
               {tab.label}
