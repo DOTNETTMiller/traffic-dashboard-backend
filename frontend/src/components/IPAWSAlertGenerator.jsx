@@ -867,7 +867,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: 10000,
-      padding: '24px'
+      padding: '12px'
     }}>
       <div style={{
         backgroundColor: 'white',
