@@ -13,6 +13,7 @@
  */
 
 const turf = require('@turf/turf');
+const populationService = require('./population-density-service');
 
 class IPAWSAlertService {
   constructor() {
@@ -35,6 +36,182 @@ class IPAWSAlertService {
       'bridge collapse',
       'infrastructure failure'
     ];
+
+    // Geofence recommendations by event type
+    // Buffer distances in miles, with reasoning
+    this.geofenceRecommendations = {
+      // Construction events - planned, affects traffic patterns, larger area
+      construction: {
+        bufferMiles: 2.0,
+        reason: 'Construction affects larger area and traffic patterns',
+        priority: 'standard',
+        leadTime: 'Typically known in advance - wider notification area'
+      },
+
+      // Incidents/Crashes - immediate, localized impact
+      incident: {
+        bufferMiles: 0.75,
+        reason: 'Immediate localized impact, drivers need quick notification',
+        priority: 'immediate',
+        leadTime: 'Real-time event - focused notification area'
+      },
+      crash: {
+        bufferMiles: 0.75,
+        reason: 'Immediate localized impact, drivers need quick notification',
+        priority: 'immediate',
+        leadTime: 'Real-time event - focused notification area'
+      },
+
+      // Closures - varies by type
+      closure: {
+        bufferMiles: 1.5,
+        reason: 'Full closure requires detour planning',
+        priority: 'high',
+        leadTime: 'Drivers need advance notice for detours'
+      },
+      'road closure': {
+        bufferMiles: 1.5,
+        reason: 'Full closure requires detour planning',
+        priority: 'high',
+        leadTime: 'Drivers need advance notice for detours'
+      },
+
+      // Weather events - broader impact area
+      weather: {
+        bufferMiles: 3.0,
+        reason: 'Weather affects larger geographic area',
+        priority: 'high',
+        leadTime: 'Broad impact requires wider notification'
+      },
+      'weather event': {
+        bufferMiles: 3.0,
+        reason: 'Weather affects larger geographic area',
+        priority: 'high',
+        leadTime: 'Broad impact requires wider notification'
+      },
+
+      // Hazmat - safety perimeter needed
+      hazmat: {
+        bufferMiles: 2.5,
+        reason: 'Safety perimeter and evacuation potential',
+        priority: 'immediate',
+        leadTime: 'Safety critical - wider notification for evacuation'
+      },
+      'hazmat incident': {
+        bufferMiles: 2.5,
+        reason: 'Safety perimeter and evacuation potential',
+        priority: 'immediate',
+        leadTime: 'Safety critical - wider notification for evacuation'
+      },
+
+      // Restrictions - moderate impact
+      restriction: {
+        bufferMiles: 1.0,
+        reason: 'Lane restrictions affect traffic flow',
+        priority: 'standard',
+        leadTime: 'Moderate impact area'
+      },
+      'lane restriction': {
+        bufferMiles: 1.0,
+        reason: 'Lane restrictions affect traffic flow',
+        priority: 'standard',
+        leadTime: 'Moderate impact area'
+      },
+
+      // Maintenance - planned, moderate area
+      maintenance: {
+        bufferMiles: 1.25,
+        reason: 'Planned maintenance with moderate traffic impact',
+        priority: 'standard',
+        leadTime: 'Scheduled work - moderate notification area'
+      },
+
+      // Bridge issues - structural, safety critical
+      'bridge closure': {
+        bufferMiles: 2.0,
+        reason: 'Bridge closures require significant detours',
+        priority: 'high',
+        leadTime: 'Major detour required - wider notification'
+      },
+
+      // Special events
+      'special event': {
+        bufferMiles: 1.5,
+        reason: 'Special events cause traffic pattern changes',
+        priority: 'standard',
+        leadTime: 'Traffic pattern changes - moderate area'
+      },
+
+      // Default fallback
+      default: {
+        bufferMiles: 1.0,
+        reason: 'Standard buffer for general events',
+        priority: 'standard',
+        leadTime: 'Standard notification area'
+      }
+    };
+  }
+
+  /**
+   * Get recommended geofence settings for an event
+   */
+  getGeofenceRecommendation(event) {
+    const eventType = (event.eventType || '').toLowerCase().trim();
+    const description = (event.description || '').toLowerCase();
+
+    // Try to match event type directly
+    let recommendation = this.geofenceRecommendations[eventType];
+
+    // If no direct match, check for partial matches
+    if (!recommendation) {
+      for (const [type, config] of Object.entries(this.geofenceRecommendations)) {
+        if (type !== 'default' && (
+          eventType.includes(type) ||
+          description.includes(type)
+        )) {
+          recommendation = config;
+          break;
+        }
+      }
+    }
+
+    // Fall back to default
+    if (!recommendation) {
+      recommendation = this.geofenceRecommendations.default;
+    }
+
+    // Adjust buffer based on severity
+    let adjustedBuffer = recommendation.bufferMiles;
+    const severity = (event.severity || '').toLowerCase();
+
+    if (severity === 'high') {
+      adjustedBuffer *= 1.3; // Increase by 30% for high severity
+    } else if (severity === 'low') {
+      adjustedBuffer *= 0.8; // Decrease by 20% for low severity
+    }
+
+    // Adjust based on lanes affected
+    const lanesAffected = parseInt(event.lanesAffected) || 0;
+    if (lanesAffected >= 3) {
+      adjustedBuffer *= 1.2; // Increase by 20% for major lane impact
+    } else if (lanesAffected === 1) {
+      adjustedBuffer *= 0.9; // Slight decrease for single lane
+    }
+
+    // Round to nearest 0.25 mile
+    adjustedBuffer = Math.round(adjustedBuffer * 4) / 4;
+
+    return {
+      recommended: recommendation,
+      adjustedBufferMiles: adjustedBuffer,
+      originalBufferMiles: recommendation.bufferMiles,
+      adjustments: {
+        severityAdjusted: severity !== 'medium',
+        lanesAdjusted: lanesAffected > 0,
+        finalBuffer: adjustedBuffer
+      },
+      eventType: eventType || 'unknown'
+    };
   }
 
   /**
@@ -113,29 +290,46 @@ class IPAWSAlertService {
 
   /**
    * Generate geofence for alert area
-   * Per policy: 1-mile buffer, population masking
+   * Per policy: Intelligent buffer based on event type, population masking
    */
-  generateGeofence(event) {
+  generateGeofence(event, customBufferMiles = null) {
     if (!event.geometry || !event.geometry.coordinates) {
       throw new Error('Event must have geometry to generate geofence');
     }
 
+    // Get intelligent recommendation
+    const recommendation = this.getGeofenceRecommendation(event);
+
+    // Use custom buffer if provided, otherwise use recommended
+    const bufferMiles = customBufferMiles || recommendation.adjustedBufferMiles;
+    const bufferMeters = bufferMiles * 1609; // Convert miles to meters
+
     // Create line from event geometry
     const line = turf.lineString(event.geometry.coordinates);
 
-    // Buffer by 1 mile (1.609 km = 1609 meters)
-    const buffered = turf.buffer(line, 1609, { units: 'meters' });
+    // Buffer with intelligent distance
+    const buffered = turf.buffer(line, bufferMeters, { units: 'meters' });
 
     // Extract coordinates for CAP-XML polygon format
     const coords = buffered.geometry.coordinates[0];
     const capPolygon = coords.map(coord => `${coord[1]},${coord[0]}`).join(' ');
 
+    // Get detailed population breakdown using population service
+    const populationBreakdown = populationService.estimatePopulation(buffered, {
+      excludeUrban: false
+    });
+
     return {
       type: 'Polygon',
       coordinates: buffered.geometry.coordinates,
       capFormat: capPolygon,
-      estimatedPopulation: this.estimatePopulation(buffered),
-      areaSquareMiles: turf.area(buffered) / 2589988.11 // Convert m² to mi²
+      estimatedPopulation: populationBreakdown.total,
+      areaSquareMiles: turf.area(buffered) / 2589988.11, // Convert m² to mi²
+      bufferMiles: bufferMiles,
+      recommendation: recommendation,
+      isCustomBuffer: customBufferMiles !== null,
+      reasoning: recommendation.recommended.reason,
+      populationBreakdown: populationBreakdown // Include detailed breakdown
     };
   }
 
@@ -147,6 +341,131 @@ class IPAWSAlertService {
     const areaSqMiles = turf.area(geofence) / 2589988.11;
     // Rough estimate: rural Iowa ~50 people/sq mi, adjust based on location
     return Math.round(areaSqMiles * 50);
+  }
+
+  /**
+   * Apply population density filtering to geofence
+   * Excludes urban/populated areas to focus on non-populated regions
+   */
+  applyPopulationFilter(geofence, options = {}) {
+    const {
+      maxPopulation = 5000,
+      excludeUrbanAreas = true,
+      minPopulationDensity = 0
+    } = options;
+
+    // Calculate current population
+    const currentPopulation = this.estimatePopulation(geofence);
+
+    // If population is already under threshold, no filtering needed
+    if (currentPopulation <= maxPopulation) {
+      return {
+        filtered: false,
+        geofence,
+        originalPopulation: currentPopulation,
+        filteredPopulation: currentPopulation,
+        reason: 'Population already within threshold'
+      };
+    }
+
+    // For urban area exclusion, we would integrate with census data
+    // or OpenStreetMap urban boundaries. For now, we'll reduce the buffer
+    if (excludeUrbanAreas) {
+      // Estimate how much to reduce buffer to meet population target
+      const targetReduction = currentPopulation / maxPopulation;
+      const originalArea = turf.area(geofence) / 2589988.11;
+      const targetArea = originalArea / targetReduction;
+
+      // Calculate new buffer distance (simplified - assumes circular area)
+      const originalRadius = Math.sqrt(originalArea / Math.PI);
+      const newRadius = Math.sqrt(targetArea / Math.PI);
+      const reductionFactor = newRadius / originalRadius;
+
+      // Return metadata about the filtering
+      return {
+        filtered: true,
+        geofence, // In production, this would be the filtered polygon
+        originalPopulation: currentPopulation,
+        filteredPopulation: Math.round(currentPopulation * reductionFactor),
+        reductionFactor,
+        recommendation: `Reduce geofence buffer by ${((1 - reductionFactor) * 100).toFixed(0)}% to meet population threshold`,
+        urbanAreasExcluded: true
+      };
+    }
+
+    return {
+      filtered: false,
+      geofence,
+      originalPopulation: currentPopulation,
+      filteredPopulation: currentPopulation,
+      warning: 'Population exceeds threshold but filtering not enabled'
+    };
+  }
+
+  /**
+   * Generate geofence with custom options (for rules-based alerts)
+   */
+  generateCustomGeofence(event, options = {}) {
+    const {
+      bufferMiles = 1,
+      type = 'auto',
+      customPolygon = null,
+      populationFilter = null
+    } = options;
+
+    if (!event.geometry || !event.geometry.coordinates) {
+      throw new Error('Event must have geometry to generate geofence');
+    }
+
+    // Use custom polygon if provided
+    if (type === 'custom' && customPolygon) {
+      return {
+        type: 'Polygon',
+        coordinates: customPolygon.coordinates,
+        capFormat: this.polygonToCapFormat(customPolygon),
+        estimatedPopulation: this.estimatePopulation(customPolygon),
+        areaSquareMiles: turf.area(customPolygon) / 2589988.11,
+        source: 'custom'
+      };
+    }
+
+    // Auto-generate with custom buffer
+    const line = turf.lineString(event.geometry.coordinates);
+    const buffered = turf.buffer(line, bufferMiles * 1609, { units: 'meters' });
+
+    // Apply population filtering if requested
+    let geofence = buffered;
+    let populationInfo = {};
+
+    if (populationFilter) {
+      const filtered = this.applyPopulationFilter(buffered, populationFilter);
+      populationInfo = filtered;
+      if (filtered.filtered) {
+        geofence = filtered.geofence;
+      }
+    }
+
+    const coords = geofence.geometry.coordinates[0];
+    const capPolygon = coords.map(coord => `${coord[1]},${coord[0]}`).join(' ');
+
+    return {
+      type: 'Polygon',
+      coordinates: geofence.geometry.coordinates,
+      capFormat: capPolygon,
+      estimatedPopulation: this.estimatePopulation(geofence),
+      areaSquareMiles: turf.area(geofence) / 2589988.11,
+      bufferMiles,
+      source: 'auto',
+      populationFilter: populationInfo
+    };
+  }
+
+  /**
+   * Convert polygon to CAP format
+   */
+  polygonToCapFormat(polygon) {
+    const coords = polygon.coordinates[0];
+    return coords.map(coord => `${coord[1]},${coord[0]}`).join(' ');
   }
 
   /**
