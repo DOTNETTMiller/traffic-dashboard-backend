@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { formatAsTIM, formatAsCIFS, isCommercialVehicleRelevant } from '../utils/messageFormatters';
 import NearbyITSEquipment from './NearbyITSEquipment';
+import IPAWSAlertGenerator from './IPAWSAlertGenerator';
 
 /**
  * Enhanced Event Popup with Multiple Format Views
@@ -20,6 +21,7 @@ export default function EventFormatPopup({
   geometryDiagnostics
 }) {
   const [activeTab, setActiveTab] = useState('raw'); // 'raw', 'tim', 'cifs', 'geometry'
+  const [showIPAWS, setShowIPAWS] = useState(false);
 
   // Generate formatted versions
   const timFormat = formatAsTIM(event);
@@ -114,40 +116,82 @@ export default function EventFormatPopup({
         padding: '8px 12px',
         borderTop: '1px solid #e5e7eb',
         display: 'flex',
+        flexDirection: 'column',
         gap: '8px',
         backgroundColor: 'white'
       }}>
-        {hasMessages && (
-          <div style={{
-            flex: 1,
-            padding: '8px',
-            backgroundColor: '#dbeafe',
-            borderRadius: '4px',
-            fontSize: '11px',
-            textAlign: 'center',
-            fontWeight: '600',
-            color: '#1e40af'
-          }}>
-            💬 {messageCount} Message{messageCount !== 1 ? 's' : ''}
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {hasMessages && (
+            <div style={{
+              flex: 1,
+              padding: '8px',
+              backgroundColor: '#dbeafe',
+              borderRadius: '4px',
+              fontSize: '11px',
+              textAlign: 'center',
+              fontWeight: '600',
+              color: '#1e40af'
+            }}>
+              💬 {messageCount} Message{messageCount !== 1 ? 's' : ''}
+            </div>
+          )}
+          <button
+            onClick={() => onEventSelect && onEventSelect(event)}
+            style={{
+              flex: hasMessages ? 1 : 2,
+              padding: '8px 16px',
+              backgroundColor: '#3b82f6',
+              color: '#111827',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: '600'
+            }}
+          >
+            {hasMessages ? 'View Messages' : 'Add Message'}
+          </button>
+        </div>
+
+        {/* IPAWS Alert Button */}
         <button
-          onClick={() => onEventSelect && onEventSelect(event)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowIPAWS(true);
+          }}
           style={{
-            flex: hasMessages ? 1 : 2,
-            padding: '8px 16px',
-            backgroundColor: '#3b82f6',
+            width: '100%',
+            padding: '10px 16px',
+            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
             color: '#111827',
             border: 'none',
-            borderRadius: '4px',
+            borderRadius: '6px',
             cursor: 'pointer',
-            fontSize: '12px',
-            fontWeight: '600'
+            fontSize: '13px',
+            fontWeight: '700',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            transition: 'all 0.2s'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
           }}
         >
-          {hasMessages ? 'View Messages' : 'Add Message'}
+          🚨 Generate IPAWS Alert
         </button>
       </div>
+
+      {/* IPAWS Alert Generator Modal */}
+      {showIPAWS && (
+        <IPAWSAlertGenerator
+          event={event}
+          onClose={() => setShowIPAWS(false)}
+        />
+      )}
     </div>
   );
 }
