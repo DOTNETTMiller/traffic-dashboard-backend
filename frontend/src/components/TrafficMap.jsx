@@ -544,12 +544,32 @@ export default function TrafficMap({
           let polylinePositions = [];
           if (hasGeometry) {
             if (event.geometry.type === 'LineString') {
-              polylinePositions = event.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+              polylinePositions = event.geometry.coordinates.map(coord => {
+                // Ensure coordinates are numbers, not strings
+                const lat = parseFloat(coord[1]);
+                const lng = parseFloat(coord[0]);
+                return [lat, lng];
+              });
             } else if (event.geometry.type === 'MultiLineString') {
               // MultiLineString: array of LineStrings
               polylinePositions = event.geometry.coordinates.map(line =>
-                line.map(coord => [coord[1], coord[0]])
+                line.map(coord => {
+                  const lat = parseFloat(coord[1]);
+                  const lng = parseFloat(coord[0]);
+                  return [lat, lng];
+                })
               );
+            }
+
+            // Debug log for troubleshooting
+            if (polylinePositions.length > 0 && event.id.includes('21785')) {
+              console.log('🗺️ Rendering polyline for event:', event.id, {
+                type: event.geometry.type,
+                points: polylinePositions.length,
+                firstPoint: polylinePositions[0],
+                eventType: event.eventType,
+                hasGeometry
+              });
             }
           }
 
@@ -596,11 +616,27 @@ export default function TrafficMap({
             />
           );
 
+          // Simple rule: If we have valid coordinates with 2+ points, draw a line!
+          const shouldDrawLine = polylinePositions &&
+            ((Array.isArray(polylinePositions[0]) && polylinePositions.length >= 2) || // LineString
+             (Array.isArray(polylinePositions) && polylinePositions.length > 0)); // MultiLineString
+
+          // Debug logging
+          if (event.id.includes('21785') || event.id.includes('19668')) {
+            console.log('🔍 Line rendering check:', {
+              eventId: event.id,
+              eventType: event.eventType,
+              hasGeometry,
+              shouldDrawLine,
+              polylinePositionsLength: polylinePositions.length,
+              firstPosition: polylinePositions[0]
+            });
+          }
+
           return (
             <div key={`event-${event.id}`}>
-              {/* Render polyline for linear features (work zones, closures along road segments) */}
-              {/* Skip polylines for Weather events - only show markers */}
-              {hasGeometry && event.eventType !== 'Weather' && (
+              {/* Render polyline if we have 2+ coordinate points */}
+              {shouldDrawLine && (
                 <>
                   {event.geometry.type === 'LineString' ? (
                     // Single polyline for LineString
@@ -608,9 +644,9 @@ export default function TrafficMap({
                       key={`polyline-${event.id}`}
                       positions={polylinePositions}
                       pathOptions={{
-                        color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)),
-                        weight: 5,
-                        opacity: 0.7,
+                        color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)) || '#FF0000', // Fallback to bright red
+                        weight: 8, // Extra thick for visibility
+                        opacity: 1.0, // Fully opaque
                         lineJoin: 'round',
                         lineCap: 'round'
                       }}
@@ -635,9 +671,9 @@ export default function TrafficMap({
                         key={`polyline-${event.id}-${index}`}
                         positions={linePositions}
                         pathOptions={{
-                          color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)),
-                          weight: 5,
-                          opacity: 0.7,
+                          color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)) || '#FF0000', // Fallback to bright red
+                          weight: 8, // Extra thick for visibility
+                          opacity: 1.0, // Fully opaque
                           lineJoin: 'round',
                           lineCap: 'round'
                         }}
