@@ -315,8 +315,8 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         {hasRecommendation && (
           <div style={{
             padding: theme.spacing.md,
-            background: `${theme.colors.info.main}15`,
-            border: `1px solid ${theme.colors.info.main}`,
+            background: `${theme.colors.primary.main}15`,
+            border: `1px solid ${theme.colors.primary.main}`,
             borderRadius: '12px',
             marginBottom: theme.spacing.lg
           }}>
@@ -377,8 +377,8 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         {alert.geofence?.populationBreakdown && (
           <div style={{
             padding: theme.spacing.md,
-            background: `${theme.colors.info.main}15`,
-            border: `1px solid ${theme.colors.info.main}40`,
+            background: `${theme.colors.primary.main}15`,
+            border: `1px solid ${theme.colors.primary.main}40`,
             borderRadius: '12px',
             marginBottom: theme.spacing.lg
           }}>
@@ -588,7 +588,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             <li>
               <strong>{alert.geofence?.bufferMiles?.toFixed(2) || '1.00'}-mile buffer</strong> on corridor centerline
               {alert.geofence?.isCustomBuffer === false && hasRecommendation && (
-                <span style={{ color: theme.colors.info.main, fontWeight: '600' }}>
+                <span style={{ color: theme.colors.primary.main, fontWeight: '600' }}>
                   {' '}(intelligent recommendation)
                 </span>
               )}
