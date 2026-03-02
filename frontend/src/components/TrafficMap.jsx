@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, CircleMarker, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, CircleMarker, Polyline, Polygon } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -429,6 +429,7 @@ export default function TrafficMap({
   showInterchanges = false,
   showBridgeClearances = false,
   showCorridorRegulations = false,
+  ipawsGeofence = null,
   showITSEquipment = false,
   itsEquipmentRoute = null,
   itsEquipmentType = null,
@@ -792,6 +793,29 @@ export default function TrafficMap({
 
         <ParkingLayer showParking={showParking} predictionHoursAhead={parkingPredictionHours} />
         <InterchangeLayer showInterchanges={showInterchanges} />
+
+        {/* IPAWS Geofence Polygon */}
+        {ipawsGeofence && ipawsGeofence.coordinates && (
+          <Polygon
+            positions={
+              // Convert GeoJSON Polygon coordinates [[lng, lat], ...] to Leaflet format [[lat, lng], ...]
+              ipawsGeofence.coordinates[0].map(coord => [coord[1], coord[0]])
+            }
+            pathOptions={{
+              color: '#f59e0b',
+              weight: 3,
+              opacity: 0.8,
+              fillColor: '#fef3c7',
+              fillOpacity: 0.2
+            }}
+          >
+            <Tooltip permanent direction="center" opacity={0.9}>
+              <div style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                📡 IPAWS Geofence
+              </div>
+            </Tooltip>
+          </Polygon>
+        )}
 
         {/* TETC Vendor Coverage Corridors - shows data quality scores overlaid with events */}
         {/* <TETCCorridorsLayer events={events} /> */}

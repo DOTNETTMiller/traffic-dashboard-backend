@@ -56,6 +56,7 @@ import DigitalInfrastructure from './components/DigitalInfrastructure';
 import DigitalStandardsCrosswalk from './components/DigitalStandardsCrosswalk';
 import VendorPortal from './components/VendorPortal';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
+import IPAWSRulesConfig from './components/IPAWSRulesConfig';
 import './styles/App.css';
 
 function App() {
@@ -96,6 +97,8 @@ function App() {
   const [stateToolsDropdownOpen, setStateToolsDropdownOpen] = useState(false);
   const [commercialFreightDropdownOpen, setCommercialFreightDropdownOpen] = useState(false);
   const [showAlertsModal, setShowAlertsModal] = useState(false);
+  const [showIPAWSRules, setShowIPAWSRules] = useState(false);
+  const [ipawsGeofence, setIpawsGeofence] = useState(null); // IPAWS geofence polygon for map display
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : false;
@@ -1879,6 +1882,28 @@ function App() {
                   >
                     Feeds
                   </button>
+                  <button
+                    onClick={() => {
+                      setShowIPAWSRules(true);
+                      setAdminDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '400',
+                      color: '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                  >
+                    🚨 IPAWS Rules
+                  </button>
                 </div>
               )}
             </div>
@@ -2146,6 +2171,7 @@ function App() {
                   showInterchanges={showInterchanges}
                   showBridgeClearances={showBridgeClearances}
                   showCorridorRegulations={showCorridorRegulations}
+                  ipawsGeofence={ipawsGeofence}
                   showITSEquipment={showITSEquipment}
                   itsEquipmentRoute={itsEquipmentRoute}
                   itsEquipmentType={itsEquipmentType}
@@ -2183,7 +2209,11 @@ function App() {
               <EventTable
                 events={filteredEvents}
                 messages={messages}
-                onEventSelect={setSelectedEvent}
+                onGeofenceUpdate={setIpawsGeofence}
+                onEventSelect={(event) => {
+                  setSelectedEvent(event);
+                  setView('map');
+                }}
               />
             ) : view === 'timeline' ? (
               <ActivityTimeline
@@ -2300,6 +2330,13 @@ function App() {
           events={filteredEvents}
           detourAlerts={detourAlerts}
           onClose={() => setShowCorridorBriefing(false)}
+        />
+      )}
+
+      {/* IPAWS Rules Configuration */}
+      {showIPAWSRules && (
+        <IPAWSRulesConfig
+          onClose={() => setShowIPAWSRules(false)}
         />
       )}
 

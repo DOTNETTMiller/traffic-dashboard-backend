@@ -15,7 +15,7 @@ const normalizeSeverity = (severity) => {
   return value;
 };
 
-export default function EventTable({ events, messages = {}, onEventSelect }) {
+export default function EventTable({ events, messages = {}, onEventSelect, onGeofenceUpdate }) {
   const [sortField, setSortField] = useState('startTime');
   const [sortDirection, setSortDirection] = useState('desc');
   const [viewMode, setViewMode] = useState('cards'); // 'table' or 'cards'
@@ -142,6 +142,7 @@ export default function EventTable({ events, messages = {}, onEventSelect }) {
                 messages={messages[event.id] || []}
                 onViewOnMap={onEventSelect}
                 onAddComment={onEventSelect}
+                onGeofenceUpdate={onGeofenceUpdate}
               />
             ))}
           </div>
