@@ -267,7 +267,15 @@ export default function EventTable({ events, messages = {}, onEventSelect }) {
               <td style={cellStyle}>{event.lanesAffected}</td>
               <td style={cellStyle}>{event.direction}</td>
               <td style={cellStyle}>
-                {event.startTime ? formatDistanceToNow(new Date(event.startTime), { addSuffix: true }) : 'Unknown'}
+                {event.startTime ? (() => {
+                  try {
+                    const date = new Date(event.startTime);
+                    if (isNaN(date.getTime())) return 'Invalid Date';
+                    return formatDistanceToNow(date, { addSuffix: true });
+                  } catch {
+                    return 'Invalid Date';
+                  }
+                })() : 'Unknown'}
               </td>
               <td style={cellStyle}>
                 {messageCount > 0 ? (
