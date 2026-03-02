@@ -942,9 +942,9 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         {/* Tabs */}
         <div style={{
           display: 'flex',
-          gap: '4px',
+          gap: '2px',
           borderBottom: '2px solid #e5e7eb',
-          padding: `0 ${theme.spacing.lg}`,
+          padding: `0 ${theme.spacing.md}`,
           backgroundColor: '#f9fafb'
         }}>
           {[
@@ -960,9 +960,9 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               style={{
                 background: activeTab === tab.id ? 'white' : 'transparent',
                 border: 'none',
-                padding: '14px 24px',
+                padding: '10px 12px',
                 color: activeTab === tab.id ? '#3b82f6' : '#6b7280',
-                fontSize: '15px',
+                fontSize: '13px',
                 fontWeight: '600',
                 cursor: tab.disabled ? 'not-allowed' : 'pointer',
                 borderBottom: activeTab === tab.id ? '3px solid #3b82f6' : '3px solid transparent',
