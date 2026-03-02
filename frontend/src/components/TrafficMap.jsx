@@ -91,6 +91,19 @@ const getLaneClosureType = (description, lanesAffected) => {
   return 'both'; // Default
 };
 
+// Helper to calculate distance between two lat/lng points in miles (Haversine formula)
+const calculateDistance = (lat1, lng1, lat2, lng2) => {
+  const R = 3959; // Earth's radius in miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
 // Helper to determine weather type
 const getWeatherType = (description) => {
   const text = description.toLowerCase();
@@ -616,10 +629,26 @@ export default function TrafficMap({
             />
           );
 
-          // Simple rule: If we have valid coordinates with 2+ points, draw a line!
-          const shouldDrawLine = polylinePositions &&
+          // Check if we should draw a line
+          let shouldDrawLine = polylinePositions &&
             ((Array.isArray(polylinePositions[0]) && polylinePositions.length >= 2) || // LineString
              (Array.isArray(polylinePositions) && polylinePositions.length > 0)); // MultiLineString
+
+          // For 2-point LineStrings, check if distance is too large for a line display
+          if (shouldDrawLine &&
+              event.geometry?.type === 'LineString' &&
+              Array.isArray(polylinePositions) &&
+              polylinePositions.length === 2) {
+            const [lat1, lng1] = polylinePositions[0];
+            const [lat2, lng2] = polylinePositions[1];
+            const distance = calculateDistance(lat1, lng1, lat2, lng2);
+
+            // If 2-point line is > 0.5 miles, don't draw it (show as single point instead)
+            if (distance > 0.5) {
+              console.log(`🔍 Suppressing long 2-point line for ${event.eventType}: ${distance.toFixed(2)} miles (${event.id})`);
+              shouldDrawLine = false;
+            }
+          }
 
           // Debug logging
           if (event.id.includes('21785') || event.id.includes('19668')) {
