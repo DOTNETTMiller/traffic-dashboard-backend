@@ -4,6 +4,20 @@ import NearbyITSEquipment from './NearbyITSEquipment';
 import IPAWSAlertGenerator from './IPAWSAlertGenerator';
 
 /**
+ * Safe date formatter that handles invalid dates gracefully
+ */
+function safeFormatDate(dateValue) {
+  if (!dateValue) return null;
+  try {
+    const date = new Date(dateValue);
+    if (isNaN(date.getTime())) return null;
+    return date.toLocaleString();
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
  * Enhanced Event Popup with Multiple Format Views
  *
  * Shows the SAME event in different standardized formats to highlight
@@ -244,10 +258,10 @@ function RawFormatView({ event, borderInfo, showCVTIM }) {
         </div>
       )}
 
-      {event.startTime && (
+      {event.startTime && safeFormatDate(event.startTime) && (
         <Field
           label="Start Time"
-          value={new Date(event.startTime).toLocaleString()}
+          value={safeFormatDate(event.startTime)}
         />
       )}
 
@@ -335,10 +349,10 @@ function TIMFormatView({ event, timFormat, showCVTIM }) {
       <Field label="Description" value={timFormat.data.content.description} multiline />
       <Field label="Lanes Affected" value={timFormat.data.content.lanesAffected} />
 
-      {timFormat.data.validity.startTime && (
+      {timFormat.data.validity.startTime && safeFormatDate(timFormat.data.validity.startTime) && (
         <Field
           label="Valid From"
-          value={new Date(timFormat.data.validity.startTime).toLocaleString() + (timFormat.data.validity.ongoing ? ' (Ongoing)' : '')}
+          value={safeFormatDate(timFormat.data.validity.startTime) + (timFormat.data.validity.ongoing ? ' (Ongoing)' : '')}
         />
       )}
     </div>
@@ -419,10 +433,12 @@ function CIFSFormatView({ event, cifsFormat }) {
           }
         />
       )}
-      <Field
-        label="Reported"
-        value={new Date(cifsFormat.data.reportedAt).toLocaleString()}
-      />
+      {safeFormatDate(cifsFormat.data.reportedAt) && (
+        <Field
+          label="Reported"
+          value={safeFormatDate(cifsFormat.data.reportedAt)}
+        />
+      )}
       <Field label="Source" value={cifsFormat.data.source} />
       <Field label="Verified" value={cifsFormat.data.verified ? 'Yes' : 'No'} />
     </div>
