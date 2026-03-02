@@ -10,7 +10,7 @@ import { theme } from '../styles/theme';
  * - Preview multilingual messages
  * - Generate CAP-XML for supervisor approval
  */
-export default function IPAWSAlertGenerator({ event, onClose }) {
+export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }) {
   const [loading, setLoading] = useState(true);
   const [alert, setAlert] = useState(null);
   const [error, setError] = useState(null);
@@ -21,6 +21,13 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
       generateAlert();
     }
   }, [event]);
+
+  // Update parent with geofence data when alert is loaded
+  useEffect(() => {
+    if (alert?.success && alert?.geofence?.polygon && onGeofenceUpdate) {
+      onGeofenceUpdate(alert.geofence.polygon);
+    }
+  }, [alert, onGeofenceUpdate]);
 
   const generateAlert = async () => {
     setLoading(true);
@@ -39,6 +46,32 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSubmitForApproval = async () => {
+    if (!alert?.success) return;
+
+    try {
+      const response = await fetch('/api/ipaws/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event,
+          alert,
+          capXml: alert.capXml
+        })
+      });
+
+      if (response.ok) {
+        alert('IPAWS alert submitted for supervisor approval');
+        onClose();
+      } else {
+        const error = await response.json();
+        setError(error.message || 'Failed to submit alert');
+      }
+    } catch (err) {
+      setError('Failed to submit alert: ' + err.message);
     }
   };
 
@@ -244,6 +277,38 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
         }}>
           Geofence & Population Analysis
         </h3>
+
+        {/* Map Display Notice */}
+        {alert.geofence?.polygon && (
+          <div style={{
+            padding: theme.spacing.md,
+            background: '#dbeafe',
+            border: '2px solid #3b82f6',
+            borderRadius: '8px',
+            marginBottom: theme.spacing.lg,
+            display: 'flex',
+            alignItems: 'center',
+            gap: theme.spacing.sm
+          }}>
+            <div style={{ fontSize: '24px' }}>🗺️</div>
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontSize: '14px',
+                fontWeight: '700',
+                color: '#1e40af',
+                marginBottom: '4px'
+              }}>
+                Geofence Displayed on Map
+              </div>
+              <div style={{
+                fontSize: '13px',
+                color: '#1e3a8a'
+              }}>
+                The suggested {alert.geofence.bufferMiles?.toFixed(2) || '1.00'} mile buffer zone is shown on the background map.
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Recommendation Banner */}
         {hasRecommendation && (
@@ -809,7 +874,7 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
         borderRadius: '12px',
         border: '1px solid #d1d5db',
         width: '100%',
-        maxWidth: '900px',
+        maxWidth: '1200px',
         maxHeight: '90vh',
         display: 'flex',
         flexDirection: 'column',
@@ -895,9 +960,9 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
               style={{
                 background: activeTab === tab.id ? 'white' : 'transparent',
                 border: 'none',
-                padding: '12px 20px',
+                padding: '14px 24px',
                 color: activeTab === tab.id ? '#3b82f6' : '#6b7280',
-                fontSize: '14px',
+                fontSize: '15px',
                 fontWeight: '600',
                 cursor: tab.disabled ? 'not-allowed' : 'pointer',
                 borderBottom: activeTab === tab.id ? '3px solid #3b82f6' : '3px solid transparent',
@@ -978,6 +1043,7 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
               Cancel
             </button>
             <button
+              onClick={handleSubmitForApproval}
               style={{
                 padding: '10px 32px',
                 background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',

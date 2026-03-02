@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { theme } from '../styles/theme';
 import { isNearBorder } from '../utils/borderProximity';
+import IPAWSAlertGenerator from './IPAWSAlertGenerator';
 
 export default function EnhancedEventCard({
   event,
@@ -9,9 +10,11 @@ export default function EnhancedEventCard({
   onClick,
   onViewOnMap,
   onAddComment,
+  onGeofenceUpdate,
   compact = false
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [showIPAWS, setShowIPAWS] = useState(false);
   const borderInfo = isNearBorder(event);
   const messageCount = messages.length;
   const hasMessages = messageCount > 0;
@@ -397,14 +400,14 @@ export default function EnhancedEventCard({
         )}
 
         {/* Action Buttons */}
-        <div style={{ display: 'flex', gap: theme.spacing.sm }}>
+        <div style={{ display: 'flex', gap: theme.spacing.sm, flexWrap: 'wrap' }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
               onViewOnMap && onViewOnMap(event);
             }}
             style={{
-              flex: 1,
+              flex: '1 1 45%',
               padding: theme.spacing.sm,
               background: theme.colors.gradients.primary,
               border: 'none',
@@ -430,7 +433,7 @@ export default function EnhancedEventCard({
               onAddComment && onAddComment(event);
             }}
             style={{
-              flex: 1,
+              flex: '1 1 45%',
               padding: theme.spacing.sm,
               background: theme.colors.glassLight,
               border: `1px solid ${theme.colors.border}`,
@@ -458,8 +461,49 @@ export default function EnhancedEventCard({
           >
             💬 Add Comment
           </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowIPAWS(true);
+            }}
+            style={{
+              flex: '1 1 100%',
+              padding: theme.spacing.sm,
+              background: theme.colors.gradients.warning,
+              border: 'none',
+              borderRadius: '8px',
+              color: '#111827',
+              fontSize: '13px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: `all ${theme.transitions.fast}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = theme.shadows.lg;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          >
+            🚨 Generate IPAWS Alert
+          </button>
         </div>
       </div>
+
+      {/* IPAWS Alert Generator Modal */}
+      {showIPAWS && (
+        <IPAWSAlertGenerator
+          event={event}
+          onClose={() => setShowIPAWS(false)}
+          onGeofenceUpdate={onGeofenceUpdate}
+        />
+      )}
     </div>
   );
 }
