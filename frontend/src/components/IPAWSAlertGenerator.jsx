@@ -25,6 +25,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
   // Update parent with geofence data when alert is loaded
   useEffect(() => {
     if (alert?.success && alert?.geofence?.polygon && onGeofenceUpdate) {
+      console.log('🗺️ Sending geofence to map:', alert.geofence.polygon);
       onGeofenceUpdate(alert.geofence.polygon);
     }
   }, [alert, onGeofenceUpdate]);
@@ -298,13 +299,13 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                 color: '#1e40af',
                 marginBottom: '4px'
               }}>
-                Geofence Displayed on Map
+                Geofence Visible on Map
               </div>
               <div style={{
                 fontSize: '12px',
                 color: '#1e3a8a'
               }}>
-                The suggested {alert.geofence.bufferMiles?.toFixed(2) || '1.00'} mile buffer zone is shown on the background map.
+                The {alert.geofence.bufferMiles?.toFixed(2) || '1.00'} mile buffer zone (orange polygon) is displayed on the map. <strong>Close this modal to see it clearly.</strong>
               </div>
             </div>
           </div>
@@ -874,7 +875,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         borderRadius: '12px',
         border: '1px solid #d1d5db',
         width: '100%',
-        maxWidth: '1400px',
+        maxWidth: '1600px',
         maxHeight: '90vh',
         display: 'flex',
         flexDirection: 'column',
