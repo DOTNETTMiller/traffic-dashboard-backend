@@ -49,12 +49,13 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
       return (
         <div style={{
           display: 'inline-block',
-          padding: '6px 12px',
-          borderRadius: '6px',
-          backgroundColor: theme.colors.gray[700],
-          color: "#4b5563",
-          fontSize: '14px',
-          fontWeight: '600'
+          padding: '8px 16px',
+          borderRadius: '8px',
+          backgroundColor: '#fee2e2',
+          color: '#991b1b',
+          fontSize: '13px',
+          fontWeight: '700',
+          border: '1px solid #fecaca'
         }}>
           ❌ Not Qualified
         </div>
@@ -65,12 +66,13 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
     return (
       <div style={{
         display: 'inline-block',
-        padding: '6px 12px',
-        borderRadius: '6px',
-        backgroundColor: isPriority ? theme.colors.error.main : theme.colors.warning.main,
-        color: 'white',
-        fontSize: '14px',
-        fontWeight: '600'
+        padding: '8px 16px',
+        borderRadius: '8px',
+        backgroundColor: isPriority ? '#fee2e2' : '#fef3c7',
+        color: isPriority ? '#991b1b' : '#92400e',
+        fontSize: '13px',
+        fontWeight: '700',
+        border: isPriority ? '1px solid #fecaca' : '1px solid #fde68a'
       }}>
         ✅ Qualified - {isPriority ? 'IMMEDIATE' : 'STANDARD'}
       </div>
@@ -903,16 +905,17 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
         {/* Content */}
         <div style={{
           flex: 1,
-          overflowY: 'auto'
+          overflowY: 'auto',
+          backgroundColor: 'white'
         }}>
           {error && (
             <div style={{
               margin: theme.spacing.lg,
               padding: theme.spacing.md,
-              backgroundColor: theme.colors.error.dark,
+              backgroundColor: '#fee2e2',
               borderRadius: '8px',
-              borderLeft: `4px solid ${theme.colors.error.main}`,
-              color: 'white'
+              borderLeft: '4px solid #ef4444',
+              color: '#991b1b'
             }}>
               <strong>Error:</strong> {error}
             </div>
@@ -929,6 +932,9 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
           <div style={{
             padding: theme.spacing.lg,
             borderTop: "1px solid #e5e7eb",
+            backgroundColor: 'white',
+            borderBottomLeftRadius: '14px',
+            borderBottomRightRadius: '14px',
             display: 'flex',
             justifyContent: 'flex-end',
             gap: theme.spacing.md
@@ -936,45 +942,45 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
             <button
               onClick={onClose}
               style={{
-                padding: `${theme.spacing.sm} ${theme.spacing.lg}`,
-                backgroundColor: theme.colors.gray[700],
-                color: "#374151",
-                border: 'none',
+                padding: '10px 24px',
+                backgroundColor: '#e5e7eb',
+                color: '#374151',
+                border: '1px solid #d1d5db',
                 borderRadius: '8px',
                 fontSize: '14px',
                 fontWeight: '600',
                 cursor: 'pointer',
-                transition: `all ${theme.transitions.fast}`
+                transition: 'all 0.2s'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = theme.colors.gray[600];
+                e.currentTarget.style.backgroundColor = '#d1d5db';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = theme.colors.gray[700];
+                e.currentTarget.style.backgroundColor = '#e5e7eb';
               }}
             >
               Cancel
             </button>
             <button
               style={{
-                padding: `${theme.spacing.sm} ${theme.spacing.xl}`,
-                background: theme.colors.gradients.warning,
-                color: 'white',
+                padding: '10px 32px',
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                color: '#111827',
                 border: 'none',
                 borderRadius: '8px',
                 fontSize: '14px',
                 fontWeight: '700',
                 cursor: 'pointer',
-                transition: `all ${theme.transitions.fast}`,
-                boxShadow: theme.shadows.md
+                transition: 'all 0.2s',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = theme.shadows.lg;
+                e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = theme.shadows.md;
+                e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
               }}
             >
               Submit for Supervisor Approval
