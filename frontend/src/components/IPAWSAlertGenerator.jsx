@@ -84,12 +84,13 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
 
     if (!alert.success) {
       return (
-        <div style={{ padding: theme.spacing.lg, backgroundColor: 'white' }}>
+        <div>
           <h3 style={{
             color: '#111827',
-            marginBottom: theme.spacing.md,
-            fontSize: '18px',
-            fontWeight: 'bold'
+            marginTop: 0,
+            marginBottom: '16px',
+            fontSize: '20px',
+            fontWeight: '700'
           }}>
             Event Does Not Qualify for IPAWS Alert
           </h3>
@@ -128,12 +129,13 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
     }
 
     return (
-      <div style={{ padding: theme.spacing.lg, backgroundColor: 'white' }}>
+      <div>
         <h3 style={{
           color: '#111827',
-          marginBottom: theme.spacing.md,
-          fontSize: '18px',
-          fontWeight: 'bold'
+          marginTop: 0,
+          marginBottom: '16px',
+          fontSize: '20px',
+          fontWeight: '700'
         }}>
           Qualification Summary
         </h3>
@@ -232,12 +234,13 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
     const hasRecommendation = alert.geofence?.recommendation;
 
     return (
-      <div style={{ padding: theme.spacing.lg, backgroundColor: 'white' }}>
+      <div>
         <h3 style={{
           color: '#111827',
-          marginBottom: theme.spacing.md,
-          fontSize: '18px',
-          fontWeight: 'bold'
+          marginTop: 0,
+          marginBottom: '16px',
+          fontSize: '20px',
+          fontWeight: '700'
         }}>
           Geofence & Population Analysis
         </h3>
@@ -541,11 +544,13 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
     if (!alert?.success) return null;
 
     return (
-      <div style={{ padding: theme.spacing.lg }}>
+      <div>
         <h3 style={{
           color: "#111827",
-          marginBottom: theme.spacing.md,
-          fontSize: '18px'
+          marginTop: 0,
+          marginBottom: '16px',
+          fontSize: '20px',
+          fontWeight: '700'
         }}>
           Alert Messages
         </h3>
@@ -674,11 +679,13 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
     if (!alert?.success) return null;
 
     return (
-      <div style={{ padding: theme.spacing.lg }}>
+      <div>
         <h3 style={{
           color: "#111827",
-          marginBottom: theme.spacing.md,
-          fontSize: '18px'
+          marginTop: 0,
+          marginBottom: '16px',
+          fontSize: '20px',
+          fontWeight: '700'
         }}>
           CAP-XML Message
         </h3>
@@ -790,32 +797,32 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      backdropFilter: 'blur(4px)',
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: 10000,
-      padding: theme.spacing.lg
+      padding: '24px'
     }}>
       <div style={{
         backgroundColor: 'white',
-        borderRadius: '16px',
-        border: '2px solid #3b82f6',
+        borderRadius: '12px',
+        border: '1px solid #d1d5db',
         width: '100%',
         maxWidth: '900px',
         maxHeight: '90vh',
         display: 'flex',
         flexDirection: 'column',
-        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+        overflow: 'hidden'
       }}>
         {/* Header */}
         <div style={{
-          padding: theme.spacing.lg,
-          borderBottom: '1px solid #e5e7eb',
-          backgroundColor: '#6b7280',
-          borderTopLeftRadius: '14px',
-          borderTopRightRadius: '14px',
+          padding: '20px 24px',
+          borderBottom: '2px solid #e5e7eb',
+          backgroundColor: '#f3f4f6',
+          borderTopLeftRadius: '12px',
+          borderTopRightRadius: '12px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between'
@@ -870,9 +877,10 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
         {/* Tabs */}
         <div style={{
           display: 'flex',
-          borderBottom: '1px solid #e5e7eb',
+          gap: '8px',
+          borderBottom: '2px solid #e5e7eb',
           padding: `0 ${theme.spacing.lg}`,
-          backgroundColor: 'white'
+          backgroundColor: '#f9fafb'
         }}>
           {[
             { id: 'qualification', label: 'Qualification' },
@@ -885,16 +893,21 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
               onClick={() => !tab.disabled && setActiveTab(tab.id)}
               disabled={tab.disabled}
               style={{
-                background: 'none',
+                background: activeTab === tab.id ? 'white' : 'transparent',
                 border: 'none',
-                padding: `${theme.spacing.md} ${theme.spacing.lg}`,
+                padding: '14px 24px',
                 color: activeTab === tab.id ? '#3b82f6' : '#6b7280',
-                fontSize: '14px',
+                fontSize: '15px',
                 fontWeight: '600',
                 cursor: tab.disabled ? 'not-allowed' : 'pointer',
-                borderBottom: activeTab === tab.id ? '2px solid #3b82f6' : '2px solid transparent',
+                borderBottom: activeTab === tab.id ? '3px solid #3b82f6' : '3px solid transparent',
+                borderTop: activeTab === tab.id ? '2px solid #e5e7eb' : '2px solid transparent',
+                borderLeft: activeTab === tab.id ? '1px solid #e5e7eb' : 'none',
+                borderRight: activeTab === tab.id ? '1px solid #e5e7eb' : 'none',
+                borderRadius: '8px 8px 0 0',
+                marginBottom: '-2px',
                 transition: 'all 0.2s',
-                opacity: tab.disabled ? 0.5 : 1
+                opacity: tab.disabled ? 0.4 : 1
               }}
             >
               {tab.label}
@@ -906,7 +919,8 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
         <div style={{
           flex: 1,
           overflowY: 'auto',
-          backgroundColor: 'white'
+          backgroundColor: 'white',
+          padding: '24px'
         }}>
           {error && (
             <div style={{
@@ -930,14 +944,14 @@ export default function IPAWSAlertGenerator({ event, onClose }) {
         {/* Footer */}
         {alert?.success && (
           <div style={{
-            padding: theme.spacing.lg,
-            borderTop: "1px solid #e5e7eb",
-            backgroundColor: 'white',
-            borderBottomLeftRadius: '14px',
-            borderBottomRightRadius: '14px',
+            padding: '20px 24px',
+            borderTop: "2px solid #e5e7eb",
+            backgroundColor: '#f9fafb',
+            borderBottomLeftRadius: '12px',
+            borderBottomRightRadius: '12px',
             display: 'flex',
             justifyContent: 'flex-end',
-            gap: theme.spacing.md
+            gap: '12px'
           }}>
             <button
               onClick={onClose}
