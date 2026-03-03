@@ -62,6 +62,15 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
+// Custom icon for BIM Bridge models
+const bridgeIcon = L.divIcon({
+  html: '<div style="font-size: 24px;">🌉</div>',
+  className: 'bim-bridge-icon',
+  iconSize: [30, 30],
+  iconAnchor: [15, 15],
+  popupAnchor: [0, -15]
+});
+
 // Helper to determine lane closure direction
 const getLaneClosureType = (description, lanesAffected) => {
   const text = (description + ' ' + lanesAffected).toLowerCase();
@@ -443,6 +452,20 @@ export default function TrafficMap({
   // Debug: Verify geometry filter props are being received
 
   const mapRef = useRef(null);
+  const [bimBridges, setBimBridges] = useState([]);
+
+  // Load BIM bridges from database with V2X/AV tagging
+  useEffect(() => {
+    fetch('/api/bim/bridges')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.bridges) {
+          setBimBridges(data.bridges);
+          console.log(`🌉 Loaded ${data.bridges.length} BIM bridges with V2X/AV tagging`);
+        }
+      })
+      .catch(err => console.error('Error loading BIM bridges:', err));
+  }, []);
 
   // Filter out events without valid coordinates
   const validEvents = events.filter(e => {
@@ -816,6 +839,133 @@ export default function TrafficMap({
             </Tooltip>
           </Polygon>
         )}
+
+        {/* BIM Bridge Models with V2X/AV Highlighting */}
+        {bimBridges.map((bridge, idx) => {
+          return (
+            <Marker
+              key={`bim-bridge-${bridge.id || idx}`}
+              position={[bridge.latitude, bridge.longitude]}
+              icon={bridgeIcon}
+            >
+              <Popup maxWidth={450}>
+                <div style={{ padding: '8px' }}>
+                  <h3 style={{
+                    margin: '0 0 12px 0',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    color: '#1f2937',
+                    borderBottom: '2px solid #3b82f6',
+                    paddingBottom: '8px'
+                  }}>
+                    🌉 {bridge.name || 'BIM Bridge Model'}
+                  </h3>
+
+                  <div style={{ fontSize: '13px', lineHeight: '1.6' }}>
+                    {/* V2X/AV Tags - HIGHLIGHTED */}
+                    {(bridge.v2x_applicable || bridge.av_applicable) && (
+                      <div style={{
+                        marginBottom: '12px',
+                        padding: '8px',
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        borderRadius: '6px',
+                        color: 'white'
+                      }}>
+                        <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                          ⚡ Connected Infrastructure
+                        </div>
+                        {bridge.v2x_applicable && (
+                          <div style={{ fontSize: '12px', marginLeft: '16px' }}>
+                            🚦 <strong>V2X Features:</strong> {bridge.v2x_features?.join(', ') || 'Clearance monitoring'}
+                          </div>
+                        )}
+                        {bridge.av_applicable && (
+                          <div style={{ fontSize: '12px', marginLeft: '16px' }}>
+                            🤖 <strong>AV Ready:</strong> {bridge.av_features?.join(', ') || 'HD map data'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Location */}
+                    <div style={{ marginBottom: '8px' }}>
+                      <strong>📍 Location:</strong>
+                      <div style={{ marginLeft: '16px', color: '#4b5563' }}>
+                        {bridge.route && <div>Route: {bridge.route}</div>}
+                        {bridge.city && <div>{bridge.city}, {bridge.county} County</div>}
+                        {bridge.state && <div>{bridge.state}{bridge.district && ` - District ${bridge.district}`}</div>}
+                      </div>
+                    </div>
+
+                    {/* Bridge Details */}
+                    <div style={{ marginBottom: '8px' }}>
+                      <strong>🏗️ Bridge Details:</strong>
+                      <div style={{ marginLeft: '16px', color: '#4b5563' }}>
+                        {bridge.spans && <div>Spans: {bridge.spans}</div>}
+                        {bridge.supports && <div>Supports: {bridge.supports}</div>}
+                        {bridge.clearance && (
+                          <div style={{
+                            background: '#fef3c7',
+                            padding: '4px 6px',
+                            borderRadius: '4px',
+                            border: '1px solid #f59e0b',
+                            display: 'inline-block',
+                            marginTop: '4px'
+                          }}>
+                            ⚠️ Min Clearance: <strong>{bridge.clearance} ft</strong> (V2X-broadcasted)
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Traffic & Speed */}
+                    <div style={{ marginBottom: '8px' }}>
+                      <strong>🚗 Traffic & Speed:</strong>
+                      <div style={{ marginLeft: '16px', color: '#4b5563' }}>
+                        {bridge.adt && <div>Avg Daily Traffic: {bridge.adt.toLocaleString()} vehicles/day</div>}
+                        {bridge.design_speed && <div>Design Speed: {bridge.design_speed} mph</div>}
+                        {bridge.posted_speed && <div>Posted Speed: {bridge.posted_speed} mph</div>}
+                      </div>
+                    </div>
+
+                    {/* Technical Data */}
+                    <div style={{
+                      marginTop: '12px',
+                      paddingTop: '8px',
+                      borderTop: '1px solid #e5e7eb',
+                      fontSize: '11px',
+                      color: '#6b7280'
+                    }}>
+                      <div>CRS: {bridge.crs}</div>
+                      {bridge.stateplane_easting && bridge.stateplane_northing && (
+                        <div>State Plane: E {bridge.stateplane_easting.toFixed(2)}, N {bridge.stateplane_northing.toFixed(2)}</div>
+                      )}
+                      {bridge.file_name && <div>Source: {bridge.file_name}</div>}
+                    </div>
+                  </div>
+                </div>
+              </Popup>
+              <Tooltip direction="top" offset={[0, -10]}>
+                <div style={{ textAlign: 'center', fontSize: '12px' }}>
+                  <strong>{bridge.name}</strong>
+                  <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                    {bridge.route} - {bridge.city}
+                  </div>
+                  {(bridge.v2x_applicable || bridge.av_applicable) && (
+                    <div style={{
+                      fontSize: '10px',
+                      color: '#8b5cf6',
+                      fontWeight: 'bold',
+                      marginTop: '2px'
+                    }}>
+                      {bridge.v2x_applicable && '🚦 V2X'} {bridge.av_applicable && '🤖 AV'}
+                    </div>
+                  )}
+                </div>
+              </Tooltip>
+            </Marker>
+          );
+        })}
 
         {/* TETC Vendor Coverage Corridors - shows data quality scores overlaid with events */}
         {/* <TETCCorridorsLayer events={events} /> */}

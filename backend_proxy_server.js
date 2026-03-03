@@ -9504,6 +9504,56 @@ app.post('/api/ipaws/submit', async (req, res) => {
   }
 });
 
+// GET /api/bim/bridges - Get BIM bridges with V2X/AV tagging
+app.get('/api/bim/bridges', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+
+    const { v2x, av, state } = req.query;
+
+    let query = 'SELECT * FROM bim_bridges WHERE 1=1';
+    const params = [];
+    let paramCount = 0;
+
+    if (v2x === 'true') {
+      query += ` AND v2x_applicable = true`;
+    }
+
+    if (av === 'true') {
+      query += ` AND av_applicable = true`;
+    }
+
+    if (state) {
+      paramCount++;
+      query += ` AND state = $${paramCount}`;
+      params.push(state);
+    }
+
+    query += ' ORDER BY name';
+
+    const result = await pgPool.query(query, params);
+
+    console.log(`🌉 BIM API: Returned ${result.rows.length} bridges (v2x=${v2x || 'any'}, av=${av || 'any'}, state=${state || 'any'})`);
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      bridges: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching BIM bridges:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 /**
  * Helper function to evaluate if an event matches rule conditions
  */

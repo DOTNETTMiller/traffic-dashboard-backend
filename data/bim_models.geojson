@@ -1,0 +1,43 @@
+{
+  "type": "FeatureCollection",
+  "name": "BIM_Models",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -80.1656,
+          41.6819
+        ]
+      },
+      "properties": {
+        "type": "BIM_Bridge",
+        "name": "French Ck Br #3",
+        "fileName": "_200006B12_STR1-Primary Bridge Model.ifc",
+        "route": "SR0006",
+        "county": "Crawford",
+        "city": "Meadville",
+        "state": "Pennsylvania",
+        "district": "1",
+        "spans": 2,
+        "supports": 3,
+        "adt": 7700,
+        "designSpeed": 55,
+        "postedSpeed": 35,
+        "clearance": 11.81,
+        "crs": "EPSG:6563",
+        "stateplane": {
+          "northing": 171078.78740543022,
+          "easting": 398903.9273801348
+        }
+      }
+    }
+  ]
+}
