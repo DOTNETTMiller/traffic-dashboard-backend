@@ -19654,12 +19654,12 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
 
     // Store metadata in bim_models table (file is saved to volume AND database)
     const modelInsert = db.isPostgres
-      ? `INSERT INTO bim_models (filename, original_filename, file_path, file_type, file_size,
+      ? `INSERT INTO ifc_models (filename, original_filename, file_path, file_type, file_size,
          state_key, uploaded_by, latitude, longitude, route, milepost,
          elements_extracted, gaps_identified, v2x_applicable, av_critical, processing_status, file_data)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
          RETURNING id`
-      : `INSERT INTO bim_models (filename, original_filename, file_path, file_type, file_size,
+      : `INSERT INTO ifc_models (filename, original_filename, file_path, file_type, file_size,
          state_key, uploaded_by, latitude, longitude, route, milepost,
          elements_extracted, gaps_identified, v2x_applicable, av_critical, processing_status)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
@@ -19825,7 +19825,7 @@ app.get('/api/bim/models', async (req, res) => {
   try {
     const { stateKey } = req.query;
 
-    let query = 'SELECT * FROM bim_models';
+    let query = 'SELECT * FROM ifc_models';
     const params = [];
 
     if (stateKey) {
@@ -19880,8 +19880,8 @@ app.get('/api/bim/models/:id', async (req, res) => {
     const { id } = req.params;
 
     const modelQuery = db.isPostgres
-      ? 'SELECT * FROM bim_models WHERE id = $1'
-      : 'SELECT * FROM bim_models WHERE id = ?';
+      ? 'SELECT * FROM ifc_models WHERE id = $1'
+      : 'SELECT * FROM ifc_models WHERE id = ?';
 
     let model;
     if (db.isPostgres) {
@@ -19933,7 +19933,7 @@ app.get('/api/digital-infrastructure/models', async (req, res) => {
 
     const { stateKey } = req.query;
 
-    let query = 'SELECT * FROM bim_models';
+    let query = 'SELECT * FROM ifc_models';
     const params = [];
 
     if (stateKey && stateKey !== 'multi-state') {
@@ -20018,8 +20018,8 @@ app.get('/api/digital-infrastructure/models/:modelId', async (req, res) => {
 
     // Get model
     const modelQuery = db.isPostgres
-      ? 'SELECT * FROM bim_models WHERE id = $1'
-      : 'SELECT * FROM bim_models WHERE id = ?';
+      ? 'SELECT * FROM ifc_models WHERE id = $1'
+      : 'SELECT * FROM ifc_models WHERE id = ?';
 
     let model;
     if (db.isPostgres) {
@@ -20061,8 +20061,8 @@ app.get('/api/digital-infrastructure/models/:modelId/file', async (req, res) => 
 
     // Get model info
     const modelQuery = db.isPostgres
-      ? 'SELECT * FROM bim_models WHERE id = $1'
-      : 'SELECT * FROM bim_models WHERE id = ?';
+      ? 'SELECT * FROM ifc_models WHERE id = $1'
+      : 'SELECT * FROM ifc_models WHERE id = ?';
 
     let model;
     if (db.isPostgres) {
@@ -20309,8 +20309,8 @@ app.delete('/api/digital-infrastructure/models/:modelId', async (req, res) => {
 
     // Check if model exists
     const modelQuery = db.isPostgres
-      ? 'SELECT * FROM bim_models WHERE id = $1'
-      : 'SELECT * FROM bim_models WHERE id = ?';
+      ? 'SELECT * FROM ifc_models WHERE id = $1'
+      : 'SELECT * FROM ifc_models WHERE id = ?';
 
     let model;
     if (db.isPostgres) {
@@ -20348,8 +20348,8 @@ app.delete('/api/digital-infrastructure/models/:modelId', async (req, res) => {
 
     // Delete model record
     const deleteModel = db.isPostgres
-      ? 'DELETE FROM bim_models WHERE id = $1'
-      : 'DELETE FROM bim_models WHERE id = ?';
+      ? 'DELETE FROM ifc_models WHERE id = $1'
+      : 'DELETE FROM ifc_models WHERE id = ?';
 
     if (db.isPostgres) {
       await db.db.query(deleteModel, [modelId]);
