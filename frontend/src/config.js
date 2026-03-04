@@ -1,34 +1,14 @@
 // API Configuration helper
-// Use getter to ensure runtime evaluation in browser
-const getApiUrl = () => {
-  const envApiUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, '');
-
-  if (envApiUrl) {
-    return envApiUrl;
-  }
-
-  if (import.meta.env.DEV) {
-    // Use same-origin paths so Vite's proxy can forward to the backend
-    return '';
-  }
-
-  // Production: use same origin (Railway serves frontend and backend on same domain)
-  if (typeof window !== 'undefined') {
-    return window.location.origin;
-  }
-
-  // Should never reach here in browser, but needed for build time
-  return '';
-};
+// In production, use empty string (relative URLs) since frontend and backend are on same origin
+// In development, use empty string with Vite proxy
+const apiUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || '';
 
 export const config = {
-  get apiUrl() {
-    return getApiUrl();
-  },
+  apiUrl,
   isDevelopment: import.meta.env.DEV,
   isProduction: import.meta.env.PROD,
 };
 
 // Log config on load (for debugging)
 console.log('🔧 App Configuration:', config);
-console.log('📡 API Base URL:', config.apiUrl || '(same origin)');
+console.log('📡 API URL:', config.apiUrl || '(relative URLs - same origin)');
