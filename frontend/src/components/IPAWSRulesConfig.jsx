@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { theme } from '../styles/theme';
+import { config } from '../config';
 
 /**
  * Buffer recommendations by event type
@@ -63,7 +64,7 @@ export default function IPAWSRulesConfig({ onClose }) {
   const loadRules = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/ipaws/rules');
+      const response = await fetch(`${config.apiUrl}/api/ipaws/rules`);
       const data = await response.json();
       setRules(data.rules || []);
     } catch (error) {

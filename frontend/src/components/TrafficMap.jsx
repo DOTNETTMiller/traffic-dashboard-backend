@@ -8,6 +8,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { isNearBorder } from '../utils/borderProximity';
 import { analyzePolyline } from '../utils/polylineDiagnostics';
 import ParkingLayer from './ParkingLayer';
+import { config } from '../config';
 import InterchangeLayer from './InterchangeLayer';
 import BridgeClearanceLayer from './BridgeClearanceLayer';
 import OSWRegulationsLayer from './OSWRegulationsLayer';
@@ -22,21 +23,30 @@ import HeatMapLayer from './HeatMapLayer';
 import NASCOAIAnalysis from './NASCOAIAnalysis';
 import NearbyITSEquipment from './NearbyITSEquipment';
 
-// Component to center map on selected event
+// Component to center map on selected event (only once when event changes)
 function MapCenterController({ selectedEvent }) {
   const map = useMap();
+  const lastCenteredEventId = useRef(null);
 
   useEffect(() => {
-    if (selectedEvent && selectedEvent.latitude && selectedEvent.longitude) {
-      const lat = parseFloat(selectedEvent.latitude);
-      const lng = parseFloat(selectedEvent.longitude);
+    // Only center if this is a different event than the last one we centered on
+    if (selectedEvent && selectedEvent.id !== lastCenteredEventId.current) {
+      if (selectedEvent.latitude && selectedEvent.longitude) {
+        const lat = parseFloat(selectedEvent.latitude);
+        const lng = parseFloat(selectedEvent.longitude);
 
-      if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
-        map.setView([lat, lng], 12, {
-          animate: true,
-          duration: 1
-        });
+        if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+          map.setView([lat, lng], 12, {
+            animate: true,
+            duration: 1
+          });
+          // Remember that we centered on this event
+          lastCenteredEventId.current = selectedEvent.id;
+        }
       }
+    } else if (!selectedEvent) {
+      // Reset when no event is selected
+      lastCenteredEventId.current = null;
     }
   }, [selectedEvent, map]);
 
@@ -453,10 +463,11 @@ export default function TrafficMap({
 
   const mapRef = useRef(null);
   const [bimBridges, setBimBridges] = useState([]);
+  const [savedGeofences, setSavedGeofences] = useState([]);
 
   // Load BIM bridges from database with V2X/AV tagging
   useEffect(() => {
-    fetch('/api/bim/bridges')
+    fetch(`${config.apiUrl}/api/bim/bridges`)
       .then(res => res.json())
       .then(data => {
         if (data.success && data.bridges) {
@@ -465,6 +476,19 @@ export default function TrafficMap({
         }
       })
       .catch(err => console.error('Error loading BIM bridges:', err));
+  }, []);
+
+  // Load saved IPAWS geofences from database
+  useEffect(() => {
+    fetch(`${config.apiUrl}/api/geofences`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.geofences) {
+          setSavedGeofences(data.geofences);
+          console.log(`🚨 Loaded ${data.geofences.length} saved IPAWS geofences`);
+        }
+      })
+      .catch(err => console.error('Error loading geofences:', err));
   }, []);
 
   // Filter out events without valid coordinates
@@ -839,6 +863,48 @@ export default function TrafficMap({
             </Tooltip>
           </Polygon>
         )}
+
+        {/* Saved IPAWS Geofences from Database */}
+        {savedGeofences.map((saved, idx) => {
+          if (!saved.geofence || !saved.geofence.coordinates) return null;
+
+          return (
+            <Polygon
+              key={`saved-geofence-${saved.eventId}-${idx}`}
+              positions={
+                // Convert GeoJSON Polygon coordinates [[lng, lat], ...] to Leaflet format [[lat, lng], ...]
+                saved.geofence.coordinates[0].map(coord => [coord[1], coord[0]])
+              }
+              pathOptions={{
+                color: '#ef4444',
+                weight: 2,
+                opacity: 0.7,
+                fillColor: '#fee2e2',
+                fillOpacity: 0.15
+              }}
+            >
+              <Popup>
+                <div style={{ maxWidth: '220px' }}>
+                  <h4 style={{ margin: '0 0 8px 0' }}>🚨 Saved IPAWS Geofence</h4>
+                  <p style={{ margin: '4px 0', fontSize: '13px' }}>
+                    <strong>Event ID:</strong> {saved.eventId}
+                  </p>
+                  <p style={{ margin: '4px 0', fontSize: '13px' }}>
+                    <strong>Population:</strong> {saved.population?.toLocaleString() || 'N/A'}
+                  </p>
+                  <p style={{ margin: '4px 0', fontSize: '13px' }}>
+                    <strong>Buffer:</strong> {saved.bufferMiles} miles
+                  </p>
+                  {saved.overridePopulation && (
+                    <p style={{ margin: '4px 0', fontSize: '12px', color: '#f59e0b' }}>
+                      ⚠️ Population threshold overridden
+                    </p>
+                  )}
+                </div>
+              </Popup>
+            </Polygon>
+          );
+        })}
 
         {/* BIM Bridge Models with V2X/AV Highlighting */}
         {bimBridges.map((bridge, idx) => {

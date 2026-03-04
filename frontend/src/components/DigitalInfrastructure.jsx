@@ -4,6 +4,7 @@ import { config } from '../config';
 import IFCViewer from './IFCViewer';
 import IFCModelViewer from './IFCModelViewer';
 
+// Use config.apiUrl which handles both development (localhost) and production (Railway)
 const API_BASE = config.apiUrl;
 
 function DigitalInfrastructure() {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { theme } from '../styles/theme';
+import { config } from '../config';
 
 /**
  * IPAWS Alert Generator & Review Component
@@ -15,6 +16,14 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
   const [alert, setAlert] = useState(null);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('qualification');
+  const [overridePopulation, setOverridePopulation] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Geofence adjustment parameters
+  const [bufferMiles, setBufferMiles] = useState(2.0);
+  const [corridorLengthMiles, setCorridorLengthMiles] = useState(null); // null = full length
+  const [avoidUrbanAreas, setAvoidUrbanAreas] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
     if (event) {
@@ -35,7 +44,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     setError(null);
 
     try {
-      const response = await fetch('/api/ipaws/generate', {
+      const response = await fetch(`${config.apiUrl}/api/ipaws/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event })
@@ -43,6 +52,11 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
 
       const data = await response.json();
       setAlert(data);
+
+      // Initialize buffer from generated geofence
+      if (data?.geofence?.bufferMiles) {
+        setBufferMiles(data.geofence.bufferMiles);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -50,48 +64,95 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     }
   };
 
-  const handleSubmitForApproval = async () => {
-    if (!alert?.success) return;
+
+  const handleRegenerateGeofence = async () => {
+    setRegenerating(true);
+    setError(null);
 
     try {
-      const response = await fetch('/api/ipaws/submit', {
+      const response = await fetch(`${config.apiUrl}/api/ipaws/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           event,
-          alert,
-          capXml: alert.capXml
+          bufferMiles,
+          corridorLengthMiles,
+          avoidUrbanAreas
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Update the alert with new geofence
+        setAlert(prev => ({
+          ...prev,
+          geofence: data.geofence
+        }));
+
+        // Notify parent component of geofence update
+        if (onGeofenceUpdate) {
+          onGeofenceUpdate(data.geofence);
+        }
+      } else {
+        setError(data.error || 'Failed to regenerate geofence');
+      }
+    } catch (err) {
+      setError('Failed to regenerate geofence: ' + err.message);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const handleSaveGeofence = async () => {
+    if (!alert?.geofence) return;
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`${config.apiUrl}/api/events/${event.id}/geofence`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          geofence: alert.geofence,
+          population: alert.geofence.estimatedPopulation,
+          overridePopulation: overridePopulation,
+          bufferMiles: alert.geofence.bufferMiles
         })
       });
 
       if (response.ok) {
-        alert('IPAWS alert submitted for supervisor approval');
+        const result = await response.json();
+        window.alert(`✅ Geofence saved to event!\n\nPopulation: ${alert.geofence.estimatedPopulation.toLocaleString()}\nBuffer: ${alert.geofence.bufferMiles} miles\n\nThe geofence will now appear on the map for this event.`);
         onClose();
       } else {
         const error = await response.json();
-        setError(error.message || 'Failed to submit alert');
+        setError(error.message || 'Failed to save geofence');
       }
     } catch (err) {
-      setError('Failed to submit alert: ' + err.message);
+      setError('Failed to save geofence: ' + err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
   const getQualificationBadge = () => {
     if (!alert) return null;
 
-    if (!alert.success) {
+    if (!alert.recommended) {
       return (
         <div style={{
           display: 'inline-block',
           padding: '8px 16px',
           borderRadius: '8px',
-          backgroundColor: '#fee2e2',
-          color: '#991b1b',
+          backgroundColor: '#fef3c7',
+          color: '#92400e',
           fontSize: '13px',
           fontWeight: '700',
-          border: '1px solid #fecaca'
+          border: '1px solid #fde68a'
         }}>
-          ❌ Not Qualified
+          ⚠️ Not Recommended (Override Available)
         </div>
       );
     }
@@ -102,13 +163,13 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         display: 'inline-block',
         padding: '8px 16px',
         borderRadius: '8px',
-        backgroundColor: isPriority ? '#fee2e2' : '#fef3c7',
-        color: isPriority ? '#991b1b' : '#92400e',
+        backgroundColor: isPriority ? '#fee2e2' : '#dcfce7',
+        color: isPriority ? '#991b1b' : '#166534',
         fontSize: '13px',
         fontWeight: '700',
-        border: isPriority ? '1px solid #fecaca' : '1px solid #fde68a'
+        border: isPriority ? '1px solid #fecaca' : '1px solid #bbf7d0'
       }}>
-        ✅ Qualified - {isPriority ? 'IMMEDIATE' : 'STANDARD'}
+        ✅ Recommended - {isPriority ? 'IMMEDIATE' : 'STANDARD'}
       </div>
     );
   };
@@ -116,7 +177,8 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
   const renderQualificationTab = () => {
     if (!alert) return null;
 
-    if (!alert.success) {
+    // Show warnings if not recommended
+    if (!alert.recommended && alert.warnings && alert.warnings.length > 0) {
       return (
         <div>
           <h3 style={{
@@ -126,17 +188,69 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             fontSize: '16px',
             fontWeight: '700'
           }}>
-            Event Does Not Qualify for IPAWS Alert
+            IPAWS Alert Not Recommended
           </h3>
+
           <div style={{
             padding: theme.spacing.md,
-            backgroundColor: '#fee2e2',
+            backgroundColor: '#fef3c7',
             borderRadius: '8px',
-            borderLeft: '4px solid #ef4444'
+            borderLeft: '4px solid #f59e0b',
+            marginBottom: theme.spacing.md
           }}>
-            <p style={{ color: '#991b1b', margin: 0 }}>
-              <strong>Reason:</strong> {alert.reason}
+            <p style={{ color: '#92400e', margin: '0 0 8px 0', fontWeight: '600' }}>
+              ⚠️ The following criteria are not met:
             </p>
+            {alert.warnings.map((warning, idx) => (
+              <div key={idx} style={{
+                color: '#78350f',
+                marginTop: idx > 0 ? '12px' : '0',
+                paddingTop: idx > 0 ? '12px' : '0',
+                borderTop: idx > 0 ? '1px solid #fde68a' : 'none'
+              }}>
+                <strong>{warning.type === 'qualification' ? 'Qualification:' : 'Population:'}</strong> {warning.message}
+              </div>
+            ))}
+          </div>
+
+          <div style={{
+            padding: theme.spacing.md,
+            backgroundColor: '#eff6ff',
+            borderRadius: '8px',
+            borderLeft: '4px solid #3b82f6',
+            marginBottom: theme.spacing.md
+          }}>
+            <p style={{ color: '#1e40af', margin: '0 0 8px 0', fontWeight: '600' }}>
+              💡 Recommendations:
+            </p>
+            <ul style={{ color: '#1e3a8a', margin: 0, paddingLeft: '20px' }}>
+              {alert.warnings.find(w => w.type === 'population') && (
+                <li>Try narrowing the buffer width or shortening the corridor length in the "Geofence Adjustment" section</li>
+              )}
+              {alert.warnings.find(w => w.type === 'qualification') && (
+                <>
+                  <li>Verify the event meets tier 1 route requirements (Interstate, NHS, or major state highway)</li>
+                  <li>Confirm closure duration ≥4 hours OR event presents imminent danger</li>
+                </>
+              )}
+            </ul>
+          </div>
+
+          <div style={{
+            padding: theme.spacing.md,
+            backgroundColor: '#fff7ed',
+            borderRadius: '8px',
+            border: '1px solid #fed7aa'
+          }}>
+            <p style={{ color: '#7c2d12', margin: '0 0 8px 0', fontWeight: '600' }}>
+              Override and Proceed Anyway
+            </p>
+            <p style={{ color: '#9a3412', margin: '0 0 12px 0', fontSize: '12px' }}>
+              You can proceed with this alert despite the warnings. An override will be logged for audit purposes.
+            </p>
+            <div style={{ fontSize: '11px', color: '#92400e', fontStyle: 'italic' }}>
+              Note: Override capability allows for situational judgment when policy guidelines may not fully capture event urgency or public safety needs.
+            </div>
           </div>
 
           <div style={{ marginTop: theme.spacing.lg }}>
@@ -146,16 +260,18 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               fontSize: '14px',
               fontWeight: '600'
             }}>
-              Qualification Requirements:
+              Standard Qualification Requirements:
             </h4>
             <ul style={{
               color: '#4b5563',
               paddingLeft: theme.spacing.lg,
-              margin: 0
+              margin: 0,
+              fontSize: '13px'
             }}>
               <li>Route must be Tier 1 (Interstate, NHS, or major state highway)</li>
               <li>Closure duration ≥4 hours, OR</li>
               <li>Event presents imminent danger (hazmat, wrong-way, fire, etc.)</li>
+              <li>Geofence population &lt; 5,000 people</li>
             </ul>
           </div>
         </div>
@@ -534,11 +650,86 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               : ' ⚠️ Adjustment recommended.'}
           </p>
 
+          {/* Geofence Adjustment Controls */}
+          <div style={{
+            marginTop: theme.spacing.md,
+            padding: theme.spacing.sm,
+            backgroundColor: 'rgba(255, 255, 255, 0.15)',
+            borderRadius: '6px'
+          }}>
+            <div style={{ color: 'white', fontWeight: '600', fontSize: '12px', marginBottom: theme.spacing.sm }}>
+              🎯 Adjust Geofence Coverage
+            </div>
+
+            {/* Buffer Width Slider */}
+            <div style={{ marginBottom: theme.spacing.sm }}>
+              <label style={{ color: 'white', fontSize: '11px', display: 'block', marginBottom: '4px' }}>
+                Buffer Width: {bufferMiles} miles
+              </label>
+              <input
+                type="range"
+                min="0.5"
+                max="5"
+                step="0.5"
+                value={bufferMiles}
+                onChange={(e) => setBufferMiles(parseFloat(e.target.value))}
+                style={{ width: '100%' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'rgba(255,255,255,0.7)' }}>
+                <span>0.5 mi (narrower)</span>
+                <span>5 mi (wider)</span>
+              </div>
+            </div>
+
+            {/* Corridor Length Input */}
+            <div style={{ marginBottom: theme.spacing.sm }}>
+              <label style={{ color: 'white', fontSize: '11px', display: 'block', marginBottom: '4px' }}>
+                Corridor Length (optional, miles ahead/behind event)
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="50"
+                step="1"
+                value={corridorLengthMiles || ''}
+                onChange={(e) => setCorridorLengthMiles(e.target.value ? parseFloat(e.target.value) : null)}
+                placeholder="Leave empty for full length"
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  borderRadius: '4px',
+                  border: 'none',
+                  fontSize: '11px'
+                }}
+              />
+            </div>
+
+            {/* Regenerate Button */}
+            <button
+              onClick={handleRegenerateGeofence}
+              disabled={regenerating}
+              style={{
+                width: '100%',
+                padding: '8px',
+                background: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                color: theme.colors.primary.main,
+                fontSize: '11px',
+                fontWeight: '700',
+                cursor: regenerating ? 'wait' : 'pointer',
+                opacity: regenerating ? 0.6 : 1
+              }}
+            >
+              {regenerating ? '⏳ Regenerating...' : '🔄 Regenerate Geofence with New Settings'}
+            </button>
+          </div>
+
           {alert.geofence?.estimatedPopulation >= 5000 && alert.geofence?.populationBreakdown?.urban > 0 && (
             <button
               onClick={async () => {
                 // Trigger urban exclusion
-                const response = await fetch('/api/population/exclude-urban', {
+                const response = await fetch(`${config.apiUrl}/api/population/exclude-urban`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -548,7 +739,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                 });
                 const result = await response.json();
                 if (result.success) {
-                  alert(`✅ Excluded ${result.excluded.join(', ')}\n\nNew population: ${result.population.total.toLocaleString()}\nReduction: ${100 - result.reductionPercent}%`);
+                  window.alert(`✅ Excluded ${result.excluded.join(', ')}\n\nNew population: ${result.population.total.toLocaleString()}\nReduction: ${100 - result.reductionPercent}%`);
                 }
               }}
               style={{
@@ -568,6 +759,68 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               🌾 Exclude Urban Areas ({alert.geofence.populationBreakdown.urban.toLocaleString()} people)
             </button>
           )}
+
+          {/* Population Override Option */}
+          {alert.geofence?.estimatedPopulation >= 5000 && (
+            <div style={{
+              marginTop: theme.spacing.md,
+              padding: theme.spacing.sm,
+              backgroundColor: 'rgba(255, 255, 255, 0.2)',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <input
+                type="checkbox"
+                id="override-population"
+                checked={overridePopulation}
+                onChange={(e) => setOverridePopulation(e.target.checked)}
+                style={{ cursor: 'pointer' }}
+              />
+              <label htmlFor="override-population" style={{
+                color: 'white',
+                fontSize: '12px',
+                cursor: 'pointer',
+                margin: 0
+              }}>
+                Override population threshold - adequate warning coverage required
+              </label>
+            </div>
+          )}
+        </div>
+
+        {/* Geofence Action Buttons */}
+        <div style={{
+          marginTop: theme.spacing.md,
+          padding: theme.spacing.md,
+          backgroundColor: theme.colors.background.paper,
+          borderRadius: '8px',
+          border: `1px solid ${theme.colors.border.light}`,
+          display: 'flex',
+          gap: theme.spacing.md,
+          justifyContent: 'flex-end'
+        }}>
+          <button
+            onClick={handleSaveGeofence}
+            disabled={!alert?.geofence || saving || (!overridePopulation && alert.geofence?.estimatedPopulation >= 5000)}
+            style={{
+              padding: '10px 20px',
+              background: theme.colors.primary.main,
+              border: 'none',
+              borderRadius: '6px',
+              color: 'white',
+              fontSize: '13px',
+              fontWeight: '600',
+              cursor: !alert?.geofence || saving || (!overridePopulation && alert.geofence?.estimatedPopulation >= 5000) ? 'not-allowed' : 'pointer',
+              opacity: !alert?.geofence || saving || (!overridePopulation && alert.geofence?.estimatedPopulation >= 5000) ? 0.5 : 1,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            {saving ? '⏳ Saving...' : '💾 Save Geofence to Event'}
+          </button>
         </div>
 
         <div style={{ marginTop: theme.spacing.lg }}>
@@ -875,6 +1128,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         borderRadius: '12px',
         border: '1px solid #d1d5db',
         width: '100%',
+        minWidth: '900px',
         maxWidth: '1600px',
         maxHeight: '90vh',
         display: 'flex',
@@ -1042,31 +1296,6 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               }}
             >
               Cancel
-            </button>
-            <button
-              onClick={handleSubmitForApproval}
-              style={{
-                padding: '8px 24px',
-                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                color: '#111827',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
-              }}
-            >
-              Submit for Supervisor Approval
             </button>
           </div>
         )}

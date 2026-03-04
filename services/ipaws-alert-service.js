@@ -292,10 +292,16 @@ class IPAWSAlertService {
    * Generate geofence for alert area
    * Per policy: Intelligent buffer based on event type, population masking
    */
-  generateGeofence(event, customBufferMiles = null) {
+  generateGeofence(event, options = {}) {
     if (!event.geometry || !event.geometry.coordinates) {
       throw new Error('Event must have geometry to generate geofence');
     }
+
+    const {
+      bufferMiles: customBufferMiles = null,
+      corridorLengthMiles = null,
+      avoidUrbanAreas = false
+    } = options;
 
     // Get intelligent recommendation
     const recommendation = this.getGeofenceRecommendation(event);
@@ -305,7 +311,25 @@ class IPAWSAlertService {
     const bufferMeters = bufferMiles * 1609; // Convert miles to meters
 
     // Create line from event geometry
-    const line = turf.lineString(event.geometry.coordinates);
+    let line = turf.lineString(event.geometry.coordinates);
+
+    // Limit corridor length if specified
+    if (corridorLengthMiles && corridorLengthMiles > 0) {
+      const lineLength = turf.length(line, { units: 'miles' });
+      if (lineLength > corridorLengthMiles) {
+        // Get the center point of the line
+        const center = turf.centroid(line);
+        // Calculate how much to keep on each side (half the desired length)
+        const halfLength = corridorLengthMiles / 2;
+
+        // Truncate the line to the specified length centered on the event
+        const along = turf.along(line, Math.max(0, (lineLength / 2) - halfLength), { units: 'miles' });
+        const endPoint = turf.along(line, Math.min(lineLength, (lineLength / 2) + halfLength), { units: 'miles' });
+
+        // Create new truncated line
+        line = turf.lineString([along.geometry.coordinates, center.geometry.coordinates, endPoint.geometry.coordinates]);
+      }
+    }
 
     // Buffer with intelligent distance
     const buffered = turf.buffer(line, bufferMeters, { units: 'meters' });
@@ -316,7 +340,7 @@ class IPAWSAlertService {
 
     // Get detailed population breakdown using population service
     const populationBreakdown = populationService.estimatePopulation(buffered, {
-      excludeUrban: false
+      excludeUrban: avoidUrbanAreas
     });
 
     return {
@@ -326,6 +350,8 @@ class IPAWSAlertService {
       estimatedPopulation: populationBreakdown.total,
       areaSquareMiles: turf.area(buffered) / 2589988.11, // Convert m² to mi²
       bufferMiles: bufferMiles,
+      corridorLengthMiles: corridorLengthMiles,
+      avoidUrbanAreas: avoidUrbanAreas,
       recommendation: recommendation,
       isCustomBuffer: customBufferMiles !== null,
       reasoning: recommendation.recommended.reason,
@@ -604,28 +630,36 @@ class IPAWSAlertService {
   /**
    * Generate complete IPAWS alert package
    */
-  async generateAlert(event) {
+  async generateAlert(event, options = {}) {
+    const warnings = [];
+    let recommended = true;
+
     // Step 1: Evaluate qualification
     const qualification = this.evaluateQualification(event);
     if (!qualification.qualifies) {
-      return {
-        success: false,
-        reason: qualification.reason,
-        event: event
-      };
+      recommended = false;
+      warnings.push({
+        type: 'qualification',
+        severity: 'warning',
+        message: qualification.reason,
+        canOverride: true
+      });
     }
 
-    // Step 2: Generate geofence
-    const geofence = this.generateGeofence(event);
+    // Step 2: Generate geofence with optional custom parameters
+    const geofence = this.generateGeofence(event, options);
 
     // Step 3: Check population threshold (< 5,000 per policy)
     if (geofence.estimatedPopulation > 5000) {
-      return {
-        success: false,
-        reason: `Geofence population (${geofence.estimatedPopulation}) exceeds 5,000 threshold`,
-        qualification,
-        geofence
-      };
+      recommended = false;
+      warnings.push({
+        type: 'population',
+        severity: 'warning',
+        message: `Geofence population (${geofence.estimatedPopulation.toLocaleString()}) exceeds 5,000 threshold. Consider narrowing the buffer or shortening the corridor length.`,
+        canOverride: true,
+        population: geofence.estimatedPopulation,
+        threshold: 5000
+      });
     }
 
     // Step 4: Generate messages
@@ -637,7 +671,9 @@ class IPAWSAlertService {
     // Step 6: Return alert package for supervisor approval
     return {
       success: true,
-      status: 'PENDING_APPROVAL',
+      recommended: recommended,
+      warnings: warnings,
+      status: recommended ? 'PENDING_APPROVAL' : 'NOT_RECOMMENDED',
       qualification,
       geofence,
       messages,
@@ -645,9 +681,10 @@ class IPAWSAlertService {
       event,
       metadata: {
         generatedAt: new Date().toISOString(),
-        priority: qualification.priority,
+        priority: qualification.priority || 'STANDARD',
         estimatedReach: geofence.estimatedPopulation * 0.85, // 85% target
-        requiresSupervisorApproval: true
+        requiresSupervisorApproval: true,
+        overrideRequired: !recommended
       }
     };
   }

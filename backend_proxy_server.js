@@ -3442,12 +3442,215 @@ const determineEventType = (text, description = '') => {
   return 'Construction'; // Default to construction instead of Unknown
 };
 
+/**
+ * CCAI-Aligned Severity Classification
+ * Reference: docs/CCAI_SEVERITY_CLASSIFICATION.md
+ * Version: 1.0
+ */
 const determineSeverity = (item) => {
+  // If explicitly set, use that (allows operator overrides)
   if (item.severity) return item.severity.toLowerCase();
-  if (item.closed || item.event_category === 'CLOSURE') return 'high';
-  if (item.event_category === 'INCIDENT' || item.event_category === 'ACCIDENT') return 'high';
-  if (item.event_category === 'CONSTRUCTION') return 'medium';
+
+  const description = (item.description || '').toLowerCase();
+  const title = (item.headline || item.title || '').toLowerCase();
+  const text = description + ' ' + title;
+
+  // === HIGH SEVERITY ===
+  // All lanes blocked (full closure)
+  if (item.closed ||
+      item.lanes_blocked === 'all' ||
+      text.includes('all lanes blocked') ||
+      text.includes('full closure') ||
+      text.includes('road closed') ||
+      text.includes('interstate closed')) {
+    return 'high';
+  }
+
+  // Fatality or multiple injuries
+  if (text.includes('fatal') ||
+      text.includes('fatality') ||
+      text.includes('death') ||
+      text.includes('multiple injuries')) {
+    return 'high';
+  }
+
+  // Hazmat incidents
+  if (text.includes('hazmat') ||
+      text.includes('hazardous material') ||
+      text.includes('chemical spill') ||
+      text.includes('fuel spill') ||
+      text.includes('gas leak')) {
+    return 'high';
+  }
+
+  // Bridge/structure damage
+  if ((text.includes('bridge') && (text.includes('damage') || text.includes('strike') || text.includes('hit'))) ||
+      text.includes('structural damage') ||
+      text.includes('overpass damage')) {
+    return 'high';
+  }
+
+  // Evacuation
+  if (text.includes('evacuation') || text.includes('evacuate')) {
+    return 'high';
+  }
+
+  // Long duration events (>4 hours)
+  if (text.includes('extended closure') ||
+      text.includes('long-term closure') ||
+      text.includes('overnight closure')) {
+    return 'high';
+  }
+
+  // === MEDIUM SEVERITY ===
+  // 2+ lanes blocked (but not all)
+  if (item.lanes_blocked >= 2 ||
+      text.includes('two lanes') ||
+      text.includes('multiple lanes') ||
+      text.includes('2 lanes')) {
+    return 'medium';
+  }
+
+  // Injury crashes
+  if (text.includes('injury') ||
+      text.includes('injured') ||
+      text.includes('ambulance')) {
+    return 'medium';
+  }
+
+  // Heavy trucks or specialized equipment needed
+  if (text.includes('semi') ||
+      text.includes('tractor-trailer') ||
+      text.includes('big rig') ||
+      text.includes('heavy truck') ||
+      text.includes('overturned')) {
+    return 'medium';
+  }
+
+  // Vehicle fire
+  if (text.includes('fire') || text.includes('burning vehicle')) {
+    return 'medium';
+  }
+
+  // Work zones with lane restrictions
+  if ((item.event_category === 'CONSTRUCTION' || text.includes('construction')) &&
+      (item.lanes_blocked >= 1 || text.includes('lane closure'))) {
+    return 'medium';
+  }
+
+  // Incidents/accidents (not yet classified as high)
+  if (item.event_category === 'INCIDENT' ||
+      item.event_category === 'ACCIDENT' ||
+      text.includes('crash') ||
+      text.includes('accident') ||
+      text.includes('collision')) {
+    return 'medium';
+  }
+
+  // === LOW SEVERITY ===
+  // Everything else: minor events, single lane, no injuries
   return 'low';
+};
+
+/**
+ * Freight Impact Classification (CCAI UC #14)
+ * Determines how much an event impacts freight/truck operations
+ * @param {Object} item - Event object
+ * @returns {Object} { impact: 'critical'|'significant'|'minor'|'none', reasons: string[] }
+ */
+const determineFreightImpact = (item) => {
+  const description = (item.description || '').toLowerCase();
+  const title = (item.headline || item.title || '').toLowerCase();
+  const text = description + ' ' + title;
+  const route = (item.route || item.road || '').toUpperCase();
+
+  const reasons = [];
+  let impact = 'none';
+
+  // CRITICAL IMPACT - Freight operations severely disrupted
+
+  // Interstate or US highway full closure
+  if ((route.startsWith('I-') || route.startsWith('US-')) &&
+      (item.closed || item.lanes_blocked === 'all' ||
+       text.includes('closed') || text.includes('all lanes blocked'))) {
+    reasons.push('truck_route_closure');
+    impact = 'critical';
+  }
+
+  // Hazmat incidents (trucks may be rerouted)
+  if (text.includes('hazmat') || text.includes('hazardous material')) {
+    reasons.push('hazmat_restriction');
+    impact = 'critical';
+  }
+
+  // Bridge clearance issues
+  if ((text.includes('bridge') || text.includes('overpass')) &&
+      (text.includes('strike') || text.includes('hit') ||
+       text.includes('clearance') || text.includes('over-height'))) {
+    reasons.push('bridge_clearance_conflict');
+    impact = 'critical';
+  }
+
+  // Oversize/overweight truck issues
+  if (text.includes('oversize') || text.includes('overweight') ||
+      text.includes('over-dimensional') || text.includes('oversized load')) {
+    reasons.push('osow_permit_required');
+    impact = 'critical';
+  }
+
+  // SIGNIFICANT IMPACT - Freight affected but can reroute
+
+  // Heavy truck involved (requires specialized recovery)
+  if (text.includes('semi') || text.includes('tractor-trailer') ||
+      text.includes('big rig') || text.includes('18-wheeler') ||
+      text.includes('tanker') || text.includes('commercial vehicle')) {
+    reasons.push('heavy_truck_involved');
+    if (impact === 'none') impact = 'significant';
+  }
+
+  // Partial lane closure on major truck routes
+  if ((route.startsWith('I-') || route.startsWith('US-')) &&
+      (item.lanes_blocked >= 1 || text.includes('lane') && text.includes('closed'))) {
+    reasons.push('truck_route_delay');
+    if (impact === 'none') impact = 'significant';
+  }
+
+  // Long duration events (>4 hours) on truck routes
+  if ((route.startsWith('I-') || route.startsWith('US-')) &&
+      (text.includes('extended') || text.includes('long-term') ||
+       text.includes('overnight') || text.includes('multi-day'))) {
+    reasons.push('long_duration_delay');
+    if (impact === 'none') impact = 'significant';
+  }
+
+  // Weight restrictions
+  if (text.includes('weight limit') || text.includes('weight restriction') ||
+      text.includes('load limit')) {
+    reasons.push('weight_limit_exceeded');
+    if (impact === 'none') impact = 'significant';
+  }
+
+  // MINOR IMPACT - Freight minimally affected
+
+  // Construction on truck routes (minor delays expected)
+  if ((route.startsWith('I-') || route.startsWith('US-')) &&
+      (item.event_category === 'CONSTRUCTION' || text.includes('construction')) &&
+      impact === 'none') {
+    reasons.push('minor_truck_delay');
+    impact = 'minor';
+  }
+
+  // Rest area or truck parking affected
+  if (text.includes('rest area') || text.includes('truck parking') ||
+      text.includes('weigh station')) {
+    reasons.push('truck_parking_affected');
+    if (impact === 'none') impact = 'minor';
+  }
+
+  return {
+    impact: impact,
+    reasons: reasons
+  };
 };
 
 const determineSeverityFromText = (description, title) => {
@@ -9053,6 +9256,107 @@ app.get('/api/events/:eventId/comments', async (req, res) => {
   }
 });
 
+// Save IPAWS geofence to event
+app.post('/api/events/:eventId/geofence', async (req, res) => {
+  try {
+    const { geofence, population, overridePopulation, bufferMiles } = req.body;
+    const eventId = req.params.eventId;
+
+    if (!geofence) {
+      return res.status(400).json({
+        success: false,
+        error: 'Geofence data is required'
+      });
+    }
+
+    // Check population threshold unless override is enabled
+    if (!overridePopulation && population >= 5000) {
+      return res.status(400).json({
+        success: false,
+        error: 'Population exceeds 5,000 threshold. Enable override for adequate warning coverage if needed.'
+      });
+    }
+
+    // Store geofence in database (using data_feeds table with JSONB geometry column)
+    if (!pgPool) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+
+    // Update or insert geofence for this event
+    await pgPool.query(`
+      INSERT INTO event_geofences (event_id, geofence_geometry, population, buffer_miles, override_population, created_at)
+      VALUES ($1, $2, $3, $4, $5, NOW())
+      ON CONFLICT (event_id)
+      DO UPDATE SET
+        geofence_geometry = $2,
+        population = $3,
+        buffer_miles = $4,
+        override_population = $5,
+        updated_at = NOW()
+    `, [eventId, JSON.stringify(geofence), population, bufferMiles, overridePopulation]);
+
+    console.log(`✅ Saved geofence for event ${eventId} (population: ${population}, override: ${overridePopulation})`);
+
+    res.json({
+      success: true,
+      message: 'Geofence saved successfully',
+      eventId,
+      population,
+      bufferMiles,
+      overridePopulation
+    });
+  } catch (error) {
+    console.error('Error saving geofence:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get all saved geofences
+app.get('/api/geofences', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+
+    const result = await pgPool.query(`
+      SELECT event_id, geofence_geometry, population, buffer_miles, override_population, created_at, updated_at
+      FROM event_geofences
+      ORDER BY updated_at DESC
+    `);
+
+    const geofences = result.rows.map(row => ({
+      eventId: row.event_id,
+      geofence: row.geofence_geometry, // Already an object from JSONB
+      population: row.population,
+      bufferMiles: row.buffer_miles,
+      overridePopulation: row.override_population,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+
+    res.json({
+      success: true,
+      count: geofences.length,
+      geofences
+    });
+  } catch (error) {
+    console.error('Error fetching geofences:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Get all event comments (for viewing all discussions)
 app.get('/api/events/comments/all', async (req, res) => {
   const comments = await db.getAllEventComments();
@@ -9065,6 +9369,2087 @@ app.get('/api/events/comments/all', async (req, res) => {
 });
 
 // ============================================================================
+// BORDER GEOFENCING ALERTS API - CCAI UC #17
+// ============================================================================
+
+// Function to check and notify adjacent states based on border proximity
+async function checkBorderProximityAndNotify(event) {
+  if (!pgPool) return [];
+
+  try {
+    const { id, state, severity, latitude, longitude, eventType, description, title } = event;
+
+    if (!state || !latitude || !longitude) {
+      return [];
+    }
+
+    // Call SQL function to determine if notification should be sent
+    const result = await pgPool.query(
+      `SELECT * FROM auto_notify_border_states($1, $2, $3, $4, $5, $6, $7)`,
+      [id, state, severity || 'medium', latitude, longitude, eventType || 'INCIDENT', description || title || '']
+    );
+
+    if (result.rows.length > 0) {
+      console.log(`🔔 Border proximity alert: Event ${id} triggered notifications to ${result.rows.length} adjacent states`);
+
+      // Send actual state-to-state messages for each notification
+      for (const notification of result.rows) {
+        if (notification.notification_created) {
+          // Use existing state messaging system
+          const messageSubject = `Border Proximity Alert: ${severity?.toUpperCase()} severity event ${Math.round(notification.distance_miles)} miles from border`;
+          const messageBody = `${state} reports ${severity} severity event near your border:\n\n${description || title}\n\nDistance to border: ~${Math.round(notification.distance_miles)} miles\nCoordinates: ${latitude}, ${longitude}\n\nEvent ID: ${id}`;
+
+          try {
+            db.sendMessage({
+              fromState: state,
+              toState: notification.notified_state,
+              subject: messageSubject,
+              message: messageBody,
+              eventId: id,
+              priority: severity === 'high' ? 'high' : 'normal'
+            });
+            console.log(`  ✉️  Message sent to ${notification.notified_state}`);
+          } catch (msgError) {
+            console.error(`  ❌ Failed to send message to ${notification.notified_state}:`, msgError.message);
+          }
+        }
+      }
+    }
+
+    return result.rows;
+  } catch (error) {
+    console.error('Error in border proximity check:', error);
+    return [];
+  }
+}
+
+// Endpoint to manually trigger border notifications for an event
+app.post('/api/border-notifications/check', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { event } = req.body;
+
+    if (!event || !event.state || !event.latitude || !event.longitude) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required event fields: state, latitude, longitude'
+      });
+    }
+
+    const notifications = await checkBorderProximityAndNotify(event);
+
+    res.json({
+      success: true,
+      notificationsCreated: notifications.length,
+      notifications
+    });
+  } catch (error) {
+    console.error('Error checking border proximity:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check border proximity'
+    });
+  }
+});
+
+// Get border notification history
+app.get('/api/border-notifications', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { event_id, state, limit } = req.query;
+
+    let query = 'SELECT * FROM border_notifications WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    if (event_id) {
+      query += ` AND event_id = $${paramIndex++}`;
+      params.push(event_id);
+    }
+
+    if (state) {
+      query += ` AND (source_state = $${paramIndex} OR notified_state = $${paramIndex})`;
+      params.push(state);
+      paramIndex++;
+    }
+
+    query += ' ORDER BY notification_sent_at DESC';
+
+    if (limit) {
+      query += ` LIMIT $${paramIndex++}`;
+      params.push(parseInt(limit));
+    }
+
+    const result = await pgPool.query(query, params);
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      notifications: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching border notifications:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch border notifications'
+    });
+  }
+});
+
+// Update border proximity configuration
+app.put('/api/border-notifications/config', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { distance_threshold_miles, auto_notify_enabled, notification_severity_threshold } = req.body;
+
+    const result = await pgPool.query(
+      `UPDATE border_proximity_config
+       SET distance_threshold_miles = COALESCE($1, distance_threshold_miles),
+           auto_notify_enabled = COALESCE($2, auto_notify_enabled),
+           notification_severity_threshold = COALESCE($3, notification_severity_threshold),
+           updated_at = NOW()
+       RETURNING *`,
+      [distance_threshold_miles, auto_notify_enabled, notification_severity_threshold]
+    );
+
+    res.json({
+      success: true,
+      config: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating border config:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update configuration'
+    });
+  }
+});
+
+// Get current border proximity configuration
+app.get('/api/border-notifications/config', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const result = await pgPool.query('SELECT * FROM border_proximity_config ORDER BY id DESC LIMIT 1');
+
+    res.json({
+      success: true,
+      config: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error fetching border config:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch configuration'
+    });
+  }
+});
+
+// ============================================================================
+// CONNECTED VEHICLE (CV) MESSAGES API - CCAI UC #5
+// ============================================================================
+
+// Generate TIM message for an event
+app.post('/api/cv/generate-tim', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { event } = req.body;
+
+    if (!event || !event.latitude || !event.longitude) {
+      return res.status(400).json({
+        success: false,
+        error: 'Event with latitude/longitude required'
+      });
+    }
+
+    // Generate TIM message using SQL function
+    const timResult = await pgPool.query(
+      `SELECT event_to_tim_message($1, $2, $3, $4, $5, $6, $7) as tim`,
+      [
+        event.id,
+        event.eventType || event.type || 'INCIDENT',
+        event.severity || 'medium',
+        event.description || event.title || '',
+        event.latitude,
+        event.longitude,
+        event.route || event.corridor || ''
+      ]
+    );
+
+    const timMessage = timResult.rows[0].tim;
+
+    // Find nearby RSUs
+    const rsuResult = await pgPool.query(
+      'SELECT * FROM find_nearby_rsus($1, $2, $3)',
+      [event.latitude, event.longitude, 5]
+    );
+
+    const targetRSUs = rsuResult.rows.map(r => r.rsu_id);
+
+    // Calculate expiration (default 1 hour)
+    const ttlMinutes = event.duration || 60;
+    const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+
+    // Store CV message
+    const messageResult = await pgPool.query(
+      `INSERT INTO cv_messages
+       (message_id, message_type, event_id, message_payload, broadcast_priority,
+        ttl_minutes, target_rsus, expires_at, active)
+       VALUES ($1, 'TIM', $2, $3, $4, $5, $6, $7, true)
+       RETURNING *`,
+      [
+        timMessage.messageId,
+        event.id,
+        timMessage,
+        event.severity === 'high' ? 9 : event.severity === 'medium' ? 5 : 3,
+        ttlMinutes,
+        targetRSUs,
+        expiresAt
+      ]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'TIM message generated',
+      cv_message: messageResult.rows[0],
+      tim_payload: timMessage,
+      target_rsus: rsuResult.rows,
+      metadata: {
+        sae_j2735_version: '2020',
+        broadcast_radius_miles: 5
+      }
+    });
+  } catch (error) {
+    console.error('Error generating TIM:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate TIM message'
+    });
+  }
+});
+
+// Get all active CV messages
+app.get('/api/cv/messages', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { active_only, message_type, limit } = req.query;
+
+    let query = 'SELECT * FROM cv_messages WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    if (active_only === 'true') {
+      query += ' AND active = true AND expires_at > NOW()';
+    }
+
+    if (message_type) {
+      query += ` AND message_type = $${paramIndex++}`;
+      params.push(message_type);
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    if (limit) {
+      query += ` LIMIT $${paramIndex++}`;
+      params.push(parseInt(limit));
+    }
+
+    const result = await pgPool.query(query, params);
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      messages: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching CV messages:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch CV messages'
+    });
+  }
+});
+
+// Get RSU inventory
+app.get('/api/cv/rsus', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { state, route, status } = req.query;
+
+    let query = 'SELECT * FROM rsu_inventory WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    if (state) {
+      query += ` AND state = $${paramIndex++}`;
+      params.push(state);
+    }
+
+    if (route) {
+      query += ` AND route = $${paramIndex++}`;
+      params.push(route);
+    }
+
+    if (status) {
+      query += ` AND status = $${paramIndex++}`;
+      params.push(status);
+    } else {
+      query += ' AND status = \'active\'';
+    }
+
+    query += ' ORDER BY state, route, rsu_id';
+
+    const result = await pgPool.query(query, params);
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      rsus: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching RSUs:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch RSU inventory'
+    });
+  }
+});
+
+// Broadcast TIM message to RSUs
+app.post('/api/cv/broadcast/:messageId', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { messageId } = req.params;
+
+    // Get CV message
+    const messageResult = await pgPool.query(
+      'SELECT * FROM cv_messages WHERE message_id = $1',
+      [messageId]
+    );
+
+    if (messageResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'CV message not found'
+      });
+    }
+
+    const cvMessage = messageResult.rows[0];
+
+    // Update broadcast status
+    await pgPool.query(
+      'UPDATE cv_messages SET broadcast_status = $1, broadcast_at = NOW() WHERE message_id = $2',
+      ['broadcasting', messageId]
+    );
+
+    // Log transmissions to RSUs
+    const transmissions = [];
+    for (const rsuId of cvMessage.target_rsus || []) {
+      const rsuResult = await pgPool.query(
+        'SELECT * FROM rsu_inventory WHERE rsu_id = $1',
+        [rsuId]
+      );
+
+      if (rsuResult.rows.length > 0) {
+        const rsu = rsuResult.rows[0];
+
+        await pgPool.query(
+          `INSERT INTO cv_message_transmissions
+           (cv_message_id, rsu_id, rsu_location, transmission_status)
+           VALUES ($1, $2, $3, 'sent')`,
+          [cvMessage.id, rsuId, rsu.location]
+        );
+
+        transmissions.push({
+          rsu_id: rsuId,
+          location: rsu.location,
+          status: 'sent'
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'TIM message broadcast initiated',
+      message_id: messageId,
+      rsus_targeted: transmissions.length,
+      transmissions
+    });
+  } catch (error) {
+    console.error('Error broadcasting TIM:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to broadcast TIM message'
+    });
+  }
+});
+
+// Get CV message transmission log
+app.get('/api/cv/transmissions/:messageId', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const result = await pgPool.query(
+      `SELECT t.*, m.message_id, m.message_type
+       FROM cv_message_transmissions t
+       JOIN cv_messages m ON t.cv_message_id = m.id
+       WHERE m.message_id = $1
+       ORDER BY t.transmitted_at DESC`,
+      [req.params.messageId]
+    );
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      transmissions: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching transmissions:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch transmissions'
+    });
+  }
+});
+
+// ============================================================================
+// TRAVELER INFORMATION API - CCAI UC #4
+// ============================================================================
+
+// Middleware for API key authentication
+async function requireTravelerAPIKey(req, res, next) {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Service unavailable'
+    });
+  }
+
+  const apiKey = req.headers['x-api-key'] || req.query.api_key;
+
+  if (!apiKey) {
+    return res.status(401).json({
+      success: false,
+      error: 'API key required. Include X-API-Key header or api_key query parameter.'
+    });
+  }
+
+  try {
+    // Validate API key
+    const result = await pgPool.query(
+      `SELECT id, application_name, rate_limit_per_minute, rate_limit_per_day, scopes, is_active, expires_at
+       FROM traveler_api_keys
+       WHERE api_key = $1 AND is_active = true`,
+      [apiKey]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid API key'
+      });
+    }
+
+    const keyData = result.rows[0];
+
+    // Check expiration
+    if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
+      return res.status(401).json({
+        success: false,
+        error: 'API key expired'
+      });
+    }
+
+    // Check rate limits
+    const minuteOk = await pgPool.query('SELECT check_rate_limit($1, $2) as ok', [keyData.id, 'minute']);
+    const dayOk = await pgPool.query('SELECT check_rate_limit($1, $2) as ok', [keyData.id, 'day']);
+
+    if (!minuteOk.rows[0].ok) {
+      return res.status(429).json({
+        success: false,
+        error: 'Rate limit exceeded (per minute)',
+        limit: keyData.rate_limit_per_minute
+      });
+    }
+
+    if (!dayOk.rows[0].ok) {
+      return res.status(429).json({
+        success: false,
+        error: 'Rate limit exceeded (per day)',
+        limit: keyData.rate_limit_per_day
+      });
+    }
+
+    // Increment counters
+    await pgPool.query('SELECT increment_rate_limit($1, $2)', [keyData.id, 'minute']);
+    await pgPool.query('SELECT increment_rate_limit($1, $2)', [keyData.id, 'day']);
+
+    // Update last used
+    await pgPool.query(
+      'UPDATE traveler_api_keys SET last_used_at = NOW(), usage_count = usage_count + 1 WHERE id = $1',
+      [keyData.id]
+    );
+
+    // Attach key info to request
+    req.apiKeyId = keyData.id;
+    req.apiKeyName = keyData.application_name;
+    req.apiKeyScopes = keyData.scopes;
+
+    next();
+  } catch (error) {
+    console.error('API key validation error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Authentication error'
+    });
+  }
+}
+
+// Log API usage
+async function logAPIUsage(req, res, responseStatus, responseTime) {
+  if (!pgPool || !req.apiKeyId) return;
+
+  try {
+    await pgPool.query(
+      `INSERT INTO traveler_api_usage
+       (api_key_id, endpoint, method, request_ip, user_agent, query_params, response_status, response_time_ms)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        req.apiKeyId,
+        req.path,
+        req.method,
+        req.ip,
+        req.headers['user-agent'],
+        req.query,
+        responseStatus,
+        responseTime
+      ]
+    );
+  } catch (error) {
+    console.error('Error logging API usage:', error);
+  }
+}
+
+// Public traveler API endpoints (require API key)
+
+// GET /api/traveler/events - Get real-time events
+app.get('/api/traveler/events', requireTravelerAPIKey, async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    const { state, corridor, severity, lat, lon, radius, limit } = req.query;
+
+    // Use cached events if available
+    if (!eventsCache.data) {
+      return res.status(503).json({
+        success: false,
+        error: 'Event data temporarily unavailable'
+      });
+    }
+
+    let events = eventsCache.data.events || [];
+
+    // Apply filters
+    if (state) {
+      events = events.filter(e => e.state === state.toUpperCase());
+    }
+
+    if (corridor) {
+      events = events.filter(e =>
+        (e.route || e.corridor || '').toUpperCase().includes(corridor.toUpperCase())
+      );
+    }
+
+    if (severity) {
+      events = events.filter(e => e.severity === severity.toLowerCase());
+    }
+
+    // Geospatial filtering
+    if (lat && lon && radius) {
+      const userLat = parseFloat(lat);
+      const userLon = parseFloat(lon);
+      const radiusMiles = parseFloat(radius);
+
+      events = events.filter(e => {
+        if (!e.latitude || !e.longitude) return false;
+
+        // Haversine distance calculation
+        const R = 3959; // Earth radius in miles
+        const dLat = (e.latitude - userLat) * Math.PI / 180;
+        const dLon = (e.longitude - userLon) * Math.PI / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(userLat * Math.PI / 180) * Math.cos(e.latitude * Math.PI / 180) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distance = R * c;
+
+        return distance <= radiusMiles;
+      });
+    }
+
+    // Limit results
+    const resultLimit = Math.min(parseInt(limit) || 100, 500);
+    events = events.slice(0, resultLimit);
+
+    // Simplified response for travelers
+    const travelerEvents = events.map(e => ({
+      id: e.id,
+      type: e.eventType || e.type,
+      severity: e.severity,
+      title: e.title || e.headline,
+      description: e.description,
+      location: {
+        route: e.route || e.corridor,
+        state: e.state,
+        latitude: e.latitude,
+        longitude: e.longitude
+      },
+      impact: {
+        lanesAffected: e.lanesAffected,
+        closed: e.closed
+      },
+      timing: {
+        start: e.startTime || e.created_at,
+        end: e.endTime,
+        updated: e.updated_at || e.lastUpdated
+      }
+    }));
+
+    const responseTime = Date.now() - startTime;
+    logAPIUsage(req, res, 200, responseTime);
+
+    res.json({
+      success: true,
+      count: travelerEvents.length,
+      events: travelerEvents,
+      metadata: {
+        timestamp: new Date().toISOString(),
+        filters: { state, corridor, severity, lat, lon, radius },
+        api_version: '1.0'
+      }
+    });
+  } catch (error) {
+    console.error('Traveler API error:', error);
+    const responseTime = Date.now() - startTime;
+    logAPIUsage(req, res, 500, responseTime);
+
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+// GET /api/traveler/corridors - Get corridor information
+app.get('/api/traveler/corridors', requireTravelerAPIKey, async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    const { state } = req.query;
+
+    if (!eventsCache.data) {
+      return res.status(503).json({
+        success: false,
+        error: 'Data temporarily unavailable'
+      });
+    }
+
+    // Extract unique corridors from events
+    const corridorMap = new Map();
+
+    eventsCache.data.events.forEach(event => {
+      if (!state || event.state === state.toUpperCase()) {
+        const corridor = event.route || event.corridor;
+        if (corridor && corridor !== 'Unknown') {
+          if (!corridorMap.has(corridor)) {
+            corridorMap.set(corridor, {
+              name: corridor,
+              state: event.state,
+              activeEvents: 0,
+              highSeverityEvents: 0
+            });
+          }
+
+          const data = corridorMap.get(corridor);
+          data.activeEvents++;
+          if (event.severity === 'high') {
+            data.highSeverityEvents++;
+          }
+        }
+      }
+    });
+
+    const corridors = Array.from(corridorMap.values());
+
+    const responseTime = Date.now() - startTime;
+    logAPIUsage(req, res, 200, responseTime);
+
+    res.json({
+      success: true,
+      count: corridors.length,
+      corridors,
+      metadata: {
+        timestamp: new Date().toISOString(),
+        api_version: '1.0'
+      }
+    });
+  } catch (error) {
+    console.error('Traveler API error:', error);
+    const responseTime = Date.now() - startTime;
+    logAPIUsage(req, res, 500, responseTime);
+
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+// GET /api/traveler/status - API status and rate limit info
+app.get('/api/traveler/status', requireTravelerAPIKey, async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    if (!pgPool) {
+      return res.status(503).json({ success: false, error: 'Service unavailable' });
+    }
+
+    // Get rate limit usage
+    const minuteUsage = await pgPool.query(
+      `SELECT request_count FROM traveler_api_rate_limits
+       WHERE api_key_id = $1
+       AND window_start = DATE_TRUNC('minute', NOW())
+       AND window_type = 'minute'`,
+      [req.apiKeyId]
+    );
+
+    const dayUsage = await pgPool.query(
+      `SELECT request_count FROM traveler_api_rate_limits
+       WHERE api_key_id = $1
+       AND window_start = DATE_TRUNC('day', NOW())
+       AND window_type = 'day'`,
+      [req.apiKeyId]
+    );
+
+    const keyInfo = await pgPool.query(
+      'SELECT rate_limit_per_minute, rate_limit_per_day, usage_count FROM traveler_api_keys WHERE id = $1',
+      [req.apiKeyId]
+    );
+
+    const responseTime = Date.now() - startTime;
+    logAPIUsage(req, res, 200, responseTime);
+
+    res.json({
+      success: true,
+      application: req.apiKeyName,
+      rate_limits: {
+        per_minute: {
+          limit: keyInfo.rows[0].rate_limit_per_minute,
+          used: minuteUsage.rows[0]?.request_count || 0,
+          remaining: keyInfo.rows[0].rate_limit_per_minute - (minuteUsage.rows[0]?.request_count || 0)
+        },
+        per_day: {
+          limit: keyInfo.rows[0].rate_limit_per_day,
+          used: dayUsage.rows[0]?.request_count || 0,
+          remaining: keyInfo.rows[0].rate_limit_per_day - (dayUsage.rows[0]?.request_count || 0)
+        }
+      },
+      total_requests: keyInfo.rows[0].usage_count,
+      scopes: req.apiKeyScopes,
+      api_version: '1.0'
+    });
+  } catch (error) {
+    console.error('Traveler API error:', error);
+    const responseTime = Date.now() - startTime;
+    logAPIUsage(req, res, 500, responseTime);
+
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+// ============================================================================
+// PERFORMANCE ANALYTICS API - CCAI UC #8, #11
+// ============================================================================
+
+// Get corridor performance daily metrics
+app.get('/api/analytics/corridor/:corridor', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { corridor } = req.params;
+    const { state, start_date, end_date, days } = req.query;
+
+    let query = 'SELECT * FROM corridor_performance_daily WHERE corridor = $1';
+    const params = [corridor];
+    let paramIndex = 2;
+
+    if (state) {
+      query += ` AND state = $${paramIndex++}`;
+      params.push(state);
+    }
+
+    if (start_date) {
+      query += ` AND date >= $${paramIndex++}`;
+      params.push(start_date);
+    }
+
+    if (end_date) {
+      query += ` AND date <= $${paramIndex++}`;
+      params.push(end_date);
+    }
+
+    query += ' ORDER BY date DESC';
+
+    if (days) {
+      query += ` LIMIT $${paramIndex++}`;
+      params.push(parseInt(days));
+    }
+
+    const result = await pgPool.query(query, params);
+
+    // Calculate summary statistics
+    const summary = result.rows.length > 0 ? {
+      total_events: result.rows.reduce((sum, row) => sum + (row.total_events || 0), 0),
+      avg_events_per_day: Math.round(result.rows.reduce((sum, row) => sum + (row.total_events || 0), 0) / result.rows.length),
+      high_severity_events: result.rows.reduce((sum, row) => sum + (row.high_severity_events || 0), 0),
+      avg_data_quality: (result.rows.reduce((sum, row) => sum + (row.data_quality_score || 0), 0) / result.rows.length).toFixed(2),
+      avg_uptime: (result.rows.reduce((sum, row) => sum + (row.uptime_percentage || 100), 0) / result.rows.length).toFixed(2)
+    } : null;
+
+    res.json({
+      success: true,
+      corridor,
+      count: result.rows.length,
+      summary,
+      daily_metrics: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching corridor analytics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch corridor analytics'
+    });
+  }
+});
+
+// Get state performance analytics
+app.get('/api/analytics/state/:state', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { state } = req.params;
+    const { days } = req.query;
+
+    const daysLimit = parseInt(days) || 30;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysLimit);
+
+    const result = await pgPool.query(
+      `SELECT
+         corridor,
+         SUM(total_events) as total_events,
+         SUM(high_severity_events) as high_severity_events,
+         SUM(freight_events) as freight_events,
+         SUM(construction_events) as construction_events,
+         SUM(weather_events) as weather_events,
+         SUM(crash_events) as crash_events,
+         AVG(uptime_percentage) as avg_uptime,
+         AVG(data_quality_score) as avg_data_quality,
+         COUNT(*) as days_tracked
+       FROM corridor_performance_daily
+       WHERE state = $1
+         AND date >= $2
+       GROUP BY corridor
+       ORDER BY total_events DESC`,
+      [state, startDate.toISOString().split('T')[0]]
+    );
+
+    // State-wide summary
+    const statewide = result.rows.length > 0 ? {
+      total_corridors: result.rows.length,
+      total_events: result.rows.reduce((sum, row) => sum + (row.total_events || 0), 0),
+      high_severity_events: result.rows.reduce((sum, row) => sum + (row.high_severity_events || 0), 0),
+      avg_uptime: (result.rows.reduce((sum, row) => sum + (row.avg_uptime || 100), 0) / result.rows.length).toFixed(2),
+      avg_data_quality: (result.rows.reduce((sum, row) => sum + (row.avg_data_quality || 0), 0) / result.rows.length).toFixed(2)
+    } : null;
+
+    res.json({
+      success: true,
+      state,
+      days: daysLimit,
+      statewide_summary: statewide,
+      corridor_breakdown: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching state analytics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch state analytics'
+    });
+  }
+});
+
+// Get performance trends
+app.get('/api/analytics/trends', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { corridor, state, metric, days } = req.query;
+
+    const daysLimit = parseInt(days) || 30;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysLimit);
+
+    let query = `
+      SELECT
+        date,
+        corridor,
+        state,
+        total_events,
+        high_severity_events,
+        freight_events,
+        uptime_percentage,
+        data_quality_score
+      FROM corridor_performance_daily
+      WHERE date >= $1
+    `;
+    const params = [startDate.toISOString().split('T')[0]];
+    let paramIndex = 2;
+
+    if (corridor) {
+      query += ` AND corridor = $${paramIndex++}`;
+      params.push(corridor);
+    }
+
+    if (state) {
+      query += ` AND state = $${paramIndex++}`;
+      params.push(state);
+    }
+
+    query += ' ORDER BY date ASC';
+
+    const result = await pgPool.query(query, params);
+
+    // Calculate trend (simple linear regression slope)
+    const calculateTrend = (data, metricKey) => {
+      if (data.length < 2) return null;
+
+      const n = data.length;
+      const xValues = data.map((_, i) => i);
+      const yValues = data.map(row => row[metricKey] || 0);
+
+      const sumX = xValues.reduce((a, b) => a + b, 0);
+      const sumY = yValues.reduce((a, b) => a + b, 0);
+      const sumXY = xValues.reduce((sum, x, i) => sum + x * yValues[i], 0);
+      const sumX2 = xValues.reduce((sum, x) => sum + x * x, 0);
+
+      const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+      const direction = slope > 0.1 ? 'increasing' : slope < -0.1 ? 'decreasing' : 'stable';
+
+      return { slope: slope.toFixed(4), direction };
+    };
+
+    const trends = {
+      total_events: calculateTrend(result.rows, 'total_events'),
+      high_severity_events: calculateTrend(result.rows, 'high_severity_events'),
+      freight_events: calculateTrend(result.rows, 'freight_events'),
+      uptime_percentage: calculateTrend(result.rows, 'uptime_percentage'),
+      data_quality_score: calculateTrend(result.rows, 'data_quality_score')
+    };
+
+    res.json({
+      success: true,
+      days: daysLimit,
+      data_points: result.rows.length,
+      trends,
+      daily_data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching trends:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch trends'
+    });
+  }
+});
+
+// Get multi-corridor comparison
+app.get('/api/analytics/comparison', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { corridors, days } = req.query;
+
+    if (!corridors) {
+      return res.status(400).json({
+        success: false,
+        error: 'corridors parameter is required (comma-separated list)'
+      });
+    }
+
+    const corridorList = corridors.split(',').map(c => c.trim());
+    const daysLimit = parseInt(days) || 30;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysLimit);
+
+    const result = await pgPool.query(
+      `SELECT
+         corridor,
+         state,
+         SUM(total_events) as total_events,
+         SUM(high_severity_events) as high_severity_events,
+         SUM(freight_events) as freight_events,
+         AVG(uptime_percentage) as avg_uptime,
+         AVG(data_quality_score) as avg_data_quality,
+         COUNT(*) as days_tracked
+       FROM corridor_performance_daily
+       WHERE corridor = ANY($1)
+         AND date >= $2
+       GROUP BY corridor, state
+       ORDER BY total_events DESC`,
+      [corridorList, startDate.toISOString().split('T')[0]]
+    );
+
+    res.json({
+      success: true,
+      corridors_requested: corridorList,
+      corridors_found: result.rows.length,
+      days: daysLimit,
+      comparison: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching corridor comparison:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch corridor comparison'
+    });
+  }
+});
+
+// Get performance summary (executive dashboard)
+app.get('/api/analytics/summary', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { days } = req.query;
+    const daysLimit = parseInt(days) || 7;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysLimit);
+
+    // Get overall performance
+    const performanceResult = await pgPool.query(
+      `SELECT
+         COUNT(DISTINCT corridor) as corridors_tracked,
+         COUNT(DISTINCT state) as states_tracked,
+         SUM(total_events) as total_events,
+         SUM(high_severity_events) as high_severity_events,
+         SUM(medium_severity_events) as medium_severity_events,
+         SUM(low_severity_events) as low_severity_events,
+         SUM(freight_events) as freight_events,
+         SUM(construction_events) as construction_events,
+         SUM(weather_events) as weather_events,
+         SUM(crash_events) as crash_events,
+         AVG(uptime_percentage) as avg_uptime,
+         AVG(data_quality_score) as avg_data_quality
+       FROM corridor_performance_daily
+       WHERE date >= $1`,
+      [startDate.toISOString().split('T')[0]]
+    );
+
+    // Get top corridors by event volume
+    const topCorridorsResult = await pgPool.query(
+      `SELECT
+         corridor,
+         state,
+         SUM(total_events) as total_events,
+         SUM(high_severity_events) as high_severity_events
+       FROM corridor_performance_daily
+       WHERE date >= $1
+       GROUP BY corridor, state
+       ORDER BY total_events DESC
+       LIMIT 10`,
+      [startDate.toISOString().split('T')[0]]
+    );
+
+    res.json({
+      success: true,
+      period: `Last ${daysLimit} days`,
+      start_date: startDate.toISOString().split('T')[0],
+      end_date: new Date().toISOString().split('T')[0],
+      overall_performance: performanceResult.rows[0],
+      top_corridors: topCorridorsResult.rows
+    });
+  } catch (error) {
+    console.error('Error fetching performance summary:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch performance summary'
+    });
+  }
+});
+
+// ============================================================================
+// TRAVEL TIME RELIABILITY INDEX (TTRI) API - CCAI UC #7
+// ============================================================================
+
+// Get TTRI metrics for a corridor
+app.get('/api/ttri/corridor/:corridor', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { corridor } = req.params;
+    const { state, months } = req.query;
+
+    let query = 'SELECT * FROM ttri_metrics WHERE corridor = $1';
+    const params = [corridor];
+    let paramIndex = 2;
+
+    if (state) {
+      query += ` AND state = $${paramIndex++}`;
+      params.push(state);
+    }
+
+    query += ' ORDER BY month DESC';
+
+    if (months) {
+      query += ` LIMIT $${paramIndex++}`;
+      params.push(parseInt(months));
+    }
+
+    const result = await pgPool.query(query, params);
+
+    res.json({
+      success: true,
+      corridor,
+      count: result.rows.length,
+      metrics: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching TTRI metrics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch TTRI metrics'
+    });
+  }
+});
+
+// Get all corridors with TTRI data
+app.get('/api/ttri/corridors', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const result = await pgPool.query(
+      `SELECT
+         corridor,
+         state,
+         COUNT(*) as months_tracked,
+         AVG(ttri_score) as avg_ttri_score,
+         AVG(planning_time_index) as avg_pti,
+         MAX(month) as latest_month,
+         MODE() WITHIN GROUP (ORDER BY reliability_rating) as typical_rating
+       FROM ttri_metrics
+       GROUP BY corridor, state
+       ORDER BY corridor, state`
+    );
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      corridors: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching TTRI corridors:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch TTRI corridors'
+    });
+  }
+});
+
+// Calculate TTRI for a specific month
+app.post('/api/ttri/calculate', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { corridor, state, month } = req.body;
+
+    if (!corridor || !month) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: corridor, month'
+      });
+    }
+
+    const result = await pgPool.query(
+      'SELECT * FROM calculate_ttri_for_month($1, $2, $3)',
+      [corridor, state, month]
+    );
+
+    if (result.rows.length === 0 || !result.rows[0].ttri_score) {
+      return res.json({
+        success: true,
+        calculated: false,
+        message: 'No travel time data available for this corridor/month'
+      });
+    }
+
+    res.json({
+      success: true,
+      calculated: true,
+      corridor,
+      state,
+      month,
+      ttri: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error calculating TTRI:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to calculate TTRI'
+    });
+  }
+});
+
+// Aggregate monthly TTRI (admin only)
+app.post('/api/ttri/aggregate-monthly', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const result = await pgPool.query('SELECT aggregate_monthly_ttri() as rows_created');
+
+    res.json({
+      success: true,
+      message: 'Monthly TTRI aggregation completed',
+      corridors_updated: result.rows[0].rows_created
+    });
+  } catch (error) {
+    console.error('Error aggregating TTRI:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to aggregate TTRI'
+    });
+  }
+});
+
+// Get travel time observations
+app.get('/api/ttri/observations', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { corridor, state, start_date, end_date, limit } = req.query;
+
+    let query = 'SELECT * FROM travel_time_observations WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    if (corridor) {
+      query += ` AND corridor = $${paramIndex++}`;
+      params.push(corridor);
+    }
+
+    if (state) {
+      query += ` AND state = $${paramIndex++}`;
+      params.push(state);
+    }
+
+    if (start_date) {
+      query += ` AND observation_timestamp >= $${paramIndex++}`;
+      params.push(start_date);
+    }
+
+    if (end_date) {
+      query += ` AND observation_timestamp <= $${paramIndex++}`;
+      params.push(end_date);
+    }
+
+    query += ' ORDER BY observation_timestamp DESC';
+
+    if (limit) {
+      query += ` LIMIT $${paramIndex++}`;
+      params.push(parseInt(limit));
+    } else {
+      query += ' LIMIT 1000';
+    }
+
+    const result = await pgPool.query(query, params);
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      observations: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching travel time observations:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch observations'
+    });
+  }
+});
+
+// ============================================================================
+// AUTO-DMS ACTIVATION API - CCAI UC #2 Enhancement
+// ============================================================================
+
+// Function to auto-activate DMS messages for high-severity events
+async function autoActivateDMS(event) {
+  if (!pgPool) return null;
+
+  try {
+    const { id, eventType, severity, description, title, route, location, state } = event;
+
+    // Find matching auto-DMS rule
+    const ruleResult = await pgPool.query(
+      `SELECT * FROM find_auto_dms_rule($1, $2, $3, $4)`,
+      [eventType || 'INCIDENT', severity || 'medium', eventType || '', description || title || '']
+    );
+
+    if (ruleResult.rows.length === 0) {
+      console.log(`  ℹ️  No auto-DMS rule matched for event ${id}`);
+      return null;
+    }
+
+    const rule = ruleResult.rows[0];
+    console.log(`  🎯 Matched auto-DMS rule: "${rule.rule_name}" (template: ${rule.template_name})`);
+
+    // Extract variable values from event
+    const variablesResult = await pgPool.query(
+      `SELECT extract_dms_variables($1, $2, $3, $4) as variables`,
+      [description || title || '', location || '', route || '', rule.variable_mapping]
+    );
+
+    const variableValues = variablesResult.rows[0].variables;
+
+    // Get the template
+    const templateResult = await pgPool.query(
+      'SELECT * FROM dms_message_templates WHERE id = $1',
+      [rule.template_id]
+    );
+
+    if (templateResult.rows.length === 0) {
+      console.log(`  ❌ Template ${rule.template_id} not found`);
+      return null;
+    }
+
+    const template = templateResult.rows[0];
+    let final_message = template.message_text;
+
+    // Substitute variables
+    Object.entries(variableValues).forEach(([varName, varValue]) => {
+      final_message = final_message.replace(`{{${varName}}}`, varValue);
+    });
+
+    // Create activation record
+    const activationResult = await pgPool.query(
+      `INSERT INTO dms_activations
+       (template_id, event_id, activated_by, states_notified, final_message, auto_activated)
+       VALUES ($1, $2, $3, $4, $5, true)
+       RETURNING *`,
+      [rule.template_id, id, 'AUTO', rule.notify_states ? [state] : [], final_message]
+    );
+
+    // Update rule activation count
+    await pgPool.query(
+      'UPDATE auto_dms_rules SET activation_count = activation_count + 1, last_activated = NOW() WHERE id = $1',
+      [rule.rule_id]
+    );
+
+    // Update template usage count
+    await pgPool.query(
+      'UPDATE dms_message_templates SET usage_count = usage_count + 1 WHERE id = $1',
+      [rule.template_id]
+    );
+
+    console.log(`  ✅ Auto-activated DMS: "${final_message}"`);
+
+    return {
+      activation: activationResult.rows[0],
+      rule: rule,
+      message: final_message
+    };
+  } catch (error) {
+    console.error('Error in auto-DMS activation:', error);
+    return null;
+  }
+}
+
+// Endpoint to manually trigger auto-DMS for an event
+app.post('/api/dms/auto-activate', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { event } = req.body;
+
+    if (!event) {
+      return res.status(400).json({
+        success: false,
+        error: 'Event object is required'
+      });
+    }
+
+    const result = await autoActivateDMS(event);
+
+    if (result) {
+      res.json({
+        success: true,
+        activated: true,
+        ...result
+      });
+    } else {
+      res.json({
+        success: true,
+        activated: false,
+        message: 'No matching auto-DMS rule found'
+      });
+    }
+  } catch (error) {
+    console.error('Error in auto-DMS activation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to auto-activate DMS'
+    });
+  }
+});
+
+// Get auto-DMS rules
+app.get('/api/dms/auto-rules', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const result = await pgPool.query(
+      `SELECT r.*, t.template_name, t.template_category
+       FROM auto_dms_rules r
+       LEFT JOIN dms_message_templates t ON r.template_id = t.id
+       ORDER BY r.priority DESC, r.rule_name`
+    );
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      rules: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching auto-DMS rules:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch auto-DMS rules'
+    });
+  }
+});
+
+// Update auto-DMS rule
+app.put('/api/dms/auto-rules/:id', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { enabled, priority } = req.body;
+
+    const result = await pgPool.query(
+      `UPDATE auto_dms_rules
+       SET enabled = COALESCE($1, enabled),
+           priority = COALESCE($2, priority)
+       WHERE id = $3
+       RETURNING *`,
+      [enabled, priority, req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Rule not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      rule: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating auto-DMS rule:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update rule'
+    });
+  }
+});
+
+// ============================================================================
+// DMS MESSAGING TEMPLATES API - CCAI UC #2
+// ============================================================================
+
+// GET all DMS message templates
+app.get('/api/dms/templates', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { category, approval_status, state } = req.query;
+
+    let query = 'SELECT * FROM dms_message_templates';
+    const conditions = [];
+    const params = [];
+    let paramIndex = 1;
+
+    if (category) {
+      conditions.push(`template_category = $${paramIndex++}`);
+      params.push(category);
+    }
+
+    if (approval_status) {
+      conditions.push(`approval_status = $${paramIndex++}`);
+      params.push(approval_status);
+    }
+
+    if (state) {
+      conditions.push(`$${paramIndex++} = ANY(states_approved)`);
+      params.push(state);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' ORDER BY template_category, template_name';
+
+    const result = await pgPool.query(query, params);
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      templates: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching DMS templates:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch DMS templates'
+    });
+  }
+});
+
+// GET specific DMS template with variables
+app.get('/api/dms/templates/:id', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const templateResult = await pgPool.query(
+      'SELECT * FROM dms_message_templates WHERE id = $1',
+      [req.params.id]
+    );
+
+    if (templateResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Template not found'
+      });
+    }
+
+    const variablesResult = await pgPool.query(
+      'SELECT * FROM dms_message_variables WHERE template_id = $1 ORDER BY variable_name',
+      [req.params.id]
+    );
+
+    res.json({
+      success: true,
+      template: templateResult.rows[0],
+      variables: variablesResult.rows
+    });
+  } catch (error) {
+    console.error('Error fetching DMS template:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch DMS template'
+    });
+  }
+});
+
+// POST create new DMS template
+app.post('/api/dms/templates', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const {
+      template_name,
+      template_category,
+      message_text,
+      char_limit,
+      mutcd_compliant,
+      activation_trigger,
+      variables
+    } = req.body;
+
+    if (!template_name || !template_category || !message_text) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: template_name, template_category, message_text'
+      });
+    }
+
+    const client = await pgPool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Insert template
+      const templateResult = await client.query(
+        `INSERT INTO dms_message_templates
+         (template_name, template_category, message_text, char_limit, mutcd_compliant,
+          activation_trigger, created_by, approval_status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft')
+         RETURNING *`,
+        [template_name, template_category, message_text, char_limit || 3,
+         mutcd_compliant !== false, activation_trigger, req.stateKey || req.username]
+      );
+
+      const newTemplate = templateResult.rows[0];
+
+      // Insert variables if provided
+      if (variables && Array.isArray(variables)) {
+        for (const variable of variables) {
+          await client.query(
+            `INSERT INTO dms_message_variables
+             (template_id, variable_name, variable_type, example_value, required, validation_regex)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [newTemplate.id, variable.variable_name, variable.variable_type,
+             variable.example_value, variable.required || false, variable.validation_regex]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+
+      res.status(201).json({
+        success: true,
+        message: 'DMS template created',
+        template: newTemplate
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error creating DMS template:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create DMS template'
+    });
+  }
+});
+
+// POST activate DMS message
+app.post('/api/dms/activate', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const {
+      template_id,
+      dms_device_id,
+      event_id,
+      variable_values,
+      custom_message,
+      states_to_notify
+    } = req.body;
+
+    if (!template_id && !custom_message) {
+      return res.status(400).json({
+        success: false,
+        error: 'Either template_id or custom_message is required'
+      });
+    }
+
+    let final_message = custom_message;
+
+    // If using template, substitute variables
+    if (template_id) {
+      const templateResult = await pgPool.query(
+        'SELECT * FROM dms_message_templates WHERE id = $1',
+        [template_id]
+      );
+
+      if (templateResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'Template not found'
+        });
+      }
+
+      const template = templateResult.rows[0];
+      final_message = template.message_text;
+
+      // Substitute variables
+      if (variable_values) {
+        for (const [varName, varValue] of Object.entries(variable_values)) {
+          final_message = final_message.replace(`{{${varName}}}`, varValue);
+        }
+      }
+
+      // Update template usage statistics
+      await pgPool.query(
+        'UPDATE dms_message_templates SET usage_count = usage_count + 1 WHERE id = $1',
+        [template_id]
+      );
+    }
+
+    // Create activation record
+    const activationResult = await pgPool.query(
+      `INSERT INTO dms_activations
+       (template_id, dms_device_id, event_id, activated_by, states_notified,
+        custom_message, final_message, auto_activated)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, false)
+       RETURNING *`,
+      [template_id, dms_device_id, event_id, req.stateKey || req.username,
+       states_to_notify || [], custom_message, final_message]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'DMS message activated',
+      activation: activationResult.rows[0],
+      final_message
+    });
+  } catch (error) {
+    console.error('Error activating DMS message:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to activate DMS message'
+    });
+  }
+});
+
+// GET DMS activation history
+app.get('/api/dms/activations', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { event_id, dms_device_id, limit } = req.query;
+
+    let query = `
+      SELECT a.*, t.template_name, t.template_category
+      FROM dms_activations a
+      LEFT JOIN dms_message_templates t ON a.template_id = t.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
+
+    if (event_id) {
+      query += ` AND a.event_id = $${paramIndex++}`;
+      params.push(event_id);
+    }
+
+    if (dms_device_id) {
+      query += ` AND a.dms_device_id = $${paramIndex++}`;
+      params.push(dms_device_id);
+    }
+
+    query += ' ORDER BY a.activated_at DESC';
+
+    if (limit) {
+      query += ` LIMIT $${paramIndex++}`;
+      params.push(parseInt(limit));
+    }
+
+    const result = await pgPool.query(query, params);
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      activations: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching DMS activations:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch DMS activations'
+    });
+  }
+});
+
+// POST deactivate DMS message
+app.post('/api/dms/deactivate/:activationId', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { effectiveness_rating } = req.body;
+
+    const result = await pgPool.query(
+      `UPDATE dms_activations
+       SET deactivated_at = NOW(),
+           effectiveness_rating = $1
+       WHERE id = $2
+       RETURNING *`,
+      [effectiveness_rating, req.params.activationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Activation not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'DMS message deactivated',
+      activation: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error deactivating DMS message:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to deactivate DMS message'
+    });
+  }
+});
+
+// GET templates pending approval for state
+app.get('/api/dms/templates/pending-approval/:stateCode', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const result = await pgPool.query(
+      `SELECT t.*, ta.approval_status as state_approval_status, ta.comments
+       FROM dms_message_templates t
+       JOIN dms_template_approvals ta ON t.id = ta.template_id
+       WHERE ta.state_code = $1
+       AND ta.approval_status = 'pending'
+       ORDER BY t.created_at DESC`,
+      [req.params.stateCode]
+    );
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      templates: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching pending approvals:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch pending approvals'
+    });
+  }
+});
+
+// POST approve template for state
+app.post('/api/dms/templates/:templateId/approve', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { state_code, approval_status, comments } = req.body;
+
+    if (!state_code || !approval_status) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: state_code, approval_status'
+      });
+    }
+
+    const result = await pgPool.query(
+      `UPDATE dms_template_approvals
+       SET approval_status = $1,
+           approval_date = NOW(),
+           approver_name = $2,
+           comments = $3
+       WHERE template_id = $4 AND state_code = $5
+       RETURNING *`,
+      [approval_status, req.stateKey || req.username, comments,
+       req.params.templateId, state_code]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Approval record not found'
+      });
+    }
+
+    // If approved, add state to approved list
+    if (approval_status === 'approved') {
+      await pgPool.query(
+        `UPDATE dms_message_templates
+         SET states_approved = array_append(states_approved, $1)
+         WHERE id = $2 AND NOT ($1 = ANY(states_approved))`,
+        [state_code, req.params.templateId]
+      );
+    }
+
+    res.json({
+      success: true,
+      message: `Template ${approval_status} for ${state_code}`,
+      approval: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error approving template:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to approve template'
+    });
+  }
+});
+
+// ============================================================================
 // IPAWS ALERT GENERATION API - Wireless Emergency Alerts for Transportation
 // ============================================================================
 const ipawsService = require('./services/ipaws-alert-service');
@@ -9073,7 +11458,7 @@ const populationService = require('./services/population-density-service');
 // POST /api/ipaws/generate - Generate IPAWS alert for an event
 app.post('/api/ipaws/generate', async (req, res) => {
   try {
-    const { eventId, event } = req.body;
+    const { eventId, event, bufferMiles, corridorLengthMiles, avoidUrbanAreas } = req.body;
 
     if (!event && !eventId) {
       return res.status(400).json({
@@ -9102,8 +11487,13 @@ app.post('/api/ipaws/generate', async (req, res) => {
       }
     }
 
-    // Generate alert package
-    const alert = await ipawsService.generateAlert(eventData);
+    // Generate alert package with optional geofence adjustment parameters
+    const options = {};
+    if (bufferMiles !== undefined) options.bufferMiles = bufferMiles;
+    if (corridorLengthMiles !== undefined) options.corridorLengthMiles = corridorLengthMiles;
+    if (avoidUrbanAreas !== undefined) options.avoidUrbanAreas = avoidUrbanAreas;
+
+    const alert = await ipawsService.generateAlert(eventData, options);
 
     res.json(alert);
   } catch (error) {
