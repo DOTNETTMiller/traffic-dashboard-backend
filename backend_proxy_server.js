@@ -22,6 +22,7 @@ const { OpenAI } = require('openai');
 const IFCParser = require('./utils/ifc-parser');
 const multer = require('multer');
 const { Pool } = require('pg');
+const { filterValidGeometries, getGeometryStats } = require('./services/geometry-validator');
 
 // Create a single PostGIS connection pool for the entire application
 const pgPool = process.env.DATABASE_URL ? new Pool({
@@ -4275,10 +4276,17 @@ app.get('/api/events', async (req, res) => {
     const stateFilter = req.query.state;
     if (stateFilter) {
       const stateFilterLower = stateFilter.toLowerCase();
-      const filteredEvents = eventsCache.data.events.filter(event => {
+      let filteredEvents = eventsCache.data.events.filter(event => {
         const eventState = (event.state || '').toLowerCase();
         return eventState.includes(stateFilterLower) || stateFilterLower.includes(eventState);
       });
+
+      // Apply geometry validation
+      const beforeCount = filteredEvents.length;
+      filteredEvents = filterValidGeometries(filteredEvents);
+      if (filteredEvents.length < beforeCount) {
+        console.log(`🔧 Geometry filter: ${beforeCount} → ${filteredEvents.length} events (removed ${beforeCount - filteredEvents.length} invalid geometries)`);
+      }
 
       return res.json({
         success: true,
@@ -4289,7 +4297,18 @@ app.get('/api/events', async (req, res) => {
       });
     }
 
-    return res.json(eventsCache.data);
+    // Apply geometry validation to all events
+    const beforeCount = eventsCache.data.events.length;
+    const validatedEvents = filterValidGeometries(eventsCache.data.events);
+    if (validatedEvents.length < beforeCount) {
+      console.log(`🔧 Geometry filter: ${beforeCount} → ${validatedEvents.length} events (removed ${beforeCount - validatedEvents.length} invalid geometries)`);
+    }
+
+    return res.json({
+      ...eventsCache.data,
+      events: validatedEvents,
+      totalEvents: validatedEvents.length
+    });
   }
 
   // Cache is empty or too stale, fetch synchronously
@@ -4300,10 +4319,17 @@ app.get('/api/events', async (req, res) => {
   const stateFilter = req.query.state;
   if (stateFilter) {
     const stateFilterLower = stateFilter.toLowerCase();
-    const filteredEvents = data.events.filter(event => {
+    let filteredEvents = data.events.filter(event => {
       const eventState = (event.state || '').toLowerCase();
       return eventState.includes(stateFilterLower) || stateFilterLower.includes(eventState);
     });
+
+    // Apply geometry validation
+    const beforeCount = filteredEvents.length;
+    filteredEvents = filterValidGeometries(filteredEvents);
+    if (filteredEvents.length < beforeCount) {
+      console.log(`🔧 Geometry filter (sync): ${beforeCount} → ${filteredEvents.length} events (removed ${beforeCount - filteredEvents.length} invalid geometries)`);
+    }
 
     return res.json({
       success: true,
@@ -4314,7 +4340,18 @@ app.get('/api/events', async (req, res) => {
     });
   }
 
-  res.json(data);
+  // Apply geometry validation to all events
+  const beforeCount = data.events.length;
+  const validatedEvents = filterValidGeometries(data.events);
+  if (validatedEvents.length < beforeCount) {
+    console.log(`🔧 Geometry filter (sync): ${beforeCount} → ${validatedEvents.length} events (removed ${beforeCount - validatedEvents.length} invalid geometries)`);
+  }
+
+  res.json({
+    ...data,
+    events: validatedEvents,
+    totalEvents: validatedEvents.length
+  });
 });
 
 // Endpoint to fetch from a specific state

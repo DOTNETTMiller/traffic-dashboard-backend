@@ -6,7 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { isNearBorder } from '../utils/borderProximity';
-import { analyzePolyline } from '../utils/polylineDiagnostics';
+import { analyzePolyline, validateAndFixGeometry } from '../utils/polylineDiagnostics';
 import ParkingLayer from './ParkingLayer';
 import { config } from '../config';
 import InterchangeLayer from './InterchangeLayer';
@@ -491,21 +491,24 @@ export default function TrafficMap({
       .catch(err => console.error('Error loading geofences:', err));
   }, []);
 
-  // Filter out events without valid coordinates
-  const validEvents = events.filter(e => {
-    const lat = parseFloat(e.latitude);
-    const lng = parseFloat(e.longitude);
-    return (
-      !isNaN(lat) &&
-      !isNaN(lng) &&
-      lat !== 0 &&
-      lng !== 0 &&
-      lat >= -90 &&
-      lat <= 90 &&
-      lng >= -180 &&
-      lng <= 180
-    );
-  });
+  // Filter out events without valid coordinates and validate/fix geometries
+  const validEvents = events
+    .filter(e => {
+      const lat = parseFloat(e.latitude);
+      const lng = parseFloat(e.longitude);
+      return (
+        !isNaN(lat) &&
+        !isNaN(lng) &&
+        lat !== 0 &&
+        lng !== 0 &&
+        lat >= -90 &&
+        lat <= 90 &&
+        lng >= -180 &&
+        lng <= 180
+      );
+    })
+    .map(e => validateAndFixGeometry(e))
+    .filter(e => e !== null);
 
   // Optionally filter to interstate events only
   let displayEvents = interstateOnly ? validEvents.filter(isInterstateEvent) : validEvents;
