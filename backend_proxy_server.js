@@ -22470,20 +22470,40 @@ app.get('/api/digital-infrastructure/models/:modelId', async (req, res) => {
       ? 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 AND av_critical = true'
       : 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? AND av_critical = 1';
 
+    // Get element type breakdown
+    const byTypeQuery = db.isPostgres
+      ? 'SELECT ifc_type, COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 GROUP BY ifc_type ORDER BY count DESC'
+      : 'SELECT ifc_type, COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? GROUP BY ifc_type ORDER BY count DESC';
+
     let v2xCount = 0;
     let avCount = 0;
+    let byType = {};
 
     try {
       if (db.isPostgres) {
         const v2xResult = await db.db.query(v2xQuery, [modelId]);
         const avResult = await db.db.query(avQuery, [modelId]);
+        const byTypeResult = await db.db.query(byTypeQuery, [modelId]);
+
         v2xCount = parseInt(v2xResult.rows[0]?.count || 0);
         avCount = parseInt(avResult.rows[0]?.count || 0);
+
+        // Convert array to object
+        byTypeResult.rows.forEach(row => {
+          byType[row.ifc_type] = parseInt(row.count);
+        });
       } else {
         const v2xResult = db.db.prepare(v2xQuery).get(modelId);
         const avResult = db.db.prepare(avQuery).get(modelId);
+        const byTypeResult = db.db.prepare(byTypeQuery).all(modelId);
+
         v2xCount = parseInt(v2xResult?.count || 0);
         avCount = parseInt(avResult?.count || 0);
+
+        // Convert array to object
+        byTypeResult.forEach(row => {
+          byType[row.ifc_type] = parseInt(row.count);
+        });
       }
     } catch (err) {
       console.warn('⚠️  Could not query infrastructure_elements:', err.message);
@@ -22494,7 +22514,7 @@ app.get('/api/digital-infrastructure/models/:modelId', async (req, res) => {
       success: true,
       model: {
         ...model,
-        by_type: {},
+        by_type: byType,
         v2x_count: v2xCount,
         av_count: avCount,
         gaps: model.gaps_identified || 0,
