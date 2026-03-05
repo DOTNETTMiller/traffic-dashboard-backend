@@ -22403,11 +22403,11 @@ app.get('/api/digital-infrastructure/models', async (req, res) => {
 
         // Get V2X and AV counts
         const v2xQuery = db.isPostgres
-          ? 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 AND v2x_applicable = 1'
+          ? 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 AND v2x_applicable = true'
           : 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? AND v2x_applicable = 1';
 
         const avQuery = db.isPostgres
-          ? 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 AND av_critical = 1'
+          ? 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = $1 AND av_critical = true'
           : 'SELECT COUNT(*) as count FROM infrastructure_elements WHERE model_id = ? AND av_critical = 1';
 
         if (db.isPostgres) {
