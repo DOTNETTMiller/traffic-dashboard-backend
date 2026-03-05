@@ -908,14 +908,14 @@ function DigitalInfrastructure() {
 
             <div style={{ padding: '20px', backgroundColor: '#f0fdf4', borderRadius: '8px' }}>
               <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#6b7280', marginBottom: '8px' }}>
-                {modelDetails.v2x_elements}
+                {modelDetails.v2x_count || 0}
               </div>
               <div style={{ color: '#666' }}>V2X Applicable</div>
             </div>
 
             <div style={{ padding: '20px', backgroundColor: '#fce7f3', borderRadius: '8px' }}>
               <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#c2185b', marginBottom: '8px' }}>
-                {modelDetails.av_critical_elements}
+                {modelDetails.av_count || 0}
               </div>
               <div style={{ color: '#666' }}>AV Critical</div>
             </div>
