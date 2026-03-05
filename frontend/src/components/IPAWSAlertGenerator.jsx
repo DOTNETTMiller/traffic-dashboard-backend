@@ -128,7 +128,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         onClose();
       } else {
         const error = await response.json();
-        setError(error.message || 'Failed to save geofence');
+        setError(error.error || 'Failed to save geofence');
       }
     } catch (err) {
       setError('Failed to save geofence: ' + err.message);
