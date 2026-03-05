@@ -22360,7 +22360,8 @@ app.get('/api/digital-infrastructure/models', async (req, res) => {
 
     const { stateKey } = req.query;
 
-    let query = 'SELECT * FROM ifc_models';
+    // Exclude file_data from list endpoint to avoid huge response size
+    let query = 'SELECT id, filename, file_path, file_size, ifc_schema, project_name, uploaded_by, upload_date, state_key, latitude, longitude, route, milepost, extraction_status, extraction_log, total_elements, metadata, created_at FROM ifc_models';
     const params = [];
 
     if (stateKey && stateKey !== 'multi-state') {
@@ -22443,10 +22444,10 @@ app.get('/api/digital-infrastructure/models/:modelId', async (req, res) => {
   try {
     const { modelId } = req.params;
 
-    // Get model
+    // Get model (exclude file_data to avoid huge response)
     const modelQuery = db.isPostgres
-      ? 'SELECT * FROM ifc_models WHERE id = $1'
-      : 'SELECT * FROM ifc_models WHERE id = ?';
+      ? 'SELECT id, filename, file_path, file_size, ifc_schema, project_name, uploaded_by, upload_date, state_key, latitude, longitude, route, milepost, extraction_status, extraction_log, total_elements, metadata, created_at FROM ifc_models WHERE id = $1'
+      : 'SELECT id, filename, file_path, file_size, ifc_schema, project_name, uploaded_by, upload_date, state_key, latitude, longitude, route, milepost, extraction_status, extraction_log, total_elements, metadata, created_at FROM ifc_models WHERE id = ?';
 
     let model;
     if (db.isPostgres) {
