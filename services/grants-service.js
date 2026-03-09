@@ -5,8 +5,8 @@ const axios = require('axios');
  * Fetches federal funding opportunities for transportation research and deployment
  */
 
-// Transportation-focused keywords (NOT SDVOB contractor opportunities)
-const TRANSPORTATION_KEYWORDS = [
+// ITS and Digital Infrastructure-focused keywords (NOT general transportation)
+const ITS_DIGITAL_KEYWORDS = [
   'connected corridors',
   'work zone data exchange',
   'WZDx',
@@ -15,16 +15,61 @@ const TRANSPORTATION_KEYWORDS = [
   'connected vehicles',
   'connected automated vehicles',
   'CAV',
+  'V2X',
+  'V2I',
+  'V2V',
   'smart mobility',
   'transportation data',
+  'traffic data',
+  'real-time traffic',
   'multi-state coordination',
   'ATCMTD',
   'SMART grant',
-  'RAISE',
-  'INFRA',
-  'surface transportation',
-  'highway safety',
-  'traffic management'
+  'traffic management center',
+  'TMC',
+  'transportation systems management',
+  'TSMO',
+  'digital infrastructure',
+  'ITS equipment',
+  'roadside equipment',
+  'RSU',
+  'dynamic message signs',
+  'DMS',
+  'traffic sensors',
+  'data integration',
+  'data exchange',
+  'transportation technology',
+  'mobility data'
+];
+
+// Keywords that indicate NON-ITS grants (negative filter)
+const EXCLUDE_KEYWORDS = [
+  'pavement',
+  'bridge construction',
+  'bridge repair',
+  'roadway construction',
+  'highway construction',
+  'concrete',
+  'asphalt',
+  'guardrail',
+  'transit bus',
+  'rolling stock',
+  'rail infrastructure',
+  'pedestrian infrastructure only',
+  'bicycle infrastructure only',
+  'sidewalk',
+  'curb ramp',
+  'street lighting only',
+  'stormwater',
+  'drainage',
+  'workforce development',
+  'disadvantaged business',
+  'SDVOSB',
+  'service-disabled veteran',
+  'small business set-aside',
+  'environmental compliance',
+  'archaeological',
+  'historical preservation'
 ];
 
 // Research-focused keywords for academic institutions
@@ -59,11 +104,11 @@ class GrantsService {
   }
 
   /**
-   * Search for transportation funding opportunities
+   * Search for ITS and digital infrastructure funding opportunities
    */
   async searchOpportunities(options = {}) {
     const {
-      keyword = 'transportation',
+      keyword = 'intelligent transportation systems',
       maxResults = 50,
       stateFilter = null,
       includeResearch = true
@@ -147,7 +192,22 @@ class GrantsService {
         let matchReasons = [];
         const text = `${opp.title} ${opp.description} ${opp.category}`.toLowerCase();
 
-        // Priority program bonus (+30 points)
+        // FIRST: Check for exclusion keywords (auto-reject)
+        for (const excludeKeyword of EXCLUDE_KEYWORDS) {
+          if (text.includes(excludeKeyword.toLowerCase())) {
+            // Automatic disqualification for non-ITS grants
+            return {
+              ...opp,
+              relevanceScore: 0,
+              relevance: 'excluded',
+              priority: 'none',
+              matchReasons: [`Excluded: ${excludeKeyword}`],
+              platformAlignment: { score: 0, level: 'none', capabilities: [] }
+            };
+          }
+        }
+
+        // Priority program bonus (+30 points) - only if ITS-related
         for (const program of PRIORITY_PROGRAMS) {
           if (text.includes(program.toLowerCase())) {
             score += 30;
@@ -156,12 +216,12 @@ class GrantsService {
           }
         }
 
-        // Transportation keywords (+10 points each, max 50)
-        let transportMatches = 0;
-        for (const keyword of TRANSPORTATION_KEYWORDS) {
+        // ITS/Digital Infrastructure keywords (+10 points each, max 50)
+        let itsMatches = 0;
+        for (const keyword of ITS_DIGITAL_KEYWORDS) {
           if (text.includes(keyword.toLowerCase())) {
-            transportMatches++;
-            if (transportMatches <= 5) {
+            itsMatches++;
+            if (itsMatches <= 5) {
               score += 10;
               if (matchReasons.length < 3) {
                 matchReasons.push(`Matches: ${keyword}`);
@@ -211,15 +271,21 @@ class GrantsService {
         }
 
         // Calculate relevance category
+        // Require at least 1 ITS keyword match for any relevance
         let relevance = 'low';
         let priority = 'low';
+        if (itsMatches === 0) {
+          // No ITS keywords matched - likely not relevant
+          score = Math.min(score, 20); // Cap score if no ITS match
+        }
+
         if (score >= 60) {
           relevance = 'very_high';
           priority = 'urgent';
         } else if (score >= 40) {
           relevance = 'high';
           priority = 'high';
-        } else if (score >= 25) {
+        } else if (score >= 35) {
           relevance = 'medium';
           priority = 'medium';
         }
@@ -233,7 +299,7 @@ class GrantsService {
           platformAlignment: this.calculatePlatformAlignment(opp)
         };
       })
-      .filter(opp => opp.relevanceScore >= 25) // Only return medium+ relevance
+      .filter(opp => opp.relevanceScore >= 35) // Higher threshold - only ITS/digital infrastructure relevant grants
       .sort((a, b) => b.relevanceScore - a.relevanceScore);
   }
 
@@ -288,12 +354,13 @@ class GrantsService {
   async getCCAIOpportunities() {
     const ccaiStates = ['Iowa', 'Kansas', 'Minnesota', 'Missouri', 'Nebraska', 'Nevada', 'Oklahoma', 'Pennsylvania', 'Texas'];
 
-    // Search multiple keywords to get broad coverage
+    // Search ITS/digital infrastructure specific keywords
     const searches = [
-      this.searchOpportunities({ keyword: 'connected corridors', maxResults: 25 }),
-      this.searchOpportunities({ keyword: 'intelligent transportation', maxResults: 25 }),
-      this.searchOpportunities({ keyword: 'transportation data', maxResults: 25 }),
-      this.searchOpportunities({ keyword: 'highway safety', maxResults: 25 })
+      this.searchOpportunities({ keyword: 'intelligent transportation systems', maxResults: 25 }),
+      this.searchOpportunities({ keyword: 'connected vehicles', maxResults: 25 }),
+      this.searchOpportunities({ keyword: 'ITS deployment', maxResults: 25 }),
+      this.searchOpportunities({ keyword: 'transportation data exchange', maxResults: 25 }),
+      this.searchOpportunities({ keyword: 'smart mobility', maxResults: 25 })
     ];
 
     const results = await Promise.all(searches);

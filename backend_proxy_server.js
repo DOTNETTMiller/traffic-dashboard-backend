@@ -11490,12 +11490,24 @@ app.post('/api/dms/templates/:templateId/approve', requireUserOrStateAuth, async
 // IPAWS ALERT GENERATION API - Wireless Emergency Alerts for Transportation
 // ============================================================================
 const ipawsService = require('./services/ipaws-alert-service');
+const IPAWSAuditLogger = require('./services/ipaws-alert-service-lite');
 const populationService = require('./services/population-density-service');
 
 // POST /api/ipaws/generate - Generate IPAWS alert for an event
 app.post('/api/ipaws/generate', async (req, res) => {
   try {
-    const { eventId, event, bufferMiles, corridorLengthMiles, avoidUrbanAreas } = req.body;
+    const {
+      eventId,
+      event,
+      bufferMiles,
+      bufferFeet,
+      corridorLengthMiles,
+      corridorAheadMiles,
+      corridorBehindMiles,
+      avoidUrbanAreas,
+      trainingMode,
+      user
+    } = req.body;
 
     if (!event && !eventId) {
       return res.status(400).json({
@@ -11527,8 +11539,13 @@ app.post('/api/ipaws/generate', async (req, res) => {
     // Generate alert package with optional geofence adjustment parameters
     const options = {};
     if (bufferMiles !== undefined) options.bufferMiles = bufferMiles;
+    if (bufferFeet !== undefined) options.bufferFeet = bufferFeet;
     if (corridorLengthMiles !== undefined) options.corridorLengthMiles = corridorLengthMiles;
+    if (corridorAheadMiles !== undefined) options.corridorAheadMiles = corridorAheadMiles;
+    if (corridorBehindMiles !== undefined) options.corridorBehindMiles = corridorBehindMiles;
     if (avoidUrbanAreas !== undefined) options.avoidUrbanAreas = avoidUrbanAreas;
+    if (trainingMode !== undefined) options.trainingMode = trainingMode;
+    if (user) options.user = user;
 
     const alert = await ipawsService.generateAlert(eventData, options);
 
@@ -11569,6 +11586,49 @@ app.post('/api/ipaws/evaluate', async (req, res) => {
   }
 });
 
+// GET /api/ipaws/templates - Get all SOP Appendix A message templates
+app.get('/api/ipaws/templates', async (req, res) => {
+  try {
+    const templates = ipawsService.getAllTemplates();
+    res.json({
+      success: true,
+      templates
+    });
+  } catch (error) {
+    console.error('Error getting IPAWS templates:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/ipaws/templates/recommend - Get recommended template for an event
+app.post('/api/ipaws/templates/recommend', async (req, res) => {
+  try {
+    const { event } = req.body;
+
+    if (!event) {
+      return res.status(400).json({
+        success: false,
+        error: 'Event object is required'
+      });
+    }
+
+    const recommendation = ipawsService.getRecommendedTemplate(event);
+    res.json({
+      success: true,
+      ...recommendation
+    });
+  } catch (error) {
+    console.error('Error getting template recommendation:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // GET /api/ipaws/summary/:eventId - Get alert summary for display
 app.get('/api/ipaws/summary/:eventId', async (req, res) => {
   try {
@@ -11599,6 +11659,227 @@ app.get('/api/ipaws/summary/:eventId', async (req, res) => {
     });
   } catch (error) {
     console.error('Error generating IPAWS summary:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/ipaws/alerts - Get all IPAWS alerts from audit log
+app.get('/api/ipaws/alerts', async (req, res) => {
+  try {
+    const { status, limit = 50 } = req.query;
+
+    let query = 'SELECT * FROM ipaws_alert_log';
+    const params = [];
+
+    if (status) {
+      query += ' WHERE status = ?';
+      params.push(status);
+    }
+
+    query += ' ORDER BY created_at DESC LIMIT ?';
+    params.push(parseInt(limit));
+
+    const alerts = await db.allAsync(query, params);
+
+    res.json({
+      success: true,
+      alerts: alerts || []
+    });
+  } catch (error) {
+    console.error('Error fetching IPAWS alerts:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/ipaws/alerts/active - Get currently active alerts (using lightweight logger)
+app.get('/api/ipaws/alerts/active', async (req, res) => {
+  try {
+    const alerts = IPAWSAuditLogger.getActiveAlerts();
+
+    res.json({
+      success: true,
+      alerts: alerts || []
+    });
+  } catch (error) {
+    console.error('Error fetching active IPAWS alerts:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// GET /api/ipaws/alerts/:alertId - Get specific alert by ID
+app.get('/api/ipaws/alerts/:alertId', async (req, res) => {
+  try {
+    const { alertId } = req.params;
+
+    const alert = await db.getAsync(
+      'SELECT * FROM ipaws_alert_log WHERE alert_id = ?',
+      [alertId]
+    );
+
+    if (!alert) {
+      return res.status(404).json({
+        success: false,
+        error: 'Alert not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      alert
+    });
+  } catch (error) {
+    console.error('Error fetching IPAWS alert:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/ipaws/alerts/:alertId/cancel - Cancel an active alert (SOP Section 8.6)
+app.post('/api/ipaws/alerts/:alertId/cancel', async (req, res) => {
+  try {
+    const { alertId } = req.params;
+    const { reason, user } = req.body;
+
+    // Verify alert exists and is cancellable
+    const alert = await db.getAsync(
+      'SELECT * FROM ipaws_alert_log WHERE alert_id = ?',
+      [alertId]
+    );
+
+    if (!alert) {
+      return res.status(404).json({
+        success: false,
+        error: 'Alert not found'
+      });
+    }
+
+    if (alert.status === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        error: 'Alert is already cancelled'
+      });
+    }
+
+    if (alert.status === 'expired') {
+      return res.status(400).json({
+        success: false,
+        error: 'Alert has already expired'
+      });
+    }
+
+    // Update status to cancelled
+    const result = await ipawsService.updateAlertStatus(alertId, 'cancelled', {
+      cancellationReason: reason || 'Operator cancelled - hazard cleared'
+    });
+
+    console.log(`✅ IPAWS alert cancelled: ${alertId} by ${user?.name || 'Unknown'}`);
+    console.log(`   Reason: ${reason || 'Hazard cleared'}`);
+
+    res.json({
+      success: true,
+      message: 'Alert cancelled successfully',
+      alertId: alertId,
+      cancelledAt: new Date().toISOString(),
+      reason: reason || 'Operator cancelled - hazard cleared'
+    });
+  } catch (error) {
+    console.error('Error cancelling IPAWS alert:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/ipaws/alerts/:alertId/update - Update an active alert (SOP Section 8.6)
+app.post('/api/ipaws/alerts/:alertId/update', async (req, res) => {
+  try {
+    const { alertId } = req.params;
+    const { updates, user } = req.body;
+
+    // Verify alert exists and is updatable
+    const alert = await db.getAsync(
+      'SELECT * FROM ipaws_alert_log WHERE alert_id = ?',
+      [alertId]
+    );
+
+    if (!alert) {
+      return res.status(404).json({
+        success: false,
+        error: 'Alert not found'
+      });
+    }
+
+    if (alert.status === 'cancelled' || alert.status === 'expired') {
+      return res.status(400).json({
+        success: false,
+        error: `Cannot update ${alert.status} alert`
+      });
+    }
+
+    // Update the alert status and timestamp
+    await ipawsService.updateAlertStatus(alertId, 'updated', updates);
+
+    console.log(`✅ IPAWS alert updated: ${alertId} by ${user?.name || 'Unknown'}`);
+
+    res.json({
+      success: true,
+      message: 'Alert updated successfully',
+      alertId: alertId,
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error updating IPAWS alert:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/ipaws/alerts/:alertId/issue - Mark alert as issued (sent to IPAWS)
+app.post('/api/ipaws/alerts/:alertId/issue', async (req, res) => {
+  try {
+    const { alertId } = req.params;
+    const { user } = req.body;
+
+    // Verify alert exists
+    const alert = await db.getAsync(
+      'SELECT * FROM ipaws_alert_log WHERE alert_id = ?',
+      [alertId]
+    );
+
+    if (!alert) {
+      return res.status(404).json({
+        success: false,
+        error: 'Alert not found'
+      });
+    }
+
+    // Update status to issued
+    await ipawsService.updateAlertStatus(alertId, 'issued');
+
+    console.log(`✅ IPAWS alert issued: ${alertId} by ${user?.name || 'Unknown'}`);
+
+    res.json({
+      success: true,
+      message: 'Alert marked as issued',
+      alertId: alertId,
+      issuedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error marking IPAWS alert as issued:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -22046,13 +22327,14 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
       const CADParser = require('./utils/cad-parser');
       parser = new CADParser();
       extractionResult = await parser.parseFile(tempFilePath);
+      console.log(`   ✅ Parsed ${extractionResult.statistics.totalEntities} CAD entities`);
+      console.log(`   ✅ Extracted ${extractionResult.itsEquipment.length} ITS equipment items`);
     } else {
       parser = new IFCParser();
       extractionResult = await parser.parseFile(tempFilePath);
+      console.log(`   ✅ Parsed ${extractionResult.statistics.total_entities} IFC entities`);
+      console.log(`   ✅ Extracted ${extractionResult.elements.length} infrastructure elements`);
     }
-
-    console.log(`   ✅ Parsed ${extractionResult.statistics.total_entities} IFC entities`);
-    console.log(`   ✅ Extracted ${extractionResult.elements.length} infrastructure elements`);
 
     // Move file to permanent storage (Railway volume at /app/uploads/ifc/)
     const fs = require('fs');
@@ -22075,7 +22357,99 @@ app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), asyn
     const fileBuffer = fs.readFileSync(permanentPath);
     console.log(`   📦 Read ${fileBuffer.length} bytes for database storage`);
 
-    // Generate gap analysis
+    // Handle CAD files separately from IFC files
+    if (isCAD) {
+      // Store in cadd_models table
+      const caddInsert = db.isPostgres
+        ? `INSERT INTO cadd_models (filename, original_filename, file_format, file_size, file_path,
+           cad_version, units, extents_min_x, extents_min_y, extents_max_x, extents_max_y,
+           corridor, state, extraction_status, extraction_completed_at,
+           total_layers, total_entities, total_blocks, its_equipment_count, road_geometry_count, traffic_devices_count,
+           uploaded_by, extraction_data)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), $15, $16, $17, $18, $19, $20, $21, $22)
+           RETURNING id`
+        : `INSERT INTO cadd_models (filename, original_filename, file_format, file_size, file_path,
+           cad_version, units, extents_min_x, extents_min_y, extents_max_x, extents_max_y,
+           corridor, state, extraction_status, extraction_completed_at,
+           total_layers, total_entities, total_blocks, its_equipment_count, road_geometry_count, traffic_devices_count,
+           uploaded_by, extraction_data)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+      let modelId;
+      if (db.isPostgres) {
+        const result = await db.db.query(caddInsert, [
+          safeName,                                    // filename
+          req.file.originalname,                       // original_filename
+          fileExt.toUpperCase().replace('.', ''),      // file_format (DXF, DWG, DGN)
+          req.file.size,                               // file_size
+          storedFilePath,                              // file_path
+          extractionResult.metadata?.version || null,  // cad_version
+          extractionResult.metadata?.units || null,    // units
+          extractionResult.metadata?.extents?.min?.x || null, // extents_min_x
+          extractionResult.metadata?.extents?.min?.y || null, // extents_min_y
+          extractionResult.metadata?.extents?.max?.x || null, // extents_max_x
+          extractionResult.metadata?.extents?.max?.y || null, // extents_max_y
+          route || null,                               // corridor
+          stateKey || null,                            // state
+          'completed',                                 // extraction_status
+          extractionResult.statistics.totalLayers,     // total_layers
+          extractionResult.statistics.totalEntities,   // total_entities
+          extractionResult.statistics.totalBlocks,     // total_blocks
+          extractionResult.statistics.itsEquipment,    // its_equipment_count
+          extractionResult.statistics.roadGeometry,    // road_geometry_count
+          extractionResult.statistics.trafficDevices,  // traffic_devices_count
+          uploadedBy || 'anonymous',                   // uploaded_by
+          JSON.stringify(extractionResult)             // extraction_data (full JSON)
+        ]);
+        modelId = result.rows[0].id;
+      } else {
+        const stmt = db.db.prepare(caddInsert);
+        const result = stmt.run(
+          safeName,
+          req.file.originalname,
+          fileExt.toUpperCase().replace('.', ''),
+          req.file.size,
+          storedFilePath,
+          extractionResult.metadata?.version || null,
+          extractionResult.metadata?.units || null,
+          extractionResult.metadata?.extents?.min?.x || null,
+          extractionResult.metadata?.extents?.min?.y || null,
+          extractionResult.metadata?.extents?.max?.x || null,
+          extractionResult.metadata?.extents?.max?.y || null,
+          route || null,
+          stateKey || null,
+          'completed',
+          extractionResult.statistics.totalLayers,
+          extractionResult.statistics.totalEntities,
+          extractionResult.statistics.totalBlocks,
+          extractionResult.statistics.itsEquipment,
+          extractionResult.statistics.roadGeometry,
+          extractionResult.statistics.trafficDevices,
+          uploadedBy || 'anonymous',
+          JSON.stringify(extractionResult)
+        );
+        modelId = result.lastInsertRowid;
+      }
+
+      console.log(`✅ Successfully stored CAD model ${modelId} with ${extractionResult.statistics.totalEntities} entities`);
+
+      res.json({
+        success: true,
+        model_id: modelId,
+        filename: req.file.originalname,
+        format: extractionResult.format,
+        layers: extractionResult.statistics.totalLayers,
+        entities: extractionResult.statistics.totalEntities,
+        its_equipment: extractionResult.statistics.itsEquipment,
+        road_geometry: extractionResult.statistics.roadGeometry,
+        extraction_log: extractionResult.extractionLog,
+        message: `Successfully processed ${fileType} file`
+      });
+
+      return; // Exit early for CAD files
+    }
+
+    // Generate gap analysis (IFC files only)
     const gaps = parser.identifyGaps(extractionResult.elements);
     console.log(`   ✅ Identified ${gaps.length} data gaps for ITS operations`);
 
@@ -24592,6 +24966,597 @@ function createStandardsPDF(markdown) {
 
   return Buffer.from(pdf, 'binary');
 }
+
+// ========================================
+// CADD MODEL ENDPOINTS
+// ========================================
+
+// List all CADD models
+app.get('/api/cadd/models', async (req, res) => {
+  try {
+    const { stateKey } = req.query;
+
+    let query = 'SELECT * FROM cadd_models';
+    const params = [];
+
+    if (stateKey && stateKey !== 'multi-state') {
+      query += db.isPostgres ? ' WHERE state = $1' : ' WHERE state = ?';
+      params.push(stateKey);
+    }
+
+    query += ' ORDER BY uploaded_at DESC';
+
+    let models;
+    if (db.isPostgres) {
+      const result = await db.db.query(query, params);
+      models = result.rows || [];
+    } else {
+      const stmt = db.db.prepare(query);
+      models = params.length > 0 ? stmt.all(...params) : stmt.all();
+    }
+
+    res.json({
+      success: true,
+      models: models.map(m => ({
+        id: m.id,
+        filename: m.filename,
+        original_filename: m.original_filename,
+        file_format: m.file_format,
+        file_size: m.file_size,
+        file_path: m.file_path,
+        cad_version: m.cad_version,
+        units: m.units,
+        corridor: m.corridor,
+        state: m.state,
+        extraction_status: m.extraction_status,
+        total_layers: m.total_layers,
+        total_entities: m.total_entities,
+        total_blocks: m.total_blocks,
+        its_equipment_count: m.its_equipment_count,
+        road_geometry_count: m.road_geometry_count,
+        traffic_devices_count: m.traffic_devices_count,
+        uploaded_by: m.uploaded_by,
+        uploaded_at: m.uploaded_at,
+        extraction_completed_at: m.extraction_completed_at
+      }))
+    });
+  } catch (err) {
+    console.error('Error fetching CADD models:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get CADD model details
+app.get('/api/cadd/models/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const modelQuery = db.isPostgres
+      ? 'SELECT * FROM cadd_models WHERE id = $1'
+      : 'SELECT * FROM cadd_models WHERE id = ?';
+
+    let model;
+    if (db.isPostgres) {
+      const result = await db.db.query(modelQuery, [id]);
+      model = result.rows?.[0];
+    } else {
+      model = db.db.prepare(modelQuery).get(id);
+    }
+
+    if (!model) {
+      return res.status(404).json({ success: false, error: 'Model not found' });
+    }
+
+    // Parse extraction_data JSON
+    let extractionData = {};
+    if (model.extraction_data) {
+      try {
+        extractionData = JSON.parse(model.extraction_data);
+      } catch (e) {
+        console.warn('Failed to parse extraction_data:', e);
+      }
+    }
+
+    res.json({
+      success: true,
+      model: {
+        id: model.id,
+        filename: model.filename,
+        original_filename: model.original_filename,
+        file_format: model.file_format,
+        file_size: model.file_size,
+        file_path: model.file_path,
+        cad_version: model.cad_version,
+        units: model.units,
+        extents_min_x: model.extents_min_x,
+        extents_min_y: model.extents_min_y,
+        extents_max_x: model.extents_max_x,
+        extents_max_y: model.extents_max_y,
+        corridor: model.corridor,
+        state: model.state,
+        county: model.county,
+        extraction_status: model.extraction_status,
+        extraction_started_at: model.extraction_started_at,
+        extraction_completed_at: model.extraction_completed_at,
+        extraction_error: model.extraction_error,
+        total_layers: model.total_layers,
+        total_entities: model.total_entities,
+        total_blocks: model.total_blocks,
+        its_equipment_count: model.its_equipment_count,
+        road_geometry_count: model.road_geometry_count,
+        traffic_devices_count: model.traffic_devices_count,
+        uploaded_by: model.uploaded_by,
+        uploaded_at: model.uploaded_at,
+        notes: model.notes,
+        extraction_data: extractionData
+      }
+    });
+  } catch (err) {
+    console.error('Error fetching CADD model:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Delete CADD model
+app.delete('/api/cadd/models/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get model to find file path
+    const modelQuery = db.isPostgres
+      ? 'SELECT file_path FROM cadd_models WHERE id = $1'
+      : 'SELECT file_path FROM cadd_models WHERE id = ?';
+
+    let model;
+    if (db.isPostgres) {
+      const result = await db.db.query(modelQuery, [id]);
+      model = result.rows?.[0];
+    } else {
+      model = db.db.prepare(modelQuery).get(id);
+    }
+
+    if (!model) {
+      return res.status(404).json({ success: false, error: 'Model not found' });
+    }
+
+    // Delete file from filesystem
+    const fs = require('fs');
+    const fullPath = path.join(__dirname, model.file_path);
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath);
+      console.log(`✅ Deleted file: ${fullPath}`);
+    }
+
+    // Delete from database (CASCADE will delete layers and entities)
+    const deleteQuery = db.isPostgres
+      ? 'DELETE FROM cadd_models WHERE id = $1'
+      : 'DELETE FROM cadd_models WHERE id = ?';
+
+    if (db.isPostgres) {
+      await db.db.query(deleteQuery, [id]);
+    } else {
+      db.db.prepare(deleteQuery).run(id);
+    }
+
+    console.log(`✅ Deleted CADD model ${id}`);
+
+    res.json({ success: true, message: 'Model deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting CADD model:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Export CADD model to GeoJSON
+app.get('/api/cadd/models/:id/export/geojson', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get model with extraction data
+    const modelQuery = db.isPostgres
+      ? 'SELECT * FROM cadd_models WHERE id = $1'
+      : 'SELECT * FROM cadd_models WHERE id = ?';
+
+    let model;
+    if (db.isPostgres) {
+      const result = await db.db.query(modelQuery, [id]);
+      model = result.rows?.[0];
+    } else {
+      model = db.db.prepare(modelQuery).get(id);
+    }
+
+    if (!model) {
+      return res.status(404).json({ success: false, error: 'Model not found' });
+    }
+
+    let extractionData;
+    try {
+      extractionData = JSON.parse(model.extraction_data);
+    } catch (e) {
+      return res.status(400).json({ success: false, error: 'Invalid extraction data' });
+    }
+
+    // Build GeoJSON FeatureCollection
+    const features = [];
+
+    // Add ITS equipment as Point features
+    if (extractionData.itsEquipment) {
+      for (const equipment of extractionData.itsEquipment) {
+        if (equipment.geometry?.position) {
+          const pos = equipment.geometry.position;
+          features.push({
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: [pos.x, pos.y] // Note: CAD coordinates, not lat/lng
+            },
+            properties: {
+              type: 'its_equipment',
+              equipment_type: equipment.type || 'Unknown',
+              layer: equipment.layer,
+              text: equipment.text || null,
+              entity_type: equipment.entityType,
+              model_id: model.id,
+              model_name: model.original_filename,
+              corridor: model.corridor,
+              state: model.state,
+              cad_z: pos.z || 0
+            }
+          });
+        }
+      }
+    }
+
+    // Add road geometry as LineString features
+    if (extractionData.roadGeometry) {
+      for (const geometry of extractionData.roadGeometry) {
+        if (geometry.geometry?.vertices && geometry.geometry.vertices.length > 1) {
+          const coordinates = geometry.geometry.vertices.map(v => [v.x, v.y]);
+          features.push({
+            type: 'Feature',
+            geometry: {
+              type: 'LineString',
+              coordinates
+            },
+            properties: {
+              type: 'road_geometry',
+              geometry_type: geometry.type,
+              layer: geometry.layer,
+              vertex_count: geometry.geometry.vertices.length,
+              closed: geometry.geometry.closed || false,
+              model_id: model.id,
+              model_name: model.original_filename,
+              corridor: model.corridor,
+              state: model.state
+            }
+          });
+        }
+      }
+    }
+
+    const geojson = {
+      type: 'FeatureCollection',
+      name: `cadd_${model.id}_${model.file_format}`,
+      crs: {
+        type: 'name',
+        properties: {
+          name: 'urn:ogc:def:crs:OGC:1.3:CRS84' // Note: This assumes WGS84, but CAD coords need transformation
+        }
+      },
+      metadata: {
+        model_id: model.id,
+        filename: model.original_filename,
+        file_format: model.file_format,
+        cad_version: model.cad_version,
+        units: model.units,
+        corridor: model.corridor,
+        state: model.state,
+        uploaded_at: model.uploaded_at,
+        total_features: features.length,
+        note: 'Coordinates are in CAD local coordinate system and require georeferencing for GIS use'
+      },
+      features
+    };
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="cadd_${model.id}_${model.original_filename.replace(/\.[^.]+$/, '')}.geojson"`);
+    res.json(geojson);
+
+    console.log(`✅ Exported CADD model ${id} to GeoJSON (${features.length} features)`);
+
+  } catch (err) {
+    console.error('Error exporting CADD model to GeoJSON:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Export CADD model to CSV (for Shapefile import via ArcGIS)
+app.get('/api/cadd/models/:id/export/csv', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get model with extraction data
+    const modelQuery = db.isPostgres
+      ? 'SELECT * FROM cadd_models WHERE id = $1'
+      : 'SELECT * FROM cadd_models WHERE id = ?';
+
+    let model;
+    if (db.isPostgres) {
+      const result = await db.db.query(modelQuery, [id]);
+      model = result.rows?.[0];
+    } else {
+      model = db.db.prepare(modelQuery).get(id);
+    }
+
+    if (!model) {
+      return res.status(404).json({ success: false, error: 'Model not found' });
+    }
+
+    let extractionData;
+    try {
+      extractionData = JSON.parse(model.extraction_data);
+    } catch (e) {
+      return res.status(400).json({ success: false, error: 'Invalid extraction data' });
+    }
+
+    // Build CSV rows
+    const rows = [];
+    const header = ['id', 'type', 'equipment_type', 'layer', 'text', 'cad_x', 'cad_y', 'cad_z', 'lat', 'lon', 'model', 'corridor', 'state'];
+    rows.push(header.join(','));
+
+    let featureId = 1;
+
+    // Add ITS equipment
+    if (extractionData.itsEquipment) {
+      for (const equipment of extractionData.itsEquipment) {
+        if (equipment.geometry?.position) {
+          const pos = equipment.geometry.position;
+          const row = [
+            featureId++,
+            'its_equipment',
+            equipment.type || 'Unknown',
+            equipment.layer,
+            equipment.text ? `"${equipment.text.replace(/"/g, '""')}"` : '',
+            pos.x.toFixed(3),
+            pos.y.toFixed(3),
+            (pos.z || 0).toFixed(3),
+            '', // lat (empty, needs georeferencing)
+            '', // lon (empty, needs georeferencing)
+            `"${model.original_filename}"`,
+            model.corridor || '',
+            model.state || ''
+          ];
+          rows.push(row.join(','));
+        }
+      }
+    }
+
+    // Add road geometry (first vertex only for CSV points)
+    if (extractionData.roadGeometry) {
+      for (const geometry of extractionData.roadGeometry) {
+        if (geometry.geometry?.vertices && geometry.geometry.vertices.length > 0) {
+          const firstVertex = geometry.geometry.vertices[0];
+          const row = [
+            featureId++,
+            'road_geometry',
+            geometry.type,
+            geometry.layer,
+            '',
+            firstVertex.x.toFixed(3),
+            firstVertex.y.toFixed(3),
+            (firstVertex.z || 0).toFixed(3),
+            '',
+            '',
+            `"${model.original_filename}"`,
+            model.corridor || '',
+            model.state || ''
+          ];
+          rows.push(row.join(','));
+        }
+      }
+    }
+
+    const csv = rows.join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="cadd_${model.id}_${model.original_filename.replace(/\.[^.]+$/, '')}.csv"`);
+    res.send(csv);
+
+    console.log(`✅ Exported CADD model ${id} to CSV (${featureId - 1} features)`);
+
+  } catch (err) {
+    console.error('Error exporting CADD model to CSV:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get CADD elements for map visualization
+app.get('/api/cadd/map-elements', async (req, res) => {
+  try {
+    const { stateKey, modelId } = req.query;
+
+    // Get all models (optionally filtered)
+    let modelsQuery = 'SELECT * FROM cadd_models WHERE extraction_status = ?';
+    const params = ['completed'];
+
+    if (stateKey && stateKey !== 'multi-state') {
+      modelsQuery += ' AND state = ?';
+      params.push(stateKey);
+    }
+
+    if (modelId) {
+      modelsQuery += ' AND id = ?';
+      params.push(modelId);
+    }
+
+    let models;
+    if (db.isPostgres) {
+      modelsQuery = modelsQuery.replace(/\?/g, (match, offset) => `$${params.indexOf(params[offset]) + 1}`);
+      const result = await db.db.query(modelsQuery, params);
+      models = result.rows || [];
+    } else {
+      const stmt = db.db.prepare(modelsQuery);
+      models = stmt.all(...params);
+    }
+
+    // Parse extraction data and extract map-displayable elements
+    const mapElements = [];
+
+    for (const model of models) {
+      if (!model.extraction_data) continue;
+
+      let extractionData;
+      try {
+        extractionData = JSON.parse(model.extraction_data);
+      } catch (e) {
+        console.warn(`Failed to parse extraction data for model ${model.id}`);
+        continue;
+      }
+
+      // Extract ITS equipment with location data
+      if (extractionData.itsEquipment) {
+        for (const equipment of extractionData.itsEquipment) {
+          // Check if equipment has position data
+          if (equipment.geometry?.position) {
+            const pos = equipment.geometry.position;
+
+            // For now, we'll need to convert CAD coordinates to lat/lng
+            // This is a placeholder - in reality you'd need proper coordinate transformation
+            // based on the model's coordinate system and extents
+            mapElements.push({
+              id: `${model.id}-its-${mapElements.length}`,
+              modelId: model.id,
+              modelName: model.original_filename,
+              type: 'its_equipment',
+              equipmentType: equipment.type || 'Unknown',
+              layer: equipment.layer,
+              text: equipment.text,
+              cadPosition: { x: pos.x, y: pos.y, z: pos.z || 0 },
+              // Placeholder lat/lng - would need proper transformation
+              latitude: null,
+              longitude: null,
+              corridor: model.corridor,
+              state: model.state
+            });
+          }
+        }
+      }
+
+      // Extract road geometry
+      if (extractionData.roadGeometry) {
+        for (const geometry of extractionData.roadGeometry) {
+          if (geometry.geometry?.vertices && geometry.geometry.vertices.length > 0) {
+            const firstVertex = geometry.geometry.vertices[0];
+            mapElements.push({
+              id: `${model.id}-road-${mapElements.length}`,
+              modelId: model.id,
+              modelName: model.original_filename,
+              type: 'road_geometry',
+              geometryType: geometry.type,
+              layer: geometry.layer,
+              vertexCount: geometry.geometry.vertices.length,
+              cadPosition: { x: firstVertex.x, y: firstVertex.y, z: firstVertex.z || 0 },
+              latitude: null,
+              longitude: null,
+              corridor: model.corridor,
+              state: model.state
+            });
+          }
+        }
+      }
+    }
+
+    console.log(`📐 Loaded ${mapElements.length} CADD map elements from ${models.length} models`);
+
+    res.json({
+      success: true,
+      elements: mapElements,
+      models: models.length,
+      note: 'Coordinate transformation from CAD to lat/lng requires georeferencing. Currently showing CAD coordinates.'
+    });
+
+  } catch (err) {
+    console.error('Error fetching CADD map elements:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ========================================
+// USDOT V2X DEPLOYMENTS DATA
+// ========================================
+
+// Fetch USDOT V2X deployment locations from federal ArcGIS service
+app.get('/api/v2x/deployments', async (req, res) => {
+  try {
+    const axios = require('axios');
+
+    // USDOT official V2X deployment feature service
+    const serviceUrl = 'https://geo.dot.gov/server/rest/services/Hosted/Vehicle_to_Everything__V2X__Deployment_Map_UPDATED_2_11_26_WFL1/FeatureServer/0/query';
+
+    // Query parameters
+    const params = {
+      where: '1=1', // Get all features
+      outFields: '*', // Get all attributes
+      returnGeometry: 'true',
+      f: 'geojson',
+      outSR: '4326' // WGS84 lat/lng
+    };
+
+    const response = await axios.get(serviceUrl, { params, timeout: 30000 });
+
+    console.log(`📡 Fetched ${response.data.features?.length || 0} V2X deployment locations from USDOT`);
+
+    res.json({
+      success: true,
+      source: 'USDOT Federal V2X Deployment Map',
+      serviceUrl: 'https://geo.dot.gov/server/rest/services/Hosted/Vehicle_to_Everything__V2X__Deployment_Map_UPDATED_2_11_26_WFL1/FeatureServer',
+      data: response.data
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching USDOT V2X deployments:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      note: 'Federal V2X deployment data temporarily unavailable'
+    });
+  }
+});
+
+// Fetch USDOT RSU (Roadside Unit) locations
+app.get('/api/v2x/rsus', async (req, res) => {
+  try {
+    const axios = require('axios');
+
+    // USDOT RSU deployment locations
+    const serviceUrl = 'https://geo.dot.gov/server/rest/services/Hosted/RSU_Deployment_Locations_010726/FeatureServer/0/query';
+
+    const params = {
+      where: '1=1',
+      outFields: '*',
+      returnGeometry: 'true',
+      f: 'geojson',
+      outSR: '4326'
+    };
+
+    const response = await axios.get(serviceUrl, { params, timeout: 30000 });
+
+    console.log(`📡 Fetched ${response.data.features?.length || 0} RSU locations from USDOT`);
+
+    res.json({
+      success: true,
+      source: 'USDOT RSU Deployment Locations',
+      data: response.data
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching USDOT RSU locations:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 // ========================================
 // WEB FEATURE SERVICE (WFS) CONNECTIONS

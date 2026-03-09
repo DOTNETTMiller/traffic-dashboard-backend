@@ -16,6 +16,8 @@ import StateOSWRegulationsLayer from './StateOSWRegulationsLayer';
 import ITSEquipmentLayer from './ITSEquipmentLayer';
 import NetworkTopologyLayer from './NetworkTopologyLayer';
 import TETCCorridorsLayer from './TETCCorridorsLayer';
+import CADDElementsLayer from './CADDElementsLayer';
+import V2XDeploymentsLayer from './V2XDeploymentsLayer';
 import EventFormatPopup from './EventFormatPopup';
 import BoundingBoxSelector from './BoundingBoxSelector';
 import HeatMapControl from './HeatMapControl';
@@ -452,6 +454,8 @@ export default function TrafficMap({
   showITSEquipment = false,
   itsEquipmentRoute = null,
   itsEquipmentType = null,
+  showCADDElements = false,
+  showV2XDeployments = false,
   interstateOnly = true,
   heatMapActive = false,
   heatMapMode = 'density',
@@ -1062,6 +1066,16 @@ export default function TrafficMap({
         {/* Network Topology Layer */}
         {showITSEquipment && (
           <NetworkTopologyLayer visible={showITSEquipment} />
+        )}
+
+        {/* CADD Elements Layer */}
+        {showCADDElements && (
+          <CADDElementsLayer visible={showCADDElements} stateKey={stateKey} />
+        )}
+
+        {/* USDOT V2X Deployments Layer */}
+        {showV2XDeployments && (
+          <V2XDeploymentsLayer visible={showV2XDeployments} stateKey={stateKey} />
         )}
 
         {/* Heat Map Visualization */}

@@ -246,17 +246,282 @@ class IFCParser {
     const category = this.categorizeElement(entity.type);
     const itsRelevance = this.assessITSRelevance(entity.type);
 
+    // Extract dimensional properties from property sets
+    const dimensions = this.extractDimensions(id);
+
     return {
       ifc_guid: guid,
       ifc_type: entity.type,
       element_name: name !== '$' ? name : null,
       element_description: description !== '$' ? description : null,
       category: category,
+      latitude: dimensions.latitude,
+      longitude: dimensions.longitude,
+      elevation: dimensions.elevation,
+      length: dimensions.length,
+      width: dimensions.width,
+      height: dimensions.height,
+      clearance: dimensions.clearance,
+      operational_purpose: itsRelevance.purpose,
       its_relevance: itsRelevance.purpose,
       v2x_applicable: itsRelevance.v2x,
       av_critical: itsRelevance.av,
-      raw_entity: entity.raw
+      has_manufacturer: dimensions.manufacturer ? true : false,
+      has_model: dimensions.model ? true : false,
+      has_install_date: dimensions.install_date ? true : false,
+      has_clearance: dimensions.clearance ? true : false,
+      has_coordinates: (dimensions.latitude && dimensions.longitude) ? true : false,
+      compliance_score: this.calculateComplianceScore(dimensions, itsRelevance),
+      properties: {
+        ...dimensions.properties,
+        raw_entity: entity.raw
+      },
+      geometry_data: dimensions.geometry
     };
+  }
+
+  /**
+   * Extract dimensional properties from IFC property sets and quantities
+   */
+  extractDimensions(elementId) {
+    const dimensions = {
+      latitude: null,
+      longitude: null,
+      elevation: null,
+      length: null,
+      width: null,
+      height: null,
+      clearance: null,
+      manufacturer: null,
+      model: null,
+      install_date: null,
+      properties: {},
+      geometry: null
+    };
+
+    let foundRelationships = 0;
+
+    // Search for IfcRelDefinesByProperties relationships
+    for (const [relId, rel] of this.entities) {
+      if (rel.type === 'IFCRELDEFINESBYPROPERTIES') {
+        // Check if this relationship defines properties for our element
+        // Look for the element ID in the list of related objects (5th parameter)
+        // Handle both single-line and multi-line formats:
+        // Single-line: (...,(#426),#465);
+        // Multi-line:  (...,(#426),\n#465);
+        const relatedObjectsMatch = rel.params.match(/\(([^)]*\#[^)]*)\),[\s\n]*#(\d+)/);
+        if (relatedObjectsMatch) {
+          const relatedObjects = relatedObjectsMatch[1];
+          const propSetId = `#${relatedObjectsMatch[2]}`;
+
+          if (relatedObjects.includes(elementId)) {
+            foundRelationships++;
+            const propSet = this.entities.get(propSetId);
+
+            if (propSet && propSet.type === 'IFCPROPERTYSET') {
+              // Extract properties from the property set
+              this.extractPropertiesFromSet(propSet, dimensions);
+            }
+          }
+        }
+      }
+
+      // Also check IfcRelDefinesByType for type-based properties
+      if (rel.type === 'IFCRELDEFINESBYTYPE') {
+        const relatedObjectsMatch = rel.params.match(/\(([^)]*\#[^)]*)\),[\s\n]*#(\d+)/);
+        if (relatedObjectsMatch) {
+          const relatedObjects = relatedObjectsMatch[1];
+          const typeId = `#${relatedObjectsMatch[2]}`;
+
+          if (relatedObjects.includes(elementId)) {
+            const typeEntity = this.entities.get(typeId);
+
+            if (typeEntity) {
+              // Extract properties from type
+              this.extractPropertiesFromType(typeEntity, dimensions);
+            }
+          }
+        }
+      }
+    }
+
+    // Search for IfcElementQuantity (dimensional quantities)
+    for (const [, rel] of this.entities) {
+      if (rel.type === 'IFCRELDEFINESBYPROPERTIES') {
+        const relatedObjectsMatch = rel.params.match(/\(([^)]*\#[^)]*)\),[\s\n]*#(\d+)/);
+        if (relatedObjectsMatch) {
+          const relatedObjects = relatedObjectsMatch[1];
+          const quantId = `#${relatedObjectsMatch[2]}`;
+
+          if (relatedObjects.includes(elementId)) {
+            const quant = this.entities.get(quantId);
+            if (quant && quant.type === 'IFCELEMENTQUANTITY') {
+              this.extractQuantities(quant, dimensions);
+            }
+          }
+        }
+      }
+    }
+
+    return dimensions;
+  }
+
+  /**
+   * Extract properties from an IfcPropertySet
+   */
+  extractPropertiesFromSet(propSet, dimensions) {
+    // Extract property single values from the set
+    const propRefs = propSet.params.match(/#\d+/g) || [];
+
+    for (const propRef of propRefs) {
+      const prop = this.entities.get(propRef);
+      if (!prop) continue;
+
+      if (prop.type === 'IFCPROPERTYSINGLEVALUE') {
+        this.extractSingleValue(prop, dimensions);
+      }
+    }
+  }
+
+  /**
+   * Extract a single property value
+   */
+  extractSingleValue(prop, dimensions) {
+    // Property format: IFCPROPERTYSINGLEVALUE('Name','Description',value,unit)
+    const params = this.splitParams(prop.params);
+    if (params.length < 3) return;
+
+    // Extract property name and strip unit suffix (e.g., "MinimumVerticalClearance [ft]" -> "minimumverticalclearance")
+    let propName = params[0].replace(/'/g, '').toLowerCase();
+    propName = propName.split('[')[0].trim(); // Remove unit suffix like "[ft]" or "[in]"
+    propName = propName.replace(/\s+/g, ''); // Remove any remaining spaces
+
+    const propValue = params[2];
+
+    // Extract numeric value from IfcReal, IfcInteger, IfcLengthMeasure, etc.
+    let value = null;
+    const numMatch = propValue.match(/([-\d.]+)/);
+    if (numMatch) {
+      value = parseFloat(numMatch[1]);
+    }
+
+    // Map property names to dimension fields
+    const propertyMap = {
+      // Width mappings
+      'width': 'width',
+      'lanewidth': 'width',
+      'lane_width': 'width',
+      'approachslabwidth': 'width',
+
+      // Height mappings
+      'height': 'height',
+
+      // Clearance mappings
+      'clearance': 'clearance',
+      'clearanceheight': 'clearance',
+      'verticalclearance': 'clearance',
+      'minimumverticalclearance': 'clearance',
+
+      // Length mappings
+      'length': 'length',
+      'span': 'length',
+      'spanlength': 'length',
+      'bridgelength': 'length',
+      'bearingtobearinglength': 'length',
+      'approachslablength': 'length',
+      'drilledshaftlength': 'length',
+
+      // Position mappings
+      'elevation': 'elevation',
+      'latitude': 'latitude',
+      'longitude': 'longitude',
+
+      // Metadata mappings
+      'manufacturer': 'manufacturer',
+      'model': 'model',
+      'installationdate': 'install_date',
+      'install_date': 'install_date'
+    };
+
+    const mappedField = propertyMap[propName];
+    if (mappedField && value !== null) {
+      dimensions[mappedField] = value;
+    }
+
+    // Store all properties for later reference
+    dimensions.properties[propName] = propValue.replace(/[()]/g, '');
+  }
+
+  /**
+   * Extract properties from element type
+   */
+  extractPropertiesFromType(typeEntity, dimensions) {
+    // Element types may have property sets
+    const propRefs = typeEntity.params.match(/#\d+/g) || [];
+
+    for (const propRef of propRefs) {
+      const entity = this.entities.get(propRef);
+      if (!entity) continue;
+
+      if (entity.type === 'IFCPROPERTYSET') {
+        this.extractPropertiesFromSet(entity, dimensions);
+      }
+    }
+  }
+
+  /**
+   * Extract quantities from IfcElementQuantity
+   */
+  extractQuantities(quantEntity, dimensions) {
+    // Quantity format contains quantity values like length, width, height
+    const quantRefs = quantEntity.params.match(/#\d+/g) || [];
+
+    for (const quantRef of quantRefs) {
+      const quant = this.entities.get(quantRef);
+      if (!quant) continue;
+
+      // Handle different quantity types
+      if (quant.type === 'IFCQUANTITYLENGTH') {
+        const params = this.splitParams(quant.params);
+        const quantName = params[0]?.replace(/'/g, '').toLowerCase();
+        const value = parseFloat(params[2]?.match(/([-\d.]+)/)?.[1] || 0);
+
+        if (quantName.includes('width') && !dimensions.width) {
+          dimensions.width = value;
+        } else if (quantName.includes('height') && !dimensions.height) {
+          dimensions.height = value;
+        } else if (quantName.includes('length') && !dimensions.length) {
+          dimensions.length = value;
+        } else if (quantName.includes('clearance') && !dimensions.clearance) {
+          dimensions.clearance = value;
+        }
+      }
+    }
+  }
+
+  /**
+   * Calculate compliance score based on available properties
+   */
+  calculateComplianceScore(dimensions, itsRelevance) {
+    const requiredProps = itsRelevance.properties_needed || [];
+    if (requiredProps.length === 0) return 0;
+
+    let found = 0;
+    const propMap = {
+      'clearance_height': dimensions.clearance,
+      'clearance_width': dimensions.width,
+      'lane_width': dimensions.width,
+      'height_above_road': dimensions.height,
+      'bottom_elevation': dimensions.elevation
+    };
+
+    for (const prop of requiredProps) {
+      if (dimensions.properties[prop] || propMap[prop]) {
+        found++;
+      }
+    }
+
+    return Math.round((found / requiredProps.length) * 100);
   }
 
   categorizeElement(ifcType) {

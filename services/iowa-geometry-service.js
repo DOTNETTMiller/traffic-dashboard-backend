@@ -311,8 +311,10 @@ class IowaGeometryService {
           const offsetGeometry = this.applyBidirectionalOffset(geometry.coordinates, event.corridor);
           return {
             ...event,
-            geometry: offsetGeometry,
-            geometry_source: 'Original Feed Geometry (offset)'
+            geometry: {
+              ...offsetGeometry,
+              geometrySource: 'Original Feed Geometry (offset)'
+            }
           };
         }
         return event;
@@ -326,8 +328,10 @@ class IowaGeometryService {
           const offsetGeometry = this.applyBidirectionalOffset(geometry.coordinates, event.corridor);
           return {
             ...event,
-            geometry: offsetGeometry,
-            geometry_source: 'Original Feed Geometry (offset)'
+            geometry: {
+              ...offsetGeometry,
+              geometrySource: 'Original Feed Geometry (offset)'
+            }
           };
         }
         return event;
@@ -351,8 +355,10 @@ class IowaGeometryService {
       // Return event with enriched geometry
       return {
         ...event,
-        geometry: finalGeometry,
-        geometry_source: 'Iowa DOT All Routes'
+        geometry: {
+          ...finalGeometry,
+          geometrySource: 'Iowa DOT All Routes'
+        }
       };
 
     } catch (error) {

@@ -1,32 +1,39 @@
+/**
+ * CADD File Parser
+ *
+ * Parses CAD files (DXF, DWG, DGN) and extracts operational elements:
+ * - ITS equipment (signs, signals, cameras, DMS)
+ * - Road geometry (centerlines, lane markings)
+ * - Traffic control devices
+ * - Work zones and construction staging
+ * - Utilities and drainage
+ *
+ * Similar to IFC parser but for CADD design files
+ */
+
 const fs = require('fs');
 const path = require('path');
 const DxfParser = require('dxf-parser');
 
-/**
- * CAD Parser for DWG/DXF/DGN files
- * Extracts infrastructure elements from CAD files for Digital Infrastructure analysis
- */
-class CADParser {
+class CADDParser {
   constructor() {
     this.entities = [];
     this.layers = new Map();
     this.blocks = new Map();
+    this.metadata = {};
     this.extractionLog = [];
-    this.schema = null;
-    this.project = null;
-  }
-
-  log(message) {
-    console.log(`  ${message}`);
-    this.extractionLog.push(message);
+    this.itsEquipment = [];
+    this.roadGeometry = [];
+    this.trafficDevices = [];
   }
 
   /**
-   * Parse a CAD file (DXF, DWG, DGN)
+   * Parse a CADD file and extract operational elements
    */
   async parseFile(filePath) {
+    this.log(`Starting CADD file parsing: ${path.basename(filePath)}`);
+
     const ext = path.extname(filePath).toLowerCase();
-    this.log(`Starting CAD file parsing (${ext})...`);
 
     try {
       switch (ext) {
@@ -37,349 +44,390 @@ class CADParser {
         case '.dgn':
           return await this.parseDGN(filePath);
         default:
-          throw new Error(`Unsupported CAD file format: ${ext}`);
+          throw new Error(`Unsupported CADD file format: ${ext}`);
       }
     } catch (error) {
-      this.log(`ERROR: ${error.message}`);
+      this.log(`ERROR: ${error.message}`, 'error');
       throw error;
     }
   }
 
   /**
-   * Parse DXF file
+   * Parse DXF file (AutoCAD Exchange Format)
+   * Text-based, easiest to parse
    */
   async parseDXF(filePath) {
+    this.log('Parsing DXF file...');
+
     const fileContent = fs.readFileSync(filePath, 'utf-8');
     const parser = new DxfParser();
+    const dxf = parser.parseSync(fileContent);
 
-    try {
-      const dxf = parser.parseSync(fileContent);
-
-      this.schema = 'DXF';
-      this.project = path.basename(filePath, '.dxf');
-
-      this.log(`DXF version: ${dxf.header?.$ACADVER || 'Unknown'}`);
-      this.log(`Total entities: ${dxf.entities?.length || 0}`);
-
-      // Extract layers
-      if (dxf.tables?.layer?.layers) {
-        Object.entries(dxf.tables.layer.layers).forEach(([layerName, layer]) => {
-          this.layers.set(layerName, {
-            name: layerName,
-            color: layer.color,
-            visible: !layer.flags || layer.flags === 0,
-            frozen: layer.flags === 1
-          });
-        });
-        this.log(`Found ${this.layers.size} layers`);
-      }
-
-      // Extract entities
-      const elements = this.extractDXFElements(dxf);
-
-      return {
-        schema: this.schema,
-        project: this.project,
-        elements: elements,
-        extractionLog: this.extractionLog,
-        statistics: this.getStatistics(elements)
-      };
-
-    } catch (error) {
-      throw new Error(`DXF parsing failed: ${error.message}`);
+    if (!dxf) {
+      throw new Error('Failed to parse DXF file');
     }
-  }
 
-  /**
-   * Parse DWG file (requires conversion to DXF or special library)
-   */
-  async parseDWG(filePath) {
-    // DWG is a proprietary format - for now, recommend converting to DXF
-    throw new Error(
-      'DWG files must be converted to DXF format. Please use AutoCAD, FreeCAD, or ODA File Converter to export as DXF.'
-    );
-  }
+    this.log(`DXF parsed successfully. Version: ${dxf.header?.$ACADVER || 'Unknown'}`);
 
-  /**
-   * Parse DGN file (MicroStation format)
-   */
-  async parseDGN(filePath) {
-    // DGN parsing would require GDAL/OGR or similar
-    // For now, recommend converting to DXF or IFC
-    throw new Error(
-      'DGN files must be converted to DXF or IFC format. Please use Bentley MicroStation or ODA File Converter to export.'
-    );
-  }
+    // Extract metadata
+    this.extractMetadata(dxf);
 
-  /**
-   * Extract infrastructure elements from DXF entities
-   */
-  extractDXFElements(dxf) {
-    const elements = [];
-    const entities = dxf.entities || [];
+    // Extract layers
+    this.extractLayers(dxf);
 
-    const infrastructureKeywords = {
-      // Bridge elements
-      bridge: ['BRIDGE', 'BEAM', 'GIRDER', 'PIER', 'ABUTMENT', 'DECK', 'SUPERSTRUCTURE', 'SUBSTRUCTURE'],
+    // Extract entities (lines, polylines, circles, text, blocks, etc.)
+    this.extractEntities(dxf);
 
-      // Signs
-      sign: ['SIGN', 'REGULATORY', 'WARNING', 'GUIDE', 'MUTCD'],
+    // Extract blocks (reusable symbols like ITS equipment)
+    this.extractBlocks(dxf);
 
-      // Signals
-      signal: ['SIGNAL', 'TRAFFIC LIGHT', 'SPAT', 'CONTROLLER'],
-
-      // Pavement
-      pavement: ['PAVEMENT', 'SURFACE', 'ASPHALT', 'CONCRETE', 'ROADWAY'],
-
-      // Markings
-      marking: ['MARKING', 'STRIPE', 'LINE', 'ARROW', 'CROSSWALK'],
-
-      // Barriers
-      barrier: ['GUARDRAIL', 'BARRIER', 'RAILING', 'FENCE', 'CABLE RAIL'],
-
-      // Drainage
-      drainage: ['DRAIN', 'INLET', 'GRATE', 'CULVERT', 'PIPE'],
-
-      // Utilities
-      utility: ['UTILITY', 'CONDUIT', 'MANHOLE', 'VALVE', 'HYDRANT']
-    };
-
-    entities.forEach((entity, idx) => {
-      const layerName = entity.layer || 'DEFAULT';
-      const entityType = entity.type?.toUpperCase() || 'UNKNOWN';
-
-      // Determine infrastructure category based on layer name
-      let category = 'Other CAD Element';
-      let ifcType = 'CAD_ELEMENT';
-
-      for (const [cat, keywords] of Object.entries(infrastructureKeywords)) {
-        if (keywords.some(kw => layerName.toUpperCase().includes(kw))) {
-          category = this.categorizeFromKeyword(cat);
-          ifcType = this.mapToIFCType(cat);
-          break;
-        }
-      }
-
-      // Extract geometry-based info
-      let description = `${entityType} on layer ${layerName}`;
-      let hasLocation = false;
-
-      if (entity.position || entity.startPoint || entity.center) {
-        hasLocation = true;
-        const point = entity.position || entity.startPoint || entity.center;
-        description += ` at (${point.x?.toFixed(2)}, ${point.y?.toFixed(2)})`;
-      }
-
-      // Only add elements that might be infrastructure
-      if (category !== 'Other CAD Element' || hasLocation) {
-        elements.push({
-          ifc_guid: `CAD_${idx}_${Date.now()}`,
-          ifc_type: ifcType,
-          element_name: layerName,
-          element_description: description,
-          category: category,
-          its_relevance: this.assessCADRelevance(category),
-          v2x_applicable: this.isV2XRelevant(category),
-          av_critical: this.isAVCritical(category),
-          raw_entity: JSON.stringify({
-            type: entityType,
-            layer: layerName,
-            color: entity.color,
-            hasGeometry: hasLocation
-          })
-        });
-      }
-    });
-
-    this.log(`Extracted ${elements.length} infrastructure elements from DXF`);
-    return elements;
-  }
-
-  categorizeFromKeyword(keyword) {
-    const categoryMap = {
-      bridge: 'Bridge Structure',
-      sign: 'Traffic Sign',
-      signal: 'Traffic Signal',
-      pavement: 'Pavement',
-      marking: 'Pavement Marking',
-      barrier: 'Guardrail/Barrier',
-      drainage: 'Drainage',
-      utility: 'Utility'
-    };
-    return categoryMap[keyword] || 'Other Infrastructure';
-  }
-
-  mapToIFCType(keyword) {
-    const ifcMap = {
-      bridge: 'IFCBRIDGE',
-      sign: 'IFCSIGN',
-      signal: 'IFCSIGNAL',
-      pavement: 'IFCPAVEMENT',
-      marking: 'IFCPAVEMENTMARKING',
-      barrier: 'IFCRAILING',
-      drainage: 'IFCPROXY',
-      utility: 'IFCPROXY'
-    };
-    return ifcMap[keyword] || 'IFCBUILDINGELEMENTPROXY';
-  }
-
-  assessCADRelevance(category) {
-    const relevanceMap = {
-      'Bridge Structure': 'Structural infrastructure for routing and clearance',
-      'Traffic Sign': 'Traffic control and V2X messaging',
-      'Traffic Signal': 'Signal timing and V2X SPaT',
-      'Pavement': 'Surface condition and AV routing',
-      'Pavement Marking': 'Lane detection and AV navigation',
-      'Guardrail/Barrier': 'Safety infrastructure',
-      'Drainage': 'Maintenance and flooding',
-      'Utility': 'Underground infrastructure'
-    };
-    return relevanceMap[category] || 'Infrastructure element';
-  }
-
-  isV2XRelevant(category) {
-    const v2xCategories = ['Traffic Sign', 'Traffic Signal', 'Pavement Marking'];
-    return v2xCategories.includes(category);
-  }
-
-  isAVCritical(category) {
-    const avCategories = ['Traffic Sign', 'Traffic Signal', 'Pavement Marking', 'Pavement'];
-    return avCategories.includes(category);
-  }
-
-  getStatistics(elements) {
-    const byType = {};
-    elements.forEach(el => {
-      byType[el.ifc_type] = (byType[el.ifc_type] || 0) + 1;
-    });
+    // Classify elements by operational significance
+    this.classifyOperationalElements();
 
     return {
-      total_entities: elements.length,
-      by_type: byType,
-      v2x_elements: elements.filter(e => e.v2x_applicable).length,
-      av_critical_elements: elements.filter(e => e.av_critical).length
+      format: 'DXF',
+      metadata: this.metadata,
+      layers: Array.from(this.layers.values()),
+      entities: this.entities,
+      blocks: Array.from(this.blocks.values()),
+      itsEquipment: this.itsEquipment,
+      roadGeometry: this.roadGeometry,
+      trafficDevices: this.trafficDevices,
+      extractionLog: this.extractionLog,
+      statistics: this.getStatistics()
     };
   }
 
   /**
-   * Identify data gaps for CAD elements
+   * Parse DWG file (AutoCAD native binary format)
+   * More complex - would need conversion to DXF or specialized library
    */
-  identifyGaps(elements) {
-    const gaps = [];
-    const allGaps = [];
+  async parseDWG(filePath) {
+    this.log('DWG parsing requested...');
 
-    // CAD files typically lack semantic data, so we add gaps for all critical properties
-    elements.forEach(element => {
-      const criticalProperties = this.getCriticalProperties(element.category);
+    // DWG is binary and complex - two approaches:
+    // 1. Use conversion service (AutoCAD ODA File Converter)
+    // 2. Use specialized library (not available in Node easily)
 
-      criticalProperties.forEach(prop => {
-        allGaps.push({
-          element_ifc_guid: element.ifc_guid,
-          element_category: element.category,
-          gap_type: 'missing_property',
-          gap_category: 'CAD Data Enrichment',
-          severity: prop.severity,
-          missing_property: prop.name,
-          required_for: prop.required_for,
-          its_use_case: prop.its_use_case,
-          standards_reference: 'IFC4x3 / CAD-to-BIM conversion requirements',
-          idm_recommendation: `CAD elements should be converted to IFC with proper ${prop.name} properties. CAD files lack semantic infrastructure data needed for ITS operations. Recommend conversion to IFC using tools like Revit, Civil 3D, or FME Data Interoperability.`,
-          ids_requirement: `<property name="${prop.name}" required="true" purpose="ITS_Operations" />`
-        });
-      });
-    });
+    // For now, suggest conversion to DXF
+    throw new Error(
+      'DWG parsing not yet implemented. ' +
+      'Please convert DWG to DXF using AutoCAD or FreeCAD: ' +
+      'File > Save As > DXF'
+    );
 
-    // Deduplicate gaps: group by unique combination of gap properties
-    const gapMap = new Map();
-    allGaps.forEach(gap => {
-      const key = `${gap.gap_type}|${gap.missing_property}|${gap.gap_category}|${gap.severity}|${gap.element_category}`;
+    // TODO: Implement DWG parsing via conversion or library
+    // Could use child_process to call ODA FileConverter if installed
+  }
 
-      if (!gapMap.has(key)) {
-        // First occurrence - store it with affected elements array
-        gapMap.set(key, {
-          ...gap,
-          affected_element_guids: [gap.element_ifc_guid],
-          affected_element_count: 1
-        });
-      } else {
-        // Duplicate - just add to affected elements
-        const existing = gapMap.get(key);
-        existing.affected_element_guids.push(gap.element_ifc_guid);
-        existing.affected_element_count++;
-      }
-    });
+  /**
+   * Parse DGN file (MicroStation native format)
+   * Very common in state DOT workflows
+   */
+  async parseDGN(filePath) {
+    this.log('DGN parsing requested...');
 
-    // Convert map back to array
-    const deduplicatedGaps = Array.from(gapMap.values()).map(gap => {
-      return {
-        element_ifc_guid: gap.affected_element_guids[0],
-        gap_type: gap.gap_type,
-        gap_category: gap.gap_category,
-        severity: gap.severity,
-        missing_property: gap.missing_property,
-        required_for: gap.required_for,
-        its_use_case: gap.its_use_case,
-        standards_reference: gap.standards_reference,
-        idm_recommendation: gap.idm_recommendation,
-        ids_requirement: gap.ids_requirement,
-        affected_element_count: gap.affected_element_count,
-        affected_element_guids: gap.affected_element_guids.join(',')
-      };
-    });
+    // DGN is Bentley MicroStation's format
+    // Two versions: DGN v7 (older) and DGN v8 (newer, based on DWG)
 
-    gaps.push(...deduplicatedGaps);
+    // For now, suggest conversion to DXF
+    throw new Error(
+      'DGN parsing not yet implemented. ' +
+      'Please convert DGN to DXF using MicroStation or FME: ' +
+      'File > Save As > DXF'
+    );
 
-    // Add model-level gap about CAD limitations
-    if (elements.length > 0) {
-      gaps.push({
-        element_ifc_guid: elements[0].ifc_guid,
-        gap_type: 'cad_format_limitations',
-        gap_category: 'Data Format',
-        severity: 'high',
-        missing_property: 'Semantic BIM Data',
-        required_for: 'Full ITS integration requires semantic infrastructure data',
-        its_use_case: 'V2X, AV routing, digital twin, asset management',
-        standards_reference: 'buildingSMART IFC4.3, AASHTO BIM standards',
-        idm_recommendation: 'CAD files (DXF/DWG/DGN) contain only geometry and layer information, lacking the semantic properties required for ITS operations. Recommend: 1) Convert to IFC format using Autodesk Civil 3D, Bentley OpenRoads, or FME, 2) Enrich with property sets during conversion, 3) Use this gap report to guide which properties to add during conversion.',
-        ids_requirement: '<format required="IFC" purpose="Semantic_Infrastructure_Data" />',
-        affected_element_count: elements.length,
-        affected_element_guids: elements.map(e => e.ifc_guid).join(',')
+    // TODO: Implement DGN parsing
+    // Could use GDAL/OGR libraries (support DGN via libopendgn)
+    // Or use FME/conversion service
+  }
+
+  /**
+   * Extract metadata from parsed CAD file
+   */
+  extractMetadata(dxf) {
+    this.metadata = {
+      version: dxf.header?.$ACADVER || 'Unknown',
+      units: dxf.header?.$INSUNITS || 0,
+      extents: {
+        min: dxf.header?.$EXTMIN || { x: 0, y: 0, z: 0 },
+        max: dxf.header?.$EXTMAX || { x: 0, y: 0, z: 0 }
+      },
+      layers: dxf.tables?.layer?.layers ? Object.keys(dxf.tables.layer.layers).length : 0,
+      blocks: dxf.blocks ? Object.keys(dxf.blocks).length : 0
+    };
+
+    this.log(`Metadata extracted: ${this.metadata.layers} layers, ${this.metadata.blocks} blocks`);
+  }
+
+  /**
+   * Extract layers from DXF
+   */
+  extractLayers(dxf) {
+    if (!dxf.tables?.layer?.layers) {
+      this.log('No layers found in DXF');
+      return;
+    }
+
+    for (const [layerName, layer] of Object.entries(dxf.tables.layer.layers)) {
+      this.layers.set(layerName, {
+        name: layerName,
+        color: layer.color,
+        visible: !layer.flags || (layer.flags & 1) === 0,
+        frozen: layer.flags && (layer.flags & 2) !== 0,
+        entityCount: 0
       });
     }
 
-    return gaps;
+    this.log(`Extracted ${this.layers.size} layers`);
   }
 
-  getCriticalProperties(category) {
-    const propertyMap = {
-      'Bridge Structure': [
-        { name: 'nbi_structure_number', severity: 'high', required_for: 'Bridge inventory', its_use_case: 'Asset tracking, NBI reporting' },
-        { name: 'vertical_clearance', severity: 'high', required_for: 'V2X warnings', its_use_case: 'Over-height vehicle routing' },
-        { name: 'load_rating', severity: 'medium', required_for: 'Commercial vehicle routing', its_use_case: 'Truck routing, weight restrictions' }
+  /**
+   * Extract entities (lines, polylines, circles, text, inserts)
+   */
+  extractEntities(dxf) {
+    if (!dxf.entities) {
+      this.log('No entities found in DXF');
+      return;
+    }
+
+    for (const entity of dxf.entities) {
+      const processedEntity = {
+        type: entity.type,
+        layer: entity.layer || '0',
+        handle: entity.handle,
+        color: entity.color,
+        lineWeight: entity.lineweight
+      };
+
+      // Extract geometry based on type
+      switch (entity.type) {
+        case 'LINE':
+          processedEntity.geometry = {
+            start: entity.vertices?.[0] || { x: 0, y: 0, z: 0 },
+            end: entity.vertices?.[1] || { x: 0, y: 0, z: 0 }
+          };
+          break;
+
+        case 'POLYLINE':
+        case 'LWPOLYLINE':
+          processedEntity.geometry = {
+            vertices: entity.vertices || [],
+            closed: entity.shape || false
+          };
+          break;
+
+        case 'CIRCLE':
+          processedEntity.geometry = {
+            center: entity.center || { x: 0, y: 0, z: 0 },
+            radius: entity.radius || 0
+          };
+          break;
+
+        case 'ARC':
+          processedEntity.geometry = {
+            center: entity.center || { x: 0, y: 0, z: 0 },
+            radius: entity.radius || 0,
+            startAngle: entity.startAngle || 0,
+            endAngle: entity.endAngle || 0
+          };
+          break;
+
+        case 'TEXT':
+        case 'MTEXT':
+          processedEntity.text = entity.text || '';
+          processedEntity.geometry = {
+            position: entity.position || { x: 0, y: 0, z: 0 },
+            height: entity.textHeight || 0
+          };
+          break;
+
+        case 'INSERT':
+          // Block reference (important for ITS equipment symbols)
+          processedEntity.blockName = entity.name;
+          processedEntity.geometry = {
+            position: entity.position || { x: 0, y: 0, z: 0 },
+            rotation: entity.rotation || 0,
+            scale: entity.scale || { x: 1, y: 1, z: 1 }
+          };
+          break;
+
+        case 'POINT':
+          processedEntity.geometry = {
+            position: entity.position || { x: 0, y: 0, z: 0 }
+          };
+          break;
+      }
+
+      this.entities.push(processedEntity);
+
+      // Update layer entity count
+      const layer = this.layers.get(entity.layer || '0');
+      if (layer) {
+        layer.entityCount++;
+      }
+    }
+
+    this.log(`Extracted ${this.entities.length} entities`);
+  }
+
+  /**
+   * Extract blocks (reusable symbols)
+   */
+  extractBlocks(dxf) {
+    if (!dxf.blocks) {
+      this.log('No blocks found in DXF');
+      return;
+    }
+
+    for (const [blockName, block] of Object.entries(dxf.blocks)) {
+      this.blocks.set(blockName, {
+        name: blockName,
+        entities: block.entities?.length || 0,
+        basePoint: block.position || { x: 0, y: 0, z: 0 }
+      });
+    }
+
+    this.log(`Extracted ${this.blocks.size} blocks`);
+  }
+
+  /**
+   * Classify elements by operational significance
+   *
+   * Identifies:
+   * - ITS equipment (signs, signals, cameras, DMS, sensors)
+   * - Road geometry (centerlines, lane lines, pavement markings)
+   * - Traffic control devices
+   * - Work zones
+   */
+  classifyOperationalElements() {
+    this.log('Classifying operational elements...');
+
+    // Common layer naming conventions for transportation CADD
+    const layerPatterns = {
+      itsEquipment: [
+        /sign/i,
+        /signal/i,
+        /camera/i,
+        /cctv/i,
+        /dms/i,
+        /vms/i,
+        /detector/i,
+        /sensor/i,
+        /rsu/i,
+        /beacon/i,
+        /flasher/i
       ],
-      'Traffic Sign': [
-        { name: 'mutcd_code', severity: 'high', required_for: 'Sign inventory', its_use_case: 'V2X message generation' },
-        { name: 'message_text', severity: 'high', required_for: 'V2X broadcasting', its_use_case: 'Driver awareness, AV compliance' }
+      roadGeometry: [
+        /centerline/i,
+        /cl$/i,
+        /edge.*line/i,
+        /lane/i,
+        /pavement/i,
+        /marking/i,
+        /stripe/i
       ],
-      'Traffic Signal': [
-        { name: 'controller_id', severity: 'high', required_for: 'Signal system integration', its_use_case: 'SPaT messaging, NTCIP' },
-        { name: 'phase_timing', severity: 'medium', required_for: 'Signal coordination', its_use_case: 'Adaptive signal control' }
+      trafficDevices: [
+        /traffic/i,
+        /control/i,
+        /barrier/i,
+        /guardrail/i,
+        /attenuator/i
       ],
-      'Pavement': [
-        { name: 'surface_type', severity: 'medium', required_for: 'Maintenance planning', its_use_case: 'Pavement management' },
-        { name: 'functional_class', severity: 'high', required_for: 'Traffic modeling', its_use_case: 'HPMS reporting' }
-      ],
-      'Pavement Marking': [
-        { name: 'marking_type', severity: 'high', required_for: 'Lane detection', its_use_case: 'AV navigation' },
-        { name: 'retroreflectivity', severity: 'medium', required_for: 'Maintenance scheduling', its_use_case: 'Safety compliance' }
+      workZone: [
+        /staging/i,
+        /construction/i,
+        /work.*zone/i,
+        /temporary/i,
+        /detour/i
       ]
     };
 
-    return propertyMap[category] || [
-      { name: 'element_classification', severity: 'medium', required_for: 'Asset categorization', its_use_case: 'Inventory management' },
-      { name: 'installation_date', severity: 'low', required_for: 'Lifecycle tracking', its_use_case: 'Maintenance forecasting' }
-    ];
+    // Classify entities by layer name
+    for (const entity of this.entities) {
+      const layerName = entity.layer || '';
+
+      // Check ITS equipment patterns
+      if (layerPatterns.itsEquipment.some(pattern => pattern.test(layerName))) {
+        this.itsEquipment.push({
+          ...entity,
+          category: 'ITS Equipment',
+          type: this.inferITSType(layerName, entity)
+        });
+      }
+
+      // Check road geometry patterns
+      if (layerPatterns.roadGeometry.some(pattern => pattern.test(layerName))) {
+        this.roadGeometry.push({
+          ...entity,
+          category: 'Road Geometry'
+        });
+      }
+
+      // Check traffic devices
+      if (layerPatterns.trafficDevices.some(pattern => pattern.test(layerName))) {
+        this.trafficDevices.push({
+          ...entity,
+          category: 'Traffic Control Device'
+        });
+      }
+    }
+
+    this.log(`Classified: ${this.itsEquipment.length} ITS, ${this.roadGeometry.length} road geometry, ${this.trafficDevices.length} traffic devices`);
+  }
+
+  /**
+   * Infer specific ITS equipment type from layer name and entity
+   */
+  inferITSType(layerName, entity) {
+    const name = layerName.toLowerCase();
+
+    if (name.includes('sign')) return 'Sign';
+    if (name.includes('signal')) return 'Traffic Signal';
+    if (name.includes('camera') || name.includes('cctv')) return 'Camera';
+    if (name.includes('dms') || name.includes('vms')) return 'DMS';
+    if (name.includes('detector') || name.includes('sensor')) return 'Detector';
+    if (name.includes('rsu')) return 'RSU';
+    if (name.includes('beacon')) return 'Beacon';
+    if (name.includes('flasher')) return 'Flasher';
+
+    return 'Unknown ITS Device';
+  }
+
+  /**
+   * Get statistics about parsed file
+   */
+  getStatistics() {
+    return {
+      totalEntities: this.entities.length,
+      totalLayers: this.layers.size,
+      totalBlocks: this.blocks.size,
+      itsEquipment: this.itsEquipment.length,
+      roadGeometry: this.roadGeometry.length,
+      trafficDevices: this.trafficDevices.length,
+      entityTypes: this.getEntityTypeBreakdown()
+    };
+  }
+
+  /**
+   * Get breakdown of entity types
+   */
+  getEntityTypeBreakdown() {
+    const breakdown = {};
+    for (const entity of this.entities) {
+      breakdown[entity.type] = (breakdown[entity.type] || 0) + 1;
+    }
+    return breakdown;
+  }
+
+  /**
+   * Log extraction progress
+   */
+  log(message, level = 'info') {
+    const timestamp = new Date().toISOString();
+    this.extractionLog.push({ timestamp, level, message });
+    console.log(`[CADD Parser] ${level.toUpperCase()}: ${message}`);
   }
 }
 
-module.exports = CADParser;
+module.exports = CADDParser;

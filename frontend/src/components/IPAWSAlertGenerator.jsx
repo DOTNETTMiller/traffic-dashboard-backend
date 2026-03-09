@@ -18,18 +18,57 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
   const [activeTab, setActiveTab] = useState('qualification');
   const [overridePopulation, setOverridePopulation] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [trainingMode, setTrainingMode] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [recommendedTemplate, setRecommendedTemplate] = useState(null);
 
   // Geofence adjustment parameters
-  const [bufferMiles, setBufferMiles] = useState(2.0);
+  const [bufferFeet, setBufferFeet] = useState(1000); // Default 1000 feet (~0.19 miles)
   const [corridorLengthMiles, setCorridorLengthMiles] = useState(null); // null = full length
+  const [advanceWarningMode, setAdvanceWarningMode] = useState(false); // Toggle for asymmetric corridor
+  const [corridorAheadMiles, setCorridorAheadMiles] = useState(5.0); // Distance ahead of event
+  const [corridorBehindMiles, setCorridorBehindMiles] = useState(0.5); // Distance behind event
   const [avoidUrbanAreas, setAvoidUrbanAreas] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
     if (event) {
       generateAlert();
+      fetchTemplateRecommendation();
     }
   }, [event]);
+
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
+
+  const fetchTemplates = async () => {
+    try {
+      const response = await fetch(`${config.apiUrl}/api/ipaws/templates`);
+      const data = await response.json();
+      if (data.success) {
+        setTemplates(data.templates);
+      }
+    } catch (err) {
+      console.error('Failed to fetch templates:', err);
+    }
+  };
+
+  const fetchTemplateRecommendation = async () => {
+    try {
+      const response = await fetch(`${config.apiUrl}/api/ipaws/templates/recommend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setRecommendedTemplate(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch template recommendation:', err);
+    }
+  };
 
   // Update parent with geofence data when alert is loaded
   useEffect(() => {
@@ -47,15 +86,15 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
       const response = await fetch(`${config.apiUrl}/api/ipaws/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event })
+        body: JSON.stringify({ event, trainingMode })
       });
 
       const data = await response.json();
       setAlert(data);
 
-      // Initialize buffer from generated geofence
+      // Initialize buffer from generated geofence (convert miles to feet)
       if (data?.geofence?.bufferMiles) {
-        setBufferMiles(data.geofence.bufferMiles);
+        setBufferFeet(Math.round(data.geofence.bufferMiles * 5280));
       }
     } catch (err) {
       setError(err.message);
@@ -70,15 +109,25 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     setError(null);
 
     try {
+      const requestBody = {
+        event,
+        bufferFeet,
+        avoidUrbanAreas,
+        trainingMode
+      };
+
+      // Add corridor parameters based on mode
+      if (advanceWarningMode) {
+        requestBody.corridorAheadMiles = corridorAheadMiles;
+        requestBody.corridorBehindMiles = corridorBehindMiles;
+      } else if (corridorLengthMiles) {
+        requestBody.corridorLengthMiles = corridorLengthMiles;
+      }
+
       const response = await fetch(`${config.apiUrl}/api/ipaws/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event,
-          bufferMiles,
-          corridorLengthMiles,
-          avoidUrbanAreas
-        })
+        body: JSON.stringify(requestBody)
       });
 
       const data = await response.json();
@@ -104,6 +153,15 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     }
   };
 
+  // Helper function to format buffer display
+  const formatBufferDisplay = (bufferMiles) => {
+    if (!bufferMiles) return '0 feet';
+    if (bufferMiles < 0.5) {
+      return `${Math.round(bufferMiles * 5280)} feet`;
+    }
+    return `${bufferMiles.toFixed(2)} miles`;
+  };
+
   const handleSaveGeofence = async () => {
     if (!alert?.geofence) return;
 
@@ -118,13 +176,17 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           geofence: alert.geofence,
           population: alert.geofence.estimatedPopulation,
           overridePopulation: overridePopulation,
-          bufferMiles: alert.geofence.bufferMiles
+          bufferMiles: alert.geofence.bufferMiles,
+          trainingMode
         })
       });
 
       if (response.ok) {
         const result = await response.json();
-        window.alert(`✅ Geofence saved to event!\n\nPopulation: ${alert.geofence.estimatedPopulation.toLocaleString()}\nBuffer: ${alert.geofence.bufferMiles} miles\n\nThe geofence will now appear on the map for this event.`);
+        const bufferDisplay = alert.geofence.bufferMiles < 0.5
+          ? `${Math.round(alert.geofence.bufferMiles * 5280)} feet`
+          : `${alert.geofence.bufferMiles.toFixed(2)} miles`;
+        window.alert(`✅ Geofence saved to event!\n\nPopulation: ${alert.geofence.estimatedPopulation.toLocaleString()}\nBuffer: ${bufferDisplay}\n\nThe geofence will now appear on the map for this event.`);
         onClose();
       } else {
         const error = await response.json();
@@ -323,6 +385,133 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           </ul>
         </div>
 
+        {/* SOP Appendix B: Decision Matrix Helper */}
+        <div style={{
+          padding: theme.spacing.md,
+          backgroundColor: '#fef3c7',
+          border: '2px solid #f59e0b',
+          borderRadius: '8px',
+          marginBottom: theme.spacing.lg
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: theme.spacing.sm,
+            marginBottom: theme.spacing.sm
+          }}>
+            <div style={{ fontSize: '18px' }}>🎯</div>
+            <h4 style={{
+              margin: 0,
+              color: '#92400e',
+              fontSize: '14px',
+              fontWeight: '700'
+            }}>
+              SOP Appendix B: Decision Matrix for Stranded Motorists
+            </h4>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gap: theme.spacing.sm
+          }}>
+            <div style={{
+              padding: theme.spacing.sm,
+              backgroundColor: 'white',
+              borderRadius: '6px',
+              border: '1px solid #fde68a'
+            }}>
+              <div style={{ fontSize: '12px', color: '#78350f', fontWeight: '600', marginBottom: '4px' }}>
+                ℹ️ Stopped {'<'}30 min, no severe weather
+              </div>
+              <div style={{ fontSize: '11px', color: '#92400e' }}>
+                → Use DMS / 511 only
+              </div>
+            </div>
+
+            <div style={{
+              padding: theme.spacing.sm,
+              backgroundColor: 'white',
+              borderRadius: '6px',
+              border: '1px solid #fde68a'
+            }}>
+              <div style={{ fontSize: '12px', color: '#78350f', fontWeight: '600', marginBottom: '4px' }}>
+                ⚠️ Stopped 30-60 min, normal weather
+              </div>
+              <div style={{ fontSize: '11px', color: '#92400e' }}>
+                → Consider IPAWS if no diversion available
+              </div>
+            </div>
+
+            <div style={{
+              padding: theme.spacing.sm,
+              backgroundColor: '#fee2e2',
+              borderRadius: '6px',
+              border: '2px solid #ef4444'
+            }}>
+              <div style={{ fontSize: '12px', color: '#991b1b', fontWeight: '700', marginBottom: '4px' }}>
+                🚨 Stopped 30+ min in blizzard/extreme cold
+              </div>
+              <div style={{ fontSize: '11px', color: '#7f1d1d', fontWeight: '600' }}>
+                → ACTIVATE WEA IMMEDIATELY
+              </div>
+            </div>
+
+            <div style={{
+              padding: theme.spacing.sm,
+              backgroundColor: '#fee2e2',
+              borderRadius: '6px',
+              border: '2px solid #ef4444'
+            }}>
+              <div style={{ fontSize: '12px', color: '#991b1b', fontWeight: '700', marginBottom: '4px' }}>
+                🚨 Stopped 60+ min in extreme heat
+              </div>
+              <div style={{ fontSize: '11px', color: '#7f1d1d', fontWeight: '600' }}>
+                → ACTIVATE WEA with heat safety guidance
+              </div>
+            </div>
+
+            <div style={{
+              padding: theme.spacing.sm,
+              backgroundColor: '#fee2e2',
+              borderRadius: '6px',
+              border: '2px solid #ef4444'
+            }}>
+              <div style={{ fontSize: '12px', color: '#991b1b', fontWeight: '700', marginBottom: '4px' }}>
+                🚨 Flooding or rising water near vehicles
+              </div>
+              <div style={{ fontSize: '11px', color: '#7f1d1d', fontWeight: '600' }}>
+                → IMMEDIATE WEA
+              </div>
+            </div>
+
+            <div style={{
+              padding: theme.spacing.sm,
+              backgroundColor: '#fee2e2',
+              borderRadius: '6px',
+              border: '2px solid #ef4444'
+            }}>
+              <div style={{ fontSize: '12px', color: '#991b1b', fontWeight: '700', marginBottom: '4px' }}>
+                🚨 Hazmat with shelter-in-place required
+              </div>
+              <div style={{ fontSize: '11px', color: '#7f1d1d', fontWeight: '600' }}>
+                → IMMEDIATE WEA
+              </div>
+            </div>
+          </div>
+
+          <div style={{
+            marginTop: theme.spacing.sm,
+            padding: theme.spacing.sm,
+            backgroundColor: 'rgba(255, 255, 255, 0.7)',
+            borderRadius: '6px',
+            fontSize: '11px',
+            color: '#78350f',
+            fontStyle: 'italic'
+          }}>
+            <strong>Reminders:</strong> Renew alerts every 60-90 min if hazard persists (max 4 hrs). Cancel once traffic moving. Always geofence to smallest segment with audience qualifier.
+          </div>
+        </div>
+
         <div style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
@@ -421,7 +610,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                 fontSize: '12px',
                 color: '#1e3a8a'
               }}>
-                The {alert.geofence.bufferMiles?.toFixed(2) || '1.00'} mile buffer zone (orange polygon) is displayed on the map. <strong>Close this modal to see it clearly.</strong>
+                The {formatBufferDisplay(alert.geofence.bufferMiles)} buffer zone (orange polygon) is displayed on the map. <strong>Close this modal to see it clearly.</strong>
               </div>
             </div>
           </div>
@@ -572,7 +761,12 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               color: "#6b7280",
               marginBottom: theme.spacing.xs
             }}>
-              Area ({alert.geofence?.bufferMiles?.toFixed(2) || '1.00'} mi buffer)
+              Area ({formatBufferDisplay(alert.geofence?.bufferMiles)} buffer)
+              {alert.geofence?.isAsymmetric && (
+                <span style={{ color: theme.colors.primary.main, fontWeight: '600', marginLeft: '4px' }}>
+                  🚨 Advance Warning
+                </span>
+              )}
             </div>
             <div style={{
               fontSize: '16px',
@@ -664,45 +858,117 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             {/* Buffer Width Slider */}
             <div style={{ marginBottom: theme.spacing.sm }}>
               <label style={{ color: 'white', fontSize: '11px', display: 'block', marginBottom: '4px' }}>
-                Buffer Width: {bufferMiles} miles
+                Buffer Width: {bufferFeet} feet {bufferFeet >= 5280 ? `(${(bufferFeet / 5280).toFixed(2)} mi)` : ''}
               </label>
               <input
                 type="range"
-                min="0.5"
-                max="5"
-                step="0.5"
-                value={bufferMiles}
-                onChange={(e) => setBufferMiles(parseFloat(e.target.value))}
+                min="50"
+                max="10000"
+                step="50"
+                value={bufferFeet}
+                onChange={(e) => setBufferFeet(parseInt(e.target.value))}
                 style={{ width: '100%' }}
               />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'rgba(255,255,255,0.7)' }}>
-                <span>0.5 mi (narrower)</span>
-                <span>5 mi (wider)</span>
+                <span>50 ft (very narrow)</span>
+                <span>10,000 ft / 1.9 mi (wider)</span>
               </div>
             </div>
 
-            {/* Corridor Length Input */}
-            <div style={{ marginBottom: theme.spacing.sm }}>
-              <label style={{ color: 'white', fontSize: '11px', display: 'block', marginBottom: '4px' }}>
-                Corridor Length (optional, miles ahead/behind event)
-              </label>
+            {/* Advance Warning Mode Toggle */}
+            <div style={{
+              marginBottom: theme.spacing.sm,
+              padding: theme.spacing.sm,
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
               <input
-                type="number"
-                min="1"
-                max="50"
-                step="1"
-                value={corridorLengthMiles || ''}
-                onChange={(e) => setCorridorLengthMiles(e.target.value ? parseFloat(e.target.value) : null)}
-                placeholder="Leave empty for full length"
-                style={{
-                  width: '100%',
-                  padding: '6px',
-                  borderRadius: '4px',
-                  border: 'none',
-                  fontSize: '11px'
-                }}
+                type="checkbox"
+                id="advance-warning-mode"
+                checked={advanceWarningMode}
+                onChange={(e) => setAdvanceWarningMode(e.target.checked)}
+                style={{ cursor: 'pointer' }}
               />
+              <label htmlFor="advance-warning-mode" style={{
+                color: 'white',
+                fontSize: '11px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                margin: 0,
+                flex: 1
+              }}>
+                🚨 Advance Warning Mode (extend ahead of event)
+              </label>
             </div>
+
+            {/* Asymmetric Corridor Controls (Advance Warning Mode) */}
+            {advanceWarningMode ? (
+              <>
+                <div style={{ marginBottom: theme.spacing.sm }}>
+                  <label style={{ color: 'white', fontSize: '11px', display: 'block', marginBottom: '4px' }}>
+                    Distance Ahead of Event: {corridorAheadMiles} miles
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    step="0.5"
+                    value={corridorAheadMiles}
+                    onChange={(e) => setCorridorAheadMiles(parseFloat(e.target.value))}
+                    style={{ width: '100%' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'rgba(255,255,255,0.7)' }}>
+                    <span>1 mi</span>
+                    <span>10 mi (more advance warning)</span>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: theme.spacing.sm }}>
+                  <label style={{ color: 'white', fontSize: '11px', display: 'block', marginBottom: '4px' }}>
+                    Distance Behind Event: {corridorBehindMiles} miles
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="3"
+                    step="0.25"
+                    value={corridorBehindMiles}
+                    onChange={(e) => setCorridorBehindMiles(parseFloat(e.target.value))}
+                    style={{ width: '100%' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'rgba(255,255,255,0.7)' }}>
+                    <span>0 mi</span>
+                    <span>3 mi</span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* Symmetric Corridor Length (Legacy Mode) */
+              <div style={{ marginBottom: theme.spacing.sm }}>
+                <label style={{ color: 'white', fontSize: '11px', display: 'block', marginBottom: '4px' }}>
+                  Corridor Length (optional, miles centered on event)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="50"
+                  step="1"
+                  value={corridorLengthMiles || ''}
+                  onChange={(e) => setCorridorLengthMiles(e.target.value ? parseFloat(e.target.value) : null)}
+                  placeholder="Leave empty for full length"
+                  style={{
+                    width: '100%',
+                    padding: '6px',
+                    borderRadius: '4px',
+                    border: 'none',
+                    fontSize: '11px'
+                  }}
+                />
+              </div>
+            )}
 
             {/* Regenerate Button */}
             <button
@@ -839,13 +1105,18 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             lineHeight: '1.8'
           }}>
             <li>
-              <strong>{alert.geofence?.bufferMiles?.toFixed(2) || '1.00'}-mile buffer</strong> on corridor centerline
+              <strong>{formatBufferDisplay(alert.geofence?.bufferMiles)} buffer</strong> on corridor centerline
               {alert.geofence?.isCustomBuffer === false && hasRecommendation && (
                 <span style={{ color: theme.colors.primary.main, fontWeight: '600' }}>
                   {' '}(intelligent recommendation)
                 </span>
               )}
             </li>
+            {alert.geofence?.isAsymmetric && (
+              <li style={{ color: theme.colors.primary.main, fontWeight: '600' }}>
+                🚨 Advance Warning Mode: {alert.geofence.corridorAheadMiles} mi ahead, {alert.geofence.corridorBehindMiles} mi behind event
+              </li>
+            )}
             <li>Population masking applied (LandScan data)</li>
             <li>Urban areas subtracted per FCC 47 CFR §10.450</li>
             {hasRecommendation && alert.geofence.recommendation.recommended.leadTime && (
@@ -873,6 +1144,52 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         }}>
           Alert Messages
         </h3>
+
+        {/* SOP Template Recommendation */}
+        {recommendedTemplate && (
+          <div style={{
+            padding: theme.spacing.md,
+            backgroundColor: '#dbeafe',
+            border: '2px solid #3b82f6',
+            borderRadius: '8px',
+            marginBottom: theme.spacing.lg
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: theme.spacing.sm,
+              marginBottom: theme.spacing.sm
+            }}>
+              <div style={{ fontSize: '16px' }}>📋</div>
+              <div style={{
+                fontSize: '13px',
+                fontWeight: '700',
+                color: '#1e40af'
+              }}>
+                SOP Appendix A Template: {recommendedTemplate.templateLabel}
+              </div>
+            </div>
+            <div style={{
+              padding: theme.spacing.sm,
+              backgroundColor: 'white',
+              borderRadius: '6px',
+              fontSize: '13px',
+              color: '#1e3a8a',
+              fontFamily: 'monospace',
+              border: '1px solid #93c5fd'
+            }}>
+              {recommendedTemplate.filledMessage}
+            </div>
+            <div style={{
+              fontSize: '11px',
+              color: '#1e3a8a',
+              marginTop: theme.spacing.xs,
+              fontStyle: 'italic'
+            }}>
+              💡 This template is recommended based on the event type. The system-generated message below follows SOP requirements including audience qualifiers, direction, and mile markers.
+            </div>
+          </div>
+        )}
 
         {/* English Message */}
         <div style={{ marginBottom: theme.spacing.lg }}>
@@ -921,9 +1238,47 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             </div>
             <div style={{
               fontSize: '13px',
-              color: "#374151"
+              color: "#374151",
+              marginBottom: theme.spacing.sm
             }}>
               {alert.messages?.english.instruction}
+            </div>
+
+            {/* WEA Character Counter */}
+            <div style={{
+              marginTop: theme.spacing.sm,
+              padding: theme.spacing.sm,
+              backgroundColor: alert.messages?.english.exceedsWEALimit ? '#fee2e2' : '#dcfce7',
+              border: `2px solid ${alert.messages?.english.exceedsWEALimit ? '#ef4444' : '#22c55e'}`,
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{
+                fontSize: '12px',
+                fontWeight: '700',
+                color: alert.messages?.english.exceedsWEALimit ? '#991b1b' : '#166534'
+              }}>
+                WEA Character Count: {alert.messages?.english.characterCount}/360
+              </div>
+              {alert.messages?.english.exceedsWEALimit ? (
+                <div style={{
+                  fontSize: '11px',
+                  color: '#991b1b',
+                  fontWeight: '600'
+                }}>
+                  ⚠️ Exceeds limit by {alert.messages.english.characterCount - 360} chars
+                </div>
+              ) : (
+                <div style={{
+                  fontSize: '11px',
+                  color: '#166534',
+                  fontWeight: '600'
+                }}>
+                  ✅ Within WEA limit
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -974,9 +1329,47 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             </div>
             <div style={{
               fontSize: '13px',
-              color: "#374151"
+              color: "#374151",
+              marginBottom: theme.spacing.sm
             }}>
               {alert.messages?.spanish.instruction}
+            </div>
+
+            {/* WEA Character Counter for Spanish */}
+            <div style={{
+              marginTop: theme.spacing.sm,
+              padding: theme.spacing.sm,
+              backgroundColor: (alert.messages?.spanish.characterCount > 360) ? '#fee2e2' : '#dcfce7',
+              border: `2px solid ${(alert.messages?.spanish.characterCount > 360) ? '#ef4444' : '#22c55e'}`,
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{
+                fontSize: '12px',
+                fontWeight: '700',
+                color: (alert.messages?.spanish.characterCount > 360) ? '#991b1b' : '#166534'
+              }}>
+                WEA Character Count: {alert.messages?.spanish.characterCount}/360
+              </div>
+              {(alert.messages?.spanish.characterCount > 360) ? (
+                <div style={{
+                  fontSize: '11px',
+                  color: '#991b1b',
+                  fontWeight: '600'
+                }}>
+                  ⚠️ Exceeds limit by {alert.messages.spanish.characterCount - 360} chars
+                </div>
+              ) : (
+                <div style={{
+                  fontSize: '11px',
+                  color: '#166534',
+                  fontWeight: '600'
+                }}>
+                  ✅ Within WEA limit
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1166,6 +1559,33 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             <div style={{ marginTop: theme.spacing.sm }}>
               {getQualificationBadge()}
             </div>
+            <div style={{
+              marginTop: theme.spacing.sm,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 12px',
+              backgroundColor: trainingMode ? '#fed7aa' : '#e5e7eb',
+              borderRadius: '6px',
+              border: trainingMode ? '2px solid #f97316' : '1px solid #d1d5db'
+            }}>
+              <input
+                type="checkbox"
+                id="training-mode"
+                checked={trainingMode}
+                onChange={(e) => setTrainingMode(e.target.checked)}
+                style={{ cursor: 'pointer' }}
+              />
+              <label htmlFor="training-mode" style={{
+                color: trainingMode ? '#7c2d12' : '#374151',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                margin: 0
+              }}>
+                🎓 Training Mode {trainingMode ? '(Active)' : ''}
+              </label>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -1244,6 +1664,37 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           backgroundColor: 'white',
           padding: '24px'
         }}>
+          {/* Training Mode Banner */}
+          {trainingMode && (
+            <div style={{
+              padding: theme.spacing.md,
+              backgroundColor: '#fed7aa',
+              borderRadius: '8px',
+              border: '2px solid #f97316',
+              marginBottom: theme.spacing.lg,
+              display: 'flex',
+              alignItems: 'center',
+              gap: theme.spacing.sm
+            }}>
+              <div style={{ fontSize: '20px' }}>🎓</div>
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  color: '#7c2d12',
+                  marginBottom: '4px'
+                }}>
+                  Training Mode Active
+                </div>
+                <div style={{
+                  fontSize: '12px',
+                  color: '#9a3412'
+                }}>
+                  Alerts created in training mode will be logged but <strong>will not be transmitted to IPAWS</strong>. This is a safe environment for practice and learning.
+                </div>
+              </div>
+            </div>
+          )}
           {error && (
             <div style={{
               margin: theme.spacing.lg,

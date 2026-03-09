@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { formatAsTIM, formatAsCIFS, isCommercialVehicleRelevant } from '../utils/messageFormatters';
 import NearbyITSEquipment from './NearbyITSEquipment';
 import IPAWSAlertGenerator from './IPAWSAlertGenerator';
@@ -199,12 +200,13 @@ export default function EventFormatPopup({
         </button>
       </div>
 
-      {/* IPAWS Alert Generator Modal */}
-      {showIPAWS && (
+      {/* IPAWS Alert Generator Modal - Rendered via portal to escape Leaflet popup stacking context */}
+      {showIPAWS && createPortal(
         <IPAWSAlertGenerator
           event={event}
           onClose={() => setShowIPAWS(false)}
-        />
+        />,
+        document.body
       )}
     </div>
   );
@@ -498,7 +500,13 @@ function getCIFSSeverityColor(severity) {
 }
 
 function isCorrectedGeometry(source) {
-  return source === 'osrm' || source === 'state_dot_wfs' || source === 'interstate' || source === 'interstate_polyline' || source === 'feed_polyline';
+  return source === 'osrm' ||
+         source === 'state_dot_wfs' ||
+         source === 'interstate' ||
+         source === 'interstate_polyline' ||
+         source === 'feed_polyline' ||
+         source === 'FHWA ARNOLD' ||
+         source === 'Iowa DOT All Routes';
 }
 
 function getSourceLabel(source) {
@@ -515,7 +523,9 @@ function getCorrectionSource(source) {
     'state_dot_wfs': 'State DOT Official GIS Service',
     'interstate_polyline': 'Database Interstate Polyline',
     'interstate': 'Database Interstate Polyline',
-    'feed_polyline': 'Feed-Provided Polyline Geometry'
+    'feed_polyline': 'Feed-Provided Polyline Geometry',
+    'FHWA ARNOLD': 'FHWA ARNOLD National Road Network Database',
+    'Iowa DOT All Routes': 'Iowa DOT Official Route GIS Service'
   };
   return sourceMap[source] || 'Unknown';
 }

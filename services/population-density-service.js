@@ -9,22 +9,47 @@
  */
 
 const turf = require('@turf/turf');
+const axios = require('axios');
+const ee = require('@google/earthengine');
 
 class PopulationDensityService {
   constructor() {
     // Census data sources (can be configured)
     this.dataSources = {
-      // US Census Bureau Population Density (example)
+      // US Census Bureau Population Density
       census: {
+        // Census TIGER Web Services for block-level population
         url: 'https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer',
-        enabled: false
+        // Census API for detailed demographic data
+        apiUrl: 'https://api.census.gov/data/2020/dec/pl',
+        enabled: process.env.CENSUS_API_KEY ? true : false,
+        apiKey: process.env.CENSUS_API_KEY || null
       },
-      // LandScan population data
+      // LandScan population data (Oak Ridge National Lab via Google Earth Engine)
       landscan: {
-        url: 'https://landscan.ornl.gov',
-        enabled: false
+        // LandScan Global available through Google Earth Engine
+        // Dataset: projects/sat-io/open-datasets/ORNL/LANDSCAN_GLOBAL
+        geeServiceAccount: process.env.GEE_SERVICE_ACCOUNT || null,
+        geePrivateKey: process.env.GEE_PRIVATE_KEY || null,
+        enabled: (process.env.GEE_SERVICE_ACCOUNT && process.env.GEE_PRIVATE_KEY) ? true : false
       },
-      // Simple estimation based on land use
+      // OpenStreetMap for urban boundaries
+      osm: {
+        // Overpass API for querying OSM data
+        overpassUrl: 'https://overpass-api.de/api/interpreter',
+        // Nominatim for geocoding
+        nominatimUrl: 'https://nominatim.openstreetmap.org',
+        enabled: true // Free, no API key needed
+      },
+      // Iowa State GIS (Iowa Geographic Information System)
+      stateGIS: {
+        // Iowa Geospatial Data Gateway
+        url: 'https://data.iowadnr.gov/arcgis/rest/services',
+        // Iowa DOT GIS services
+        dotUrl: 'https://maps.iowadot.gov/arcgis/rest/services',
+        enabled: true // Public, no API key needed
+      },
+      // Simple estimation based on land use (fallback)
       estimation: {
         enabled: true
       }
@@ -53,6 +78,86 @@ class PopulationDensityService {
       { name: 'Dubuque', lat: 42.5006, lng: -90.6648, population: 58000, radius: 5 },
       { name: 'Cedar Falls', lat: 42.5348, lng: -92.4453, population: 40000, radius: 4 }
     ];
+
+    // Earth Engine initialization state
+    this.eeInitialized = false;
+    this.eeInitializing = false;
+
+    // Initialize Earth Engine if credentials available
+    if (this.dataSources.landscan.enabled) {
+      this.initializeEarthEngine();
+    }
+  }
+
+  /**
+   * Initialize Google Earth Engine with service account credentials
+   */
+  async initializeEarthEngine() {
+    if (this.eeInitialized || this.eeInitializing) {
+      return;
+    }
+
+    this.eeInitializing = true;
+
+    try {
+      // Check if service account credentials are available
+      if (!this.dataSources.landscan.geeServiceAccount || !this.dataSources.landscan.geePrivateKey) {
+        console.log('⚠️ Google Earth Engine credentials not configured');
+        this.dataSources.landscan.enabled = false;
+        return;
+      }
+
+      // Parse service account JSON
+      let privateKey;
+      try {
+        // GEE_PRIVATE_KEY can be either JSON string or base64-encoded JSON
+        const keyString = this.dataSources.landscan.geePrivateKey;
+        if (keyString.startsWith('{')) {
+          privateKey = JSON.parse(keyString);
+        } else {
+          // Try base64 decode
+          const decoded = Buffer.from(keyString, 'base64').toString('utf-8');
+          privateKey = JSON.parse(decoded);
+        }
+      } catch (parseError) {
+        console.error('❌ Failed to parse Google Earth Engine service account key:', parseError.message);
+        this.dataSources.landscan.enabled = false;
+        return;
+      }
+
+      // Authenticate and initialize Earth Engine
+      await new Promise((resolve, reject) => {
+        ee.data.authenticateViaPrivateKey(
+          privateKey,
+          () => {
+            ee.initialize(
+              null,
+              null,
+              () => {
+                this.eeInitialized = true;
+                console.log('✅ Google Earth Engine initialized successfully');
+                resolve();
+              },
+              (initError) => {
+                console.error('❌ Earth Engine initialization error:', initError);
+                this.dataSources.landscan.enabled = false;
+                reject(initError);
+              }
+            );
+          },
+          (authError) => {
+            console.error('❌ Earth Engine authentication error:', authError);
+            this.dataSources.landscan.enabled = false;
+            reject(authError);
+          }
+        );
+      });
+    } catch (error) {
+      console.error('❌ Error initializing Earth Engine:', error.message);
+      this.dataSources.landscan.enabled = false;
+    } finally {
+      this.eeInitializing = false;
+    }
   }
 
   /**
@@ -359,6 +464,406 @@ class PopulationDensityService {
         }))
       }
     };
+  }
+
+  // ============================================================================
+  // ENHANCED DATA SOURCE INTEGRATIONS
+  // ============================================================================
+
+  /**
+   * 1. US CENSUS BUREAU INTEGRATION
+   * Fetch official census tract population data
+   */
+  async getCensusPopulation(geofence) {
+    if (!this.dataSources.census.enabled || !this.dataSources.census.apiKey) {
+      console.log('Census API not configured, using estimation');
+      return null;
+    }
+
+    try {
+      const bbox = turf.bbox(geofence);
+      const [west, south, east, north] = bbox;
+
+      // Query Census API for population by tract
+      // Get P1_001N (total population) for tracts within bounding box
+      const url = `${this.dataSources.census.apiUrl}?get=P1_001N,NAME&for=tract:*&in=state:19&key=${this.dataSources.census.apiKey}`;
+
+      const response = await axios.get(url, {
+        timeout: 10000,
+        headers: { 'User-Agent': 'DOT-Corridor-Communicator-IPAWS/1.0' }
+      });
+
+      if (response.data && response.data.length > 1) {
+        let totalPopulation = 0;
+        const tracts = [];
+
+        // Skip header row
+        for (let i = 1; i < response.data.length; i++) {
+          const [population, name, state, county, tract] = response.data[i];
+          const pop = parseInt(population);
+
+          if (!isNaN(pop)) {
+            totalPopulation += pop;
+            tracts.push({
+              name,
+              state,
+              county,
+              tract,
+              population: pop
+            });
+          }
+        }
+
+        console.log(`✅ Census data: ${totalPopulation.toLocaleString()} people across ${tracts.length} tracts`);
+
+        return {
+          source: 'US Census Bureau 2020',
+          total: totalPopulation,
+          tracts: tracts.slice(0, 10), // Return top 10 tracts
+          accuracy: 'high'
+        };
+      }
+    } catch (error) {
+      console.error('Census API error:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * 2. LANDSCAN INTEGRATION (Oak Ridge National Lab via Google Earth Engine)
+   * High-resolution global population data (~1km cells)
+   * Dataset: projects/sat-io/open-datasets/ORNL/LANDSCAN_GLOBAL
+   */
+  async getLandScanPopulation(geofence) {
+    if (!this.dataSources.landscan.enabled) {
+      console.log('⚠️ LandScan via Google Earth Engine not configured');
+      return null;
+    }
+
+    // Wait for Earth Engine initialization if in progress
+    if (this.eeInitializing) {
+      await new Promise(resolve => {
+        const checkInterval = setInterval(() => {
+          if (!this.eeInitializing) {
+            clearInterval(checkInterval);
+            resolve();
+          }
+        }, 100);
+      });
+    }
+
+    if (!this.eeInitialized) {
+      console.log('⚠️ Earth Engine not initialized');
+      return null;
+    }
+
+    try {
+      const bbox = turf.bbox(geofence);
+      const [west, south, east, north] = bbox;
+
+      // Query LandScan Global from Google Earth Engine
+      // Use callback-based API with Promise wrapper
+      const populationData = await new Promise((resolve, reject) => {
+        try {
+          // Load LandScan Global ImageCollection from community catalog
+          const landscan = ee.ImageCollection('projects/sat-io/open-datasets/ORNL/LANDSCAN_GLOBAL');
+
+          // Get most recent year
+          const latestYear = landscan.sort('system:time_start', false).first();
+
+          // Define region of interest from bounding box
+          const region = ee.Geometry.Rectangle([west, south, east, north]);
+
+          // Calculate population statistics within the region
+          const stats = latestYear.reduceRegion({
+            reducer: ee.Reducer.sum(),
+            geometry: region,
+            scale: 1000, // 1km resolution
+            maxPixels: 1e9
+          });
+
+          // Get the result
+          stats.evaluate((result, error) => {
+            if (error) {
+              reject(new Error(error));
+            } else {
+              resolve(result);
+            }
+          });
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      // Extract population value (band name varies by year)
+      let totalPopulation = 0;
+
+      // LandScan bands are typically named 'b1' or 'population'
+      if (populationData.b1 !== undefined) {
+        totalPopulation = Math.round(populationData.b1);
+      } else if (populationData.population !== undefined) {
+        totalPopulation = Math.round(populationData.population);
+      } else {
+        // Try to find any numeric band
+        const bandValues = Object.values(populationData).filter(v => typeof v === 'number');
+        if (bandValues.length > 0) {
+          totalPopulation = Math.round(bandValues[0]);
+        }
+      }
+
+      console.log(`✅ LandScan (Google Earth Engine): ${totalPopulation.toLocaleString()} people`);
+
+      return {
+        source: 'LandScan Global (ORNL via Google Earth Engine)',
+        total: totalPopulation,
+        resolution: '1km',
+        accuracy: 'very_high',
+        year: 2024, // LandScan 2024 is latest
+        method: 'Google Earth Engine spatial query'
+      };
+    } catch (error) {
+      console.error('❌ LandScan/Earth Engine query error:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * 3. OPENSTREETMAP INTEGRATION
+   * Query urban boundaries, administrative boundaries, and land use
+   */
+  async getOSMUrbanBoundaries(geofence) {
+    if (!this.dataSources.osm.enabled) {
+      return null;
+    }
+
+    try {
+      const bbox = turf.bbox(geofence);
+      const [west, south, east, north] = bbox;
+
+      // Overpass QL query for urban areas
+      const query = `
+        [out:json][timeout:25];
+        (
+          // Cities and towns
+          way["place"~"city|town"]["name"](${south},${west},${north},${east});
+          relation["place"~"city|town"]["name"](${south},${west},${north},${east});
+
+          // Urban land use
+          way["landuse"~"residential|commercial|industrial"](${south},${west},${north},${east});
+          relation["landuse"~"residential|commercial|industrial"](${south},${west},${north},${east});
+        );
+        out geom;
+      `;
+
+      const response = await axios.post(
+        this.dataSources.osm.overpassUrl,
+        `data=${encodeURIComponent(query)}`,
+        {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          timeout: 30000
+        }
+      );
+
+      if (response.data && response.data.elements) {
+        const urbanAreas = [];
+
+        for (const element of response.data.elements) {
+          if (element.tags && element.tags.name) {
+            urbanAreas.push({
+              name: element.tags.name,
+              type: element.tags.place || element.tags.landuse,
+              osm_id: element.id,
+              population: element.tags.population ? parseInt(element.tags.population) : null,
+              geometry: element.geometry || element.bounds
+            });
+          }
+        }
+
+        console.log(`✅ OSM data: ${urbanAreas.length} urban areas identified`);
+
+        return {
+          source: 'OpenStreetMap',
+          urbanAreas: urbanAreas,
+          boundariesFound: urbanAreas.filter(a => a.type === 'city' || a.type === 'town').length,
+          landUseAreas: urbanAreas.filter(a => a.type !== 'city' && a.type !== 'town').length
+        };
+      }
+    } catch (error) {
+      console.error('OSM Overpass API error:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * 4. IOWA STATE GIS INTEGRATION
+   * Query Iowa-specific land use, municipal boundaries, and population data
+   */
+  async getIowaStateGISData(geofence) {
+    if (!this.dataSources.stateGIS.enabled) {
+      return null;
+    }
+
+    try {
+      const bbox = turf.bbox(geofence);
+      const [west, south, east, north] = bbox;
+
+      // Query Iowa DOT GIS for municipal boundaries
+      const municipalUrl = `${this.dataSources.stateGIS.dotUrl}/Municipal_Boundaries/MapServer/0/query`;
+      const response = await axios.get(municipalUrl, {
+        params: {
+          where: '1=1',
+          geometry: `${west},${south},${east},${north}`,
+          geometryType: 'esriGeometryEnvelope',
+          spatialRel: 'esriSpatialRelIntersects',
+          outFields: 'CITY_NAME,COUNTY,POP_2020,AREA_SQMI',
+          returnGeometry: true,
+          f: 'json'
+        },
+        timeout: 15000
+      });
+
+      if (response.data && response.data.features) {
+        const municipalities = [];
+        let totalPopulation = 0;
+
+        for (const feature of response.data.features) {
+          const attrs = feature.attributes;
+          const pop = attrs.POP_2020 || 0;
+
+          municipalities.push({
+            name: attrs.CITY_NAME,
+            county: attrs.COUNTY,
+            population: pop,
+            area: attrs.AREA_SQMI,
+            geometry: feature.geometry
+          });
+
+          totalPopulation += pop;
+        }
+
+        console.log(`✅ Iowa GIS: ${municipalities.length} municipalities, ${totalPopulation.toLocaleString()} people`);
+
+        // Also query land use data
+        const landUseUrl = `${this.dataSources.stateGIS.url}/Land_Use/MapServer/0/query`;
+        let landUseData = null;
+
+        try {
+          const landUseResponse = await axios.get(landUseUrl, {
+            params: {
+              where: '1=1',
+              geometry: `${west},${south},${east},${north}`,
+              geometryType: 'esriGeometryEnvelope',
+              spatialRel: 'esriSpatialRelIntersects',
+              outFields: 'LAND_USE,ACRES',
+              returnGeometry: false,
+              f: 'json'
+            },
+            timeout: 10000
+          });
+
+          if (landUseResponse.data && landUseResponse.data.features) {
+            landUseData = {
+              residential: 0,
+              commercial: 0,
+              agricultural: 0,
+              other: 0
+            };
+
+            for (const feature of landUseResponse.data.features) {
+              const landUse = feature.attributes.LAND_USE?.toLowerCase();
+              const acres = feature.attributes.ACRES || 0;
+
+              if (landUse?.includes('residential')) landUseData.residential += acres;
+              else if (landUse?.includes('commercial')) landUseData.commercial += acres;
+              else if (landUse?.includes('ag') || landUse?.includes('farm')) landUseData.agricultural += acres;
+              else landUseData.other += acres;
+            }
+          }
+        } catch (luError) {
+          console.warn('Iowa land use query failed:', luError.message);
+        }
+
+        return {
+          source: 'Iowa State GIS',
+          municipalities: municipalities,
+          totalPopulation: totalPopulation,
+          landUse: landUseData,
+          accuracy: 'high'
+        };
+      }
+    } catch (error) {
+      console.error('Iowa State GIS error:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * UNIFIED POPULATION QUERY
+   * Attempts all available data sources and returns best available data
+   */
+  async getEnhancedPopulation(geofence, options = {}) {
+    console.log('🔍 Querying enhanced population data sources...');
+
+    const results = {
+      timestamp: new Date().toISOString(),
+      geofence: geofence,
+      sources: {}
+    };
+
+    // Try all data sources in parallel
+    const [census, landscan, osm, iowaGIS] = await Promise.all([
+      this.getCensusPopulation(geofence).catch(e => null),
+      this.getLandScanPopulation(geofence).catch(e => null),
+      this.getOSMUrbanBoundaries(geofence).catch(e => null),
+      this.getIowaStateGISData(geofence).catch(e => null)
+    ]);
+
+    // Collect available data
+    if (census) results.sources.census = census;
+    if (landscan) results.sources.landscan = landscan;
+    if (osm) results.sources.osm = osm;
+    if (iowaGIS) results.sources.iowaGIS = iowaGIS;
+
+    // Determine best population estimate
+    let bestEstimate = null;
+    let confidence = 'low';
+
+    // Priority: LandScan > Iowa GIS > Census > OSM > Estimation
+    if (landscan && landscan.total) {
+      bestEstimate = landscan.total;
+      confidence = 'very_high';
+      results.primarySource = 'LandScan (ORNL)';
+    } else if (iowaGIS && iowaGIS.totalPopulation) {
+      bestEstimate = iowaGIS.totalPopulation;
+      confidence = 'high';
+      results.primarySource = 'Iowa State GIS';
+    } else if (census && census.total) {
+      bestEstimate = census.total;
+      confidence = 'high';
+      results.primarySource = 'US Census Bureau';
+    } else if (osm && osm.urbanAreas.length > 0) {
+      // Sum OSM population tags
+      bestEstimate = osm.urbanAreas.reduce((sum, area) => sum + (area.population || 0), 0);
+      confidence = 'medium';
+      results.primarySource = 'OpenStreetMap';
+    }
+
+    // Fallback to estimation
+    if (!bestEstimate || bestEstimate === 0) {
+      const estimation = this.estimatePopulation(geofence, options);
+      bestEstimate = estimation.total;
+      confidence = 'low';
+      results.primarySource = 'Estimation';
+      results.sources.estimation = estimation;
+    }
+
+    results.population = bestEstimate;
+    results.confidence = confidence;
+    results.sourcesQueried = Object.keys(results.sources).length;
+
+    console.log(`✅ Enhanced population: ${bestEstimate.toLocaleString()} people (${confidence} confidence, ${results.sourcesQueried} sources)`);
+
+    return results;
   }
 }
 

@@ -421,8 +421,10 @@ class ArnoldGeometryService {
           console.log(`   [ARNOLD] Event ${event.id}: Applied bidirectional offset to original geometry`);
           return {
             ...event,
-            geometry: offsetGeometry,
-            geometry_source: 'Original Feed Geometry (offset)'
+            geometry: {
+              ...offsetGeometry,
+              geometrySource: 'Original Feed Geometry (offset)'
+            }
           };
         }
         return event;
@@ -440,8 +442,10 @@ class ArnoldGeometryService {
           console.log(`   [ARNOLD] Event ${event.id}: Applied bidirectional offset to original geometry`);
           return {
             ...event,
-            geometry: offsetGeometry,
-            geometry_source: 'Original Feed Geometry (offset)'
+            geometry: {
+              ...offsetGeometry,
+              geometrySource: 'Original Feed Geometry (offset)'
+            }
           };
         }
         return event;
@@ -463,8 +467,10 @@ class ArnoldGeometryService {
       // Return event with enriched geometry
       return {
         ...event,
-        geometry: finalGeometry,
-        geometry_source: 'FHWA ARNOLD'
+        geometry: {
+          ...finalGeometry,
+          geometrySource: 'FHWA ARNOLD'
+        }
       };
 
     } catch (error) {

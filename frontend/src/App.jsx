@@ -54,6 +54,7 @@ import FundingOpportunities from './components/FundingOpportunities';
 import NASCOCorridorRegulationsView from './components/NASCOCorridorRegulationsView';
 import DigitalInfrastructure from './components/DigitalInfrastructure';
 import DigitalStandardsCrosswalk from './components/DigitalStandardsCrosswalk';
+import CADDModels from './components/CADDModels';
 import VendorPortal from './components/VendorPortal';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import IPAWSRulesConfig from './components/IPAWSRulesConfig';
@@ -77,6 +78,8 @@ function App() {
   const [showITSEquipment, setShowITSEquipment] = useState(false);
   const [itsEquipmentRoute, setItsEquipmentRoute] = useState(''); // Route filter for ITS equipment
   const [itsEquipmentType, setItsEquipmentType] = useState(''); // Equipment type filter (camera, dms, sensor, rsu)
+  const [showCADDElements, setShowCADDElements] = useState(false);
+  const [showV2XDeployments, setShowV2XDeployments] = useState(false);
   const [availableRoutes, setAvailableRoutes] = useState([]);
   const [showInterchanges, setShowInterchanges] = useState(false); // Hidden by default - toggle to show
   const [showBridgeClearances, setShowBridgeClearances] = useState(false); // Hidden by default - toggle to show
@@ -1312,6 +1315,102 @@ function App() {
                     </div>
                   )}
                 </div>
+
+                {/* CADD Elements Toggle */}
+                <div style={{
+                  padding: '12px 16px',
+                  backgroundColor: showCADDElements ? '#eff6ff' : 'transparent',
+                  borderLeft: showCADDElements ? '3px solid #3b82f6' : '3px solid transparent',
+                  transition: 'all 0.2s'
+                }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: showCADDElements ? '600' : 'normal',
+                    color: showCADDElements ? '#1e40af' : '#374151'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={showCADDElements}
+                      onChange={(e) => setShowCADDElements(e.target.checked)}
+                      style={{ marginRight: '8px' }}
+                    />
+                    📐 CADD Elements Layer
+                  </label>
+                  {showCADDElements && (
+                    <div style={{
+                      fontSize: '10px',
+                      color: '#1e40af',
+                      marginTop: '4px',
+                      marginLeft: '24px'
+                    }}>
+                      Shows: ITS Equipment • Road Geometry • Signs • Signals
+                    </div>
+                  )}
+                  {showCADDElements && (
+                    <div style={{
+                      fontSize: '10px',
+                      color: '#f59e0b',
+                      marginTop: '6px',
+                      marginLeft: '24px',
+                      padding: '6px',
+                      backgroundColor: '#fef3c7',
+                      borderRadius: '4px'
+                    }}>
+                      💡 Requires georeferenced CAD models
+                    </div>
+                  )}
+                </div>
+
+                {/* USDOT V2X Deployments Toggle */}
+                <div style={{
+                  padding: '12px 16px',
+                  backgroundColor: showV2XDeployments ? '#dbeafe' : 'transparent',
+                  borderLeft: showV2XDeployments ? '3px solid #1976d2' : '3px solid transparent',
+                  transition: 'all 0.2s'
+                }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: showV2XDeployments ? '600' : 'normal',
+                    color: showV2XDeployments ? '#1e40af' : '#374151'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={showV2XDeployments}
+                      onChange={(e) => setShowV2XDeployments(e.target.checked)}
+                      style={{ marginRight: '8px' }}
+                    />
+                    🇺🇸 USDOT V2X Deployments
+                  </label>
+                  {showV2XDeployments && (
+                    <div style={{
+                      fontSize: '10px',
+                      color: '#1e40af',
+                      marginTop: '4px',
+                      marginLeft: '24px'
+                    }}>
+                      Federal data: Operational & Planned V2X sites nationwide
+                    </div>
+                  )}
+                  {showV2XDeployments && (
+                    <div style={{
+                      fontSize: '10px',
+                      color: '#1e40af',
+                      marginTop: '6px',
+                      marginLeft: '24px',
+                      padding: '6px',
+                      backgroundColor: '#dbeafe',
+                      borderRadius: '4px'
+                    }}>
+                      📡 Source: U.S. Department of Transportation
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -1320,7 +1419,7 @@ function App() {
           {authToken && (
             <div style={{ position: 'relative' }}>
               <button
-                className={`toggle-btn ${['feedSubmission', 'grants', 'digitalInfrastructure', 'standardsCrosswalk', 'vendorPortal'].includes(view) ? 'active' : ''}`}
+                className={`toggle-btn ${['feedSubmission', 'grants', 'digitalInfrastructure', 'caddModels', 'standardsCrosswalk', 'vendorPortal'].includes(view) ? 'active' : ''}`}
                 onClick={() => {
                   setStateToolsDropdownOpen(!stateToolsDropdownOpen);
                   setDataQualityDropdownOpen(false);
@@ -1328,7 +1427,7 @@ function App() {
                   setCommercialFreightDropdownOpen(false);
                 }}
                 style={{
-                  backgroundColor: ['feedSubmission', 'grants', 'digitalInfrastructure', 'standardsCrosswalk', 'vendorPortal'].includes(view) ? '#059669' : undefined,
+                  backgroundColor: ['feedSubmission', 'grants', 'digitalInfrastructure', 'caddModels', 'standardsCrosswalk', 'vendorPortal'].includes(view) ? '#059669' : undefined,
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px'
@@ -1423,6 +1522,28 @@ function App() {
                     onMouseLeave={(e) => e.currentTarget.style.background = view === 'digitalInfrastructure' ? '#f3f4f6' : 'white'}
                   >
                     🏗️ Digital Infrastructure
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView('caddModels');
+                      setStateToolsDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'caddModels' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'caddModels' ? '600' : '400',
+                      color: view === 'caddModels' ? '#059669' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'caddModels' ? '#f3f4f6' : 'white'}
+                  >
+                    📐 CADD Models
                   </button>
                   <button
                     onClick={() => {
@@ -2019,6 +2140,17 @@ function App() {
           }}>
             <DigitalInfrastructure />
           </div>
+        ) : view === 'caddModels' ? (
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            minHeight: 0,
+            WebkitOverflowScrolling: 'touch',
+            position: 'relative'
+          }}>
+            <CADDModels />
+          </div>
         ) : view === 'standardsCrosswalk' ? (
           <div style={{
             flex: 1,
@@ -2175,6 +2307,8 @@ function App() {
                   showITSEquipment={showITSEquipment}
                   itsEquipmentRoute={itsEquipmentRoute}
                   itsEquipmentType={itsEquipmentType}
+                  showCADDElements={showCADDElements}
+                  showV2XDeployments={showV2XDeployments}
                   interstateOnly={interstateOnly}
                   heatMapActive={heatMapActive}
                   heatMapMode={heatMapMode}

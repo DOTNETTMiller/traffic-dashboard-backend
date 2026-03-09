@@ -14,6 +14,8 @@
 
 const turf = require('@turf/turf');
 const populationService = require('./population-density-service');
+const IPAWSAuditLogger = require('./ipaws-alert-service-lite');
+const path = require('path');
 
 class IPAWSAlertService {
   constructor() {
@@ -34,8 +36,104 @@ class IPAWSAlertService {
       'evacuation',
       'explosion',
       'bridge collapse',
-      'infrastructure failure'
+      'infrastructure failure',
+      'flooding',
+      'rising water'
     ];
+
+    // SOP Appendix A: Standard Message Templates
+    // Per Iowa DOT IPAWS SOP Appendix A - Sample WEA messages for highway emergency closures
+    this.messageTemplates = {
+      'major-crash': {
+        label: 'Major Crash Closure',
+        template: '{route} {direction} closed at {mileMarker} near {location} due to crash. Use detour. 511ia.org',
+        eventTypes: ['crash', 'accident', 'collision', 'multi-vehicle']
+      },
+      'hazmat': {
+        label: 'Hazmat Spill',
+        template: '{route} {direction} closed at {mileMarker} near {location}. Hazmat spill, avoid area. Use detour. 511ia.org',
+        eventTypes: ['hazmat', 'chemical spill', 'fuel spill']
+      },
+      'flood': {
+        label: 'Flash Flood',
+        template: '{route} {direction} closed at {mileMarker} near {location} due to flooding. Avoid area. 511ia.org',
+        eventTypes: ['flood', 'flooding', 'rising water', 'water over road']
+      },
+      'active-threat': {
+        label: 'Active Threat / Law Enforcement',
+        template: '{route} {direction} closed near {location}. Law enforcement activity. Avoid area. 511ia.org',
+        eventTypes: ['law enforcement', 'active threat', 'police activity', 'evacuation']
+      },
+      'winter-storm': {
+        label: 'Winter Storm / Stranded Motorists',
+        template: '{route} {direction} closed at {mileMarker}. Winter storm, travel unsafe. Do not travel. 511ia.org',
+        eventTypes: ['winter storm', 'blizzard', 'whiteout', 'ice', 'snow']
+      },
+      'generic': {
+        label: 'Generic Closure',
+        template: '{route} {direction} closed at {mileMarker} near {location}. {reason}. 511ia.org',
+        eventTypes: []
+      }
+    };
+
+    // Section 6.4: Stranded Motorists Criteria
+    // Per Iowa DOT IPAWS SOP Section 6.4 - Special criteria for stranded motorists
+    this.strandedMotoristsCriteria = {
+      // Normal weather conditions
+      normalConditions: {
+        delayMinutes: 60,
+        description: 'Traffic fully stopped with no immediate diversion available'
+      },
+      // Extreme weather conditions
+      extremeWeather: {
+        delayMinutes: 30,
+        description: 'Delay during blizzard, extreme cold/heat, or other severe weather'
+      },
+      // Immediate activation scenarios
+      immediate: [
+        'flooding',
+        'rising water',
+        'hazmat',
+        'smoke plume',
+        'shelter-in-place'
+      ]
+    };
+
+    // Weather-specific timing guidance (Section 6.4.2)
+    this.weatherTimingGuidance = {
+      'winter storm': {
+        activateWithinMinutes: 30,
+        renewIntervalMinutes: 60,
+        maxDurationHours: 4,
+        survivalGuidance: 'Run engine 10 min/hr, clear exhaust pipe. Stay in vehicle.'
+      },
+      'blizzard': {
+        activateWithinMinutes: 30,
+        renewIntervalMinutes: 60,
+        maxDurationHours: 4,
+        survivalGuidance: 'Run engine 10 min/hr, clear exhaust pipe. Stay in vehicle.'
+      },
+      'extreme cold': {
+        activateWithinMinutes: 30,
+        renewIntervalMinutes: 60,
+        maxDurationHours: 4,
+        temperatureThreshold: 0, // °F wind chill
+        survivalGuidance: 'Conserve fuel. Run engine briefly to stay warm. Do NOT exit vehicle.'
+      },
+      'extreme heat': {
+        activateWithinMinutes: 60,
+        renewIntervalMinutes: 60,
+        maxDurationHours: 4,
+        temperatureThreshold: 95, // °F
+        survivalGuidance: 'Stay hydrated. Run AC briefly if needed. Monitor for heat distress.'
+      },
+      'flooding': {
+        activateWithinMinutes: 0, // immediate
+        renewIntervalMinutes: 30,
+        maxDurationHours: 2,
+        survivalGuidance: 'Do NOT drive through water. Stay in vehicle on high ground.'
+      }
+    };
 
     // Geofence recommendations by event type
     // Buffer distances in miles, with reasoning
@@ -150,6 +248,13 @@ class IPAWSAlertService {
         leadTime: 'Standard notification area'
       }
     };
+  }
+
+  /**
+   * Update alert status in audit log (delegates to lightweight logger)
+   */
+  async updateAlertStatus(alertId, status, additionalData = {}) {
+    return IPAWSAuditLogger.updateStatus(alertId, status, additionalData);
   }
 
   /**
@@ -289,46 +394,217 @@ class IPAWSAlertService {
   }
 
   /**
+   * Evaluate if stranded motorists criteria (Section 6.4) is met
+   * Returns whether IPAWS should be activated for stranded motorists
+   *
+   * @param {Object} event - The traffic event
+   * @param {Object} options - Options
+   * @param {number} options.delayMinutes - How long traffic has been stopped (in minutes)
+   * @param {string} options.weatherCondition - Weather condition (e.g., 'blizzard', 'extreme cold')
+   * @param {number} options.temperature - Current temperature (°F)
+   * @param {number} options.windChill - Wind chill temperature (°F)
+   * @param {boolean} options.diversionAvailable - Whether immediate diversion is available
+   * @returns {Object} Evaluation result with qualification status and recommendations
+   */
+  evaluateStrandedMotoristsAlert(event, options = {}) {
+    const {
+      delayMinutes = 0,
+      weatherCondition = null,
+      temperature = null,
+      windChill = null,
+      diversionAvailable = false
+    } = options;
+
+    const result = {
+      qualifies: false,
+      reason: '',
+      activateWithinMinutes: null,
+      renewIntervalMinutes: null,
+      maxDurationHours: null,
+      survivalGuidance: null,
+      section: 'Section 6.4 - Stranded Motorists'
+    };
+
+    // Must have traffic fully stopped with no diversion
+    if (diversionAvailable) {
+      result.reason = 'Diversion available - use DMS/511 instead';
+      return result;
+    }
+
+    const eventType = (event.eventType || '').toLowerCase();
+    const description = (event.description || '').toLowerCase();
+
+    // Check immediate activation criteria (Section 6.4.1)
+    const isImmediateActivation = this.strandedMotoristsCriteria.immediate.some(condition =>
+      eventType.includes(condition) || description.includes(condition)
+    );
+
+    if (isImmediateActivation) {
+      result.qualifies = true;
+      result.reason = 'Immediate activation required (flooding/hazmat/smoke plume)';
+      result.activateWithinMinutes = 0;
+      result.renewIntervalMinutes = 30;
+      result.maxDurationHours = 2;
+
+      // Get specific guidance if available
+      if (weatherCondition && this.weatherTimingGuidance[weatherCondition]) {
+        const guidance = this.weatherTimingGuidance[weatherCondition];
+        result.survivalGuidance = guidance.survivalGuidance;
+      } else {
+        result.survivalGuidance = 'Stay in vehicle. Emergency crews responding. Monitor 511ia.org.';
+      }
+
+      return result;
+    }
+
+    // Check weather-specific criteria (Section 6.4.2)
+    if (weatherCondition && this.weatherTimingGuidance[weatherCondition]) {
+      const guidance = this.weatherTimingGuidance[weatherCondition];
+
+      // Check temperature thresholds for extreme cold/heat
+      if (weatherCondition === 'extreme cold' && windChill !== null) {
+        if (windChill < guidance.temperatureThreshold) {
+          if (delayMinutes >= guidance.activateWithinMinutes) {
+            result.qualifies = true;
+            result.reason = `Extreme cold (wind chill ${windChill}°F) - traffic stopped ${delayMinutes} min`;
+            result.activateWithinMinutes = guidance.activateWithinMinutes;
+            result.renewIntervalMinutes = guidance.renewIntervalMinutes;
+            result.maxDurationHours = guidance.maxDurationHours;
+            result.survivalGuidance = guidance.survivalGuidance;
+            return result;
+          }
+        }
+      } else if (weatherCondition === 'extreme heat' && temperature !== null) {
+        if (temperature >= guidance.temperatureThreshold) {
+          if (delayMinutes >= guidance.activateWithinMinutes) {
+            result.qualifies = true;
+            result.reason = `Extreme heat (${temperature}°F) - traffic stopped ${delayMinutes} min`;
+            result.activateWithinMinutes = guidance.activateWithinMinutes;
+            result.renewIntervalMinutes = guidance.renewIntervalMinutes;
+            result.maxDurationHours = guidance.maxDurationHours;
+            result.survivalGuidance = guidance.survivalGuidance;
+            return result;
+          }
+        }
+      } else {
+        // Other extreme weather (blizzard, winter storm, flooding)
+        if (delayMinutes >= guidance.activateWithinMinutes) {
+          result.qualifies = true;
+          result.reason = `${weatherCondition} - traffic stopped ${delayMinutes} min`;
+          result.activateWithinMinutes = guidance.activateWithinMinutes;
+          result.renewIntervalMinutes = guidance.renewIntervalMinutes;
+          result.maxDurationHours = guidance.maxDurationHours;
+          result.survivalGuidance = guidance.survivalGuidance;
+          return result;
+        }
+      }
+    }
+
+    // Check normal conditions criteria (Section 6.4.1)
+    // Extreme weather condition: 30 minutes
+    // Normal conditions: 60 minutes
+    const isExtremeWeather = weatherCondition &&
+      (weatherCondition.includes('blizzard') ||
+       weatherCondition.includes('extreme') ||
+       weatherCondition.includes('flooding'));
+
+    const thresholdMinutes = isExtremeWeather ?
+      this.strandedMotoristsCriteria.extremeWeather.delayMinutes :
+      this.strandedMotoristsCriteria.normalConditions.delayMinutes;
+
+    if (delayMinutes >= thresholdMinutes) {
+      result.qualifies = true;
+      result.reason = `Traffic stopped ${delayMinutes} min (threshold: ${thresholdMinutes} min)`;
+      result.activateWithinMinutes = isExtremeWeather ? 30 : 60;
+      result.renewIntervalMinutes = 60;
+      result.maxDurationHours = 4;
+      result.survivalGuidance = isExtremeWeather ?
+        'Stay in vehicle. Conserve fuel. Emergency crews responding. 511ia.org for updates.' :
+        'Stay in vehicle. Emergency crews responding. Monitor 511ia.org for updates.';
+      return result;
+    }
+
+    result.reason = `Traffic stopped only ${delayMinutes} min (threshold: ${thresholdMinutes} min). Use DMS/511.`;
+    return result;
+  }
+
+  /**
    * Generate geofence for alert area
    * Per policy: Intelligent buffer based on event type, population masking
+   * Supports both miles and feet for buffer width
+   * Supports asymmetric corridor extension for advance warning
    */
-  generateGeofence(event, options = {}) {
+  async generateGeofence(event, options = {}) {
     if (!event.geometry || !event.geometry.coordinates) {
       throw new Error('Event must have geometry to generate geofence');
     }
 
     const {
       bufferMiles: customBufferMiles = null,
+      bufferFeet: customBufferFeet = null,
       corridorLengthMiles = null,
+      corridorAheadMiles = null,
+      corridorBehindMiles = null,
       avoidUrbanAreas = false
     } = options;
 
     // Get intelligent recommendation
     const recommendation = this.getGeofenceRecommendation(event);
 
-    // Use custom buffer if provided, otherwise use recommended
-    const bufferMiles = customBufferMiles || recommendation.adjustedBufferMiles;
+    // Determine buffer distance
+    let bufferMiles;
+    if (customBufferFeet !== null) {
+      // Convert feet to miles (5280 feet = 1 mile)
+      bufferMiles = customBufferFeet / 5280;
+    } else if (customBufferMiles !== null) {
+      bufferMiles = customBufferMiles;
+    } else {
+      bufferMiles = recommendation.adjustedBufferMiles;
+    }
+
     const bufferMeters = bufferMiles * 1609; // Convert miles to meters
+    const bufferFeet = bufferMiles * 5280; // Convert miles to feet
 
     // Create line from event geometry
     let line = turf.lineString(event.geometry.coordinates);
 
-    // Limit corridor length if specified
-    if (corridorLengthMiles && corridorLengthMiles > 0) {
+    // Limit corridor length if specified - supports both symmetric and asymmetric trimming
+    if (corridorAheadMiles !== null || corridorBehindMiles !== null || (corridorLengthMiles && corridorLengthMiles > 0)) {
       const lineLength = turf.length(line, { units: 'miles' });
-      if (lineLength > corridorLengthMiles) {
-        // Get the center point of the line
-        const center = turf.centroid(line);
-        // Calculate how much to keep on each side (half the desired length)
-        const halfLength = corridorLengthMiles / 2;
 
-        // Truncate the line to the specified length centered on the event
-        const along = turf.along(line, Math.max(0, (lineLength / 2) - halfLength), { units: 'miles' });
-        const endPoint = turf.along(line, Math.min(lineLength, (lineLength / 2) + halfLength), { units: 'miles' });
+      let distanceAhead, distanceBehind;
 
-        // Create new truncated line
-        line = turf.lineString([along.geometry.coordinates, center.geometry.coordinates, endPoint.geometry.coordinates]);
+      // Asymmetric corridor (advance warning mode)
+      if (corridorAheadMiles !== null || corridorBehindMiles !== null) {
+        distanceAhead = corridorAheadMiles !== null ? corridorAheadMiles : lineLength / 2;
+        distanceBehind = corridorBehindMiles !== null ? corridorBehindMiles : lineLength / 2;
       }
+      // Symmetric corridor (legacy mode)
+      else if (corridorLengthMiles && corridorLengthMiles > 0 && lineLength > corridorLengthMiles) {
+        const halfLength = corridorLengthMiles / 2;
+        distanceAhead = halfLength;
+        distanceBehind = halfLength;
+      } else {
+        // No trimming needed
+        distanceAhead = lineLength;
+        distanceBehind = 0;
+      }
+
+      // Find the midpoint of the line (event location)
+      const midpoint = turf.along(line, lineLength / 2, { units: 'miles' });
+
+      // Calculate start point (behind the event)
+      const startDistance = Math.max(0, (lineLength / 2) - distanceBehind);
+      const startPoint = turf.along(line, startDistance, { units: 'miles' });
+
+      // Calculate end point (ahead of the event)
+      const endDistance = Math.min(lineLength, (lineLength / 2) + distanceAhead);
+      const endPoint = turf.along(line, endDistance, { units: 'miles' });
+
+      // Build new line with start -> midpoint -> end
+      // This ensures the line follows the original corridor geometry
+      const slicedLine = turf.lineSlice(startPoint, endPoint, line);
+      line = slicedLine;
     }
 
     // Buffer with intelligent distance
@@ -338,8 +614,8 @@ class IPAWSAlertService {
     const coords = buffered.geometry.coordinates[0];
     const capPolygon = coords.map(coord => `${coord[1]},${coord[0]}`).join(' ');
 
-    // Get detailed population breakdown using population service
-    const populationBreakdown = populationService.estimatePopulation(buffered, {
+    // Get detailed population breakdown using enhanced multi-source data
+    const populationBreakdown = await this.estimatePopulation(buffered, {
       excludeUrban: avoidUrbanAreas
     });
 
@@ -348,40 +624,56 @@ class IPAWSAlertService {
       coordinates: buffered.geometry.coordinates,
       capFormat: capPolygon,
       estimatedPopulation: populationBreakdown.total,
+      populationConfidence: populationBreakdown.confidence,
+      populationSource: populationBreakdown.primarySource,
       areaSquareMiles: turf.area(buffered) / 2589988.11, // Convert m² to mi²
       bufferMiles: bufferMiles,
+      bufferFeet: Math.round(bufferFeet), // Buffer width in feet
       corridorLengthMiles: corridorLengthMiles,
+      corridorAheadMiles: corridorAheadMiles,
+      corridorBehindMiles: corridorBehindMiles,
       avoidUrbanAreas: avoidUrbanAreas,
       recommendation: recommendation,
-      isCustomBuffer: customBufferMiles !== null,
+      isCustomBuffer: customBufferMiles !== null || customBufferFeet !== null,
+      isAsymmetric: corridorAheadMiles !== null || corridorBehindMiles !== null,
       reasoning: recommendation.recommended.reason,
       populationBreakdown: populationBreakdown // Include detailed breakdown
     };
   }
 
   /**
-   * Estimate population in geofence
-   * Simplified version - production would use LandScan data
+   * Estimate population in geofence using enhanced multi-source data
+   * Queries: LandScan, US Census, OpenStreetMap, Iowa State GIS
    */
-  estimatePopulation(geofence) {
-    const areaSqMiles = turf.area(geofence) / 2589988.11;
-    // Rough estimate: rural Iowa ~50 people/sq mi, adjust based on location
-    return Math.round(areaSqMiles * 50);
+  async estimatePopulation(geofence, options = {}) {
+    // Use enhanced multi-source population query
+    const enhanced = await populationService.getEnhancedPopulation(geofence, options);
+
+    return {
+      total: enhanced.population,
+      confidence: enhanced.confidence,
+      primarySource: enhanced.primarySource,
+      sourcesQueried: enhanced.sourcesQueried,
+      sources: enhanced.sources,
+      // For backwards compatibility
+      ...enhanced
+    };
   }
 
   /**
    * Apply population density filtering to geofence
    * Excludes urban/populated areas to focus on non-populated regions
    */
-  applyPopulationFilter(geofence, options = {}) {
+  async applyPopulationFilter(geofence, options = {}) {
     const {
       maxPopulation = 5000,
       excludeUrbanAreas = true,
       minPopulationDensity = 0
     } = options;
 
-    // Calculate current population
-    const currentPopulation = this.estimatePopulation(geofence);
+    // Calculate current population using enhanced multi-source data
+    const populationData = await this.estimatePopulation(geofence);
+    const currentPopulation = populationData.total;
 
     // If population is already under threshold, no filtering needed
     if (currentPopulation <= maxPopulation) {
@@ -390,6 +682,7 @@ class IPAWSAlertService {
         geofence,
         originalPopulation: currentPopulation,
         filteredPopulation: currentPopulation,
+        populationData, // Include enhanced data
         reason: 'Population already within threshold'
       };
     }
@@ -431,7 +724,7 @@ class IPAWSAlertService {
   /**
    * Generate geofence with custom options (for rules-based alerts)
    */
-  generateCustomGeofence(event, options = {}) {
+  async generateCustomGeofence(event, options = {}) {
     const {
       bufferMiles = 1,
       type = 'auto',
@@ -445,11 +738,14 @@ class IPAWSAlertService {
 
     // Use custom polygon if provided
     if (type === 'custom' && customPolygon) {
+      const popData = await this.estimatePopulation(customPolygon);
       return {
         type: 'Polygon',
         coordinates: customPolygon.coordinates,
         capFormat: this.polygonToCapFormat(customPolygon),
-        estimatedPopulation: this.estimatePopulation(customPolygon),
+        estimatedPopulation: popData.total,
+        populationConfidence: popData.confidence,
+        populationSource: popData.primarySource,
         areaSquareMiles: turf.area(customPolygon) / 2589988.11,
         source: 'custom'
       };
@@ -464,7 +760,7 @@ class IPAWSAlertService {
     let populationInfo = {};
 
     if (populationFilter) {
-      const filtered = this.applyPopulationFilter(buffered, populationFilter);
+      const filtered = await this.applyPopulationFilter(buffered, populationFilter);
       populationInfo = filtered;
       if (filtered.filtered) {
         geofence = filtered.geofence;
@@ -474,11 +770,15 @@ class IPAWSAlertService {
     const coords = geofence.geometry.coordinates[0];
     const capPolygon = coords.map(coord => `${coord[1]},${coord[0]}`).join(' ');
 
+    const popData = await this.estimatePopulation(geofence);
+
     return {
       type: 'Polygon',
       coordinates: geofence.geometry.coordinates,
       capFormat: capPolygon,
-      estimatedPopulation: this.estimatePopulation(geofence),
+      estimatedPopulation: popData.total,
+      populationConfidence: popData.confidence,
+      populationSource: popData.primarySource,
       areaSquareMiles: turf.area(geofence) / 2589988.11,
       bufferMiles,
       source: 'auto',
@@ -495,29 +795,195 @@ class IPAWSAlertService {
   }
 
   /**
+   * Get SOP-compliant message template recommendation
+   * Per SOP Appendix A: Sample IPAWS Alert Messages
+   */
+  getRecommendedTemplate(event) {
+    const eventType = (event.type || event.description || '').toLowerCase();
+
+    // Find matching template based on event type keywords
+    for (const [key, template] of Object.entries(this.messageTemplates)) {
+      if (template.eventTypes.some(type => eventType.includes(type.toLowerCase()))) {
+        return {
+          templateId: key,
+          templateLabel: template.label,
+          template: template.template,
+          filledMessage: this.fillTemplate(template.template, event)
+        };
+      }
+    }
+
+    // Default to generic template
+    return {
+      templateId: 'generic',
+      templateLabel: this.messageTemplates.generic.label,
+      template: this.messageTemplates.generic.template,
+      filledMessage: this.fillTemplate(this.messageTemplates.generic.template, event)
+    };
+  }
+
+  /**
+   * Fill template placeholders with event data
+   */
+  fillTemplate(template, event) {
+    const route = event.corridor || 'Major Route';
+    const direction = this.extractDirection(event);
+    const mileMarkerRange = this.extractMileMarkerRange(event);
+    const location = this.extractLocation(event);
+    const reason = event.type || event.reason || 'emergency';
+
+    return template
+      .replace('{route}', route)
+      .replace('{direction}', direction || '')
+      .replace('{mileMarker}', mileMarkerRange || 'MM [unknown]')
+      .replace('{location}', location)
+      .replace('{reason}', reason)
+      .trim()
+      .replace(/\s+/g, ' '); // Clean up extra spaces
+  }
+
+  /**
+   * Get all available message templates
+   * Returns: Array of templates with IDs and labels
+   */
+  getAllTemplates() {
+    return Object.entries(this.messageTemplates).map(([id, template]) => ({
+      id,
+      label: template.label,
+      template: template.template,
+      eventTypes: template.eventTypes
+    }));
+  }
+
+  /**
    * Generate multilingual alert messages
+   * Per SOP Section 7.3: Must include audience qualifiers, direction, and mile markers
    */
   generateMessages(event) {
     const location = this.extractLocation(event);
     const route = event.corridor || 'Major Route';
     const detour = this.suggestDetour(event);
 
+    // Extract direction from corridor or event data (SOP Section 7.3)
+    const direction = this.extractDirection(event);
+    const directionLabel = direction ? ` ${direction}` : '';
+
+    // Extract mile marker range (SOP Section 6.4.3)
+    const mileMarkerRange = this.extractMileMarkerRange(event);
+    const mmLabel = mileMarkerRange ? ` at ${mileMarkerRange}` : '';
+
+    // Audience qualifier (SOP Section 7.3)
+    const audienceQualifier = `For drivers on ${route}${directionLabel} only`;
+
+    // Build headline with SOP requirements
+    const headline = `Iowa DOT: ${route}${directionLabel} CLOSED${mmLabel} near ${location}`;
+
+    // Build instruction with WEA character limit validation
+    const instruction = detour
+      ? `${audienceQualifier}. Avoid area. Use ${detour} detour. 511ia.org`
+      : `${audienceQualifier}. Avoid area. Seek alternate route. 511ia.org`;
+
+    // Validate WEA 360-character limit (SOP Section 12)
+    const fullMessage = `${headline} ${instruction}`;
+    const characterCount = fullMessage.length;
+    const exceedsLimit = characterCount > 360;
+
     return {
       english: {
-        headline: `Iowa DOT: ${route} CLOSED near ${location}`,
-        instruction: detour
-          ? `Avoid area. Use ${detour} detour.`
-          : `Avoid area. Seek alternate route.`,
-        description: event.description || 'Road closure due to traffic incident'
+        headline: headline,
+        instruction: instruction,
+        description: event.description || 'Road closure due to traffic incident',
+        audienceQualifier: audienceQualifier,
+        characterCount: characterCount,
+        exceedsWEALimit: exceedsLimit,
+        weaLimitWarning: exceedsLimit ? `Message exceeds WEA 360-char limit by ${characterCount - 360} characters` : null
       },
       spanish: {
-        headline: `Iowa DOT: ${route} CERRADA cerca de ${location}`,
+        headline: `Iowa DOT: ${route}${directionLabel} CERRADA${mmLabel} cerca de ${location}`,
         instruction: detour
-          ? `Evite el área. Desvíese por ${detour}.`
-          : `Evite el área. Busque ruta alternativa.`,
-        description: event.description || 'Cierre de carretera debido a incidente de tráfico'
+          ? `Solo para conductores en ${route}${directionLabel}. Evite el área. Desvíese por ${detour}. 511ia.org`
+          : `Solo para conductores en ${route}${directionLabel}. Evite el área. Busque ruta alternativa. 511ia.org`,
+        description: event.description || 'Cierre de carretera debido a incidente de tráfico',
+        audienceQualifier: `Solo para conductores en ${route}${directionLabel}`,
+        characterCount: (`Iowa DOT: ${route}${directionLabel} CERRADA${mmLabel} cerca de ${location} ` +
+                        (detour
+                          ? `Solo para conductores en ${route}${directionLabel}. Evite el área. Desvíese por ${detour}. 511ia.org`
+                          : `Solo para conductores en ${route}${directionLabel}. Evite el área. Busque ruta alternativa. 511ia.org`)).length
       }
     };
+  }
+
+  /**
+   * Extract direction of travel from event data
+   * Returns: EB, WB, NB, SB, or null
+   */
+  extractDirection(event) {
+    // Check if direction is explicitly provided
+    if (event.direction) {
+      return event.direction.toUpperCase();
+    }
+
+    // Check description for direction keywords
+    const desc = (event.description || '').toLowerCase();
+    if (desc.includes('eastbound') || desc.includes('east bound') || desc.includes(' eb ')) return 'EB';
+    if (desc.includes('westbound') || desc.includes('west bound') || desc.includes(' wb ')) return 'WB';
+    if (desc.includes('northbound') || desc.includes('north bound') || desc.includes(' nb ')) return 'NB';
+    if (desc.includes('southbound') || desc.includes('south bound') || desc.includes(' sb ')) return 'SB';
+
+    // Analyze geometry to infer direction
+    if (event.geometry && event.geometry.coordinates && event.geometry.coordinates.length >= 2) {
+      const coords = event.geometry.coordinates;
+      const start = coords[0];
+      const end = coords[coords.length - 1];
+
+      const deltaLon = end[0] - start[0];
+      const deltaLat = end[1] - start[1];
+
+      // Determine primary direction
+      if (Math.abs(deltaLon) > Math.abs(deltaLat)) {
+        // More east-west movement
+        return deltaLon > 0 ? 'EB' : 'WB';
+      } else {
+        // More north-south movement
+        return deltaLat > 0 ? 'NB' : 'SB';
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Extract mile marker range from event data
+   * Returns: "MM 137" or "MM 137-145" or null
+   */
+  extractMileMarkerRange(event) {
+    // Check if mile marker is explicitly provided
+    if (event.mileMarker) {
+      return `MM ${event.mileMarker}`;
+    }
+
+    if (event.startMileMarker && event.endMileMarker) {
+      return `MM ${event.startMileMarker}-${event.endMileMarker}`;
+    }
+
+    if (event.startMileMarker) {
+      return `MM ${event.startMileMarker}`;
+    }
+
+    // Try to extract from description
+    const desc = event.description || '';
+    const mmMatch = desc.match(/\b(?:MM|mile marker|milepost)\s*(\d+(?:\.\d+)?)\b/i);
+    if (mmMatch) {
+      return `MM ${mmMatch[1]}`;
+    }
+
+    // Try to extract range from description
+    const rangeMatch = desc.match(/\b(?:MM|mile marker)\s*(\d+)\s*(?:to|-)\s*(\d+)\b/i);
+    if (rangeMatch) {
+      return `MM ${rangeMatch[1]}-${rangeMatch[2]}`;
+    }
+
+    return null;
   }
 
   /**
@@ -599,19 +1065,24 @@ class IPAWSAlertService {
 
   /**
    * Calculate alert expiration time
+   * Per SOP Section 10: Default 30-60 min, Maximum 4 hours
    */
-  calculateExpiration(event) {
+  calculateExpiration(event, options = {}) {
     const now = new Date();
+    const {
+      defaultDurationMinutes = 60, // SOP: 30-60 min default
+      maxDurationHours = 4          // SOP: 4 hour maximum
+    } = options;
 
-    // Use event end time if available
+    // Use event end time if available, but cap at max duration
     if (event.endTime) {
       const endTime = new Date(event.endTime);
-      const maxExpire = new Date(now.getTime() + 8 * 60 * 60 * 1000); // 8 hours max
+      const maxExpire = new Date(now.getTime() + maxDurationHours * 60 * 60 * 1000);
       return endTime < maxExpire ? endTime.toISOString() : maxExpire.toISOString();
     }
 
-    // Default: 8 hours
-    const defaultExpire = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    // Default: 60 minutes per SOP (changed from 8 hours)
+    const defaultExpire = new Date(now.getTime() + defaultDurationMinutes * 60 * 1000);
     return defaultExpire.toISOString();
   }
 
@@ -669,7 +1140,7 @@ class IPAWSAlertService {
     const capMessage = this.generateCAPMessage(event, geofence, messages);
 
     // Step 6: Return alert package for supervisor approval
-    return {
+    const alertPackage = {
       success: true,
       recommended: recommended,
       warnings: warnings,
@@ -687,6 +1158,29 @@ class IPAWSAlertService {
         overrideRequired: !recommended
       }
     };
+
+    // Step 7: Log to audit database (SOP Section 11) - Using lightweight logger
+    try {
+      const logResult = await IPAWSAuditLogger.logAlert(
+        alertPackage,
+        options.user || { id: 'system', name: 'System' },
+        options.trainingMode ? 'training' : 'draft'
+      );
+      alertPackage.metadata.auditLogId = logResult.logId;
+      alertPackage.metadata.auditAlertId = logResult.alertId;
+      alertPackage.metadata.trainingMode = options.trainingMode || false;
+    } catch (err) {
+      console.error('Failed to log IPAWS alert to audit database:', err);
+      // Don't fail the alert generation if logging fails
+      alertPackage.warnings.push({
+        type: 'audit_log',
+        severity: 'warning',
+        message: 'Failed to write to audit log. Alert can still proceed, but compliance tracking may be affected.',
+        error: err.message
+      });
+    }
+
+    return alertPackage;
   }
 
   /**

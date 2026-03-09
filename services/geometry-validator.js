@@ -4,6 +4,20 @@
  * Converts or filters out problematic geometries
  */
 
+const turf = require('@turf/turf');
+
+/**
+ * Calculate distance between two coordinates in miles
+ * @param {Array} coord1 - [lon, lat]
+ * @param {Array} coord2 - [lon, lat]
+ * @returns {Number} - Distance in miles
+ */
+function calculateDistance(coord1, coord2) {
+  const from = turf.point(coord1);
+  const to = turf.point(coord2);
+  return turf.distance(from, to, { units: 'miles' });
+}
+
 /**
  * Validate and fix event geometry
  * @param {Object} event - Event object with geometry
@@ -30,9 +44,18 @@ function validateAndFixGeometry(event) {
       return null; // Invalid LineString
     }
 
-    // FIX: Convert 2-point LineStrings to Points (use midpoint)
+    // FIX: Convert SHORT 2-point LineStrings (≤0.5 miles) to Points
+    // Keep LONG 2-point LineStrings (>0.5 miles) as LineStrings for corridor geofencing
     if (geom.coordinates.length === 2) {
       const [start, end] = geom.coordinates;
+      const distanceMiles = calculateDistance(start, end);
+
+      // If 2-point geometry is over 0.5 miles, keep it as LineString
+      if (distanceMiles > 0.5) {
+        return event; // Valid 2-point LineString (long segment)
+      }
+
+      // Convert short 2-point LineString to Point (use midpoint)
       const midpoint = [
         (start[0] + end[0]) / 2,
         (start[1] + end[1]) / 2
@@ -46,7 +69,8 @@ function validateAndFixGeometry(event) {
         },
         _geometryFixed: true,
         _originalGeometryType: 'LineString',
-        _fixReason: 'Converted 2-point LineString to Point (midpoint)'
+        _originalDistance: distanceMiles,
+        _fixReason: `Converted short 2-point LineString (${distanceMiles.toFixed(2)} mi) to Point`
       };
     }
 
