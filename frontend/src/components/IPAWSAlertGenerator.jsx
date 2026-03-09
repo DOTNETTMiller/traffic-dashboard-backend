@@ -773,7 +773,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               color: "#111827",
               fontWeight: '700'
             }}>
-              {alert.geofence?.areaSquareMiles.toFixed(1)} mi²
+              {alert.geofence?.areaSquareMiles?.toFixed(1) || 'N/A'} mi²
             </div>
           </div>
 
