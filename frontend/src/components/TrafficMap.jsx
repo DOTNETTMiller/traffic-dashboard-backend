@@ -744,11 +744,12 @@ export default function TrafficMap({
                         {tooltipContent}
                       </Tooltip>
                       <Popup
-                        maxWidth={340}
-                        autoPan={true}
-                        autoPanPadding={[50, 50]}
-                        keepInView={true}
+                        maxWidth={300}
+                        minWidth={280}
+                        autoPan={false}
+                        keepInView={false}
                         closeButton={true}
+                        className="compact-popup"
                       >
                         {popupContent}
                       </Popup>
@@ -774,11 +775,12 @@ export default function TrafficMap({
                               {tooltipContent}
                             </Tooltip>
                             <Popup
-                              maxWidth={340}
-                              autoPan={true}
-                              autoPanPadding={[50, 50]}
-                              keepInView={true}
+                              maxWidth={300}
+                              minWidth={280}
+                              autoPan={false}
+                              keepInView={false}
                               closeButton={true}
+                              className="compact-popup"
                             >
                               {popupContent}
                             </Popup>
@@ -802,11 +804,12 @@ export default function TrafficMap({
                   {tooltipContent}
                 </Tooltip>
                 <Popup
-                  maxWidth={340}
-                  autoPan={true}
-                  autoPanPadding={[50, 50]}
-                  keepInView={true}
+                  maxWidth={300}
+                  minWidth={280}
+                  autoPan={false}
+                  keepInView={false}
                   closeButton={true}
+                  className="compact-popup"
                 >
                   {popupContent}
                 </Popup>
@@ -826,10 +829,10 @@ export default function TrafficMap({
             pathOptions={{ color: '#dc2626', weight: 3, fillOpacity: 0.25 }}
           >
             <Popup
-              autoPan={true}
-              autoPanPadding={[50, 50]}
-              keepInView={true}
+              autoPan={false}
+              keepInView={false}
               closeButton={true}
+              className="compact-popup"
             >
               <div style={{ maxWidth: '240px' }}>
                 <h3 style={{ marginTop: 0, marginBottom: '8px' }}>Detour Advisory</h3>

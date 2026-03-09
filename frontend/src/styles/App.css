@@ -516,6 +516,16 @@ body {
   margin: 0;
 }
 
+/* Compact popup styling for event cards */
+.leaflet-popup.compact-popup .leaflet-popup-content-wrapper {
+  padding: 0;
+}
+
+.leaflet-popup.compact-popup .leaflet-popup-content {
+  margin: 0;
+  width: 280px !important;
+}
+
 .leaflet-popup-tip {
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
 }
