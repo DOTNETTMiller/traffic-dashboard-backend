@@ -899,7 +899,7 @@ export default function TrafficMap({
                 fillOpacity: 0.15
               }}
             >
-              <Popup>
+              <Popup autoPan={false} keepInView={false}>
                 <div style={{ maxWidth: '220px' }}>
                   <h4 style={{ margin: '0 0 8px 0' }}>🚨 Saved IPAWS Geofence</h4>
                   <p style={{ margin: '4px 0', fontSize: '13px' }}>
@@ -930,7 +930,7 @@ export default function TrafficMap({
               position={[bridge.latitude, bridge.longitude]}
               icon={bridgeIcon}
             >
-              <Popup maxWidth={450}>
+              <Popup maxWidth={450} autoPan={false} keepInView={false}>
                 <div style={{ padding: '8px' }}>
                   <h3 style={{
                     margin: '0 0 12px 0',
