@@ -89,7 +89,18 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         body: JSON.stringify({ event, trainingMode })
       });
 
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+      }
+
       const data = await response.json();
+
+      if (!data.success) {
+        setError(data.error || 'Failed to generate IPAWS alert');
+        setAlert(null);
+        return;
+      }
+
       setAlert(data);
 
       // Initialize buffer from generated geofence (convert miles to feet)
@@ -98,6 +109,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
       }
     } catch (err) {
       setError(err.message);
+      setAlert(null);
     } finally {
       setLoading(false);
     }
@@ -129,6 +141,10 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
       });
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+      }
 
       const data = await response.json();
 
@@ -240,7 +256,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     if (!alert) return null;
 
     // Show warnings if not recommended
-    if (!alert.recommended && alert.warnings && alert.warnings.length > 0) {
+    if (!alert.recommended) {
       return (
         <div>
           <h3 style={{
@@ -253,50 +269,66 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             IPAWS Alert Not Recommended
           </h3>
 
-          <div style={{
-            padding: theme.spacing.md,
-            backgroundColor: '#fef3c7',
-            borderRadius: '8px',
-            borderLeft: '4px solid #f59e0b',
-            marginBottom: theme.spacing.md
-          }}>
-            <p style={{ color: '#92400e', margin: '0 0 8px 0', fontWeight: '600' }}>
-              ⚠️ The following criteria are not met:
-            </p>
-            {alert.warnings.map((warning, idx) => (
-              <div key={idx} style={{
-                color: '#78350f',
-                marginTop: idx > 0 ? '12px' : '0',
-                paddingTop: idx > 0 ? '12px' : '0',
-                borderTop: idx > 0 ? '1px solid #fde68a' : 'none'
-              }}>
-                <strong>{warning.type === 'qualification' ? 'Qualification:' : 'Population:'}</strong> {warning.message}
-              </div>
-            ))}
-          </div>
+          {alert.warnings && alert.warnings.length > 0 ? (
+            <div style={{
+              padding: theme.spacing.md,
+              backgroundColor: '#fef3c7',
+              borderRadius: '8px',
+              borderLeft: '4px solid #f59e0b',
+              marginBottom: theme.spacing.md
+            }}>
+              <p style={{ color: '#92400e', margin: '0 0 8px 0', fontWeight: '600' }}>
+                ⚠️ The following criteria are not met:
+              </p>
+              {alert.warnings.map((warning, idx) => (
+                <div key={idx} style={{
+                  color: '#78350f',
+                  marginTop: idx > 0 ? '12px' : '0',
+                  paddingTop: idx > 0 ? '12px' : '0',
+                  borderTop: idx > 0 ? '1px solid #fde68a' : 'none'
+                }}>
+                  <strong>{warning.type === 'qualification' ? 'Qualification:' : 'Population:'}</strong> {warning.message}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{
+              padding: theme.spacing.md,
+              backgroundColor: '#fef3c7',
+              borderRadius: '8px',
+              borderLeft: '4px solid #f59e0b',
+              marginBottom: theme.spacing.md
+            }}>
+              <p style={{ color: '#92400e', margin: 0, fontWeight: '600' }}>
+                ⚠️ This event does not meet all IPAWS alert criteria. Review the requirements below and use the Area tab to adjust the geofence parameters.
+              </p>
+            </div>
+          )}
 
-          <div style={{
-            padding: theme.spacing.md,
-            backgroundColor: '#eff6ff',
-            borderRadius: '8px',
-            borderLeft: '4px solid #3b82f6',
-            marginBottom: theme.spacing.md
-          }}>
-            <p style={{ color: '#1e40af', margin: '0 0 8px 0', fontWeight: '600' }}>
-              💡 Recommendations:
-            </p>
-            <ul style={{ color: '#1e3a8a', margin: 0, paddingLeft: '20px' }}>
-              {alert.warnings.find(w => w.type === 'population') && (
-                <li>Try narrowing the buffer width or shortening the corridor length in the "Geofence Adjustment" section</li>
-              )}
-              {alert.warnings.find(w => w.type === 'qualification') && (
-                <>
-                  <li>Verify the event meets tier 1 route requirements (Interstate, NHS, or major state highway)</li>
-                  <li>Confirm closure duration ≥4 hours OR event presents imminent danger</li>
-                </>
-              )}
-            </ul>
-          </div>
+          {alert.warnings && alert.warnings.length > 0 && (
+            <div style={{
+              padding: theme.spacing.md,
+              backgroundColor: '#eff6ff',
+              borderRadius: '8px',
+              borderLeft: '4px solid #3b82f6',
+              marginBottom: theme.spacing.md
+            }}>
+              <p style={{ color: '#1e40af', margin: '0 0 8px 0', fontWeight: '600' }}>
+                💡 Recommendations:
+              </p>
+              <ul style={{ color: '#1e3a8a', margin: 0, paddingLeft: '20px' }}>
+                {alert.warnings.find(w => w.type === 'population') && (
+                  <li>Try narrowing the buffer width or shortening the corridor length in the "Geofence Adjustment" section</li>
+                )}
+                {alert.warnings.find(w => w.type === 'qualification') && (
+                  <>
+                    <li>Verify the event meets tier 1 route requirements (Interstate, NHS, or major state highway)</li>
+                    <li>Confirm closure duration ≥4 hours OR event presents imminent danger</li>
+                  </>
+                )}
+              </ul>
+            </div>
+          )}
 
           <div style={{
             padding: theme.spacing.md,
@@ -568,7 +600,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
   };
 
   const renderGeofenceTab = () => {
-    if (!alert?.success) return null;
+    if (!alert?.success || !alert?.geofence) return null;
 
     const hasRecommendation = alert.geofence?.recommendation;
 

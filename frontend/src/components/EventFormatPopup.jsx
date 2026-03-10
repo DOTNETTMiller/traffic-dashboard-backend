@@ -33,7 +33,8 @@ export default function EventFormatPopup({
   hasMessages,
   messageCount,
   borderInfo,
-  geometryDiagnostics
+  geometryDiagnostics,
+  onGeofenceUpdate
 }) {
   const [activeTab, setActiveTab] = useState('raw'); // 'raw', 'tim', 'cifs', 'geometry'
   const [showIPAWS, setShowIPAWS] = useState(false);
@@ -205,6 +206,7 @@ export default function EventFormatPopup({
         <IPAWSAlertGenerator
           event={event}
           onClose={() => setShowIPAWS(false)}
+          onGeofenceUpdate={onGeofenceUpdate}
         />,
         document.body
       )}

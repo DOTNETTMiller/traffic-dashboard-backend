@@ -455,6 +455,7 @@ export default function TrafficMap({
   showBridgeClearances = false,
   showCorridorRegulations = false,
   ipawsGeofence = null,
+  onGeofenceUpdate,
   showITSEquipment = false,
   itsEquipmentRoute = null,
   itsEquipmentType = null,
@@ -685,6 +686,7 @@ export default function TrafficMap({
               messageCount={messageCount}
               borderInfo={borderInfo}
               geometryDiagnostics={geometryDiagnostics}
+              onGeofenceUpdate={onGeofenceUpdate}
             />
           );
 
@@ -856,7 +858,7 @@ export default function TrafficMap({
         <InterchangeLayer showInterchanges={showInterchanges} />
 
         {/* IPAWS Geofence Polygon */}
-        {ipawsGeofence && ipawsGeofence.coordinates && (
+        {ipawsGeofence && ipawsGeofence.coordinates && Array.isArray(ipawsGeofence.coordinates[0]) && (
           <Polygon
             positions={
               // Convert GeoJSON Polygon coordinates [[lng, lat], ...] to Leaflet format [[lat, lng], ...]
@@ -880,7 +882,7 @@ export default function TrafficMap({
 
         {/* Saved IPAWS Geofences from Database */}
         {savedGeofences.map((saved, idx) => {
-          if (!saved.geofence || !saved.geofence.coordinates) return null;
+          if (!saved.geofence || !saved.geofence.coordinates || !Array.isArray(saved.geofence.coordinates[0])) return null;
 
           return (
             <Polygon

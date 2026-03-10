@@ -2414,6 +2414,7 @@ function App() {
                   showBridgeClearances={showBridgeClearances}
                   showCorridorRegulations={showCorridorRegulations}
                   ipawsGeofence={ipawsGeofence}
+                  onGeofenceUpdate={setIpawsGeofence}
                   showITSEquipment={showITSEquipment}
                   itsEquipmentRoute={itsEquipmentRoute}
                   itsEquipmentType={itsEquipmentType}

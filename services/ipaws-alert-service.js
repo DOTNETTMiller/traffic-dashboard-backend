@@ -1118,7 +1118,7 @@ class IPAWSAlertService {
     }
 
     // Step 2: Generate geofence with optional custom parameters
-    const geofence = this.generateGeofence(event, options);
+    const geofence = await this.generateGeofence(event, options);
 
     // Step 3: Check population threshold (< 5,000 per policy)
     if (geofence.estimatedPopulation > 5000) {
