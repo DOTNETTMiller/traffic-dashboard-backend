@@ -31,25 +31,29 @@ function MapCenterController({ selectedEvent }) {
   const lastCenteredEventId = useRef(null);
 
   useEffect(() => {
-    // Only center if this is a different event than the last one we centered on
-    if (selectedEvent && selectedEvent.id !== lastCenteredEventId.current) {
-      if (selectedEvent.latitude && selectedEvent.longitude) {
-        const lat = parseFloat(selectedEvent.latitude);
-        const lng = parseFloat(selectedEvent.longitude);
+    // Disabled auto-centering to allow free map navigation
+    // Users can navigate the map while event popups are open
+    // Previously this would call map.setView() and snap the map back to the event
 
-        if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
-          map.setView([lat, lng], 12, {
-            animate: true,
-            duration: 1
-          });
-          // Remember that we centered on this event
-          lastCenteredEventId.current = selectedEvent.id;
-        }
-      }
-    } else if (!selectedEvent) {
-      // Reset when no event is selected
-      lastCenteredEventId.current = null;
-    }
+    // Only center if this is a different event than the last one we centered on
+    // if (selectedEvent && selectedEvent.id !== lastCenteredEventId.current) {
+    //   if (selectedEvent.latitude && selectedEvent.longitude) {
+    //     const lat = parseFloat(selectedEvent.latitude);
+    //     const lng = parseFloat(selectedEvent.longitude);
+
+    //     if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+    //       map.setView([lat, lng], 12, {
+    //         animate: true,
+    //         duration: 1
+    //       });
+    //       // Remember that we centered on this event
+    //       lastCenteredEventId.current = selectedEvent.id;
+    //     }
+    //   }
+    // } else if (!selectedEvent) {
+    //   // Reset when no event is selected
+    //   lastCenteredEventId.current = null;
+    // }
   }, [selectedEvent, map]);
 
   return null;
