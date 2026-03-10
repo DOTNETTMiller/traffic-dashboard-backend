@@ -11487,6 +11487,790 @@ app.post('/api/dms/templates/:templateId/approve', requireUserOrStateAuth, async
 });
 
 // ============================================================================
+// CLOSURE APPROVAL WORKFLOW API - CCAI UC #15
+// Multi-state coordination for planned closures
+// ============================================================================
+
+// GET all planned closures
+app.get('/api/closures', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { state, status, route, start_date, end_date } = req.query;
+
+    let query = 'SELECT * FROM planned_closures';
+    const conditions = [];
+    const params = [];
+    let paramIndex = 1;
+
+    if (state) {
+      conditions.push(`state = $${paramIndex++}`);
+      params.push(state);
+    }
+
+    if (status) {
+      conditions.push(`approval_status = $${paramIndex++}`);
+      params.push(status);
+    }
+
+    if (route) {
+      conditions.push(`route ILIKE $${paramIndex++}`);
+      params.push(`%${route}%`);
+    }
+
+    if (start_date) {
+      conditions.push(`planned_start >= $${paramIndex++}`);
+      params.push(start_date);
+    }
+
+    if (end_date) {
+      conditions.push(`planned_end <= $${paramIndex++}`);
+      params.push(end_date);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' ORDER BY planned_start DESC';
+
+    const result = await pgPool.query(query, params);
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      closures: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching closures:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch closures'
+    });
+  }
+});
+
+// GET specific closure with approvals
+app.get('/api/closures/:id', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const closureResult = await pgPool.query(
+      'SELECT * FROM planned_closures WHERE id = $1',
+      [req.params.id]
+    );
+
+    if (closureResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Closure not found'
+      });
+    }
+
+    const approvalsResult = await pgPool.query(
+      'SELECT * FROM closure_approvals WHERE closure_id = $1 ORDER BY created_at',
+      [req.params.id]
+    );
+
+    const notificationsResult = await pgPool.query(
+      'SELECT * FROM closure_notifications WHERE closure_id = $1 ORDER BY sent_at DESC',
+      [req.params.id]
+    );
+
+    const commentsResult = await pgPool.query(
+      'SELECT * FROM closure_coordination_comments WHERE closure_id = $1 ORDER BY created_at DESC',
+      [req.params.id]
+    );
+
+    res.json({
+      success: true,
+      closure: closureResult.rows[0],
+      approvals: approvalsResult.rows,
+      notifications: notificationsResult.rows,
+      comments: commentsResult.rows
+    });
+  } catch (error) {
+    console.error('Error fetching closure:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch closure'
+    });
+  }
+});
+
+// POST create new planned closure
+app.post('/api/closures', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const {
+      closure_name,
+      closure_type,
+      route,
+      state,
+      start_location,
+      end_location,
+      start_lat,
+      start_lon,
+      end_lat,
+      end_lon,
+      geometry_geojson,
+      planned_start,
+      planned_end,
+      lanes_affected,
+      closure_scope,
+      detour_route,
+      reason,
+      description,
+      contractor,
+      project_number,
+      estimated_cost,
+      border_proximity_miles,
+      requires_multistate_approval,
+      states_to_notify,
+      submitted_by
+    } = req.body;
+
+    const result = await pgPool.query(
+      `INSERT INTO planned_closures (
+        closure_name, closure_type, route, state, start_location, end_location,
+        start_lat, start_lon, end_lat, end_lon, geometry_geojson,
+        planned_start, planned_end, lanes_affected, closure_scope,
+        detour_route, reason, description, contractor, project_number,
+        estimated_cost, border_proximity_miles, requires_multistate_approval,
+        states_to_notify, submitted_by, approval_status
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+        $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, 'draft'
+      ) RETURNING *`,
+      [
+        closure_name, closure_type, route, state, start_location, end_location,
+        start_lat, start_lon, end_lat, end_lon, geometry_geojson,
+        planned_start, planned_end, lanes_affected, closure_scope,
+        detour_route, reason, description, contractor, project_number,
+        estimated_cost, border_proximity_miles, requires_multistate_approval,
+        states_to_notify, submitted_by
+      ]
+    );
+
+    res.json({
+      success: true,
+      closure: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating closure:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create closure'
+    });
+  }
+});
+
+// PUT update closure
+app.put('/api/closures/:id', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const updates = [];
+    const params = [];
+    let paramIndex = 1;
+
+    const allowedFields = [
+      'closure_name', 'closure_type', 'route', 'start_location', 'end_location',
+      'planned_start', 'planned_end', 'lanes_affected', 'closure_scope',
+      'detour_route', 'reason', 'description', 'contractor', 'project_number',
+      'estimated_cost', 'approval_status'
+    ];
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updates.push(`${field} = $${paramIndex++}`);
+        params.push(req.body[field]);
+      }
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid fields to update'
+      });
+    }
+
+    params.push(req.params.id);
+    const result = await pgPool.query(
+      `UPDATE planned_closures SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      params
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Closure not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      closure: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating closure:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update closure'
+    });
+  }
+});
+
+// POST submit closure for approval
+app.post('/api/closures/:id/submit', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { submitted_by } = req.body;
+
+    // Call the stored procedure to submit for approval
+    const result = await pgPool.query(
+      'SELECT submit_closure_for_approval($1, $2) as approvals_created',
+      [req.params.id, submitted_by]
+    );
+
+    res.json({
+      success: true,
+      approvals_created: result.rows[0].approvals_created,
+      message: 'Closure submitted for approval'
+    });
+  } catch (error) {
+    console.error('Error submitting closure:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to submit closure for approval'
+    });
+  }
+});
+
+// POST approve/reject closure
+app.post('/api/closures/:id/approve', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { approval_id, approval_status, approver_name, rejection_reason, conditions } = req.body;
+
+    const result = await pgPool.query(
+      `UPDATE closure_approvals
+       SET approval_status = $1,
+           approver_name = $2,
+           approval_date = NOW(),
+           rejection_reason = $3,
+           conditions = $4
+       WHERE id = $5 AND closure_id = $6
+       RETURNING *`,
+      [approval_status, approver_name, rejection_reason, conditions, approval_id, req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Approval record not found'
+      });
+    }
+
+    // Check overall approval status
+    const statusResult = await pgPool.query(
+      'SELECT * FROM check_closure_approval_status($1)',
+      [req.params.id]
+    );
+
+    res.json({
+      success: true,
+      approval: result.rows[0],
+      overall_status: statusResult.rows[0]
+    });
+  } catch (error) {
+    console.error('Error processing approval:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process approval'
+    });
+  }
+});
+
+// POST add comment to closure
+app.post('/api/closures/:id/comments', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { comment_by, comment_role, state_code, comment_text, comment_type } = req.body;
+
+    const result = await pgPool.query(
+      `INSERT INTO closure_coordination_comments (
+        closure_id, comment_by, comment_role, state_code, comment_text, comment_type
+      ) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [req.params.id, comment_by, comment_role, state_code, comment_text, comment_type || 'general']
+    );
+
+    res.json({
+      success: true,
+      comment: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add comment'
+    });
+  }
+});
+
+// DELETE closure
+app.delete('/api/closures/:id', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const result = await pgPool.query(
+      'DELETE FROM planned_closures WHERE id = $1 RETURNING *',
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Closure not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Closure deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting closure:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete closure'
+    });
+  }
+});
+
+// ============================================================================
+// DIVERSION ROUTE PROTOCOL API - CCAI UC #3
+// Multi-state diversion route coordination
+// ============================================================================
+
+// GET all diversion routes
+app.get('/api/diversion-routes', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { primary_route, approval_status, state } = req.query;
+
+    let query = 'SELECT * FROM diversion_routes';
+    const conditions = [];
+    const params = [];
+    let paramIndex = 1;
+
+    if (primary_route) {
+      conditions.push(`primary_route = $${paramIndex++}`);
+      params.push(primary_route);
+    }
+
+    if (approval_status) {
+      conditions.push(`approval_status = $${paramIndex++}`);
+      params.push(approval_status);
+    }
+
+    if (state) {
+      conditions.push(`$${paramIndex++} = ANY(states_involved)`);
+      params.push(state);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' ORDER BY primary_route, route_name';
+
+    const result = await pgPool.query(query, params);
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      routes: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching diversion routes:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch diversion routes'
+    });
+  }
+});
+
+// GET specific diversion route with segments and approvals
+app.get('/api/diversion-routes/:id', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const routeResult = await pgPool.query(
+      'SELECT * FROM diversion_routes WHERE id = $1',
+      [req.params.id]
+    );
+
+    if (routeResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Diversion route not found'
+      });
+    }
+
+    const segmentsResult = await pgPool.query(
+      'SELECT * FROM diversion_route_segments WHERE diversion_route_id = $1 ORDER BY segment_order',
+      [req.params.id]
+    );
+
+    const approvalsResult = await pgPool.query(
+      'SELECT * FROM diversion_route_approvals WHERE diversion_route_id = $1',
+      [req.params.id]
+    );
+
+    const activationsResult = await pgPool.query(
+      'SELECT * FROM diversion_activations WHERE diversion_route_id = $1 ORDER BY activated_at DESC LIMIT 10',
+      [req.params.id]
+    );
+
+    res.json({
+      success: true,
+      route: routeResult.rows[0],
+      segments: segmentsResult.rows,
+      approvals: approvalsResult.rows,
+      recent_activations: activationsResult.rows
+    });
+  } catch (error) {
+    console.error('Error fetching diversion route:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch diversion route'
+    });
+  }
+});
+
+// POST create new diversion route
+app.post('/api/diversion-routes', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const {
+      route_name,
+      primary_route,
+      diversion_route,
+      start_location,
+      end_location,
+      start_lat,
+      start_lon,
+      end_lat,
+      end_lon,
+      geometry_geojson,
+      states_involved,
+      distance_miles,
+      estimated_delay_minutes,
+      truck_suitable,
+      hazmat_approved,
+      osow_restrictions,
+      bridge_clearances,
+      activation_criteria,
+      created_by
+    } = req.body;
+
+    const result = await pgPool.query(
+      `INSERT INTO diversion_routes (
+        route_name, primary_route, diversion_route, start_location, end_location,
+        start_lat, start_lon, end_lat, end_lon, geometry_geojson,
+        states_involved, distance_miles, estimated_delay_minutes,
+        truck_suitable, hazmat_approved, osow_restrictions, bridge_clearances,
+        activation_criteria, created_by, approval_status
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, 'draft'
+      ) RETURNING *`,
+      [
+        route_name, primary_route, diversion_route, start_location, end_location,
+        start_lat, start_lon, end_lat, end_lon, geometry_geojson,
+        states_involved, distance_miles, estimated_delay_minutes,
+        truck_suitable, hazmat_approved, osow_restrictions, bridge_clearances,
+        activation_criteria, created_by
+      ]
+    );
+
+    res.json({
+      success: true,
+      route: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating diversion route:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create diversion route'
+    });
+  }
+});
+
+// PUT update diversion route
+app.put('/api/diversion-routes/:id', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const updates = [];
+    const params = [];
+    let paramIndex = 1;
+
+    const allowedFields = [
+      'route_name', 'primary_route', 'diversion_route', 'start_location',
+      'end_location', 'distance_miles', 'estimated_delay_minutes',
+      'truck_suitable', 'hazmat_approved', 'osow_restrictions',
+      'bridge_clearances', 'activation_criteria', 'approval_status'
+    ];
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updates.push(`${field} = $${paramIndex++}`);
+        params.push(req.body[field]);
+      }
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No valid fields to update'
+      });
+    }
+
+    params.push(req.params.id);
+    const result = await pgPool.query(
+      `UPDATE diversion_routes SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      params
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Diversion route not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      route: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating diversion route:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update diversion route'
+    });
+  }
+});
+
+// POST activate diversion route
+app.post('/api/diversion-routes/:id/activate', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { event_id, activated_by, activation_reason } = req.body;
+
+    // Call the stored procedure to activate the route
+    const result = await pgPool.query(
+      'SELECT activate_diversion_route($1, $2, $3, $4) as activation_id',
+      [req.params.id, event_id, activated_by, activation_reason]
+    );
+
+    res.json({
+      success: true,
+      activation_id: result.rows[0].activation_id,
+      message: 'Diversion route activated successfully'
+    });
+  } catch (error) {
+    console.error('Error activating diversion route:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to activate diversion route'
+    });
+  }
+});
+
+// POST deactivate diversion route
+app.post('/api/diversion-routes/activations/:activationId/deactivate', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { deactivated_by, effectiveness_rating, issues_encountered } = req.body;
+
+    const result = await pgPool.query(
+      `UPDATE diversion_activations
+       SET deactivated_at = NOW(),
+           deactivated_by = $1,
+           effectiveness_rating = $2,
+           issues_encountered = $3
+       WHERE id = $4
+       RETURNING *`,
+      [deactivated_by, effectiveness_rating, issues_encountered, req.params.activationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Activation not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      activation: result.rows[0],
+      message: 'Diversion route deactivated successfully'
+    });
+  } catch (error) {
+    console.error('Error deactivating diversion route:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to deactivate diversion route'
+    });
+  }
+});
+
+// DELETE diversion route
+app.delete('/api/diversion-routes/:id', requireUserOrStateAuth, async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const result = await pgPool.query(
+      'DELETE FROM diversion_routes WHERE id = $1 RETURNING *',
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Diversion route not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Diversion route deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting diversion route:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete diversion route'
+    });
+  }
+});
+
+// GET check auto-activation conditions for event
+app.get('/api/diversion-routes/auto-check/:eventId', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database connection not available'
+    });
+  }
+
+  try {
+    const { route, severity, lanes_blocked } = req.query;
+
+    const result = await pgPool.query(
+      'SELECT * FROM check_diversion_auto_activation($1, $2, $3, $4)',
+      [req.params.eventId, route, severity, lanes_blocked]
+    );
+
+    res.json({
+      success: true,
+      suggested_routes: result.rows
+    });
+  } catch (error) {
+    console.error('Error checking auto-activation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check auto-activation conditions'
+    });
+  }
+});
+
+// ============================================================================
 // IPAWS ALERT GENERATION API - Wireless Emergency Alerts for Transportation
 // ============================================================================
 const ipawsService = require('./services/ipaws-alert-service');
