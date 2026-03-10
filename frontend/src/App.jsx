@@ -58,6 +58,9 @@ import CADDModels from './components/CADDModels';
 import VendorPortal from './components/VendorPortal';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import IPAWSRulesConfig from './components/IPAWSRulesConfig';
+import ClosureApprovalDashboard from './components/ClosureApprovalDashboard';
+import DMSMessagingPanel from './components/DMSMessagingPanel';
+import DiversionRoutePanel from './components/DiversionRoutePanel';
 import './styles/App.css';
 
 function App() {
@@ -1419,7 +1422,7 @@ function App() {
           {authToken && (
             <div style={{ position: 'relative' }}>
               <button
-                className={`toggle-btn ${['feedSubmission', 'grants', 'digitalInfrastructure', 'caddModels', 'standardsCrosswalk', 'vendorPortal'].includes(view) ? 'active' : ''}`}
+                className={`toggle-btn ${['feedSubmission', 'grants', 'digitalInfrastructure', 'caddModels', 'closureApproval', 'dmsMessaging', 'diversionRoutes', 'standardsCrosswalk', 'vendorPortal'].includes(view) ? 'active' : ''}`}
                 onClick={() => {
                   setStateToolsDropdownOpen(!stateToolsDropdownOpen);
                   setDataQualityDropdownOpen(false);
@@ -1544,6 +1547,72 @@ function App() {
                     onMouseLeave={(e) => e.currentTarget.style.background = view === 'caddModels' ? '#f3f4f6' : 'white'}
                   >
                     📐 CADD Models
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView('closureApproval');
+                      setStateToolsDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'closureApproval' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'closureApproval' ? '600' : '400',
+                      color: view === 'closureApproval' ? '#059669' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'closureApproval' ? '#f3f4f6' : 'white'}
+                  >
+                    🚧 Closure Approval Workflow
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView('dmsMessaging');
+                      setStateToolsDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'dmsMessaging' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'dmsMessaging' ? '600' : '400',
+                      color: view === 'dmsMessaging' ? '#059669' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'dmsMessaging' ? '#f3f4f6' : 'white'}
+                  >
+                    💬 DMS Messaging & Templates
+                  </button>
+                  <button
+                    onClick={() => {
+                      setView('diversionRoutes');
+                      setStateToolsDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: view === 'diversionRoutes' ? '#f3f4f6' : 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: view === 'diversionRoutes' ? '600' : '400',
+                      color: view === 'diversionRoutes' ? '#059669' : '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = view === 'diversionRoutes' ? '#f3f4f6' : 'white'}
+                  >
+                    🔀 Diversion Route Management
                   </button>
                   <button
                     onClick={() => {
@@ -2150,6 +2219,47 @@ function App() {
             position: 'relative'
           }}>
             <CADDModels />
+          </div>
+        ) : view === 'closureApproval' ? (
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            minHeight: 0,
+            WebkitOverflowScrolling: 'touch',
+            position: 'relative'
+          }}>
+            <ClosureApprovalDashboard
+              userState={currentUser?.state}
+              onClose={() => setView('map')}
+            />
+          </div>
+        ) : view === 'dmsMessaging' ? (
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            minHeight: 0,
+            WebkitOverflowScrolling: 'touch',
+            position: 'relative'
+          }}>
+            <DMSMessagingPanel
+              selectedEvent={selectedEvent}
+              onClose={() => setView('map')}
+            />
+          </div>
+        ) : view === 'diversionRoutes' ? (
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            minHeight: 0,
+            WebkitOverflowScrolling: 'touch',
+            position: 'relative'
+          }}>
+            <DiversionRoutePanel
+              onClose={() => setView('map')}
+            />
           </div>
         ) : view === 'standardsCrosswalk' ? (
           <div style={{
