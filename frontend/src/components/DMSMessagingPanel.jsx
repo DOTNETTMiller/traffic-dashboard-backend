@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import config from '../config';
+import { config } from '../config';
 
 export default function DMSMessagingPanel({ selectedEvent, onClose }) {
   const [activeTab, setActiveTab] = useState('templates');
