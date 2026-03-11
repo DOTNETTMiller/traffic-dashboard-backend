@@ -27065,6 +27065,196 @@ app.post('/api/cadd/upload', upload.single('file'), async (req, res) => {
   }
 });
 
+// Export CADD assets to GIS formats (GeoJSON, Shapefile, GDB)
+app.get('/api/cadd/export/:format', async (req, res) => {
+  try {
+    const { format } = req.params;
+    const { modelId, state, includeITS, includeRoadGeometry } = req.query;
+
+    const gisExporter = require('./services/cadd-gis-exporter');
+
+    // Validate format
+    const supportedFormats = gisExporter.getSupportedFormats();
+    const formatInfo = supportedFormats.find(f => f.format === format);
+
+    if (!formatInfo) {
+      return res.status(400).json({
+        success: false,
+        error: `Unsupported format: ${format}`,
+        supportedFormats: supportedFormats.map(f => f.format)
+      });
+    }
+
+    // Get CADD assets from database
+    let modelsQuery = 'SELECT * FROM cadd_models WHERE extraction_status = ?';
+    const params = ['completed'];
+
+    if (state && state !== 'multi-state') {
+      modelsQuery += ' AND state = ?';
+      params.push(state);
+    }
+
+    if (modelId) {
+      modelsQuery += ' AND id = ?';
+      params.push(modelId);
+    }
+
+    let models;
+    if (pgPool) {
+      let paramIndex = 0;
+      const pgQuery = modelsQuery.replace(/\?/g, () => `$${++paramIndex}`);
+      const result = await pgPool.query(pgQuery, params);
+      models = result.rows || [];
+    } else {
+      const stmt = db.db.prepare(modelsQuery);
+      models = stmt.all(...params);
+    }
+
+    if (models.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No CADD models found matching criteria'
+      });
+    }
+
+    // Extract and process assets
+    const caddProcessor = require('./services/cadd-processor');
+    const allAssets = [];
+
+    for (const model of models) {
+      if (!model.extraction_data) continue;
+
+      let extractionData;
+      try {
+        extractionData = JSON.parse(model.extraction_data);
+      } catch (e) {
+        console.warn(`Failed to parse extraction data for model ${model.id}`);
+        continue;
+      }
+
+      try {
+        const processed = caddProcessor.processModel(model, extractionData);
+
+        // Add ITS equipment
+        for (let i = 0; i < processed.itsEquipment.length; i++) {
+          const equipment = processed.itsEquipment[i];
+          allAssets.push({
+            id: `${model.id}-its-${i}`,
+            modelId: model.id,
+            modelName: model.original_filename,
+            type: 'its_equipment',
+            equipmentType: equipment.type,
+            layer: equipment.layer,
+            text: equipment.text,
+            cadPosition: equipment.cadPosition,
+            latitude: equipment.latitude,
+            longitude: equipment.longitude,
+            georeferenced: equipment.georeferenced,
+            coordinateSystem: equipment.coordinateSystem,
+            corridor: model.corridor,
+            state: model.state,
+            attributes: equipment.attributes
+          });
+        }
+
+        // Add road geometry
+        for (let i = 0; i < processed.roadGeometry.length; i++) {
+          const geometry = processed.roadGeometry[i];
+          const firstVertex = geometry.georeferenced && geometry.vertices.length > 0
+            ? geometry.vertices[0]
+            : null;
+
+          allAssets.push({
+            id: `${model.id}-road-${i}`,
+            modelId: model.id,
+            modelName: model.original_filename,
+            type: 'road_geometry',
+            geometryType: geometry.type,
+            layer: geometry.layer,
+            vertexCount: geometry.cadVertices.length,
+            cadPosition: geometry.cadVertices[0],
+            latitude: firstVertex?.latitude || null,
+            longitude: firstVertex?.longitude || null,
+            georeferenced: geometry.georeferenced,
+            coordinateSystem: geometry.coordinateSystem,
+            corridor: model.corridor,
+            state: model.state,
+            vertices: geometry.vertices,
+            isClosed: geometry.isClosed
+          });
+        }
+      } catch (validationError) {
+        console.warn(`⚠️  Skipping model ${model.id}: ${validationError.message}`);
+        continue;
+      }
+    }
+
+    const options = {
+      includeITS: includeITS !== 'false',
+      includeRoadGeometry: includeRoadGeometry !== 'false',
+      modelId: modelId || null,
+      state: state || null
+    };
+
+    // Export based on format
+    if (format === 'geojson') {
+      const geojson = gisExporter.toGeoJSON(allAssets, options);
+
+      res.setHeader('Content-Type', 'application/geo+json');
+      res.setHeader('Content-Disposition', `attachment; filename="cadd_assets_${Date.now()}.geojson"`);
+      res.json(geojson);
+
+    } else if (format === 'shapefile') {
+      const tempDir = path.join(__dirname, 'temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+
+      const outputPath = path.join(tempDir, `cadd_assets_${Date.now()}.zip`);
+
+      const result = await gisExporter.exportShapefile(allAssets, outputPath, options);
+
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="cadd_assets_${Date.now()}.zip"`);
+      res.download(outputPath, (err) => {
+        // Cleanup temp file
+        try {
+          fs.unlinkSync(outputPath);
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+      });
+
+    } else if (format === 'gdb') {
+      return res.status(501).json({
+        success: false,
+        error: 'File Geodatabase export requires GDAL/OGR libraries (not yet implemented)',
+        recommendation: 'Use GeoJSON or Shapefile format instead'
+      });
+    }
+
+  } catch (error) {
+    console.error('Error exporting CADD assets:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get supported export formats
+app.get('/api/cadd/export-formats', async (req, res) => {
+  try {
+    const gisExporter = require('./services/cadd-gis-exporter');
+    const formats = gisExporter.getSupportedFormats();
+
+    res.json({
+      success: true,
+      formats
+    });
+  } catch (error) {
+    console.error('Error fetching export formats:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ========================================
 // USDOT V2X DEPLOYMENTS DATA
 // ========================================
