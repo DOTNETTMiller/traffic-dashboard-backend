@@ -16,6 +16,20 @@ const proj4 = require('proj4');
 
 class CADDProcessor {
   constructor() {
+    // U.S. bounding box for validation (continental U.S.)
+    this.usBounds = {
+      minLat: 24.5,   // Southern tip of Texas/Florida
+      maxLat: 49.4,   // Northern border (Canada)
+      minLon: -125.0, // West coast (Washington/Oregon)
+      maxLon: -66.0   // East coast (Maine)
+    };
+
+    // Extended bounds for Alaska and Hawaii (if needed in future)
+    this.usExtendedBounds = {
+      alaska: { minLat: 51.0, maxLat: 71.5, minLon: -180.0, maxLon: -130.0 },
+      hawaii: { minLat: 18.0, maxLat: 22.5, minLon: -160.0, maxLon: -154.0 }
+    };
+
     // Iowa State Plane coordinate systems (NAD83, US Survey Feet)
     // Source: EPSG.io
     this.coordinateSystems = {
@@ -83,6 +97,33 @@ class CADDProcessor {
   }
 
   /**
+   * Validate that coordinates are within United States bounds
+   */
+  isWithinUSBounds(latitude, longitude) {
+    // Check continental U.S. bounds
+    if (latitude >= this.usBounds.minLat && latitude <= this.usBounds.maxLat &&
+        longitude >= this.usBounds.minLon && longitude <= this.usBounds.maxLon) {
+      return { valid: true, region: 'continental' };
+    }
+
+    // Check Alaska bounds
+    const alaska = this.usExtendedBounds.alaska;
+    if (latitude >= alaska.minLat && latitude <= alaska.maxLat &&
+        longitude >= alaska.minLon && longitude <= alaska.maxLon) {
+      return { valid: true, region: 'alaska' };
+    }
+
+    // Check Hawaii bounds
+    const hawaii = this.usExtendedBounds.hawaii;
+    if (latitude >= hawaii.minLat && latitude <= hawaii.maxLat &&
+        longitude >= hawaii.minLon && longitude <= hawaii.maxLon) {
+      return { valid: true, region: 'hawaii' };
+    }
+
+    return { valid: false, region: null };
+  }
+
+  /**
    * Transform coordinates from state plane to WGS84
    */
   transformToWGS84(x, y, sourceSystem = 'iowa-north') {
@@ -94,6 +135,15 @@ class CADDProcessor {
 
       // Transform from state plane to WGS84
       const [lon, lat] = proj4(sourceDef, 'WGS84', [x, y]);
+
+      // Validate coordinates are within U.S. bounds
+      const boundsCheck = this.isWithinUSBounds(lat, lon);
+      if (!boundsCheck.valid) {
+        console.error(`❌ Transformed coordinates (${lat.toFixed(6)}, ${lon.toFixed(6)}) are OUTSIDE United States bounds!`);
+        console.error(`   Original: (${x}, ${y}) in ${sourceSystem}`);
+        console.error(`   This likely indicates incorrect coordinate system or invalid source data.`);
+        return null;
+      }
 
       return { latitude: lat, longitude: lon };
     } catch (error) {
@@ -232,6 +282,46 @@ class CADDProcessor {
     const roadGeoreferenced = roadGeometry.filter(g => g.georeferenced).length;
     console.log(`   Road Geometry: ${roadGeometry.length} total, ${roadGeoreferenced} georeferenced`);
 
+    // Validate that coordinates are within U.S. bounds
+    const totalElements = itsEquipment.length + roadGeometry.length;
+    const totalGeoreferenced = itsGeoreferenced + roadGeoreferenced;
+    const failedGeoreference = totalElements - totalGeoreferenced;
+
+    // If we have elements but NONE were georeferenced, likely all are outside U.S.
+    if (totalElements > 0 && totalGeoreferenced === 0) {
+      throw new Error(
+        `❌ VALIDATION FAILED: All ${totalElements} CADD elements are OUTSIDE United States bounds!\n\n` +
+        `This indicates the file uses an incorrect coordinate system or contains international data.\n\n` +
+        `Expected: Iowa State Plane coordinates (NAD83)\n` +
+        `Detected System: ${this.coordinateSystems[coordinateSystem].name}\n\n` +
+        `Please verify:\n` +
+        `  1. File is for a U.S. location (Iowa)\n` +
+        `  2. Coordinate system is correctly specified\n` +
+        `  3. Design coordinates are in State Plane (not lat/lng or international system)`
+      );
+    }
+
+    // If more than 50% failed to georeference, likely wrong coordinate system
+    if (totalElements > 0 && failedGeoreference > totalElements * 0.5) {
+      const percentFailed = Math.round((failedGeoreference / totalElements) * 100);
+      throw new Error(
+        `❌ VALIDATION FAILED: ${percentFailed}% of CADD elements (${failedGeoreference}/${totalElements}) are OUTSIDE United States bounds!\n\n` +
+        `This indicates the file likely uses an incorrect coordinate system.\n\n` +
+        `Detected System: ${this.coordinateSystems[coordinateSystem].name}\n` +
+        `Georeferenced: ${totalGeoreferenced} elements (${100 - percentFailed}%)\n` +
+        `Failed: ${failedGeoreference} elements (${percentFailed}%)\n\n` +
+        `Please verify:\n` +
+        `  1. File is for a U.S. location\n` +
+        `  2. Correct coordinate system is specified (Iowa North/South)\n` +
+        `  3. Coordinates are in State Plane format`
+      );
+    }
+
+    // Warn if some elements are outside bounds
+    if (failedGeoreference > 0) {
+      console.warn(`⚠️  Warning: ${failedGeoreference}/${totalElements} elements could not be georeferenced (may be outside U.S. bounds)`);
+    }
+
     return {
       coordinateSystem,
       itsEquipment,
@@ -242,7 +332,11 @@ class CADDProcessor {
         itsNeedingGeoreference: itsEquipment.length - itsGeoreferenced,
         roadTotal: roadGeometry.length,
         roadGeoreferenced,
-        roadNeedingGeoreference: roadGeometry.length - roadGeoreferenced
+        roadNeedingGeoreference: roadGeometry.length - roadGeoreferenced,
+        totalElements,
+        totalGeoreferenced,
+        failedGeoreference,
+        percentGeoreferenced: totalElements > 0 ? Math.round((totalGeoreferenced / totalElements) * 100) : 0
       }
     };
   }

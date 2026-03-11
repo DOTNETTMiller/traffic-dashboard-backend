@@ -26828,7 +26828,14 @@ app.get('/api/cadd/map-elements', async (req, res) => {
       }
 
       // Process model to extract and georeference elements
-      const processed = caddProcessor.processModel(model, extractionData);
+      let processed;
+      try {
+        processed = caddProcessor.processModel(model, extractionData);
+      } catch (validationError) {
+        // Model has coordinates outside U.S. bounds - skip it
+        console.warn(`⚠️  Skipping model ${model.id} (${model.original_filename}): ${validationError.message}`);
+        continue;
+      }
 
       // Add ITS equipment to map elements
       for (let i = 0; i < processed.itsEquipment.length; i++) {
@@ -26929,6 +26936,37 @@ app.post('/api/cadd/upload', upload.single('file'), async (req, res) => {
       return res.status(500).json({
         success: false,
         error: `Failed to parse DXF: ${extraction.error}`
+      });
+    }
+
+    // Validate coordinates are within U.S. bounds
+    // Create a temporary model object for validation
+    const tempModel = {
+      id: 'temp',
+      original_filename: file.originalname,
+      coordinate_system: coordinateSystem || null,
+      county: county || null,
+      extents_min_x: extraction.metadata.extents.minX,
+      extents_min_y: extraction.metadata.extents.minY,
+      extents_max_x: extraction.metadata.extents.maxX,
+      extents_max_y: extraction.metadata.extents.maxY
+    };
+
+    let processed;
+    try {
+      processed = caddProcessor.processModel(tempModel, extraction);
+    } catch (validationError) {
+      // Validation failed - coordinates are outside U.S.
+      fs.unlinkSync(file.path);
+      return res.status(400).json({
+        success: false,
+        error: validationError.message,
+        validationType: 'geographic_bounds',
+        details: {
+          totalElements: (extraction.itsEquipment?.length || 0) + (extraction.roadGeometry?.length || 0),
+          expectedRegion: 'United States (Continental)',
+          detectedCoordinateSystem: tempModel.coordinate_system || 'auto-detected'
+        }
       });
     }
 
