@@ -711,7 +711,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         )}
 
         {/* Population Breakdown */}
-        {alert.geofence?.populationBreakdown && (
+        {alert.geofence?.populationBreakdown && (alert.geofence.populationBreakdown.rural !== undefined || alert.geofence.populationBreakdown.urban !== undefined) && (
           <div style={{
             padding: theme.spacing.md,
             background: `${theme.colors.primary.main}15`,
@@ -748,7 +748,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               }}>
                 <div style={{ fontSize: '10px', color: "#9ca3af" }}>🌾 Rural</div>
                 <div style={{ fontSize: '15px', fontWeight: '700', color: theme.colors.success.main }}>
-                  {alert.geofence.populationBreakdown.rural.toLocaleString()}
+                  {(alert.geofence.populationBreakdown.rural || 0).toLocaleString()}
                 </div>
               </div>
               <div style={{
@@ -758,7 +758,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               }}>
                 <div style={{ fontSize: '10px', color: "#9ca3af" }}>🏙️ Urban</div>
                 <div style={{ fontSize: '15px', fontWeight: '700', color: theme.colors.warning.main }}>
-                  {alert.geofence.populationBreakdown.urban.toLocaleString()}
+                  {(alert.geofence.populationBreakdown.urban || 0).toLocaleString()}
                 </div>
               </div>
             </div>
@@ -1054,7 +1054,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                 gap: '6px'
               }}
             >
-              🌾 Exclude Urban Areas ({alert.geofence.populationBreakdown.urban.toLocaleString()} people)
+              🌾 Exclude Urban Areas ({(alert.geofence?.populationBreakdown?.urban || 0).toLocaleString()} people)
             </button>
           )}
 
