@@ -22,9 +22,8 @@ class PopulationDensityService {
         url: 'https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer',
         // Census API for detailed demographic data
         apiUrl: 'https://api.census.gov/data/2020/dec/pl',
-        // DISABLED: Current implementation queries ALL tracts in Iowa (not geofence-specific)
-        // TODO: Fix to query only counties in bbox, then filter tracts by polygon intersection
-        enabled: false, // Was: process.env.CENSUS_API_KEY ? true : false,
+        // FIXED: Now uses spatial intersection (TIGER + booleanIntersects)
+        enabled: process.env.CENSUS_API_KEY ? true : false,
         apiKey: process.env.CENSUS_API_KEY || null
       },
       // LandScan population data (Oak Ridge National Lab via Google Earth Engine)
@@ -486,45 +485,110 @@ class PopulationDensityService {
       const bbox = turf.bbox(geofence);
       const [west, south, east, north] = bbox;
 
-      // Query Census API for population by tract
-      // Get P1_001N (total population) for tracts within bounding box
-      const url = `${this.dataSources.census.apiUrl}?get=P1_001N,NAME&for=tract:*&in=state:19&key=${this.dataSources.census.apiKey}`;
+      // Step 1: Query Census TIGER/Web ArcGIS service for tract geometries in bbox
+      // This service provides spatial queries with actual tract boundaries
+      const tigerUrl = `${this.dataSources.census.url}/8/query`; // Layer 8 = Census Tracts
 
-      const response = await axios.get(url, {
-        timeout: 10000,
-        headers: { 'User-Agent': 'DOT-Corridor-Communicator-IPAWS/1.0' }
+      const tigerResponse = await axios.get(tigerUrl, {
+        params: {
+          where: 'STATE = 19', // Iowa FIPS code
+          geometry: `${west},${south},${east},${north}`,
+          geometryType: 'esriGeometryEnvelope',
+          spatialRel: 'esriSpatialRelIntersects',
+          outFields: 'GEOID,STATE,COUNTY,TRACT,BASENAME',
+          returnGeometry: true,
+          f: 'geojson'
+        },
+        timeout: 15000
       });
 
-      if (response.data && response.data.length > 1) {
-        let totalPopulation = 0;
-        const tracts = [];
+      if (!tigerResponse.data || !tigerResponse.data.features) {
+        console.log('⚠️ No census tracts found in area');
+        return null;
+      }
 
-        // Skip header row
-        for (let i = 1; i < response.data.length; i++) {
-          const [population, name, state, county, tract] = response.data[i];
+      // Step 2: Filter to only tracts that actually intersect the geofence polygon (not just bbox)
+      const intersectingTracts = [];
+      for (const feature of tigerResponse.data.features) {
+        try {
+          const tractGeom = turf.feature(feature.geometry);
+          // Check if tract polygon intersects our geofence
+          if (turf.booleanIntersects(tractGeom, geofence)) {
+            intersectingTracts.push({
+              geoid: feature.properties.GEOID,
+              state: feature.properties.STATE,
+              county: feature.properties.COUNTY,
+              tract: feature.properties.TRACT,
+              name: feature.properties.BASENAME
+            });
+          }
+        } catch (e) {
+          // Skip invalid geometries
+        }
+      }
+
+      if (intersectingTracts.length === 0) {
+        console.log('⚠️ No census tracts intersect geofence');
+        return null;
+      }
+
+      // Step 3: Query Census API for population data for only the intersecting tracts
+      // Build query for specific counties to reduce data transfer
+      const counties = [...new Set(intersectingTracts.map(t => t.county))];
+
+      let allTracts = [];
+
+      // Query each county separately (Census API limit)
+      for (const county of counties) {
+        const popUrl = `${this.dataSources.census.apiUrl}?get=P1_001N,NAME&for=tract:*&in=state:19+county:${county}&key=${this.dataSources.census.apiKey}`;
+
+        const popResponse = await axios.get(popUrl, {
+          timeout: 10000,
+          headers: { 'User-Agent': 'DOT-Corridor-Communicator-IPAWS/1.0' }
+        });
+
+        if (popResponse.data && popResponse.data.length > 1) {
+          // Skip header row and add to results
+          allTracts = allTracts.concat(popResponse.data.slice(1));
+        }
+      }
+
+      // Step 4: Sum population only for tracts that intersect our geofence
+      let totalPopulation = 0;
+      const matchedTracts = [];
+      const intersectingGeoids = new Set(intersectingTracts.map(t => t.geoid));
+
+      for (const tractData of allTracts) {
+        const [population, name, state, county, tract] = tractData;
+        const geoid = `${state}${county}${tract}`; // Build GEOID
+
+        // Only count if this tract actually intersects our geofence
+        if (intersectingGeoids.has(geoid)) {
           const pop = parseInt(population);
-
           if (!isNaN(pop)) {
             totalPopulation += pop;
-            tracts.push({
+            matchedTracts.push({
               name,
               state,
               county,
               tract,
+              geoid,
               population: pop
             });
           }
         }
-
-        console.log(`✅ Census data: ${totalPopulation.toLocaleString()} people across ${tracts.length} tracts`);
-
-        return {
-          source: 'US Census Bureau 2020',
-          total: totalPopulation,
-          tracts: tracts.slice(0, 10), // Return top 10 tracts
-          accuracy: 'high'
-        };
       }
+
+      console.log(`✅ Census data: ${totalPopulation.toLocaleString()} people across ${matchedTracts.length} intersecting tracts (${counties.length} counties)`);
+
+      return {
+        source: 'US Census Bureau 2020',
+        total: totalPopulation,
+        tracts: matchedTracts.slice(0, 10), // Return top 10 tracts
+        tractCount: matchedTracts.length,
+        countyCount: counties.length,
+        accuracy: 'very_high' // Now using actual spatial intersection
+      };
     } catch (error) {
       console.error('Census API error:', error.message);
       return null;
