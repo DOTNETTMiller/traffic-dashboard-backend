@@ -861,7 +861,48 @@ class PopulationDensityService {
     results.confidence = confidence;
     results.sourcesQueried = Object.keys(results.sources).length;
 
+    // Calculate rural/urban breakdown
+    let urbanPopulation = 0;
+    let ruralPopulation = 0;
+    const affectedCities = [];
+
+    if (iowaGIS && iowaGIS.municipalities) {
+      // Use Iowa GIS municipal data
+      iowaGIS.municipalities.forEach(muni => {
+        if (muni.population > 0) {
+          urbanPopulation += muni.population;
+          affectedCities.push({
+            name: muni.name,
+            population: muni.population,
+            county: muni.county
+          });
+        }
+      });
+      ruralPopulation = Math.max(0, bestEstimate - urbanPopulation);
+    } else if (osm && osm.urbanAreas && osm.urbanAreas.length > 0) {
+      // Use OSM urban boundaries
+      osm.urbanAreas.forEach(area => {
+        urbanPopulation += area.population || 0;
+        if (area.name) {
+          affectedCities.push({
+            name: area.name,
+            population: area.population || 0
+          });
+        }
+      });
+      ruralPopulation = Math.max(0, bestEstimate - urbanPopulation);
+    } else {
+      // Estimate: assume 30% urban, 70% rural for highway corridors
+      urbanPopulation = Math.round(bestEstimate * 0.3);
+      ruralPopulation = Math.round(bestEstimate * 0.7);
+    }
+
+    results.rural = ruralPopulation;
+    results.urban = urbanPopulation;
+    results.affectedCities = affectedCities;
+
     console.log(`✅ Enhanced population: ${bestEstimate.toLocaleString()} people (${confidence} confidence, ${results.sourcesQueried} sources)`);
+    console.log(`   Urban: ${urbanPopulation.toLocaleString()}, Rural: ${ruralPopulation.toLocaleString()}`);
 
     return results;
   }

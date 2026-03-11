@@ -23,10 +23,10 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
   const [recommendedTemplate, setRecommendedTemplate] = useState(null);
 
   // Geofence adjustment parameters
-  const [bufferFeet, setBufferFeet] = useState(1000); // Default 1000 feet (~0.19 miles)
+  const [bufferFeet, setBufferFeet] = useState(100); // Default 100 feet
   const [corridorLengthMiles, setCorridorLengthMiles] = useState(null); // null = full length
-  const [advanceWarningMode, setAdvanceWarningMode] = useState(false); // Toggle for asymmetric corridor
-  const [corridorAheadMiles, setCorridorAheadMiles] = useState(5.0); // Distance ahead of event
+  const [advanceWarningMode, setAdvanceWarningMode] = useState(true); // Toggle for asymmetric corridor (default enabled)
+  const [corridorAheadMiles, setCorridorAheadMiles] = useState(2.0); // Distance ahead of event
   const [corridorBehindMiles, setCorridorBehindMiles] = useState(0.5); // Distance behind event
   const [avoidUrbanAreas, setAvoidUrbanAreas] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
