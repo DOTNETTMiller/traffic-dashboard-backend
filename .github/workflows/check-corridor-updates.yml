@@ -118,70 +118,56 @@ jobs:
         with:
           script: |
             const needsUpdate = '${{ steps.check.outputs.needs_update }}';
-            const updateOutput = `${{ steps.autoupdate.outputs.update_output }}`;
+            const updateOutput = '${{ steps.autoupdate.outputs.update_output }}';
             const backupCreated = '${{ steps.backup.outputs.backup_created }}';
 
-            const title = `✅ Interstate Corridors Auto-Updated Successfully`;
+            const title = '✅ Interstate Corridors Auto-Updated Successfully';
 
-            const body = `## ✅ Automated Corridor Update - Success
-
-The monthly automated update has successfully refreshed interstate corridor geometries from OpenStreetMap.
-
-### Summary
-- **Corridors Updated:** ${needsUpdate}
-- **Update Type:** Minor changes (auto-approved)
-- **Update Date:** ${new Date().toLocaleString()}
-- **Backup Created:** ${backupCreated === 'true' ? 'Yes' : 'Noted in artifacts'}
-
-### What Was Updated
-The following corridors had minor geometry improvements from OpenStreetMap:
-- New construction projects reflected
-- Route accuracy improvements
-- Updated interchange data
-
-### Safety Checks Passed
-- ✅ No significant updates (>180 days) detected
-- ✅ Less than 6 corridors needed updating
-- ✅ All updates were recent/minor changes
-- ✅ Database backup created before update
-
-### Verification
-You can verify the updates in the application:
-1. Navigate to the map view
-2. Check TETC Corridors layer
-3. Corridors should display with updated geometry
-
-### Rollback (if needed)
-If you notice any issues, you can rollback:
-
-\`\`\`sql
--- List available backups
-SELECT tablename FROM pg_tables
-WHERE tablename LIKE 'corridors_backup_%'
-ORDER BY tablename DESC;
-
--- Rollback to backup (replace date)
-BEGIN;
-DELETE FROM corridors WHERE name LIKE 'I-%';
-INSERT INTO corridors
-SELECT * FROM corridors_backup_YYYYMMDD;
-COMMIT;
-\`\`\`
-
-### Full Update Log
-
-<details>
-<summary>Click to expand update output</summary>
-
-\`\`\`
-${updateOutput}
-\`\`\`
-
-</details>
-
----
-*This update was performed automatically by the corridor monitoring system. Updates are only automated for minor changes (<180 days old, <6 corridors). Significant changes require manual approval.*
-`;
+            let body = '## ✅ Automated Corridor Update - Success\n\n';
+            body += 'The monthly automated update has successfully refreshed interstate corridor geometries from OpenStreetMap.\n\n';
+            body += '### Summary\n';
+            body += '- **Corridors Updated:** ' + needsUpdate + '\n';
+            body += '- **Update Type:** Minor changes (auto-approved)\n';
+            body += '- **Update Date:** ' + new Date().toLocaleString() + '\n';
+            body += '- **Backup Created:** ' + (backupCreated === 'true' ? 'Yes' : 'Noted in artifacts') + '\n\n';
+            body += '### What Was Updated\n';
+            body += 'The following corridors had minor geometry improvements from OpenStreetMap:\n';
+            body += '- New construction projects reflected\n';
+            body += '- Route accuracy improvements\n';
+            body += '- Updated interchange data\n\n';
+            body += '### Safety Checks Passed\n';
+            body += '- ✅ No significant updates (>180 days) detected\n';
+            body += '- ✅ Less than 6 corridors needed updating\n';
+            body += '- ✅ All updates were recent/minor changes\n';
+            body += '- ✅ Database backup created before update\n\n';
+            body += '### Verification\n';
+            body += 'You can verify the updates in the application:\n';
+            body += '1. Navigate to the map view\n';
+            body += '2. Check TETC Corridors layer\n';
+            body += '3. Corridors should display with updated geometry\n\n';
+            body += '### Rollback (if needed)\n';
+            body += 'If you notice any issues, you can rollback:\n\n';
+            body += '```sql\n';
+            body += '-- List available backups\n';
+            body += 'SELECT tablename FROM pg_tables\n';
+            body += "WHERE tablename LIKE 'corridors_backup_%'\n";
+            body += 'ORDER BY tablename DESC;\n\n';
+            body += '-- Rollback to backup (replace date)\n';
+            body += 'BEGIN;\n';
+            body += "DELETE FROM corridors WHERE name LIKE 'I-%';\n";
+            body += 'INSERT INTO corridors\n';
+            body += 'SELECT * FROM corridors_backup_YYYYMMDD;\n';
+            body += 'COMMIT;\n';
+            body += '```\n\n';
+            body += '### Full Update Log\n\n';
+            body += '<details>\n';
+            body += '<summary>Click to expand update output</summary>\n\n';
+            body += '```\n';
+            body += updateOutput;
+            body += '\n```\n\n';
+            body += '</details>\n\n';
+            body += '---\n';
+            body += '*This update was performed automatically by the corridor monitoring system. Updates are only automated for minor changes (<180 days old, <6 corridors). Significant changes require manual approval.*';
 
             github.rest.issues.create({
               owner: context.repo.owner,
@@ -198,7 +184,7 @@ ${updateOutput}
         uses: actions/github-script@v6
         with:
           script: |
-            const output = `${{ steps.check.outputs.output }}`;
+            const output = '${{ steps.check.outputs.output }}';
 
             // Parse output to extract summary
             const needsUpdateMatch = output.match(/Needs update.*?(\d+) corridors/);
@@ -208,74 +194,60 @@ ${updateOutput}
             const significant = significantMatch ? parseInt(significantMatch[1]) : 0;
 
             const title = significant > 0
-              ? `🔴 Interstate Corridor Geometries Need MANUAL Update (Significant Changes)`
-              : `⚠️ Interstate Corridor Geometries Need MANUAL Update (Too Many Changes)`;
+              ? '🔴 Interstate Corridor Geometries Need MANUAL Update (Significant Changes)'
+              : '⚠️ Interstate Corridor Geometries Need MANUAL Update (Too Many Changes)';
 
-            const body = `## ⚠️ Corridor Geometry Update Requires MANUAL Approval
+            let body = '## ⚠️ Corridor Geometry Update Requires MANUAL Approval\n\n';
+            body += 'The automated monthly check has detected **significant changes** or **too many corridors** needing updates.\n\n';
+            body += '**Automatic update was SKIPPED** - manual review and approval required for safety.\n\n';
+            body += '### Why Manual Approval?\n';
 
-The automated monthly check has detected **significant changes** or **too many corridors** needing updates.
+            if (significant > 0) {
+              body += '- 🔴 **Significant updates detected** (' + significant + ' corridors >180 days old)\n';
+              body += '- Major route changes may require verification\n';
+              body += '- Could indicate construction projects or realignments\n';
+            }
 
-**Automatic update was SKIPPED** - manual review and approval required for safety.
+            if (needsUpdate >= 6) {
+              body += '- ⚠️ **Many corridors need updating** (' + needsUpdate + ' corridors)\n';
+              body += '- Bulk update should be reviewed\n';
+              body += '- May indicate widespread OSM improvements\n';
+            }
 
-### Why Manual Approval?
-${significant > 0 ? `
-- 🔴 **Significant updates detected** (${significant} corridors >180 days old)
-- Major route changes may require verification
-- Could indicate construction projects or realignments
-` : ''}
-${needsUpdate >= 6 ? `
-- ⚠️ **Many corridors need updating** (${needsUpdate} corridors)
-- Bulk update should be reviewed
-- May indicate widespread OSM improvements
-` : ''}
-
-### Summary
-- **Needs Update (30-180 days old):** ${needsUpdate} corridors
-- **Significant Update (>180 days old):** ${significant} corridors
-
-### What This Means
-OpenStreetMap data for these interstates has been updated with:
-- Construction/realignment projects
-- Improved route accuracy
-- New interchange data
-- Route corrections
-
-### Manual Update Required
-
-**Review the changes**, then run the update script on Railway:
-
-\`\`\`bash
-railway run node scripts/fetch_all_interstate_geometries.js
-\`\`\`
-
-This will:
-- Fetch latest OSM data for all interstates
-- Update corridor geometries with improved accuracy
-- Maintain split highway separation (EB/WB, NB/SB)
-- Take ~10 minutes to complete
-
-### Safety Notes
-- Automatic updates only occur for minor changes (<6 corridors, <180 days)
-- This requires manual approval to ensure data quality
-- A backup will be created automatically during manual update
-
-### Full Check Output
-
-<details>
-<summary>Click to expand detailed results</summary>
-
-\`\`\`
-${output}
-\`\`\`
-
-</details>
-
-### More Information
-See \`docs/CORRIDOR_GEOMETRY_FIX.md\` for complete documentation.
-
----
-*This issue was automatically created by the corridor update checker. It runs monthly on the 1st of each month.*
-`;
+            body += '\n### Summary\n';
+            body += '- **Needs Update (30-180 days old):** ' + needsUpdate + ' corridors\n';
+            body += '- **Significant Update (>180 days old):** ' + significant + ' corridors\n\n';
+            body += '### What This Means\n';
+            body += 'OpenStreetMap data for these interstates has been updated with:\n';
+            body += '- Construction/realignment projects\n';
+            body += '- Improved route accuracy\n';
+            body += '- New interchange data\n';
+            body += '- Route corrections\n\n';
+            body += '### Manual Update Required\n\n';
+            body += '**Review the changes**, then run the update script on Railway:\n\n';
+            body += '```bash\n';
+            body += 'railway run node scripts/fetch_all_interstate_geometries.js\n';
+            body += '```\n\n';
+            body += 'This will:\n';
+            body += '- Fetch latest OSM data for all interstates\n';
+            body += '- Update corridor geometries with improved accuracy\n';
+            body += '- Maintain split highway separation (EB/WB, NB/SB)\n';
+            body += '- Take ~10 minutes to complete\n\n';
+            body += '### Safety Notes\n';
+            body += '- Automatic updates only occur for minor changes (<6 corridors, <180 days)\n';
+            body += '- This requires manual approval to ensure data quality\n';
+            body += '- A backup will be created automatically during manual update\n\n';
+            body += '### Full Check Output\n\n';
+            body += '<details>\n';
+            body += '<summary>Click to expand detailed results</summary>\n\n';
+            body += '```\n';
+            body += output;
+            body += '\n```\n\n';
+            body += '</details>\n\n';
+            body += '### More Information\n';
+            body += 'See `docs/CORRIDOR_GEOMETRY_FIX.md` for complete documentation.\n\n';
+            body += '---\n';
+            body += '*This issue was automatically created by the corridor update checker. It runs monthly on the 1st of each month.*';
 
             github.rest.issues.create({
               owner: context.repo.owner,
