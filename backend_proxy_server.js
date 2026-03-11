@@ -555,7 +555,7 @@ const API_CONFIG = {
   },
   newjersey: {
     name: 'New Jersey',
-    eventsUrl: 'https://511nj.org/feeds/wzdx',
+    eventsUrl: 'https://smartworkzones.njit.edu/nj/wzdx',
     format: 'wzdx',
     corridor: 'I-80'
   },
