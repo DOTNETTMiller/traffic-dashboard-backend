@@ -22,7 +22,9 @@ class PopulationDensityService {
         url: 'https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer',
         // Census API for detailed demographic data
         apiUrl: 'https://api.census.gov/data/2020/dec/pl',
-        enabled: process.env.CENSUS_API_KEY ? true : false,
+        // DISABLED: Current implementation queries ALL tracts in Iowa (not geofence-specific)
+        // TODO: Fix to query only counties in bbox, then filter tracts by polygon intersection
+        enabled: false, // Was: process.env.CENSUS_API_KEY ? true : false,
         apiKey: process.env.CENSUS_API_KEY || null
       },
       // LandScan population data (Oak Ridge National Lab via Google Earth Engine)
@@ -828,24 +830,26 @@ class PopulationDensityService {
     let bestEstimate = null;
     let confidence = 'low';
 
-    // Priority: LandScan > Iowa GIS > Census > OSM > Estimation
-    if (landscan && landscan.total) {
-      bestEstimate = landscan.total;
-      confidence = 'very_high';
-      results.primarySource = 'LandScan (ORNL)';
-    } else if (iowaGIS && iowaGIS.totalPopulation) {
+    // Priority: Iowa GIS (spatial intersection) > OSM > LandScan/Census (bbox issues) > Estimation
+    // NOTE: LandScan uses bbox rectangle, Census queries ALL of Iowa (not geofence-specific)
+    // Iowa GIS uses proper esriSpatialRelIntersects, so it's most accurate for geofenced areas
+    if (iowaGIS && iowaGIS.totalPopulation) {
       bestEstimate = iowaGIS.totalPopulation;
-      confidence = 'high';
-      results.primarySource = 'Iowa State GIS';
-    } else if (census && census.total) {
-      bestEstimate = census.total;
-      confidence = 'high';
-      results.primarySource = 'US Census Bureau';
+      confidence = 'very_high';
+      results.primarySource = 'Iowa State GIS (spatial intersection)';
     } else if (osm && osm.urbanAreas.length > 0) {
       // Sum OSM population tags
       bestEstimate = osm.urbanAreas.reduce((sum, area) => sum + (area.population || 0), 0);
-      confidence = 'medium';
+      confidence = 'high';
       results.primarySource = 'OpenStreetMap';
+    } else if (landscan && landscan.total) {
+      bestEstimate = landscan.total;
+      confidence = 'medium';
+      results.primarySource = 'LandScan (ORNL - bbox estimate)';
+    } else if (census && census.total) {
+      bestEstimate = census.total;
+      confidence = 'medium';
+      results.primarySource = 'US Census Bureau (statewide fallback)';
     }
 
     // Fallback to estimation
