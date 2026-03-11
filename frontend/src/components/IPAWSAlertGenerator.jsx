@@ -83,10 +83,17 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     setError(null);
 
     try {
+      // Pass default SOP-compliant parameters: 100ft buffer, 2mi ahead, 0.5mi behind
       const response = await fetch(`${config.apiUrl}/api/ipaws/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event, trainingMode })
+        body: JSON.stringify({
+          event,
+          trainingMode,
+          bufferFeet: bufferFeet,  // Default 100 feet
+          corridorAheadMiles: corridorAheadMiles,  // Default 2.0 miles
+          corridorBehindMiles: corridorBehindMiles  // Default 0.5 miles
+        })
       });
 
       if (!response.ok) {
