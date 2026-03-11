@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format, formatDistanceToNow } from 'date-fns';
-import config from '../config';
+import { config } from '../config';
 
 export default function ClosureApprovalDashboard({ userState, onClose }) {
   const [activeTab, setActiveTab] = useState('my-closures');
