@@ -858,8 +858,9 @@ class IPAWSAlertService {
   /**
    * Generate multilingual alert messages
    * Per SOP Section 7.3: Must include audience qualifiers, direction, and mile markers
+   * Per SOP Section 6.4.3: Stranded motorists messages must include reassurance and safety guidance
    */
-  generateMessages(event) {
+  generateMessages(event, options = {}) {
     const location = this.extractLocation(event);
     const route = event.corridor || 'Major Route';
     const detour = this.suggestDetour(event);
@@ -875,40 +876,102 @@ class IPAWSAlertService {
     // Audience qualifier (SOP Section 7.3)
     const audienceQualifier = `For drivers on ${route}${directionLabel} only`;
 
-    // Build headline with SOP requirements
-    const headline = `Iowa DOT: ${route}${directionLabel} CLOSED${mmLabel} near ${location}`;
+    // Check if this is a stranded motorists alert (SOP Section 6.4.3)
+    const isStrandedMotorists = options.strandedMotorists || false;
+    const survivalGuidance = options.survivalGuidance || null;
+    const weatherCondition = options.weatherCondition || null;
 
-    // Build instruction with WEA character limit validation
-    const instruction = detour
-      ? `${audienceQualifier}. Avoid area. Use ${detour} detour. 511ia.org`
-      : `${audienceQualifier}. Avoid area. Seek alternate route. 511ia.org`;
+    let headline, instruction;
+
+    if (isStrandedMotorists) {
+      // SOP Section 6.4.3: Stranded Motorists Message Content Requirements
+      // Must include: traffic stopped confirmation, clear safety action, reassurance, mile markers, 511ia.org, audience qualifier
+
+      // Build headline confirming traffic is stopped
+      headline = `TRAFFIC STOPPED: ${route}${directionLabel}${mmLabel} near ${location}`;
+
+      // Build instruction with reassurance and safety guidance per SOP 6.4.3
+      let safetyAction = 'STAY IN VEHICLE. Do NOT exit.';
+
+      // Add weather-specific survival guidance if available
+      if (survivalGuidance) {
+        safetyAction = survivalGuidance;
+      } else if (weatherCondition) {
+        // Default weather-appropriate guidance
+        if (weatherCondition.includes('cold') || weatherCondition.includes('blizzard')) {
+          safetyAction = 'STAY IN VEHICLE. Run engine 10 min/hr, clear exhaust.';
+        } else if (weatherCondition.includes('heat')) {
+          safetyAction = 'STAY IN VEHICLE. Stay hydrated. Monitor for heat distress.';
+        } else if (weatherCondition.includes('flood')) {
+          safetyAction = 'STAY IN VEHICLE. Do NOT drive through water.';
+        } else if (weatherCondition.includes('hazmat') || weatherCondition.includes('smoke')) {
+          safetyAction = 'STAY IN VEHICLE. Close windows, turn off outside air.';
+        }
+      }
+
+      instruction = `${audienceQualifier}. ${safetyAction} Emergency crews responding. 511ia.org`;
+
+    } else {
+      // Standard closure message
+      headline = `Iowa DOT: ${route}${directionLabel} CLOSED${mmLabel} near ${location}`;
+      instruction = detour
+        ? `${audienceQualifier}. Avoid area. Use ${detour} detour. 511ia.org`
+        : `${audienceQualifier}. Avoid area. Seek alternate route. 511ia.org`;
+    }
 
     // Validate WEA 360-character limit (SOP Section 12)
     const fullMessage = `${headline} ${instruction}`;
     const characterCount = fullMessage.length;
     const exceedsLimit = characterCount > 360;
 
+    // Spanish translations
+    let spanishHeadline, spanishInstruction;
+
+    if (isStrandedMotorists) {
+      spanishHeadline = `TRÁFICO DETENIDO: ${route}${directionLabel}${mmLabel} cerca de ${location}`;
+
+      let spanishSafetyAction = 'PERMANEZCA EN VEHÍCULO. NO salga.';
+      if (survivalGuidance) {
+        // Translate common survival guidance
+        if (survivalGuidance.includes('Run engine')) {
+          spanishSafetyAction = 'PERMANEZCA EN VEHÍCULO. Motor 10 min/hr, despeje escape.';
+        } else if (survivalGuidance.includes('hydrated')) {
+          spanishSafetyAction = 'PERMANEZCA EN VEHÍCULO. Manténgase hidratado.';
+        } else if (survivalGuidance.includes('water')) {
+          spanishSafetyAction = 'PERMANEZCA EN VEHÍCULO. NO conduzca por agua.';
+        } else if (survivalGuidance.includes('windows')) {
+          spanishSafetyAction = 'PERMANEZCA EN VEHÍCULO. Cierre ventanas, apague aire exterior.';
+        }
+      }
+
+      spanishInstruction = `Solo para conductores en ${route}${directionLabel}. ${spanishSafetyAction} Equipos de emergencia respondiendo. 511ia.org`;
+    } else {
+      spanishHeadline = `Iowa DOT: ${route}${directionLabel} CERRADA${mmLabel} cerca de ${location}`;
+      spanishInstruction = detour
+        ? `Solo para conductores en ${route}${directionLabel}. Evite el área. Desvíese por ${detour}. 511ia.org`
+        : `Solo para conductores en ${route}${directionLabel}. Evite el área. Busque ruta alternativa. 511ia.org`;
+    }
+
+    const spanishCharCount = `${spanishHeadline} ${spanishInstruction}`.length;
+
     return {
       english: {
         headline: headline,
         instruction: instruction,
-        description: event.description || 'Road closure due to traffic incident',
+        description: event.description || (isStrandedMotorists ? 'Traffic stopped - emergency crews responding' : 'Road closure due to traffic incident'),
         audienceQualifier: audienceQualifier,
         characterCount: characterCount,
         exceedsWEALimit: exceedsLimit,
-        weaLimitWarning: exceedsLimit ? `Message exceeds WEA 360-char limit by ${characterCount - 360} characters` : null
+        weaLimitWarning: exceedsLimit ? `Message exceeds WEA 360-char limit by ${characterCount - 360} characters` : null,
+        isStrandedMotorists: isStrandedMotorists
       },
       spanish: {
-        headline: `Iowa DOT: ${route}${directionLabel} CERRADA${mmLabel} cerca de ${location}`,
-        instruction: detour
-          ? `Solo para conductores en ${route}${directionLabel}. Evite el área. Desvíese por ${detour}. 511ia.org`
-          : `Solo para conductores en ${route}${directionLabel}. Evite el área. Busque ruta alternativa. 511ia.org`,
-        description: event.description || 'Cierre de carretera debido a incidente de tráfico',
+        headline: spanishHeadline,
+        instruction: spanishInstruction,
+        description: event.description || (isStrandedMotorists ? 'Tráfico detenido - equipos de emergencia respondiendo' : 'Cierre de carretera debido a incidente de tráfico'),
         audienceQualifier: `Solo para conductores en ${route}${directionLabel}`,
-        characterCount: (`Iowa DOT: ${route}${directionLabel} CERRADA${mmLabel} cerca de ${location} ` +
-                        (detour
-                          ? `Solo para conductores en ${route}${directionLabel}. Evite el área. Desvíese por ${detour}. 511ia.org`
-                          : `Solo para conductores en ${route}${directionLabel}. Evite el área. Busque ruta alternativa. 511ia.org`)).length
+        characterCount: spanishCharCount,
+        isStrandedMotorists: isStrandedMotorists
       }
     };
   }
@@ -1134,7 +1197,13 @@ class IPAWSAlertService {
     }
 
     // Step 4: Generate messages
-    const messages = this.generateMessages(event);
+    // Pass through stranded motorists options if provided
+    const messageOptions = {
+      strandedMotorists: options.strandedMotorists || false,
+      survivalGuidance: options.survivalGuidance || null,
+      weatherCondition: options.weatherCondition || null
+    };
+    const messages = this.generateMessages(event, messageOptions);
 
     // Step 5: Create CAP message
     const capMessage = this.generateCAPMessage(event, geofence, messages);

@@ -12996,6 +12996,633 @@ app.post('/api/ipaws/submit', async (req, res) => {
   }
 });
 
+// ============================================================================
+// IPAWS SOP COMPLIANCE API - Sections 11, 13, 14
+// ============================================================================
+
+// ------------------------------
+// SECTION 13: CERTIFICATION MANAGEMENT
+// ------------------------------
+
+// GET /api/ipaws/users - Get all authorized IPAWS users
+app.get('/api/ipaws/users', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({ success: false, error: 'Database not configured' });
+    }
+
+    const { includeInactive } = req.query;
+    let query = 'SELECT * FROM ipaws_authorized_users';
+
+    if (!includeInactive) {
+      query += ' WHERE authorized = TRUE AND suspended = FALSE AND revoked = FALSE';
+    }
+
+    query += ' ORDER BY full_name';
+
+    const result = await pgPool.query(query);
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      users: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching IPAWS users:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/ipaws/users/:userId - Get specific user details
+app.get('/api/ipaws/users/:userId', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({ success: false, error: 'Database not configured' });
+    }
+
+    const { userId } = req.params;
+    const result = await pgPool.query(
+      'SELECT * FROM ipaws_authorized_users WHERE user_id = $1',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    res.json({
+      success: true,
+      user: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error fetching IPAWS user:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ipaws/users - Create new authorized user
+app.post('/api/ipaws/users', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({ success: false, error: 'Database not configured' });
+    }
+
+    const {
+      user_id, full_name, email, phone, agency, role,
+      fema_is247_certified, fema_is247_date, fema_is247_expires,
+      fema_is251_certified, fema_is251_date, fema_is251_expires,
+      fema_is315_certified, fema_is315_date, fema_is315_expires,
+      iowa_dot_policy_certified, iowa_dot_policy_date, iowa_dot_policy_version,
+      authorized, authorization_date, authorized_by, authorization_notes
+    } = req.body;
+
+    if (!user_id || !full_name || !email) {
+      return res.status(400).json({ success: false, error: 'user_id, full_name, and email are required' });
+    }
+
+    const result = await pgPool.query(
+      `INSERT INTO ipaws_authorized_users (
+        user_id, full_name, email, phone, agency, role,
+        fema_is247_certified, fema_is247_date, fema_is247_expires,
+        fema_is251_certified, fema_is251_date, fema_is251_expires,
+        fema_is315_certified, fema_is315_date, fema_is315_expires,
+        iowa_dot_policy_certified, iowa_dot_policy_date, iowa_dot_policy_version,
+        authorized, authorization_date, authorized_by, authorization_notes,
+        created_at, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6,
+        $7, $8, $9,
+        $10, $11, $12,
+        $13, $14, $15,
+        $16, $17, $18,
+        $19, $20, $21, $22,
+        NOW(), NOW()
+      ) RETURNING *`,
+      [
+        user_id, full_name, email, phone || null, agency || 'Iowa DOT', role || null,
+        fema_is247_certified || false, fema_is247_date || null, fema_is247_expires || null,
+        fema_is251_certified || false, fema_is251_date || null, fema_is251_expires || null,
+        fema_is315_certified || false, fema_is315_date || null, fema_is315_expires || null,
+        iowa_dot_policy_certified || false, iowa_dot_policy_date || null, iowa_dot_policy_version || null,
+        authorized || false, authorization_date || null, authorized_by || null, authorization_notes || null
+      ]
+    );
+
+    // Log compliance event
+    await pgPool.query(
+      `INSERT INTO ipaws_compliance_events (event_type, user_id, event_date, performed_by, details, notes)
+       VALUES ($1, $2, NOW(), $3, $4, $5)`,
+      [
+        'user_created',
+        user_id,
+        authorized_by || 'system',
+        JSON.stringify({ authorized, role }),
+        `New IPAWS user created: ${full_name}`
+      ]
+    );
+
+    console.log(`✅ IPAWS user created: ${user_id} (${full_name})`);
+
+    res.json({
+      success: true,
+      user: result.rows[0],
+      message: 'IPAWS authorized user created successfully'
+    });
+  } catch (error) {
+    console.error('Error creating IPAWS user:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/ipaws/users/:userId - Update user certification/authorization
+app.put('/api/ipaws/users/:userId', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({ success: false, error: 'Database not configured' });
+    }
+
+    const { userId } = req.params;
+    const updates = req.body;
+
+    // Build dynamic UPDATE query
+    const updateFields = [];
+    const values = [];
+    let paramCount = 0;
+
+    for (const [key, value] of Object.entries(updates)) {
+      if (key !== 'user_id') { // Don't allow changing user_id
+        paramCount++;
+        updateFields.push(`${key} = $${paramCount}`);
+        values.push(value);
+      }
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid fields to update' });
+    }
+
+    paramCount++;
+    values.push(userId);
+    updateFields.push(`updated_at = NOW()`);
+
+    const query = `UPDATE ipaws_authorized_users SET ${updateFields.join(', ')} WHERE user_id = $${paramCount} RETURNING *`;
+
+    const result = await pgPool.query(query, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    // Log compliance event
+    await pgPool.query(
+      `INSERT INTO ipaws_compliance_events (event_type, user_id, event_date, performed_by, details)
+       VALUES ($1, $2, NOW(), $3, $4)`,
+      [
+        'user_updated',
+        userId,
+        updates.updated_by || 'system',
+        JSON.stringify(updates)
+      ]
+    );
+
+    console.log(`✅ IPAWS user updated: ${userId}`);
+
+    res.json({
+      success: true,
+      user: result.rows[0],
+      message: 'User updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating IPAWS user:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/ipaws/users/refresher-due - Get users needing refresher training
+app.get('/api/ipaws/users/refresher-due', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({ success: false, error: 'Database not configured' });
+    }
+
+    const result = await pgPool.query('SELECT * FROM ipaws_users_refresher_due ORDER BY refresher_status, days_overdue DESC');
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      users: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching refresher due list:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/ipaws/certifications/expiring - Get expiring certifications
+app.get('/api/ipaws/certifications/expiring', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({ success: false, error: 'Database not configured' });
+    }
+
+    const result = await pgPool.query('SELECT * FROM ipaws_certification_expiration ORDER BY cert_status, earliest_expiration');
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      certifications: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching expiring certifications:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ipaws/training - Log training session
+app.post('/api/ipaws/training', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({ success: false, error: 'Database not configured' });
+    }
+
+    const {
+      user_id, training_type, training_date, completion_status,
+      score, certificate_number, certificate_url, instructor,
+      duration_hours, notes
+    } = req.body;
+
+    if (!user_id || !training_type || !training_date) {
+      return res.status(400).json({ success: false, error: 'user_id, training_type, and training_date are required' });
+    }
+
+    const result = await pgPool.query(
+      `INSERT INTO ipaws_training_sessions (
+        user_id, training_type, training_date, completion_status,
+        score, certificate_number, certificate_url, instructor,
+        duration_hours, notes, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW()) RETURNING *`,
+      [
+        user_id, training_type, training_date, completion_status || 'completed',
+        score || null, certificate_number || null, certificate_url || null, instructor || null,
+        duration_hours || null, notes || null
+      ]
+    );
+
+    // Update user's last refresher date if this is an annual refresher
+    if (training_type.toLowerCase().includes('refresher') && completion_status === 'completed') {
+      await pgPool.query(
+        `UPDATE ipaws_authorized_users
+         SET last_refresher_date = $1, next_refresher_due = $1 + INTERVAL '1 year', updated_at = NOW()
+         WHERE user_id = $2`,
+        [training_date, user_id]
+      );
+    }
+
+    // Log compliance event
+    await pgPool.query(
+      `INSERT INTO ipaws_compliance_events (event_type, user_id, event_date, details)
+       VALUES ($1, $2, NOW(), $3)`,
+      ['training_completed', user_id, JSON.stringify({ training_type, completion_status })]
+    );
+
+    console.log(`✅ Training logged: ${user_id} - ${training_type}`);
+
+    res.json({
+      success: true,
+      training: result.rows[0],
+      message: 'Training session logged successfully'
+    });
+  } catch (error) {
+    console.error('Error logging training:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ------------------------------
+// SECTION 11: AFTER-ACTION REVIEWS
+// ------------------------------
+
+// GET /api/ipaws/after-action-reviews - Get all AARs
+app.get('/api/ipaws/after-action-reviews', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({ success: false, error: 'Database not configured' });
+    }
+
+    const { status, alert_id } = req.query;
+    let query = 'SELECT * FROM ipaws_after_action_reviews WHERE 1=1';
+    const params = [];
+    let paramCount = 0;
+
+    if (status) {
+      paramCount++;
+      query += ` AND review_status = $${paramCount}`;
+      params.push(status);
+    }
+
+    if (alert_id) {
+      paramCount++;
+      query += ` AND alert_id = $${paramCount}`;
+      params.push(alert_id);
+    }
+
+    query += ' ORDER BY review_date DESC';
+
+    const result = await pgPool.query(query, params);
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      reviews: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching after-action reviews:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/ipaws/after-action-reviews/outstanding - Get AARs due/overdue
+app.get('/api/ipaws/after-action-reviews/outstanding', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({ success: false, error: 'Database not configured' });
+    }
+
+    const result = await pgPool.query('SELECT * FROM ipaws_aar_outstanding ORDER BY days_since_activation DESC');
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      outstanding: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching outstanding AARs:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ipaws/after-action-reviews - Create new AAR
+app.post('/api/ipaws/after-action-reviews', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({ success: false, error: 'Database not configured' });
+    }
+
+    const {
+      alert_id, event_id, review_date, reviewed_by,
+      activation_time, incident_start_time, appropriate_timing, timing_notes,
+      geofence_appropriate, geofence_too_large, geofence_too_small, scope_notes,
+      unintended_recipients, unintended_recipients_count, unintended_recipients_areas,
+      complaint_count, complaint_summary,
+      message_clear, message_actionable, audience_qualifier_effective, message_feedback,
+      positive_feedback_count, negative_feedback_count, media_coverage, social_media_response,
+      lessons_learned, recommendations, training_needs_identified, sop_updates_recommended,
+      follow_up_required, follow_up_actions
+    } = req.body;
+
+    if (!alert_id || !review_date || !reviewed_by) {
+      return res.status(400).json({ success: false, error: 'alert_id, review_date, and reviewed_by are required' });
+    }
+
+    // Calculate delay
+    let first_responder_alert_delay_minutes = null;
+    if (incident_start_time && activation_time) {
+      const start = new Date(incident_start_time);
+      const activation = new Date(activation_time);
+      first_responder_alert_delay_minutes = Math.round((activation - start) / (1000 * 60));
+    }
+
+    const result = await pgPool.query(
+      `INSERT INTO ipaws_after_action_reviews (
+        alert_id, event_id, review_date, reviewed_by,
+        activation_time, incident_start_time, first_responder_alert_delay_minutes,
+        appropriate_timing, timing_notes,
+        geofence_appropriate, geofence_too_large, geofence_too_small, actual_affected_area_description, scope_notes,
+        unintended_recipients, unintended_recipients_count, unintended_recipients_areas,
+        complaint_count, complaint_summary,
+        message_clear, message_actionable, audience_qualifier_effective, message_feedback,
+        positive_feedback_count, negative_feedback_count, media_coverage, social_media_response,
+        lessons_learned, recommendations, training_needs_identified, sop_updates_recommended,
+        follow_up_required, follow_up_actions, review_status, created_at, updated_at
+      ) VALUES (
+        $1, $2, $3, $4,
+        $5, $6, $7,
+        $8, $9,
+        $10, $11, $12, $13, $14,
+        $15, $16, $17,
+        $18, $19,
+        $20, $21, $22, $23,
+        $24, $25, $26, $27,
+        $28, $29, $30, $31,
+        $32, $33, 'submitted', NOW(), NOW()
+      ) RETURNING *`,
+      [
+        alert_id, event_id || null, review_date, reviewed_by,
+        activation_time || null, incident_start_time || null, first_responder_alert_delay_minutes,
+        appropriate_timing || null, timing_notes || null,
+        geofence_appropriate || null, geofence_too_large || false, geofence_too_small || false, null, scope_notes || null,
+        unintended_recipients || false, unintended_recipients_count || 0, unintended_recipients_areas || null,
+        complaint_count || 0, complaint_summary || null,
+        message_clear || null, message_actionable || null, audience_qualifier_effective || null, message_feedback || null,
+        positive_feedback_count || 0, negative_feedback_count || 0, media_coverage || null, social_media_response || null,
+        lessons_learned || null, recommendations || null, training_needs_identified || null, sop_updates_recommended || null,
+        follow_up_required || false, follow_up_actions || null
+      ]
+    );
+
+    // Log compliance event
+    await pgPool.query(
+      `INSERT INTO ipaws_compliance_events (event_type, alert_id, event_date, performed_by, details)
+       VALUES ($1, $2, NOW(), $3, $4)`,
+      ['aar_completed', alert_id, reviewed_by, JSON.stringify({ follow_up_required, lessons_learned: lessons_learned ? 'yes' : 'no' })]
+    );
+
+    console.log(`✅ After-action review created for alert: ${alert_id}`);
+
+    res.json({
+      success: true,
+      review: result.rows[0],
+      message: 'After-action review created successfully'
+    });
+  } catch (error) {
+    console.error('Error creating after-action review:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ------------------------------
+// SECTION 14: COMPLIANCE & ENFORCEMENT
+// ------------------------------
+
+// GET /api/ipaws/violations - Get policy violations
+app.get('/api/ipaws/violations', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({ success: false, error: 'Database not configured' });
+    }
+
+    const { user_id, resolved, severity } = req.query;
+    let query = 'SELECT * FROM ipaws_policy_violations WHERE 1=1';
+    const params = [];
+    let paramCount = 0;
+
+    if (user_id) {
+      paramCount++;
+      query += ` AND user_id = $${paramCount}`;
+      params.push(user_id);
+    }
+
+    if (resolved !== undefined) {
+      paramCount++;
+      query += ` AND resolved = $${paramCount}`;
+      params.push(resolved === 'true');
+    }
+
+    if (severity) {
+      paramCount++;
+      query += ` AND violation_severity = $${paramCount}`;
+      params.push(severity);
+    }
+
+    query += ' ORDER BY violation_date DESC';
+
+    const result = await pgPool.query(query, params);
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      violations: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching violations:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/ipaws/violations - Log a policy violation
+app.post('/api/ipaws/violations', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({ success: false, error: 'Database not configured' });
+    }
+
+    const {
+      alert_id, user_id, violation_date, violation_type, violation_severity,
+      violation_description, sop_section_violated, policy_requirement_violated,
+      investigated, investigation_date, investigated_by, investigation_findings, intentional,
+      enforcement_action, enforcement_date, enforced_by,
+      suspension_duration_days, retraining_required
+    } = req.body;
+
+    if (!user_id || !violation_type || !violation_description) {
+      return res.status(400).json({ success: false, error: 'user_id, violation_type, and violation_description are required' });
+    }
+
+    const result = await pgPool.query(
+      `INSERT INTO ipaws_policy_violations (
+        alert_id, user_id, violation_date, violation_type, violation_severity,
+        violation_description, sop_section_violated, policy_requirement_violated,
+        investigated, investigation_date, investigated_by, investigation_findings, intentional,
+        enforcement_action, enforcement_date, enforced_by,
+        suspension_duration_days, retraining_required, created_at, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5,
+        $6, $7, $8,
+        $9, $10, $11, $12, $13,
+        $14, $15, $16,
+        $17, $18, NOW(), NOW()
+      ) RETURNING *`,
+      [
+        alert_id || null, user_id, violation_date || new Date(), violation_type, violation_severity || 'minor',
+        violation_description, sop_section_violated || null, policy_requirement_violated || null,
+        investigated || false, investigation_date || null, investigated_by || null, investigation_findings || null, intentional || null,
+        enforcement_action || null, enforcement_date || null, enforced_by || null,
+        suspension_duration_days || null, retraining_required || false
+      ]
+    );
+
+    // Log compliance event
+    await pgPool.query(
+      `INSERT INTO ipaws_compliance_events (event_type, user_id, alert_id, event_date, performed_by, details)
+       VALUES ($1, $2, $3, NOW(), $4, $5)`,
+      [
+        'violation_logged',
+        user_id,
+        alert_id || null,
+        enforced_by || 'system',
+        JSON.stringify({ violation_type, violation_severity, enforcement_action })
+      ]
+    );
+
+    // If enforcement action includes suspension, suspend the user
+    if (enforcement_action === 'suspension') {
+      await pgPool.query(
+        `UPDATE ipaws_authorized_users
+         SET suspended = TRUE, suspension_date = $1, suspended_by = $2, suspension_reason = $3, updated_at = NOW()
+         WHERE user_id = $4`,
+        [enforcement_date || new Date(), enforced_by || 'system', violation_description, user_id]
+      );
+    } else if (enforcement_action === 'revocation') {
+      await pgPool.query(
+        `UPDATE ipaws_authorized_users
+         SET revoked = TRUE, revocation_date = $1, revoked_by = $2, revocation_reason = $3, updated_at = NOW()
+         WHERE user_id = $4`,
+        [enforcement_date || new Date(), enforced_by || 'system', violation_description, user_id]
+      );
+    }
+
+    console.log(`⚠️  Policy violation logged: ${user_id} - ${violation_type}`);
+
+    res.json({
+      success: true,
+      violation: result.rows[0],
+      message: 'Policy violation logged successfully'
+    });
+  } catch (error) {
+    console.error('Error logging violation:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET /api/ipaws/users/:userId/violations-summary - Get violation summary for user
+app.get('/api/ipaws/users/:userId/violations-summary', async (req, res) => {
+  try {
+    if (!pgPool) {
+      return res.status(503).json({ success: false, error: 'Database not configured' });
+    }
+
+    const { userId } = req.params;
+    const result = await pgPool.query(
+      'SELECT * FROM ipaws_user_violation_summary WHERE user_id = $1',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({
+        success: true,
+        summary: {
+          user_id: userId,
+          total_violations: 0,
+          critical_violations: 0,
+          severe_violations: 0,
+          moderate_violations: 0,
+          minor_violations: 0,
+          unresolved_violations: 0,
+          last_violation_date: null
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      summary: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error fetching violation summary:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/bim/bridges - Get BIM bridges with V2X/AV tagging
 app.get('/api/bim/bridges', async (req, res) => {
   try {
