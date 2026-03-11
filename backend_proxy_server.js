@@ -26785,6 +26785,7 @@ app.get('/api/cadd/models/:id/export/csv', async (req, res) => {
 app.get('/api/cadd/map-elements', async (req, res) => {
   try {
     const { stateKey, modelId } = req.query;
+    const caddProcessor = require('./services/cadd-processor');
 
     // Get all models (optionally filtered)
     let modelsQuery = 'SELECT * FROM cadd_models WHERE extraction_status = ?';
@@ -26801,16 +26802,18 @@ app.get('/api/cadd/map-elements', async (req, res) => {
     }
 
     let models;
-    if (db.isPostgres) {
-      modelsQuery = modelsQuery.replace(/\?/g, (match, offset) => `$${params.indexOf(params[offset]) + 1}`);
-      const result = await db.db.query(modelsQuery, params);
+    if (pgPool) {
+      // PostgreSQL - convert ? placeholders to $1, $2, etc.
+      let paramIndex = 0;
+      const pgQuery = modelsQuery.replace(/\?/g, () => `$${++paramIndex}`);
+      const result = await pgPool.query(pgQuery, params);
       models = result.rows || [];
     } else {
       const stmt = db.db.prepare(modelsQuery);
       models = stmt.all(...params);
     }
 
-    // Parse extraction data and extract map-displayable elements
+    // Parse extraction data and extract map-displayable elements with proper georeferencing
     const mapElements = [];
 
     for (const model of models) {
@@ -26824,60 +26827,61 @@ app.get('/api/cadd/map-elements', async (req, res) => {
         continue;
       }
 
-      // Extract ITS equipment with location data
-      if (extractionData.itsEquipment) {
-        for (const equipment of extractionData.itsEquipment) {
-          // Check if equipment has position data
-          if (equipment.geometry?.position) {
-            const pos = equipment.geometry.position;
+      // Process model to extract and georeference elements
+      const processed = caddProcessor.processModel(model, extractionData);
 
-            // For now, we'll need to convert CAD coordinates to lat/lng
-            // This is a placeholder - in reality you'd need proper coordinate transformation
-            // based on the model's coordinate system and extents
-            mapElements.push({
-              id: `${model.id}-its-${mapElements.length}`,
-              modelId: model.id,
-              modelName: model.original_filename,
-              type: 'its_equipment',
-              equipmentType: equipment.type || 'Unknown',
-              layer: equipment.layer,
-              text: equipment.text,
-              cadPosition: { x: pos.x, y: pos.y, z: pos.z || 0 },
-              // Placeholder lat/lng - would need proper transformation
-              latitude: null,
-              longitude: null,
-              corridor: model.corridor,
-              state: model.state
-            });
-          }
-        }
+      // Add ITS equipment to map elements
+      for (let i = 0; i < processed.itsEquipment.length; i++) {
+        const equipment = processed.itsEquipment[i];
+        mapElements.push({
+          id: `${model.id}-its-${i}`,
+          modelId: model.id,
+          modelName: model.original_filename,
+          type: 'its_equipment',
+          equipmentType: equipment.type,
+          layer: equipment.layer,
+          text: equipment.text,
+          cadPosition: equipment.cadPosition,
+          latitude: equipment.latitude,
+          longitude: equipment.longitude,
+          georeferenced: equipment.georeferenced,
+          coordinateSystem: equipment.coordinateSystem,
+          corridor: model.corridor,
+          state: model.state,
+          attributes: equipment.attributes
+        });
       }
 
-      // Extract road geometry
-      if (extractionData.roadGeometry) {
-        for (const geometry of extractionData.roadGeometry) {
-          if (geometry.geometry?.vertices && geometry.geometry.vertices.length > 0) {
-            const firstVertex = geometry.geometry.vertices[0];
-            mapElements.push({
-              id: `${model.id}-road-${mapElements.length}`,
-              modelId: model.id,
-              modelName: model.original_filename,
-              type: 'road_geometry',
-              geometryType: geometry.type,
-              layer: geometry.layer,
-              vertexCount: geometry.geometry.vertices.length,
-              cadPosition: { x: firstVertex.x, y: firstVertex.y, z: firstVertex.z || 0 },
-              latitude: null,
-              longitude: null,
-              corridor: model.corridor,
-              state: model.state
-            });
-          }
-        }
+      // Add road geometry to map elements (use first vertex for marker position)
+      for (let i = 0; i < processed.roadGeometry.length; i++) {
+        const geometry = processed.roadGeometry[i];
+        const firstVertex = geometry.georeferenced && geometry.vertices.length > 0
+          ? geometry.vertices[0]
+          : null;
+
+        mapElements.push({
+          id: `${model.id}-road-${i}`,
+          modelId: model.id,
+          modelName: model.original_filename,
+          type: 'road_geometry',
+          geometryType: geometry.type,
+          layer: geometry.layer,
+          vertexCount: geometry.cadVertices.length,
+          cadPosition: geometry.cadVertices[0],
+          latitude: firstVertex?.latitude || null,
+          longitude: firstVertex?.longitude || null,
+          georeferenced: geometry.georeferenced,
+          coordinateSystem: geometry.coordinateSystem,
+          corridor: model.corridor,
+          state: model.state,
+          vertices: geometry.vertices, // Include all vertices for polyline rendering
+          isClosed: geometry.isClosed
+        });
       }
     }
 
-    console.log(`📐 Loaded ${mapElements.length} CADD map elements from ${models.length} models`);
+    const georeferenced = mapElements.filter(e => e.georeferenced).length;
+    console.log(`📐 Loaded ${mapElements.length} CADD map elements from ${models.length} models (${georeferenced} georeferenced)`);
 
     res.json({
       success: true,
@@ -26889,6 +26893,137 @@ app.get('/api/cadd/map-elements', async (req, res) => {
   } catch (err) {
     console.error('Error fetching CADD map elements:', err);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Upload and process CADD/DXF file
+app.post('/api/cadd/upload', upload.single('file'), async (req, res) => {
+  try {
+    const file = req.file;
+    const { corridor, state, county, coordinateSystem } = req.body;
+
+    if (!file) {
+      return res.status(400).json({ success: false, error: 'No file uploaded' });
+    }
+
+    // Validate file type
+    const allowedExtensions = ['.dxf', '.DXF'];
+    const ext = path.extname(file.originalname);
+    if (!allowedExtensions.includes(ext)) {
+      fs.unlinkSync(file.path); // Delete uploaded file
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid file type. Only DXF files are supported.'
+      });
+    }
+
+    console.log(`📤 Processing CADD upload: ${file.originalname}`);
+    const dxfExtractor = require('./services/dxf-extractor');
+    const caddProcessor = require('./services/cadd-processor');
+
+    // Parse DXF file
+    const extraction = await dxfExtractor.extractFromFile(file.path);
+
+    if (!extraction.success) {
+      fs.unlinkSync(file.path);
+      return res.status(500).json({
+        success: false,
+        error: `Failed to parse DXF: ${extraction.error}`
+      });
+    }
+
+    // Insert into database
+    const insertQuery = pgPool ? `
+      INSERT INTO cadd_models (
+        filename, original_filename, file_format, file_size, file_path,
+        cad_version, units, coordinate_system,
+        extents_min_x, extents_min_y, extents_max_x, extents_max_y,
+        corridor, state, county,
+        extraction_status, extraction_started_at, extraction_completed_at,
+        total_layers, total_entities, total_blocks,
+        its_equipment_count, road_geometry_count,
+        extraction_data, uploaded_by, uploaded_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+        $16, NOW(), NOW(), $17, $18, $19, $20, $21, $22, $23, NOW()
+      ) RETURNING id
+    ` : `
+      INSERT INTO cadd_models (
+        filename, original_filename, file_format, file_size, file_path,
+        cad_version, units, coordinate_system,
+        extents_min_x, extents_min_y, extents_max_x, extents_max_y,
+        corridor, state, county,
+        extraction_status, extraction_started_at, extraction_completed_at,
+        total_layers, total_entities, total_blocks,
+        its_equipment_count, road_geometry_count,
+        extraction_data, uploaded_by, uploaded_at
+      ) VALUES (
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, datetime('now'), datetime('now'), ?, ?, ?, ?, ?, ?, ?, datetime('now')
+      )
+    `;
+
+    const params = [
+      file.filename,
+      file.originalname,
+      'DXF',
+      file.size,
+      file.path,
+      extraction.metadata.version || 'Unknown',
+      extraction.metadata.units || 'Unknown',
+      coordinateSystem || null,
+      extraction.metadata.extents.minX,
+      extraction.metadata.extents.minY,
+      extraction.metadata.extents.maxX,
+      extraction.metadata.extents.maxY,
+      corridor || null,
+      state || null,
+      county || null,
+      'completed',
+      extraction.metadata.layers.length,
+      extraction.metadata.totalEntities,
+      extraction.metadata.blocks.length,
+      extraction.itsEquipment.length,
+      extraction.roadGeometry.length,
+      JSON.stringify(extraction),
+      req.body.uploadedBy || 'Unknown',
+    ];
+
+    let modelId;
+    if (pgPool) {
+      const result = await pgPool.query(insertQuery, params);
+      modelId = result.rows[0].id;
+    } else {
+      const stmt = db.db.prepare(insertQuery);
+      const result = stmt.run(...params);
+      modelId = result.lastID;
+    }
+
+    console.log(`✅ CADD model ${modelId} created successfully`);
+    console.log(`   File: ${file.originalname}`);
+    console.log(`   ITS Equipment: ${extraction.itsEquipment.length}`);
+    console.log(`   Road Geometry: ${extraction.roadGeometry.length}`);
+
+    res.json({
+      success: true,
+      modelId,
+      filename: file.originalname,
+      metadata: extraction.metadata,
+      itsEquipmentCount: extraction.itsEquipment.length,
+      roadGeometryCount: extraction.roadGeometry.length,
+      message: 'CADD file uploaded and processed successfully'
+    });
+
+  } catch (error) {
+    console.error('Error uploading CADD file:', error);
+    if (req.file) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+    }
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
