@@ -40,6 +40,24 @@ class DXFExtractor {
       rsu: /\b(rsu|v2x|dsrc|cv)\b/i,
       signal: /\b(signal|light|tl)\b/i
     };
+
+    // Clearance keywords and patterns
+    this.clearancePatterns = {
+      vertical: /vert(?:ical)?\s*(?:cl(?:ear)?(?:ance)?|clr|ht|height)\s*[=:]?\s*(\d+(?:\.\d+)?)\s*['"]?(?:\s*-\s*(\d+(?:\.\d+)?)\s*['"]?)?/i,
+      verticalAlt: /(?:min|minimum)\s*(?:clearance|clr|ht|height)\s*[=:]?\s*(\d+(?:\.\d+)?)\s*['"]?/i,
+      horizontal: /horiz(?:ontal)?\s*(?:cl(?:ear)?(?:ance)?|clr|width)\s*[=:]?\s*(\d+(?:\.\d+)?)\s*['"]?/i,
+      laneWidth: /lane\s*(?:width|w)\s*[=:]?\s*(\d+(?:\.\d+)?)\s*['"]?/i,
+      shoulderWidth: /shoulder\s*(?:width|w)\s*[=:]?\s*(\d+(?:\.\d+)?)\s*['"]?/i,
+      offset: /offset\s*[=:]?\s*(\d+(?:\.\d+)?)\s*['"]?/i
+    };
+
+    // Layer patterns for clearance information
+    this.clearanceLayerPatterns = {
+      clearance: /clearance|clear|clr/i,
+      vertical: /vertical|vert/i,
+      dimension: /dimension|dim/i,
+      annotation: /annotation|anno|note/i
+    };
   }
 
   /**
@@ -82,6 +100,10 @@ class DXFExtractor {
       const roadGeometry = this.extractRoadGeometry(dxf);
       console.log(`   ✅ Extracted ${roadGeometry.length} road geometry elements`);
 
+      // Extract clearance information
+      const clearances = this.extractClearances(dxf);
+      console.log(`   ✅ Extracted ${clearances.length} clearance measurements`);
+
       return {
         success: true,
         metadata: {
@@ -93,7 +115,8 @@ class DXFExtractor {
           totalEntities: entities.length
         },
         itsEquipment,
-        roadGeometry
+        roadGeometry,
+        clearances
       };
     } catch (error) {
       console.error(`❌ Error parsing DXF file:`, error);
@@ -389,6 +412,163 @@ class DXFExtractor {
     }
 
     return null;
+  }
+
+  /**
+   * Extract clearance information from DXF entities
+   * Includes vertical clearances (overhead structures) and horizontal clearances
+   */
+  extractClearances(dxf) {
+    const clearances = [];
+    const entities = dxf.entities || [];
+
+    for (const entity of entities) {
+      // Check if layer is clearance-related
+      const isClearanceLayer = Object.values(this.clearanceLayerPatterns)
+        .some(pattern => pattern.test(entity.layer || ''));
+
+      // Extract from TEXT and MTEXT entities
+      if (entity.type === 'TEXT' || entity.type === 'MTEXT') {
+        const text = entity.text || '';
+
+        // Try vertical clearance patterns
+        let match = text.match(this.clearancePatterns.vertical);
+        if (!match) match = text.match(this.clearancePatterns.verticalAlt);
+
+        if (match) {
+          clearances.push({
+            type: 'vertical',
+            value: parseFloat(match[1]),
+            maxValue: match[2] ? parseFloat(match[2]) : null,
+            units: text.includes('"') || text.includes("'") ? 'feet' : 'unknown',
+            text: text,
+            layer: entity.layer,
+            geometry: {
+              type: 'point',
+              position: {
+                x: entity.startPoint ? entity.startPoint.x : (entity.position ? entity.position.x : 0),
+                y: entity.startPoint ? entity.startPoint.y : (entity.position ? entity.position.y : 0),
+                z: entity.startPoint ? (entity.startPoint.z || 0) : (entity.position ? (entity.position.z || 0) : 0)
+              }
+            },
+            source: 'text',
+            needsFieldVerification: !isClearanceLayer
+          });
+          continue;
+        }
+
+        // Try horizontal clearance
+        match = text.match(this.clearancePatterns.horizontal);
+        if (match) {
+          clearances.push({
+            type: 'horizontal',
+            value: parseFloat(match[1]),
+            units: text.includes('"') || text.includes("'") ? 'feet' : 'unknown',
+            text: text,
+            layer: entity.layer,
+            geometry: {
+              type: 'point',
+              position: {
+                x: entity.startPoint ? entity.startPoint.x : (entity.position ? entity.position.x : 0),
+                y: entity.startPoint ? entity.startPoint.y : (entity.position ? entity.position.y : 0),
+                z: entity.startPoint ? (entity.startPoint.z || 0) : (entity.position ? (entity.position.z || 0) : 0)
+              }
+            },
+            source: 'text',
+            needsFieldVerification: !isClearanceLayer
+          });
+          continue;
+        }
+
+        // Try lane width
+        match = text.match(this.clearancePatterns.laneWidth);
+        if (match) {
+          clearances.push({
+            type: 'lane_width',
+            value: parseFloat(match[1]),
+            units: 'feet',
+            text: text,
+            layer: entity.layer,
+            geometry: {
+              type: 'point',
+              position: {
+                x: entity.startPoint ? entity.startPoint.x : (entity.position ? entity.position.x : 0),
+                y: entity.startPoint ? entity.startPoint.y : (entity.position ? entity.position.y : 0),
+                z: entity.startPoint ? (entity.startPoint.z || 0) : (entity.position ? (entity.position.z || 0) : 0)
+              }
+            },
+            source: 'text'
+          });
+        }
+
+        // Try shoulder width
+        match = text.match(this.clearancePatterns.shoulderWidth);
+        if (match) {
+          clearances.push({
+            type: 'shoulder_width',
+            value: parseFloat(match[1]),
+            units: 'feet',
+            text: text,
+            layer: entity.layer,
+            geometry: {
+              type: 'point',
+              position: {
+                x: entity.startPoint ? entity.startPoint.x : (entity.position ? entity.position.x : 0),
+                y: entity.startPoint ? entity.startPoint.y : (entity.position ? entity.position.y : 0),
+                z: entity.startPoint ? (entity.startPoint.z || 0) : (entity.position ? (entity.position.z || 0) : 0)
+              }
+            },
+            source: 'text'
+          });
+        }
+
+        // Try offset
+        match = text.match(this.clearancePatterns.offset);
+        if (match) {
+          clearances.push({
+            type: 'offset',
+            value: parseFloat(match[1]),
+            units: 'feet',
+            text: text,
+            layer: entity.layer,
+            geometry: {
+              type: 'point',
+              position: {
+                x: entity.startPoint ? entity.startPoint.x : (entity.position ? entity.position.x : 0),
+                y: entity.startPoint ? entity.startPoint.y : (entity.position ? entity.position.y : 0),
+                z: entity.startPoint ? (entity.startPoint.z || 0) : (entity.position ? (entity.position.z || 0) : 0)
+              }
+            },
+            source: 'text'
+          });
+        }
+      }
+
+      // Extract from DIMENSION entities
+      if (entity.type === 'DIMENSION' && isClearanceLayer) {
+        if (entity.actualMeasurement) {
+          clearances.push({
+            type: 'dimension',
+            value: entity.actualMeasurement,
+            units: this.getUnits(dxf),
+            text: entity.text || '',
+            layer: entity.layer,
+            geometry: {
+              type: 'point',
+              position: {
+                x: entity.definitionPoint ? entity.definitionPoint.x : 0,
+                y: entity.definitionPoint ? entity.definitionPoint.y : 0,
+                z: entity.definitionPoint ? (entity.definitionPoint.z || 0) : 0
+              }
+            },
+            source: 'dimension',
+            needsFieldVerification: false
+          });
+        }
+      }
+    }
+
+    return clearances;
   }
 }
 

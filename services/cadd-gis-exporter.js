@@ -26,6 +26,7 @@ class CADDGISExporter {
     const {
       includeITS = true,
       includeRoadGeometry = true,
+      includeClearances = true,
       modelId = null,
       state = null
     } = options;
@@ -36,6 +37,7 @@ class CADDGISExporter {
       // Filter by type
       if (!includeITS && asset.type === 'its_equipment') continue;
       if (!includeRoadGeometry && asset.type === 'road_geometry') continue;
+      if (!includeClearances && asset.type === 'clearance') continue;
 
       // Filter by model
       if (modelId && asset.modelId !== modelId) continue;
@@ -68,6 +70,12 @@ class CADDGISExporter {
             coordinates: [asset.longitude, asset.latitude]
           };
         }
+      } else if (asset.type === 'clearance') {
+        // Point geometry for clearance measurements
+        geometry = {
+          type: 'Point',
+          coordinates: [asset.longitude, asset.latitude]
+        };
       } else {
         continue; // Unknown type
       }
@@ -102,6 +110,16 @@ class CADDGISExporter {
         properties.geometryType = asset.geometryType;
         properties.vertexCount = asset.vertexCount;
         properties.isClosed = asset.isClosed;
+      } else if (asset.type === 'clearance') {
+        properties.clearanceType = asset.clearanceType;
+        properties.value = asset.value;
+        properties.maxValue = asset.maxValue;
+        properties.units = asset.units;
+        properties.text = asset.text;
+        properties.source = asset.source;
+        properties.needsFieldVerification = asset.needsFieldVerification;
+        properties.fieldVerified = asset.fieldVerified || false;
+        properties.fieldVerifiedValue = asset.fieldVerifiedValue || null;
       }
 
       features.push({
@@ -125,7 +143,8 @@ class CADDGISExporter {
         featureCount: features.length,
         source: 'CADD Extraction',
         includeITS,
-        includeRoadGeometry
+        includeRoadGeometry,
+        includeClearances
       }
     };
   }
@@ -135,13 +154,17 @@ class CADDGISExporter {
    * Returns data structure that can be written using shapefile library
    */
   toShapefile(assets, options = {}) {
-    // Separate ITS equipment and road geometry into different layers
+    // Separate ITS equipment, road geometry, and clearances into different layers
     const itsEquipment = assets.filter(a =>
       a.type === 'its_equipment' && a.georeferenced
     );
 
     const roadGeometry = assets.filter(a =>
       a.type === 'road_geometry' && a.georeferenced
+    );
+
+    const clearances = assets.filter(a =>
+      a.type === 'clearance' && a.georeferenced
     );
 
     const shapefiles = {};
@@ -199,6 +222,43 @@ class CADDGISExporter {
             CORRIDOR: asset.corridor,
             STATE: asset.state,
             COORD_SYS: asset.coordinateSystem
+          }
+        }))
+      };
+    }
+
+    // Clearances layer (Point geometry)
+    if (clearances.length > 0) {
+      shapefiles.clearances = {
+        type: 'FeatureCollection',
+        features: clearances.map(asset => ({
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [asset.longitude, asset.latitude]
+          },
+          properties: {
+            ID: asset.id,
+            MODEL_ID: asset.modelId,
+            MODEL_NAME: asset.modelName,
+            CLR_TYPE: asset.clearanceType,
+            VALUE: asset.value,
+            MAX_VALUE: asset.maxValue,
+            UNITS: asset.units,
+            TEXT: asset.text,
+            LAYER: asset.layer,
+            SOURCE: asset.source,
+            NEEDS_VERI: asset.needsFieldVerification ? 1 : 0,
+            FIELD_VERI: asset.fieldVerified ? 1 : 0,
+            FIELD_VAL: asset.fieldVerifiedValue,
+            CORRIDOR: asset.corridor,
+            STATE: asset.state,
+            COORD_SYS: asset.coordinateSystem,
+            CAD_X: asset.cadPosition?.x,
+            CAD_Y: asset.cadPosition?.y,
+            CAD_Z: asset.cadPosition?.z,
+            LATITUDE: asset.latitude,
+            LONGITUDE: asset.longitude
           }
         }))
       };

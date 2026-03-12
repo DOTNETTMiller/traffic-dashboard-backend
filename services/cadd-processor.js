@@ -598,6 +598,64 @@ class CADDProcessor {
   }
 
   /**
+   * Extract and georeference clearances from CADD model
+   */
+  extractClearances(caddModel, extractionData) {
+    const coordinateSystem = this.detectCoordinateSystem(caddModel);
+    const clearances = [];
+
+    if (!extractionData.clearances) {
+      return clearances;
+    }
+
+    for (const item of extractionData.clearances) {
+      if (item.geometry?.position) {
+        const pos = item.geometry.position;
+
+        // Transform to WGS84
+        const coords = this.transformToWGS84(pos.x, pos.y, coordinateSystem);
+
+        if (coords) {
+          clearances.push({
+            type: item.type || 'unknown', // vertical, horizontal, lane_width, shoulder_width, offset, dimension
+            value: item.value,
+            maxValue: item.maxValue || null,
+            units: item.units || 'feet',
+            text: item.text,
+            layer: item.layer,
+            source: item.source, // 'text' or 'dimension'
+            needsFieldVerification: item.needsFieldVerification || false,
+            cadPosition: { x: pos.x, y: pos.y, z: pos.z || 0 },
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            georeferenced: true,
+            coordinateSystem: coordinateSystem
+          });
+        } else {
+          // Keep non-georeferenced clearance
+          clearances.push({
+            type: item.type || 'unknown',
+            value: item.value,
+            maxValue: item.maxValue || null,
+            units: item.units || 'feet',
+            text: item.text,
+            layer: item.layer,
+            source: item.source,
+            needsFieldVerification: item.needsFieldVerification || false,
+            cadPosition: { x: pos.x, y: pos.y, z: pos.z || 0 },
+            latitude: null,
+            longitude: null,
+            georeferenced: false,
+            coordinateSystem: coordinateSystem
+          });
+        }
+      }
+    }
+
+    return clearances;
+  }
+
+  /**
    * Process complete CADD model
    */
   processModel(caddModel, extractionData) {
@@ -616,9 +674,18 @@ class CADDProcessor {
     const roadGeoreferenced = roadGeometry.filter(g => g.georeferenced).length;
     console.log(`   Road Geometry: ${roadGeometry.length} total, ${roadGeoreferenced} georeferenced`);
 
+    // Extract and georeference clearances
+    const clearances = this.extractClearances(caddModel, extractionData);
+    const clearancesGeoreferenced = clearances.filter(c => c.georeferenced).length;
+    const clearancesNeedFieldVerification = clearances.filter(c => c.needsFieldVerification).length;
+    console.log(`   Clearances: ${clearances.length} total, ${clearancesGeoreferenced} georeferenced`);
+    if (clearancesNeedFieldVerification > 0) {
+      console.log(`   ⚠️  ${clearancesNeedFieldVerification} clearances flagged for field verification`);
+    }
+
     // Validate that coordinates are within U.S. bounds
-    const totalElements = itsEquipment.length + roadGeometry.length;
-    const totalGeoreferenced = itsGeoreferenced + roadGeoreferenced;
+    const totalElements = itsEquipment.length + roadGeometry.length + clearances.length;
+    const totalGeoreferenced = itsGeoreferenced + roadGeoreferenced + clearancesGeoreferenced;
     const failedGeoreference = totalElements - totalGeoreferenced;
 
     // If we have elements but NONE were georeferenced, likely all are outside U.S.
@@ -660,6 +727,7 @@ class CADDProcessor {
       coordinateSystem,
       itsEquipment,
       roadGeometry,
+      clearances,
       stats: {
         itsTotal: itsEquipment.length,
         itsGeoreferenced,
@@ -667,6 +735,10 @@ class CADDProcessor {
         roadTotal: roadGeometry.length,
         roadGeoreferenced,
         roadNeedingGeoreference: roadGeometry.length - roadGeoreferenced,
+        clearancesTotal: clearances.length,
+        clearancesGeoreferenced,
+        clearancesNeedingGeoreference: clearances.length - clearancesGeoreferenced,
+        clearancesNeedFieldVerification,
         totalElements,
         totalGeoreferenced,
         failedGeoreference,

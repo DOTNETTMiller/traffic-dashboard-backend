@@ -2936,7 +2936,87 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
 
         console.log(`${stateName}: Normalized ${normalized.length} WZDx events`);
       }
-    } 
+
+      // Handle CWZ (Connected Work Zone) format - NEW USDOT/ITE V2X standard
+      // CWZ is built on WZDx 4.1/4.2 foundation with V2X enhancements
+      if (detectedApiType === 'CWZ' && (rawData.features || rawData.road_event_features)) {
+        const features = rawData.features || rawData.road_event_features || [];
+        console.log(`${stateName}: Processing ${features.length} CWZ features (Connected Work Zone)`);
+
+        features.forEach(feature => {
+          const props = feature.properties;
+          const coreDetails = props.core_details || props;
+
+          // CWZ has same structure as WZDx with additional V2X fields
+          // Extract coordinates
+          let lat = 0, lng = 0;
+          if (feature.geometry?.coordinates) {
+            const coords = feature.geometry.coordinates;
+            if (Array.isArray(coords) && coords.length > 0) {
+              if (Array.isArray(coords[0])) {
+                // LineString - take first point
+                lng = parseFloat(coords[0][0]) || 0;
+                lat = parseFloat(coords[0][1]) || 0;
+              } else {
+                // Point
+                lng = parseFloat(coords[0]) || 0;
+                lat = parseFloat(coords[1]) || 0;
+              }
+            }
+          }
+
+          const roadNames = coreDetails.road_names || props.road_names || [];
+          const locationText = roadNames.join(', ') || coreDetails.name || props.name || 'Unknown location';
+
+          if (isInterstateRoute(locationText)) {
+            const eventId = coreDetails.road_event_id || props.road_event_id || feature.id || Math.random().toString(36).substr(2, 9);
+            const startRaw = props.start_date || coreDetails.start_date || null;
+            const endRaw = props.end_date || coreDetails.end_date || null;
+            const descriptionRaw = coreDetails.description || props.description || null;
+            const lanesRaw = props.vehicle_impact || null;
+            const directionRaw = coreDetails.direction || props.direction || null;
+
+            const normalizedEvent = {
+              id: `${stateName.substring(0, 2).toUpperCase()}-${eventId}`,
+              state: stateName,
+              corridor: extractCorridor(locationText),
+              eventType: coreDetails.event_type || props.event_type || 'work-zone',
+              description: stripHtmlTags(descriptionRaw) || 'Connected work zone',
+              location: locationText,
+              county: props.county || 'Unknown',
+              latitude: lat,
+              longitude: lng,
+              startTime: startRaw,
+              endTime: endRaw,
+              lanesAffected: lanesRaw || 'Check conditions',
+              severity: (lanesRaw === 'all-lanes-open') ? 'low' : 'medium',
+              direction: directionRaw || 'Both',
+              requiresCollaboration: false,
+              geometry: feature.geometry || null,
+              // CWZ-specific metadata
+              cwz: {
+                v2x_enabled: true,
+                worker_presence: props.worker_presence || null,
+                equipment_status: props.equipment_status || null
+              }
+            };
+
+            normalized.push(attachRawFields(normalizedEvent, {
+              startTime: startRaw,
+              endTime: endRaw,
+              description: descriptionRaw,
+              lanesAffected: lanesRaw,
+              direction: directionRaw,
+              severity: lanesRaw,
+              corridor: extractCorridor(locationText),
+              coordinates: (lat && lng) ? [lng, lat] : null
+            }));
+          }
+        });
+
+        console.log(`${stateName}: Normalized ${normalized.length} CWZ (Connected Work Zone) events`);
+      }
+    }
     else if (format === 'xml') {
       // Debug: Log XML structure
       console.log(`${stateName}: XML root keys:`, Object.keys(rawData));
@@ -27252,6 +27332,285 @@ app.get('/api/cadd/export-formats', async (req, res) => {
   } catch (error) {
     console.error('Error fetching export formats:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ========================================
+// WZDX FEED GENERATION
+// ========================================
+
+/**
+ * Generate WZDx v4.2 feed for states without existing feeds
+ * Converts corridor events/closures to FHWA WZDx standard format
+ */
+
+// Get WZDx feed for all states/corridors
+app.get('/api/wzdx/feed', async (req, res) => {
+  try {
+    const { state, corridor, includeCompleted, format = 'json' } = req.query;
+
+    // Query events from database
+    let query = `
+      SELECT
+        e.*,
+        e.id as event_id,
+        e.route,
+        e.direction,
+        e.description,
+        e.event_type,
+        e.severity,
+        e.start_time,
+        e.end_time,
+        e.latitude,
+        e.longitude,
+        e.start_latitude,
+        e.start_longitude,
+        e.end_latitude,
+        e.end_longitude,
+        e.geofence,
+        e.state,
+        e.created_at,
+        e.updated_at
+      FROM events e
+      WHERE 1=1
+    `;
+
+    const params = [];
+    let paramCount = 0;
+
+    if (state) {
+      paramCount++;
+      query += ` AND UPPER(e.state) = $${paramCount}`;
+      params.push(state.toUpperCase());
+    }
+
+    if (corridor) {
+      paramCount++;
+      query += ` AND e.route LIKE $${paramCount}`;
+      params.push(`%${corridor}%`);
+    }
+
+    if (!includeCompleted || includeCompleted === 'false') {
+      query += ` AND (e.end_time IS NULL OR e.end_time > NOW())`;
+    }
+
+    query += ` ORDER BY e.start_time DESC`;
+
+    const events = await db.db.all(query, params);
+
+    console.log(`📡 Generating WZDx feed: ${events.length} events`);
+
+    // Generate WZDx feed
+    const WZDxGenerator = require('./services/wzdx-feed-generator');
+    const generator = new WZDxGenerator(db);
+
+    // Convert database events to WZDx format
+    const wzdxEvents = events.map(event => ({
+      id: `event-${event.event_id}`,
+      eventType: event.event_type || 'work-zone',
+      route: event.route,
+      roadName: event.route,
+      direction: event.direction,
+      description: event.description,
+      headline: event.description,
+      startTime: event.start_time,
+      endTime: event.end_time,
+      geometry: event.geofence ? JSON.parse(event.geofence) : {
+        type: 'LineString',
+        coordinates: [
+          [event.start_longitude || event.longitude, event.start_latitude || event.latitude],
+          [event.end_longitude || event.longitude, event.end_latitude || event.latitude]
+        ]
+      },
+      vehicleImpact: event.severity === 'critical' ? 'all-lanes-closed' :
+                     event.severity === 'major' ? 'some-lanes-closed' : 'unknown',
+      locationMethod: 'channel-device-method',
+      lanes: [],
+      totalLanes: 2,
+      speedLimit: event.speed_limit,
+      restrictions: [],
+      workZoneType: 'static'
+    }));
+
+    const feed = await generator.generateFeed({
+      stateFilter: state,
+      includeCompleted: includeCompleted === 'true',
+      dataSourceId: 'corridor-communicator'
+    });
+
+    // Override features with converted events
+    feed.features = wzdxEvents.map(event => generator.eventToWZDxFeature(event, 'corridor-communicator'));
+
+    // Return JSON or validate
+    if (format === 'validate') {
+      const validation = generator.validateFeed(feed);
+      return res.json({
+        success: true,
+        valid: validation.valid,
+        errors: validation.errors,
+        feed: feed
+      });
+    }
+
+    res.setHeader('Content-Type', 'application/geo+json');
+    res.json(feed);
+
+  } catch (error) {
+    console.error('❌ Error generating WZDx feed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: error.stack
+    });
+  }
+});
+
+// Get WZDx feed for specific state
+app.get('/api/wzdx/feed/:state', async (req, res) => {
+  try {
+    const { state } = req.params;
+    const { includeCompleted, format = 'json' } = req.query;
+
+    // Query events for this state
+    let query = `
+      SELECT
+        e.*,
+        e.id as event_id
+      FROM events e
+      WHERE UPPER(e.state) = ?
+    `;
+
+    if (!includeCompleted || includeCompleted === 'false') {
+      query += ` AND (e.end_time IS NULL OR e.end_time > NOW())`;
+    }
+
+    query += ` ORDER BY e.start_time DESC`;
+
+    const events = await db.db.all(query, [state.toUpperCase()]);
+
+    console.log(`📡 Generating WZDx feed for ${state}: ${events.length} events`);
+
+    // Generate WZDx feed
+    const WZDxGenerator = require('./services/wzdx-feed-generator');
+    const generator = new WZDxGenerator(db);
+
+    // Convert database events
+    const wzdxEvents = events.map(event => ({
+      id: `event-${event.event_id}`,
+      eventType: event.event_type || 'work-zone',
+      route: event.route,
+      roadName: event.route,
+      direction: event.direction,
+      description: event.description,
+      headline: event.description,
+      startTime: event.start_time,
+      endTime: event.end_time,
+      geometry: event.geofence ? JSON.parse(event.geofence) : {
+        type: 'Point',
+        coordinates: [event.longitude, event.latitude]
+      },
+      vehicleImpact: event.severity === 'critical' ? 'all-lanes-closed' :
+                     event.severity === 'major' ? 'some-lanes-closed' : 'unknown',
+      locationMethod: 'channel-device-method'
+    }));
+
+    const feed = await generator.generateFeed({
+      stateFilter: state.toUpperCase(),
+      includeCompleted: includeCompleted === 'true',
+      dataSourceId: `corridor-communicator-${state.toLowerCase()}`
+    });
+
+    // Override features
+    feed.features = wzdxEvents.map(event => generator.eventToWZDxFeature(event, `corridor-communicator-${state.toLowerCase()}`));
+
+    res.setHeader('Content-Type', 'application/geo+json');
+    res.json(feed);
+
+  } catch (error) {
+    console.error(`❌ Error generating WZDx feed for ${req.params.state}:`, error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get WZDx feed statistics
+app.get('/api/wzdx/stats', async (req, res) => {
+  try {
+    const { state, corridor } = req.query;
+
+    let query = `
+      SELECT
+        COUNT(*) as total_events,
+        COUNT(CASE WHEN end_time IS NULL OR end_time > datetime('now') THEN 1 END) as active_events,
+        COUNT(CASE WHEN start_time > datetime('now') THEN 1 END) as planned_events,
+        COUNT(DISTINCT state) as states,
+        COUNT(DISTINCT route) as corridors
+      FROM events
+      WHERE 1=1
+    `;
+
+    const params = [];
+
+    if (state) {
+      query += ` AND UPPER(state) = ?`;
+      params.push(state.toUpperCase());
+    }
+
+    if (corridor) {
+      query += ` AND route LIKE ?`;
+      params.push(`%${corridor}%`);
+    }
+
+    const stats = await db.db.get(query, params);
+
+    res.json({
+      success: true,
+      stats: {
+        totalEvents: stats.total_events,
+        activeEvents: stats.active_events,
+        plannedEvents: stats.planned_events,
+        totalStates: stats.states,
+        totalCorridors: stats.corridors
+      },
+      wzdxVersion: '4.2',
+      feedUpdateFrequency: 300
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching WZDx stats:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Validate a WZDx feed
+app.post('/api/wzdx/validate', async (req, res) => {
+  try {
+    const feed = req.body;
+
+    const WZDxGenerator = require('./services/wzdx-feed-generator');
+    const generator = new WZDxGenerator(db);
+
+    const validation = generator.validateFeed(feed);
+    const stats = validation.valid ? generator.getFeedStats(feed) : null;
+
+    res.json({
+      success: true,
+      valid: validation.valid,
+      errors: validation.errors,
+      stats: stats
+    });
+
+  } catch (error) {
+    console.error('❌ Error validating WZDx feed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 });
 
