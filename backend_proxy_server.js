@@ -27422,7 +27422,8 @@ app.get('/api/wzdx/feed', async (req, res) => {
 
     query += ` ORDER BY e.start_time DESC`;
 
-    const events = await db.db.all(query, params);
+    const result = await pool.query(query, params);
+    const events = result.rows;
 
     console.log(`📡 Generating WZDx feed: ${events.length} events`);
 
@@ -27503,7 +27504,7 @@ app.get('/api/wzdx/feed/:state', async (req, res) => {
         e.*,
         e.id as event_id
       FROM events e
-      WHERE UPPER(e.state) = ?
+      WHERE UPPER(e.state) = $1
     `;
 
     if (!includeCompleted || includeCompleted === 'false') {
@@ -27512,7 +27513,8 @@ app.get('/api/wzdx/feed/:state', async (req, res) => {
 
     query += ` ORDER BY e.start_time DESC`;
 
-    const events = await db.db.all(query, [state.toUpperCase()]);
+    const result = await pool.query(query, [state.toUpperCase()]);
+    const events = result.rows;
 
     console.log(`📡 Generating WZDx feed for ${state}: ${events.length} events`);
 
@@ -27569,8 +27571,8 @@ app.get('/api/wzdx/stats', async (req, res) => {
     let query = `
       SELECT
         COUNT(*) as total_events,
-        COUNT(CASE WHEN end_time IS NULL OR end_time > datetime('now') THEN 1 END) as active_events,
-        COUNT(CASE WHEN start_time > datetime('now') THEN 1 END) as planned_events,
+        COUNT(CASE WHEN end_time IS NULL OR end_time > NOW() THEN 1 END) as active_events,
+        COUNT(CASE WHEN start_time > NOW() THEN 1 END) as planned_events,
         COUNT(DISTINCT state) as states,
         COUNT(DISTINCT route) as corridors
       FROM events
@@ -27578,18 +27580,22 @@ app.get('/api/wzdx/stats', async (req, res) => {
     `;
 
     const params = [];
+    let paramCount = 0;
 
     if (state) {
-      query += ` AND UPPER(state) = ?`;
+      paramCount++;
+      query += ` AND UPPER(state) = $${paramCount}`;
       params.push(state.toUpperCase());
     }
 
     if (corridor) {
-      query += ` AND route LIKE ?`;
+      paramCount++;
+      query += ` AND route LIKE $${paramCount}`;
       params.push(`%${corridor}%`);
     }
 
-    const stats = await db.db.get(query, params);
+    const result = await pool.query(query, params);
+    const stats = result.rows[0];
 
     res.json({
       success: true,
