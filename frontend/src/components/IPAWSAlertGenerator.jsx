@@ -34,6 +34,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     }
   });
   const [messagesEdited, setMessagesEdited] = useState(false);
+  const [translating, setTranslating] = useState(false);
 
   // Geofence adjustment parameters
   const [bufferFeet, setBufferFeet] = useState(100); // Default 100 feet
@@ -138,6 +139,80 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     if (alert?.success && alert?.messages) {
       generateAlert(); // Regenerate the whole alert
       setMessagesEdited(false);
+    }
+  };
+
+  // Auto-translate English to Spanish using LibreTranslate
+  const translateToSpanish = async () => {
+    setTranslating(true);
+    setError(null);
+
+    try {
+      // Translate headline
+      const headlineResponse = await fetch('https://libretranslate.com/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          q: editableMessages.english.headline,
+          source: 'en',
+          target: 'es',
+          format: 'text'
+        })
+      });
+
+      if (!headlineResponse.ok) {
+        throw new Error('Translation service unavailable');
+      }
+
+      const headlineData = await headlineResponse.json();
+
+      // Translate instruction
+      const instructionResponse = await fetch('https://libretranslate.com/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          q: editableMessages.english.instruction,
+          source: 'en',
+          target: 'es',
+          format: 'text'
+        })
+      });
+
+      if (!instructionResponse.ok) {
+        throw new Error('Translation service unavailable');
+      }
+
+      const instructionData = await instructionResponse.json();
+
+      // Update Spanish messages
+      setEditableMessages(prev => ({
+        ...prev,
+        spanish: {
+          headline: headlineData.translatedText,
+          instruction: instructionData.translatedText
+        }
+      }));
+
+      // Update alert with translations
+      if (alert?.success) {
+        const updatedAlert = { ...alert };
+        updatedAlert.messages.spanish.headline = headlineData.translatedText;
+        updatedAlert.messages.spanish.instruction = instructionData.translatedText;
+
+        // Recalculate character count
+        const fullMessage = `${headlineData.translatedText} ${instructionData.translatedText}`;
+        updatedAlert.messages.spanish.characterCount = fullMessage.length;
+        updatedAlert.messages.spanish.exceedsWEALimit = fullMessage.length > 360;
+
+        setAlert(updatedAlert);
+      }
+
+      setMessagesEdited(true);
+    } catch (err) {
+      setError('Translation failed: ' + err.message + '. You can still edit Spanish messages manually.');
+      console.error('Translation error:', err);
+    } finally {
+      setTranslating(false);
     }
   };
 
@@ -1442,16 +1517,43 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
 
         {/* Spanish Message */}
         <div style={{ marginBottom: theme.spacing.lg }}>
-          <h4 style={{
-            color: "#374151",
-            marginBottom: theme.spacing.sm,
-            fontSize: '14px',
+          <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: theme.spacing.xs
+            justifyContent: 'space-between',
+            marginBottom: theme.spacing.sm
           }}>
-            🇲🇽 Spanish (Extended - 360 characters)
-          </h4>
+            <h4 style={{
+              color: "#374151",
+              margin: 0,
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: theme.spacing.xs
+            }}>
+              🇲🇽 Spanish (Extended - 360 characters)
+            </h4>
+            <button
+              onClick={translateToSpanish}
+              disabled={translating || !editableMessages.english.headline || !editableMessages.english.instruction}
+              style={{
+                padding: '4px 12px',
+                fontSize: '11px',
+                backgroundColor: translating ? '#e5e7eb' : '#3b82f6',
+                color: translating ? '#6b7280' : 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: translating || !editableMessages.english.headline ? 'not-allowed' : 'pointer',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+              title="Auto-translate English to Spanish using LibreTranslate"
+            >
+              {translating ? '🔄 Translating...' : '🌐 Auto-Translate from English'}
+            </button>
+          </div>
           <div style={{
             padding: theme.spacing.md,
             backgroundColor: "#f3f4f6",
