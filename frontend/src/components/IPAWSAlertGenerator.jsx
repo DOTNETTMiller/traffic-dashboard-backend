@@ -22,6 +22,19 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
   const [templates, setTemplates] = useState([]);
   const [recommendedTemplate, setRecommendedTemplate] = useState(null);
 
+  // Editable message fields
+  const [editableMessages, setEditableMessages] = useState({
+    english: {
+      headline: '',
+      instruction: ''
+    },
+    spanish: {
+      headline: '',
+      instruction: ''
+    }
+  });
+  const [messagesEdited, setMessagesEdited] = useState(false);
+
   // Geofence adjustment parameters
   const [bufferFeet, setBufferFeet] = useState(100); // Default 100 feet
   const [corridorLengthMiles, setCorridorLengthMiles] = useState(null); // null = full length
@@ -77,6 +90,56 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
       onGeofenceUpdate(alert.geofence);
     }
   }, [alert, onGeofenceUpdate]);
+
+  // Initialize editable messages when alert is loaded
+  useEffect(() => {
+    if (alert?.success && alert?.messages) {
+      setEditableMessages({
+        english: {
+          headline: alert.messages.english.headline || '',
+          instruction: alert.messages.english.instruction || ''
+        },
+        spanish: {
+          headline: alert.messages.spanish.headline || '',
+          instruction: alert.messages.spanish.instruction || ''
+        }
+      });
+      setMessagesEdited(false);
+    }
+  }, [alert]);
+
+  // Handle message edits
+  const handleMessageEdit = (language, field, value) => {
+    setEditableMessages(prev => ({
+      ...prev,
+      [language]: {
+        ...prev[language],
+        [field]: value
+      }
+    }));
+    setMessagesEdited(true);
+
+    // Update alert object with new character counts
+    if (alert?.success) {
+      const updatedAlert = { ...alert };
+      updatedAlert.messages[language][field] = value;
+
+      // Recalculate character count
+      const fullMessage = `${language === 'english' ? updatedAlert.messages.english.headline : updatedAlert.messages.spanish.headline} ${language === 'english' ? updatedAlert.messages.english.instruction : updatedAlert.messages.spanish.instruction}`;
+      updatedAlert.messages[language].characterCount = fullMessage.length;
+      updatedAlert.messages[language].exceedsWEALimit = fullMessage.length > 360;
+
+      setAlert(updatedAlert);
+    }
+  };
+
+  // Reset messages to system-generated values
+  const resetMessages = () => {
+    if (alert?.success && alert?.messages) {
+      generateAlert(); // Regenerate the whole alert
+      setMessagesEdited(false);
+    }
+  };
 
   const generateAlert = async () => {
     setLoading(true);
@@ -192,6 +255,13 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     setError(null);
 
     try {
+      // Update alert with edited messages before saving
+      const updatedAlert = { ...alert };
+      updatedAlert.messages.english.headline = editableMessages.english.headline;
+      updatedAlert.messages.english.instruction = editableMessages.english.instruction;
+      updatedAlert.messages.spanish.headline = editableMessages.spanish.headline;
+      updatedAlert.messages.spanish.instruction = editableMessages.spanish.instruction;
+
       const response = await fetch(`${config.apiUrl}/api/events/${event.id}/geofence`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -200,6 +270,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           population: alert.geofence.estimatedPopulation,
           overridePopulation: overridePopulation,
           bufferMiles: alert.geofence.bufferMiles,
+          messages: updatedAlert.messages, // Include edited messages
           trainingMode
         })
       });
@@ -209,7 +280,9 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         const bufferDisplay = alert.geofence.bufferMiles < 0.5
           ? `${Math.round(alert.geofence.bufferMiles * 5280)} feet`
           : `${alert.geofence.bufferMiles.toFixed(2)} miles`;
-        window.alert(`✅ Geofence saved to event!\n\nPopulation: ${alert.geofence.estimatedPopulation.toLocaleString()}\nBuffer: ${bufferDisplay}\n\nThe geofence will now appear on the map for this event.`);
+
+        const messageStatus = messagesEdited ? '\n\n✏️ Custom messages saved' : '';
+        window.alert(`✅ Geofence saved to event!\n\nPopulation: ${alert.geofence.estimatedPopulation.toLocaleString()}\nBuffer: ${bufferDisplay}${messageStatus}\n\nThe geofence will now appear on the map for this event.`);
         onClose();
       } else {
         const error = await response.json();
@@ -1232,16 +1305,40 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
 
         {/* English Message */}
         <div style={{ marginBottom: theme.spacing.lg }}>
-          <h4 style={{
-            color: "#374151",
-            marginBottom: theme.spacing.sm,
-            fontSize: '14px',
+          <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: theme.spacing.xs
+            justifyContent: 'space-between',
+            marginBottom: theme.spacing.sm
           }}>
-            🇺🇸 English (Primary - 90 characters)
-          </h4>
+            <h4 style={{
+              color: "#374151",
+              margin: 0,
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: theme.spacing.xs
+            }}>
+              🇺🇸 English (Primary - 90 characters)
+            </h4>
+            {messagesEdited && (
+              <button
+                onClick={resetMessages}
+                style={{
+                  padding: '4px 12px',
+                  fontSize: '11px',
+                  backgroundColor: '#f3f4f6',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  color: '#374151',
+                  fontWeight: '600'
+                }}
+              >
+                ↻ Reset to Auto-Generated
+              </button>
+            )}
+          </div>
           <div style={{
             padding: theme.spacing.md,
             backgroundColor: "#f3f4f6",
@@ -1257,14 +1354,24 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             }}>
               Headline
             </div>
-            <div style={{
-              fontSize: '14px',
-              color: "#111827",
-              fontWeight: '700',
-              marginBottom: theme.spacing.sm
-            }}>
-              {alert.messages?.english.headline}
-            </div>
+            <input
+              type="text"
+              value={editableMessages.english.headline}
+              onChange={(e) => handleMessageEdit('english', 'headline', e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                fontSize: '14px',
+                color: "#111827",
+                fontWeight: '700',
+                border: '2px solid #d1d5db',
+                borderRadius: '6px',
+                marginBottom: theme.spacing.sm,
+                fontFamily: 'inherit',
+                backgroundColor: 'white'
+              }}
+              placeholder="Enter headline..."
+            />
 
             <div style={{
               fontSize: '11px',
@@ -1275,13 +1382,24 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             }}>
               Instruction
             </div>
-            <div style={{
-              fontSize: '13px',
-              color: "#374151",
-              marginBottom: theme.spacing.sm
-            }}>
-              {alert.messages?.english.instruction}
-            </div>
+            <textarea
+              value={editableMessages.english.instruction}
+              onChange={(e) => handleMessageEdit('english', 'instruction', e.target.value)}
+              rows={3}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                fontSize: '13px',
+                color: "#374151",
+                border: '2px solid #d1d5db',
+                borderRadius: '6px',
+                marginBottom: theme.spacing.sm,
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                backgroundColor: 'white'
+              }}
+              placeholder="Enter instruction..."
+            />
 
             {/* WEA Character Counter */}
             <div style={{
@@ -1348,14 +1466,24 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             }}>
               Headline
             </div>
-            <div style={{
-              fontSize: '14px',
-              color: "#111827",
-              fontWeight: '700',
-              marginBottom: theme.spacing.sm
-            }}>
-              {alert.messages?.spanish.headline}
-            </div>
+            <input
+              type="text"
+              value={editableMessages.spanish.headline}
+              onChange={(e) => handleMessageEdit('spanish', 'headline', e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                fontSize: '14px',
+                color: "#111827",
+                fontWeight: '700',
+                border: '2px solid #d1d5db',
+                borderRadius: '6px',
+                marginBottom: theme.spacing.sm,
+                fontFamily: 'inherit',
+                backgroundColor: 'white'
+              }}
+              placeholder="Ingrese el título..."
+            />
 
             <div style={{
               fontSize: '11px',
@@ -1366,13 +1494,24 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             }}>
               Instruction
             </div>
-            <div style={{
-              fontSize: '13px',
-              color: "#374151",
-              marginBottom: theme.spacing.sm
-            }}>
-              {alert.messages?.spanish.instruction}
-            </div>
+            <textarea
+              value={editableMessages.spanish.instruction}
+              onChange={(e) => handleMessageEdit('spanish', 'instruction', e.target.value)}
+              rows={3}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                fontSize: '13px',
+                color: "#374151",
+                border: '2px solid #d1d5db',
+                borderRadius: '6px',
+                marginBottom: theme.spacing.sm,
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                backgroundColor: 'white'
+              }}
+              placeholder="Ingrese las instrucciones..."
+            />
 
             {/* WEA Character Counter for Spanish */}
             <div style={{
@@ -1411,6 +1550,29 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               )}
             </div>
           </div>
+        </div>
+
+        {/* Editing Notes */}
+        <div style={{
+          padding: theme.spacing.md,
+          backgroundColor: "#eff6ff",
+          borderRadius: '8px',
+          fontSize: '11px',
+          color: "#1e40af",
+          border: '1px solid #3b82f6',
+          marginBottom: theme.spacing.md
+        }}>
+          <div style={{ fontWeight: '700', marginBottom: '6px', fontSize: '12px' }}>
+            ✏️ Message Editing Tips
+          </div>
+          <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
+            <li>Keep messages clear and concise - drivers have seconds to read</li>
+            <li>Always include direction (EB/WB/NB/SB) and mile markers per SOP Section 7.3</li>
+            <li>Include audience qualifier ("For drivers on I-80 EB only") per SOP</li>
+            <li>Stay under 360 characters for WEA compatibility</li>
+            <li>End with "511ia.org" for more information</li>
+            <li>For stranded motorists: Include safety guidance and reassurance per SOP 6.4.3</li>
+          </ul>
         </div>
 
         <div style={{
