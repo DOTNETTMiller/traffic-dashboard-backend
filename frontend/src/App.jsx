@@ -689,6 +689,27 @@ function App() {
               >
                 🚨 CIFS
               </a>
+              <a
+                href={`${config.apiUrl}/api/wzdx/feed`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="tim-link"
+                style={{
+                  padding: '4px 8px',
+                  borderRadius: '3px',
+                  border: '1px solid #f59e0b',
+                  backgroundColor: '#f59e0b',
+                  color: 'white',
+                  textDecoration: 'none',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  display: 'inline-block'
+                }}
+                title="WZDx v4.2 Work Zone Data Exchange feed - USDOT standard for work zones and incidents"
+              >
+                🚧 WZDx
+              </a>
             </div>
             <div style={{ marginLeft: '12px' }}>
               <DarkModeToggle

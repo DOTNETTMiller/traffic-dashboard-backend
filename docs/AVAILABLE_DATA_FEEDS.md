@@ -2,6 +2,74 @@
 
 This document lists all available state DOT and major city traffic data feeds that can be integrated into the DOT Corridor Communicator.
 
+---
+
+## 📡 Generated WZDx Feeds
+
+The DOT Corridor Communicator generates **WZDx v4.2 compliant feeds** for states that don't provide official feeds. These feeds are publicly accessible and suitable for consumption by navigation apps, traveler information systems, and data consumers.
+
+### 🌟 Nebraska WZDx Feed
+
+**Feed URL:** `https://[your-domain]/api/wzdx/feed/NE`
+
+- **Format:** WZDx v4.2 GeoJSON
+- **Update Frequency:** Real-time (as events are added/updated)
+- **Coverage:** All Nebraska interstate work zones and incidents
+- **Source:** DOT Corridor Communicator event database
+- **Compliance:** Full WZDx v4.2 specification
+
+**Example Usage:**
+```bash
+curl https://your-domain/api/wzdx/feed/NE
+```
+
+### 🌟 Nevada WZDx Feed
+
+**Feed URL:** `https://[your-domain]/api/wzdx/feed/NV`
+
+- **Format:** WZDx v4.2 GeoJSON
+- **Update Frequency:** Real-time
+- **Coverage:** All Nevada interstate work zones and incidents
+- **Source:** DOT Corridor Communicator event database
+- **Compliance:** Full WZDx v4.2 specification
+
+### 🔗 All States Feed
+
+**Feed URL:** `https://[your-domain]/api/wzdx/feed`
+
+Query parameters:
+- `?state=IA` - Filter by state
+- `?corridor=I-80` - Filter by corridor
+- `?includeCompleted=true` - Include completed events
+- `?format=json` - Output format (json or geojson)
+
+**Example:**
+```bash
+# Get all I-80 work zones across all states
+curl https://your-domain/api/wzdx/feed?corridor=I-80
+
+# Get Iowa work zones only
+curl https://your-domain/api/wzdx/feed?state=IA
+```
+
+### 📊 Feed Statistics
+
+**Stats URL:** `https://[your-domain]/api/wzdx/stats`
+
+Returns statistics about generated WZDx feeds:
+- Total events by state
+- Event types breakdown
+- Data quality metrics
+- Last update timestamps
+
+### ✅ Feed Validation
+
+**Validate URL:** `https://[your-domain]/api/wzdx/validate` (POST)
+
+Validates WZDx feeds against the v4.2 specification.
+
+---
+
 ## Currently Integrated (44 States/Agencies)
 
 ✅ Already in system:
