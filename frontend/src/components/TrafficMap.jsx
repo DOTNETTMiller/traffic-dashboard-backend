@@ -466,7 +466,8 @@ export default function TrafficMap({
   heatMapMode = 'density',
   onHeatMapToggle,
   onHeatMapModeChange,
-  isDarkMode = false
+  isDarkMode = false,
+  stateKey = null
 }) {
   // Debug: Verify geometry filter props are being received
 

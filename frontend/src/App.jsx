@@ -2447,6 +2447,7 @@ function App() {
                   onHeatMapToggle={setHeatMapActive}
                   onHeatMapModeChange={setHeatMapMode}
                   isDarkMode={isDarkMode}
+                  stateKey={currentUser?.stateKey || null}
                 />
               </div>
             </div>
