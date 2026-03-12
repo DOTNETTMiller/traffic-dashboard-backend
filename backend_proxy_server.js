@@ -26994,13 +26994,39 @@ app.post('/api/cadd/upload', upload.single('file'), async (req, res) => {
     }
 
     // Validate file type
-    const allowedExtensions = ['.dxf', '.DXF'];
+    const allowedExtensions = ['.dxf', '.DXF', '.dwg', '.DWG', '.dgn', '.DGN'];
     const ext = path.extname(file.originalname);
     if (!allowedExtensions.includes(ext)) {
       fs.unlinkSync(file.path); // Delete uploaded file
       return res.status(400).json({
         success: false,
-        error: 'Invalid file type. Only DXF files are supported.'
+        error: 'Invalid file type. Supported formats: DXF, DWG, DGN'
+      });
+    }
+
+    // Check if file needs conversion to DXF
+    const needsConversion = ['.dwg', '.DWG', '.dgn', '.DGN'].includes(ext);
+    if (needsConversion) {
+      fs.unlinkSync(file.path); // Delete uploaded file
+      return res.status(400).json({
+        success: false,
+        error: `${ext.toUpperCase()} files require conversion to DXF format before upload.`,
+        conversionRequired: true,
+        instructions: [
+          `${ext.toUpperCase()} files must be converted to DXF format for processing.`,
+          'Conversion options:',
+          '1. Open the file in AutoCAD, MicroStation, or compatible CAD software',
+          `2. Export/Save As → DXF format (${ext.includes('dgn') ? 'DXF 2000 or later recommended' : 'any version'})`,
+          '3. Upload the exported DXF file',
+          '',
+          'For batch conversion, consider:',
+          '- Autodesk DWG TrueView (free, for DWG files)',
+          '- Bentley View (free, for DGN files)',
+          '- QCAD (open-source, supports DWG/DGN → DXF)',
+          '- Online converters (CloudConvert, AnyConv)',
+          '',
+          'Once converted to DXF, re-upload through the CADD Models interface.'
+        ].join('\n')
       });
     }
 
