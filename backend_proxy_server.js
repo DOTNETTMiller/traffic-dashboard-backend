@@ -21272,15 +21272,15 @@ async function getVendorDb() {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
     return {
       query: async (sql, params = []) => {
-        const result = await pool.query(sql, params);
+        const result = await pgPool.query(sql, params);
         return result.rows;
       },
       queryOne: async (sql, params = []) => {
-        const result = await pool.query(sql, params);
+        const result = await pgPool.query(sql, params);
         return result.rows[0] || null;
       },
       execute: async (sql, params = []) => {
-        await pool.query(sql, params);
+        await pgPool.query(sql, params);
       },
       close: async () => await pool.end(),
       isPostgres: true
@@ -21323,7 +21323,7 @@ app.get('/api/vendors/quality-scores', async (req, res) => {
         connectionString: process.env.DATABASE_URL
       });
 
-      const result = await pool.query(`
+      const result = await pgPool.query(`
         SELECT
           vendor_id,
           vendor_name,
@@ -27422,7 +27422,7 @@ app.get('/api/wzdx/feed', async (req, res) => {
 
     query += ` ORDER BY e.start_time DESC`;
 
-    const result = await pool.query(query, params);
+    const result = await pgPool.query(query, params);
     const events = result.rows;
 
     console.log(`📡 Generating WZDx feed: ${events.length} events`);
@@ -27513,7 +27513,7 @@ app.get('/api/wzdx/feed/:state', async (req, res) => {
 
     query += ` ORDER BY e.start_time DESC`;
 
-    const result = await pool.query(query, [state.toUpperCase()]);
+    const result = await pgPool.query(query, [state.toUpperCase()]);
     const events = result.rows;
 
     console.log(`📡 Generating WZDx feed for ${state}: ${events.length} events`);
@@ -27594,7 +27594,7 @@ app.get('/api/wzdx/stats', async (req, res) => {
       params.push(`%${corridor}%`);
     }
 
-    const result = await pool.query(query, params);
+    const result = await pgPool.query(query, params);
     const stats = result.rows[0];
 
     res.json({
