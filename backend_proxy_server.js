@@ -27375,55 +27375,31 @@ app.get('/api/wzdx/feed', async (req, res) => {
   try {
     const { state, corridor, includeCompleted, format = 'json' } = req.query;
 
-    // Query events from database
-    let query = `
-      SELECT
-        e.*,
-        e.id as event_id,
-        e.route,
-        e.direction,
-        e.description,
-        e.event_type,
-        e.severity,
-        e.start_time,
-        e.end_time,
-        e.latitude,
-        e.longitude,
-        e.start_latitude,
-        e.start_longitude,
-        e.end_latitude,
-        e.end_longitude,
-        e.geofence,
-        e.state,
-        e.created_at,
-        e.updated_at
-      FROM events e
-      WHERE 1=1
-    `;
+    // Use cached events instead of database query
+    if (!eventsCache.data || !eventsCache.data.events) {
+      return res.status(503).json({
+        success: false,
+        error: 'Event cache not available. Please try again in a moment.'
+      });
+    }
 
-    const params = [];
-    let paramCount = 0;
+    let events = eventsCache.data.events;
 
+    // Filter by state
     if (state) {
-      paramCount++;
-      query += ` AND UPPER(e.state) = $${paramCount}`;
-      params.push(state.toUpperCase());
+      events = events.filter(e => e.state && e.state.toUpperCase() === state.toUpperCase());
     }
 
+    // Filter by corridor
     if (corridor) {
-      paramCount++;
-      query += ` AND e.route LIKE $${paramCount}`;
-      params.push(`%${corridor}%`);
+      events = events.filter(e => e.corridor && e.corridor.includes(corridor));
     }
 
+    // Filter out completed events
     if (!includeCompleted || includeCompleted === 'false') {
-      query += ` AND (e.end_time IS NULL OR e.end_time > NOW())`;
+      const now = new Date();
+      events = events.filter(e => !e.endTime || new Date(e.endTime) > now);
     }
-
-    query += ` ORDER BY e.start_time DESC`;
-
-    const result = await pgPool.query(query, params);
-    const events = result.rows;
 
     console.log(`📡 Generating WZDx feed: ${events.length} events`);
 
@@ -27431,30 +27407,27 @@ app.get('/api/wzdx/feed', async (req, res) => {
     const WZDxGenerator = require('./services/wzdx-feed-generator');
     const generator = new WZDxGenerator(db);
 
-    // Convert database events to WZDx format
+    // Convert cached events to WZDx format
     const wzdxEvents = events.map(event => ({
-      id: `event-${event.event_id}`,
-      eventType: event.event_type || 'work-zone',
-      route: event.route,
-      roadName: event.route,
+      id: `event-${event.id}`,
+      eventType: event.eventType || 'work-zone',
+      route: event.corridor,
+      roadName: event.corridor,
       direction: event.direction,
       description: event.description,
       headline: event.description,
-      startTime: event.start_time,
-      endTime: event.end_time,
-      geometry: event.geofence ? JSON.parse(event.geofence) : {
-        type: 'LineString',
-        coordinates: [
-          [event.start_longitude || event.longitude, event.start_latitude || event.latitude],
-          [event.end_longitude || event.longitude, event.end_latitude || event.latitude]
-        ]
+      startTime: event.startTime,
+      endTime: event.endTime,
+      geometry: event.geometry || {
+        type: 'Point',
+        coordinates: [parseFloat(event.longitude), parseFloat(event.latitude)]
       },
-      vehicleImpact: event.severity === 'critical' ? 'all-lanes-closed' :
-                     event.severity === 'major' ? 'some-lanes-closed' : 'unknown',
+      vehicleImpact: event.severity === 'critical' || event.severity === 'high' ? 'all-lanes-closed' :
+                     event.severity === 'major' || event.severity === 'medium' ? 'some-lanes-closed' : 'unknown',
       locationMethod: 'channel-device-method',
       lanes: [],
       totalLanes: 2,
-      speedLimit: event.speed_limit,
+      speedLimit: null,
       restrictions: [],
       workZoneType: 'static'
     }));
@@ -27498,23 +27471,24 @@ app.get('/api/wzdx/feed/:state', async (req, res) => {
     const { state } = req.params;
     const { includeCompleted, format = 'json' } = req.query;
 
-    // Query events for this state
-    let query = `
-      SELECT
-        e.*,
-        e.id as event_id
-      FROM events e
-      WHERE UPPER(e.state) = $1
-    `;
-
-    if (!includeCompleted || includeCompleted === 'false') {
-      query += ` AND (e.end_time IS NULL OR e.end_time > NOW())`;
+    // Use cached events instead of database query
+    if (!eventsCache.data || !eventsCache.data.events) {
+      return res.status(503).json({
+        success: false,
+        error: 'Event cache not available. Please try again in a moment.'
+      });
     }
 
-    query += ` ORDER BY e.start_time DESC`;
+    let events = eventsCache.data.events;
 
-    const result = await pgPool.query(query, [state.toUpperCase()]);
-    const events = result.rows;
+    // Filter by state
+    events = events.filter(e => e.state && e.state.toUpperCase() === state.toUpperCase());
+
+    // Filter out completed events
+    if (!includeCompleted || includeCompleted === 'false') {
+      const now = new Date();
+      events = events.filter(e => !e.endTime || new Date(e.endTime) > now);
+    }
 
     console.log(`📡 Generating WZDx feed for ${state}: ${events.length} events`);
 
@@ -27522,23 +27496,23 @@ app.get('/api/wzdx/feed/:state', async (req, res) => {
     const WZDxGenerator = require('./services/wzdx-feed-generator');
     const generator = new WZDxGenerator(db);
 
-    // Convert database events
+    // Convert cached events to WZDx format
     const wzdxEvents = events.map(event => ({
-      id: `event-${event.event_id}`,
-      eventType: event.event_type || 'work-zone',
-      route: event.route,
-      roadName: event.route,
+      id: `event-${event.id}`,
+      eventType: event.eventType || 'work-zone',
+      route: event.corridor,
+      roadName: event.corridor,
       direction: event.direction,
       description: event.description,
       headline: event.description,
-      startTime: event.start_time,
-      endTime: event.end_time,
-      geometry: event.geofence ? JSON.parse(event.geofence) : {
+      startTime: event.startTime,
+      endTime: event.endTime,
+      geometry: event.geometry || {
         type: 'Point',
-        coordinates: [event.longitude, event.latitude]
+        coordinates: [parseFloat(event.longitude), parseFloat(event.latitude)]
       },
-      vehicleImpact: event.severity === 'critical' ? 'all-lanes-closed' :
-                     event.severity === 'major' ? 'some-lanes-closed' : 'unknown',
+      vehicleImpact: event.severity === 'critical' || event.severity === 'high' ? 'all-lanes-closed' :
+                     event.severity === 'major' || event.severity === 'medium' ? 'some-lanes-closed' : 'unknown',
       locationMethod: 'channel-device-method'
     }));
 
@@ -27568,34 +27542,41 @@ app.get('/api/wzdx/stats', async (req, res) => {
   try {
     const { state, corridor } = req.query;
 
-    let query = `
-      SELECT
-        COUNT(*) as total_events,
-        COUNT(CASE WHEN end_time IS NULL OR end_time > NOW() THEN 1 END) as active_events,
-        COUNT(CASE WHEN start_time > NOW() THEN 1 END) as planned_events,
-        COUNT(DISTINCT state) as states,
-        COUNT(DISTINCT route) as corridors
-      FROM events
-      WHERE 1=1
-    `;
+    // Use cached events instead of database query
+    if (!eventsCache.data || !eventsCache.data.events) {
+      return res.status(503).json({
+        success: false,
+        error: 'Event cache not available. Please try again in a moment.'
+      });
+    }
 
-    const params = [];
-    let paramCount = 0;
+    let events = eventsCache.data.events;
 
+    // Filter by state
     if (state) {
-      paramCount++;
-      query += ` AND UPPER(state) = $${paramCount}`;
-      params.push(state.toUpperCase());
+      events = events.filter(e => e.state && e.state.toUpperCase() === state.toUpperCase());
     }
 
+    // Filter by corridor
     if (corridor) {
-      paramCount++;
-      query += ` AND route LIKE $${paramCount}`;
-      params.push(`%${corridor}%`);
+      events = events.filter(e => e.corridor && e.corridor.includes(corridor));
     }
 
-    const result = await pgPool.query(query, params);
-    const stats = result.rows[0];
+    // Calculate statistics
+    const now = new Date();
+    const totalEvents = events.length;
+    const activeEvents = events.filter(e => !e.endTime || new Date(e.endTime) > now).length;
+    const plannedEvents = events.filter(e => e.startTime && new Date(e.startTime) > now).length;
+    const states = [...new Set(events.map(e => e.state).filter(Boolean))].length;
+    const corridors = [...new Set(events.map(e => e.corridor).filter(Boolean))].length;
+
+    const stats = {
+      total_events: totalEvents,
+      active_events: activeEvents,
+      planned_events: plannedEvents,
+      states: states,
+      corridors: corridors
+    };
 
     res.json({
       success: true,
