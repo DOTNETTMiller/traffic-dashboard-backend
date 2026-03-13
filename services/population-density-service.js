@@ -12,6 +12,14 @@ const turf = require('@turf/turf');
 const axios = require('axios');
 const ee = require('@google/earthengine');
 
+// Configure axios with default timeout to prevent hanging requests
+const axiosWithTimeout = axios.create({
+  timeout: 10000, // 10 second timeout for all external API calls
+  headers: {
+    'User-Agent': 'DOT-Corridor-Communicator/1.0'
+  }
+});
+
 class PopulationDensityService {
   constructor() {
     // Census data sources (can be configured)
@@ -489,7 +497,7 @@ class PopulationDensityService {
       // This service provides spatial queries with actual tract boundaries
       const tigerUrl = `${this.dataSources.census.url}/8/query`; // Layer 8 = Census Tracts
 
-      const tigerResponse = await axios.get(tigerUrl, {
+      const tigerResponse = await axiosWithTimeout.get(tigerUrl, {
         params: {
           where: 'STATE = 19', // Iowa FIPS code
           geometry: `${west},${south},${east},${north}`,
@@ -542,7 +550,7 @@ class PopulationDensityService {
       for (const county of counties) {
         const popUrl = `${this.dataSources.census.apiUrl}?get=P1_001N,NAME&for=tract:*&in=state:19+county:${county}&key=${this.dataSources.census.apiKey}`;
 
-        const popResponse = await axios.get(popUrl, {
+        const popResponse = await axiosWithTimeout.get(popUrl, {
           timeout: 10000,
           headers: { 'User-Agent': 'DOT-Corridor-Communicator-IPAWS/1.0' }
         });
@@ -721,7 +729,7 @@ class PopulationDensityService {
         out geom;
       `;
 
-      const response = await axios.post(
+      const response = await axiosWithTimeout.post(
         this.dataSources.osm.overpassUrl,
         `data=${encodeURIComponent(query)}`,
         {
@@ -775,7 +783,7 @@ class PopulationDensityService {
 
       // Query Iowa DOT GIS for municipal boundaries
       const municipalUrl = `${this.dataSources.stateGIS.dotUrl}/Municipal_Boundaries/MapServer/0/query`;
-      const response = await axios.get(municipalUrl, {
+      const response = await axiosWithTimeout.get(municipalUrl, {
         params: {
           where: '1=1',
           geometry: `${west},${south},${east},${north}`,
@@ -814,7 +822,7 @@ class PopulationDensityService {
         let landUseData = null;
 
         try {
-          const landUseResponse = await axios.get(landUseUrl, {
+          const landUseResponse = await axiosWithTimeout.get(landUseUrl, {
             params: {
               where: '1=1',
               geometry: `${west},${south},${east},${north}`,
