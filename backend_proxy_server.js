@@ -27385,9 +27385,23 @@ app.get('/api/wzdx/feed', async (req, res) => {
 
     let events = eventsCache.data.events;
 
-    // Filter by state
+    // Filter by state (support both abbreviations and full names)
     if (state) {
-      events = events.filter(e => e.state && e.state.toUpperCase() === state.toUpperCase());
+      const stateUpper = state.toUpperCase();
+      // Map common state abbreviations to full names
+      const stateMap = {
+        'NV': 'NEVADA', 'NE': 'NEBRASKA', 'IA': 'IOWA', 'IL': 'ILLINOIS',
+        'IN': 'INDIANA', 'OH': 'OHIO', 'MI': 'MICHIGAN', 'WI': 'WISCONSIN',
+        'MN': 'MINNESOTA', 'KS': 'KANSAS', 'MO': 'MISSOURI', 'TX': 'TEXAS',
+        'UT': 'UTAH', 'CO': 'COLORADO', 'WY': 'WYOMING', 'CA': 'CALIFORNIA'
+      };
+      const fullStateName = stateMap[stateUpper] || stateUpper;
+
+      events = events.filter(e => {
+        if (!e.state) return false;
+        const eventState = e.state.toUpperCase();
+        return eventState === stateUpper || eventState === fullStateName;
+      });
     }
 
     // Filter by corridor
@@ -27552,9 +27566,23 @@ app.get('/api/wzdx/stats', async (req, res) => {
 
     let events = eventsCache.data.events;
 
-    // Filter by state
+    // Filter by state (support both abbreviations and full names)
     if (state) {
-      events = events.filter(e => e.state && e.state.toUpperCase() === state.toUpperCase());
+      const stateUpper = state.toUpperCase();
+      // Map common state abbreviations to full names
+      const stateMap = {
+        'NV': 'NEVADA', 'NE': 'NEBRASKA', 'IA': 'IOWA', 'IL': 'ILLINOIS',
+        'IN': 'INDIANA', 'OH': 'OHIO', 'MI': 'MICHIGAN', 'WI': 'WISCONSIN',
+        'MN': 'MINNESOTA', 'KS': 'KANSAS', 'MO': 'MISSOURI', 'TX': 'TEXAS',
+        'UT': 'UTAH', 'CO': 'COLORADO', 'WY': 'WYOMING', 'CA': 'CALIFORNIA'
+      };
+      const fullStateName = stateMap[stateUpper] || stateUpper;
+
+      events = events.filter(e => {
+        if (!e.state) return false;
+        const eventState = e.state.toUpperCase();
+        return eventState === stateUpper || eventState === fullStateName;
+      });
     }
 
     // Filter by corridor
