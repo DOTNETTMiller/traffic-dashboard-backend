@@ -27375,12 +27375,18 @@ app.get('/api/wzdx/feed', async (req, res) => {
   try {
     const { state, corridor, includeCompleted, format = 'json' } = req.query;
 
-    // Use cached events instead of database query
+    // Ensure cache is available, fetch synchronously if needed
     if (!eventsCache.data || !eventsCache.data.events) {
-      return res.status(503).json({
-        success: false,
-        error: 'Event cache not available. Please try again in a moment.'
-      });
+      console.log('⚠️  WZDx: Cache not available, fetching synchronously...');
+      await fetchAndCacheEvents();
+
+      // Double check cache is now available
+      if (!eventsCache.data || !eventsCache.data.events) {
+        return res.status(503).json({
+          success: false,
+          error: 'Unable to fetch event data. Please try again.'
+        });
+      }
     }
 
     let events = eventsCache.data.events;
@@ -27485,18 +27491,37 @@ app.get('/api/wzdx/feed/:state', async (req, res) => {
     const { state } = req.params;
     const { includeCompleted, format = 'json' } = req.query;
 
-    // Use cached events instead of database query
+    // Ensure cache is available, fetch synchronously if needed
     if (!eventsCache.data || !eventsCache.data.events) {
-      return res.status(503).json({
-        success: false,
-        error: 'Event cache not available. Please try again in a moment.'
-      });
+      console.log('⚠️  WZDx: Cache not available, fetching synchronously...');
+      await fetchAndCacheEvents();
+
+      // Double check cache is now available
+      if (!eventsCache.data || !eventsCache.data.events) {
+        return res.status(503).json({
+          success: false,
+          error: 'Unable to fetch event data. Please try again.'
+        });
+      }
     }
 
     let events = eventsCache.data.events;
 
-    // Filter by state
-    events = events.filter(e => e.state && e.state.toUpperCase() === state.toUpperCase());
+    // Filter by state (support both abbreviations and full names)
+    const stateUpper = state.toUpperCase();
+    const stateMap = {
+      'NV': 'NEVADA', 'NE': 'NEBRASKA', 'IA': 'IOWA', 'IL': 'ILLINOIS',
+      'IN': 'INDIANA', 'OH': 'OHIO', 'MI': 'MICHIGAN', 'WI': 'WISCONSIN',
+      'MN': 'MINNESOTA', 'KS': 'KANSAS', 'MO': 'MISSOURI', 'TX': 'TEXAS',
+      'UT': 'UTAH', 'CO': 'COLORADO', 'WY': 'WYOMING', 'CA': 'CALIFORNIA'
+    };
+    const fullStateName = stateMap[stateUpper] || stateUpper;
+
+    events = events.filter(e => {
+      if (!e.state) return false;
+      const eventState = e.state.toUpperCase();
+      return eventState === stateUpper || eventState === fullStateName;
+    });
 
     // Filter out completed events
     if (!includeCompleted || includeCompleted === 'false') {
@@ -27556,12 +27581,18 @@ app.get('/api/wzdx/stats', async (req, res) => {
   try {
     const { state, corridor } = req.query;
 
-    // Use cached events instead of database query
+    // Ensure cache is available, fetch synchronously if needed
     if (!eventsCache.data || !eventsCache.data.events) {
-      return res.status(503).json({
-        success: false,
-        error: 'Event cache not available. Please try again in a moment.'
-      });
+      console.log('⚠️  WZDx: Cache not available, fetching synchronously...');
+      await fetchAndCacheEvents();
+
+      // Double check cache is now available
+      if (!eventsCache.data || !eventsCache.data.events) {
+        return res.status(503).json({
+          success: false,
+          error: 'Unable to fetch event data. Please try again.'
+        });
+      }
     }
 
     let events = eventsCache.data.events;
