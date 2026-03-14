@@ -35,6 +35,10 @@ Click the **🚧 WZDx** button in the header (next to TIM, CV-TIM, and CIFS) to 
 
 ## API Endpoints
 
+### Generated Feeds (Nebraska & Nevada)
+
+These feeds are generated for states without official WZDx feeds.
+
 ### 1. Get All Work Zones
 
 ```
@@ -234,6 +238,157 @@ Validates a WZDx feed against the v4.2 specification.
 ✅ **Business Rule #3:** Lane-level data included when available
 ✅ **Business Rule #4:** Relationships between road events preserved
 ✅ **Business Rule #5:** Data quality metadata included
+
+---
+
+## Upgraded Feeds (v3.1/v4.0/v4.1 → v4.2)
+
+The DOT Corridor Communicator also **upgrades older WZDx feeds to v4.2** from states that have official feeds but use outdated versions.
+
+### Why Upgrade Feeds?
+
+Many state DOTs publish WZDx feeds using older spec versions (v3.1, v4.0, v4.1). We consume these feeds and upgrade them to v4.2 to provide:
+
+- **Standardization** - All feeds use the same v4.2 schema
+- **Enhanced Features** - Access to v4.2 improvements (better lane data, enhanced metadata, etc.)
+- **Consistency** - Single API for both generated and upgraded feeds
+- **Reliability** - Cached feeds with fallback to stale data on upstream errors
+
+### Upgraded Feed Endpoints
+
+#### Get All Upgraded Feeds (All States)
+
+```
+GET /api/wzdx/upgraded/feed
+```
+
+Returns a combined feed with all upgraded state feeds merged together.
+
+**Example:**
+```bash
+curl https://your-domain/api/wzdx/upgraded/feed
+```
+
+#### Get Upgraded Feed for Specific State
+
+```
+GET /api/wzdx/upgraded/feed/:state
+```
+
+**Path Parameters:**
+- `state` (string) - Two-letter state code (e.g., "NC", "OK", "UT")
+
+**Examples:**
+```bash
+# Get North Carolina feed (upgraded from v3.1 → v4.2)
+curl https://your-domain/api/wzdx/upgraded/feed/NC
+
+# Get Oklahoma feed (upgraded from v4.0 → v4.2)
+curl https://your-domain/api/wzdx/upgraded/feed/OK
+
+# Get Maryland feed (upgraded from v4.1 → v4.2)
+curl https://your-domain/api/wzdx/upgraded/feed/MD
+```
+
+#### Get Upgrade Statistics
+
+```
+GET /api/wzdx/upgraded/stats
+```
+
+Returns statistics about feed upgrades.
+
+**Response:**
+```json
+{
+  "success": true,
+  "stats": {
+    "total_configured": 14,
+    "total_cached": 8,
+    "by_priority": {
+      "critical": 1,
+      "high": 6,
+      "medium": 7
+    },
+    "cached_feeds": [
+      {
+        "code": "NC",
+        "state": "North Carolina",
+        "originalVersion": "3.1",
+        "upgradedVersion": "4.2",
+        "features": 145,
+        "cacheAge": 45
+      }
+    ]
+  }
+}
+```
+
+#### Get List of Configured States
+
+```
+GET /api/wzdx/upgraded/states
+```
+
+Returns list of all states with configured upstream feed upgrades.
+
+**Response:**
+```json
+{
+  "success": true,
+  "total": 14,
+  "states": [
+    {
+      "code": "NC",
+      "name": "North Carolina",
+      "current_version": "3.1",
+      "upgraded_version": "4.2",
+      "priority": "critical"
+    },
+    {
+      "code": "OK",
+      "name": "Oklahoma",
+      "current_version": "4.0",
+      "upgraded_version": "4.2",
+      "priority": "high"
+    }
+  ]
+}
+```
+
+### States with Upgraded Feeds
+
+#### 🔴 Critical Priority (v3.1)
+- **North Carolina** - Upgraded from v3.1 → v4.2
+
+#### 🟠 High Priority (v4.0)
+- **Oklahoma** - Upgraded from v4.0 → v4.2
+- **Utah** - Upgraded from v4.0 → v4.2
+- **Iowa** - Upgraded from v4.0 → v4.2
+- **Minnesota** - Upgraded from v4.0 → v4.2
+- **Virginia** - Upgraded from v4.0 → v4.2
+- **Kansas** - Upgraded from v4.0 → v4.2
+
+#### 🟡 Medium Priority (v4.1)
+- **Maryland** - Upgraded from v4.1 → v4.2
+- **Wisconsin** - Upgraded from v4.1 → v4.2
+- **New Mexico** - Upgraded from v4.1 → v4.2
+- **Hawaii** - Upgraded from v4.1 → v4.2
+- **New York** - Upgraded from v4.1 → v4.2
+- **Massachusetts** - Upgraded from v4.1 → v4.2
+- **Kentucky** - Upgraded from v4.1 → v4.2
+- **New Jersey** - Upgraded from v4.1 → v4.2
+- **Idaho** - Upgraded from v4.1 → v4.2
+- **Indiana** - Upgraded from v4.1 → v4.2
+- **Louisiana** - Upgraded from v4.1 → v4.2
+- **Delaware** - Upgraded from v4.1 → v4.2
+
+### Caching & Updates
+
+- **Cache Duration:** 5 minutes
+- **Upstream Fetch Timeout:** 30 seconds
+- **Fallback:** Serves stale cache if upstream feed fails
+- **Background Refresh:** Automatic refresh every 5 minutes
 
 ---
 

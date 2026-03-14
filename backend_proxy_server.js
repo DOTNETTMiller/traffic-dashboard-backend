@@ -27687,6 +27687,148 @@ app.post('/api/wzdx/validate', async (req, res) => {
 });
 
 // ========================================
+// WZDX FEED UPGRADES (v3.1/v4.0/v4.1 → v4.2)
+// ========================================
+
+/**
+ * Upgraded WZDx Feeds
+ *
+ * Consumes upstream state DOT feeds (v3.1, v4.0, v4.1) and upgrades them to v4.2
+ */
+
+const WZDxUpgradeService = require('./services/wzdx-upgrade-service');
+const upgradeService = new WZDxUpgradeService();
+
+// Get all upgraded feeds (all states combined)
+app.get('/api/wzdx/upgraded/feed', async (req, res) => {
+  try {
+    console.log('📡 Fetching all upgraded WZDx feeds...');
+
+    const states = upgradeService.getConfiguredStates();
+    const allFeatures = [];
+    const errors = [];
+
+    // Fetch and combine all state feeds
+    for (const { code, state, version } of states) {
+      try {
+        const feed = await upgradeService.getUpgradedFeed(code);
+        allFeatures.push(...(feed.features || []));
+        console.log(`✅ Added ${feed.features?.length || 0} features from ${state}`);
+      } catch (error) {
+        console.error(`❌ Error fetching ${state}:`, error.message);
+        errors.push({ state, error: error.message });
+      }
+    }
+
+    // Create combined feed
+    const combinedFeed = {
+      road_event_feed_info: {
+        publisher: 'DOT Corridor Communicator - Upgraded Feeds',
+        version: '4.2',
+        update_date: new Date().toISOString(),
+        license: 'https://creativecommons.org/publicdomain/zero/1.0/',
+        data_sources: [{
+          data_source_id: 'corridor-communicator-upgraded',
+          organization_name: 'DOT Corridor Communicator',
+          update_frequency: 300,
+          update_date: new Date().toISOString()
+        }]
+      },
+      type: 'FeatureCollection',
+      features: allFeatures
+    };
+
+    res.setHeader('Content-Type', 'application/geo+json');
+    res.json(combinedFeed);
+
+    console.log(`✅ Returned ${allFeatures.length} total upgraded features from ${states.length} states`);
+
+  } catch (error) {
+    console.error('❌ Error generating combined upgraded feed:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get upgraded feed for specific state
+app.get('/api/wzdx/upgraded/feed/:state', async (req, res) => {
+  try {
+    const { state } = req.params;
+    console.log(`📡 Fetching upgraded WZDx feed for ${state}...`);
+
+    const feed = await upgradeService.getUpgradedFeed(state);
+
+    res.setHeader('Content-Type', 'application/geo+json');
+    res.json(feed);
+
+    console.log(`✅ Returned upgraded ${state} feed: ${feed.features?.length || 0} features`);
+
+  } catch (error) {
+    console.error(`❌ Error fetching upgraded feed for ${req.params.state}:`, error);
+
+    if (error.message.includes('No upstream feed configured')) {
+      return res.status(404).json({
+        success: false,
+        error: `No upstream feed configured for state: ${req.params.state}`,
+        configured_states: upgradeService.getConfiguredStates().map(s => s.code)
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get upgrade statistics
+app.get('/api/wzdx/upgraded/stats', async (req, res) => {
+  try {
+    const stats = upgradeService.getStats();
+
+    res.json({
+      success: true,
+      stats: stats
+    });
+
+  } catch (error) {
+    console.error('❌ Error getting upgrade stats:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Get list of configured upgrade states
+app.get('/api/wzdx/upgraded/states', async (req, res) => {
+  try {
+    const states = upgradeService.getConfiguredStates();
+
+    res.json({
+      success: true,
+      total: states.length,
+      states: states.map(s => ({
+        code: s.code,
+        name: s.state,
+        current_version: s.version,
+        upgraded_version: '4.2',
+        priority: s.priority
+      }))
+    });
+
+  } catch (error) {
+    console.error('❌ Error getting configured states:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// ========================================
 // USDOT V2X DEPLOYMENTS DATA
 // ========================================
 
