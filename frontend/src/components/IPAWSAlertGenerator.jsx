@@ -924,13 +924,13 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                 color: '#1e40af',
                 marginBottom: '4px'
               }}>
-                Geofence Visible on Map
+                Panel Moved to Right - View Map on Left
               </div>
               <div style={{
                 fontSize: '12px',
                 color: '#1e3a8a'
               }}>
-                The {formatBufferDisplay(alert.geofence.bufferMiles)} buffer zone (orange polygon) is displayed on the map. <strong>Close this modal to see it clearly.</strong>
+                The {formatBufferDisplay(alert.geofence.bufferMiles)} buffer zone (orange polygon) is displayed on the map. <strong>Adjust sliders below to see real-time updates.</strong>
               </div>
             </div>
           </div>
@@ -2064,6 +2064,9 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     );
   }
 
+  // Dynamic positioning for geofence tab - move to side so map is visible
+  const isGeofenceTab = activeTab === 'geofence';
+
   return (
     <div style={{
       position: 'fixed',
@@ -2071,25 +2074,28 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      backgroundColor: isGeofenceTab ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.6)',
       display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: isGeofenceTab ? 'flex-start' : 'center',
+      justifyContent: isGeofenceTab ? 'flex-end' : 'center',
       zIndex: 10000,
-      padding: '20px'
+      padding: isGeofenceTab ? '0' : '20px',
+      transition: 'all 0.3s ease'
     }}>
       <div style={{
         backgroundColor: 'white',
-        borderRadius: '12px',
+        borderRadius: isGeofenceTab ? '0' : '12px',
         border: '1px solid #d1d5db',
-        width: '100%',
-        minWidth: '900px',
-        maxWidth: '1600px',
-        maxHeight: '90vh',
+        width: isGeofenceTab ? '600px' : '100%',
+        minWidth: isGeofenceTab ? '600px' : '900px',
+        maxWidth: isGeofenceTab ? '600px' : '1600px',
+        height: isGeofenceTab ? '100vh' : 'auto',
+        maxHeight: isGeofenceTab ? '100vh' : '90vh',
         display: 'flex',
         flexDirection: 'column',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-        overflow: 'hidden'
+        boxShadow: isGeofenceTab ? '-5px 0 30px rgba(0, 0, 0, 0.3)' : '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+        overflow: 'hidden',
+        transition: 'all 0.3s ease'
       }}>
         {/* Header */}
         <div style={{
