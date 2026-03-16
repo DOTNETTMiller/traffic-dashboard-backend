@@ -35,6 +35,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
   });
   const [messagesEdited, setMessagesEdited] = useState(false);
   const [translating, setTranslating] = useState(false);
+  const [validationWarnings, setValidationWarnings] = useState({ english: [], spanish: [] });
 
   // Geofence adjustment parameters
   const [bufferFeet, setBufferFeet] = useState(100); // Default 100 feet
@@ -122,32 +123,115 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     };
   }, [bufferFeet, corridorAheadMiles, corridorBehindMiles, corridorLengthMiles, advanceWarningMode, livePreview]);
 
+  // Message validation for SOP compliance (Section 6.3)
+  const validateMessageContent = (message) => {
+    const warnings = [];
+    const fullMessage = `${message.headline} ${message.instruction}`.toLowerCase();
+
+    // Check for direction (EB/WB/NB/SB)
+    const hasDirection = /\b(eb|wb|nb|sb|eastbound|westbound|northbound|southbound)\b/i.test(fullMessage);
+    if (!hasDirection) {
+      warnings.push({
+        severity: 'error',
+        field: 'Direction',
+        message: 'Message must include direction (EB/WB/NB/SB) per SOP Section 7.3'
+      });
+    }
+
+    // Check for mile marker
+    const hasMileMarker = /\b(mm|mile marker|exit)\s*\d+/i.test(fullMessage);
+    if (!hasMileMarker) {
+      warnings.push({
+        severity: 'error',
+        field: 'Mile Marker',
+        message: 'Message must include mile marker (MM ###) or exit number per SOP Section 6.4.3'
+      });
+    }
+
+    // Check for audience qualifier
+    const hasAudienceQualifier = /(drivers on|for drivers|travelers on|motorists on)/i.test(fullMessage);
+    if (!hasAudienceQualifier) {
+      warnings.push({
+        severity: 'error',
+        field: 'Audience Qualifier',
+        message: 'Message must include audience qualifier (e.g., "For drivers on I-80 EB") per SOP Section 7.3'
+      });
+    }
+
+    // Check for 511ia.org reference
+    const has511Reference = /511ia\.org/i.test(fullMessage);
+    if (!has511Reference) {
+      warnings.push({
+        severity: 'warning',
+        field: 'Information Source',
+        message: 'Message should end with "511ia.org" per SOP templates'
+      });
+    }
+
+    // For stranded motorist scenarios, check for safety guidance
+    if (event?.eventType?.toLowerCase().includes('closure') ||
+        event?.description?.toLowerCase().includes('stopped') ||
+        event?.description?.toLowerCase().includes('stranded')) {
+      const hasSafetyGuidance = /(stay in vehicle|conserve fuel|do not exit|remain in|shelter in place)/i.test(fullMessage);
+      if (!hasSafetyGuidance) {
+        warnings.push({
+          severity: 'warning',
+          field: 'Safety Guidance',
+          message: 'For stranded motorist scenarios, include safety action per SOP Section 6.4.3'
+        });
+      }
+    }
+
+    return warnings;
+  };
+
   // Initialize editable messages when alert is loaded
   useEffect(() => {
     if (alert?.success && alert?.messages) {
+      const englishMessages = {
+        headline: alert.messages.english.headline || '',
+        instruction: alert.messages.english.instruction || ''
+      };
+      const spanishMessages = {
+        headline: alert.messages.spanish.headline || '',
+        instruction: alert.messages.spanish.instruction || ''
+      };
+
       setEditableMessages({
-        english: {
-          headline: alert.messages.english.headline || '',
-          instruction: alert.messages.english.instruction || ''
-        },
-        spanish: {
-          headline: alert.messages.spanish.headline || '',
-          instruction: alert.messages.spanish.instruction || ''
-        }
+        english: englishMessages,
+        spanish: spanishMessages
       });
+
+      // Validate initial messages
+      setValidationWarnings({
+        english: validateMessageContent(englishMessages),
+        spanish: validateMessageContent(spanishMessages)
+      });
+
       setMessagesEdited(false);
     }
   }, [alert]);
 
   // Handle message edits
   const handleMessageEdit = (language, field, value) => {
-    setEditableMessages(prev => ({
-      ...prev,
-      [language]: {
-        ...prev[language],
-        [field]: value
-      }
-    }));
+    setEditableMessages(prev => {
+      const updated = {
+        ...prev,
+        [language]: {
+          ...prev[language],
+          [field]: value
+        }
+      };
+
+      // Validate the updated message
+      const warnings = validateMessageContent(updated[language]);
+      setValidationWarnings(prevWarnings => ({
+        ...prevWarnings,
+        [language]: warnings
+      }));
+
+      return updated;
+    });
     setMessagesEdited(true);
 
     // Update alert object with new character counts
@@ -1618,6 +1702,40 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                 </div>
               )}
             </div>
+
+            {/* SOP Compliance Validation Warnings */}
+            {validationWarnings.english.length > 0 && (
+              <div style={{
+                marginTop: theme.spacing.sm,
+                padding: theme.spacing.md,
+                backgroundColor: validationWarnings.english.some(w => w.severity === 'error') ? '#fee2e2' : '#fef3c7',
+                border: `2px solid ${validationWarnings.english.some(w => w.severity === 'error') ? '#ef4444' : '#f59e0b'}`,
+                borderRadius: '6px'
+              }}>
+                <div style={{
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  color: validationWarnings.english.some(w => w.severity === 'error') ? '#991b1b' : '#92400e',
+                  marginBottom: theme.spacing.xs,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  {validationWarnings.english.some(w => w.severity === 'error') ? '🚫' : '⚠️'} SOP Compliance Warnings
+                </div>
+                {validationWarnings.english.map((warning, idx) => (
+                  <div key={idx} style={{
+                    fontSize: '11px',
+                    color: warning.severity === 'error' ? '#7f1d1d' : '#78350f',
+                    marginTop: idx > 0 ? '6px' : '0',
+                    paddingTop: idx > 0 ? '6px' : '0',
+                    borderTop: idx > 0 ? '1px solid rgba(0,0,0,0.1)' : 'none'
+                  }}>
+                    <strong>{warning.field}:</strong> {warning.message}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -1757,6 +1875,40 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                 </div>
               )}
             </div>
+
+            {/* SOP Compliance Validation Warnings for Spanish */}
+            {validationWarnings.spanish.length > 0 && (
+              <div style={{
+                marginTop: theme.spacing.sm,
+                padding: theme.spacing.md,
+                backgroundColor: validationWarnings.spanish.some(w => w.severity === 'error') ? '#fee2e2' : '#fef3c7',
+                border: `2px solid ${validationWarnings.spanish.some(w => w.severity === 'error') ? '#ef4444' : '#f59e0b'}`,
+                borderRadius: '6px'
+              }}>
+                <div style={{
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  color: validationWarnings.spanish.some(w => w.severity === 'error') ? '#991b1b' : '#92400e',
+                  marginBottom: theme.spacing.xs,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  {validationWarnings.spanish.some(w => w.severity === 'error') ? '🚫' : '⚠️'} SOP Compliance Warnings
+                </div>
+                {validationWarnings.spanish.map((warning, idx) => (
+                  <div key={idx} style={{
+                    fontSize: '11px',
+                    color: warning.severity === 'error' ? '#7f1d1d' : '#78350f',
+                    marginTop: idx > 0 ? '6px' : '0',
+                    paddingTop: idx > 0 ? '6px' : '0',
+                    borderTop: idx > 0 ? '1px solid rgba(0,0,0,0.1)' : 'none'
+                  }}>
+                    <strong>{warning.field}:</strong> {warning.message}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
