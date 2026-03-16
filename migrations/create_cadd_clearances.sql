@@ -83,7 +83,7 @@ SELECT
   m.original_filename,
   m.corridor AS model_corridor,
   m.state AS model_state,
-  m.upload_date
+  m.uploaded_at
 FROM cadd_clearances c
 JOIN cadd_models m ON c.model_id = m.id
 WHERE c.needs_field_verification = TRUE

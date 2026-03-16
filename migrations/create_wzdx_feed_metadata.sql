@@ -82,11 +82,13 @@ CREATE TABLE IF NOT EXISTS wzdx_feed_access_log (
 );
 
 -- WZDx Event Mapping Table
+-- Maps internal events to WZDx features (generic - can reference multiple event sources)
 CREATE TABLE IF NOT EXISTS wzdx_event_mapping (
   id SERIAL PRIMARY KEY,
 
-  -- Event reference
-  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  -- Event reference (generic - no FK constraint since events come from multiple tables)
+  event_id INTEGER NOT NULL,
+  event_source VARCHAR(100), -- 'weather_events', 'work_zones', 'calendar_events', etc.
 
   -- WZDx details
   wzdx_id VARCHAR(255) NOT NULL UNIQUE, -- WZDx feature ID
@@ -170,13 +172,12 @@ GROUP BY fg.id, fg.feed_id, fg.state, fg.corridor, fg.feed_type, fg.total_featur
 ORDER BY fg.access_count DESC, access_log_count DESC
 LIMIT 20;
 
--- View: WZDx compliance report
+-- View: WZDx compliance report (simplified - shows mappings without event source join)
 CREATE OR REPLACE VIEW wzdx_compliance_report AS
 SELECT
-  e.id as event_id,
-  e.route,
-  e.state,
-  e.event_type,
+  em.id,
+  em.event_id,
+  em.event_source,
   em.wzdx_id,
   em.event_type as wzdx_event_type,
   em.vehicle_impact,
@@ -184,12 +185,12 @@ SELECT
   em.compliance_issues,
   em.mapped_at,
   fg.feed_id,
+  fg.state,
+  fg.corridor,
   fg.is_valid as feed_is_valid
-FROM events e
-LEFT JOIN wzdx_event_mapping em ON e.id = em.event_id
+FROM wzdx_event_mapping em
 LEFT JOIN wzdx_feed_generations fg ON em.feed_id = fg.feed_id
-WHERE e.end_time IS NULL OR e.end_time > NOW()
-ORDER BY em.is_compliant ASC, e.state, e.route;
+ORDER BY em.is_compliant ASC, fg.state, em.mapped_at DESC;
 
 -- View: Feed access analytics (last 7 days)
 CREATE OR REPLACE VIEW wzdx_feed_access_analytics AS
