@@ -118,7 +118,8 @@ class WZDxFeedGenerator {
         },
 
         // Start/end times in UTC (Business Rule #5)
-        start_date: this.ensureUTC(event.startTime),
+        // Fallback to updated timestamp if startTime missing
+        start_date: this.ensureUTC(event.startTime || event.updated),
         end_date: event.endTime ? this.ensureUTC(event.endTime) : null,
 
         // Vehicle impact (required for work zones)
@@ -134,9 +135,9 @@ class WZDxFeedGenerator {
 
         // Work zone specific properties
         ...(!isDetour && {
-          work_zone_type: event.workZoneType || 'static',
-          reduced_speed_limit: event.speedLimit || null,
-          restrictions: event.restrictions || []
+          work_zone_type: event.workZoneType || this.inferWorkZoneType(event),
+          reduced_speed_limit: event.speedLimit || this.inferSpeedLimit(event),
+          restrictions: event.restrictions || this.inferRestrictions(event)
         }),
 
         // Detour specific properties
@@ -340,7 +341,7 @@ class WZDxFeedGenerator {
     if (event.lanesAffected) {
       const lanesText = event.lanesAffected.toLowerCase();
 
-      if (lanesText.includes('all') && lanesText.includes('closed')) {
+      if (lanesText.includes('all') && (lanesText.includes('closed') || lanesText.includes('blocked'))) {
         return 'all-lanes-closed';
       } else if (lanesText.includes('closed') || lanesText.includes('blocked')) {
         return 'some-lanes-closed';
@@ -354,6 +355,79 @@ class WZDxFeedGenerator {
     // Fallback to event vehicleImpact if provided
     const impact = event.vehicleImpact?.toLowerCase().replace(/_/g, '-');
     return validImpacts.includes(impact) ? impact : 'unknown';
+  }
+
+  /**
+   * Infer work zone type from event classification
+   */
+  inferWorkZoneType(event) {
+    if (!event.eventType) return 'static';
+
+    const type = event.eventType.toLowerCase();
+
+    // Moving work zones
+    if (type.includes('weather') || type.includes('incident') ||
+        type.includes('crash') || type.includes('accident')) {
+      return 'moving';
+    }
+
+    // Static work zones (construction, maintenance, planned events)
+    if (type.includes('construction') || type.includes('maintenance') ||
+        type.includes('work') || type.includes('closure')) {
+      return 'static';
+    }
+
+    // Default to static for unknown types
+    return 'static';
+  }
+
+  /**
+   * Infer speed limit from description or lanesAffected
+   */
+  inferSpeedLimit(event) {
+    // Look for speed limit patterns in description
+    const text = `${event.description || ''} ${event.lanesAffected || ''}`.toLowerCase();
+
+    // Match patterns like "45 mph", "speed limit 35", "reduced to 40"
+    const speedMatch = text.match(/(?:speed limit|reduced to|limit|mph)\s*:?\s*(\d{2,3})\s*(?:mph)?/i);
+    if (speedMatch) {
+      const speed = parseInt(speedMatch[1]);
+      // Validate reasonable speed limits (15-80 mph)
+      if (speed >= 15 && speed <= 80) {
+        return speed;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Infer restrictions from description
+   */
+  inferRestrictions(event) {
+    const restrictions = [];
+    const text = `${event.description || ''} ${event.lanesAffected || ''}`.toLowerCase();
+
+    // Check for common restriction types
+    const restrictionPatterns = {
+      'no-trucks': ['no trucks', 'truck restriction', 'trucks prohibited', 'no commercial'],
+      'reduced-width': ['width restriction', 'narrow', 'width limit', 'max width'],
+      'reduced-height': ['height restriction', 'low clearance', 'height limit', 'max height', 'overhead'],
+      'reduced-length': ['length restriction', 'long vehicle', 'max length', 'oversized', 'over 40ft', 'over 50ft', 'over 60ft'],
+      'reduced-weight': ['weight restriction', 'weight limit', 'max weight', 'load limit'],
+      'hazmat-prohibited': ['hazmat', 'hazardous materials', 'no hazmat'],
+      'local-access-only': ['local access', 'local traffic only', 'residents only']
+    };
+
+    for (const [restrictionType, patterns] of Object.entries(restrictionPatterns)) {
+      if (patterns.some(pattern => text.includes(pattern))) {
+        restrictions.push({
+          type: restrictionType
+        });
+      }
+    }
+
+    return restrictions;
   }
 
   /**
