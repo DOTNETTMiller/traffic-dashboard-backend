@@ -44,6 +44,8 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
   const [corridorBehindMiles, setCorridorBehindMiles] = useState(0.5); // Distance behind event
   const [avoidUrbanAreas, setAvoidUrbanAreas] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [livePreview, setLivePreview] = useState(true); // Enable/disable live preview
+  const [debounceTimer, setDebounceTimer] = useState(null);
 
   useEffect(() => {
     if (event) {
@@ -91,6 +93,34 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
       onGeofenceUpdate(alert.geofence);
     }
   }, [alert, onGeofenceUpdate]);
+
+  // Live preview: Regenerate geofence when parameters change (with debounce)
+  useEffect(() => {
+    // Skip if live preview is disabled or alert hasn't been generated yet
+    if (!livePreview || !alert?.success) {
+      return;
+    }
+
+    // Clear existing timer
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+
+    // Set new timer for debounced regeneration
+    const timer = setTimeout(() => {
+      console.log('🔄 Auto-regenerating geofence with updated parameters...');
+      handleRegenerateGeofence();
+    }, 800); // 800ms debounce - adjust as slider moves
+
+    setDebounceTimer(timer);
+
+    // Cleanup
+    return () => {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, [bufferFeet, corridorAheadMiles, corridorBehindMiles, corridorLengthMiles, advanceWarningMode, livePreview]);
 
   // Initialize editable messages when alert is loaded
   useEffect(() => {
@@ -1056,9 +1086,46 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             backgroundColor: 'rgba(255, 255, 255, 0.15)',
             borderRadius: '6px'
           }}>
-            <div style={{ color: 'white', fontWeight: '600', fontSize: '12px', marginBottom: theme.spacing.sm }}>
-              🎯 Adjust Geofence Coverage
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.sm }}>
+              <div style={{ color: 'white', fontWeight: '600', fontSize: '12px' }}>
+                🎯 Adjust Geofence Coverage
+              </div>
+              <button
+                onClick={() => setLivePreview(!livePreview)}
+                style={{
+                  padding: '4px 8px',
+                  background: livePreview ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 255, 255, 0.2)',
+                  border: `1px solid ${livePreview ? '#10b981' : 'rgba(255,255,255,0.4)'}`,
+                  borderRadius: '4px',
+                  color: 'white',
+                  fontSize: '10px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+                title={livePreview ? 'Live preview enabled - map updates as you adjust' : 'Click to enable live preview'}
+              >
+                <span style={{ fontSize: '12px' }}>{livePreview ? '🔴' : '⚪'}</span>
+                {livePreview ? 'LIVE' : 'Preview Off'}
+              </button>
             </div>
+
+            {livePreview && (
+              <div style={{
+                padding: '6px',
+                background: 'rgba(16, 185, 129, 0.15)',
+                borderRadius: '4px',
+                marginBottom: theme.spacing.sm,
+                border: '1px solid rgba(16, 185, 129, 0.3)'
+              }}>
+                <div style={{ color: '#10b981', fontSize: '10px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="animate-pulse">●</span>
+                  Map updates automatically as you adjust sliders
+                </div>
+              </div>
+            )}
 
             {/* Buffer Width Slider */}
             <div style={{ marginBottom: theme.spacing.sm }}>
@@ -1175,25 +1242,46 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               </div>
             )}
 
-            {/* Regenerate Button */}
-            <button
-              onClick={handleRegenerateGeofence}
-              disabled={regenerating}
-              style={{
-                width: '100%',
+            {/* Regenerate Button - Manual trigger when live preview is off */}
+            {!livePreview && (
+              <button
+                onClick={handleRegenerateGeofence}
+                disabled={regenerating}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  background: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: theme.colors.primary.main,
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  cursor: regenerating ? 'wait' : 'pointer',
+                  opacity: regenerating ? 0.6 : 1
+                }}
+              >
+                {regenerating ? '⏳ Regenerating...' : '🔄 Apply Changes & Update Geofence'}
+              </button>
+            )}
+
+            {/* Live preview status indicator */}
+            {livePreview && regenerating && (
+              <div style={{
                 padding: '8px',
-                background: 'white',
-                border: 'none',
+                background: 'rgba(59, 130, 246, 0.2)',
                 borderRadius: '6px',
-                color: theme.colors.primary.main,
-                fontSize: '11px',
-                fontWeight: '700',
-                cursor: regenerating ? 'wait' : 'pointer',
-                opacity: regenerating ? 0.6 : 1
-              }}
-            >
-              {regenerating ? '⏳ Regenerating...' : '🔄 Regenerate Geofence with New Settings'}
-            </button>
+                border: '1px solid rgba(59, 130, 246, 0.4)',
+                textAlign: 'center'
+              }}>
+                <div style={{ color: '#3b82f6', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                  <svg className="animate-spin" style={{ width: '14px', height: '14px' }} fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Updating map preview...
+                </div>
+              </div>
+            )}
           </div>
 
           {alert.geofence?.estimatedPopulation >= 5000 && alert.geofence?.populationBreakdown?.urban > 0 && (
