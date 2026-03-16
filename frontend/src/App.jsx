@@ -59,6 +59,7 @@ import VendorPortal from './components/VendorPortal';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import IPAWSRulesConfig from './components/IPAWSRulesConfig';
 import IPAWSActiveAlertsManager from './components/IPAWSActiveAlertsManager';
+import IPAWSAfterActionReview from './components/IPAWSAfterActionReview';
 import ClosureApprovalDashboard from './components/ClosureApprovalDashboard';
 import DMSMessagingPanel from './components/DMSMessagingPanel';
 import DiversionRoutePanel from './components/DiversionRoutePanel';
@@ -106,6 +107,7 @@ function App() {
   const [showAlertsModal, setShowAlertsModal] = useState(false);
   const [showIPAWSRules, setShowIPAWSRules] = useState(false);
   const [showIPAWSActiveAlerts, setShowIPAWSActiveAlerts] = useState(false);
+  const [showIPAWSAfterAction, setShowIPAWSAfterAction] = useState(false);
   const [ipawsGeofence, setIpawsGeofence] = useState(null); // IPAWS geofence polygon for map display
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
@@ -2139,6 +2141,28 @@ function App() {
                   >
                     ⏰ Active IPAWS Alerts
                   </button>
+                  <button
+                    onClick={() => {
+                      setShowIPAWSAfterAction(true);
+                      setAdminDropdownOpen(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      border: 'none',
+                      background: 'white',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: '400',
+                      color: '#374151',
+                      transition: 'background 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                  >
+                    📋 After-Action Reviews
+                  </button>
                 </div>
               )}
             </div>
@@ -2635,6 +2659,13 @@ function App() {
       {showIPAWSActiveAlerts && (
         <IPAWSActiveAlertsManager
           onClose={() => setShowIPAWSActiveAlerts(false)}
+        />
+      )}
+
+      {/* IPAWS After-Action Review */}
+      {showIPAWSAfterAction && (
+        <IPAWSAfterActionReview
+          onClose={() => setShowIPAWSAfterAction(false)}
         />
       )}
 

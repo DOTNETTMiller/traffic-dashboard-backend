@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { theme } from '../styles/theme';
 import { config } from '../config';
+import IPAWSScenarioSelector from './IPAWSScenarioSelector';
 
 /**
  * IPAWS Alert Generator & Review Component
@@ -2184,6 +2185,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           backgroundColor: '#f9fafb'
         }}>
           {[
+            { id: 'scenario', label: '📋 Scenario' },
             { id: 'qualification', label: '✓ Qualify' },
             { id: 'geofence', label: '📍 Area', disabled: !alert?.success },
             { id: 'messages', label: '💬 Message', disabled: !alert?.success },
@@ -2269,6 +2271,15 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             </div>
           )}
 
+          {activeTab === 'scenario' && (
+            <IPAWSScenarioSelector
+              event={event}
+              onScenarioSelect={(scenario) => {
+                console.log('Selected scenario:', scenario);
+                // Could auto-populate fields based on scenario
+              }}
+            />
+          )}
           {activeTab === 'qualification' && renderQualificationTab()}
           {activeTab === 'geofence' && renderGeofenceTab()}
           {activeTab === 'messages' && renderMessagesTab()}

@@ -12751,6 +12751,132 @@ app.post('/api/ipaws/alerts/:alertId/issue', async (req, res) => {
   }
 });
 
+// POST /api/ipaws/alerts/:alertId/review - Submit after-action review (SOP Section 11)
+app.post('/api/ipaws/alerts/:alertId/review', async (req, res) => {
+  try {
+    const { alertId } = req.params;
+    const { review } = req.body;
+
+    // Store review in database
+    await db.runAsync(
+      `UPDATE ipaws_alert_log
+       SET review_completed = 1,
+           review_data = ?,
+           review_date = ?,
+           reviewed_by = ?
+       WHERE alert_id = ?`,
+      [
+        JSON.stringify(review),
+        review.reviewDate || new Date().toISOString(),
+        review.reviewedBy || 'Unknown',
+        alertId
+      ]
+    );
+
+    console.log(`✅ After-action review completed for alert: ${alertId}`);
+    console.log(`   Reviewed by: ${review.reviewedBy}`);
+    console.log(`   Timing: ${review.timingRating}, Geofence: ${review.geofenceRating}, Message: ${review.messageClarity}`);
+
+    res.json({
+      success: true,
+      message: 'After-action review submitted successfully',
+      alertId,
+      reviewDate: review.reviewDate
+    });
+  } catch (error) {
+    console.error('Error submitting after-action review:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// POST /api/ipaws/alerts/export-hsemd - Export logs for HSEMD coordination (SOP Section 11)
+app.post('/api/ipaws/alerts/export-hsemd', async (req, res) => {
+  try {
+    const { includeReviews = true, format = 'csv' } = req.body;
+
+    // Fetch all alerts with review data
+    const query = includeReviews
+      ? 'SELECT * FROM ipaws_alert_log ORDER BY created_at DESC'
+      : 'SELECT * FROM ipaws_alert_log WHERE review_completed = 0 ORDER BY created_at DESC';
+
+    const alerts = await db.allAsync(query);
+
+    if (format === 'csv') {
+      // Generate CSV export
+      const headers = [
+        'Alert ID',
+        'Event Corridor',
+        'Event Type',
+        'Event Location',
+        'Created At',
+        'Status',
+        'Duration (min)',
+        'Population',
+        'Operator',
+        'Training Mode',
+        'Review Completed',
+        'Reviewed By',
+        'Review Date',
+        'Timing Rating',
+        'Geofence Rating',
+        'Message Clarity',
+        'Lessons Learned'
+      ];
+
+      const rows = alerts.map(alert => {
+        const reviewData = alert.review_data ? JSON.parse(alert.review_data) : {};
+        return [
+          alert.alert_id,
+          alert.event_corridor || '',
+          alert.event_type || '',
+          alert.event_location || '',
+          alert.created_at,
+          alert.status || 'unknown',
+          alert.duration_minutes || '',
+          alert.population || '',
+          alert.operator || '',
+          alert.training_mode ? 'Yes' : 'No',
+          alert.review_completed ? 'Yes' : 'No',
+          alert.reviewed_by || '',
+          alert.review_date || '',
+          reviewData.timingRating || '',
+          reviewData.geofenceRating || '',
+          reviewData.messageClarity || '',
+          reviewData.lessonsLearned ? `"${reviewData.lessonsLearned.replace(/"/g, '""')}"` : ''
+        ].join(',');
+      });
+
+      const csv = [headers.join(','), ...rows].join('\n');
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=ipaws-alerts-hsemd-export-${new Date().toISOString().split('T')[0]}.csv`);
+      res.send(csv);
+
+      console.log(`✅ HSEMD export generated: ${alerts.length} alerts`);
+    } else {
+      // JSON export
+      res.json({
+        success: true,
+        exportDate: new Date().toISOString(),
+        alertCount: alerts.length,
+        alerts: alerts.map(alert => ({
+          ...alert,
+          reviewData: alert.review_data ? JSON.parse(alert.review_data) : null
+        }))
+      });
+    }
+  } catch (error) {
+    console.error('Error exporting for HSEMD:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // ============================================================================
 // IPAWS RULES MANAGEMENT API
 // ============================================================================
