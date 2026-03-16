@@ -156,15 +156,24 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           q: editableMessages.english.headline,
           source: 'en',
           target: 'es',
-          format: 'text'
+          format: 'text',
+          api_key: ''  // Free tier - leave empty
         })
+      }).catch(err => {
+        throw new Error('Translation service unavailable - network error');
       });
 
       if (!headlineResponse.ok) {
-        throw new Error('Translation service unavailable');
+        const errorText = await headlineResponse.text();
+        console.error('Translation API error:', headlineResponse.status, errorText);
+        throw new Error(`Translation service returned ${headlineResponse.status}. The service may be rate-limited or temporarily unavailable. Please try again later or edit the Spanish text manually.`);
       }
 
       const headlineData = await headlineResponse.json();
+
+      if (!headlineData.translatedText) {
+        throw new Error('Translation response missing translated text');
+      }
 
       // Translate instruction
       const instructionResponse = await fetch('https://libretranslate.com/translate', {
@@ -174,15 +183,24 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           q: editableMessages.english.instruction,
           source: 'en',
           target: 'es',
-          format: 'text'
+          format: 'text',
+          api_key: ''  // Free tier - leave empty
         })
+      }).catch(err => {
+        throw new Error('Translation service unavailable - network error');
       });
 
       if (!instructionResponse.ok) {
-        throw new Error('Translation service unavailable');
+        const errorText = await instructionResponse.text();
+        console.error('Translation API error:', instructionResponse.status, errorText);
+        throw new Error(`Translation service returned ${instructionResponse.status}. The service may be rate-limited or temporarily unavailable. Please try again later or edit the Spanish text manually.`);
       }
 
       const instructionData = await instructionResponse.json();
+
+      if (!instructionData.translatedText) {
+        throw new Error('Translation response missing translated text');
+      }
 
       // Update Spanish messages
       setEditableMessages(prev => ({
