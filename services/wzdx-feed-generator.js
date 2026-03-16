@@ -100,7 +100,7 @@ class WZDxFeedGenerator {
    */
   eventToWZDxFeature(event, dataSourceId) {
     // Ensure geometry coordinate order: first point = where users encounter event
-    const geometry = this.normalizeGeometry(event.geometry, event.direction);
+    const geometry = this.normalizeGeometry(event.geometry, event.direction, event);
 
     // Determine if this is a work zone or detour
     const isDetour = event.eventType === 'detour';
@@ -113,7 +113,7 @@ class WZDxFeedGenerator {
           event_type: isDetour ? 'detour' : 'work-zone',
           data_source_id: dataSourceId,
           direction: this.normalizeDirection(event.direction),
-          road_name: event.roadName || event.route || 'Unknown',
+          road_name: event.roadName || event.route || event.corridor || 'Unknown',
           description: event.description || event.headline
         },
 
@@ -157,8 +157,18 @@ class WZDxFeedGenerator {
    * - Use LineString when 3+ points define path
    * - Dense point coverage on curves
    */
-  normalizeGeometry(geometry, direction) {
+  normalizeGeometry(eventGeometry, direction, event) {
+    // Try to get geometry from various sources
+    let geometry = eventGeometry;
+
+    // If no geometry provided but we have lat/lon, create Point geometry
     if (!geometry || !geometry.coordinates) {
+      if (event && event.latitude && event.longitude) {
+        return {
+          type: 'Point',
+          coordinates: [parseFloat(event.longitude), parseFloat(event.latitude)]
+        };
+      }
       return { type: 'Point', coordinates: [0, 0] };
     }
 
@@ -324,6 +334,21 @@ class WZDxFeedGenerator {
       }
 
       return 'all-lanes-open';
+    }
+
+    // Try to infer from lanesAffected field (used by Nebraska, Nevada, etc.)
+    if (event.lanesAffected) {
+      const lanesText = event.lanesAffected.toLowerCase();
+
+      if (lanesText.includes('all') && lanesText.includes('closed')) {
+        return 'all-lanes-closed';
+      } else if (lanesText.includes('closed') || lanesText.includes('blocked')) {
+        return 'some-lanes-closed';
+      } else if (lanesText.includes('restricted') || lanesText.includes('reduced')) {
+        return 'some-lanes-closed';
+      } else if (lanesText.includes('open') || lanesText.includes('normal')) {
+        return 'all-lanes-open';
+      }
     }
 
     // Fallback to event vehicleImpact if provided
