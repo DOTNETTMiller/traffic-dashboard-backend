@@ -529,6 +529,77 @@ class IPAWSAlertService {
   }
 
   /**
+   * Detect traffic direction from event data
+   * Returns: 'EB', 'WB', 'NB', 'SB', or 'UNKNOWN'
+   */
+  detectTrafficDirection(event) {
+    // Check description for direction indicators
+    const description = (event.description || '').toLowerCase();
+    const location = (event.location || '').toLowerCase();
+    const combined = `${description} ${location}`;
+
+    if (/\b(wb|westbound|west bound)\b/i.test(combined)) return 'WB';
+    if (/\b(eb|eastbound|east bound)\b/i.test(combined)) return 'EB';
+    if (/\b(nb|northbound|north bound)\b/i.test(combined)) return 'NB';
+    if (/\b(sb|southbound|south bound)\b/i.test(combined)) return 'SB';
+
+    // Check if event has direction field
+    if (event.direction) {
+      const dir = event.direction.toUpperCase();
+      if (dir.includes('W')) return 'WB';
+      if (dir.includes('E')) return 'EB';
+      if (dir.includes('N')) return 'NB';
+      if (dir.includes('S')) return 'SB';
+    }
+
+    return 'UNKNOWN';
+  }
+
+  /**
+   * Detect line geometry direction from coordinates
+   * Returns: 'EB', 'WB', 'NB', 'SB', or 'UNKNOWN'
+   */
+  detectLineDirection(line) {
+    const coords = line.geometry.coordinates;
+    if (coords.length < 2) return 'UNKNOWN';
+
+    const start = coords[0];
+    const end = coords[coords.length - 1];
+
+    const deltaLon = end[0] - start[0]; // Longitude (east-west)
+    const deltaLat = end[1] - start[1]; // Latitude (north-south)
+
+    // Determine primary direction based on larger delta
+    if (Math.abs(deltaLon) > Math.abs(deltaLat)) {
+      // East-West corridor
+      return deltaLon > 0 ? 'EB' : 'WB';
+    } else {
+      // North-South corridor
+      return deltaLat > 0 ? 'NB' : 'SB';
+    }
+  }
+
+  /**
+   * Check if line geometry is reversed relative to traffic direction
+   * Returns true if they're opposite (need to swap ahead/behind)
+   */
+  isLineReversedRelativeToTraffic(trafficDirection, lineDirection) {
+    if (trafficDirection === 'UNKNOWN' || lineDirection === 'UNKNOWN') {
+      return false; // Can't determine, assume not reversed
+    }
+
+    // They're reversed if they're opposite directions
+    const opposites = {
+      'EB': 'WB',
+      'WB': 'EB',
+      'NB': 'SB',
+      'SB': 'NB'
+    };
+
+    return opposites[trafficDirection] === lineDirection;
+  }
+
+  /**
    * Generate geofence for alert area
    * Per policy: Intelligent buffer based on event type, population masking
    * Supports both miles and feet for buffer width
@@ -568,6 +639,18 @@ class IPAWSAlertService {
     // Create line from event geometry
     let line = turf.lineString(event.geometry.coordinates);
 
+    // Determine traffic direction from event data
+    const trafficDirection = this.detectTrafficDirection(event);
+
+    // Determine line geometry direction (start to end)
+    const lineDirection = this.detectLineDirection(line);
+
+    // Check if line geometry is reversed relative to traffic flow
+    // If they're opposite, we need to swap ahead/behind
+    const isReversed = this.isLineReversedRelativeToTraffic(trafficDirection, lineDirection);
+
+    console.log(`  Traffic: ${trafficDirection}, Line: ${lineDirection}, Reversed: ${isReversed}`);
+
     // Limit corridor length if specified - supports both symmetric and asymmetric trimming
     if (corridorAheadMiles !== null || corridorBehindMiles !== null || (corridorLengthMiles && corridorLengthMiles > 0)) {
       const lineLength = turf.length(line, { units: 'miles' });
@@ -576,8 +659,17 @@ class IPAWSAlertService {
 
       // Asymmetric corridor (advance warning mode)
       if (corridorAheadMiles !== null || corridorBehindMiles !== null) {
-        distanceAhead = corridorAheadMiles !== null ? corridorAheadMiles : lineLength / 2;
-        distanceBehind = corridorBehindMiles !== null ? corridorBehindMiles : lineLength / 2;
+        // Swap ahead/behind if line is reversed relative to traffic
+        // "Ahead" means where traffic is APPROACHING FROM
+        // "Behind" means where traffic has PASSED
+        if (isReversed) {
+          distanceAhead = corridorBehindMiles !== null ? corridorBehindMiles : lineLength / 2;
+          distanceBehind = corridorAheadMiles !== null ? corridorAheadMiles : lineLength / 2;
+          console.log(`  ⚠️ Swapped: ahead=${distanceAhead}mi (was behind), behind=${distanceBehind}mi (was ahead)`);
+        } else {
+          distanceAhead = corridorAheadMiles !== null ? corridorAheadMiles : lineLength / 2;
+          distanceBehind = corridorBehindMiles !== null ? corridorBehindMiles : lineLength / 2;
+        }
       }
       // Symmetric corridor (legacy mode)
       else if (corridorLengthMiles && corridorLengthMiles > 0 && lineLength > corridorLengthMiles) {
@@ -670,7 +762,10 @@ class IPAWSAlertService {
       isCustomBuffer: customBufferMiles !== null || customBufferFeet !== null,
       isAsymmetric: corridorAheadMiles !== null || corridorBehindMiles !== null,
       reasoning: recommendation.recommended.reason,
-      populationBreakdown: populationBreakdown // Include detailed breakdown
+      populationBreakdown: populationBreakdown, // Include detailed breakdown
+      trafficDirection: trafficDirection, // Include detected traffic direction
+      lineDirection: lineDirection, // Include detected line direction
+      directionSwapped: isReversed // Flag if ahead/behind were swapped
     };
 
     // Add warning if fallback was used
