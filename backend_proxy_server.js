@@ -12411,14 +12411,25 @@ app.post('/api/ipaws/generate', async (req, res) => {
     if (trainingMode !== undefined) options.trainingMode = trainingMode;
     if (user) options.user = user;
 
-    const alert = await ipawsService.generateAlert(eventData, options);
+    console.log('🚨 Starting IPAWS alert generation for:', eventData.corridor || eventData.id);
 
+    // Add 25-second timeout wrapper for entire alert generation
+    const alertPromise = ipawsService.generateAlert(eventData, options);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Alert generation timeout after 25 seconds')), 25000)
+    );
+
+    const alert = await Promise.race([alertPromise, timeoutPromise]);
+
+    console.log('✅ IPAWS alert generated successfully');
     res.json(alert);
   } catch (error) {
-    console.error('Error generating IPAWS alert:', error);
+    console.error('❌ Error generating IPAWS alert:', error.message);
+    console.error('   Stack:', error.stack);
     res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message || 'Failed to generate IPAWS alert',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });

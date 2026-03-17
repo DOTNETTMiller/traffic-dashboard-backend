@@ -1208,6 +1208,7 @@ class IPAWSAlertService {
     const warnings = [];
     let recommended = true;
 
+    console.log('  Step 1: Evaluating qualification...');
     // Step 1: Evaluate qualification
     const qualification = this.evaluateQualification(event);
     if (!qualification.qualifies) {
@@ -1219,9 +1220,12 @@ class IPAWSAlertService {
         canOverride: true
       });
     }
+    console.log('  ✓ Qualification evaluated');
 
+    console.log('  Step 2: Generating geofence...');
     // Step 2: Generate geofence with optional custom parameters
     const geofence = await this.generateGeofence(event, options);
+    console.log('  ✓ Geofence generated');
 
     // Check if population service timed out or failed
     if (geofence.populationWarning) {
@@ -1246,6 +1250,7 @@ class IPAWSAlertService {
       });
     }
 
+    console.log('  Step 4: Generating messages...');
     // Step 4: Generate messages
     // Pass through stranded motorists options if provided
     const messageOptions = {
@@ -1254,9 +1259,12 @@ class IPAWSAlertService {
       weatherCondition: options.weatherCondition || null
     };
     const messages = this.generateMessages(event, messageOptions);
+    console.log('  ✓ Messages generated');
 
+    console.log('  Step 5: Creating CAP message...');
     // Step 5: Create CAP message
     const capMessage = this.generateCAPMessage(event, geofence, messages);
+    console.log('  ✓ CAP message created');
 
     // Step 6: Return alert package for supervisor approval
     const alertPackage = {
@@ -1278,18 +1286,27 @@ class IPAWSAlertService {
       }
     };
 
-    // Step 7: Log to audit database (SOP Section 11) - Using lightweight logger
+    console.log('  Step 7: Logging to audit database...');
+    // Step 7: Log to audit database (SOP Section 11) - Using lightweight logger with timeout
     try {
-      const logResult = await IPAWSAuditLogger.logAlert(
+      const logPromise = IPAWSAuditLogger.logAlert(
         alertPackage,
         options.user || { id: 'system', name: 'System' },
         options.trainingMode ? 'training' : 'draft'
       );
+
+      // Set 5-second timeout for audit logging
+      const logTimeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Audit logging timeout')), 5000)
+      );
+
+      const logResult = await Promise.race([logPromise, logTimeoutPromise]);
       alertPackage.metadata.auditLogId = logResult.logId;
       alertPackage.metadata.auditAlertId = logResult.alertId;
       alertPackage.metadata.trainingMode = options.trainingMode || false;
+      console.log('  ✓ Audit log created');
     } catch (err) {
-      console.error('Failed to log IPAWS alert to audit database:', err);
+      console.warn('  ⚠️ Failed to log IPAWS alert to audit database:', err.message);
       // Don't fail the alert generation if logging fails
       alertPackage.warnings.push({
         type: 'audit_log',
@@ -1299,6 +1316,7 @@ class IPAWSAlertService {
       });
     }
 
+    console.log('  ✓ Alert package complete');
     return alertPackage;
   }
 
