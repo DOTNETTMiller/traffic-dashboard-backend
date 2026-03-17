@@ -112,8 +112,7 @@ async function seedVendorData() {
     const vendorCount = await pool.query('SELECT COUNT(*) FROM tetc_vendors');
     if (parseInt(vendorCount.rows[0].count) > 0) {
       console.log(`✅ Vendor data already seeded (${vendorCount.rows[0].count} vendors)`);
-      await pool.end();
-      return;
+      return; // Pool will be closed in finally block
     }
 
     // Insert vendors
