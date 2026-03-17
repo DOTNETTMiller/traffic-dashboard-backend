@@ -615,11 +615,44 @@ class IPAWSAlertService {
     const capPolygon = coords.map(coord => `${coord[1]},${coord[0]}`).join(' ');
 
     // Get detailed population breakdown using enhanced multi-source data
-    const populationBreakdown = await this.estimatePopulation(buffered, {
-      excludeUrban: avoidUrbanAreas
-    });
+    // Add timeout protection to prevent 502 errors from slow external APIs
+    let populationBreakdown;
+    try {
+      const populationPromise = this.estimatePopulation(buffered, {
+        excludeUrban: avoidUrbanAreas
+      });
 
-    return {
+      // Set 15-second timeout for population estimation
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Population estimation timeout')), 15000)
+      );
+
+      populationBreakdown = await Promise.race([populationPromise, timeoutPromise]);
+    } catch (error) {
+      console.warn('⚠️ Population estimation failed or timed out:', error.message);
+      console.log('   Using fallback population estimate based on area size');
+
+      // Fallback: Estimate based on area (assume ~100 people per square mile for rural highways)
+      const areaSquareMiles = turf.area(buffered) / 2589988.11;
+      const fallbackPopulation = Math.round(areaSquareMiles * 100);
+
+      populationBreakdown = {
+        total: fallbackPopulation,
+        confidence: 'low',
+        primarySource: 'area-based-fallback',
+        sourcesQueried: ['fallback'],
+        sources: {
+          fallback: {
+            population: fallbackPopulation,
+            coverage: 100,
+            confidence: 'low'
+          }
+        },
+        warning: `Population service unavailable. Using fallback estimate of ${fallbackPopulation.toLocaleString()} based on ${areaSquareMiles.toFixed(2)} sq mi area.`
+      };
+    }
+
+    const geofenceResult = {
       type: 'Polygon',
       coordinates: buffered.geometry.coordinates,
       capFormat: capPolygon,
@@ -639,6 +672,13 @@ class IPAWSAlertService {
       reasoning: recommendation.recommended.reason,
       populationBreakdown: populationBreakdown // Include detailed breakdown
     };
+
+    // Add warning if fallback was used
+    if (populationBreakdown.warning) {
+      geofenceResult.populationWarning = populationBreakdown.warning;
+    }
+
+    return geofenceResult;
   }
 
   /**
@@ -1182,6 +1222,16 @@ class IPAWSAlertService {
 
     // Step 2: Generate geofence with optional custom parameters
     const geofence = await this.generateGeofence(event, options);
+
+    // Check if population service timed out or failed
+    if (geofence.populationWarning) {
+      warnings.push({
+        type: 'population_service',
+        severity: 'info',
+        message: geofence.populationWarning,
+        canOverride: false
+      });
+    }
 
     // Step 3: Check population threshold (< 5,000 per policy)
     if (geofence.estimatedPopulation > 5000) {
