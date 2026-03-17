@@ -538,6 +538,12 @@ class IPAWSAlertService {
     const location = (event.location || '').toLowerCase();
     const combined = `${description} ${location}`;
 
+    // Check for bi-directional closures first
+    if (/\b(both directions|both ways|all lanes|all directions)\b/i.test(combined)) {
+      return 'BOTH';
+    }
+
+    // Check for single direction indicators
     if (/\b(wb|westbound|west bound)\b/i.test(combined)) return 'WB';
     if (/\b(eb|eastbound|east bound)\b/i.test(combined)) return 'EB';
     if (/\b(nb|northbound|north bound)\b/i.test(combined)) return 'NB';
@@ -546,6 +552,7 @@ class IPAWSAlertService {
     // Check if event has direction field
     if (event.direction) {
       const dir = event.direction.toUpperCase();
+      if (dir.includes('BOTH')) return 'BOTH';
       if (dir.includes('W')) return 'WB';
       if (dir.includes('E')) return 'EB';
       if (dir.includes('N')) return 'NB';
@@ -584,6 +591,11 @@ class IPAWSAlertService {
    * Returns true if they're opposite (need to swap ahead/behind)
    */
   isLineReversedRelativeToTraffic(trafficDirection, lineDirection) {
+    // Bi-directional closures: never reverse (use symmetric geofence)
+    if (trafficDirection === 'BOTH') {
+      return false;
+    }
+
     if (trafficDirection === 'UNKNOWN' || lineDirection === 'UNKNOWN') {
       return false; // Can't determine, assume not reversed
     }
@@ -649,7 +661,11 @@ class IPAWSAlertService {
     // If they're opposite, we need to swap ahead/behind
     const isReversed = this.isLineReversedRelativeToTraffic(trafficDirection, lineDirection);
 
-    console.log(`  Traffic: ${trafficDirection}, Line: ${lineDirection}, Reversed: ${isReversed}`);
+    if (trafficDirection === 'BOTH') {
+      console.log(`  Traffic: BOTH DIRECTIONS (bi-directional closure) - symmetric geofence recommended`);
+    } else {
+      console.log(`  Traffic: ${trafficDirection}, Line: ${lineDirection}, Reversed: ${isReversed}`);
+    }
 
     // Limit corridor length if specified - supports both symmetric and asymmetric trimming
     if (corridorAheadMiles !== null || corridorBehindMiles !== null || (corridorLengthMiles && corridorLengthMiles > 0)) {
@@ -744,6 +760,8 @@ class IPAWSAlertService {
       };
     }
 
+    const isBidirectional = trafficDirection === 'BOTH';
+
     const geofenceResult = {
       type: 'Polygon',
       coordinates: buffered.geometry.coordinates,
@@ -761,6 +779,7 @@ class IPAWSAlertService {
       recommendation: recommendation,
       isCustomBuffer: customBufferMiles !== null || customBufferFeet !== null,
       isAsymmetric: corridorAheadMiles !== null || corridorBehindMiles !== null,
+      isBidirectional: isBidirectional, // Flag if closure affects both directions
       reasoning: recommendation.recommended.reason,
       populationBreakdown: populationBreakdown, // Include detailed breakdown
       trafficDirection: trafficDirection, // Include detected traffic direction
