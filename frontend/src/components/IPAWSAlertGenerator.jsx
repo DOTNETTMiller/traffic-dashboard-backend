@@ -124,10 +124,36 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     };
   }, [bufferFeet, corridorAheadMiles, corridorBehindMiles, corridorLengthMiles, advanceWarningMode, livePreview]);
 
+  // Helper function to detect direction from text
+  const detectDirection = (text) => {
+    const lowerText = text.toLowerCase();
+
+    // Check for bi-directional first
+    if (/\b(both directions|both ways|all lanes|all directions)\b/i.test(lowerText)) {
+      return 'BOTH';
+    }
+
+    // Check for specific directions
+    if (/\b(wb|westbound|west bound)\b/i.test(lowerText)) return 'WB';
+    if (/\b(eb|eastbound|east bound)\b/i.test(lowerText)) return 'EB';
+    if (/\b(nb|northbound|north bound)\b/i.test(lowerText)) return 'NB';
+    if (/\b(sb|southbound|south bound)\b/i.test(lowerText)) return 'SB';
+
+    return null;
+  };
+
+  // Helper function to extract corridor/route
+  const extractCorridor = (text) => {
+    // Match I-80, US-30, IA-1, Highway 30, etc.
+    const match = text.match(/\b(i-?|us-?|ia-?|highway\s+)(\d+)\b/i);
+    return match ? match[0].replace(/\s+/g, '').toUpperCase() : null;
+  };
+
   // Message validation for SOP compliance (Section 6.3)
   const validateMessageContent = (message) => {
     const warnings = [];
     const fullMessage = `${message.headline} ${message.instruction}`.toLowerCase();
+    const eventDescription = `${event?.description || ''} ${event?.location || ''}`.toLowerCase();
 
     // Check for direction (EB/WB/NB/SB)
     const hasDirection = /\b(eb|wb|nb|sb|eastbound|westbound|northbound|southbound)\b/i.test(fullMessage);
@@ -137,6 +163,20 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         field: 'Direction',
         message: 'Message must include direction (EB/WB/NB/SB) per SOP Section 7.3'
       });
+    } else if (event) {
+      // Validate direction matches event
+      const eventDirection = detectDirection(eventDescription);
+      const messageDirection = detectDirection(fullMessage);
+
+      if (eventDirection && messageDirection && eventDirection !== 'BOTH' && messageDirection !== 'BOTH') {
+        if (eventDirection !== messageDirection) {
+          warnings.push({
+            severity: 'error',
+            field: 'Direction Mismatch',
+            message: `Message says "${messageDirection.toUpperCase()}" but event is "${eventDirection.toUpperCase()}". Verify correct direction!`
+          });
+        }
+      }
     }
 
     // Check for mile marker
@@ -157,6 +197,30 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         field: 'Audience Qualifier',
         message: 'Message must include audience qualifier (e.g., "For drivers on I-80 EB") per SOP Section 7.3'
       });
+    }
+
+    // Validate corridor/route matches event
+    if (event) {
+      const eventCorridor = extractCorridor(event.corridor || event.description || event.location || '');
+      const messageCorridor = extractCorridor(fullMessage);
+
+      if (eventCorridor && messageCorridor) {
+        // Normalize for comparison (remove dashes, etc.)
+        const normalizeRoute = (route) => route.replace(/[-\s]/g, '').toUpperCase();
+        if (normalizeRoute(eventCorridor) !== normalizeRoute(messageCorridor)) {
+          warnings.push({
+            severity: 'error',
+            field: 'Corridor Mismatch',
+            message: `Message mentions "${messageCorridor}" but event is on "${eventCorridor}". Verify correct route!`
+          });
+        }
+      } else if (eventCorridor && !messageCorridor) {
+        warnings.push({
+          severity: 'warning',
+          field: 'Corridor Missing',
+          message: `Event is on "${eventCorridor}" but message doesn't mention the route. Consider adding it.`
+        });
+      }
     }
 
     // Check for 511ia.org reference
