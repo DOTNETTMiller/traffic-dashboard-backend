@@ -27564,6 +27564,77 @@ app.get('/api/wzdx/feed', async (req, res) => {
     const WZDxGenerator = require('./services/wzdx-feed-generator');
     const generator = new WZDxGenerator(db);
 
+    // Helper function to infer vehicle impact from event details
+    const inferVehicleImpact = (event) => {
+      const desc = (event.description || '').toLowerCase();
+      const type = (event.eventType || '').toLowerCase();
+
+      // Check description for explicit lane information
+      if (/\b(full closure|road closed|all lanes closed|blocked|impassable)\b/i.test(desc)) {
+        return 'all-lanes-closed';
+      }
+      if (/\b(lane closed|lanes closed|left lane|right lane|center lane|single lane)\b/i.test(desc)) {
+        return 'some-lanes-closed';
+      }
+      if (/\b(shoulder work|shoulder closed|shoulder)\b/i.test(desc)) {
+        return 'shoulder-closed';
+      }
+      if (/\b(alternating|one lane|flagging)\b/i.test(desc)) {
+        return 'alternating-one-way';
+      }
+
+      // Fall back to severity-based inference
+      if (event.severity === 'critical' || event.severity === 'high') {
+        return 'all-lanes-closed';
+      }
+      if (event.severity === 'major' || event.severity === 'medium') {
+        return 'some-lanes-closed';
+      }
+
+      return 'unknown';
+    };
+
+    // Helper function to extract speed limit from description
+    const extractSpeedLimit = (event) => {
+      const desc = (event.description || '').toLowerCase();
+
+      // Look for explicit speed limit mentions (e.g., "45 mph", "speed limit 55")
+      const speedMatch = desc.match(/\b(\d{2,3})\s*mph\b/i) ||
+                        desc.match(/speed limit:?\s*(\d{2,3})/i);
+      if (speedMatch) {
+        return parseInt(speedMatch[1]);
+      }
+
+      // If event has speedLimit field, use it
+      if (event.speedLimit) {
+        return event.speedLimit;
+      }
+
+      // Default construction zone speeds based on road type
+      const corridor = (event.corridor || '').toLowerCase();
+      if (/\bi-\d+\b/.test(corridor)) {
+        // Interstate construction zones typically 55 mph
+        return 55;
+      }
+      if (/\bus-\d+\b/.test(corridor)) {
+        // US highway construction zones typically 45 mph
+        return 45;
+      }
+
+      return null; // No speed limit information available
+    };
+
+    // Helper function to format dates to ISO 8601
+    const formatDate = (dateStr) => {
+      if (!dateStr) return null;
+      try {
+        const date = new Date(dateStr);
+        return isNaN(date.getTime()) ? null : date.toISOString();
+      } catch {
+        return null;
+      }
+    };
+
     // Convert cached events to WZDx format
     const wzdxEvents = events.map(event => ({
       id: `event-${event.id}`,
@@ -27573,18 +27644,17 @@ app.get('/api/wzdx/feed', async (req, res) => {
       direction: event.direction,
       description: event.description,
       headline: event.description,
-      startTime: event.startTime,
-      endTime: event.endTime,
+      startTime: formatDate(event.startTime || event.createdAt || event.created),
+      endTime: formatDate(event.endTime || event.expectedEndTime || event.estimated_end_time),
       geometry: event.geometry || {
         type: 'Point',
         coordinates: [parseFloat(event.longitude), parseFloat(event.latitude)]
       },
-      vehicleImpact: event.severity === 'critical' || event.severity === 'high' ? 'all-lanes-closed' :
-                     event.severity === 'major' || event.severity === 'medium' ? 'some-lanes-closed' : 'unknown',
+      vehicleImpact: inferVehicleImpact(event),
       locationMethod: 'channel-device-method',
       lanes: [],
       totalLanes: 2,
-      speedLimit: null,
+      speedLimit: extractSpeedLimit(event),
       restrictions: [],
       workZoneType: 'static'
     }));
