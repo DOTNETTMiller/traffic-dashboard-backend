@@ -27611,12 +27611,14 @@ app.get('/api/wzdx/feed', async (req, res) => {
       }
 
       // Default construction zone speeds based on road type
-      const corridor = (event.corridor || '').toLowerCase();
-      if (/\bi-\d+\b/.test(corridor)) {
+      // Check multiple possible road name fields (matching WZDx generator logic)
+      const roadName = (event.roadName || event.route || event.corridor || event.road_name || '').toLowerCase();
+
+      if (/\bi-?\d+\b/.test(roadName) || /interstate/i.test(roadName)) {
         // Interstate construction zones typically 55 mph
         return 55;
       }
-      if (/\bus-\d+\b/.test(corridor)) {
+      if (/\bus-?\d+\b/.test(roadName) || /\bstate route\b/i.test(roadName)) {
         // US highway construction zones typically 45 mph
         return 45;
       }
