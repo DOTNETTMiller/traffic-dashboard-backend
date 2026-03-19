@@ -27642,9 +27642,76 @@ app.get('/api/wzdx/feed', async (req, res) => {
       }
     };
 
+    // Helper function to estimate end date when not provided by source
+    // Returns { endDate: string, isEstimated: boolean, estimationMethod: string }
+    const estimateEndDate = (event) => {
+      const startDate = formatDate(event.startTime || event.createdAt || event.created);
+      const existingEnd = formatDate(event.endTime || event.expectedEndTime || event.estimated_end_time);
+
+      // If end date exists, return it (not estimated)
+      if (existingEnd) {
+        return { endDate: existingEnd, isEstimated: false, estimationMethod: null };
+      }
+
+      // If no start date, can't estimate - return null
+      if (!startDate) {
+        return { endDate: null, isEstimated: false, estimationMethod: null };
+      }
+
+      const start = new Date(startDate);
+      const desc = (event.description || '').toLowerCase();
+      const type = (event.eventType || '').toLowerCase();
+      let hoursToAdd = 24; // Default: 24 hours
+      let method = 'default_duration';
+
+      // Long-term construction projects (weeks to months)
+      if (/\b(long.?term|permanent|ongoing|extended|project)\b/i.test(desc) ||
+          /\b(construction project|bridge work|major construction)\b/i.test(desc)) {
+        hoursToAdd = 30 * 24; // 30 days
+        method = 'long_term_construction';
+      }
+      // Multi-day construction
+      else if (/\b(road construction|resurfacing|paving)\b/i.test(desc)) {
+        hoursToAdd = 7 * 24; // 7 days
+        method = 'multi_day_construction';
+      }
+      // Short-term maintenance
+      else if (/\b(maintenance|repair|pothole|shoulder work)\b/i.test(desc)) {
+        hoursToAdd = 48; // 2 days
+        method = 'short_term_maintenance';
+      }
+      // Emergency/incidents (shortest duration)
+      else if (/\b(incident|accident|emergency|crash|stalled|disabled)\b/i.test(desc) ||
+               type === 'incident' || type === 'accident') {
+        hoursToAdd = 4; // 4 hours
+        method = 'emergency_incident';
+      }
+      // Closures (typically planned, medium duration)
+      else if (/\b(closure|closed|blocked)\b/i.test(desc)) {
+        hoursToAdd = 12; // 12 hours
+        method = 'planned_closure';
+      }
+      // High severity events
+      else if (event.severity === 'high' || event.severity === 'critical') {
+        hoursToAdd = 8; // 8 hours
+        method = 'high_severity';
+      }
+
+      const endDate = new Date(start.getTime() + (hoursToAdd * 60 * 60 * 1000));
+
+      return {
+        endDate: endDate.toISOString(),
+        isEstimated: true,
+        estimationMethod: method
+      };
+    };
+
     // Convert cached events to WZDx format
     // Split "Both" directions into two separate WZDx entries for compliance
     const wzdxEvents = events.flatMap(event => {
+      const startTime = formatDate(event.startTime || event.createdAt || event.created);
+      const endDateInfo = estimateEndDate(event);
+
       const baseEvent = {
         id: `event-${event.id}`,
         eventType: event.eventType || 'work-zone',
@@ -27653,8 +27720,10 @@ app.get('/api/wzdx/feed', async (req, res) => {
         direction: event.direction,
         description: event.description,
         headline: event.description,
-        startTime: formatDate(event.startTime || event.createdAt || event.created),
-        endTime: formatDate(event.endTime || event.expectedEndTime || event.estimated_end_time),
+        startTime: startTime,
+        endTime: endDateInfo.endDate,
+        endTimeEstimated: endDateInfo.isEstimated,
+        endTimeEstimationMethod: endDateInfo.estimationMethod,
         geometry: event.geometry || {
           type: 'Point',
           coordinates: [parseFloat(event.longitude), parseFloat(event.latitude)]
@@ -27696,6 +27765,28 @@ app.get('/api/wzdx/feed', async (req, res) => {
 
     // Override features with converted events
     feed.features = wzdxEvents.map(event => generator.eventToWZDxFeature(event, 'corridor-communicator'));
+
+    // Add metadata about end date estimation
+    const estimatedCount = wzdxEvents.filter(e => e.endTimeEstimated).length;
+    if (estimatedCount > 0) {
+      if (!feed.road_event_feed_info) {
+        feed.road_event_feed_info = {};
+      }
+      feed.road_event_feed_info.end_date_estimation = {
+        note: 'End dates may be estimated by Corridor Communicator when not provided by source DOT APIs',
+        estimated_count: estimatedCount,
+        total_count: wzdxEvents.length,
+        estimation_methods: {
+          long_term_construction: '30 days from start (keywords: long-term, permanent, project)',
+          multi_day_construction: '7 days from start (keywords: road construction, resurfacing, paving)',
+          short_term_maintenance: '2 days from start (keywords: maintenance, repair, pothole)',
+          emergency_incident: '4 hours from start (keywords: incident, accident, emergency)',
+          planned_closure: '12 hours from start (keywords: closure, closed, blocked)',
+          high_severity: '8 hours from start (severity: high/critical)',
+          default_duration: '24 hours from start (fallback)'
+        }
+      };
+    }
 
     // Return JSON or validate
     if (format === 'validate') {
