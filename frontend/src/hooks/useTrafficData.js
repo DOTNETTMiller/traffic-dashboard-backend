@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 
-export function useTrafficData(refreshInterval = 60000) {
+export function useTrafficData(refreshInterval = 300000) { // Changed from 60s to 5min (300s) to reduce API calls
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

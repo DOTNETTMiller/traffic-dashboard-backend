@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, lazy, Suspense } from 'react';
 import axios from 'axios';
 import { useTrafficData } from './hooks/useTrafficData';
 import { config } from './config';
@@ -19,7 +19,6 @@ import CommandPalette from './components/CommandPalette';
 import QuickActionToolbar from './components/QuickActionToolbar';
 import ActivityTimeline from './components/ActivityTimeline';
 import DarkModeToggle from './components/DarkModeToggle';
-import ExportMenu from './components/ExportMenu';
 import ToastContainer, { showToast } from './components/ToastContainer';
 import DashboardWidgets from './components/DashboardWidgets';
 import CorridorBriefing from './components/CorridorBriefing';
@@ -34,28 +33,7 @@ import Calendar from './components/Calendar';
 import DocumentationViewer from './components/DocumentationViewer';
 import ChatWidget from './components/ChatWidget';
 import UserProfile from './components/UserProfile';
-import GroundTruthDashboard from './components/GroundTruthDashboard';
-import CorridorDataQuality from './components/CorridorDataQuality';
-import TETCDataGrading from './components/TETCDataGrading';
-import VendorDQIComparison from './components/VendorDQIComparison';
-import VendorGapAnalysis from './components/VendorGapAnalysis';
-import CoverageGapAnalysis from './components/CoverageGapAnalysis';
 import CommunityContribution from './components/CommunityContribution';
-import VendorLeaderboard from './components/VendorLeaderboard';
-import StateQualityDashboard from './components/StateQualityDashboard';
-import PredictiveAnalyticsDashboard from './components/PredictiveAnalyticsDashboard';
-import AdvancedAnalyticsDashboard from './components/AdvancedAnalyticsDashboard';
-import EventConfidenceDashboard from './components/EventConfidenceDashboard';
-import ProcurementDashboard from './components/ProcurementDashboard';
-import AssetHealthDashboard from './components/AssetHealthDashboard';
-import APIDocumentationViewer from './components/APIDocumentationViewer';
-import GrantApplications from './components/GrantApplications';
-import FundingOpportunities from './components/FundingOpportunities';
-import NASCOCorridorRegulationsView from './components/NASCOCorridorRegulationsView';
-import DigitalInfrastructure from './components/DigitalInfrastructure';
-import DigitalStandardsCrosswalk from './components/DigitalStandardsCrosswalk';
-import CADDModels from './components/CADDModels';
-import VendorPortal from './components/VendorPortal';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import IPAWSRulesConfig from './components/IPAWSRulesConfig';
 import IPAWSActiveAlertsManager from './components/IPAWSActiveAlertsManager';
@@ -64,6 +42,44 @@ import ClosureApprovalDashboard from './components/ClosureApprovalDashboard';
 import DMSMessagingPanel from './components/DMSMessagingPanel';
 import DiversionRoutePanel from './components/DiversionRoutePanel';
 import './styles/App.css';
+
+// Lazy load heavy components (reduces initial bundle by ~4 MB)
+const ExportMenu = lazy(() => import('./components/ExportMenu')); // html2canvas + jspdf
+const CADDModels = lazy(() => import('./components/CADDModels')); // three.js + web-ifc
+const DigitalInfrastructure = lazy(() => import('./components/DigitalInfrastructure'));
+const VendorPortal = lazy(() => import('./components/VendorPortal'));
+const GroundTruthDashboard = lazy(() => import('./components/GroundTruthDashboard'));
+const CorridorDataQuality = lazy(() => import('./components/CorridorDataQuality'));
+const TETCDataGrading = lazy(() => import('./components/TETCDataGrading'));
+const VendorDQIComparison = lazy(() => import('./components/VendorDQIComparison'));
+const VendorGapAnalysis = lazy(() => import('./components/VendorGapAnalysis'));
+const CoverageGapAnalysis = lazy(() => import('./components/CoverageGapAnalysis'));
+const VendorLeaderboard = lazy(() => import('./components/VendorLeaderboard'));
+const StateQualityDashboard = lazy(() => import('./components/StateQualityDashboard'));
+const PredictiveAnalyticsDashboard = lazy(() => import('./components/PredictiveAnalyticsDashboard'));
+const AdvancedAnalyticsDashboard = lazy(() => import('./components/AdvancedAnalyticsDashboard'));
+const EventConfidenceDashboard = lazy(() => import('./components/EventConfidenceDashboard'));
+const ProcurementDashboard = lazy(() => import('./components/ProcurementDashboard'));
+const AssetHealthDashboard = lazy(() => import('./components/AssetHealthDashboard'));
+const APIDocumentationViewer = lazy(() => import('./components/APIDocumentationViewer'));
+const GrantApplications = lazy(() => import('./components/GrantApplications'));
+const FundingOpportunities = lazy(() => import('./components/FundingOpportunities'));
+const NASCOCorridorRegulationsView = lazy(() => import('./components/NASCOCorridorRegulationsView'));
+const DigitalStandardsCrosswalk = lazy(() => import('./components/DigitalStandardsCrosswalk'));
+
+// Loading fallback component
+const LoadingFallback = () => (
+  <div style={{
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '40px',
+    fontSize: '14px',
+    color: '#6b7280'
+  }}>
+    Loading component...
+  </div>
+);
 
 function App() {
   const [view, setView] = useState('map'); // 'map', 'table', 'report', 'alignment', 'messages', 'docs', or 'admin'
@@ -227,7 +243,7 @@ function App() {
 
     if (authToken) {
       loadDetourAlerts();
-      intervalId = setInterval(loadDetourAlerts, 60000);
+      intervalId = setInterval(loadDetourAlerts, 120000); // Changed from 60s to 2min to reduce API calls
     } else {
       setDetourAlerts([]);
     }
@@ -2237,7 +2253,9 @@ function App() {
             WebkitOverflowScrolling: 'touch',
             position: 'relative'
           }}>
-            <FundingOpportunities />
+            <Suspense fallback={<LoadingFallback />}>
+              <FundingOpportunities />
+            </Suspense>
           </div>
         ) : view === 'nasco-regulations' ? (
           <div style={{
@@ -2248,7 +2266,9 @@ function App() {
             WebkitOverflowScrolling: 'touch',
             position: 'relative'
           }}>
-            <NASCOCorridorRegulationsView darkMode={isDarkMode} />
+            <Suspense fallback={<LoadingFallback />}>
+              <NASCOCorridorRegulationsView darkMode={isDarkMode} />
+            </Suspense>
           </div>
         ) : view === 'profile' ? (
           <UserProfile
@@ -2265,7 +2285,9 @@ function App() {
             WebkitOverflowScrolling: 'touch',
             position: 'relative'
           }}>
-            <GroundTruthDashboard authToken={authToken} currentUser={currentUser} />
+            <Suspense fallback={<LoadingFallback />}>
+              <GroundTruthDashboard authToken={authToken} currentUser={currentUser} />
+            </Suspense>
           </div>
         ) : view === 'digitalInfrastructure' ? (
           <div style={{
@@ -2276,7 +2298,9 @@ function App() {
             WebkitOverflowScrolling: 'touch',
             position: 'relative'
           }}>
-            <DigitalInfrastructure />
+            <Suspense fallback={<LoadingFallback />}>
+              <DigitalInfrastructure />
+            </Suspense>
           </div>
         ) : view === 'caddModels' ? (
           <div style={{
@@ -2287,7 +2311,9 @@ function App() {
             WebkitOverflowScrolling: 'touch',
             position: 'relative'
           }}>
-            <CADDModels />
+            <Suspense fallback={<LoadingFallback />}>
+              <CADDModels />
+            </Suspense>
           </div>
         ) : view === 'closureApproval' ? (
           <div style={{
@@ -2339,7 +2365,9 @@ function App() {
             WebkitOverflowScrolling: 'touch',
             position: 'relative'
           }}>
-            <DigitalStandardsCrosswalk />
+            <Suspense fallback={<LoadingFallback />}>
+              <DigitalStandardsCrosswalk />
+            </Suspense>
           </div>
         ) : view === 'vendorPortal' ? (
           <div style={{
@@ -2350,7 +2378,9 @@ function App() {
             WebkitOverflowScrolling: 'touch',
             position: 'relative'
           }}>
-            <VendorPortal />
+            <Suspense fallback={<LoadingFallback />}>
+              <VendorPortal />
+            </Suspense>
           </div>
         ) : view === 'admin' ? (
           <StateAdmin user={currentUser} authToken={authToken} />
@@ -2373,7 +2403,9 @@ function App() {
             WebkitOverflowScrolling: 'touch',
             position: 'relative'
           }}>
-            <APIDocumentationViewer />
+            <Suspense fallback={<LoadingFallback />}>
+              <APIDocumentationViewer />
+            </Suspense>
           </div>
         ) : view === 'map' ? (
           <>
@@ -2544,29 +2576,51 @@ function App() {
             ) : view === 'report' ? (
               <DataQualityReport />
             ) : view === 'tetcGrading' ? (
-              <TETCDataGrading />
+              <Suspense fallback={<LoadingFallback />}>
+                <TETCDataGrading />
+              </Suspense>
             ) : view === 'vendorComparison' ? (
-              <VendorDQIComparison />
+              <Suspense fallback={<LoadingFallback />}>
+                <VendorDQIComparison />
+              </Suspense>
             ) : view === 'gapAnalysis' ? (
-              <VendorGapAnalysis />
+              <Suspense fallback={<LoadingFallback />}>
+                <VendorGapAnalysis />
+              </Suspense>
             ) : view === 'coverageGaps' ? (
-              <CoverageGapAnalysis />
+              <Suspense fallback={<LoadingFallback />}>
+                <CoverageGapAnalysis />
+              </Suspense>
             ) : view === 'community' ? (
               <CommunityContribution />
             ) : view === 'advancedAnalytics' ? (
-              <AdvancedAnalyticsDashboard />
+              <Suspense fallback={<LoadingFallback />}>
+                <AdvancedAnalyticsDashboard />
+              </Suspense>
             ) : view === 'vendorLeaderboard' ? (
-              <VendorLeaderboard />
+              <Suspense fallback={<LoadingFallback />}>
+                <VendorLeaderboard />
+              </Suspense>
             ) : view === 'stateQualityRankings' ? (
-              <StateQualityDashboard />
+              <Suspense fallback={<LoadingFallback />}>
+                <StateQualityDashboard />
+              </Suspense>
             ) : view === 'predictiveAnalytics' ? (
-              <PredictiveAnalyticsDashboard />
+              <Suspense fallback={<LoadingFallback />}>
+                <PredictiveAnalyticsDashboard />
+              </Suspense>
             ) : view === 'eventConfidence' ? (
-              <EventConfidenceDashboard />
+              <Suspense fallback={<LoadingFallback />}>
+                <EventConfidenceDashboard />
+              </Suspense>
             ) : view === 'procurement' ? (
-              <ProcurementDashboard />
+              <Suspense fallback={<LoadingFallback />}>
+                <ProcurementDashboard />
+              </Suspense>
             ) : view === 'assetHealth' ? (
-              <AssetHealthDashboard />
+              <Suspense fallback={<LoadingFallback />}>
+                <AssetHealthDashboard />
+              </Suspense>
             ) : null}
           </div>
         )}
@@ -2632,11 +2686,13 @@ function App() {
 
       {/* Export Menu */}
       {showExportMenu && (
-        <ExportMenu
-          events={filteredEvents}
-          messages={messages}
-          onClose={() => setShowExportMenu(false)}
-        />
+        <Suspense fallback={<LoadingFallback />}>
+          <ExportMenu
+            events={filteredEvents}
+            messages={messages}
+            onClose={() => setShowExportMenu(false)}
+          />
+        </Suspense>
       )}
 
       {/* Corridor Briefing */}

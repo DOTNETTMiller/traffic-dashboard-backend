@@ -21538,6 +21538,8 @@ app.get('/api/vendors/quality-scores', async (req, res) => {
       }
     };
 
+    // Cache vendor scores for 10 minutes (scores change infrequently)
+    res.setHeader('Cache-Control', 'public, max-age=600');
     res.json({
       success: true,
       vendors: vendorsWithParsedCategories,
@@ -27681,6 +27683,8 @@ app.get('/api/wzdx/feed', async (req, res) => {
       });
     }
 
+    // Cache WZDx feed for 5 minutes to reduce redundant processing
+    res.setHeader('Cache-Control', 'public, max-age=300');
     res.setHeader('Content-Type', 'application/geo+json');
     res.json(feed);
 
@@ -27773,6 +27777,8 @@ app.get('/api/wzdx/feed/:state', async (req, res) => {
     // Override features
     feed.features = wzdxEvents.map(event => generator.eventToWZDxFeature(event, `corridor-communicator-${state.toLowerCase()}`));
 
+    // Cache WZDx feed for 5 minutes to reduce redundant processing
+    res.setHeader('Cache-Control', 'public, max-age=300');
     res.setHeader('Content-Type', 'application/geo+json');
     res.json(feed);
 
@@ -27969,6 +27975,8 @@ app.get('/api/wzdx/upgraded/feed/:state', async (req, res) => {
 
     const feed = await upgradeService.getUpgradedFeed(state);
 
+    // Cache WZDx feed for 5 minutes to reduce redundant processing
+    res.setHeader('Cache-Control', 'public, max-age=300');
     res.setHeader('Content-Type', 'application/geo+json');
     res.json(feed);
 
@@ -34836,14 +34844,26 @@ app.post('/api/data-quality/fix-corridor-geometries', async (req, res) => {
 // ============================================================================
 // STATIC FILE SERVING - Serve built frontend from backend (temporary solution)
 // ============================================================================
-// Serve static files from the built frontend with aggressive no-cache for HTML
+// Serve static files from the built frontend with optimized caching
 app.use(express.static(path.join(__dirname, 'frontend/dist'), {
-  setHeaders: (res, path) => {
+  setHeaders: (res, filePath) => {
     // Never cache HTML files - always fetch fresh
-    if (path.endsWith('.html')) {
+    if (filePath.endsWith('.html')) {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
+    }
+    // Long-term caching for hashed assets (1 year) - JS/CSS with content hashes
+    else if (/\.(js|css|woff2?|ttf|eot)$/.test(filePath) && /-[a-f0-9]{8,}\.(js|css)$/.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+    // Medium-term caching for other static assets (1 week)
+    else if (/\.(js|css|png|jpg|jpeg|gif|svg|woff2?|ttf|eot|ico|webp)$/.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=604800'); // 7 days
+    }
+    // Short-term caching for JSON/data files (5 minutes)
+    else if (/\.(json|geojson)$/.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=300'); // 5 minutes
     }
   }
 }));
