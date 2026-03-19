@@ -916,6 +916,35 @@ export default function TrafficMap({
         {savedGeofences.map((saved, idx) => {
           if (!saved.geofence || !saved.geofence.coordinates || !Array.isArray(saved.geofence.coordinates[0])) return null;
 
+          const handleDeleteGeofence = async () => {
+            if (!window.confirm(`Delete IPAWS geofence for event ${saved.eventId}?\n\nThis will remove the saved alert area from the map.`)) {
+              return;
+            }
+
+            try {
+              const response = await fetch(`${config.apiUrl}/api/events/${saved.eventId}/geofence`, {
+                method: 'DELETE'
+              });
+
+              const data = await response.json();
+
+              if (data.success) {
+                // Refresh geofences list
+                const refreshResponse = await fetch(`${config.apiUrl}/api/geofences`);
+                const refreshData = await refreshResponse.json();
+                if (refreshData.success) {
+                  setSavedGeofences(refreshData.geofences);
+                }
+                alert('✅ Geofence deleted successfully!');
+              } else {
+                alert(`❌ Failed to delete geofence: ${data.error}`);
+              }
+            } catch (error) {
+              console.error('Error deleting geofence:', error);
+              alert(`❌ Error: ${error.message}`);
+            }
+          };
+
           return (
             <Polygon
               key={`saved-geofence-${saved.eventId}-${idx}`}
@@ -948,6 +977,23 @@ export default function TrafficMap({
                       ⚠️ Population threshold overridden
                     </p>
                   )}
+                  <button
+                    onClick={handleDeleteGeofence}
+                    style={{
+                      width: '100%',
+                      marginTop: '8px',
+                      padding: '6px',
+                      backgroundColor: '#dc2626',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🗑️ Delete Geofence
+                  </button>
                 </div>
               </Popup>
             </Polygon>

@@ -9474,6 +9474,47 @@ app.get('/api/geofences', async (req, res) => {
   }
 });
 
+// DELETE /api/events/:eventId/geofence - Delete saved geofence for an event
+app.delete('/api/events/:eventId/geofence', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    if (!pgPool) {
+      return res.status(503).json({
+        success: false,
+        error: 'Database not configured'
+      });
+    }
+
+    // Delete geofence from database
+    const result = await pgPool.query(
+      'DELETE FROM event_geofences WHERE event_id = $1 RETURNING event_id',
+      [eventId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Geofence not found for this event'
+      });
+    }
+
+    console.log(`🗑️  Deleted geofence for event ${eventId}`);
+
+    res.json({
+      success: true,
+      message: 'Geofence deleted successfully',
+      eventId
+    });
+  } catch (error) {
+    console.error('Error deleting geofence:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Get all event comments (for viewing all discussions)
 app.get('/api/events/comments/all', async (req, res) => {
   const comments = await db.getAllEventComments();
