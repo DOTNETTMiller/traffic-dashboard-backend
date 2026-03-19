@@ -27568,20 +27568,23 @@ app.get('/api/wzdx/feed', async (req, res) => {
 
     // Helper function to infer vehicle impact from event details
     const inferVehicleImpact = (event) => {
+      // Combine description AND lanesAffected for better inference
       const desc = (event.description || '').toLowerCase();
+      const lanes = (event.lanesAffected || '').toLowerCase();
+      const combined = `${desc} ${lanes}`;
       const type = (event.eventType || '').toLowerCase();
 
-      // Check description for explicit lane information
-      if (/\b(full closure|road closed|all lanes closed|blocked|impassable)\b/i.test(desc)) {
+      // Check combined text for explicit lane information
+      if (/\b(full closure|road closed|all lanes closed|blocked|impassable)\b/i.test(combined)) {
         return 'all-lanes-closed';
       }
-      if (/\b(lane closed|lanes closed|left lane|right lane|center lane|single lane)\b/i.test(desc)) {
+      if (/\b(lane closed|lanes closed|left lane|right lane|center lane|single lane)\b/i.test(combined)) {
         return 'some-lanes-closed';
       }
-      if (/\b(shoulder work|shoulder closed|shoulder)\b/i.test(desc)) {
+      if (/\b(shoulder work|shoulder closed|shoulder)\b/i.test(combined)) {
         return 'shoulder-closed';
       }
-      if (/\b(alternating|one lane|flagging)\b/i.test(desc)) {
+      if (/\b(alternating|one lane|flagging)\b/i.test(combined)) {
         return 'alternating-one-way';
       }
 
@@ -27640,28 +27643,50 @@ app.get('/api/wzdx/feed', async (req, res) => {
     };
 
     // Convert cached events to WZDx format
-    const wzdxEvents = events.map(event => ({
-      id: `event-${event.id}`,
-      eventType: event.eventType || 'work-zone',
-      route: event.corridor,
-      roadName: event.corridor,
-      direction: event.direction,
-      description: event.description,
-      headline: event.description,
-      startTime: formatDate(event.startTime || event.createdAt || event.created),
-      endTime: formatDate(event.endTime || event.expectedEndTime || event.estimated_end_time),
-      geometry: event.geometry || {
-        type: 'Point',
-        coordinates: [parseFloat(event.longitude), parseFloat(event.latitude)]
-      },
-      vehicleImpact: inferVehicleImpact(event),
-      locationMethod: 'channel-device-method',
-      lanes: [],
-      totalLanes: 2,
-      speedLimit: extractSpeedLimit(event),
-      restrictions: [],
-      workZoneType: 'static'
-    }));
+    // Split "Both" directions into two separate WZDx entries for compliance
+    const wzdxEvents = events.flatMap(event => {
+      const baseEvent = {
+        id: `event-${event.id}`,
+        eventType: event.eventType || 'work-zone',
+        route: event.corridor,
+        roadName: event.corridor,
+        direction: event.direction,
+        description: event.description,
+        headline: event.description,
+        startTime: formatDate(event.startTime || event.createdAt || event.created),
+        endTime: formatDate(event.endTime || event.expectedEndTime || event.estimated_end_time),
+        geometry: event.geometry || {
+          type: 'Point',
+          coordinates: [parseFloat(event.longitude), parseFloat(event.latitude)]
+        },
+        vehicleImpact: inferVehicleImpact(event),
+        locationMethod: 'channel-device-method',
+        lanes: [],
+        totalLanes: 2,
+        speedLimit: extractSpeedLimit(event),
+        restrictions: [],
+        workZoneType: 'static'
+      };
+
+      // If direction is "Both", create TWO entries (one for each direction)
+      if (event.direction && event.direction.toLowerCase() === 'both') {
+        // Determine if this is an E/W or N/S corridor based on road name
+        const roadName = (event.corridor || event.roadName || '').toLowerCase();
+        const isEastWest = /i-80|i-70|i-90|i-40|i-10|i-20|i-30|i-44/.test(roadName);
+
+        const [dir1, dir2] = isEastWest
+          ? ['Eastbound', 'Westbound']
+          : ['Northbound', 'Southbound'];
+
+        return [
+          { ...baseEvent, id: `${baseEvent.id}-${dir1.toLowerCase()}`, direction: dir1 },
+          { ...baseEvent, id: `${baseEvent.id}-${dir2.toLowerCase()}`, direction: dir2 }
+        ];
+      }
+
+      // Otherwise return single event
+      return [baseEvent];
+    });
 
     const feed = await generator.generateFeed({
       stateFilter: state,
