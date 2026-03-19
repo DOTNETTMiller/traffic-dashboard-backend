@@ -137,7 +137,10 @@ class WZDxFeedGenerator {
         ...(!isDetour && {
           work_zone_type: event.workZoneType || this.inferWorkZoneType(event),
           reduced_speed_limit: event.speedLimit || this.inferSpeedLimit(event),
-          restrictions: event.restrictions || this.inferRestrictions(event)
+          restrictions: event.restrictions || this.inferRestrictions(event),
+          // Advance warning and termination area distances (in meters)
+          beginning_accuracy: this.inferBeginningAccuracy(event),
+          ending_accuracy: this.inferEndingAccuracy(event)
         }),
 
         // Detour specific properties
@@ -428,6 +431,61 @@ class WZDxFeedGenerator {
     }
 
     return restrictions;
+  }
+
+  /**
+   * Infer beginning_accuracy (advance warning area distance in meters)
+   * Distance from first coordinate to actual work zone start
+   * Creates buffer zone for advance warning signage
+   */
+  inferBeginningAccuracy(event) {
+    const roadName = (event.roadName || event.route || event.corridor || '').toLowerCase();
+    const severity = (event.severity || '').toLowerCase();
+
+    // Interstate highways - longer advance warning (MUTCD standards)
+    if (/\bi-?\d+\b/.test(roadName) || /interstate/i.test(roadName)) {
+      // Critical events need more warning distance
+      if (severity === 'critical' || severity === 'high') {
+        return 1000; // 1000 meters (~3280 feet) - full advance warning
+      }
+      return 500; // 500 meters (~1640 feet) - standard interstate
+    }
+
+    // US highways and state routes
+    if (/\bus-?\d+\b/.test(roadName) || /\bstate route\b/i.test(roadName)) {
+      if (severity === 'critical' || severity === 'high') {
+        return 500; // 500 meters
+      }
+      return 300; // 300 meters (~985 feet)
+    }
+
+    // Local/arterial roads - shorter advance warning
+    if (severity === 'critical' || severity === 'high') {
+      return 300; // 300 meters
+    }
+    return 150; // 150 meters (~490 feet) - minimum advance warning
+  }
+
+  /**
+   * Infer ending_accuracy (termination area distance in meters)
+   * Distance from last coordinate to actual work zone end
+   * Creates buffer zone for work zone termination signage
+   */
+  inferEndingAccuracy(event) {
+    const roadName = (event.roadName || event.route || event.corridor || '').toLowerCase();
+
+    // Interstate highways - longer termination area
+    if (/\bi-?\d+\b/.test(roadName) || /interstate/i.test(roadName)) {
+      return 200; // 200 meters (~655 feet) - interstate termination
+    }
+
+    // US highways and state routes
+    if (/\bus-?\d+\b/.test(roadName) || /\bstate route\b/i.test(roadName)) {
+      return 150; // 150 meters (~490 feet)
+    }
+
+    // Local/arterial roads
+    return 100; // 100 meters (~330 feet) - minimum termination area
   }
 
   /**
