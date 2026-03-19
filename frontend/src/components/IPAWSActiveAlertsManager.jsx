@@ -142,6 +142,34 @@ export default function IPAWSActiveAlertsManager({ onClose, compact = false }) {
     }
   };
 
+  const handleDeleteAlert = async (alertId) => {
+    if (!window.confirm('⚠️ Permanently delete this alert?\n\nThis action cannot be undone. Only use for training/draft alerts.')) {
+      return;
+    }
+
+    setActionInProgress(true);
+    try {
+      const response = await fetch(`${config.apiUrl}/api/ipaws/alerts/${alertId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        window.alert(`✅ Alert deleted successfully!\n\nAlert ID: ${alertId}`);
+        fetchActiveAlerts(); // Refresh list
+      } else {
+        window.alert(`❌ ${data.error}\n\n${data.hint || ''}`);
+        setError(data.error || 'Failed to delete alert');
+      }
+    } catch (err) {
+      console.error('Error deleting alert:', err);
+      setError('Failed to delete alert: ' + err.message);
+    } finally {
+      setActionInProgress(false);
+    }
+  };
+
   const renderAlertCard = (alert) => {
     const timeRemaining = calculateTimeRemaining(alert.created_at, 60); // Default 60 min
     const shouldRenew = needsRenewal(alert.created_at, 60);
@@ -311,6 +339,28 @@ export default function IPAWSActiveAlertsManager({ onClose, compact = false }) {
           >
             ✕ Cancel Alert
           </button>
+
+          {/* Delete button - only for training/draft alerts */}
+          {(alert.status === 'draft' || alert.status === 'training' || alert.action === 'training') && (
+            <button
+              onClick={() => handleDeleteAlert(alert.alert_id)}
+              disabled={actionInProgress}
+              style={{
+                padding: '8px 12px',
+                backgroundColor: '#7f1d1d',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: actionInProgress ? 'wait' : 'pointer',
+                opacity: actionInProgress ? 0.6 : 1
+              }}
+              title="Permanently delete (training/draft only)"
+            >
+              🗑️ Delete
+            </button>
+          )}
         </div>
       </div>
     );

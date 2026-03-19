@@ -12677,6 +12677,63 @@ app.post('/api/ipaws/alerts/:alertId/cancel', async (req, res) => {
   }
 });
 
+// DELETE /api/ipaws/alerts/:alertId - Delete an IPAWS alert (training mode or draft only)
+app.delete('/api/ipaws/alerts/:alertId', async (req, res) => {
+  try {
+    const { alertId } = req.params;
+
+    // Check if alert exists
+    const alertQuery = pgPool
+      ? 'SELECT * FROM ipaws_alert_log WHERE alert_id = $1'
+      : 'SELECT * FROM ipaws_alert_log WHERE alert_id = ?';
+
+    const alert = pgPool
+      ? (await pgPool.query(alertQuery, [alertId])).rows[0]
+      : await db.getAsync(alertQuery, [alertId]);
+
+    if (!alert) {
+      return res.status(404).json({
+        success: false,
+        error: 'Alert not found'
+      });
+    }
+
+    // Only allow deletion of training mode or draft alerts (safety check)
+    if (alert.status === 'issued' && alert.action !== 'training') {
+      return res.status(403).json({
+        success: false,
+        error: 'Cannot delete issued alerts. Use cancel endpoint instead.',
+        hint: 'POST /api/ipaws/alerts/:alertId/cancel'
+      });
+    }
+
+    // Delete from database
+    const deleteQuery = pgPool
+      ? 'DELETE FROM ipaws_alert_log WHERE alert_id = $1'
+      : 'DELETE FROM ipaws_alert_log WHERE alert_id = ?';
+
+    if (pgPool) {
+      await pgPool.query(deleteQuery, [alertId]);
+    } else {
+      await db.runAsync(deleteQuery, [alertId]);
+    }
+
+    console.log(`🗑️  Deleted IPAWS alert: ${alertId} (status: ${alert.status}, action: ${alert.action})`);
+
+    res.json({
+      success: true,
+      message: 'Alert deleted successfully',
+      alertId: alertId
+    });
+  } catch (error) {
+    console.error('Error deleting IPAWS alert:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // POST /api/ipaws/alerts/:alertId/update - Update an active alert (SOP Section 8.6)
 app.post('/api/ipaws/alerts/:alertId/update', async (req, res) => {
   try {
