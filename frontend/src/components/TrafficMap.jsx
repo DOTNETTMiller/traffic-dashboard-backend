@@ -860,25 +860,103 @@ export default function TrafficMap({
 
         {/* IPAWS Geofence Polygon */}
         {ipawsGeofence && ipawsGeofence.coordinates && Array.isArray(ipawsGeofence.coordinates[0]) && (
-          <Polygon
-            positions={
-              // Convert GeoJSON Polygon coordinates [[lng, lat], ...] to Leaflet format [[lat, lng], ...]
-              ipawsGeofence.coordinates[0].map(coord => [coord[1], coord[0]])
-            }
-            pathOptions={{
-              color: '#f59e0b',
-              weight: 3,
-              opacity: 0.8,
-              fillColor: '#fef3c7',
-              fillOpacity: 0.2
-            }}
-          >
-            <Tooltip permanent direction="center" opacity={0.9}>
-              <div style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                📡 IPAWS Geofence
-              </div>
-            </Tooltip>
-          </Polygon>
+          <>
+            {/* If asymmetric geofence with visual zones, render them separately */}
+            {ipawsGeofence.visualZones ? (
+              <>
+                {/* Behind Zone (Red) */}
+                {ipawsGeofence.visualZones.behindZone && (
+                  <Polygon
+                    positions={
+                      ipawsGeofence.visualZones.behindZone.coordinates[0].map(coord => [coord[1], coord[0]])
+                    }
+                    pathOptions={{
+                      color: ipawsGeofence.visualZones.behindZone.color,
+                      weight: 3,
+                      opacity: 0.8,
+                      fillColor: ipawsGeofence.visualZones.behindZone.color,
+                      fillOpacity: 0.15
+                    }}
+                  >
+                    <Tooltip permanent direction="center" opacity={0.9}>
+                      <div style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                        {ipawsGeofence.visualZones.behindZone.label}
+                        <br />
+                        {ipawsGeofence.visualZones.behindZone.lengthMiles} mi
+                      </div>
+                    </Tooltip>
+                  </Polygon>
+                )}
+
+                {/* Ahead/Advance Warning Zone (Orange) */}
+                {ipawsGeofence.visualZones.aheadZone && (
+                  <Polygon
+                    positions={
+                      ipawsGeofence.visualZones.aheadZone.coordinates[0].map(coord => [coord[1], coord[0]])
+                    }
+                    pathOptions={{
+                      color: ipawsGeofence.visualZones.aheadZone.color,
+                      weight: 3,
+                      opacity: 0.8,
+                      fillColor: ipawsGeofence.visualZones.aheadZone.color,
+                      fillOpacity: 0.25
+                    }}
+                  >
+                    <Tooltip permanent direction="center" opacity={0.9}>
+                      <div style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                        🚨 {ipawsGeofence.visualZones.aheadZone.label}
+                        <br />
+                        {ipawsGeofence.visualZones.aheadZone.lengthMiles} mi
+                      </div>
+                    </Tooltip>
+                  </Polygon>
+                )}
+
+                {/* Event Point Marker */}
+                {ipawsGeofence.visualZones.eventPoint && (
+                  <CircleMarker
+                    center={[
+                      ipawsGeofence.visualZones.eventPoint.coordinates[1],
+                      ipawsGeofence.visualZones.eventPoint.coordinates[0]
+                    ]}
+                    radius={8}
+                    pathOptions={{
+                      color: '#111827',
+                      weight: 3,
+                      fillColor: '#fbbf24',
+                      fillOpacity: 1
+                    }}
+                  >
+                    <Tooltip permanent direction="top" opacity={0.95}>
+                      <div style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                        📍 Event Location
+                      </div>
+                    </Tooltip>
+                  </CircleMarker>
+                )}
+              </>
+            ) : (
+              /* Fallback: Single polygon for non-asymmetric geofences */
+              <Polygon
+                positions={
+                  ipawsGeofence.coordinates[0].map(coord => [coord[1], coord[0]])
+                }
+                pathOptions={{
+                  color: '#f59e0b',
+                  weight: 3,
+                  opacity: 0.8,
+                  fillColor: '#fef3c7',
+                  fillOpacity: 0.2
+                }}
+              >
+                <Tooltip permanent direction="center" opacity={0.9}>
+                  <div style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                    📡 IPAWS Geofence
+                  </div>
+                </Tooltip>
+              </Polygon>
+            )}
+          </>
         )}
 
         {/* Saved IPAWS Geofences from Database */}

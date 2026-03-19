@@ -718,6 +718,56 @@ class IPAWSAlertService {
     // Buffer with intelligent distance
     const buffered = turf.buffer(line, bufferMeters, { units: 'meters' });
 
+    // For asymmetric geofences, create visual zones to show advance warning vs behind areas
+    let visualZones = null;
+    if (corridorAheadMiles !== null || corridorBehindMiles !== null) {
+      try {
+        const lineLength = turf.length(line, { units: 'miles' });
+        const midpointDistance = lineLength / 2;
+        const midpoint = turf.along(line, midpointDistance, { units: 'miles' });
+
+        // Create "behind" segment (from start to midpoint)
+        const behindSegment = turf.lineSlice(
+          turf.point(line.geometry.coordinates[0]),
+          midpoint,
+          line
+        );
+        const behindBuffered = turf.buffer(behindSegment, bufferMeters, { units: 'meters' });
+
+        // Create "ahead" segment (from midpoint to end)
+        const aheadSegment = turf.lineSlice(
+          midpoint,
+          turf.point(line.geometry.coordinates[line.geometry.coordinates.length - 1]),
+          line
+        );
+        const aheadBuffered = turf.buffer(aheadSegment, bufferMeters, { units: 'meters' });
+
+        visualZones = {
+          eventPoint: {
+            type: 'Point',
+            coordinates: midpoint.geometry.coordinates
+          },
+          behindZone: {
+            type: 'Polygon',
+            coordinates: behindBuffered.geometry.coordinates,
+            lengthMiles: corridorBehindMiles,
+            color: '#ef4444', // Red
+            label: isReversed ? 'Advance Warning' : 'Behind Event'
+          },
+          aheadZone: {
+            type: 'Polygon',
+            coordinates: aheadBuffered.geometry.coordinates,
+            lengthMiles: corridorAheadMiles,
+            color: '#f59e0b', // Orange
+            label: isReversed ? 'Behind Event' : 'Advance Warning'
+          }
+        };
+      } catch (error) {
+        console.warn('Failed to create visual zones:', error.message);
+        // Continue without zones - will just show single polygon
+      }
+    }
+
     // Extract coordinates for CAP-XML polygon format
     const coords = buffered.geometry.coordinates[0];
     const capPolygon = coords.map(coord => `${coord[1]},${coord[0]}`).join(' ');
@@ -784,7 +834,8 @@ class IPAWSAlertService {
       populationBreakdown: populationBreakdown, // Include detailed breakdown
       trafficDirection: trafficDirection, // Include detected traffic direction
       lineDirection: lineDirection, // Include detected line direction
-      directionSwapped: isReversed // Flag if ahead/behind were swapped
+      directionSwapped: isReversed, // Flag if ahead/behind were swapped
+      visualZones: visualZones // Separate zone geometries for map visualization
     };
 
     // Add warning if fallback was used
