@@ -2432,7 +2432,7 @@ function App() {
               </button>
             )}
 
-            {/* CCAI Logo Overlay */}
+            {/* Matt's Experimental Sandbox Logo Overlay */}
             <div style={{
               position: logoIntroComplete ? 'absolute' : 'fixed',
               top: logoIntroComplete ? '80px' : '50%',
@@ -2441,7 +2441,7 @@ function App() {
               zIndex: logoIntroComplete ? 10000 : 20000,
               pointerEvents: 'none',
               transition: 'all 1.5s ease-in-out',
-              backgroundColor: logoIntroComplete ? 'transparent' : 'white',
+              backgroundColor: logoIntroComplete ? 'transparent' : '#000000',
               width: logoIntroComplete ? 'auto' : '100vw',
               height: logoIntroComplete ? 'auto' : '100vh',
               display: 'flex',
@@ -2450,7 +2450,7 @@ function App() {
             }}>
               <img
                 src="/assets/ccai-logo.png"
-                alt="Connected Corridor Advancement Initiative Logo"
+                alt="Matt's Experimental Sandbox Logo"
                 style={{
                   height: logoIntroComplete ? '120px' : '60vh',
                   maxHeight: logoIntroComplete ? '120px' : '80vh',

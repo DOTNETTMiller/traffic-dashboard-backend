@@ -82,6 +82,34 @@ export default function IPAWSActiveAlerts() {
     }
   };
 
+  const handleDeleteAlert = async (alertId) => {
+    if (!confirm('⚠️ Permanently delete this alert?\n\nThis action cannot be undone. Only use for training/draft alerts.')) {
+      return;
+    }
+
+    setCancelling(true);
+    try {
+      const response = await fetch(`${config.apiUrl}/api/ipaws/alerts/${alertId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(`✅ Alert deleted successfully!\n\nAlert ID: ${alertId}`);
+        setSelectedAlert(null);
+        setCancelReason('');
+        loadActiveAlerts(); // Refresh list
+      } else {
+        alert(`❌ ${data.error}\n\n${data.hint || ''}`);
+      }
+    } catch (err) {
+      alert(`❌ Error: ${err.message}`);
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   if (loading && alerts.length === 0) {
     return (
       <div style={{
@@ -391,6 +419,24 @@ export default function IPAWSActiveAlerts() {
                   }}
                 >
                   📝 Update
+                </button>
+                <button
+                  onClick={() => handleDeleteAlert(alert.alert_id)}
+                  disabled={cancelling}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#7f1d1d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: cancelling ? 'not-allowed' : 'pointer',
+                    opacity: cancelling ? 0.5 : 1
+                  }}
+                  title="Permanently delete alert"
+                >
+                  🗑️ Delete
                 </button>
               </div>
             )}

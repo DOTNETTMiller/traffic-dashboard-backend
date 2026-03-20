@@ -23,6 +23,7 @@ const IFCParser = require('./utils/ifc-parser');
 const multer = require('multer');
 const { Pool } = require('pg');
 const { filterValidGeometries, getGeometryStats } = require('./services/geometry-validator');
+const lifecycleManager = require('./services/event-lifecycle-manager');
 
 // Create a single PostGIS connection pool for the entire application
 const pgPool = process.env.DATABASE_URL ? new Pool({
@@ -37,6 +38,22 @@ const pgPool = process.env.DATABASE_URL ? new Pool({
 if (pgPool) {
   console.log('✅ PostGIS connection pool initialized (DATABASE_URL is set)');
   console.log(`   Connection string: ${process.env.DATABASE_URL.replace(/:[^:@]+@/, ':***@')}`);
+
+  // Initialize lifecycle manager with database pool
+  lifecycleManager.pgPool = pgPool;
+  console.log('✅ Event lifecycle manager initialized with database persistence');
+
+  // Load existing lifecycle data on startup
+  lifecycleManager.loadFromDatabase().catch(err => {
+    console.error('⚠️  Could not load lifecycle data on startup:', err.message);
+  });
+
+  // Clean up old lifecycle records daily
+  setInterval(() => {
+    lifecycleManager.cleanupExpired().catch(err => {
+      console.error('Error cleaning up lifecycle data:', err);
+    });
+  }, 24 * 60 * 60 * 1000); // Once per day
 } else {
   console.log('❌ PostGIS connection pool NOT initialized - DATABASE_URL environment variable is not set');
   console.log('   Interstate geometry snapping will NOT work. Events will show as straight lines.');
@@ -4244,8 +4261,26 @@ async function fetchAndCacheEvents() {
 
     const allEvents = [];
     const allErrors = [];
+    const lifecycleStats = {
+      bySource: {},
+      totalNew: 0,
+      totalUpdated: 0,
+      totalEndTimeExtended: 0
+    };
 
+    // Process each state's events through lifecycle manager
     allResults.forEach(result => {
+      const stateKey = result.state.split(' ')[0].toUpperCase(); // Extract state key
+      const stateSource = stateKey;
+
+      // Process this state's events through lifecycle manager
+      const lifecycleResult = lifecycleManager.processFeedRefresh(result.events, stateSource);
+
+      lifecycleStats.bySource[stateSource] = lifecycleResult;
+      lifecycleStats.totalNew += lifecycleResult.new;
+      lifecycleStats.totalUpdated += lifecycleResult.updated;
+      lifecycleStats.totalEndTimeExtended += lifecycleResult.endTimeExtended;
+
       allEvents.push(...result.events);
       if (result.errors.length > 0) {
         allErrors.push({ state: result.state, errors: result.errors });
@@ -4256,6 +4291,11 @@ async function fetchAndCacheEvents() {
     try {
       const ohioEvents = await fetchOhioEvents();
       if (ohioEvents && ohioEvents.length > 0) {
+        const lifecycleResult = lifecycleManager.processFeedRefresh(ohioEvents, 'OH-API');
+        lifecycleStats.bySource['OH-API'] = lifecycleResult;
+        lifecycleStats.totalNew += lifecycleResult.new;
+        lifecycleStats.totalUpdated += lifecycleResult.updated;
+        lifecycleStats.totalEndTimeExtended += lifecycleResult.endTimeExtended;
         allEvents.push(...ohioEvents);
       }
     } catch (error) {
@@ -4266,6 +4306,11 @@ async function fetchAndCacheEvents() {
     try {
       const caltransEvents = await fetchCaltransLCS();
       if (caltransEvents && caltransEvents.length > 0) {
+        const lifecycleResult = lifecycleManager.processFeedRefresh(caltransEvents, 'CA-LCS');
+        lifecycleStats.bySource['CA-LCS'] = lifecycleResult;
+        lifecycleStats.totalNew += lifecycleResult.new;
+        lifecycleStats.totalUpdated += lifecycleResult.updated;
+        lifecycleStats.totalEndTimeExtended += lifecycleResult.endTimeExtended;
         allEvents.push(...caltransEvents);
       }
     } catch (error) {
@@ -4290,15 +4335,36 @@ async function fetchAndCacheEvents() {
       console.log(`⚠️  Removed ${duplicateCount} duplicate event(s)`);
     }
 
-    console.log(`✅ Fetched ${uniqueEvents.length} unique events (${allEvents.length} total, ${duplicateCount} duplicates removed)`);
+    // Enrich events with lifecycle tracking data
+    const enrichedEvents = lifecycleManager.enrichEvents(uniqueEvents);
+
+    // Filter out events that haven't been seen recently
+    const activeEvents = lifecycleManager.filterActiveEvents(enrichedEvents);
+
+    const removedCount = enrichedEvents.length - activeEvents.length;
+    if (removedCount > 0) {
+      console.log(`🗑️  Removed ${removedCount} event(s) not seen in recent feeds`);
+    }
+
+    // Log lifecycle statistics
+    console.log(`📊 Lifecycle: ${lifecycleStats.totalNew} new, ${lifecycleStats.totalUpdated} updated, ${lifecycleStats.totalEndTimeExtended} end times extended`);
+
+    const managerStats = lifecycleManager.getStats();
+    console.log(`📈 Tracking ${managerStats.totalTracked} events (${managerStats.withNativeEndTime} with native end time, ${managerStats.withEstimatedEndTime} estimated)`);
+
+    console.log(`✅ Fetched ${activeEvents.length} active events (${allEvents.length} total, ${duplicateCount} duplicates, ${removedCount} expired)`);
 
     // Update cache
     const cacheData = {
       success: true,
       timestamp: new Date().toISOString(),
-      totalEvents: uniqueEvents.length,
-      events: uniqueEvents,
-      errors: allErrors
+      totalEvents: activeEvents.length,
+      events: activeEvents,
+      errors: allErrors,
+      lifecycle: {
+        stats: lifecycleStats,
+        managerStats: managerStats
+      }
     };
 
     eventsCache.data = cacheData;
@@ -12736,15 +12802,6 @@ app.delete('/api/ipaws/alerts/:alertId', async (req, res) => {
       return res.status(404).json({
         success: false,
         error: 'Alert not found'
-      });
-    }
-
-    // Only allow deletion of training mode or draft alerts (safety check)
-    if (alert.status === 'issued' && alert.action !== 'training') {
-      return res.status(403).json({
-        success: false,
-        error: 'Cannot delete issued alerts. Use cancel endpoint instead.',
-        hint: 'POST /api/ipaws/alerts/:alertId/cancel'
       });
     }
 
@@ -22707,7 +22764,7 @@ app.get('/api/its-equipment/nearby', async (req, res) => {
     ];
 
     if (stateKey) {
-      query += ' AND state_key = ?';
+      query += ' AND LOWER(state_key) = LOWER(?)';
       params.push(stateKey);
     }
 
