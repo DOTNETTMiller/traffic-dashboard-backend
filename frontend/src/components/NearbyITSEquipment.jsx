@@ -40,10 +40,10 @@ export default function NearbyITSEquipment({ event }) {
       <div style={{
         margin: '8px 0',
         padding: '8px',
-        backgroundColor: '#6b7280',
+        backgroundColor: '#f3f4f6',
         borderRadius: '4px',
         fontSize: '12px',
-        color: '#6b7280'
+        color: '#374151'
       }}>
         🔄 Finding nearby ITS equipment...
       </div>
@@ -115,10 +115,11 @@ export default function NearbyITSEquipment({ event }) {
             {byType.dms > 0 && (
               <div style={{
                 padding: '6px',
-                backgroundColor: '#6b7280',
+                backgroundColor: '#fef3c7',
                 borderRadius: '4px',
                 fontSize: '11px',
-                textAlign: 'center'
+                textAlign: 'center',
+                color: '#92400e'
               }}>
                 🚏 {byType.dms} DMS Sign{byType.dms !== 1 ? 's' : ''}
               </div>
@@ -173,17 +174,18 @@ export default function NearbyITSEquipment({ event }) {
                   <div key={cam.id} style={{
                     fontSize: '10px',
                     padding: '4px 6px',
-                    backgroundColor: '#6b7280',
+                    backgroundColor: '#eff6ff',
                     borderRadius: '3px',
                     marginBottom: '3px',
                     display: 'flex',
                     justifyContent: 'space-between',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    color: '#1e40af'
                   }}>
                     <div>
                       <span style={{ fontWeight: '600' }}>{cam.route || 'Camera'}</span>
-                      {cam.milepost && <span style={{ color: '#6b7280' }}> MP {cam.milepost}</span>}
-                      <span style={{ color: '#9ca3af', marginLeft: '4px' }}>
+                      {cam.milepost && <span style={{ color: '#3b82f6' }}> MP {cam.milepost}</span>}
+                      <span style={{ color: '#6b7280', marginLeft: '4px' }}>
                         ({cam.distance_miles?.toFixed(1)} mi)
                       </span>
                     </div>
@@ -196,7 +198,7 @@ export default function NearbyITSEquipment({ event }) {
                           fontSize: '9px',
                           padding: '2px 6px',
                           backgroundColor: '#3b82f6',
-                          color: '#111827',
+                          color: 'white',
                           borderRadius: '3px',
                           textDecoration: 'none'
                         }}
@@ -224,17 +226,18 @@ export default function NearbyITSEquipment({ event }) {
                   <div key={dms.id} style={{
                     fontSize: '10px',
                     padding: '4px 6px',
-                    backgroundColor: '#6b7280',
+                    backgroundColor: '#fef3c7',
                     borderRadius: '3px',
-                    marginBottom: '3px'
+                    marginBottom: '3px',
+                    color: '#92400e'
                   }}>
                     <span style={{ fontWeight: '600' }}>{dms.route || 'DMS'}</span>
-                    {dms.milepost && <span style={{ color: '#6b7280' }}> MP {dms.milepost}</span>}
-                    <span style={{ color: '#9ca3af', marginLeft: '4px' }}>
+                    {dms.milepost && <span style={{ color: '#d97706' }}> MP {dms.milepost}</span>}
+                    <span style={{ color: '#78716c', marginLeft: '4px' }}>
                       ({dms.distance_miles?.toFixed(1)} mi)
                     </span>
                     {dms.location_description && (
-                      <div style={{ fontSize: '9px', color: '#6b7280', marginTop: '2px' }}>
+                      <div style={{ fontSize: '9px', color: '#a16207', marginTop: '2px' }}>
                         {dms.location_description}
                       </div>
                     )}
@@ -257,9 +260,9 @@ export default function NearbyITSEquipment({ event }) {
                 <div style={{
                   fontSize: '9px',
                   padding: '4px 6px',
-                  backgroundColor: '#6b7280',
+                  backgroundColor: '#d1fae5',
                   borderRadius: '3px',
-                  color: '#6b7280'
+                  color: '#065f46'
                 }}>
                   {grouped.sensors.filter(s => s.sensor_type === 'rwis').length} weather sensors,
                   {' '}{grouped.sensors.filter(s => s.sensor_type === 'traffic').length} traffic sensors available
@@ -276,9 +279,9 @@ export default function NearbyITSEquipment({ event }) {
                 <div style={{
                   fontSize: '9px',
                   padding: '4px 6px',
-                  backgroundColor: '#6b7280',
+                  backgroundColor: '#e9d5ff',
                   borderRadius: '3px',
-                  color: '#6b7280'
+                  color: '#6b21a8'
                 }}>
                   Connected vehicle messaging available in this area
                 </div>

@@ -28,6 +28,18 @@ function validateAndFixGeometry(event) {
     return null; // No geometry - filter out
   }
 
+  // Filter out events with no description AND no location (likely bad data)
+  if ((!event.description || event.description.trim() === '') &&
+      (!event.location || event.location.trim() === '')) {
+    return null; // Invalid event - no content
+  }
+
+  // Filter out straight-line fallback geometries (unreliable)
+  if (event.geometry.geometrySource === 'straight_line' ||
+      event.geometry.geometrySource === 'straight') {
+    return null; // Unreliable geometry source
+  }
+
   const geom = event.geometry;
 
   // Handle Point geometry - always valid
@@ -45,10 +57,16 @@ function validateAndFixGeometry(event) {
     }
 
     // FIX: Convert SHORT 2-point LineStrings (≤0.5 miles) to Points
-    // Keep LONG 2-point LineStrings (>0.5 miles) as LineStrings for corridor geofencing
+    // Filter out UNREALISTICALLY LONG 2-point LineStrings (>20 miles) - likely errors
+    // Keep REASONABLE 2-point LineStrings (0.5-20 miles) as LineStrings for corridor geofencing
     if (geom.coordinates.length === 2) {
       const [start, end] = geom.coordinates;
       const distanceMiles = calculateDistance(start, end);
+
+      // Filter out unrealistically long 2-point lines (likely bad data)
+      if (distanceMiles > 20) {
+        return null; // Invalid - unrealistically long segment
+      }
 
       // If 2-point geometry is over 0.5 miles, keep it as LineString
       if (distanceMiles > 0.5) {

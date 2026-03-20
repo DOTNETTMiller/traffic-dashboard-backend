@@ -506,16 +506,39 @@ export default function TrafficMap({
     .filter(e => {
       const lat = parseFloat(e.latitude);
       const lng = parseFloat(e.longitude);
-      return (
-        !isNaN(lat) &&
-        !isNaN(lng) &&
-        lat !== 0 &&
-        lng !== 0 &&
-        lat >= -90 &&
-        lat <= 90 &&
-        lng >= -180 &&
-        lng <= 180
-      );
+
+      // Basic coordinate validation
+      if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0 ||
+          lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        return false;
+      }
+
+      // Filter out events with no description AND no location (likely bad data)
+      if ((!e.description || e.description.trim() === '') &&
+          (!e.location || e.location.trim() === '')) {
+        console.log(`🚫 Filtering event with no description/location: ${e.id}`);
+        return false;
+      }
+
+      // Filter out straight-line fallback geometries (unreliable)
+      if (e.geometry?.geometrySource === 'straight_line' ||
+          e.geometry?.geometrySource === 'straight') {
+        console.log(`🚫 Filtering straight-line fallback geometry: ${e.id} (${e.corridor || 'no corridor'})`);
+        return false;
+      }
+
+      // Filter out unrealistically long 2-point lines (> 20 miles)
+      if (e.geometry?.type === 'LineString' &&
+          e.geometry?.coordinates?.length === 2) {
+        const [start, end] = e.geometry.coordinates;
+        const distance = calculateDistance(start[1], start[0], end[1], end[0]);
+        if (distance > 20) {
+          console.log(`🚫 Filtering unrealistically long 2-point line: ${e.id} (${distance.toFixed(2)} miles)`);
+          return false;
+        }
+      }
+
+      return true;
     })
     .map(e => validateAndFixGeometry(e))
     .filter(e => e !== null);
@@ -960,8 +983,15 @@ export default function TrafficMap({
                 fillOpacity: 0.15
               }}
             >
-              <Popup autoPan={false} keepInView={false}>
-                <div style={{ maxWidth: '220px' }}>
+              <Popup
+                maxWidth={300}
+                minWidth={250}
+                autoPan={true}
+                keepInView={true}
+                closeButton={true}
+                className="compact-popup"
+              >
+                <div style={{ maxWidth: '260px' }}>
                   <h4 style={{ margin: '0 0 8px 0' }}>🚨 Saved IPAWS Geofence</h4>
                   <p style={{ margin: '4px 0', fontSize: '13px' }}>
                     <strong>Event ID:</strong> {saved.eventId}
@@ -982,20 +1012,27 @@ export default function TrafficMap({
                     style={{
                       width: '100%',
                       marginTop: '8px',
-                      padding: '6px',
+                      padding: '8px',
                       backgroundColor: '#dc2626',
                       color: 'white',
                       border: 'none',
                       borderRadius: '4px',
-                      fontSize: '12px',
+                      fontSize: '13px',
                       fontWeight: '600',
                       cursor: 'pointer'
                     }}
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#b91c1c'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = '#dc2626'}
                   >
                     🗑️ Delete Geofence
                   </button>
                 </div>
               </Popup>
+              <Tooltip permanent direction="center" opacity={0.8}>
+                <div style={{ textAlign: 'center', fontSize: '11px', fontWeight: 'bold' }}>
+                  🚨 IPAWS Alert
+                </div>
+              </Tooltip>
             </Polygon>
           );
         })}
