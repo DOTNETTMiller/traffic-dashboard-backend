@@ -35127,7 +35127,8 @@ app.use(express.static(path.join(__dirname, 'frontend/dist'), {
       res.setHeader('Expires', '0');
     }
     // Long-term caching for hashed assets (1 year) - JS/CSS with content hashes
-    else if (/\.(js|css|woff2?|ttf|eot)$/.test(filePath) && /-[a-f0-9]{8,}\.(js|css)$/.test(filePath)) {
+    // Updated regex to match Vite's base64-style hashes (e.g., index-2G22UR90.js)
+    else if (/\.(js|css|woff2?|ttf|eot)$/.test(filePath) && /-[A-Za-z0-9_-]{8,}\.(js|css)$/.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     }
     // Medium-term caching for other static assets (1 week)
