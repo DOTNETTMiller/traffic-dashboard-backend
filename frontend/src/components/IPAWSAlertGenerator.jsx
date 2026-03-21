@@ -111,6 +111,12 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     // Set new timer for debounced regeneration
     const timer = setTimeout(() => {
       console.log('🔄 Auto-regenerating geofence with updated parameters...');
+      console.log('  Parameters:', {
+        bufferFeet,
+        corridorAheadMiles,
+        corridorBehindMiles,
+        advanceWarningMode
+      });
       handleRegenerateGeofence();
     }, 800); // 800ms debounce - adjust as slider moves
 
@@ -122,7 +128,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         clearTimeout(timer);
       }
     };
-  }, [bufferFeet, corridorAheadMiles, corridorBehindMiles, corridorLengthMiles, advanceWarningMode, livePreview]);
+  }, [bufferFeet, corridorAheadMiles, corridorBehindMiles, corridorLengthMiles, advanceWarningMode, livePreview, avoidUrbanAreas]);
 
   // Helper function to detect direction from text
   const detectDirection = (text) => {
@@ -474,9 +480,21 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
       if (advanceWarningMode) {
         requestBody.corridorAheadMiles = corridorAheadMiles;
         requestBody.corridorBehindMiles = corridorBehindMiles;
+        console.log('  ✓ Added advance warning parameters to request:', {
+          corridorAheadMiles,
+          corridorBehindMiles
+        });
       } else if (corridorLengthMiles) {
         requestBody.corridorLengthMiles = corridorLengthMiles;
+        console.log('  ✓ Added symmetric corridor length:', corridorLengthMiles);
       }
+
+      console.log('📤 Sending geofence regeneration request:', {
+        bufferFeet: requestBody.bufferFeet,
+        corridorAheadMiles: requestBody.corridorAheadMiles,
+        corridorBehindMiles: requestBody.corridorBehindMiles,
+        advanceWarningMode
+      });
 
       const response = await fetch(`${config.apiUrl}/api/ipaws/generate`, {
         method: 'POST',

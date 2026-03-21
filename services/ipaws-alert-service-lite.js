@@ -64,7 +64,7 @@ class IPAWSAuditLogger {
       ];
 
       const stmt = db.db.prepare(sql);
-      const result = stmt.run(...params);
+      const result = await stmt.run(...params);
 
       console.log(`✅ IPAWS alert logged (lightweight): ${params[0]} (ID: ${result.lastInsertRowid})`);
       return {
@@ -73,7 +73,12 @@ class IPAWSAuditLogger {
       };
     } catch (err) {
       console.error('Failed to log IPAWS alert:', err);
-      throw err;
+      // Don't throw - allow alert generation to continue even if logging fails
+      return {
+        logId: null,
+        alertId: null,
+        error: err.message
+      };
     }
   }
 
@@ -100,20 +105,20 @@ class IPAWSAuditLogger {
 
       const sql = `UPDATE ipaws_alert_log_lite SET ${updates.join(', ')} WHERE alert_id = ?`;
       const stmt = db.db.prepare(sql);
-      const result = stmt.run(...params);
+      const result = await stmt.run(...params);
 
       console.log(`✅ IPAWS alert status updated (lightweight): ${alertId} → ${status}`);
       return { updated: result.changes > 0 };
     } catch (err) {
       console.error('Failed to update IPAWS alert status:', err);
-      throw err;
+      return { updated: false, error: err.message };
     }
   }
 
   /**
    * Get active alerts
    */
-  static getActiveAlerts() {
+  static async getActiveAlerts() {
     try {
       const stmt = db.db.prepare(`
         SELECT
@@ -131,13 +136,13 @@ class IPAWSAuditLogger {
         ORDER BY created_at DESC
       `);
 
-      const rows = stmt.all();
+      const rows = await stmt.all();
 
-      // Parse JSON data
+      // Parse JSON data (handle both JSONB from PostgreSQL and TEXT from SQLite)
       return rows.map(row => ({
         ...row,
-        alert_data: JSON.parse(row.alert_data || '{}'),
-        geofence_data: JSON.parse(row.geofence_data || '{}')
+        alert_data: typeof row.alert_data === 'string' ? JSON.parse(row.alert_data || '{}') : row.alert_data,
+        geofence_data: typeof row.geofence_data === 'string' ? JSON.parse(row.geofence_data || '{}') : row.geofence_data
       }));
     } catch (err) {
       console.error('Failed to get active alerts:', err);
@@ -148,7 +153,7 @@ class IPAWSAuditLogger {
   /**
    * Export to HSEMD format (SOP Section 11 requirement)
    */
-  static exportToHSEMD(startDate, endDate) {
+  static async exportToHSEMD(startDate, endDate) {
     try {
       const stmt = db.db.prepare(`
         SELECT
@@ -167,12 +172,12 @@ class IPAWSAuditLogger {
         ORDER BY created_at DESC
       `);
 
-      const rows = stmt.all(startDate, endDate);
+      const rows = await stmt.all(startDate, endDate);
 
-      // Parse JSON and format for HSEMD
+      // Parse JSON and format for HSEMD (handle both JSONB from PostgreSQL and TEXT from SQLite)
       return rows.map(row => {
-        const alert = JSON.parse(row.alert_data || '{}');
-        const geofence = JSON.parse(row.geofence_data || '{}');
+        const alert = typeof row.alert_data === 'string' ? JSON.parse(row.alert_data || '{}') : row.alert_data;
+        const geofence = typeof row.geofence_data === 'string' ? JSON.parse(row.geofence_data || '{}') : row.geofence_data;
 
         return {
           alertId: row.alert_id,

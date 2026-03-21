@@ -631,6 +631,15 @@ class IPAWSAlertService {
       avoidUrbanAreas = false
     } = options;
 
+    console.log('  🗺️  generateGeofence received options:', {
+      customBufferMiles,
+      customBufferFeet,
+      corridorLengthMiles,
+      corridorAheadMiles,
+      corridorBehindMiles,
+      avoidUrbanAreas
+    });
+
     // Get intelligent recommendation
     const recommendation = this.getGeofenceRecommendation(event);
 
@@ -670,6 +679,7 @@ class IPAWSAlertService {
     // Limit corridor length if specified - supports both symmetric and asymmetric trimming
     if (corridorAheadMiles !== null || corridorBehindMiles !== null || (corridorLengthMiles && corridorLengthMiles > 0)) {
       const lineLength = turf.length(line, { units: 'miles' });
+      console.log(`  📏 Original line length: ${lineLength.toFixed(2)} mi`);
 
       let distanceAhead, distanceBehind;
 
@@ -685,6 +695,7 @@ class IPAWSAlertService {
         } else {
           distanceAhead = corridorAheadMiles !== null ? corridorAheadMiles : lineLength / 2;
           distanceBehind = corridorBehindMiles !== null ? corridorBehindMiles : lineLength / 2;
+          console.log(`  ✅ Using: ahead=${distanceAhead}mi, behind=${distanceBehind}mi (not reversed)`);
         }
       }
       // Symmetric corridor (legacy mode)
@@ -692,10 +703,12 @@ class IPAWSAlertService {
         const halfLength = corridorLengthMiles / 2;
         distanceAhead = halfLength;
         distanceBehind = halfLength;
+        console.log(`  ⚖️  Symmetric mode: ${distanceAhead}mi ahead, ${distanceBehind}mi behind`);
       } else {
         // No trimming needed
         distanceAhead = lineLength;
         distanceBehind = 0;
+        console.log(`  ℹ️  No corridor trimming applied`);
       }
 
       // Find the midpoint of the line (event location)
@@ -709,9 +722,13 @@ class IPAWSAlertService {
       const endDistance = Math.min(lineLength, (lineLength / 2) + distanceAhead);
       const endPoint = turf.along(line, endDistance, { units: 'miles' });
 
+      console.log(`  ✂️  Trimming line: start at ${startDistance.toFixed(2)}mi, end at ${endDistance.toFixed(2)}mi`);
+
       // Build new line with start -> midpoint -> end
       // This ensures the line follows the original corridor geometry
       const slicedLine = turf.lineSlice(startPoint, endPoint, line);
+      const slicedLength = turf.length(slicedLine, { units: 'miles' });
+      console.log(`  📐 Trimmed line length: ${slicedLength.toFixed(2)} mi (was ${lineLength.toFixed(2)} mi)`);
       line = slicedLine;
     }
 

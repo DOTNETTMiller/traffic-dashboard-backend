@@ -12519,6 +12519,13 @@ app.post('/api/ipaws/generate', async (req, res) => {
     if (user) options.user = user;
 
     console.log('🚨 Starting IPAWS alert generation for:', eventData.corridor || eventData.id);
+    console.log('  📋 Geofence options:', {
+      bufferFeet: options.bufferFeet,
+      bufferMiles: options.bufferMiles,
+      corridorAheadMiles: options.corridorAheadMiles,
+      corridorBehindMiles: options.corridorBehindMiles,
+      corridorLengthMiles: options.corridorLengthMiles
+    });
 
     // Add 25-second timeout wrapper for entire alert generation
     const alertPromise = ipawsService.generateAlert(eventData, options);
@@ -35214,6 +35221,10 @@ function startServer() {
 
   const allStates = await db.getAllStates();
   console.log(`\n🌐 Connected to ${allStates.length} state DOT APIs`);
+
+  // Setup IPAWS audit log table (create if doesn't exist)
+  const setupIPAWSTable = require('./setup_ipaws_table');
+  await setupIPAWSTable();
 
   // Load Interstate polylines (I-80, I-35) into memory cache
   await loadInterstatePolylines();
