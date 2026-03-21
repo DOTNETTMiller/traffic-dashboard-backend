@@ -612,6 +612,55 @@ class IPAWSAlertService {
   }
 
   /**
+   * Extend event geometry along corridor for advance warning
+   * Extends the line by projecting along its bearing at both ends
+   */
+  async extendEventGeometry(event, currentLine, options = {}) {
+    const { corridorAheadMiles = 0, corridorBehindMiles = 0 } = options;
+
+    try {
+      const coords = currentLine.geometry.coordinates;
+      if (coords.length < 2) return null;
+
+      const lineLength = turf.length(currentLine, { units: 'miles' });
+      const totalDesiredLength = lineLength + corridorAheadMiles + corridorBehindMiles;
+
+      // If the desired extension is small compared to the line, don't bother
+      if (corridorAheadMiles + corridorBehindMiles < 0.1) {
+        return currentLine;
+      }
+
+      // Get bearings at start and end
+      const startPoint = turf.point(coords[0]);
+      const secondPoint = turf.point(coords[Math.min(1, coords.length - 1)]);
+      const endPoint = turf.point(coords[coords.length - 1]);
+      const secondToLastPoint = turf.point(coords[Math.max(0, coords.length - 2)]);
+
+      // Calculate bearings (in reverse at start for extending backward)
+      const startBearing = turf.bearing(secondPoint, startPoint); // Reverse direction
+      const endBearing = turf.bearing(secondToLastPoint, endPoint);
+
+      // Extend backward (behind)
+      let extendedCoords = [...coords];
+      if (corridorBehindMiles > 0) {
+        const extendedStart = turf.destination(startPoint, corridorBehindMiles, startBearing, { units: 'miles' });
+        extendedCoords = [extendedStart.geometry.coordinates, ...extendedCoords];
+      }
+
+      // Extend forward (ahead)
+      if (corridorAheadMiles > 0) {
+        const extendedEnd = turf.destination(endPoint, corridorAheadMiles, endBearing, { units: 'miles' });
+        extendedCoords = [...extendedCoords, extendedEnd.geometry.coordinates];
+      }
+
+      return turf.lineString(extendedCoords);
+    } catch (error) {
+      console.log(`     ⚠️  Error extending geometry: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
    * Generate geofence for alert area
    * Per policy: Intelligent buffer based on event type, population masking
    * Supports both miles and feet for buffer width
@@ -659,6 +708,28 @@ class IPAWSAlertService {
 
     // Create line from event geometry
     let line = turf.lineString(event.geometry.coordinates);
+    const originalLineLength = turf.length(line, { units: 'miles' });
+
+    // If extending ahead/behind, try to get extended corridor geometry
+    if (corridorAheadMiles !== null || corridorBehindMiles !== null) {
+      console.log(`  🔧 Attempting to extend event geometry for advance warning...`);
+      console.log(`     Original line: ${originalLineLength.toFixed(2)} mi`);
+      console.log(`     Requested extension: ${corridorAheadMiles}mi ahead, ${corridorBehindMiles}mi behind`);
+
+      const extendedLine = await this.extendEventGeometry(event, line, {
+        corridorAheadMiles,
+        corridorBehindMiles
+      });
+
+      if (extendedLine) {
+        const extendedLength = turf.length(extendedLine, { units: 'miles' });
+        console.log(`     ✅ Extended line: ${extendedLength.toFixed(2)} mi (${(extendedLength - originalLineLength).toFixed(2)} mi added)`);
+        line = extendedLine;
+      } else {
+        console.log(`     ⚠️  Could not extend geometry - using original event polyline`);
+        console.log(`     Note: Extension limited to ${originalLineLength.toFixed(2)} mi`);
+      }
+    }
 
     // Determine traffic direction from event data
     const trafficDirection = this.detectTrafficDirection(event);
