@@ -515,10 +515,16 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           geofence: data.geofence
         }));
 
-        // Notify parent component of geofence update
+        // Notify parent component of geofence update with centering flag
         if (onGeofenceUpdate) {
-          onGeofenceUpdate(data.geofence);
+          onGeofenceUpdate(data.geofence, { centerMap: true });
         }
+
+        // Dispatch custom event for map centering
+        const centerEvent = new CustomEvent('ipaws-geofence-update', {
+          detail: { geofence: data.geofence, shouldCenter: true }
+        });
+        window.dispatchEvent(centerEvent);
       } else {
         setError(data.error || 'Failed to regenerate geofence');
       }

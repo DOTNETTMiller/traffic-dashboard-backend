@@ -709,6 +709,7 @@ class IPAWSAlertService {
     // Create line from event geometry
     let line = turf.lineString(event.geometry.coordinates);
     const originalLineLength = turf.length(line, { units: 'miles' });
+    let skipTrimming = false; // Flag to skip trimming if we extended
 
     // If extending ahead/behind, try to get extended corridor geometry
     if (corridorAheadMiles !== null || corridorBehindMiles !== null) {
@@ -725,6 +726,7 @@ class IPAWSAlertService {
         const extendedLength = turf.length(extendedLine, { units: 'miles' });
         console.log(`     ✅ Extended line: ${extendedLength.toFixed(2)} mi (${(extendedLength - originalLineLength).toFixed(2)} mi added)`);
         line = extendedLine;
+        skipTrimming = true; // Extension already created the correct length - don't trim!
       } else {
         console.log(`     ⚠️  Could not extend geometry - using original event polyline`);
         console.log(`     Note: Extension limited to ${originalLineLength.toFixed(2)} mi`);
@@ -748,9 +750,10 @@ class IPAWSAlertService {
     }
 
     // Limit corridor length if specified - supports both symmetric and asymmetric trimming
-    if (corridorAheadMiles !== null || corridorBehindMiles !== null || (corridorLengthMiles && corridorLengthMiles > 0)) {
+    // Skip trimming if we already extended the geometry (extension already created correct length)
+    if (!skipTrimming && (corridorAheadMiles !== null || corridorBehindMiles !== null || (corridorLengthMiles && corridorLengthMiles > 0))) {
       const lineLength = turf.length(line, { units: 'miles' });
-      console.log(`  📏 Original line length: ${lineLength.toFixed(2)} mi`);
+      console.log(`  📏 Line length for trimming: ${lineLength.toFixed(2)} mi`);
 
       let distanceAhead, distanceBehind;
 

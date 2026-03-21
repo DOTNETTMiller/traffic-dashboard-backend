@@ -70,6 +70,50 @@ function MapRefCapturer({ mapRef }) {
   return null;
 }
 
+// Component to listen for IPAWS geofence updates and center map
+function IPAWSGeofenceCenterController() {
+  const map = useMap();
+
+  useEffect(() => {
+    const handleGeofenceUpdate = (event) => {
+      const { geofence, shouldCenter } = event.detail;
+
+      if (shouldCenter && geofence && geofence.coordinates && geofence.coordinates[0]) {
+        try {
+          // Get all coordinates from the polygon
+          const coords = geofence.coordinates[0];
+
+          // Convert to Leaflet LatLng format
+          const latLngs = coords.map(coord => [coord[1], coord[0]]); // [lat, lng]
+
+          // Calculate bounds
+          const bounds = L.latLngBounds(latLngs);
+
+          // Fit map to bounds with padding
+          map.fitBounds(bounds, {
+            padding: [50, 50],
+            animate: true,
+            duration: 0.5,
+            maxZoom: 14
+          });
+
+          console.log('🗺️ Map centered on IPAWS geofence');
+        } catch (error) {
+          console.error('Error centering map on geofence:', error);
+        }
+      }
+    };
+
+    window.addEventListener('ipaws-geofence-update', handleGeofenceUpdate);
+
+    return () => {
+      window.removeEventListener('ipaws-geofence-update', handleGeofenceUpdate);
+    };
+  }, [map]);
+
+  return null;
+}
+
 // Fix for default marker icons in React-Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -572,6 +616,9 @@ export default function TrafficMap({
       >
         {/* Map center controller */}
         <MapCenterController selectedEvent={selectedEvent} />
+
+        {/* IPAWS geofence center controller */}
+        <IPAWSGeofenceCenterController />
 
         {/* Capture map reference */}
         <MapRefCapturer mapRef={mapRef} />
