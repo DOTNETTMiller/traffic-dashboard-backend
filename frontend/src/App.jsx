@@ -2633,8 +2633,8 @@ function App() {
         )}
       </div>
 
-      {/* Messaging Modal */}
-      {selectedEvent && (
+      {/* Messaging Modal - hide when IPAWS geofence is active */}
+      {selectedEvent && !ipawsGeofence && (
         <EventMessaging
           event={selectedEvent}
           messages={eventMessages}
@@ -2644,8 +2644,8 @@ function App() {
         />
       )}
 
-      {/* AI Chat Widget */}
-      {isAuthenticated && currentUser && (
+      {/* AI Chat Widget - hide when IPAWS geofence is active */}
+      {isAuthenticated && currentUser && !ipawsGeofence && (
         <ChatWidget
           user={currentUser}
           isDarkMode={isDarkMode}

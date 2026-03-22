@@ -89,6 +89,9 @@ function IPAWSGeofenceCenterController() {
           // Calculate bounds
           const bounds = L.latLngBounds(latLngs);
 
+          // Close any open popups so they don't block the geofence view
+          map.closePopup();
+
           // Fit map to bounds with padding
           map.fitBounds(bounds, {
             padding: [50, 50],
@@ -848,8 +851,8 @@ export default function TrafficMap({
                           lineCap: 'round'
                         }}
                       >
-                        {/* Only attach tooltip/popup to first line to avoid duplicates */}
-                        {index === 0 && (
+                        {/* Only attach tooltip/popup to first line to avoid duplicates; hide when IPAWS active */}
+                        {index === 0 && !ipawsGeofence && (
                           <>
                             <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
                               {tooltipContent}
@@ -879,20 +882,25 @@ export default function TrafficMap({
                 icon={getMarkerIcon(event, hasMessages, messageCount)}
                 zIndexOffset={hasMessages ? 1000 : 0}
                 eventId={event.id}
+                opacity={eventOpacity}
               >
-                <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
-                  {tooltipContent}
-                </Tooltip>
-                <Popup
-                  maxWidth={300}
-                  minWidth={280}
-                  autoPan={false}
-                  keepInView={false}
-                  closeButton={true}
-                  className="compact-popup"
-                >
-                  {popupContent}
-                </Popup>
+                {!ipawsGeofence && (
+                  <>
+                    <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
+                      {tooltipContent}
+                    </Tooltip>
+                    <Popup
+                      maxWidth={300}
+                      minWidth={280}
+                      autoPan={false}
+                      keepInView={false}
+                      closeButton={true}
+                      className="compact-popup"
+                    >
+                      {popupContent}
+                    </Popup>
+                  </>
+                )}
               </Marker>
             </div>
           );
