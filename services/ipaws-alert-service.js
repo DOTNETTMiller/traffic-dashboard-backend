@@ -809,6 +809,12 @@ class IPAWSAlertService {
     // Buffer with intelligent distance
     const buffered = turf.buffer(line, bufferMeters, { units: 'meters' });
 
+    // Store the centerline for proper polyline rendering on the map
+    const centerline = {
+      type: 'LineString',
+      coordinates: line.geometry.coordinates
+    };
+
     // For asymmetric geofences, create visual zones to show advance warning vs behind areas
     let visualZones = null;
     if (corridorAheadMiles !== null || corridorBehindMiles !== null) {
@@ -906,6 +912,7 @@ class IPAWSAlertService {
     const geofenceResult = {
       type: 'Polygon',
       coordinates: buffered.geometry.coordinates,
+      centerline: centerline, // Include centerline for proper polyline rendering
       capFormat: capPolygon,
       estimatedPopulation: populationBreakdown.total,
       populationConfidence: populationBreakdown.confidence,

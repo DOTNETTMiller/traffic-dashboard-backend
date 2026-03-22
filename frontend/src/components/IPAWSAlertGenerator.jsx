@@ -48,6 +48,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
   const [regenerating, setRegenerating] = useState(false);
   const [livePreview, setLivePreview] = useState(true); // Enable/disable live preview
   const [debounceTimer, setDebounceTimer] = useState(null);
+  const [showGeofenceControls, setShowGeofenceControls] = useState(false); // Collapse controls by default
 
   useEffect(() => {
     if (event) {
@@ -93,6 +94,12 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     if (alert?.success && alert?.geofence && onGeofenceUpdate) {
       console.log('🗺️ Sending geofence to map:', alert.geofence);
       onGeofenceUpdate(alert.geofence);
+
+      // Dispatch custom event for map centering on initial load
+      const centerEvent = new CustomEvent('ipaws-geofence-update', {
+        detail: { geofence: alert.geofence, shouldCenter: true }
+      });
+      window.dispatchEvent(centerEvent);
     }
   }, [alert, onGeofenceUpdate]);
 
@@ -985,168 +992,64 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         <h3 style={{
           color: '#111827',
           marginTop: 0,
-          marginBottom: '16px',
-          fontSize: '16px',
+          marginBottom: '12px',
+          fontSize: '14px',
           fontWeight: '700'
         }}>
           Geofence & Population Analysis
         </h3>
 
-        {/* Map Display Notice */}
+        {/* Map Display Notice - Compact version */}
         {alert.geofence && (
           <div style={{
-            padding: theme.spacing.md,
+            padding: theme.spacing.sm,
             background: '#dbeafe',
-            border: '2px solid #3b82f6',
-            borderRadius: '8px',
-            marginBottom: theme.spacing.lg,
+            border: '1px solid #3b82f6',
+            borderRadius: '6px',
+            marginBottom: theme.spacing.md,
             display: 'flex',
             alignItems: 'center',
-            gap: theme.spacing.sm
+            gap: theme.spacing.xs
           }}>
-            <div style={{ fontSize: '18px' }}>🗺️</div>
-            <div style={{ flex: 1 }}>
-              <div style={{
-                fontSize: '13px',
-                fontWeight: '700',
-                color: '#1e40af',
-                marginBottom: '4px'
-              }}>
-                Panel Moved to Right - View Map on Left
-              </div>
-              <div style={{
-                fontSize: '12px',
-                color: '#1e3a8a'
-              }}>
-                The {formatBufferDisplay(alert.geofence.bufferMiles)} buffer zone (orange polygon) is displayed on the map. <strong>Adjust sliders below to see real-time updates.</strong>
-              </div>
+            <div style={{ fontSize: '14px' }}>🗺️</div>
+            <div style={{ flex: 1, fontSize: '11px', color: '#1e3a8a' }}>
+              Geofence displayed on map (orange). <strong>Adjust below</strong>
             </div>
           </div>
         )}
 
-        {/* Recommendation Banner */}
+        {/* Recommendation Banner - Compact */}
         {hasRecommendation && (
           <div style={{
-            padding: theme.spacing.md,
+            padding: theme.spacing.sm,
             background: `${theme.colors.primary.main}15`,
             border: `1px solid ${theme.colors.primary.main}`,
-            borderRadius: '12px',
-            marginBottom: theme.spacing.lg
+            borderRadius: '6px',
+            marginBottom: theme.spacing.md,
+            fontSize: '11px'
           }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'start',
-              gap: theme.spacing.sm
-            }}>
-              <div style={{ fontSize: '18px' }}>💡</div>
-              <div style={{ flex: 1 }}>
-                <div style={{
-                  fontSize: '13px',
-                  fontWeight: '700',
-                  color: "#111827",
-                  marginBottom: theme.spacing.xs
-                }}>
-                  Intelligent Geofence Recommendation
-                </div>
-                <div style={{
-                  fontSize: '12px',
-                  color: "#4b5563",
-                  marginBottom: theme.spacing.sm
-                }}>
-                  Based on event type "{alert.geofence.recommendation.eventType}":
-                  <strong> {alert.geofence.recommendation.adjustedBufferMiles} mile buffer</strong>
-                </div>
-                <div style={{
-                  fontSize: '11px',
-                  color: "#6b7280",
-                  fontStyle: 'italic'
-                }}>
-                  {alert.geofence.reasoning}
-                </div>
-                {alert.geofence.recommendation.adjustments.severityAdjusted && (
-                  <div style={{
-                    fontSize: '10px',
-                    color: "#9ca3af",
-                    marginTop: theme.spacing.xs
-                  }}>
-                    ℹ️ Adjusted for {event.severity} severity
-                  </div>
-                )}
-                {alert.geofence.recommendation.adjustments.lanesAdjusted && (
-                  <div style={{
-                    fontSize: '10px',
-                    color: "#9ca3af",
-                    marginTop: '2px'
-                  }}>
-                    ℹ️ Adjusted for {event.lanesAffected} lane(s) affected
-                  </div>
-                )}
-              </div>
+            <div style={{ color: "#4b5563" }}>
+              💡 <strong>{alert.geofence.recommendation.adjustedBufferMiles} mi buffer</strong> recommended for "{alert.geofence.recommendation.eventType}"
             </div>
           </div>
         )}
 
-        {/* Population Breakdown */}
+        {/* Population Breakdown - Compact */}
         {alert.geofence?.populationBreakdown && (alert.geofence.populationBreakdown.rural !== undefined || alert.geofence.populationBreakdown.urban !== undefined) && (
           <div style={{
-            padding: theme.spacing.md,
-            background: `${theme.colors.primary.main}15`,
+            padding: theme.spacing.sm,
+            background: `${theme.colors.primary.main}10`,
             border: `1px solid ${theme.colors.primary.main}40`,
-            borderRadius: '12px',
-            marginBottom: theme.spacing.lg
+            borderRadius: '6px',
+            marginBottom: theme.spacing.md,
+            fontSize: '11px'
           }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: theme.spacing.sm,
-              marginBottom: theme.spacing.sm
-            }}>
-              <div style={{ fontSize: '16px' }}>👥</div>
-              <div style={{
-                fontSize: '13px',
-                fontWeight: '700',
-                color: "#111827"
-              }}>
-                Population Impact Analysis
-              </div>
+            <div style={{ display: 'flex', gap: theme.spacing.md, marginBottom: theme.spacing.xs }}>
+              <span>🌾 Rural: <strong>{(alert.geofence.populationBreakdown.rural || 0).toLocaleString()}</strong></span>
+              <span>🏙️ Urban: <strong>{(alert.geofence.populationBreakdown.urban || 0).toLocaleString()}</strong></span>
             </div>
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: theme.spacing.sm,
-              marginBottom: theme.spacing.sm
-            }}>
-              <div style={{
-                padding: theme.spacing.sm,
-                background: "#f3f4f6",
-                borderRadius: '8px'
-              }}>
-                <div style={{ fontSize: '10px', color: "#9ca3af" }}>🌾 Rural</div>
-                <div style={{ fontSize: '15px', fontWeight: '700', color: theme.colors.success.main }}>
-                  {(alert.geofence.populationBreakdown.rural || 0).toLocaleString()}
-                </div>
-              </div>
-              <div style={{
-                padding: theme.spacing.sm,
-                background: "#f3f4f6",
-                borderRadius: '8px'
-              }}>
-                <div style={{ fontSize: '10px', color: "#9ca3af" }}>🏙️ Urban</div>
-                <div style={{ fontSize: '15px', fontWeight: '700', color: theme.colors.warning.main }}>
-                  {(alert.geofence.populationBreakdown.urban || 0).toLocaleString()}
-                </div>
-              </div>
-            </div>
-
             {alert.geofence.populationBreakdown.affectedCities?.length > 0 && (
-              <div style={{
-                fontSize: '11px',
-                color: "#6b7280",
-                borderTop: "1px solid #e5e7eb",
-                paddingTop: theme.spacing.sm
-              }}>
-                <strong>Affected Cities:</strong>{' '}
+              <div style={{ fontSize: '10px', color: "#6b7280", borderTop: "1px solid #e5e7eb", paddingTop: '4px' }}>
                 {alert.geofence.populationBreakdown.affectedCities.map(c => c.name).join(', ')}
               </div>
             )}
@@ -1260,48 +1163,68 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             borderRadius: '6px'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.sm }}>
-              <div style={{ color: 'white', fontWeight: '600', fontSize: '12px' }}>
-                🎯 Adjust Geofence Coverage
-              </div>
               <button
-                onClick={() => setLivePreview(!livePreview)}
+                onClick={() => setShowGeofenceControls(!showGeofenceControls)}
                 style={{
-                  padding: '4px 8px',
-                  background: livePreview ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 255, 255, 0.2)',
-                  border: `1px solid ${livePreview ? '#10b981' : 'rgba(255,255,255,0.4)'}`,
+                  padding: '6px 10px',
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  border: '1px solid rgba(255,255,255,0.4)',
                   borderRadius: '4px',
                   color: 'white',
-                  fontSize: '10px',
+                  fontSize: '12px',
                   fontWeight: '600',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '4px'
+                  gap: '6px'
                 }}
-                title={livePreview ? 'Live preview enabled - map updates as you adjust' : 'Click to enable live preview'}
               >
-                <span style={{ fontSize: '12px' }}>{livePreview ? '🔴' : '⚪'}</span>
-                {livePreview ? 'LIVE' : 'Preview Off'}
+                <span>{showGeofenceControls ? '▼' : '▶'}</span>
+                🎯 Adjust Geofence Coverage
               </button>
+              {showGeofenceControls && (
+                <button
+                  onClick={() => setLivePreview(!livePreview)}
+                  style={{
+                    padding: '4px 8px',
+                    background: livePreview ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 255, 255, 0.2)',
+                    border: `1px solid ${livePreview ? '#10b981' : 'rgba(255,255,255,0.4)'}`,
+                    borderRadius: '4px',
+                    color: 'white',
+                    fontSize: '10px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                  title={livePreview ? 'Live preview enabled - map updates as you adjust' : 'Click to enable live preview'}
+                >
+                  <span style={{ fontSize: '12px' }}>{livePreview ? '🔴' : '⚪'}</span>
+                  {livePreview ? 'LIVE' : 'Preview Off'}
+                </button>
+              )}
             </div>
 
-            {livePreview && (
-              <div style={{
-                padding: '6px',
-                background: 'rgba(16, 185, 129, 0.15)',
-                borderRadius: '4px',
-                marginBottom: theme.spacing.sm,
-                border: '1px solid rgba(16, 185, 129, 0.3)'
-              }}>
-                <div style={{ color: '#10b981', fontSize: '10px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span className="animate-pulse">●</span>
-                  Map updates automatically as you adjust sliders
-                </div>
-              </div>
-            )}
+            {showGeofenceControls && (
+              <>
+                {livePreview && (
+                  <div style={{
+                    padding: '6px',
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    borderRadius: '4px',
+                    marginBottom: theme.spacing.sm,
+                    border: '1px solid rgba(16, 185, 129, 0.3)'
+                  }}>
+                    <div style={{ color: '#10b981', fontSize: '10px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span className="animate-pulse">●</span>
+                      Map updates automatically as you adjust sliders
+                    </div>
+                  </div>
+                )}
 
-            {/* Buffer Width Slider */}
-            <div style={{ marginBottom: theme.spacing.sm }}>
+                {/* Buffer Width Slider */}
+                <div style={{ marginBottom: theme.spacing.sm }}>
               <label style={{ color: 'white', fontSize: '11px', display: 'block', marginBottom: '4px' }}>
                 Buffer Width: {bufferFeet} feet {bufferFeet >= 5280 ? `(${(bufferFeet / 5280).toFixed(2)} mi)` : ''}
               </label>
@@ -1454,6 +1377,8 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                   Updating map preview...
                 </div>
               </div>
+            )}
+              </>
             )}
           </div>
 
@@ -2174,9 +2099,9 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         backgroundColor: 'white',
         borderRadius: isGeofenceTab ? '0' : '12px',
         border: '1px solid #d1d5db',
-        width: isGeofenceTab ? '600px' : '100%',
-        minWidth: isGeofenceTab ? '600px' : '900px',
-        maxWidth: isGeofenceTab ? '600px' : '1600px',
+        width: isGeofenceTab ? '450px' : '100%',
+        minWidth: isGeofenceTab ? '450px' : '900px',
+        maxWidth: isGeofenceTab ? '450px' : '1600px',
         height: isGeofenceTab ? '100vh' : 'auto',
         maxHeight: isGeofenceTab ? '100vh' : '90vh',
         display: 'flex',
@@ -2187,7 +2112,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
       }}>
         {/* Header */}
         <div style={{
-          padding: '20px 24px',
+          padding: isGeofenceTab ? '12px 16px' : '20px 24px',
           borderBottom: '2px solid #e5e7eb',
           backgroundColor: '#f3f4f6',
           borderTopLeftRadius: '12px',
@@ -2196,52 +2121,56 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           alignItems: 'center',
           justifyContent: 'space-between'
         }}>
-          <div>
+          <div style={{ flex: 1 }}>
             <h2 style={{
               margin: 0,
               color: '#111827',
-              fontSize: '18px',
-              marginBottom: theme.spacing.xs,
+              fontSize: isGeofenceTab ? '14px' : '18px',
+              marginBottom: isGeofenceTab ? '2px' : theme.spacing.xs,
               fontWeight: 'bold'
             }}>
               🚨 IPAWS Alert Generator
             </h2>
-            <div style={{
-              fontSize: '13px',
-              color: '#374151'
-            }}>
-              {event.corridor} • {event.location || event.county}
-            </div>
-            <div style={{ marginTop: theme.spacing.sm }}>
-              {getQualificationBadge()}
-            </div>
-            <div style={{
-              marginTop: theme.spacing.sm,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 12px',
-              backgroundColor: trainingMode ? '#fed7aa' : '#e5e7eb',
-              borderRadius: '6px',
-              border: trainingMode ? '2px solid #f97316' : '1px solid #d1d5db'
-            }}>
-              <input
-                type="checkbox"
-                id="training-mode"
-                checked={trainingMode}
-                onChange={(e) => setTrainingMode(e.target.checked)}
-                style={{ cursor: 'pointer' }}
-              />
-              <label htmlFor="training-mode" style={{
-                color: trainingMode ? '#7c2d12' : '#374151',
-                fontSize: '12px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                margin: 0
-              }}>
-                🎓 Training Mode {trainingMode ? '(Active)' : ''}
-              </label>
-            </div>
+            {!isGeofenceTab && (
+              <>
+                <div style={{
+                  fontSize: '13px',
+                  color: '#374151'
+                }}>
+                  {event.corridor} • {event.location || event.county}
+                </div>
+                <div style={{ marginTop: theme.spacing.sm }}>
+                  {getQualificationBadge()}
+                </div>
+                <div style={{
+                  marginTop: theme.spacing.sm,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 12px',
+                  backgroundColor: trainingMode ? '#fed7aa' : '#e5e7eb',
+                  borderRadius: '6px',
+                  border: trainingMode ? '2px solid #f97316' : '1px solid #d1d5db'
+                }}>
+                  <input
+                    type="checkbox"
+                    id="training-mode"
+                    checked={trainingMode}
+                    onChange={(e) => setTrainingMode(e.target.checked)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <label htmlFor="training-mode" style={{
+                    color: trainingMode ? '#7c2d12' : '#374151',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    margin: 0
+                  }}>
+                    🎓 Training Mode {trainingMode ? '(Active)' : ''}
+                  </label>
+                </div>
+              </>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -2319,7 +2248,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           flex: 1,
           overflowY: 'auto',
           backgroundColor: 'white',
-          padding: '24px'
+          padding: isGeofenceTab ? '12px 16px' : '24px'
         }}>
           {/* Training Mode Banner */}
           {trainingMode && (

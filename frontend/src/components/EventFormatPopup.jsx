@@ -56,7 +56,7 @@ export default function EventFormatPopup({
   }
 
   return (
-    <div style={{ padding: '0', width: '280px', maxWidth: '90vw', maxHeight: '70vh', backgroundColor: 'white', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ padding: '0', width: '280px', maxWidth: '90vw', maxHeight: '70vh', backgroundColor: 'white', display: showIPAWS ? 'none' : 'flex', flexDirection: 'column' }}>
       {/* Tab Navigation */}
       <div style={{
         display: 'flex',

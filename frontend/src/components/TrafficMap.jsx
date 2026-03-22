@@ -617,11 +617,11 @@ export default function TrafficMap({
         {/* Map center controller */}
         <MapCenterController selectedEvent={selectedEvent} />
 
-        {/* IPAWS geofence center controller */}
-        <IPAWSGeofenceCenterController />
-
         {/* Capture map reference */}
         <MapRefCapturer mapRef={mapRef} />
+
+        {/* Auto-center map when IPAWS geofence is updated */}
+        <IPAWSGeofenceCenterController />
 
         {/* ESRI World Street Map - excellent highway visibility */}
         <TileLayer
@@ -799,6 +799,9 @@ export default function TrafficMap({
             });
           }
 
+          // Dim events when IPAWS geofence is active
+          const eventOpacity = ipawsGeofence ? 0.3 : 1.0;
+
           return (
             <div key={`event-${event.id}`}>
               {/* Render polyline if we have 2+ coordinate points */}
@@ -812,7 +815,7 @@ export default function TrafficMap({
                       pathOptions={{
                         color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)) || '#FF0000', // Fallback to bright red
                         weight: 8, // Extra thick for visibility
-                        opacity: 1.0, // Fully opaque
+                        opacity: eventOpacity, // Dim when IPAWS geofence is active
                         lineJoin: 'round',
                         lineCap: 'round'
                       }}
@@ -840,7 +843,7 @@ export default function TrafficMap({
                         pathOptions={{
                           color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)) || '#FF0000', // Fallback to bright red
                           weight: 8, // Extra thick for visibility
-                          opacity: 1.0, // Fully opaque
+                          opacity: eventOpacity, // Dim when IPAWS geofence is active
                           lineJoin: 'round',
                           lineCap: 'round'
                         }}
@@ -931,15 +934,15 @@ export default function TrafficMap({
         {/* IPAWS Geofence Polygon */}
         {ipawsGeofence && ipawsGeofence.coordinates && Array.isArray(ipawsGeofence.coordinates[0]) && (
           <>
-            {/* Render single unified polygon - same message goes to everyone */}
+            {/* Render buffered area as polygon */}
             <Polygon
               positions={
                 ipawsGeofence.coordinates[0].map(coord => [coord[1], coord[0]])
               }
               pathOptions={{
                 color: '#f59e0b',
-                weight: 3,
-                opacity: 0.8,
+                weight: 2,
+                opacity: 0.6,
                 fillColor: '#fef3c7',
                 fillOpacity: 0.2
               }}
@@ -956,6 +959,23 @@ export default function TrafficMap({
                 </div>
               </Tooltip>
             </Polygon>
+
+            {/* Render centerline polyline to show corridor path */}
+            {ipawsGeofence.centerline && ipawsGeofence.centerline.coordinates && (
+              <Polyline
+                positions={
+                  ipawsGeofence.centerline.coordinates.map(coord => [coord[1], coord[0]])
+                }
+                pathOptions={{
+                  color: '#f59e0b',
+                  weight: 5,
+                  opacity: 1.0,
+                  lineJoin: 'round',
+                  lineCap: 'round',
+                  dashArray: '10, 5'
+                }}
+              />
+            )}
 
             {/* Event Point Marker - shows where the incident is */}
             {ipawsGeofence.visualZones?.eventPoint && (

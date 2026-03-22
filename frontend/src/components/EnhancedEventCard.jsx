@@ -129,7 +129,8 @@ export default function EnhancedEventCard({
         overflow: 'hidden',
         boxShadow: theme.shadows.md,
         transition: `all ${theme.transitions.medium}`,
-        marginBottom: theme.spacing.md
+        marginBottom: theme.spacing.md,
+        display: showIPAWS ? 'none' : 'block' // Hide card when IPAWS generator is active
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.boxShadow = theme.shadows.xl;

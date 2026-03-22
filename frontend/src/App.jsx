@@ -2415,8 +2415,8 @@ function App() {
               onClick={() => setMobileMenuOpen(false)}
             />
 
-            {/* Messages toggle button - show when panel is closed */}
-            {!mobileMenuOpen && (
+            {/* Messages toggle button - show when panel is closed and IPAWS not active */}
+            {!mobileMenuOpen && !ipawsGeofence && (
               <button
                 className="mobile-menu-btn"
                 onClick={() => {
@@ -2432,35 +2432,37 @@ function App() {
               </button>
             )}
 
-            {/* Matt's Experimental Sandbox Logo Overlay */}
-            <div style={{
-              position: logoIntroComplete ? 'absolute' : 'fixed',
-              top: logoIntroComplete ? '80px' : '50%',
-              left: logoIntroComplete ? '20px' : '50%',
-              transform: logoIntroComplete ? 'translate(0, 0)' : 'translate(-50%, -50%)',
-              zIndex: logoIntroComplete ? 10000 : 20000,
-              pointerEvents: 'none',
-              transition: 'all 1.5s ease-in-out',
-              backgroundColor: logoIntroComplete ? 'transparent' : '#000000',
-              width: logoIntroComplete ? 'auto' : '100vw',
-              height: logoIntroComplete ? 'auto' : '100vh',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <img
-                src="/assets/ccai-logo.png"
-                alt="Matt's Experimental Sandbox Logo"
-                style={{
-                  height: logoIntroComplete ? '120px' : '60vh',
-                  maxHeight: logoIntroComplete ? '120px' : '80vh',
-                  maxWidth: logoIntroComplete ? 'none' : '90vw',
-                  objectFit: 'contain',
-                  filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
-                  transition: 'all 1.5s ease-in-out'
-                }}
-              />
-            </div>
+            {/* Matt's Experimental Sandbox Logo Overlay - hide when IPAWS active */}
+            {!ipawsGeofence && (
+              <div style={{
+                position: logoIntroComplete ? 'absolute' : 'fixed',
+                top: logoIntroComplete ? '80px' : '50%',
+                left: logoIntroComplete ? '20px' : '50%',
+                transform: logoIntroComplete ? 'translate(0, 0)' : 'translate(-50%, -50%)',
+                zIndex: logoIntroComplete ? 10000 : 20000,
+                pointerEvents: 'none',
+                transition: 'all 1.5s ease-in-out',
+                backgroundColor: logoIntroComplete ? 'transparent' : '#000000',
+                width: logoIntroComplete ? 'auto' : '100vw',
+                height: logoIntroComplete ? 'auto' : '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <img
+                  src="/assets/ccai-logo.png"
+                  alt="Matt's Experimental Sandbox Logo"
+                  style={{
+                    height: logoIntroComplete ? '120px' : '60vh',
+                    maxHeight: logoIntroComplete ? '120px' : '80vh',
+                    maxWidth: logoIntroComplete ? 'none' : '90vw',
+                    objectFit: 'contain',
+                    filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
+                    transition: 'all 1.5s ease-in-out'
+                  }}
+                />
+              </div>
+            )}
 
             <div style={{
               flex: 1,
@@ -2473,35 +2475,38 @@ function App() {
               boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
               position: 'relative'
             }}>
-              <div className={`messages-panel-mobile ${mobileMenuOpen ? 'open' : ''} ${desktopMessagesOpen ? '' : 'closed'}`}>
-                <div className="messages-panel-content">
-                <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <LiveStatistics
+              {/* Hide messages panel when IPAWS geofence is active */}
+              {!ipawsGeofence && (
+                <div className={`messages-panel-mobile ${mobileMenuOpen ? 'open' : ''} ${desktopMessagesOpen ? '' : 'closed'}`}>
+                  <div className="messages-panel-content">
+                  <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <LiveStatistics
+                      events={filteredEvents}
+                      isExpanded={statsExpanded}
+                      onToggle={() => setStatsExpanded(!statsExpanded)}
+                    />
+                  </div>
+                  <MessagesPanel
                     events={filteredEvents}
-                    isExpanded={statsExpanded}
-                    onToggle={() => setStatsExpanded(!statsExpanded)}
-                  />
-                </div>
-                <MessagesPanel
-                  events={filteredEvents}
-                  messages={messages}
-                  detourAlerts={detourAlerts}
-                  filters={filters}
-                  onEventSelect={(event) => {
-                    setSelectedEvent(event);
-                    setMobileMenuOpen(false);
-                    setDesktopMessagesOpen(true);
-                  }}
-                  onClose={() => {
-                    if (window.innerWidth < 769) {
+                    messages={messages}
+                    detourAlerts={detourAlerts}
+                    filters={filters}
+                    onEventSelect={(event) => {
+                      setSelectedEvent(event);
                       setMobileMenuOpen(false);
-                    } else {
-                      setDesktopMessagesOpen(false);
-                    }
-                  }}
-                />
+                      setDesktopMessagesOpen(true);
+                    }}
+                    onClose={() => {
+                      if (window.innerWidth < 769) {
+                        setMobileMenuOpen(false);
+                      } else {
+                        setDesktopMessagesOpen(false);
+                      }
+                    }}
+                  />
+                  </div>
                 </div>
-              </div>
+              )}
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <TrafficMap
                   events={filteredEvents}
@@ -2532,23 +2537,25 @@ function App() {
               </div>
             </div>
 
-            {/* Quick Action Toolbar */}
-            <QuickActionToolbar
-              onRefresh={refetch}
-              onClearFilters={handleClearFilters}
-              onToggleParking={handleToggleParking}
-              onToggleInterchanges={handleToggleInterchanges}
-              onToggleInterstateOnly={() => setInterstateOnly(prev => !prev)}
-              onOpenCommandPalette={() => setCommandPaletteOpen(true)}
-              onFilterSeverity={handleFilterSeverity}
-              onExport={() => setShowExportMenu(true)}
-              autoRefresh={autoRefresh}
-              showParking={showParking}
-              showInterchanges={showInterchanges}
-              interstateOnly={interstateOnly}
-              currentSeverityFilter={filters.severity}
-              eventCount={filteredEvents.length}
-            />
+            {/* Quick Action Toolbar - hide when IPAWS geofence is active */}
+            {!ipawsGeofence && (
+              <QuickActionToolbar
+                onRefresh={refetch}
+                onClearFilters={handleClearFilters}
+                onToggleParking={handleToggleParking}
+                onToggleInterchanges={handleToggleInterchanges}
+                onToggleInterstateOnly={() => setInterstateOnly(prev => !prev)}
+                onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+                onFilterSeverity={handleFilterSeverity}
+                onExport={() => setShowExportMenu(true)}
+                autoRefresh={autoRefresh}
+                showParking={showParking}
+                showInterchanges={showInterchanges}
+                interstateOnly={interstateOnly}
+                currentSeverityFilter={filters.severity}
+                eventCount={filteredEvents.length}
+              />
+            )}
           </>
         ) : (
           <div className="view-container">
