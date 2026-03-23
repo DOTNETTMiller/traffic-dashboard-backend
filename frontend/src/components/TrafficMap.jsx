@@ -70,49 +70,40 @@ function MapRefCapturer({ mapRef }) {
   return null;
 }
 
-// Component to listen for IPAWS geofence updates and center map
-function IPAWSGeofenceCenterController() {
+// Component to center map on IPAWS geofence when it changes
+function IPAWSGeofenceCenterController({ ipawsGeofence }) {
   const map = useMap();
+  const lastGeofenceRef = useRef(null);
 
   useEffect(() => {
-    const handleGeofenceUpdate = (event) => {
-      const { geofence, shouldCenter } = event.detail;
+    if (!ipawsGeofence || !ipawsGeofence.coordinates || !ipawsGeofence.coordinates[0]) {
+      lastGeofenceRef.current = null;
+      return;
+    }
 
-      if (shouldCenter && geofence && geofence.coordinates && geofence.coordinates[0]) {
-        try {
-          // Get all coordinates from the polygon
-          const coords = geofence.coordinates[0];
+    // Center map whenever geofence coordinates change
+    const coordsKey = JSON.stringify(ipawsGeofence.coordinates[0].slice(0, 3));
+    if (coordsKey === lastGeofenceRef.current) return;
+    lastGeofenceRef.current = coordsKey;
 
-          // Convert to Leaflet LatLng format
-          const latLngs = coords.map(coord => [coord[1], coord[0]]); // [lat, lng]
+    try {
+      const coords = ipawsGeofence.coordinates[0];
+      const latLngs = coords.map(coord => [coord[1], coord[0]]);
+      const bounds = L.latLngBounds(latLngs);
 
-          // Calculate bounds
-          const bounds = L.latLngBounds(latLngs);
+      map.closePopup();
+      map.fitBounds(bounds, {
+        padding: [50, 50],
+        animate: true,
+        duration: 0.5,
+        maxZoom: 14
+      });
 
-          // Close any open popups so they don't block the geofence view
-          map.closePopup();
-
-          // Fit map to bounds with padding
-          map.fitBounds(bounds, {
-            padding: [50, 50],
-            animate: true,
-            duration: 0.5,
-            maxZoom: 14
-          });
-
-          console.log('🗺️ Map centered on IPAWS geofence');
-        } catch (error) {
-          console.error('Error centering map on geofence:', error);
-        }
-      }
-    };
-
-    window.addEventListener('ipaws-geofence-update', handleGeofenceUpdate);
-
-    return () => {
-      window.removeEventListener('ipaws-geofence-update', handleGeofenceUpdate);
-    };
-  }, [map]);
+      console.log('🗺️ Map centered on IPAWS geofence');
+    } catch (error) {
+      console.error('Error centering map on geofence:', error);
+    }
+  }, [ipawsGeofence, map]);
 
   return null;
 }
@@ -624,7 +615,7 @@ export default function TrafficMap({
         <MapRefCapturer mapRef={mapRef} />
 
         {/* Auto-center map when IPAWS geofence is updated */}
-        <IPAWSGeofenceCenterController />
+        <IPAWSGeofenceCenterController ipawsGeofence={ipawsGeofence} />
 
         {/* ESRI World Street Map - excellent highway visibility */}
         <TileLayer

@@ -94,12 +94,6 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     if (alert?.success && alert?.geofence && onGeofenceUpdate) {
       console.log('🗺️ Sending geofence to map:', alert.geofence);
       onGeofenceUpdate(alert.geofence);
-
-      // Dispatch custom event for map centering on initial load
-      const centerEvent = new CustomEvent('ipaws-geofence-update', {
-        detail: { geofence: alert.geofence, shouldCenter: true }
-      });
-      window.dispatchEvent(centerEvent);
     }
   }, [alert, onGeofenceUpdate]);
 
@@ -522,16 +516,10 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           geofence: data.geofence
         }));
 
-        // Notify parent component of geofence update with centering flag
+        // Notify parent component of geofence update
         if (onGeofenceUpdate) {
-          onGeofenceUpdate(data.geofence, { centerMap: true });
+          onGeofenceUpdate(data.geofence);
         }
-
-        // Dispatch custom event for map centering
-        const centerEvent = new CustomEvent('ipaws-geofence-update', {
-          detail: { geofence: data.geofence, shouldCenter: true }
-        });
-        window.dispatchEvent(centerEvent);
       } else {
         setError(data.error || 'Failed to regenerate geofence');
       }

@@ -13,6 +13,7 @@
  */
 
 const turf = require('@turf/turf');
+const axios = require('axios');
 const populationService = require('./population-density-service');
 const IPAWSAuditLogger = require('./ipaws-alert-service-lite');
 const path = require('path');
@@ -615,6 +616,59 @@ class IPAWSAlertService {
    * Extend event geometry along corridor for advance warning
    * Extends the line by projecting along its bearing at both ends
    */
+  /**
+   * Fetch full corridor polyline from OSRM routing service
+   * Uses the event's start/end points extended by the desired miles to get road-snapped geometry
+   */
+  async fetchCorridorPolyline(event, currentLine, aheadMiles, behindMiles) {
+    try {
+      const coords = currentLine.geometry.coordinates;
+      const startCoord = coords[0]; // [lng, lat]
+      const endCoord = coords[coords.length - 1];
+
+      // Calculate bearings for extending waypoints
+      const startPoint = turf.point(startCoord);
+      const endPoint = turf.point(endCoord);
+      const secondPoint = turf.point(coords[Math.min(1, coords.length - 1)]);
+      const secondToLastPoint = turf.point(coords[Math.max(0, coords.length - 2)]);
+
+      const startBearing = turf.bearing(secondPoint, startPoint);
+      const endBearing = turf.bearing(secondToLastPoint, endPoint);
+
+      // Project waypoints along bearing, then use OSRM to snap to road
+      const behindWaypoint = behindMiles > 0
+        ? turf.destination(startPoint, behindMiles, startBearing, { units: 'miles' })
+        : null;
+      const aheadWaypoint = aheadMiles > 0
+        ? turf.destination(endPoint, aheadMiles, endBearing, { units: 'miles' })
+        : null;
+
+      // Build OSRM waypoints: behind -> start -> end -> ahead
+      const waypoints = [];
+      if (behindWaypoint) waypoints.push(behindWaypoint.geometry.coordinates);
+      waypoints.push(startCoord);
+      waypoints.push(endCoord);
+      if (aheadWaypoint) waypoints.push(aheadWaypoint.geometry.coordinates);
+
+      const coordString = waypoints.map(c => `${c[0]},${c[1]}`).join(';');
+      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson`;
+
+      console.log(`     🛣️  Fetching road geometry from OSRM with ${waypoints.length} waypoints...`);
+      const response = await axios.get(osrmUrl, { timeout: 8000 });
+
+      if (response.data && response.data.routes && response.data.routes[0]) {
+        const routeCoords = response.data.routes[0].geometry.coordinates;
+        console.log(`     ✅ OSRM returned ${routeCoords.length} road-snapped coordinates`);
+        return routeCoords;
+      }
+
+      return null;
+    } catch (error) {
+      console.log(`     ⚠️  OSRM fetch failed: ${error.message}`);
+      return null;
+    }
+  }
+
   async extendEventGeometry(event, currentLine, options = {}) {
     const { corridorAheadMiles = 0, corridorBehindMiles = 0 } = options;
 
@@ -622,32 +676,35 @@ class IPAWSAlertService {
       const coords = currentLine.geometry.coordinates;
       if (coords.length < 2) return null;
 
-      const lineLength = turf.length(currentLine, { units: 'miles' });
-      const totalDesiredLength = lineLength + corridorAheadMiles + corridorBehindMiles;
-
-      // If the desired extension is small compared to the line, don't bother
+      // If the desired extension is small, don't bother
       if (corridorAheadMiles + corridorBehindMiles < 0.1) {
         return currentLine;
       }
 
-      // Get bearings at start and end
+      // Try to get road-snapped extended geometry from OSRM
+      const roadCoords = await this.fetchCorridorPolyline(
+        event, currentLine, corridorAheadMiles, corridorBehindMiles
+      );
+
+      if (roadCoords && roadCoords.length >= 2) {
+        return turf.lineString(roadCoords);
+      }
+
+      // Fallback: simple bearing-based extension
+      console.log(`     ⚠️  Falling back to bearing-based extension`);
       const startPoint = turf.point(coords[0]);
       const secondPoint = turf.point(coords[Math.min(1, coords.length - 1)]);
       const endPoint = turf.point(coords[coords.length - 1]);
       const secondToLastPoint = turf.point(coords[Math.max(0, coords.length - 2)]);
 
-      // Calculate bearings (in reverse at start for extending backward)
-      const startBearing = turf.bearing(secondPoint, startPoint); // Reverse direction
+      const startBearing = turf.bearing(secondPoint, startPoint);
       const endBearing = turf.bearing(secondToLastPoint, endPoint);
 
-      // Extend backward (behind)
       let extendedCoords = [...coords];
       if (corridorBehindMiles > 0) {
         const extendedStart = turf.destination(startPoint, corridorBehindMiles, startBearing, { units: 'miles' });
         extendedCoords = [extendedStart.geometry.coordinates, ...extendedCoords];
       }
-
-      // Extend forward (ahead)
       if (corridorAheadMiles > 0) {
         const extendedEnd = turf.destination(endPoint, corridorAheadMiles, endBearing, { units: 'miles' });
         extendedCoords = [...extendedCoords, extendedEnd.geometry.coordinates];
