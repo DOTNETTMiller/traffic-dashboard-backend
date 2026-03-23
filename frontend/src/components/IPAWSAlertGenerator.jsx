@@ -2075,13 +2075,14 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: isGeofenceTab ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.6)',
+      backgroundColor: isGeofenceTab ? 'transparent' : 'rgba(0, 0, 0, 0.6)',
       display: 'flex',
       alignItems: isGeofenceTab ? 'flex-start' : 'center',
       justifyContent: isGeofenceTab ? 'flex-end' : 'center',
       zIndex: 10000,
       padding: isGeofenceTab ? '0' : '20px',
-      transition: 'all 0.3s ease'
+      transition: 'all 0.3s ease',
+      pointerEvents: isGeofenceTab ? 'none' : 'auto'
     }}>
       <div style={{
         backgroundColor: 'white',
@@ -2092,6 +2093,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         maxWidth: isGeofenceTab ? '450px' : '1600px',
         height: isGeofenceTab ? '100vh' : 'auto',
         maxHeight: isGeofenceTab ? '100vh' : '90vh',
+        pointerEvents: 'auto',
         display: 'flex',
         flexDirection: 'column',
         boxShadow: isGeofenceTab ? '-5px 0 30px rgba(0, 0, 0, 0.3)' : '0 25px 50px -12px rgba(0, 0, 0, 0.25)',

@@ -92,8 +92,10 @@ function IPAWSGeofenceCenterController({ ipawsGeofence }) {
       const bounds = L.latLngBounds(latLngs);
 
       map.closePopup();
+      // Pad right side by 500px to account for 450px IPAWS panel
       map.fitBounds(bounds, {
-        padding: [50, 50],
+        paddingTopLeft: [50, 50],
+        paddingBottomRight: [500, 50],
         animate: true,
         duration: 0.5,
         maxZoom: 14
