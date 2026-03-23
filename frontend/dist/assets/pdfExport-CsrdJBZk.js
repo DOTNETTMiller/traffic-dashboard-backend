@@ -1,4 +1,4 @@
-import{j as nt,E as rt}from"./jspdf.es.min-DN5NDUzU.js";import{h as it,e as $}from"./index-B_qOeMBb.js";import at from"./html2canvas.esm-CBrSDip1.js";var ot={exports:{}};const lt=it(nt);/*!
+import{j as nt,E as rt}from"./jspdf.es.min-DMavKDBN.js";import{h as it,e as $}from"./index-C8xRFaXu.js";import at from"./html2canvas.esm-CBrSDip1.js";var ot={exports:{}};const lt=it(nt);/*!
  * 
  *               jsPDF AutoTable plugin v3.8.4
  *

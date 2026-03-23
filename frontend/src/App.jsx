@@ -2450,7 +2450,7 @@ function App() {
                 justifyContent: 'center'
               }}>
                 <img
-                  src="/assets/ccai-logo.png?v=2"
+                  src="/assets/sandbox-logo.png"
                   alt="Matt's Experimental Sandbox Logo"
                   style={{
                     height: logoIntroComplete ? '120px' : '60vh',
