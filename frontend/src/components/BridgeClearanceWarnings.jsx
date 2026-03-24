@@ -11,7 +11,7 @@ export default function BridgeClearanceWarnings({ onViewOnMap, isDarkMode }) {
   useEffect(() => {
     fetchWarnings();
     // Refresh warnings every 60 seconds
-    const interval = setInterval(fetchWarnings, 60000);
+    const interval = setInterval(fetchWarnings, 300000);
     return () => clearInterval(interval);
   }, []);
 

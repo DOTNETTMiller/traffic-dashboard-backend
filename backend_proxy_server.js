@@ -4236,7 +4236,7 @@ let eventsCache = {
   data: null,
   timestamp: null,
   ttl: 300000, // 5 minutes (serve stale data up to this age)
-  refreshAfter: 45000, // 45 seconds (trigger background refresh after this)
+  refreshAfter: 240000, // 4 minutes (trigger background refresh after this)
   isRefreshing: false
 };
 
@@ -4382,7 +4382,7 @@ async function fetchAndCacheEvents() {
 }
 
 
-// Background refresh interval (runs every 50 seconds)
+// Background refresh interval (runs every 5 minutes)
 setInterval(async () => {
   const now = Date.now();
   const cacheAge = eventsCache.timestamp ? now - eventsCache.timestamp : Infinity;
@@ -4391,7 +4391,7 @@ setInterval(async () => {
     console.log('⏰ Background refresh triggered (cache age: ' + Math.round(cacheAge / 1000) + 's)');
     await fetchAndCacheEvents();
   }
-}, 50000); // Check every 50 seconds
+}, 300000); // Check every 5 minutes
 
 // Initial cache population on startup
 console.log('🚀 Pre-warming cache on startup...');
@@ -35181,6 +35181,16 @@ app.get('*', (req, res) => {
   } else {
     res.status(404).send('Frontend not built. Run: cd frontend && npm run build');
   }
+});
+
+// Prevent crashes from unhandled errors
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ Uncaught Exception:', err.message);
+  console.error(err.stack);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('⚠️ Unhandled Rejection:', reason);
 });
 
 // Start server function - called after database initialization
