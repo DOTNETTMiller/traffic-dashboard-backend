@@ -5119,6 +5119,10 @@ app.post('/api/users/login', async (req, res) => {
   const user = await db.verifyUserPassword(username, password);
 
   if (user) {
+    // Ensure known admin accounts always have admin role
+    const effectiveRole = (user.email === 'matthew.miller@iowadot.us' || user.username === 'matthew.miller@iowadot.us')
+      ? 'admin' : user.role;
+
     // Generate JWT token
     const token = jwt.sign(
       {
@@ -5126,7 +5130,7 @@ app.post('/api/users/login', async (req, res) => {
         username: user.username,
         email: user.email,
         stateKey: user.stateKey,
-        role: user.role
+        role: effectiveRole
       },
       JWT_SECRET,
       { expiresIn: '7d' }
@@ -5143,7 +5147,7 @@ app.post('/api/users/login', async (req, res) => {
         fullName: user.fullName,
         organization: user.organization,
         stateKey: user.stateKey,
-        role: user.role
+        role: effectiveRole
       }
     });
   }
