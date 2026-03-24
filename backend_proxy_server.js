@@ -22238,6 +22238,11 @@ app.get('/api/funding-opportunities/evidence', async (req, res) => {
 const GISParser = require('./utils/gis-parser');
 const ARCITSConverter = require('./utils/arc-its-converter');
 
+// Ensure upload directories exist
+[path.join(__dirname, 'uploads/gis'), path.join(__dirname, 'uploads/ifc')].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
+
 // Configure multer for GIS file uploads (multer required at top of file)
 const upload = multer({
   dest: path.join(__dirname, 'uploads/gis'),
@@ -27291,7 +27296,7 @@ app.get('/api/cadd/map-elements', async (req, res) => {
 });
 
 // Upload and process CADD/DXF file
-app.post('/api/cadd/upload', upload.single('file'), async (req, res) => {
+app.post('/api/cadd/upload', uploadIFC.single('file'), async (req, res) => {
   try {
     const file = req.file;
     const { corridor, state, county, coordinateSystem } = req.body;
