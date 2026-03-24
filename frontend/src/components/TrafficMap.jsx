@@ -692,13 +692,15 @@ export default function TrafficMap({
               });
             } else if (event.geometry.type === 'MultiLineString') {
               // MultiLineString: array of LineStrings
-              polylinePositions = event.geometry.coordinates.map(line =>
-                line.map(coord => {
-                  const lat = parseFloat(coord[1]);
-                  const lng = parseFloat(coord[0]);
-                  return [lat, lng];
-                })
-              );
+              polylinePositions = event.geometry.coordinates
+                .filter(line => Array.isArray(line))
+                .map(line =>
+                  line.map(coord => {
+                    const lat = parseFloat(coord[1]);
+                    const lng = parseFloat(coord[0]);
+                    return [lat, lng];
+                  })
+                );
             }
 
             // Debug log for troubleshooting
