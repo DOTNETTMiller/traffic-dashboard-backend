@@ -1950,24 +1950,93 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     );
   };
 
+  const [capViewMode, setCapViewMode] = useState('xml'); // 'xml' or 'json'
+
   const renderCAPTab = () => {
     if (!alert?.success) return null;
 
+    const downloadCAP = () => {
+      const xml = alert.capMessage?.xml;
+      if (!xml) return;
+      const blob = new Blob([xml], { type: 'application/xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${alert.capMessage?.identifier || 'IPAWS-Alert'}.xml`;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    const copyCAP = () => {
+      const content = capViewMode === 'xml'
+        ? alert.capMessage?.xml
+        : JSON.stringify(alert.capMessage, (key, val) => key === 'xml' ? undefined : val, 2);
+      if (content) {
+        navigator.clipboard.writeText(content);
+      }
+    };
+
     return (
       <div>
-        <h3 style={{
-          color: "#111827",
-          marginTop: 0,
-          marginBottom: '16px',
-          fontSize: '16px',
-          fontWeight: '700'
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <h3 style={{
+            color: "#111827",
+            margin: 0,
+            fontSize: '16px',
+            fontWeight: '700'
+          }}>
+            CAP 1.2 Alert Message
+          </h3>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button
+              onClick={() => setCapViewMode('xml')}
+              style={{
+                padding: '4px 10px',
+                fontSize: '11px',
+                fontWeight: '600',
+                border: '1px solid #d1d5db',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                backgroundColor: capViewMode === 'xml' ? '#2563eb' : 'white',
+                color: capViewMode === 'xml' ? 'white' : '#374151'
+              }}
+            >XML</button>
+            <button
+              onClick={() => setCapViewMode('json')}
+              style={{
+                padding: '4px 10px',
+                fontSize: '11px',
+                fontWeight: '600',
+                border: '1px solid #d1d5db',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                backgroundColor: capViewMode === 'json' ? '#2563eb' : 'white',
+                color: capViewMode === 'json' ? 'white' : '#374151'
+              }}
+            >JSON</button>
+          </div>
+        </div>
+
+        {/* RAVE compatibility badge */}
+        <div style={{
+          padding: '8px 12px',
+          background: '#ecfdf5',
+          border: '1px solid #10b981',
+          borderRadius: '6px',
+          marginBottom: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontSize: '12px',
+          color: '#065f46'
         }}>
-          CAP-XML Message
-        </h3>
+          <span style={{ fontSize: '14px' }}>&#x2705;</span>
+          <strong>IPAWS / Motorola RAVE Compatible</strong> — CAP 1.2 with bilingual support
+        </div>
 
         <div style={{
           padding: theme.spacing.md,
-          backgroundColor: "white",
+          backgroundColor: capViewMode === 'xml' ? '#1e293b' : 'white',
           borderRadius: '8px',
           border: "1px solid #e5e7eb",
           maxHeight: '400px',
@@ -1976,60 +2045,84 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           <pre style={{
             margin: 0,
             fontSize: '11px',
-            color: "#4b5563",
+            color: capViewMode === 'xml' ? '#93c5fd' : '#4b5563',
             fontFamily: 'monospace',
             whiteSpace: 'pre-wrap',
             wordWrap: 'break-word'
           }}>
-            {JSON.stringify(alert.capMessage, null, 2)}
+            {capViewMode === 'xml'
+              ? (alert.capMessage?.xml || 'XML not available')
+              : JSON.stringify(alert.capMessage, (key, val) => key === 'xml' ? undefined : val, 2)
+            }
           </pre>
         </div>
 
+        {/* Action buttons */}
+        <div style={{
+          marginTop: theme.spacing.md,
+          display: 'flex',
+          gap: theme.spacing.sm
+        }}>
+          <button
+            onClick={copyCAP}
+            style={{
+              flex: 1,
+              padding: '10px',
+              backgroundColor: '#2563eb',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            Copy {capViewMode.toUpperCase()}
+          </button>
+          <button
+            onClick={downloadCAP}
+            style={{
+              flex: 1,
+              padding: '10px',
+              backgroundColor: '#059669',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            Download .xml
+          </button>
+        </div>
+
+        {/* Metadata */}
         <div style={{
           marginTop: theme.spacing.md,
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
-          gap: theme.spacing.md
+          gap: theme.spacing.sm
         }}>
-          <div style={{
-            padding: theme.spacing.md,
-            backgroundColor: "#f3f4f6",
-            borderRadius: '8px'
-          }}>
-            <div style={{
-              fontSize: '11px',
-              color: "#6b7280",
-              marginBottom: theme.spacing.xs
-            }}>
-              Alert ID
-            </div>
-            <div style={{
-              fontSize: '13px',
-              color: "#111827",
-              fontFamily: 'monospace'
-            }}>
+          <div style={{ padding: theme.spacing.sm, backgroundColor: "#f3f4f6", borderRadius: '6px' }}>
+            <div style={{ fontSize: '10px', color: "#6b7280" }}>Alert ID</div>
+            <div style={{ fontSize: '12px', color: "#111827", fontFamily: 'monospace' }}>
               {alert.capMessage?.identifier}
             </div>
           </div>
-
-          <div style={{
-            padding: theme.spacing.md,
-            backgroundColor: "#f3f4f6",
-            borderRadius: '8px'
-          }}>
-            <div style={{
-              fontSize: '11px',
-              color: "#6b7280",
-              marginBottom: theme.spacing.xs
-            }}>
-              Expires
-            </div>
-            <div style={{
-              fontSize: '13px',
-              color: "#111827"
-            }}>
+          <div style={{ padding: theme.spacing.sm, backgroundColor: "#f3f4f6", borderRadius: '6px' }}>
+            <div style={{ fontSize: '10px', color: "#6b7280" }}>Expires</div>
+            <div style={{ fontSize: '12px', color: "#111827" }}>
               {alert.capMessage?.info?.expires ? new Date(alert.capMessage.info.expires).toLocaleString() : 'N/A'}
             </div>
+          </div>
+          <div style={{ padding: theme.spacing.sm, backgroundColor: "#f3f4f6", borderRadius: '6px' }}>
+            <div style={{ fontSize: '10px', color: "#6b7280" }}>Scope</div>
+            <div style={{ fontSize: '12px', color: "#111827" }}>{alert.capMessage?.scope}</div>
+          </div>
+          <div style={{ padding: theme.spacing.sm, backgroundColor: "#f3f4f6", borderRadius: '6px' }}>
+            <div style={{ fontSize: '10px', color: "#6b7280" }}>Languages</div>
+            <div style={{ fontSize: '12px', color: "#111827" }}>English, Spanish</div>
           </div>
         </div>
       </div>

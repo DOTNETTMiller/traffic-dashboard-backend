@@ -1445,7 +1445,7 @@ class IPAWSAlertService {
   }
 
   /**
-   * Generate CAP-XML alert message
+   * Generate CAP alert message (JSON and XML)
    */
   generateCAPMessage(event, geofence, messages) {
     const now = new Date().toISOString();
@@ -1483,7 +1483,79 @@ class IPAWSAlertService {
       }
     };
 
+    // Generate CAP 1.2 XML for IPAWS/RAVE submission
+    cap.xml = this.serializeCAPtoXML(cap, messages);
+
     return cap;
+  }
+
+  /**
+   * Serialize CAP message to CAP 1.2 XML
+   * Compatible with IPAWS, Motorola RAVE, and other CAP-compliant systems
+   */
+  serializeCAPtoXML(cap, messages) {
+    const esc = (str) => String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    const info = cap.info;
+
+    // Build Spanish info block if available
+    let spanishInfoBlock = '';
+    if (messages?.spanish) {
+      spanishInfoBlock = `
+  <info>
+    <language>es-US</language>
+    <category>${esc(info.category)}</category>
+    <event>${esc(info.event)}</event>
+    <urgency>${esc(info.urgency)}</urgency>
+    <severity>${esc(info.severity)}</severity>
+    <certainty>${esc(info.certainty)}</certainty>
+    <headline>${esc(messages.spanish.headline)}</headline>
+    <description>${esc(messages.spanish.description)}</description>
+    <instruction>${esc(messages.spanish.instruction)}</instruction>
+    <effective>${esc(info.effective)}</effective>
+    <expires>${esc(info.expires)}</expires>
+    <senderName>${esc(info.senderName)}</senderName>
+    <area>
+      <areaDesc>${esc(messages.spanish.headline)}</areaDesc>
+      <polygon>${esc(info.area.polygon)}</polygon>
+    </area>
+  </info>`;
+    }
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+  <identifier>${esc(cap.identifier)}</identifier>
+  <sender>${esc(cap.sender)}</sender>
+  <sent>${esc(cap.sent)}</sent>
+  <status>${esc(cap.status)}</status>
+  <msgType>${esc(cap.msgType)}</msgType>
+  <scope>${esc(cap.scope)}</scope>
+  <code>IPAWSv1.0</code>
+  <info>
+    <language>${esc(info.language)}</language>
+    <category>${esc(info.category)}</category>
+    <event>${esc(info.event)}</event>
+    <responseType>Avoid</responseType>
+    <urgency>${esc(info.urgency)}</urgency>
+    <severity>${esc(info.severity)}</severity>
+    <certainty>${esc(info.certainty)}</certainty>
+    <headline>${esc(info.headline)}</headline>
+    <description>${esc(info.description)}</description>
+    <instruction>${esc(info.instruction)}</instruction>
+    <web>${esc(info.web)}</web>
+    <effective>${esc(info.effective)}</effective>
+    <expires>${esc(info.expires)}</expires>
+    <senderName>${esc(info.senderName)}</senderName>
+    <area>
+      <areaDesc>${esc(info.area.areaDesc)}</areaDesc>
+      <polygon>${esc(info.area.polygon)}</polygon>
+    </area>
+  </info>${spanishInfoBlock}
+</alert>`;
   }
 
   /**
