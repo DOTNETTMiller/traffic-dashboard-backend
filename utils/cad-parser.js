@@ -14,6 +14,13 @@
 const fs = require('fs');
 const path = require('path');
 const DxfParser = require('dxf-parser');
+const proj4 = require('proj4');
+
+// Define common DOT coordinate systems
+// Iowa State Plane South NAD83 (US Survey Feet)
+proj4.defs('IOWA_SP_SOUTH', '+proj=lcc +lat_0=40 +lon_0=-93.5 +lat_1=40.6166666667 +lat_2=41.7833333333 +x_0=500000.00001016 +y_0=0 +datum=NAD83 +units=us-ft +no_defs');
+// Iowa State Plane North NAD83 (US Survey Feet)
+proj4.defs('IOWA_SP_NORTH', '+proj=lcc +lat_0=41.5 +lon_0=-93.5 +lat_1=42.0666666667 +lat_2=43.2666666667 +x_0=1500000 +y_0=1000000 +datum=NAD83 +units=us-ft +no_defs');
 
 class CADDParser {
   constructor() {
@@ -84,6 +91,12 @@ class CADDParser {
     // Classify elements by operational significance
     this.classifyOperationalElements();
 
+    // Georeference entities (CAD coords → WGS84)
+    this.georeferenceEntities(dxf);
+
+    // Generate GeoJSON for GIS export
+    const geojson = this.toGeoJSON();
+
     return {
       format: 'DXF',
       metadata: this.metadata,
@@ -97,6 +110,7 @@ class CADDParser {
       trafficDevices: this.trafficDevices,
       utilities: this.utilities,
       workZone: this.workZone,
+      geojson,
       extractionLog: this.extractionLog,
       statistics: this.getStatistics()
     };
@@ -513,12 +527,249 @@ class CADDParser {
   }
 
   /**
+   * Detect the coordinate system and unit scale from the DXF data.
+   * Iowa DOT CADD files commonly use inches in State Plane coordinates.
+   */
+  detectCoordinateSystem(dxf) {
+    const extMin = dxf.header?.['$EXTMIN'] || { x: 0, y: 0 };
+    const extMax = dxf.header?.['$EXTMAX'] || { x: 0, y: 0 };
+    const textStyle = dxf.header?.['$TEXTSTYLE'] || '';
+
+    // Detect Iowa DOT files by text style or coordinate ranges
+    const isIowaDOT = /IowaDOT/i.test(textStyle);
+
+    // Iowa DOT CADD uses inches in State Plane.
+    // Typical Iowa South x range in feet: ~400k-1.7M, y: 0-700k
+    // In inches those become: ~4.8M-20M x, 0-8.4M y
+    const avgX = (extMin.x + extMax.x) / 2;
+    const avgY = (extMin.y + extMax.y) / 2;
+
+    // Check if coordinates are in Iowa State Plane range (in inches)
+    if (isIowaDOT || (avgX > 4000000 && avgX < 25000000 && avgY > 0 && avgY < 10000000)) {
+      // Test: convert from inches to feet, then Iowa South to WGS84
+      const testFtX = avgX / 12;
+      const testFtY = avgY / 12;
+      try {
+        const [lon, lat] = proj4('IOWA_SP_SOUTH', 'EPSG:4326', [testFtX, testFtY]);
+        if (lat >= 40.0 && lat <= 42.0 && lon >= -97 && lon <= -90) {
+          this.log(`Detected Iowa State Plane South (NAD83), units: inches`);
+          return { crs: 'IOWA_SP_SOUTH', unitScale: 1 / 12, unitName: 'inches' };
+        }
+      } catch (e) { /* not Iowa South */ }
+
+      // Try Iowa North
+      try {
+        const [lon, lat] = proj4('IOWA_SP_NORTH', 'EPSG:4326', [testFtX, testFtY]);
+        if (lat >= 41.5 && lat <= 43.5 && lon >= -97 && lon <= -90) {
+          this.log(`Detected Iowa State Plane North (NAD83), units: inches`);
+          return { crs: 'IOWA_SP_NORTH', unitScale: 1 / 12, unitName: 'inches' };
+        }
+      } catch (e) { /* not Iowa North */ }
+    }
+
+    // Check if already in feet (standard State Plane range)
+    if (avgX > 300000 && avgX < 3000000 && avgY > 0 && avgY < 1500000) {
+      try {
+        const [lon, lat] = proj4('IOWA_SP_SOUTH', 'EPSG:4326', [avgX, avgY]);
+        if (lat >= 40.0 && lat <= 42.0 && lon >= -97 && lon <= -90) {
+          this.log(`Detected Iowa State Plane South (NAD83), units: US feet`);
+          return { crs: 'IOWA_SP_SOUTH', unitScale: 1, unitName: 'US feet' };
+        }
+      } catch (e) { /* not Iowa South */ }
+    }
+
+    this.log('Could not auto-detect coordinate system, coordinates stored as-is');
+    return { crs: null, unitScale: 1, unitName: 'unknown' };
+  }
+
+  /**
+   * Georeference all entities: transform CAD coordinates to WGS84 lat/lng.
+   * Adds latitude, longitude properties to each entity.
+   */
+  georeferenceEntities(dxf) {
+    const coordSystem = this.detectCoordinateSystem(dxf);
+    this.metadata.coordinateSystem = coordSystem;
+
+    if (!coordSystem.crs) {
+      this.log('Skipping georeferencing: coordinate system not detected');
+      return;
+    }
+
+    const scale = coordSystem.unitScale;
+    let georefCount = 0;
+    let outlierCount = 0;
+
+    // Get project extents for outlier filtering
+    const extMin = dxf.header?.['$EXTMIN'] || { x: -Infinity, y: -Infinity };
+    const extMax = dxf.header?.['$EXTMAX'] || { x: Infinity, y: Infinity };
+    // Expand extents by 50% for tolerance
+    const rangeX = (extMax.x - extMin.x) * 0.5;
+    const rangeY = (extMax.y - extMin.y) * 0.5;
+    const boundsMinX = extMin.x - rangeX;
+    const boundsMaxX = extMax.x + rangeX;
+    const boundsMinY = extMin.y - rangeY;
+    const boundsMaxY = extMax.y + rangeY;
+
+    function isInBounds(x, y) {
+      return x >= boundsMinX && x <= boundsMaxX && y >= boundsMinY && y <= boundsMaxY;
+    }
+
+    const transform = (x, y) => {
+      if (!isInBounds(x, y)) return null;
+      try {
+        const [lon, lat] = proj4(coordSystem.crs, 'EPSG:4326', [x * scale, y * scale]);
+        if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+          return { latitude: lat, longitude: lon };
+        }
+      } catch (e) { /* transform failed */ }
+      return null;
+    };
+
+    for (const entity of this.entities) {
+      const g = entity.geometry;
+      if (!g) continue;
+
+      // Get representative point for the entity
+      let refX, refY;
+      if (g.position) { refX = g.position.x; refY = g.position.y; }
+      else if (g.start) { refX = g.start.x; refY = g.start.y; }
+      else if (g.center) { refX = g.center.x; refY = g.center.y; }
+      else if (g.vertices && g.vertices.length > 0) { refX = g.vertices[0].x; refY = g.vertices[0].y; }
+
+      if (refX != null && refY != null) {
+        const result = transform(refX, refY);
+        if (result) {
+          entity.latitude = result.latitude;
+          entity.longitude = result.longitude;
+          entity.georeferenced = true;
+
+          // Also transform all vertices for line/polyline GIS export
+          if (g.vertices && g.vertices.length > 0) {
+            entity.wgs84Vertices = [];
+            for (const v of g.vertices) {
+              const vResult = transform(v.x, v.y);
+              if (vResult) {
+                entity.wgs84Vertices.push(vResult);
+              }
+            }
+          }
+          // Transform line start/end
+          if (g.start && g.end) {
+            const startResult = transform(g.start.x, g.start.y);
+            const endResult = transform(g.end.x, g.end.y);
+            if (startResult && endResult) {
+              entity.wgs84Vertices = [startResult, endResult];
+            }
+          }
+
+          georefCount++;
+        } else {
+          entity.georeferenced = false;
+          outlierCount++;
+        }
+      }
+    }
+
+    this.log(`Georeferenced ${georefCount} entities (${outlierCount} outliers filtered)`);
+
+    // Calculate WGS84 bounding box
+    const georefEntities = this.entities.filter(e => e.georeferenced);
+    if (georefEntities.length > 0) {
+      this.metadata.wgs84Bounds = {
+        south: Math.min(...georefEntities.map(e => e.latitude)),
+        north: Math.max(...georefEntities.map(e => e.latitude)),
+        west: Math.min(...georefEntities.map(e => e.longitude)),
+        east: Math.max(...georefEntities.map(e => e.longitude))
+      };
+      this.log(`WGS84 bounds: ${this.metadata.wgs84Bounds.south.toFixed(6)},${this.metadata.wgs84Bounds.west.toFixed(6)} to ${this.metadata.wgs84Bounds.north.toFixed(6)},${this.metadata.wgs84Bounds.east.toFixed(6)}`);
+    }
+  }
+
+  /**
+   * Export georeferenced entities to GeoJSON FeatureCollection.
+   * Ready for ArcGIS, QGIS, or web mapping.
+   */
+  toGeoJSON(options = {}) {
+    const features = [];
+
+    // Build category lookup from entity handles (since classified arrays are copies)
+    const entityCategories = new Map();
+    const addCategory = (arr, cat, rel) => {
+      for (const e of arr) {
+        const key = e.handle || `${e.layer}-${e.type}-${JSON.stringify(e.geometry?.position || e.geometry?.start || '')}`;
+        if (!entityCategories.has(key)) entityCategories.set(key, []);
+        entityCategories.get(key).push({ category: cat, itsRelevance: rel, equipmentType: e.type });
+      }
+    };
+    addCategory(this.itsEquipment, 'ITS Equipment', 'Direct - ITS device or communication');
+    addCategory(this.roadGeometry, 'Road Geometry', 'Lane geometry for CV/AV navigation, V2X road model');
+    addCategory(this.electricalInfrastructure, 'Electrical Infrastructure', 'Power source availability for ITS device placement');
+    addCategory(this.pedestrianInfrastructure, 'Pedestrian Infrastructure', 'Pedestrian detection zones, ADA compliance, V2P safety');
+    addCategory(this.trafficDevices, 'Traffic Control Device', 'Traffic control coordination with ITS');
+    addCategory(this.utilities, 'Utility', 'Conflict avoidance for ITS device installation');
+    addCategory(this.workZone, 'Work Zone', 'Active work zone - WZDx feed, dynamic messaging');
+
+    for (const entity of this.entities) {
+      if (!entity.georeferenced) continue;
+
+      // Get category info
+      const key = entity.handle || `${entity.layer}-${entity.type}-${JSON.stringify(entity.geometry?.position || entity.geometry?.start || '')}`;
+      const cats = entityCategories.get(key);
+      const primaryCat = cats ? cats[0] : { category: 'Uncategorized', itsRelevance: null };
+
+      let geometry;
+
+      // LineString for entities with multiple vertices
+      if (entity.wgs84Vertices && entity.wgs84Vertices.length >= 2) {
+        geometry = {
+          type: 'LineString',
+          coordinates: entity.wgs84Vertices.map(v => [v.longitude, v.latitude])
+        };
+      } else {
+        geometry = {
+          type: 'Point',
+          coordinates: [entity.longitude, entity.latitude]
+        };
+      }
+
+      features.push({
+        type: 'Feature',
+        geometry,
+        properties: {
+          entityType: entity.type,
+          layer: entity.layer,
+          category: primaryCat.category,
+          itsRelevance: primaryCat.itsRelevance,
+          blockName: entity.blockName || null,
+          text: entity.text || null,
+          handle: entity.handle || null
+        }
+      });
+    }
+
+    return {
+      type: 'FeatureCollection',
+      crs: { type: 'name', properties: { name: 'urn:ogc:def:crs:EPSG::4326' } },
+      features,
+      metadata: {
+        exportDate: new Date().toISOString(),
+        sourceFile: this.metadata.version,
+        coordinateSystem: this.metadata.coordinateSystem,
+        featureCount: features.length,
+        bounds: this.metadata.wgs84Bounds,
+        categories: [...new Set(features.map(f => f.properties.category))]
+      }
+    };
+  }
+
+  /**
    * Get statistics about parsed file
    */
   getStatistics() {
     const totalITSRelevant = this.itsEquipment.length + this.roadGeometry.length +
       this.electricalInfrastructure.length + this.pedestrianInfrastructure.length +
       this.trafficDevices.length;
+    const georeferenced = this.entities.filter(e => e.georeferenced).length;
     return {
       totalEntities: this.entities.length,
       totalLayers: this.layers.size,
@@ -531,6 +782,9 @@ class CADDParser {
       utilities: (this.utilities || []).length,
       workZone: (this.workZone || []).length,
       totalITSRelevant,
+      georeferenced,
+      coordinateSystem: this.metadata.coordinateSystem || null,
+      wgs84Bounds: this.metadata.wgs84Bounds || null,
       entityTypes: this.getEntityTypeBreakdown()
     };
   }
