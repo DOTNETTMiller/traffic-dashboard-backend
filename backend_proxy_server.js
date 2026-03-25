@@ -24628,14 +24628,18 @@ app.post('/api/digital-infrastructure/upload', (req, res, next) => {
     });
 
   } catch (error) {
-    console.error('❌ IFC upload error:', error);
-    const fs = require('fs');
-    if (storedFilePath && fs.existsSync(storedFilePath)) {
-      fs.unlinkSync(storedFilePath);
-    } else if (req.file?.path && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    console.error('❌ IFC/CADD upload error:', error.message);
+    console.error('❌ Stack:', error.stack);
+    try {
+      if (storedFilePath && fs.existsSync(path.join(__dirname, storedFilePath))) {
+        fs.unlinkSync(path.join(__dirname, storedFilePath));
+      } else if (req.file?.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+    } catch (cleanupErr) {
+      console.error('❌ Cleanup error:', cleanupErr.message);
     }
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: error.message, detail: error.stack?.split('\n').slice(0, 3).join(' | ') });
   }
 });
 
