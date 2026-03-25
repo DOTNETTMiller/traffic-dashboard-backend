@@ -92,7 +92,11 @@ class CADDParser {
       blocks: Array.from(this.blocks.values()),
       itsEquipment: this.itsEquipment,
       roadGeometry: this.roadGeometry,
+      electricalInfrastructure: this.electricalInfrastructure,
+      pedestrianInfrastructure: this.pedestrianInfrastructure,
       trafficDevices: this.trafficDevices,
+      utilities: this.utilities,
+      workZone: this.workZone,
       extractionLog: this.extractionLog,
       statistics: this.getStatistics()
     };
@@ -292,18 +296,22 @@ class CADDParser {
   }
 
   /**
-   * Classify elements by operational significance
+   * Classify elements by operational significance for ITS
    *
-   * Identifies:
-   * - ITS equipment (signs, signals, cameras, DMS, sensors)
-   * - Road geometry (centerlines, lane lines, pavement markings)
-   * - Traffic control devices
-   * - Work zones
+   * Broad classification recognizing that many civil/infrastructure layers
+   * are operationally relevant to ITS deployment and operations:
+   * - ITS equipment (signs, signals, cameras, DMS, sensors, RSUs)
+   * - Road geometry (centerlines, edges, curbs, lane markings, alignment)
+   * - Electrical infrastructure (power, conduit, wiring - ITS device power)
+   * - Pedestrian infrastructure (sidewalks, crosswalks, ADA - ped detection)
+   * - Traffic control devices (barriers, guardrails, attenuators)
+   * - Utilities (water, sewer, gas - conflict avoidance for ITS install)
+   * - Work zones (staging, construction, detours)
    */
   classifyOperationalElements() {
     this.log('Classifying operational elements...');
 
-    // Common layer naming conventions for transportation CADD
+    // Broader classification recognizing ITS relevance of civil infrastructure
     const layerPatterns = {
       itsEquipment: [
         /sign/i,
@@ -316,26 +324,79 @@ class CADDParser {
         /sensor/i,
         /rsu/i,
         /beacon/i,
-        /flasher/i
+        /flasher/i,
+        /fiber/i,
+        /comm/i,
+        /antenna/i,
+        /controller/i,
+        /cabinet/i,
+        /luminaire/i,
+        /light(?!ning)/i
       ],
       roadGeometry: [
         /centerline/i,
         /cl$/i,
-        /edge.*line/i,
+        /edge/i,
         /lane/i,
         /pavement/i,
         /marking/i,
-        /stripe/i
+        /stripe/i,
+        /curb/i,
+        /median/i,
+        /shoulder/i,
+        /grading/i,
+        /alignment/i,
+        /geo_/i,
+        /cor_/i,
+        /profile/i,
+        /cross.*section/i
+      ],
+      electricalInfrastructure: [
+        /elec/i,
+        /power/i,
+        /wiring/i,
+        /conduit/i,
+        /junction/i,
+        /jut/i,
+        /transformer/i,
+        /pole/i,
+        /circuit/i,
+        /voltage/i,
+        /lumen/i
+      ],
+      pedestrianInfrastructure: [
+        /sidewalk/i,
+        /crosswalk/i,
+        /ped/i,
+        /ada/i,
+        /ramp/i,
+        /detectable.*warn/i,
+        /dwp/i,
+        /handrail/i,
+        /walk/i
       ],
       trafficDevices: [
         /traffic/i,
+        /trf/i,
         /control/i,
         /barrier/i,
         /guardrail/i,
-        /attenuator/i
+        /attenuator/i,
+        /turn/i
+      ],
+      utilities: [
+        /util/i,
+        /water/i,
+        /sewer/i,
+        /sanitary/i,
+        /gas/i,
+        /storm/i,
+        /drain/i,
+        /drn/i
       ],
       workZone: [
         /staging/i,
+        /stg_/i,
         /construction/i,
         /work.*zone/i,
         /temporary/i,
@@ -343,37 +404,90 @@ class CADDParser {
       ]
     };
 
+    // Also track these new categories
+    this.electricalInfrastructure = [];
+    this.pedestrianInfrastructure = [];
+    this.utilities = [];
+    this.workZone = [];
+
     // Classify entities by layer name
     for (const entity of this.entities) {
       const layerName = entity.layer || '';
+      let classified = false;
 
       // Check ITS equipment patterns
       if (layerPatterns.itsEquipment.some(pattern => pattern.test(layerName))) {
         this.itsEquipment.push({
           ...entity,
           category: 'ITS Equipment',
+          itsRelevance: 'Direct - ITS device or communication',
           type: this.inferITSType(layerName, entity)
         });
+        classified = true;
       }
 
       // Check road geometry patterns
       if (layerPatterns.roadGeometry.some(pattern => pattern.test(layerName))) {
         this.roadGeometry.push({
           ...entity,
-          category: 'Road Geometry'
+          category: 'Road Geometry',
+          itsRelevance: 'Lane geometry for CV/AV navigation, V2X road model'
         });
+        classified = true;
+      }
+
+      // Check electrical infrastructure (ITS power availability)
+      if (layerPatterns.electricalInfrastructure.some(pattern => pattern.test(layerName))) {
+        this.electricalInfrastructure.push({
+          ...entity,
+          category: 'Electrical Infrastructure',
+          itsRelevance: 'Power source availability for ITS device placement'
+        });
+        classified = true;
+      }
+
+      // Check pedestrian infrastructure (ped detection zones)
+      if (layerPatterns.pedestrianInfrastructure.some(pattern => pattern.test(layerName))) {
+        this.pedestrianInfrastructure.push({
+          ...entity,
+          category: 'Pedestrian Infrastructure',
+          itsRelevance: 'Pedestrian detection zones, ADA compliance, V2P safety'
+        });
+        classified = true;
       }
 
       // Check traffic devices
       if (layerPatterns.trafficDevices.some(pattern => pattern.test(layerName))) {
         this.trafficDevices.push({
           ...entity,
-          category: 'Traffic Control Device'
+          category: 'Traffic Control Device',
+          itsRelevance: 'Traffic control coordination with ITS'
         });
+        classified = true;
+      }
+
+      // Check utilities (conflict avoidance for ITS installation)
+      if (layerPatterns.utilities.some(pattern => pattern.test(layerName))) {
+        this.utilities.push({
+          ...entity,
+          category: 'Utility',
+          itsRelevance: 'Conflict avoidance for ITS device installation'
+        });
+        classified = true;
+      }
+
+      // Check work zones
+      if (layerPatterns.workZone.some(pattern => pattern.test(layerName))) {
+        this.workZone.push({
+          ...entity,
+          category: 'Work Zone',
+          itsRelevance: 'Active work zone - WZDx feed, dynamic messaging'
+        });
+        classified = true;
       }
     }
 
-    this.log(`Classified: ${this.itsEquipment.length} ITS, ${this.roadGeometry.length} road geometry, ${this.trafficDevices.length} traffic devices`);
+    this.log(`Classified: ${this.itsEquipment.length} ITS equipment, ${this.roadGeometry.length} road geometry, ${this.electricalInfrastructure.length} electrical, ${this.pedestrianInfrastructure.length} pedestrian, ${this.trafficDevices.length} traffic devices, ${this.utilities.length} utilities, ${this.workZone.length} work zone`);
   }
 
   /**
@@ -390,21 +504,33 @@ class CADDParser {
     if (name.includes('rsu')) return 'RSU';
     if (name.includes('beacon')) return 'Beacon';
     if (name.includes('flasher')) return 'Flasher';
+    if (name.includes('fiber') || name.includes('comm')) return 'Communications';
+    if (name.includes('luminaire') || name.includes('light')) return 'Lighting';
+    if (name.includes('controller') || name.includes('cabinet')) return 'Controller Cabinet';
+    if (name.includes('antenna')) return 'Antenna';
 
-    return 'Unknown ITS Device';
+    return 'ITS Infrastructure';
   }
 
   /**
    * Get statistics about parsed file
    */
   getStatistics() {
+    const totalITSRelevant = this.itsEquipment.length + this.roadGeometry.length +
+      this.electricalInfrastructure.length + this.pedestrianInfrastructure.length +
+      this.trafficDevices.length;
     return {
       totalEntities: this.entities.length,
       totalLayers: this.layers.size,
       totalBlocks: this.blocks.size,
       itsEquipment: this.itsEquipment.length,
       roadGeometry: this.roadGeometry.length,
+      electricalInfrastructure: (this.electricalInfrastructure || []).length,
+      pedestrianInfrastructure: (this.pedestrianInfrastructure || []).length,
       trafficDevices: this.trafficDevices.length,
+      utilities: (this.utilities || []).length,
+      workZone: (this.workZone || []).length,
+      totalITSRelevant,
       entityTypes: this.getEntityTypeBreakdown()
     };
   }
