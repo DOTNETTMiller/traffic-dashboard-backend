@@ -2294,6 +2294,223 @@ function ensureStateOSWRegulationsTable() {
   }
 }
 
+// Ensure Digital Infrastructure tables exist (IFC models + CADD models)
+async function ensureDigitalInfraTables() {
+  try {
+    if (db.isPostgres) {
+      // PostgreSQL: Create tables with full schema
+      await db.db.query(`
+        CREATE TABLE IF NOT EXISTS ifc_models (
+          id SERIAL PRIMARY KEY,
+          filename TEXT NOT NULL,
+          original_filename TEXT,
+          file_path TEXT,
+          file_type TEXT,
+          file_size INTEGER,
+          ifc_schema TEXT,
+          project_name TEXT,
+          uploaded_by TEXT,
+          upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          state_key TEXT,
+          latitude REAL,
+          longitude REAL,
+          route TEXT,
+          milepost REAL,
+          elements_extracted INTEGER DEFAULT 0,
+          gaps_identified INTEGER DEFAULT 0,
+          v2x_applicable INTEGER DEFAULT 0,
+          av_critical INTEGER DEFAULT 0,
+          extraction_status TEXT DEFAULT 'pending',
+          processing_status TEXT DEFAULT 'pending',
+          extraction_log TEXT,
+          total_elements INTEGER DEFAULT 0,
+          metadata TEXT,
+          file_data BYTEA,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      await db.db.query(`
+        CREATE TABLE IF NOT EXISTS infrastructure_elements (
+          id SERIAL PRIMARY KEY,
+          model_id INTEGER REFERENCES ifc_models(id) ON DELETE CASCADE,
+          ifc_guid TEXT,
+          ifc_type TEXT NOT NULL,
+          element_name TEXT,
+          element_description TEXT,
+          category TEXT,
+          latitude REAL, longitude REAL, elevation REAL,
+          length REAL, width REAL, height REAL, clearance REAL,
+          operational_purpose TEXT,
+          its_relevance TEXT,
+          v2x_applicable INTEGER DEFAULT 0,
+          av_critical INTEGER DEFAULT 0,
+          properties TEXT,
+          geometry_data TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      await db.db.query(`
+        CREATE TABLE IF NOT EXISTS infrastructure_gaps (
+          id SERIAL PRIMARY KEY,
+          element_id INTEGER REFERENCES infrastructure_elements(id) ON DELETE CASCADE,
+          model_id INTEGER REFERENCES ifc_models(id) ON DELETE CASCADE,
+          gap_type TEXT NOT NULL,
+          gap_category TEXT,
+          severity TEXT,
+          missing_property TEXT,
+          required_for TEXT,
+          its_use_case TEXT,
+          standards_reference TEXT,
+          idm_recommendation TEXT,
+          ids_requirement TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      await db.db.query(`
+        CREATE TABLE IF NOT EXISTS cadd_models (
+          id SERIAL PRIMARY KEY,
+          filename TEXT NOT NULL,
+          original_filename TEXT NOT NULL,
+          file_format TEXT NOT NULL,
+          file_size INTEGER,
+          file_path TEXT NOT NULL,
+          cad_version TEXT,
+          units TEXT,
+          coordinate_system TEXT,
+          extents_min_x REAL, extents_min_y REAL,
+          extents_max_x REAL, extents_max_y REAL,
+          project_name TEXT,
+          project_location TEXT,
+          corridor TEXT,
+          state TEXT,
+          county TEXT,
+          extraction_status TEXT DEFAULT 'pending',
+          extraction_started_at TIMESTAMP,
+          extraction_completed_at TIMESTAMP,
+          extraction_error TEXT,
+          total_layers INTEGER DEFAULT 0,
+          total_entities INTEGER DEFAULT 0,
+          total_blocks INTEGER DEFAULT 0,
+          its_equipment_count INTEGER DEFAULT 0,
+          road_geometry_count INTEGER DEFAULT 0,
+          traffic_devices_count INTEGER DEFAULT 0,
+          uploaded_by TEXT,
+          uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          notes TEXT,
+          extraction_data TEXT
+        );
+      `);
+
+      await db.db.query(`
+        CREATE TABLE IF NOT EXISTS cadd_layers (
+          id SERIAL PRIMARY KEY,
+          cadd_model_id INTEGER NOT NULL REFERENCES cadd_models(id) ON DELETE CASCADE,
+          layer_name TEXT NOT NULL,
+          layer_color INTEGER,
+          visible BOOLEAN DEFAULT TRUE,
+          frozen BOOLEAN DEFAULT FALSE,
+          entity_count INTEGER DEFAULT 0,
+          operational_category TEXT
+        );
+      `);
+
+      await db.db.query(`
+        CREATE TABLE IF NOT EXISTS cadd_entities (
+          id SERIAL PRIMARY KEY,
+          cadd_model_id INTEGER NOT NULL REFERENCES cadd_models(id) ON DELETE CASCADE,
+          layer_id INTEGER REFERENCES cadd_layers(id) ON DELETE SET NULL,
+          entity_type TEXT NOT NULL,
+          handle TEXT,
+          operational_category TEXT,
+          equipment_type TEXT,
+          geometry TEXT NOT NULL,
+          longitude REAL, latitude REAL, elevation REAL,
+          block_name TEXT,
+          text_content TEXT,
+          color INTEGER,
+          line_weight INTEGER
+        );
+      `);
+
+      console.log('✅ Digital Infrastructure tables ensured (IFC + CADD)');
+    } else {
+      // SQLite: Create tables
+      db.db.exec(`
+        CREATE TABLE IF NOT EXISTS ifc_models (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          filename TEXT NOT NULL,
+          original_filename TEXT,
+          file_path TEXT,
+          file_type TEXT,
+          file_size INTEGER,
+          ifc_schema TEXT,
+          project_name TEXT,
+          uploaded_by TEXT,
+          upload_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+          state_key TEXT,
+          latitude REAL, longitude REAL, route TEXT, milepost REAL,
+          elements_extracted INTEGER DEFAULT 0,
+          gaps_identified INTEGER DEFAULT 0,
+          v2x_applicable INTEGER DEFAULT 0,
+          av_critical INTEGER DEFAULT 0,
+          extraction_status TEXT DEFAULT 'pending',
+          processing_status TEXT DEFAULT 'pending',
+          extraction_log TEXT,
+          total_elements INTEGER DEFAULT 0,
+          metadata TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS infrastructure_elements (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          model_id INTEGER REFERENCES ifc_models(id) ON DELETE CASCADE,
+          ifc_guid TEXT, ifc_type TEXT NOT NULL,
+          element_name TEXT, element_description TEXT, category TEXT,
+          its_relevance TEXT, v2x_applicable INTEGER DEFAULT 0, av_critical INTEGER DEFAULT 0,
+          properties TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS infrastructure_gaps (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          element_id INTEGER REFERENCES infrastructure_elements(id) ON DELETE CASCADE,
+          model_id INTEGER REFERENCES ifc_models(id) ON DELETE CASCADE,
+          gap_type TEXT NOT NULL, gap_category TEXT, severity TEXT,
+          missing_property TEXT, required_for TEXT, its_use_case TEXT,
+          standards_reference TEXT, idm_recommendation TEXT, ids_requirement TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS cadd_models (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          filename TEXT NOT NULL, original_filename TEXT NOT NULL,
+          file_format TEXT NOT NULL, file_size INTEGER, file_path TEXT NOT NULL,
+          cad_version TEXT, units TEXT,
+          extents_min_x REAL, extents_min_y REAL, extents_max_x REAL, extents_max_y REAL,
+          corridor TEXT, state TEXT,
+          extraction_status TEXT DEFAULT 'pending',
+          extraction_completed_at DATETIME,
+          total_layers INTEGER DEFAULT 0, total_entities INTEGER DEFAULT 0,
+          total_blocks INTEGER DEFAULT 0, its_equipment_count INTEGER DEFAULT 0,
+          road_geometry_count INTEGER DEFAULT 0, traffic_devices_count INTEGER DEFAULT 0,
+          uploaded_by TEXT,
+          uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          extraction_data TEXT
+        );
+      `);
+      console.log('✅ Digital Infrastructure tables ensured (IFC + CADD)');
+    }
+  } catch (error) {
+    console.error('⚠️  Digital Infrastructure tables error:', error.message);
+  }
+}
+
 // Initialize database and run migration (async startup)
 async function initializeDatabase() {
   try {
@@ -2339,6 +2556,9 @@ async function initializeDatabase() {
 
     // Initialize interstate geometries table
     initInterstateGeometries();
+
+    // Ensure digital infrastructure tables exist (IFC + CADD)
+    await ensureDigitalInfraTables();
 
     // Generate admin token if none exist
     const tokenCheck = db.db.prepare('SELECT COUNT(*) as count FROM admin_tokens').get();
@@ -24106,7 +24326,21 @@ app.get('/api/its-equipment/states', async (req, res) => {
 // ==========================================
 
 // Upload IFC/CAD model and extract infrastructure elements
-app.post('/api/digital-infrastructure/upload', uploadIFC.single('ifcFile'), async (req, res) => {
+app.post('/api/digital-infrastructure/upload', (req, res, next) => {
+  // Ensure upload directory exists before multer processes
+  const uploadDir = path.join(__dirname, 'uploads', 'ifc');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+  // Wrap multer to catch errors (missing dir, file type rejection, etc.)
+  uploadIFC.single('ifcFile')(req, res, (err) => {
+    if (err) {
+      console.error('❌ Multer upload error:', err.message);
+      return res.status(400).json({ success: false, error: `Upload error: ${err.message}` });
+    }
+    next();
+  });
+}, async (req, res) => {
   let storedFilePath = null;
   try {
     const { stateKey, uploadedBy, latitude, longitude, route, milepost } = req.body;
@@ -31756,12 +31990,72 @@ app.post('/api/admin/migrate-digital-infrastructure', async (req, res) => {
     `);
     console.log('✅ infrastructure_standards table created');
 
+    // Create cadd_models table
+    console.log('📦 Creating cadd_models table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS cadd_models (
+        id SERIAL PRIMARY KEY,
+        filename TEXT NOT NULL,
+        original_filename TEXT NOT NULL,
+        file_format TEXT NOT NULL,
+        file_size INTEGER,
+        file_path TEXT NOT NULL,
+        cad_version TEXT,
+        units TEXT,
+        coordinate_system TEXT,
+        extents_min_x REAL, extents_min_y REAL,
+        extents_max_x REAL, extents_max_y REAL,
+        project_name TEXT,
+        project_location TEXT,
+        corridor TEXT,
+        state TEXT,
+        county TEXT,
+        extraction_status TEXT DEFAULT 'pending',
+        extraction_started_at TIMESTAMP,
+        extraction_completed_at TIMESTAMP,
+        extraction_error TEXT,
+        total_layers INTEGER DEFAULT 0,
+        total_entities INTEGER DEFAULT 0,
+        total_blocks INTEGER DEFAULT 0,
+        its_equipment_count INTEGER DEFAULT 0,
+        road_geometry_count INTEGER DEFAULT 0,
+        traffic_devices_count INTEGER DEFAULT 0,
+        uploaded_by TEXT,
+        uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        notes TEXT,
+        extraction_data TEXT
+      );
+    `);
+    console.log('✅ cadd_models table created');
+
+    // Add missing columns to ifc_models (for upload endpoint compatibility)
+    console.log('📦 Adding missing columns to ifc_models...');
+    const ifc_columns = [
+      ['original_filename', 'TEXT'],
+      ['file_path', 'TEXT'],
+      ['file_type', 'TEXT'],
+      ['elements_extracted', 'INTEGER DEFAULT 0'],
+      ['gaps_identified', 'INTEGER DEFAULT 0'],
+      ['v2x_applicable', 'INTEGER DEFAULT 0'],
+      ['av_critical', 'INTEGER DEFAULT 0'],
+      ['processing_status', 'TEXT DEFAULT \'pending\''],
+      ['file_data', 'BYTEA']
+    ];
+    for (const [col, type] of ifc_columns) {
+      try {
+        await client.query(`ALTER TABLE ifc_models ADD COLUMN IF NOT EXISTS ${col} ${type}`);
+      } catch (e) { /* column may already exist */ }
+    }
+    console.log('✅ ifc_models columns updated');
+
     // Create indexes
     console.log('📑 Creating indexes...');
     await client.query('CREATE INDEX IF NOT EXISTS idx_infra_elements_model ON infrastructure_elements(model_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_infra_elements_type ON infrastructure_elements(ifc_type)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_infra_gaps_element ON infrastructure_gaps(element_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_infra_gaps_model ON infrastructure_gaps(model_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_cadd_models_corridor ON cadd_models(corridor)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_cadd_models_state ON cadd_models(state)');
     console.log('✅ Indexes created');
 
     // Verify tables
@@ -31770,6 +32064,7 @@ app.post('/api/admin/migrate-digital-infrastructure', async (req, res) => {
     const elementsCount = await client.query('SELECT COUNT(*) as count FROM infrastructure_elements');
     const gapsCount = await client.query('SELECT COUNT(*) as count FROM infrastructure_gaps');
     const standardsCount = await client.query('SELECT COUNT(*) as count FROM infrastructure_standards');
+    const caddCount = await client.query('SELECT COUNT(*) as count FROM cadd_models');
 
     const result = {
       success: true,
@@ -31778,7 +32073,8 @@ app.post('/api/admin/migrate-digital-infrastructure', async (req, res) => {
         ifc_models: parseInt(modelsCount.rows[0].count),
         infrastructure_elements: parseInt(elementsCount.rows[0].count),
         infrastructure_gaps: parseInt(gapsCount.rows[0].count),
-        infrastructure_standards: parseInt(standardsCount.rows[0].count)
+        infrastructure_standards: parseInt(standardsCount.rows[0].count),
+        cadd_models: parseInt(caddCount.rows[0].count)
       }
     };
 
