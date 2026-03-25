@@ -24325,6 +24325,35 @@ app.get('/api/its-equipment/states', async (req, res) => {
 // DIGITAL INFRASTRUCTURE - BIM/IFC ENDPOINTS
 // ==========================================
 
+// Diagnostic endpoint to check digital infrastructure readiness
+app.get('/api/digital-infrastructure/status', async (req, res) => {
+  const checks = { postgres: db.isPostgres, tables: {}, uploadDir: false, dxfParser: false };
+  try {
+    // Check upload directory
+    const uploadDir = path.join(__dirname, 'uploads', 'ifc');
+    checks.uploadDir = fs.existsSync(uploadDir);
+
+    // Check dxf-parser
+    try { require('dxf-parser'); checks.dxfParser = true; } catch(e) { checks.dxfParser = e.message; }
+
+    // Check tables
+    for (const table of ['cadd_models', 'ifc_models', 'infrastructure_elements', 'infrastructure_gaps']) {
+      try {
+        if (db.isPostgres) {
+          await db.db.query(`SELECT 1 FROM ${table} LIMIT 1`);
+        } else {
+          db.db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get();
+        }
+        checks.tables[table] = true;
+      } catch(e) { checks.tables[table] = e.message; }
+    }
+
+    res.json({ success: true, checks });
+  } catch(e) {
+    res.json({ success: false, error: e.message, checks });
+  }
+});
+
 // Upload IFC/CAD model and extract infrastructure elements
 app.post('/api/digital-infrastructure/upload', (req, res, next) => {
   // Ensure upload directory exists before multer processes
@@ -24342,7 +24371,9 @@ app.post('/api/digital-infrastructure/upload', (req, res, next) => {
   });
 }, async (req, res) => {
   let storedFilePath = null;
+  let step = 'init';
   try {
+    step = 'parse-request';
     const { stateKey, uploadedBy, latitude, longitude, route, milepost } = req.body;
 
     if (!req.file) {
@@ -24355,10 +24386,12 @@ app.post('/api/digital-infrastructure/upload', (req, res, next) => {
 
     console.log(`🏗️  Processing ${fileType} upload: ${req.file.originalname}`);
     console.log(`   State: ${stateKey || 'N/A'}, Uploaded by: ${uploadedBy || 'anonymous'}`);
+    console.log(`   Temp path: ${req.file.path}, Size: ${req.file.size}`);
 
     // Select appropriate parser based on file type
     const tempFilePath = req.file.path;
 
+    step = 'parse-file';
     let parser, extractionResult;
     if (isCAD) {
       const CADParser = require('./utils/cad-parser');
@@ -24373,8 +24406,8 @@ app.post('/api/digital-infrastructure/upload', (req, res, next) => {
       console.log(`   ✅ Extracted ${extractionResult.elements.length} infrastructure elements`);
     }
 
+    step = 'move-file';
     // Move file to permanent storage (Railway volume at /app/uploads/ifc/)
-    const fs = require('fs');
     const uploadDir = path.join(__dirname, 'uploads', 'ifc');
 
     // Ensure upload directory exists
@@ -24390,12 +24423,14 @@ app.post('/api/digital-infrastructure/upload', (req, res, next) => {
     // Move file from temp location to permanent storage
     fs.renameSync(tempFilePath, permanentPath);
 
+    step = 'read-buffer';
     // Read file contents for database storage (BYTEA)
     const fileBuffer = fs.readFileSync(permanentPath);
     console.log(`   📦 Read ${fileBuffer.length} bytes for database storage`);
 
     // Handle CAD files separately from IFC files
     if (isCAD) {
+      step = 'db-insert-cadd';
       // Store in cadd_models table
       const caddInsert = db.isPostgres
         ? `INSERT INTO cadd_models (filename, original_filename, file_format, file_size, file_path,
@@ -24628,7 +24663,7 @@ app.post('/api/digital-infrastructure/upload', (req, res, next) => {
     });
 
   } catch (error) {
-    console.error('❌ IFC/CADD upload error:', error.message);
+    console.error(`❌ IFC/CADD upload error at step [${step}]:`, error.message);
     console.error('❌ Stack:', error.stack);
     try {
       if (storedFilePath && fs.existsSync(path.join(__dirname, storedFilePath))) {
@@ -24639,7 +24674,7 @@ app.post('/api/digital-infrastructure/upload', (req, res, next) => {
     } catch (cleanupErr) {
       console.error('❌ Cleanup error:', cleanupErr.message);
     }
-    res.status(500).json({ success: false, error: error.message, detail: error.stack?.split('\n').slice(0, 3).join(' | ') });
+    res.status(500).json({ success: false, error: `[${step}] ${error.message}` });
   }
 });
 
