@@ -24354,7 +24354,168 @@ app.get('/api/digital-infrastructure/status', async (req, res) => {
   }
 });
 
-// Upload IFC/CAD model and extract infrastructure elements
+// Base64 JSON upload endpoint (workaround for Railway edge blocking multipart)
+app.post('/api/digital-infrastructure/upload-base64', express.json({ limit: '50mb' }), async (req, res) => {
+  let storedFilePath = null;
+  let step = 'init';
+  try {
+    step = 'parse-request';
+    const { fileData, fileName, stateKey, uploadedBy, route, milepost } = req.body;
+
+    if (!fileData || !fileName) {
+      return res.status(400).json({ success: false, error: 'No file data or filename provided' });
+    }
+
+    // Decode base64 file
+    step = 'decode-file';
+    const fileBuffer = Buffer.from(fileData, 'base64');
+    const fileExt = path.extname(fileName).toLowerCase();
+    const isCAD = ['.dxf', '.dwg', '.dgn'].includes(fileExt);
+    const fileType = isCAD ? 'CAD' : 'IFC';
+
+    console.log(`🏗️  Processing ${fileType} upload (base64): ${fileName}, ${fileBuffer.length} bytes`);
+
+    // Write to temp file for parser
+    step = 'write-temp';
+    const uploadDir = path.join(__dirname, 'uploads', 'ifc');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    const safeName = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const permanentPath = path.join(uploadDir, safeName);
+    storedFilePath = path.join('uploads', 'ifc', safeName);
+    fs.writeFileSync(permanentPath, fileBuffer);
+
+    // Parse file
+    step = 'parse-file';
+    let parser, extractionResult;
+    if (isCAD) {
+      const CADParser = require('./utils/cad-parser');
+      parser = new CADParser();
+      extractionResult = await parser.parseFile(permanentPath);
+      console.log(`   ✅ Parsed ${extractionResult.statistics.totalEntities} CAD entities`);
+    } else {
+      parser = new IFCParser();
+      extractionResult = await parser.parseFile(permanentPath);
+      console.log(`   ✅ Parsed ${extractionResult.statistics.total_entities} IFC entities`);
+    }
+
+    // Insert into database
+    if (isCAD) {
+      step = 'db-insert-cadd';
+      const caddInsert = db.isPostgres
+        ? `INSERT INTO cadd_models (filename, original_filename, file_format, file_size, file_path,
+           cad_version, units, extents_min_x, extents_min_y, extents_max_x, extents_max_y,
+           corridor, state, extraction_status, extraction_completed_at,
+           total_layers, total_entities, total_blocks, its_equipment_count, road_geometry_count, traffic_devices_count,
+           uploaded_by, extraction_data)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), $15, $16, $17, $18, $19, $20, $21, $22)
+           RETURNING id`
+        : `INSERT INTO cadd_models (filename, original_filename, file_format, file_size, file_path,
+           cad_version, units, extents_min_x, extents_min_y, extents_max_x, extents_max_y,
+           corridor, state, extraction_status, extraction_completed_at,
+           total_layers, total_entities, total_blocks, its_equipment_count, road_geometry_count, traffic_devices_count,
+           uploaded_by, extraction_data)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+      let modelId;
+      const params = [
+        safeName, fileName,
+        fileExt.toUpperCase().replace('.', ''), fileBuffer.length, storedFilePath,
+        extractionResult.metadata?.version || null,
+        extractionResult.metadata?.units != null ? String(extractionResult.metadata.units) : null,
+        extractionResult.metadata?.extents?.min?.x || null,
+        extractionResult.metadata?.extents?.min?.y || null,
+        extractionResult.metadata?.extents?.max?.x || null,
+        extractionResult.metadata?.extents?.max?.y || null,
+        route || null, stateKey || null, 'completed',
+        extractionResult.statistics.totalLayers,
+        extractionResult.statistics.totalEntities,
+        extractionResult.statistics.totalBlocks,
+        extractionResult.statistics.itsEquipment,
+        extractionResult.statistics.roadGeometry,
+        extractionResult.statistics.trafficDevices,
+        uploadedBy || 'anonymous',
+        JSON.stringify(extractionResult)
+      ];
+
+      if (db.isPostgres) {
+        const result = await db.db.query(caddInsert, params);
+        modelId = result.rows[0].id;
+      } else {
+        const result = db.db.prepare(caddInsert).run(...params);
+        modelId = result.lastInsertRowid;
+      }
+
+      console.log(`✅ Successfully stored CAD model ${modelId}`);
+      return res.json({
+        success: true, model_id: modelId, filename: fileName,
+        format: extractionResult.format,
+        layers: extractionResult.statistics.totalLayers,
+        entities: extractionResult.statistics.totalEntities,
+        its_equipment: extractionResult.statistics.itsEquipment,
+        road_geometry: extractionResult.statistics.roadGeometry,
+        extraction_log: extractionResult.extractionLog,
+        message: `Successfully processed ${fileType} file`
+      });
+    } else {
+      // IFC path - generate gap analysis and store
+      step = 'db-insert-ifc';
+      const gaps = parser.identifyGaps(extractionResult.elements);
+      const v2xCount = extractionResult.elements.filter(e => e.v2x_applicable).length;
+      const avCount = extractionResult.elements.filter(e => e.av_critical).length;
+
+      const modelInsert = db.isPostgres
+        ? `INSERT INTO ifc_models (filename, original_filename, file_path, file_type, file_size,
+           state_key, uploaded_by, latitude, longitude, route, milepost,
+           elements_extracted, gaps_identified, v2x_applicable, av_critical, processing_status, file_data)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+           RETURNING id`
+        : `INSERT INTO ifc_models (filename, original_filename, file_path, file_type, file_size,
+           state_key, uploaded_by, latitude, longitude, route, milepost,
+           elements_extracted, gaps_identified, v2x_applicable, av_critical, processing_status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+      let modelId;
+      if (db.isPostgres) {
+        const result = await db.db.query(modelInsert, [
+          safeName, fileName, storedFilePath, fileExt, fileBuffer.length,
+          stateKey || null, uploadedBy || 'anonymous',
+          null, null, route || null, milepost || null,
+          extractionResult.elements.length, gaps.length, v2xCount, avCount, 'completed', fileBuffer
+        ]);
+        modelId = result.rows[0].id;
+      } else {
+        const result = db.db.prepare(modelInsert).run(
+          safeName, fileName, storedFilePath, fileExt, fileBuffer.length,
+          stateKey || null, uploadedBy || 'anonymous',
+          null, null, route || null, milepost || null,
+          extractionResult.elements.length, gaps.length, v2xCount, avCount, 'completed'
+        );
+        modelId = result.lastInsertRowid;
+      }
+
+      return res.json({
+        success: true, model_id: modelId, filename: fileName,
+        schema: extractionResult.schema,
+        elements_extracted: extractionResult.elements.length,
+        gaps_identified: gaps.length,
+        message: 'Successfully processed IFC model'
+      });
+    }
+  } catch (error) {
+    console.error(`❌ Upload (base64) error at step [${step}]:`, error.message);
+    console.error('❌ Stack:', error.stack);
+    try {
+      if (storedFilePath && fs.existsSync(path.join(__dirname, storedFilePath))) {
+        fs.unlinkSync(path.join(__dirname, storedFilePath));
+      }
+    } catch (cleanupErr) { /* ignore */ }
+    res.status(500).json({ success: false, error: `[${step}] ${error.message}` });
+  }
+});
+
+// Upload IFC/CAD model and extract infrastructure elements (multipart form)
 app.post('/api/digital-infrastructure/upload', (req, res, next) => {
   // Ensure upload directory exists before multer processes
   const uploadDir = path.join(__dirname, 'uploads', 'ifc');

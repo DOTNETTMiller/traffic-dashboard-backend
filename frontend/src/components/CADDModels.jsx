@@ -76,23 +76,30 @@ export default function CADDModels() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('ifcFile', selectedFile);  // Keep same parameter name as IFC endpoint
-    if (stateKey) formData.append('stateKey', stateKey);
-    if (uploadedBy) formData.append('uploadedBy', uploadedBy);
-    if (route) formData.append('route', route);
-
     try {
       setUploading(true);
+      setUploadProgress('Reading and encoding CAD file...');
+
+      // Read file as base64 to avoid multipart (Railway edge blocks multipart uploads)
+      const fileData = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]); // strip data:...;base64, prefix
+        reader.onerror = reject;
+        reader.readAsDataURL(selectedFile);
+      });
+
       setUploadProgress('Uploading and parsing CAD file...');
 
       const response = await axios.post(
-        `${API_BASE}/api/digital-infrastructure/upload`,  // Uses same endpoint as IFC
-        formData,
+        `${API_BASE}/api/digital-infrastructure/upload-base64`,
         {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          timeout: 300000 // 5 minutes for CAD files
-        }
+          fileData,
+          fileName: selectedFile.name,
+          stateKey: stateKey || undefined,
+          uploadedBy: uploadedBy || undefined,
+          route: route || undefined
+        },
+        { timeout: 300000 } // 5 minutes for CAD files
       );
 
       setUploadProgress(`Success! Extracted ${response.data.entities} entities, ${response.data.its_equipment} ITS equipment items`);
