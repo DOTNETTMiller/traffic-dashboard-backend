@@ -19,140 +19,36 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
     setLoading(true);
     setError(null);
     try {
-      // Mock data since API endpoints for diversion routes not yet created
-      // In production, this would be: const response = await fetch(`${config.apiUrl}/api/diversion-routes`);
+      const response = await fetch(`${config.apiUrl}/api/diversion-routes`, {
+        credentials: 'include'
+      });
 
-      // Simulating the 6 pre-loaded routes from the migration
-      const mockRoutes = [
-        {
-          id: 1,
-          route_name: 'I-35 to US-69 (Iowa-Missouri Border)',
-          primary_route: 'I-35',
-          diversion_route: 'US-69',
-          start_location: 'I-35 Exit 1 (Iowa)',
-          end_location: 'I-35 Exit 12 (Missouri)',
-          states_involved: ['Iowa', 'Missouri'],
-          distance_miles: 25.5,
-          estimated_delay_minutes: 15,
-          truck_suitable: true,
-          hazmat_approved: true,
-          approval_status: 'approved',
-          activation_count: 12
-        },
-        {
-          id: 2,
-          route_name: 'I-35 to I-80 East (Iowa)',
-          primary_route: 'I-35',
-          diversion_route: 'I-80',
-          start_location: 'I-35/I-80 Junction Des Moines',
-          end_location: 'I-35 Exit 92',
-          states_involved: ['Iowa'],
-          distance_miles: 18.2,
-          estimated_delay_minutes: 10,
-          truck_suitable: true,
-          hazmat_approved: true,
-          approval_status: 'approved',
-          activation_count: 8
-        },
-        {
-          id: 3,
-          route_name: 'I-35 to US-75 (Minnesota)',
-          primary_route: 'I-35',
-          diversion_route: 'US-75',
-          start_location: 'I-35 Exit 12',
-          end_location: 'I-35 Exit 45',
-          states_involved: ['Minnesota'],
-          distance_miles: 32.0,
-          estimated_delay_minutes: 20,
-          truck_suitable: true,
-          hazmat_approved: false,
-          approval_status: 'approved',
-          activation_count: 5
-        },
-        {
-          id: 4,
-          route_name: 'I-70 to US-40 (Kansas-Colorado)',
-          primary_route: 'I-70',
-          diversion_route: 'US-40',
-          start_location: 'I-70 MM 420 (KS)',
-          end_location: 'I-70 MM 20 (CO)',
-          states_involved: ['Kansas', 'Colorado'],
-          distance_miles: 45.0,
-          estimated_delay_minutes: 30,
-          truck_suitable: true,
-          hazmat_approved: false,
-          approval_status: 'approved',
-          activation_count: 3
-        },
-        {
-          id: 5,
-          route_name: 'I-80 to I-35 South (Iowa)',
-          primary_route: 'I-80',
-          diversion_route: 'I-35',
-          start_location: 'I-80 Exit 137',
-          end_location: 'I-80 Exit 110',
-          states_involved: ['Iowa'],
-          distance_miles: 22.0,
-          estimated_delay_minutes: 12,
-          truck_suitable: true,
-          hazmat_approved: true,
-          approval_status: 'approved',
-          activation_count: 15
-        },
-        {
-          id: 6,
-          route_name: 'I-80 to US-30 (Nebraska)',
-          primary_route: 'I-80',
-          diversion_route: 'US-30',
-          start_location: 'I-80 Exit 395',
-          end_location: 'I-80 Exit 440',
-          states_involved: ['Nebraska'],
-          distance_miles: 42.0,
-          estimated_delay_minutes: 25,
-          truck_suitable: true,
-          hazmat_approved: false,
-          approval_status: 'approved',
-          activation_count: 7
-        }
-      ];
+      if (!response.ok) throw new Error('Failed to fetch diversion routes');
 
-      setDiversionRoutes(mockRoutes);
+      const data = await response.json();
+      setDiversionRoutes(data.routes || []);
     } catch (err) {
-      setError('Failed to fetch diversion routes');
-      console.error(err);
+      console.error('Error fetching diversion routes:', err);
+      setError('Failed to fetch diversion routes. Database may not be connected.');
     } finally {
       setLoading(false);
     }
   };
 
   const fetchActivations = async () => {
-    // Mock activation history
-    const mockActivations = [
-      {
-        id: 1,
-        diversion_route_id: 5,
-        route_name: 'I-80 to I-35 South (Iowa)',
-        activated_by: 'Iowa TMC',
-        activated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-        deactivated_at: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
-        activation_reason: 'Major crash blocking all lanes on I-80',
-        states_notified: ['Iowa'],
-        effectiveness_rating: 4
-      },
-      {
-        id: 2,
-        diversion_route_id: 1,
-        route_name: 'I-35 to US-69 (Iowa-Missouri Border)',
-        activated_by: 'Iowa TMC',
-        activated_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-        deactivated_at: new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
-        activation_reason: 'Bridge maintenance full closure',
-        states_notified: ['Iowa', 'Missouri'],
-        effectiveness_rating: 5
-      }
-    ];
+    try {
+      const response = await fetch(`${config.apiUrl}/api/diversion-routes/activations`, {
+        credentials: 'include'
+      });
 
-    setActivations(mockActivations);
+      if (!response.ok) throw new Error('Failed to fetch activations');
+
+      const data = await response.json();
+      setActivations(data.activations || []);
+    } catch (err) {
+      console.error('Error fetching activations:', err);
+      // Non-critical — don't show error for history tab
+    }
   };
 
   const activateRoute = async () => {
@@ -162,21 +58,29 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
     setError(null);
 
     try {
-      // In production, this would be an API call
-      // const response = await fetch(`${config.apiUrl}/api/diversion-routes/activate`, { ... });
+      const response = await fetch(`${config.apiUrl}/api/diversion-routes/${selectedRoute.id}/activate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          event_id: selectedEvent?.id || null,
+          activated_by: 'TMC Operator',
+          activation_reason: selectedEvent
+            ? `Event: ${selectedEvent.title || selectedEvent.description?.substring(0, 80)}`
+            : 'Manual activation'
+        })
+      });
 
-      alert(`Diversion Route Activated!\n\nRoute: ${selectedRoute.route_name}\n\n` +
-            `Primary Route: ${selectedRoute.primary_route}\n` +
-            `Diversion via: ${selectedRoute.diversion_route}\n` +
-            `Distance: ${selectedRoute.distance_miles} miles\n` +
-            `Est. Delay: ${selectedRoute.estimated_delay_minutes} minutes\n\n` +
-            `States Notified: ${selectedRoute.states_involved.join(', ')}\n\n` +
-            `DMS messages would be automatically activated along the route.`);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to activate route');
+      }
 
       setSelectedRoute(null);
       fetchActivations();
+      fetchDiversionRoutes(); // Refresh activation counts
     } catch (err) {
-      setError('Failed to activate diversion route');
+      setError(err.message || 'Failed to activate diversion route');
       console.error(err);
     } finally {
       setLoading(false);
@@ -193,34 +97,72 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div style={{ padding: '24px', minHeight: '100%', backgroundColor: '#f9fafb' }}>
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '12px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+        maxWidth: '1152px',
+        margin: '0 auto',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-6">
-          <div className="flex items-center justify-between">
+        <div style={{
+          background: 'linear-gradient(to right, #9333ea, #7e22ce)',
+          color: 'white',
+          padding: '24px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <h2 className="text-2xl font-bold flex items-center gap-2">
-                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <h2 style={{
+                fontSize: '24px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                margin: 0
+              }}>
+                <svg style={{ width: '28px', height: '28px', flexShrink: 0 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                 </svg>
                 Diversion Route Management
               </h2>
-              <p className="text-purple-100 text-sm mt-1">
+              <p style={{ color: '#f3e8ff', fontSize: '14px', marginTop: '4px', marginBottom: 0 }}>
                 CCAI-Aligned Pre-Approved Alternate Routes
               </p>
             </div>
             <button
               onClick={onClose}
-              className="text-white hover:bg-purple-500 rounded-full p-2 transition-colors"
+              style={{
+                color: 'white',
+                background: 'none',
+                border: 'none',
+                borderRadius: '50%',
+                padding: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = '#a855f7'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg style={{ width: '24px', height: '24px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
 
           {selectedEvent && (
-            <div className="mt-4 bg-purple-500 bg-opacity-30 rounded p-3 text-sm">
+            <div style={{
+              marginTop: '16px',
+              backgroundColor: 'rgba(168, 85, 247, 0.3)',
+              borderRadius: '6px',
+              padding: '12px',
+              fontSize: '14px'
+            }}>
               <strong>Active Event:</strong> {selectedEvent.title || selectedEvent.description?.substring(0, 60)}
               {' '} on {selectedEvent.route || selectedEvent.corridor}
             </div>
@@ -228,47 +170,72 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b bg-gray-50">
+        <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
           <button
             onClick={() => setActiveTab('routes')}
-            className={`px-6 py-3 font-medium transition-colors ${
-              activeTab === 'routes'
-                ? 'border-b-2 border-purple-600 text-purple-600 bg-white'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
+            style={{
+              padding: '12px 24px',
+              fontWeight: '500',
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              transition: 'color 0.15s',
+              borderBottom: activeTab === 'routes' ? '2px solid #9333ea' : '2px solid transparent',
+              color: activeTab === 'routes' ? '#9333ea' : '#4b5563',
+              backgroundColor: activeTab === 'routes' ? 'white' : 'transparent'
+            }}
           >
             Pre-Approved Routes ({diversionRoutes.length})
           </button>
           <button
             onClick={() => setActiveTab('history')}
-            className={`px-6 py-3 font-medium transition-colors ${
-              activeTab === 'history'
-                ? 'border-b-2 border-purple-600 text-purple-600 bg-white'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
+            style={{
+              padding: '12px 24px',
+              fontWeight: '500',
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              transition: 'color 0.15s',
+              borderBottom: activeTab === 'history' ? '2px solid #9333ea' : '2px solid transparent',
+              color: activeTab === 'history' ? '#9333ea' : '#4b5563',
+              backgroundColor: activeTab === 'history' ? 'white' : 'transparent'
+            }}
           >
             Activation History ({activations.length})
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
           {error && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            <div style={{
+              marginBottom: '16px',
+              backgroundColor: '#fef2f2',
+              border: '1px solid #fecaca',
+              color: '#b91c1c',
+              padding: '12px 16px',
+              borderRadius: '6px'
+            }}>
               {error}
             </div>
           )}
 
           {activeTab === 'routes' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px' }}>
               {/* Route List */}
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Available Diversion Routes</h3>
-                <div className="space-y-3 max-h-[500px] overflow-y-auto">
-                  {loading && <div className="text-center py-4 text-gray-500">Loading routes...</div>}
+                <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#111827', marginBottom: '16px', marginTop: 0 }}>
+                  Available Diversion Routes
+                </h3>
+                <div style={{ maxHeight: '500px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {loading && (
+                    <div style={{ textAlign: 'center', padding: '16px', color: '#6b7280' }}>
+                      Loading routes...
+                    </div>
+                  )}
 
                   {!loading && diversionRoutes.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
+                    <div style={{ textAlign: 'center', padding: '32px', color: '#6b7280' }}>
                       No diversion routes found
                     </div>
                   )}
@@ -277,59 +244,92 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
                     <button
                       key={route.id}
                       onClick={() => setSelectedRoute(route)}
-                      className={`w-full text-left p-4 rounded-lg border transition-all ${
-                        selectedRoute?.id === route.id
-                          ? 'border-purple-500 bg-purple-50 shadow-md'
-                          : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
-                      }`}
+                      style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '16px',
+                        borderRadius: '8px',
+                        border: selectedRoute?.id === route.id ? '1px solid #a855f7' : '1px solid #e5e7eb',
+                        backgroundColor: selectedRoute?.id === route.id ? '#faf5ff' : 'white',
+                        boxShadow: selectedRoute?.id === route.id
+                          ? '0 4px 6px -1px rgba(0,0,0,0.1)'
+                          : 'none',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s'
+                      }}
                     >
-                      <div className="flex items-start justify-between mb-2">
-                        <h4 className="font-semibold text-gray-900 flex-1">
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <h4 style={{ fontWeight: '600', color: '#111827', flex: 1, margin: 0 }}>
                           {route.route_name}
                         </h4>
                         <span
-                          className="px-2 py-1 rounded text-xs font-medium text-white ml-2"
-                          style={{ backgroundColor: getStatusColor(route.approval_status) }}
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            fontWeight: '500',
+                            color: 'white',
+                            marginLeft: '8px',
+                            backgroundColor: getStatusColor(route.approval_status)
+                          }}
                         >
                           {route.approval_status.toUpperCase()}
                         </span>
                       </div>
 
-                      <div className="text-sm text-gray-600 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div style={{ fontSize: '14px', color: '#4b5563' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <svg style={{ width: '16px', height: '16px', flexShrink: 0 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
                           <span>{route.primary_route} → {route.diversion_route}</span>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <svg style={{ width: '16px', height: '16px', flexShrink: 0 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                           </svg>
                           <span>{route.distance_miles} mi • +{route.estimated_delay_minutes} min</span>
                         </div>
 
-                        <div className="flex items-center gap-2 flex-wrap mt-2">
+                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
                           {route.truck_suitable && (
-                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">
+                            <span style={{
+                              padding: '4px 8px',
+                              backgroundColor: '#dcfce7',
+                              color: '#166534',
+                              borderRadius: '4px',
+                              fontSize: '12px'
+                            }}>
                               Truck Suitable
                             </span>
                           )}
                           {route.hazmat_approved && (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                            <span style={{
+                              padding: '4px 8px',
+                              backgroundColor: '#dbeafe',
+                              color: '#1e40af',
+                              borderRadius: '4px',
+                              fontSize: '12px'
+                            }}>
                               HAZMAT OK
                             </span>
                           )}
-                          {route.states_involved.length > 1 && (
-                            <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs">
+                          {(route.states_involved || []).length > 1 && (
+                            <span style={{
+                              padding: '4px 8px',
+                              backgroundColor: '#ffedd5',
+                              color: '#9a3412',
+                              borderRadius: '4px',
+                              fontSize: '12px'
+                            }}>
                               Multi-State
                             </span>
                           )}
                         </div>
 
-                        <div className="text-xs text-gray-500 mt-2">
+                        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
                           Activated {route.activation_count} times
                         </div>
                       </div>
@@ -341,81 +341,102 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
               {/* Route Details & Activation */}
               <div>
                 {selectedRoute ? (
-                  <div className="bg-gray-50 rounded-lg p-6 border border-gray-200 sticky top-0">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  <div style={{
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    padding: '24px',
+                    border: '1px solid #e5e7eb',
+                    position: 'sticky',
+                    top: 0
+                  }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#111827', marginBottom: '16px', marginTop: 0 }}>
                       Route Details
                     </h3>
 
-                    <div className="space-y-4">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
                           Route Name
                         </label>
-                        <div className="text-base font-semibold">{selectedRoute.route_name}</div>
+                        <div style={{ fontSize: '16px', fontWeight: '600' }}>{selectedRoute.route_name}</div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
                             Primary Route
                           </label>
-                          <div className="text-base">{selectedRoute.primary_route}</div>
+                          <div style={{ fontSize: '16px' }}>{selectedRoute.primary_route}</div>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
                             Diversion Route
                           </label>
-                          <div className="text-base">{selectedRoute.diversion_route}</div>
+                          <div style={{ fontSize: '16px' }}>{selectedRoute.diversion_route}</div>
                         </div>
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
                           Start Location
                         </label>
-                        <div className="text-sm">{selectedRoute.start_location}</div>
+                        <div style={{ fontSize: '14px' }}>{selectedRoute.start_location}</div>
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
                           End Location
                         </label>
-                        <div className="text-sm">{selectedRoute.end_location}</div>
+                        <div style={{ fontSize: '14px' }}>{selectedRoute.end_location}</div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
                             Distance
                           </label>
-                          <div className="text-base">{selectedRoute.distance_miles} miles</div>
+                          <div style={{ fontSize: '16px' }}>{selectedRoute.distance_miles} miles</div>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
                             Est. Delay
                           </label>
-                          <div className="text-base">{selectedRoute.estimated_delay_minutes} minutes</div>
+                          <div style={{ fontSize: '16px' }}>{selectedRoute.estimated_delay_minutes} minutes</div>
                         </div>
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
                           States Involved
                         </label>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedRoute.states_involved.map(state => (
-                            <span key={state} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                          {(selectedRoute.states_involved || []).map(state => (
+                            <span key={state} style={{
+                              padding: '4px 8px',
+                              backgroundColor: '#dbeafe',
+                              color: '#1e40af',
+                              borderRadius: '4px',
+                              fontSize: '14px'
+                            }}>
                               {state}
                             </span>
                           ))}
                         </div>
                       </div>
 
-                      <div className="pt-4 border-t border-gray-300">
-                        <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-900 mb-4">
+                      <div style={{ paddingTop: '16px', borderTop: '1px solid #d1d5db' }}>
+                        <div style={{
+                          backgroundColor: '#eff6ff',
+                          border: '1px solid #bfdbfe',
+                          borderRadius: '6px',
+                          padding: '12px',
+                          fontSize: '14px',
+                          color: '#1e3a5a',
+                          marginBottom: '16px'
+                        }}>
                           <strong>Activation will:</strong>
-                          <ul className="mt-2 ml-4 list-disc space-y-1">
-                            <li>Notify {selectedRoute.states_involved.join(' and ')} TMCs</li>
+                          <ul style={{ marginTop: '8px', marginLeft: '16px', listStyleType: 'disc', display: 'flex', flexDirection: 'column', gap: '4px', paddingLeft: 0 }}>
+                            <li>Notify {(selectedRoute.states_involved || []).join(' and ')} TMCs</li>
                             <li>Activate DMS messages along route</li>
                             <li>Send traveler advisories</li>
                             <li>Log activation for effectiveness tracking</li>
@@ -425,7 +446,21 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
                         <button
                           onClick={activateRoute}
                           disabled={loading}
-                          className="w-full bg-purple-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          style={{
+                            width: '100%',
+                            backgroundColor: loading ? '#c4b5fd' : '#9333ea',
+                            color: 'white',
+                            padding: '12px 16px',
+                            borderRadius: '8px',
+                            fontWeight: '500',
+                            border: 'none',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                            fontSize: '15px',
+                            opacity: loading ? 0.7 : 1,
+                            transition: 'background-color 0.15s'
+                          }}
+                          onMouseEnter={e => { if (!loading) e.currentTarget.style.backgroundColor = '#7e22ce'; }}
+                          onMouseLeave={e => { if (!loading) e.currentTarget.style.backgroundColor = '#9333ea'; }}
                         >
                           {loading ? 'Activating...' : 'Activate Diversion Route'}
                         </button>
@@ -433,11 +468,17 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-gray-50 rounded-lg p-12 text-center border-2 border-dashed border-gray-300">
-                    <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div style={{
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    padding: '48px 24px',
+                    textAlign: 'center',
+                    border: '2px dashed #d1d5db'
+                  }}>
+                    <svg style={{ width: '64px', height: '64px', margin: '0 auto 16px', color: '#9ca3af', display: 'block' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                     </svg>
-                    <p className="text-gray-600">
+                    <p style={{ color: '#4b5563', margin: 0 }}>
                       Select a diversion route to view details and activate
                     </p>
                   </div>
@@ -447,32 +488,42 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
           )}
 
           {activeTab === 'history' && (
-            <div className="space-y-3">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {activations.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div style={{ textAlign: 'center', padding: '48px', color: '#6b7280' }}>
+                  <svg style={{ width: '64px', height: '64px', margin: '0 auto 16px', color: '#d1d5db', display: 'block' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <p>No diversion route activations yet</p>
+                  <p style={{ margin: 0 }}>No diversion route activations yet</p>
                 </div>
               ) : (
                 activations.map(activation => (
-                  <div key={activation.id} className="bg-white border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-gray-900">
+                  <div key={activation.id} style={{
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    padding: '16px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <div style={{ flex: 1 }}>
+                        <h4 style={{ fontWeight: '600', color: '#111827', margin: 0 }}>
                           {activation.route_name}
                         </h4>
-                        <p className="text-sm text-gray-600 mt-1">
+                        <p style={{ fontSize: '14px', color: '#4b5563', marginTop: '4px', marginBottom: 0 }}>
                           {activation.activation_reason}
                         </p>
                       </div>
                       {activation.effectiveness_rating && (
-                        <div className="flex items-center gap-1 ml-4">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '16px' }}>
                           {[...Array(5)].map((_, i) => (
                             <svg
                               key={i}
-                              className={`w-4 h-4 ${i < activation.effectiveness_rating ? 'text-yellow-400' : 'text-gray-300'}`}
+                              style={{
+                                width: '16px',
+                                height: '16px',
+                                color: i < activation.effectiveness_rating ? '#facc15' : '#d1d5db',
+                                flexShrink: 0
+                              }}
                               fill="currentColor"
                               viewBox="0 0 20 20"
                             >
@@ -483,22 +534,24 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 text-sm mt-3">
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', fontSize: '14px', marginTop: '12px' }}>
                       <div>
-                        <span className="text-gray-600">Activated by:</span>
-                        <span className="ml-2 font-medium">{activation.activated_by}</span>
+                        <span style={{ color: '#4b5563' }}>Activated by:</span>
+                        <span style={{ marginLeft: '8px', fontWeight: '500' }}>{activation.activated_by}</span>
                       </div>
                       <div>
-                        <span className="text-gray-600">Duration:</span>
-                        <span className="ml-2 font-medium">
-                          {Math.round((new Date(activation.deactivated_at) - new Date(activation.activated_at)) / (60 * 1000))} minutes
+                        <span style={{ color: '#4b5563' }}>Duration:</span>
+                        <span style={{ marginLeft: '8px', fontWeight: '500' }}>
+                          {activation.deactivated_at
+                            ? `${Math.round((new Date(activation.deactivated_at) - new Date(activation.activated_at)) / (60 * 1000))} minutes`
+                            : 'Active now'}
                         </span>
                       </div>
-                      <div className="col-span-2">
-                        <span className="text-gray-600">States notified:</span>
-                        <span className="ml-2 font-medium">{activation.states_notified.join(', ')}</span>
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <span style={{ color: '#4b5563' }}>States notified:</span>
+                        <span style={{ marginLeft: '8px', fontWeight: '500' }}>{(activation.states_notified || []).join(', ') || 'None'}</span>
                       </div>
-                      <div className="col-span-2 text-xs text-gray-500">
+                      <div style={{ gridColumn: 'span 2', fontSize: '12px', color: '#6b7280' }}>
                         {formatDistanceToNow(new Date(activation.activated_at), { addSuffix: true })}
                       </div>
                     </div>
@@ -510,14 +563,28 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
-          <div className="flex items-center justify-between text-sm text-gray-600">
+        <div style={{
+          backgroundColor: '#f9fafb',
+          padding: '16px 24px',
+          borderTop: '1px solid #e5e7eb'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '14px', color: '#4b5563' }}>
             <div>
               <strong>CCAI UC #3:</strong> Pre-Approved Diversion Routes
             </div>
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#e5e7eb',
+                color: '#374151',
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'background-color 0.15s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = '#d1d5db'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = '#e5e7eb'}
             >
               Close
             </button>

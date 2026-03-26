@@ -117,47 +117,210 @@ class CADDParser {
   }
 
   /**
-   * Parse DWG file (AutoCAD native binary format)
-   * More complex - would need conversion to DXF or specialized library
+   * Parse DWG file using GDAL WASM conversion to GeoJSON
    */
   async parseDWG(filePath) {
-    this.log('DWG parsing requested...');
-
-    // DWG is binary and complex - two approaches:
-    // 1. Use conversion service (AutoCAD ODA File Converter)
-    // 2. Use specialized library (not available in Node easily)
-
-    // For now, suggest conversion to DXF
-    throw new Error(
-      'DWG parsing not yet implemented. ' +
-      'Please convert DWG to DXF using AutoCAD or FreeCAD: ' +
-      'File > Save As > DXF'
-    );
-
-    // TODO: Implement DWG parsing via conversion or library
-    // Could use child_process to call ODA FileConverter if installed
+    this.log('Parsing DWG file via GDAL...');
+    return await this.parseViaGDAL(filePath, 'DWG');
   }
 
   /**
-   * Parse DGN file (MicroStation native format)
-   * Very common in state DOT workflows
+   * Parse DGN file (MicroStation native format) using GDAL WASM
+   * Supports both DGN v7 and v8. Very common in state DOT workflows.
    */
   async parseDGN(filePath) {
-    this.log('DGN parsing requested...');
+    this.log('Parsing DGN file via GDAL...');
+    return await this.parseViaGDAL(filePath, 'DGN');
+  }
 
-    // DGN is Bentley MicroStation's format
-    // Two versions: DGN v7 (older) and DGN v8 (newer, based on DWG)
+  /**
+   * Universal parser using GDAL WASM (gdal3.js)
+   * Converts DGN, DWG, and other formats to GeoJSON, then processes
+   * through our classification and georeferencing pipeline.
+   */
+  async parseViaGDAL(filePath, format) {
+    let Gdal, ds;
+    try {
+      const initGdalJs = require('gdal3.js/node');
+      Gdal = await initGdalJs();
+      this.log(`GDAL WASM initialized for ${format} parsing`);
+    } catch (e) {
+      throw new Error(`GDAL initialization failed: ${e.message}. Install gdal3.js: npm install gdal3.js`);
+    }
 
-    // For now, suggest conversion to DXF
-    throw new Error(
-      'DGN parsing not yet implemented. ' +
-      'Please convert DGN to DXF using MicroStation or FME: ' +
-      'File > Save As > DXF'
-    );
+    try {
+      // Open the file
+      const result = await Gdal.open(filePath);
+      if (!result || !result.datasets || !result.datasets[0]) {
+        throw new Error(`GDAL could not open ${format} file`);
+      }
+      ds = result.datasets[0];
+      const info = ds.info;
+      this.log(`Opened ${format}: ${info.driverLongName}, ${info.layers?.length || 0} layers`);
 
-    // TODO: Implement DGN parsing
-    // Could use GDAL/OGR libraries (support DGN via libopendgn)
-    // Or use FME/conversion service
+      // Get layer info
+      const layerInfo = info.layers || [];
+      for (const layer of layerInfo) {
+        this.log(`  Layer "${layer.name}": ${layer.featureCount} features`);
+      }
+
+      // Convert to GeoJSON (keeping source coordinates — we'll transform ourselves)
+      await Gdal.ogr2ogr(ds, ['-f', 'GeoJSON', '-skipfailures']);
+
+      let geojsonData;
+      const outputFiles = await Gdal.getOutputFiles();
+      const geojsonFile = outputFiles.find(f => f.path.endsWith('.geojson') || f.path.endsWith('.json'));
+
+      if (geojsonFile) {
+        const bytes = await Gdal.getFileBytes(geojsonFile.path);
+        const text = new TextDecoder().decode(bytes);
+        geojsonData = JSON.parse(text);
+        this.log(`GDAL produced ${geojsonData.features?.length || 0} GeoJSON features (${(geojsonFile.size / 1024).toFixed(0)} KB)`);
+      } else {
+        throw new Error(`GDAL ogr2ogr conversion produced no output for ${format} file`);
+      }
+
+      // Extract metadata from GDAL info
+      this.metadata = {
+        version: info.driverShortName + ' (' + info.driverLongName + ')',
+        units: 0,
+        extents: { min: { x: 0, y: 0, z: 0 }, max: { x: 0, y: 0, z: 0 } },
+        layers: layerInfo.length,
+        blocks: 0
+      };
+
+      // Convert GeoJSON features to our entity format
+      for (const feature of (geojsonData.features || [])) {
+        const props = feature.properties || {};
+        const geom = feature.geometry;
+        if (!geom) continue;
+
+        const layerName = props.Layer || props.level || props.LEVEL || props.layer || 'Default';
+        const entityType = geom.type; // Point, LineString, Polygon, etc.
+
+        // Track layers
+        if (!this.layers.has(layerName)) {
+          this.layers.set(layerName, {
+            name: layerName,
+            color: props.Color || props.color || null,
+            visible: true,
+            frozen: false,
+            entityCount: 0
+          });
+        }
+        this.layers.get(layerName).entityCount++;
+
+        // Build entity
+        const entity = {
+          type: entityType,
+          layer: layerName,
+          handle: props.EntityHandle || props.entity || null,
+          color: props.Color || props.color || null,
+          text: props.Text || props.text || null,
+          blockName: props.BlockName || null
+        };
+
+        // Extract geometry in our format
+        if (geom.type === 'Point') {
+          entity.geometry = {
+            position: { x: geom.coordinates[0], y: geom.coordinates[1], z: geom.coordinates[2] || 0 }
+          };
+          // For GDAL-sourced data, coordinates may already be in design units
+          entity.latitude = geom.coordinates[1];
+          entity.longitude = geom.coordinates[0];
+        } else if (geom.type === 'LineString') {
+          entity.geometry = {
+            vertices: geom.coordinates.map(c => ({ x: c[0], y: c[1], z: c[2] || 0 }))
+          };
+        } else if (geom.type === 'Polygon') {
+          // Use the outer ring as vertices
+          const ring = geom.coordinates[0] || [];
+          entity.geometry = {
+            vertices: ring.map(c => ({ x: c[0], y: c[1], z: c[2] || 0 })),
+            closed: true
+          };
+        } else if (geom.type === 'MultiLineString') {
+          // Flatten to first line
+          const firstLine = geom.coordinates[0] || [];
+          entity.geometry = {
+            vertices: firstLine.map(c => ({ x: c[0], y: c[1], z: c[2] || 0 }))
+          };
+        } else if (geom.type === 'MultiPolygon') {
+          const firstPoly = geom.coordinates[0] || [];
+          const ring = firstPoly[0] || [];
+          entity.geometry = {
+            vertices: ring.map(c => ({ x: c[0], y: c[1], z: c[2] || 0 })),
+            closed: true
+          };
+        } else if (geom.type === 'GeometryCollection') {
+          // Take first geometry
+          if (geom.geometries && geom.geometries.length > 0) {
+            const first = geom.geometries[0];
+            if (first.type === 'Point') {
+              entity.geometry = { position: { x: first.coordinates[0], y: first.coordinates[1], z: 0 } };
+            } else if (first.coordinates) {
+              const coords = first.type === 'Polygon' ? first.coordinates[0] : first.coordinates;
+              entity.geometry = { vertices: (coords || []).map(c => ({ x: c[0], y: c[1], z: 0 })) };
+            }
+          }
+        }
+
+        if (entity.geometry) {
+          this.entities.push(entity);
+
+          // Update extents
+          const refCoord = entity.geometry.position || (entity.geometry.vertices && entity.geometry.vertices[0]);
+          if (refCoord) {
+            if (refCoord.x < this.metadata.extents.min.x || this.metadata.extents.min.x === 0) this.metadata.extents.min.x = refCoord.x;
+            if (refCoord.y < this.metadata.extents.min.y || this.metadata.extents.min.y === 0) this.metadata.extents.min.y = refCoord.y;
+            if (refCoord.x > this.metadata.extents.max.x) this.metadata.extents.max.x = refCoord.x;
+            if (refCoord.y > this.metadata.extents.max.y) this.metadata.extents.max.y = refCoord.y;
+          }
+        }
+      }
+
+      this.log(`Extracted ${this.entities.length} entities from ${this.layers.size} layers`);
+
+      // Classify elements
+      this.classifyOperationalElements();
+
+      // Build a synthetic DXF header object for georeferencing
+      const syntheticDxf = {
+        header: {
+          '$EXTMIN': this.metadata.extents.min,
+          '$EXTMAX': this.metadata.extents.max,
+          '$TEXTSTYLE': ''
+        }
+      };
+
+      // Attempt georeferencing
+      this.georeferenceEntities(syntheticDxf);
+
+      // Generate GeoJSON
+      const exportGeoJSON = this.toGeoJSON();
+
+      return {
+        format,
+        metadata: this.metadata,
+        layers: Array.from(this.layers.values()),
+        entities: this.entities,
+        blocks: Array.from(this.blocks.values()),
+        itsEquipment: this.itsEquipment,
+        roadGeometry: this.roadGeometry,
+        electricalInfrastructure: this.electricalInfrastructure,
+        pedestrianInfrastructure: this.pedestrianInfrastructure,
+        trafficDevices: this.trafficDevices,
+        utilities: this.utilities,
+        workZone: this.workZone,
+        geojson: exportGeoJSON,
+        extractionLog: this.extractionLog,
+        statistics: this.getStatistics()
+      };
+    } finally {
+      if (Gdal && ds) {
+        try { await Gdal.close(ds); } catch (e) { /* ignore */ }
+      }
+    }
   }
 
   /**
@@ -538,44 +701,70 @@ class CADDParser {
     // Detect Iowa DOT files by text style or coordinate ranges
     const isIowaDOT = /IowaDOT/i.test(textStyle);
 
+    // Build multiple test points to handle outlier extents (e.g. GDAL block expansion).
+    // EXTMIN is usually reliable; EXTMAX may be inflated by expanded block refs.
+    const testPoints = [
+      { x: extMin.x, y: extMin.y, label: 'extMin' },
+      { x: (extMin.x + extMax.x) / 2, y: (extMin.y + extMax.y) / 2, label: 'center' },
+      { x: extMin.x + (extMax.x - extMin.x) * 0.25, y: extMin.y + (extMax.y - extMin.y) * 0.25, label: 'q25' }
+    ];
+
+    // Also compute median from entities if available
+    if (this.entities.length > 0) {
+      const xs = [], ys = [];
+      for (const e of this.entities) {
+        const g = e.geometry;
+        if (!g) continue;
+        let px, py;
+        if (g.position) { px = g.position.x; py = g.position.y; }
+        else if (g.start) { px = g.start.x; py = g.start.y; }
+        else if (g.center) { px = g.center.x; py = g.center.y; }
+        else if (g.vertices && g.vertices.length > 0) { px = g.vertices[0].x; py = g.vertices[0].y; }
+        if (px != null && py != null) { xs.push(px); ys.push(py); }
+      }
+      if (xs.length > 0) {
+        xs.sort((a, b) => a - b);
+        ys.sort((a, b) => a - b);
+        const medX = xs[Math.floor(xs.length / 2)];
+        const medY = ys[Math.floor(ys.length / 2)];
+        testPoints.unshift({ x: medX, y: medY, label: 'median' });
+      }
+    }
+
     // Iowa DOT CADD uses inches in State Plane.
     // Typical Iowa South x range in feet: ~400k-1.7M, y: 0-700k
     // In inches those become: ~4.8M-20M x, 0-8.4M y
-    const avgX = (extMin.x + extMax.x) / 2;
-    const avgY = (extMin.y + extMax.y) / 2;
+    for (const pt of testPoints) {
+      if (isIowaDOT || (pt.x > 4000000 && pt.x < 25000000 && pt.y > 0 && pt.y < 10000000)) {
+        const testFtX = pt.x / 12;
+        const testFtY = pt.y / 12;
+        try {
+          const [lon, lat] = proj4('IOWA_SP_SOUTH', 'EPSG:4326', [testFtX, testFtY]);
+          if (lat >= 40.0 && lat <= 42.0 && lon >= -97 && lon <= -90) {
+            this.log(`Detected Iowa State Plane South (NAD83), units: inches (via ${pt.label} point)`);
+            return { crs: 'IOWA_SP_SOUTH', unitScale: 1 / 12, unitName: 'inches' };
+          }
+        } catch (e) { /* not Iowa South */ }
 
-    // Check if coordinates are in Iowa State Plane range (in inches)
-    if (isIowaDOT || (avgX > 4000000 && avgX < 25000000 && avgY > 0 && avgY < 10000000)) {
-      // Test: convert from inches to feet, then Iowa South to WGS84
-      const testFtX = avgX / 12;
-      const testFtY = avgY / 12;
-      try {
-        const [lon, lat] = proj4('IOWA_SP_SOUTH', 'EPSG:4326', [testFtX, testFtY]);
-        if (lat >= 40.0 && lat <= 42.0 && lon >= -97 && lon <= -90) {
-          this.log(`Detected Iowa State Plane South (NAD83), units: inches`);
-          return { crs: 'IOWA_SP_SOUTH', unitScale: 1 / 12, unitName: 'inches' };
-        }
-      } catch (e) { /* not Iowa South */ }
+        try {
+          const [lon, lat] = proj4('IOWA_SP_NORTH', 'EPSG:4326', [testFtX, testFtY]);
+          if (lat >= 41.5 && lat <= 43.5 && lon >= -97 && lon <= -90) {
+            this.log(`Detected Iowa State Plane North (NAD83), units: inches (via ${pt.label} point)`);
+            return { crs: 'IOWA_SP_NORTH', unitScale: 1 / 12, unitName: 'inches' };
+          }
+        } catch (e) { /* not Iowa North */ }
+      }
 
-      // Try Iowa North
-      try {
-        const [lon, lat] = proj4('IOWA_SP_NORTH', 'EPSG:4326', [testFtX, testFtY]);
-        if (lat >= 41.5 && lat <= 43.5 && lon >= -97 && lon <= -90) {
-          this.log(`Detected Iowa State Plane North (NAD83), units: inches`);
-          return { crs: 'IOWA_SP_NORTH', unitScale: 1 / 12, unitName: 'inches' };
-        }
-      } catch (e) { /* not Iowa North */ }
-    }
-
-    // Check if already in feet (standard State Plane range)
-    if (avgX > 300000 && avgX < 3000000 && avgY > 0 && avgY < 1500000) {
-      try {
-        const [lon, lat] = proj4('IOWA_SP_SOUTH', 'EPSG:4326', [avgX, avgY]);
-        if (lat >= 40.0 && lat <= 42.0 && lon >= -97 && lon <= -90) {
-          this.log(`Detected Iowa State Plane South (NAD83), units: US feet`);
-          return { crs: 'IOWA_SP_SOUTH', unitScale: 1, unitName: 'US feet' };
-        }
-      } catch (e) { /* not Iowa South */ }
+      // Check if already in feet (standard State Plane range)
+      if (pt.x > 300000 && pt.x < 3000000 && pt.y > 0 && pt.y < 1500000) {
+        try {
+          const [lon, lat] = proj4('IOWA_SP_SOUTH', 'EPSG:4326', [pt.x, pt.y]);
+          if (lat >= 40.0 && lat <= 42.0 && lon >= -97 && lon <= -90) {
+            this.log(`Detected Iowa State Plane South (NAD83), units: US feet (via ${pt.label} point)`);
+            return { crs: 'IOWA_SP_SOUTH', unitScale: 1, unitName: 'US feet' };
+          }
+        } catch (e) { /* not Iowa South */ }
+      }
     }
 
     this.log('Could not auto-detect coordinate system, coordinates stored as-is');
@@ -599,26 +788,14 @@ class CADDParser {
     let georefCount = 0;
     let outlierCount = 0;
 
-    // Get project extents for outlier filtering
-    const extMin = dxf.header?.['$EXTMIN'] || { x: -Infinity, y: -Infinity };
-    const extMax = dxf.header?.['$EXTMAX'] || { x: Infinity, y: Infinity };
-    // Expand extents by 50% for tolerance
-    const rangeX = (extMax.x - extMin.x) * 0.5;
-    const rangeY = (extMax.y - extMin.y) * 0.5;
-    const boundsMinX = extMin.x - rangeX;
-    const boundsMaxX = extMax.x + rangeX;
-    const boundsMinY = extMin.y - rangeY;
-    const boundsMaxY = extMax.y + rangeY;
-
-    function isInBounds(x, y) {
-      return x >= boundsMinX && x <= boundsMaxX && y >= boundsMinY && y <= boundsMaxY;
-    }
-
+    // Use geographic validation instead of CAD extent bounds for outlier filtering.
+    // CAD extents can be inflated by GDAL block expansion, so we validate the
+    // transformed WGS84 output falls within a reasonable geographic area.
     const transform = (x, y) => {
-      if (!isInBounds(x, y)) return null;
       try {
         const [lon, lat] = proj4(coordSystem.crs, 'EPSG:4326', [x * scale, y * scale]);
-        if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+        // Validate the result is a plausible US location (not NaN, not polar, not oceanic)
+        if (lat >= 24 && lat <= 50 && lon >= -125 && lon <= -66) {
           return { latitude: lat, longitude: lon };
         }
       } catch (e) { /* transform failed */ }

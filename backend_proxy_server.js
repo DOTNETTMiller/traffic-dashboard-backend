@@ -11817,7 +11817,7 @@ app.get('/api/dms/templates/pending-approval/:stateCode', requireUserOrStateAuth
       `SELECT t.*, ta.approval_status as state_approval_status, ta.comments
        FROM dms_message_templates t
        JOIN dms_template_approvals ta ON t.id = ta.template_id
-       WHERE ta.state_code = $1
+       WHERE ta.state_key = $1
        AND ta.approval_status = 'pending'
        ORDER BY t.created_at DESC`,
       [req.params.stateCode]
@@ -11847,12 +11847,13 @@ app.post('/api/dms/templates/:templateId/approve', requireUserOrStateAuth, async
   }
 
   try {
-    const { state_code, approval_status, comments } = req.body;
+    const { state_code, state_key, approval_status, comments } = req.body;
+    const stateValue = state_key || state_code; // Accept either field name
 
-    if (!state_code || !approval_status) {
+    if (!stateValue || !approval_status) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: state_code, approval_status'
+        error: 'Missing required fields: state_code/state_key, approval_status'
       });
     }
 
@@ -11862,10 +11863,10 @@ app.post('/api/dms/templates/:templateId/approve', requireUserOrStateAuth, async
            approval_date = NOW(),
            approver_name = $2,
            comments = $3
-       WHERE template_id = $4 AND state_code = $5
+       WHERE template_id = $4 AND state_key = $5
        RETURNING *`,
       [approval_status, req.stateKey || req.username, comments,
-       req.params.templateId, state_code]
+       req.params.templateId, stateValue]
     );
 
     if (result.rows.length === 0) {
@@ -11881,7 +11882,7 @@ app.post('/api/dms/templates/:templateId/approve', requireUserOrStateAuth, async
         `UPDATE dms_message_templates
          SET states_approved = array_append(states_approved, $1)
          WHERE id = $2 AND NOT ($1 = ANY(states_approved))`,
-        [state_code, req.params.templateId]
+        [stateValue, req.params.templateId]
       );
     }
 
@@ -12197,19 +12198,41 @@ app.post('/api/closures/:id/approve', requireUserOrStateAuth, async (req, res) =
   }
 
   try {
-    const { approval_id, approval_status, approver_name, rejection_reason, conditions } = req.body;
+    const { approval_id, approval_status, approver_name, rejection_reason, conditions, state_code } = req.body;
 
-    const result = await pgPool.query(
-      `UPDATE closure_approvals
-       SET approval_status = $1,
-           approver_name = $2,
-           approval_date = NOW(),
-           rejection_reason = $3,
-           conditions = $4
-       WHERE id = $5 AND closure_id = $6
-       RETURNING *`,
-      [approval_status, approver_name, rejection_reason, conditions, approval_id, req.params.id]
-    );
+    let result;
+    if (approval_id) {
+      // Look up by specific approval_id
+      result = await pgPool.query(
+        `UPDATE closure_approvals
+         SET approval_status = $1,
+             approver_name = $2,
+             approval_date = NOW(),
+             rejection_reason = $3,
+             conditions = $4
+         WHERE id = $5 AND closure_id = $6
+         RETURNING *`,
+        [approval_status, approver_name, rejection_reason, conditions, approval_id, req.params.id]
+      );
+    } else if (state_code) {
+      // Look up by closure_id + state_code (frontend doesn't always have approval_id)
+      result = await pgPool.query(
+        `UPDATE closure_approvals
+         SET approval_status = $1,
+             approver_name = $2,
+             approval_date = NOW(),
+             rejection_reason = $3,
+             conditions = $4
+         WHERE closure_id = $5 AND state_code = $6 AND approval_status = 'pending'
+         RETURNING *`,
+        [approval_status, approver_name, rejection_reason, conditions, req.params.id, state_code]
+      );
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Must provide either approval_id or state_code'
+      });
+    }
 
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -12219,15 +12242,22 @@ app.post('/api/closures/:id/approve', requireUserOrStateAuth, async (req, res) =
     }
 
     // Check overall approval status
-    const statusResult = await pgPool.query(
-      'SELECT * FROM check_closure_approval_status($1)',
-      [req.params.id]
-    );
+    let overall_status = null;
+    try {
+      const statusResult = await pgPool.query(
+        'SELECT * FROM check_closure_approval_status($1)',
+        [req.params.id]
+      );
+      overall_status = statusResult.rows[0];
+    } catch (e) {
+      // Function may not exist yet, continue without it
+      console.warn('check_closure_approval_status function not available:', e.message);
+    }
 
     res.json({
       success: true,
       approval: result.rows[0],
-      overall_status: statusResult.rows[0]
+      overall_status
     });
   } catch (error) {
     console.error('Error processing approval:', error);
@@ -12539,6 +12569,32 @@ app.put('/api/diversion-routes/:id', requireUserOrStateAuth, async (req, res) =>
       success: false,
       error: 'Failed to update diversion route'
     });
+  }
+});
+
+// GET recent diversion route activations
+app.get('/api/diversion-routes/activations', async (req, res) => {
+  if (!pgPool) {
+    return res.status(503).json({ success: false, error: 'Database connection not available' });
+  }
+
+  try {
+    const result = await pgPool.query(
+      `SELECT da.*, dr.route_name, dr.primary_route, dr.diversion_route, dr.states_involved
+       FROM diversion_activations da
+       JOIN diversion_routes dr ON da.diversion_route_id = dr.id
+       ORDER BY da.activated_at DESC
+       LIMIT 50`
+    );
+
+    res.json({
+      success: true,
+      count: result.rows.length,
+      activations: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching diversion activations:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch activations' });
   }
 });
 
@@ -24455,6 +24511,16 @@ app.post('/api/digital-infrastructure/upload-base64', express.json({ limit: '50m
         entities: extractionResult.statistics.totalEntities,
         its_equipment: extractionResult.statistics.itsEquipment,
         road_geometry: extractionResult.statistics.roadGeometry,
+        electrical_infrastructure: extractionResult.statistics.electricalInfrastructure || 0,
+        pedestrian_infrastructure: extractionResult.statistics.pedestrianInfrastructure || 0,
+        traffic_devices: extractionResult.statistics.trafficDevices || 0,
+        utilities: extractionResult.statistics.utilities || 0,
+        work_zone: extractionResult.statistics.workZone || 0,
+        total_its_relevant: extractionResult.statistics.totalITSRelevant || 0,
+        georeferenced: extractionResult.statistics.georeferenced || 0,
+        wgs84_bounds: extractionResult.statistics.wgs84Bounds || null,
+        coordinate_system: extractionResult.statistics.coordinateSystem || null,
+        geojson_features: extractionResult.geojson?.features?.length || 0,
         extraction_log: extractionResult.extractionLog,
         message: `Successfully processed ${fileType} file`
       });
@@ -27234,28 +27300,47 @@ app.get('/api/cadd/models', async (req, res) => {
 
     res.json({
       success: true,
-      models: models.map(m => ({
-        id: m.id,
-        filename: m.filename,
-        original_filename: m.original_filename,
-        file_format: m.file_format,
-        file_size: m.file_size,
-        file_path: m.file_path,
-        cad_version: m.cad_version,
-        units: m.units,
-        corridor: m.corridor,
-        state: m.state,
-        extraction_status: m.extraction_status,
-        total_layers: m.total_layers,
-        total_entities: m.total_entities,
-        total_blocks: m.total_blocks,
-        its_equipment_count: m.its_equipment_count,
-        road_geometry_count: m.road_geometry_count,
-        traffic_devices_count: m.traffic_devices_count,
-        uploaded_by: m.uploaded_by,
-        uploaded_at: m.uploaded_at,
-        extraction_completed_at: m.extraction_completed_at
-      }))
+      models: models.map(m => {
+        // Extract additional category counts from stored extraction_data JSON
+        let extraCounts = {};
+        try {
+          const data = typeof m.extraction_data === 'string' ? JSON.parse(m.extraction_data) : m.extraction_data;
+          if (data?.statistics) {
+            extraCounts = {
+              electrical_infrastructure: data.statistics.electricalInfrastructure || 0,
+              pedestrian_infrastructure: data.statistics.pedestrianInfrastructure || 0,
+              utilities: data.statistics.utilities || 0,
+              work_zone: data.statistics.workZone || 0,
+              total_its_relevant: data.statistics.totalITSRelevant || 0,
+              georeferenced: data.statistics.georeferenced || 0
+            };
+          }
+        } catch (e) { /* extraction_data not parseable */ }
+
+        return {
+          id: m.id,
+          filename: m.filename,
+          original_filename: m.original_filename,
+          file_format: m.file_format,
+          file_size: m.file_size,
+          file_path: m.file_path,
+          cad_version: m.cad_version,
+          units: m.units,
+          corridor: m.corridor,
+          state: m.state,
+          extraction_status: m.extraction_status,
+          total_layers: m.total_layers,
+          total_entities: m.total_entities,
+          total_blocks: m.total_blocks,
+          its_equipment_count: m.its_equipment_count,
+          road_geometry_count: m.road_geometry_count,
+          traffic_devices_count: m.traffic_devices_count,
+          ...extraCounts,
+          uploaded_by: m.uploaded_by,
+          uploaded_at: m.uploaded_at,
+          extraction_completed_at: m.extraction_completed_at
+        };
+      })
     });
   } catch (err) {
     console.error('Error fetching CADD models:', err);

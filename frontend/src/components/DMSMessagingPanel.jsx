@@ -174,34 +174,73 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div style={{ padding: '24px', minHeight: '100%', backgroundColor: '#f9fafb' }}>
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '12px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+        maxWidth: '1152px',
+        margin: '0 auto',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column'
+      }}>
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
-          <div className="flex items-center justify-between">
+        <div style={{
+          background: 'linear-gradient(to right, #2563eb, #1d4ed8)',
+          color: 'white',
+          padding: '24px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <h2 className="text-2xl font-bold flex items-center gap-2">
-                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <h2 style={{
+                fontSize: '24px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                margin: 0
+              }}>
+                <svg style={{ width: '28px', height: '28px', flexShrink: 0 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
                 </svg>
                 DMS Messaging System
               </h2>
-              <p className="text-blue-100 text-sm mt-1">
+              <p style={{ color: '#bfdbfe', fontSize: '14px', marginTop: '4px', marginBottom: 0 }}>
                 CCAI-Aligned Dynamic Message Sign Coordination
               </p>
             </div>
             <button
               onClick={onClose}
-              className="text-white hover:bg-blue-500 rounded-full p-2 transition-colors"
+              style={{
+                color: 'white',
+                background: 'none',
+                border: 'none',
+                borderRadius: '50%',
+                padding: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.5)'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg style={{ width: '24px', height: '24px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
 
           {selectedEvent && (
-            <div className="mt-4 bg-blue-500 bg-opacity-30 rounded p-3 text-sm">
+            <div style={{
+              marginTop: '16px',
+              backgroundColor: 'rgba(59,130,246,0.3)',
+              borderRadius: '4px',
+              padding: '12px',
+              fontSize: '14px'
+            }}>
               <strong>Active Event:</strong> {selectedEvent.title || selectedEvent.description?.substring(0, 60)}
               {' '} - {selectedEvent.state}
             </div>
@@ -209,43 +248,72 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b bg-gray-50">
+        <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
           <button
             onClick={() => setActiveTab('templates')}
-            className={`px-6 py-3 font-medium transition-colors ${
-              activeTab === 'templates'
-                ? 'border-b-2 border-blue-600 text-blue-600 bg-white'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
+            style={{
+              padding: '12px 24px',
+              fontWeight: '500',
+              transition: 'color 0.2s',
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              ...(activeTab === 'templates'
+                ? { borderBottom: '2px solid #2563eb', color: '#2563eb', backgroundColor: 'white' }
+                : { color: '#4b5563' })
+            }}
           >
             Message Templates ({templates.length})
           </button>
           <button
             onClick={() => setActiveTab('history')}
-            className={`px-6 py-3 font-medium transition-colors ${
-              activeTab === 'history'
-                ? 'border-b-2 border-blue-600 text-blue-600 bg-white'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
+            style={{
+              padding: '12px 24px',
+              fontWeight: '500',
+              transition: 'color 0.2s',
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              ...(activeTab === 'history'
+                ? { borderBottom: '2px solid #2563eb', color: '#2563eb', backgroundColor: 'white' }
+                : { color: '#4b5563' })
+            }}
           >
             Activation History ({activations.length})
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
           {error && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+            <div style={{
+              marginBottom: '16px',
+              backgroundColor: '#fef2f2',
+              border: '1px solid #fecaca',
+              color: '#b91c1c',
+              padding: '12px 16px',
+              borderRadius: '4px'
+            }}>
               {error}
             </div>
           )}
 
           {activeTab === 'templates' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: '24px'
+            }}>
               {/* Template List */}
               <div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: '#374151',
+                    marginBottom: '8px'
+                  }}>
                     Filter by Category
                   </label>
                   <select
@@ -254,7 +322,16 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
                       setFilterCategory(e.target.value);
                       setTimeout(() => fetchTemplates(), 0);
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                      fontSize: '14px',
+                      color: '#111827',
+                      backgroundColor: 'white'
+                    }}
                   >
                     {categories.map(cat => (
                       <option key={cat} value={cat}>
@@ -264,11 +341,15 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
                   </select>
                 </div>
 
-                <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                  {loading && <div className="text-center py-4 text-gray-500">Loading templates...</div>}
+                <div style={{ maxHeight: '500px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {loading && (
+                    <div style={{ textAlign: 'center', padding: '16px', color: '#6b7280' }}>
+                      Loading templates...
+                    </div>
+                  )}
 
                   {!loading && templates.length === 0 && (
-                    <div className="text-center py-8 text-gray-500">
+                    <div style={{ textAlign: 'center', padding: '32px', color: '#6b7280' }}>
                       No templates found for this category
                     </div>
                   )}
@@ -277,34 +358,57 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
                     <button
                       key={template.id}
                       onClick={() => selectTemplate(template)}
-                      className={`w-full text-left p-4 rounded-lg border transition-all ${
-                        selectedTemplate?.id === template.id
-                          ? 'border-blue-500 bg-blue-50 shadow-md'
-                          : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
-                      }`}
+                      style={{
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '16px',
+                        borderRadius: '8px',
+                        border: selectedTemplate?.id === template.id
+                          ? '1px solid #3b82f6'
+                          : '1px solid #e5e7eb',
+                        backgroundColor: selectedTemplate?.id === template.id ? '#eff6ff' : 'white',
+                        boxShadow: selectedTemplate?.id === template.id
+                          ? '0 4px 6px -1px rgba(0,0,0,0.1)'
+                          : 'none',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                      }}
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                             <span
-                              className="px-2 py-1 rounded text-xs font-medium text-white"
-                              style={{ backgroundColor: getCategoryColor(template.template_category) }}
+                              style={{
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                color: 'white',
+                                backgroundColor: getCategoryColor(template.template_category)
+                              }}
                             >
                               {template.template_category.toUpperCase()}
                             </span>
                             {template.mutcd_compliant && (
-                              <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">
+                              <span style={{
+                                padding: '4px 8px',
+                                backgroundColor: '#dcfce7',
+                                color: '#166534',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                fontWeight: '500'
+                              }}>
                                 MUTCD
                               </span>
                             )}
                           </div>
-                          <h4 className="font-semibold text-gray-900 mb-1">
+                          <h4 style={{ fontWeight: '600', color: '#111827', marginBottom: '4px', margin: '0 0 4px 0' }}>
                             {template.template_name}
                           </h4>
-                          <p className="text-sm text-gray-600 font-mono">
+                          <p style={{ fontSize: '14px', color: '#4b5563', fontFamily: 'monospace', margin: 0 }}>
                             {template.message_text}
                           </p>
-                          <div className="mt-2 text-xs text-gray-500">
+                          <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
                             {template.usage_count > 0 && (
                               <span>Used {template.usage_count} times</span>
                             )}
@@ -319,31 +423,58 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
               {/* Template Preview & Activation */}
               <div>
                 {selectedTemplate ? (
-                  <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  <div style={{
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    padding: '24px',
+                    border: '1px solid #e5e7eb'
+                  }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#111827', marginBottom: '16px', marginTop: 0 }}>
                       Message Composer
                     </h3>
 
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <div style={{ marginBottom: '16px' }}>
+                      <label style={{
+                        display: 'block',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        color: '#374151',
+                        marginBottom: '8px'
+                      }}>
                         Template
                       </label>
-                      <div className="bg-white border border-gray-300 rounded p-3 text-sm">
+                      <div style={{
+                        backgroundColor: 'white',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '4px',
+                        padding: '12px',
+                        fontSize: '14px'
+                      }}>
                         {selectedTemplate.template_name}
                       </div>
                     </div>
 
                     {templateVariables.length > 0 && (
-                      <div className="mb-4 space-y-3">
-                        <label className="block text-sm font-medium text-gray-700">
+                      <div style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <label style={{
+                          display: 'block',
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          color: '#374151'
+                        }}>
                           Message Variables
                         </label>
                         {templateVariables.map(variable => (
                           <div key={variable.id}>
-                            <label className="block text-xs text-gray-600 mb-1">
+                            <label style={{
+                              display: 'block',
+                              fontSize: '12px',
+                              color: '#4b5563',
+                              marginBottom: '4px'
+                            }}>
                               {variable.variable_name}
-                              {variable.required && <span className="text-red-500 ml-1">*</span>}
-                              <span className="text-gray-400 ml-2">({variable.variable_type})</span>
+                              {variable.required && <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>}
+                              <span style={{ color: '#9ca3af', marginLeft: '8px' }}>({variable.variable_type})</span>
                             </label>
                             <input
                               type="text"
@@ -353,25 +484,46 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
                                 [variable.variable_name]: e.target.value
                               })}
                               placeholder={variable.example_value}
-                              className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500 text-sm"
+                              style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '4px',
+                                fontSize: '14px',
+                                boxSizing: 'border-box'
+                              }}
                             />
                           </div>
                         ))}
                       </div>
                     )}
 
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <div style={{ marginBottom: '16px' }}>
+                      <label style={{
+                        display: 'block',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        color: '#374151',
+                        marginBottom: '8px'
+                      }}>
                         Message Preview
                       </label>
-                      <div className="bg-gray-900 text-yellow-400 font-mono text-center p-6 rounded border-4 border-gray-700">
-                        <div className="text-xl font-bold leading-tight">
+                      <div style={{
+                        backgroundColor: '#111827',
+                        color: '#facc15',
+                        fontFamily: 'monospace',
+                        textAlign: 'center',
+                        padding: '24px',
+                        borderRadius: '4px',
+                        border: '4px solid #374151'
+                      }}>
+                        <div style={{ fontSize: '20px', fontWeight: 'bold', lineHeight: '1.25' }}>
                           {previewMessage.split('/').map((line, i) => (
                             <div key={i}>{line.trim()}</div>
                           ))}
                         </div>
                       </div>
-                      <p className="text-xs text-gray-500 mt-2">
+                      <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
                         Character limit: {selectedTemplate.char_limit} lines
                       </p>
                     </div>
@@ -379,21 +531,41 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
                     <button
                       onClick={activateMessage}
                       disabled={loading}
-                      className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{
+                        width: '100%',
+                        backgroundColor: '#2563eb',
+                        color: 'white',
+                        padding: '12px 16px',
+                        borderRadius: '8px',
+                        fontWeight: '500',
+                        border: 'none',
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        opacity: loading ? 0.5 : 1,
+                        transition: 'background-color 0.2s',
+                        fontSize: '16px'
+                      }}
+                      onMouseEnter={e => { if (!loading) e.currentTarget.style.backgroundColor = '#1d4ed8'; }}
+                      onMouseLeave={e => { if (!loading) e.currentTarget.style.backgroundColor = '#2563eb'; }}
                     >
                       {loading ? 'Activating...' : 'Activate DMS Message'}
                     </button>
 
-                    <p className="text-xs text-gray-500 mt-3">
+                    <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '12px' }}>
                       This will send the message to the selected DMS devices and notify adjacent states.
                     </p>
                   </div>
                 ) : (
-                  <div className="bg-gray-50 rounded-lg p-12 text-center border-2 border-dashed border-gray-300">
-                    <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div style={{
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    padding: '48px',
+                    textAlign: 'center',
+                    border: '2px dashed #d1d5db'
+                  }}>
+                    <svg style={{ width: '64px', height: '64px', margin: '0 auto 16px', color: '#9ca3af', display: 'block' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
                     </svg>
-                    <p className="text-gray-600">
+                    <p style={{ color: '#4b5563' }}>
                       Select a template to preview and activate
                     </p>
                   </div>
@@ -403,63 +575,106 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
           )}
 
           {activeTab === 'history' && (
-            <div className="space-y-3">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {activations.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div style={{ textAlign: 'center', padding: '48px', color: '#6b7280' }}>
+                  <svg style={{ width: '64px', height: '64px', margin: '0 auto 16px', color: '#d1d5db', display: 'block' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <p>No DMS messages have been activated yet</p>
                 </div>
               ) : (
                 activations.map(activation => (
-                  <div key={activation.id} className="bg-white border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-gray-900">
+                  <div key={activation.id} style={{
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    padding: '16px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <div style={{ flex: 1 }}>
+                        <h4 style={{ fontWeight: '600', color: '#111827', margin: 0 }}>
                           {activation.template_name || 'Custom Message'}
                         </h4>
                         {activation.template_category && (
                           <span
-                            className="inline-block px-2 py-1 rounded text-xs font-medium text-white mt-1"
-                            style={{ backgroundColor: getCategoryColor(activation.template_category) }}
+                            style={{
+                              display: 'inline-block',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              fontWeight: '500',
+                              color: 'white',
+                              marginTop: '4px',
+                              backgroundColor: getCategoryColor(activation.template_category)
+                            }}
                           >
                             {activation.template_category.toUpperCase()}
                           </span>
                         )}
                       </div>
-                      <div className="text-right text-sm text-gray-500">
+                      <div style={{ textAlign: 'right', fontSize: '14px', color: '#6b7280' }}>
                         {formatDistanceToNow(new Date(activation.activated_at), { addSuffix: true })}
                       </div>
                     </div>
 
-                    <div className="bg-gray-900 text-yellow-400 font-mono text-center p-4 rounded my-3 text-sm">
+                    <div style={{
+                      backgroundColor: '#111827',
+                      color: '#facc15',
+                      fontFamily: 'monospace',
+                      textAlign: 'center',
+                      padding: '16px',
+                      borderRadius: '4px',
+                      margin: '12px 0',
+                      fontSize: '14px'
+                    }}>
                       {activation.final_message}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, 1fr)',
+                      gap: '16px',
+                      fontSize: '14px'
+                    }}>
                       <div>
-                        <span className="text-gray-600">Activated by:</span>
-                        <span className="ml-2 font-medium">{activation.activated_by}</span>
+                        <span style={{ color: '#4b5563' }}>Activated by:</span>
+                        <span style={{ marginLeft: '8px', fontWeight: '500' }}>{activation.activated_by}</span>
                       </div>
                       {activation.dms_device_id && (
                         <div>
-                          <span className="text-gray-600">Device:</span>
-                          <span className="ml-2 font-medium">{activation.dms_device_id}</span>
+                          <span style={{ color: '#4b5563' }}>Device:</span>
+                          <span style={{ marginLeft: '8px', fontWeight: '500' }}>{activation.dms_device_id}</span>
                         </div>
                       )}
                       {activation.states_notified && activation.states_notified.length > 0 && (
-                        <div className="col-span-2">
-                          <span className="text-gray-600">States notified:</span>
-                          <span className="ml-2 font-medium">{activation.states_notified.join(', ')}</span>
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <span style={{ color: '#4b5563' }}>States notified:</span>
+                          <span style={{ marginLeft: '8px', fontWeight: '500' }}>{activation.states_notified.join(', ')}</span>
                         </div>
                       )}
                     </div>
 
                     {!activation.deactivated_at && (
-                      <div className="mt-3 pt-3 border-t border-gray-200">
-                        <span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">
-                          <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                      <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e7eb' }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          padding: '4px 8px',
+                          backgroundColor: '#dcfce7',
+                          color: '#166534',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          fontWeight: '500'
+                        }}>
+                          <span style={{
+                            width: '8px',
+                            height: '8px',
+                            backgroundColor: '#22c55e',
+                            borderRadius: '50%',
+                            marginRight: '8px',
+                            display: 'inline-block'
+                          }}></span>
                           Active
                         </span>
                       </div>
@@ -472,14 +687,34 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
-          <div className="flex items-center justify-between text-sm text-gray-600">
+        <div style={{
+          backgroundColor: '#f9fafb',
+          padding: '16px 24px',
+          borderTop: '1px solid #e5e7eb'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '14px',
+            color: '#4b5563'
+          }}>
             <div>
               <strong>CCAI UC #2:</strong> Coordinated DMS Messaging
             </div>
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#e5e7eb',
+                color: '#374151',
+                borderRadius: '4px',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = '#d1d5db'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = '#e5e7eb'}
             >
               Close
             </button>

@@ -2202,7 +2202,7 @@ function App() {
 
       {/* Main Content */}
       <div className="main-content">
-        {view !== 'report' && view !== 'alignment' && view !== 'admin' && view !== 'adminUsers' && view !== 'messages' && (
+        {view !== 'report' && view !== 'alignment' && view !== 'admin' && view !== 'adminUsers' && view !== 'messages' && view !== 'closureApproval' && view !== 'dmsMessaging' && view !== 'diversionRoutes' && (
           <>
             <EventFilters
               events={events}
@@ -2227,7 +2227,7 @@ function App() {
           </>
         )}
 
-        {error && view !== 'admin' && view !== 'adminUsers' && view !== 'messages' && view !== 'alignment' && (
+        {error && view !== 'admin' && view !== 'adminUsers' && view !== 'messages' && view !== 'alignment' && view !== 'closureApproval' && view !== 'dmsMessaging' && view !== 'diversionRoutes' && (
           <div className="error-banner">
             Error loading events: {error}
           </div>

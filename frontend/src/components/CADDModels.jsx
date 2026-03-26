@@ -102,7 +102,34 @@ export default function CADDModels() {
         { timeout: 300000 } // 5 minutes for CAD files
       );
 
-      setUploadProgress(`Success! Extracted ${response.data.entities} entities, ${response.data.its_equipment} ITS equipment items`);
+      const d = response.data;
+      const breakdown = [];
+      if (d.road_geometry) breakdown.push(`${d.road_geometry} road geometry (pavement markings, lanes, curbs, alignment)`);
+      if (d.electrical_infrastructure) breakdown.push(`${d.electrical_infrastructure} electrical infrastructure (power, conduit, poles)`);
+      if (d.pedestrian_infrastructure) breakdown.push(`${d.pedestrian_infrastructure} pedestrian infrastructure (sidewalks, crosswalks, ADA)`);
+      if (d.its_equipment) breakdown.push(`${d.its_equipment} ITS equipment (signs, signals, cameras, DMS)`);
+      if (d.traffic_devices) breakdown.push(`${d.traffic_devices} traffic control devices`);
+      if (d.utilities) breakdown.push(`${d.utilities} utilities (water, sewer, gas, storm)`);
+      if (d.work_zone) breakdown.push(`${d.work_zone} work zone elements`);
+
+      setUploadProgress(
+        <div>
+          <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#2e7d32' }}>
+            Successfully extracted {d.entities} entities from {d.layers} layers
+          </div>
+          <div style={{ fontSize: '13px', marginBottom: '6px' }}>
+            {d.georeferenced} georeferenced to WGS84 | {d.geojson_features} GIS-ready features
+          </div>
+          <ul style={{ margin: '8px 0 0 0', paddingLeft: '20px', fontSize: '13px', lineHeight: '1.6' }}>
+            {breakdown.map((item, i) => <li key={i}>{item}</li>)}
+          </ul>
+          {d.total_its_relevant > 0 && (
+            <div style={{ marginTop: '8px', fontSize: '13px', color: '#1565c0' }}>
+              {d.total_its_relevant} total ITS-relevant elements ({Math.round(d.total_its_relevant / d.entities * 100)}% of file)
+            </div>
+          )}
+        </div>
+      );
 
       // Reset form
       setSelectedFile(null);
@@ -114,11 +141,11 @@ export default function CADDModels() {
       // Reload models
       await loadModels();
 
-      // Switch to models tab
+      // Switch to models tab after longer delay so user can read the summary
       setTimeout(() => {
         setActiveTab('models');
         setUploadProgress(null);
-      }, 3000);
+      }, 8000);
 
     } catch (error) {
       console.error('Upload error:', error);
@@ -450,24 +477,47 @@ export default function CADDModels() {
                         📐 {model.original_filename}
                       </h3>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginTop: '15px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginTop: '15px' }}>
                         <div>
-                          <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Format</div>
-                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#111827' }}>{model.file_format}</div>
+                          <div style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>Format</div>
+                          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#111827' }}>{model.file_format}</div>
                         </div>
                         <div>
-                          <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Entities</div>
-                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#3b82f6' }}>{model.total_entities || 0}</div>
+                          <div style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>Entities</div>
+                          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#3b82f6' }}>{model.total_entities || 0}</div>
                         </div>
                         <div>
-                          <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>Layers</div>
-                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#10b981' }}>{model.total_layers || 0}</div>
+                          <div style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>Layers</div>
+                          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#10b981' }}>{model.total_layers || 0}</div>
                         </div>
                         <div>
-                          <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>ITS Equipment</div>
-                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#f59e0b' }}>{model.its_equipment_count || 0}</div>
+                          <div style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>Georeferenced</div>
+                          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#7c3aed' }}>{model.georeferenced || '—'}</div>
                         </div>
                       </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginTop: '8px' }}>
+                        <div>
+                          <div style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>Road Geometry</div>
+                          <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#0891b2' }}>{model.road_geometry_count || 0}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>Electrical</div>
+                          <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#d97706' }}>{model.electrical_infrastructure || 0}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>Pedestrian</div>
+                          <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#059669' }}>{model.pedestrian_infrastructure || 0}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>Utilities</div>
+                          <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#6366f1' }}>{model.utilities || 0}</div>
+                        </div>
+                      </div>
+                      {model.total_its_relevant > 0 && (
+                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#1565c0' }}>
+                          {model.total_its_relevant} ITS-relevant elements ({Math.round(model.total_its_relevant / (model.total_entities || 1) * 100)}% of file)
+                        </div>
+                      )}
 
                       <div style={{ marginTop: '15px', fontSize: '14px', color: '#666' }}>
                         {model.corridor && <span>📍 {model.corridor} • </span>}
