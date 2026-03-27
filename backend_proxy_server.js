@@ -36047,6 +36047,12 @@ function startServer() {
   // Load Interstate polylines (I-80, I-35) into memory cache
   await loadInterstatePolylines();
 
+  // Share polyline cache with IPAWS service for geofence road-following
+  if (Object.keys(interstatePolylinesCache).length > 0) {
+    ipawsService.setInterstatePolylines(interstatePolylinesCache);
+    console.log('✅ IPAWS service linked to interstate polyline cache');
+  }
+
   // Schedule cleanup of expired Iowa geometries (runs every hour)
   const iowaGeometryService = require('./services/iowa-geometry-service');
   await iowaGeometryService.cleanupExpiredGeometries(); // Initial cleanup
