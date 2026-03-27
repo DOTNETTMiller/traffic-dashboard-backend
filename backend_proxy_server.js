@@ -17,13 +17,22 @@ const emailService = require('./email-service');
 const { fetchOhioEvents } = require('./scripts/fetch_ohio_events');
 const { fetchCaltransLCS } = require('./scripts/fetch_caltrans_lcs');
 const { fetchPennDOTRCRS } = require('./scripts/fetch_penndot_rcrs');
-const ComplianceAnalyzer = require('./compliance-analyzer');
-const { OpenAI } = require('openai');
-const IFCParser = require('./utils/ifc-parser');
 const multer = require('multer');
 const { Pool } = require('pg');
 const { filterValidGeometries, getGeometryStats } = require('./services/geometry-validator');
 const lifecycleManager = require('./services/event-lifecycle-manager');
+
+// Lazy-loaded heavy dependencies — loaded on first use to reduce startup memory and cold start time
+let _ComplianceAnalyzer, _OpenAI, _openai, _IFCParser;
+function getComplianceAnalyzer() { return _ComplianceAnalyzer || (_ComplianceAnalyzer = require('./compliance-analyzer')); }
+function getOpenAI() {
+  if (!_openai) {
+    _OpenAI = require('openai').OpenAI;
+    _openai = new _OpenAI({ apiKey: process.env.OPENAI_API_KEY || '' });
+  }
+  return _openai;
+}
+function getIFCParser() { return _IFCParser || (_IFCParser = require('./utils/ifc-parser')); }
 
 // Create a single PostGIS connection pool for the entire application
 const pgPool = process.env.DATABASE_URL ? new Pool({
@@ -228,13 +237,17 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// JWT Secret (should be in environment variable in production)
-const JWT_SECRET = process.env.JWT_SECRET || 'ccai2026-traffic-dashboard-secret-key';
+// JWT Secret - required via environment variable
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET environment variable is required in production');
+  }
+  console.warn('⚠️  JWT_SECRET not set - using development-only fallback. Set JWT_SECRET in production!');
+  return 'dev-only-jwt-secret-do-not-use-in-production';
+})();
 
-// OpenAI initialization for chat assistance
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || ''
-});
+// OpenAI is lazy-loaded via getOpenAI() — use that instead of 'openai' directly
+const openai = { get chat() { return getOpenAI().chat; }, get completions() { return getOpenAI().completions; } };
 
 // Auto-migrate users to email-based usernames on startup (if needed)
 let migrationAttempted = false;
@@ -249,14 +262,14 @@ async function migrateUsersToEmailUsernames() {
     if (needsMigration.length > 0) {
       console.log(`🔄 Migrating ${needsMigration.length} users to email-based usernames...`);
 
-      needsMigration.forEach(user => {
-        const result = db.updateUser(user.id, { username: user.email });
+      for (const user of needsMigration) {
+        const result = await db.updateUser(user.id, { username: user.email });
         if (result.success) {
           console.log(`  ✅ ${user.username} → ${user.email}`);
         } else {
           console.log(`  ❌ Failed to migrate ${user.username}`);
         }
-      });
+      }
 
       console.log('✅ User migration complete!');
     } else {
@@ -314,7 +327,7 @@ const requireAdmin = async (req, res, next) => {
   // User JWT with admin role
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.role === 'admin' || decoded.email === 'matthew.miller@iowadot.us') {
+    if (decoded.role === 'admin') {
       req.user = decoded;
       req.adminAuthType = 'user';
       return next();
@@ -345,7 +358,7 @@ const requireUser = (req, res, next) => {
 };
 
 // Combined authentication middleware - accepts both User JWT and State password
-const requireUserOrStateAuth = (req, res, next) => {
+const requireUserOrStateAuth = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader) {
@@ -388,7 +401,7 @@ const requireUserOrStateAuth = (req, res, next) => {
   // Fall back to State password auth (old system)
   if (authHeader.startsWith('State ')) {
     const [stateKey, password] = authHeader.substring(6).split(':');
-    if (!db.verifyStatePassword(stateKey, password)) {
+    if (!await db.verifyStatePassword(stateKey, password)) {
       return res.status(403).json({ error: 'Invalid state credentials' });
     }
 
@@ -4604,16 +4617,8 @@ async function fetchAndCacheEvents() {
 }
 
 
-// Background refresh interval (runs every 5 minutes)
-setInterval(async () => {
-  const now = Date.now();
-  const cacheAge = eventsCache.timestamp ? now - eventsCache.timestamp : Infinity;
-
-  if (cacheAge > eventsCache.refreshAfter) {
-    console.log('⏰ Background refresh triggered (cache age: ' + Math.round(cacheAge / 1000) + 's)');
-    await fetchAndCacheEvents();
-  }
-}, 300000); // Check every 5 minutes
+// Background refresh removed — cache is refreshed on-demand when /api/events is called.
+// This avoids fetching all state APIs every 5 minutes when nobody is using the app.
 
 // Initial cache population on startup
 console.log('🚀 Pre-warming cache on startup...');
@@ -5427,26 +5432,12 @@ app.post('/api/users/login', async (req, res) => {
     };
     };
 
-    if ((username === 'MM' || username === 'matthew.miller@iowadot.us') && password === 'admin2026') {
-      const fallback = await fallbackLogin('matthew.miller@iowadot.us', 'matthew.miller@iowadot.us');
-      if (fallback) {
-        return res.json({ success: true, message: 'Login successful', ...fallback });
-      }
-    }
-
-  if ((username === 'admin' || username === 'admin@example.com') && password === 'admin2026') {
-    const fallback = await fallbackLogin('admin@example.com', 'admin@example.com');
-    if (fallback) {
-      return res.json({ success: true, message: 'Login successful', ...fallback });
-    }
-  }
-
   res.status(401).json({ error: 'Invalid username or password' });
 });
 
 // Verify token and get current user
-app.get('/api/users/me', requireUser, (req, res) => {
-  const user = db.getUserByUsername(req.user.username);
+app.get('/api/users/me', requireUser, async (req, res) => {
+  const user = await db.getUserByUsername(req.user.username);
 
   if (user) {
     res.json({
@@ -5470,7 +5461,7 @@ app.get('/api/users/me', requireUser, (req, res) => {
 app.put('/api/users/profile', requireUser, async (req, res) => {
   const { fullName, organization, stateKey, notifyOnMessages, notifyOnHighSeverity } = req.body;
 
-  const user = db.getUserByUsername(req.user.username);
+  const user = await db.getUserByUsername(req.user.username);
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
@@ -5485,7 +5476,7 @@ app.put('/api/users/profile', requireUser, async (req, res) => {
   });
 
   if (result.success) {
-    const updatedUser = db.getUserByUsername(req.user.username);
+    const updatedUser = await db.getUserByUsername(req.user.username);
     res.json({
       success: true,
       message: 'Profile updated successfully',
@@ -5612,80 +5603,8 @@ app.post('/api/users/request-password-reset', async (req, res) => {
   }
 });
 
-// TEMPORARY: Migrate users table schema (no auth required - REMOVE AFTER USE)
-app.post('/api/temp-migrate-schema', async (req, res) => {
-  try {
-    if (!db.isPostgres) {
-      return res.json({ success: true, message: 'SQLite does not need migration' });
-    }
-
-    console.log('Running PostgreSQL schema migration...');
-
-    await db.db.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name TEXT');
-    console.log('✅ Added full_name column');
-
-    await db.db.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS organization TEXT');
-    console.log('✅ Added organization column');
-
-    await db.db.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_on_messages BOOLEAN DEFAULT TRUE');
-    console.log('✅ Added notify_on_messages column');
-
-    await db.db.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_on_high_severity BOOLEAN DEFAULT TRUE');
-    console.log('✅ Added notify_on_high_severity column');
-
-    console.log('✅ Migration complete!');
-
-    res.json({
-      success: true,
-      message: 'Schema migration completed successfully'
-    });
-  } catch (error) {
-    console.error('❌ Migration error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// TEMPORARY: Direct password reset endpoint (no auth required - REMOVE AFTER USE)
-app.post('/api/temp-reset-password', async (req, res) => {
-  try {
-    const { email, newPassword } = req.body;
-
-    if (!email || !newPassword) {
-      return res.status(400).json({ error: 'Email and newPassword required' });
-    }
-
-    const user = await db.getUserByUsername(email);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Directly update the password using SQL
-    const hashedPassword = db.hashPassword(newPassword);
-
-    if (db.isPostgres) {
-      // PostgreSQL
-      await db.db.pool.query(
-        'UPDATE users SET password_hash = $1 WHERE id = $2',
-        [hashedPassword, user.id]
-      );
-    } else {
-      // SQLite
-      db.db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashedPassword, user.id);
-    }
-
-    console.log(`✅ Password reset for ${email} - new password: ${newPassword}`);
-
-    res.json({
-      success: true,
-      message: 'Password reset successful',
-      email,
-      newPassword
-    });
-  } catch (error) {
-    console.error('Error in temp password reset:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+// REMOVED: Temporary unauthenticated endpoints (temp-migrate-schema, temp-reset-password) deleted for security.
+// Use /api/admin/users/:userId/reset-password (requires admin auth) for password resets.
 
 // Update user notification preferences
 app.put('/api/users/notifications', requireUser, (req, res) => {
@@ -5805,7 +5724,7 @@ app.get('/api/debug/coordinates', async (req, res) => {
 });
 
 // WORKAROUND: Uncached path to bypass Railway Edge CDN caching
-app.post('/xapi/admin/import-facilities', async (req, res) => {
+app.post('/xapi/admin/import-facilities', requireAdmin, async (req, res) => {
   try {
     console.log('📥 Starting facility import...');
 
@@ -5864,7 +5783,7 @@ app.post('/xapi/admin/import-facilities', async (req, res) => {
   }
 });
 
-app.post('/xapi/admin/apply-coordinate-offsets', async (req, res) => {
+app.post('/xapi/admin/apply-coordinate-offsets', requireAdmin, async (req, res) => {
   try {
     console.log('📍 Starting coordinate offset application...');
 
@@ -5935,7 +5854,7 @@ app.post('/xapi/admin/apply-coordinate-offsets', async (req, res) => {
 });
 
 // Admin endpoint to import facilities from JSON file
-app.post('/api/admin/import-facilities', async (req, res) => {
+app.post('/api/admin/import-facilities', requireAdmin, async (req, res) => {
   try {
     console.log('📥 Starting facility import...');
 
@@ -5995,7 +5914,7 @@ app.post('/api/admin/import-facilities', async (req, res) => {
 });
 
 // Admin endpoint to apply coordinate offsets
-app.post('/api/admin/apply-coordinate-offsets', async (req, res) => {
+app.post('/api/admin/apply-coordinate-offsets', requireAdmin, async (req, res) => {
   try {
     console.log('📍 Starting coordinate offset application...');
 
@@ -9362,7 +9281,7 @@ app.delete('/api/messages/event/:eventId', (req, res) => {
 const requireStateAuth = requireUserOrStateAuth;
 
 // Set/update state password (admin only)
-app.post('/api/states/password', requireAdmin, (req, res) => {
+app.post('/api/states/password', requireAdmin, async (req, res) => {
   const { stateKey, password } = req.body;
 
   if (!stateKey || !password) {
@@ -9375,7 +9294,7 @@ app.post('/api/states/password', requireAdmin, (req, res) => {
     return res.status(404).json({ error: 'State not found' });
   }
 
-  const result = db.setStatePassword(stateKey, password);
+  const result = await db.setStatePassword(stateKey, password);
 
   if (result.success) {
     res.json({
@@ -9388,7 +9307,7 @@ app.post('/api/states/password', requireAdmin, (req, res) => {
 });
 
 // State login (verify credentials)
-app.post('/api/states/login', (req, res) => {
+app.post('/api/states/login', async (req, res) => {
   const { stateKey, password } = req.body;
 
   if (!stateKey || !password) {
@@ -9400,7 +9319,7 @@ app.post('/api/states/login', (req, res) => {
     return res.status(404).json({ error: 'State not found' });
   }
 
-  if (db.verifyStatePassword(stateKey, password)) {
+  if (await db.verifyStatePassword(stateKey, password)) {
     res.json({
       success: true,
       stateKey: state.stateKey,
@@ -9596,7 +9515,7 @@ app.post('/api/events/:eventId/comments', requireUserOrStateAuth, async (req, re
           // Safety check: ensure usersToNotify is an array
           if (!Array.isArray(usersToNotify)) {
             console.error('⚠️  usersToNotify is not an array, skipping message notifications');
-            return res.status(201).json({ success: true, comment });
+            return;
           }
 
           console.log(`📧 Sending message notifications to ${usersToNotify.length} users for ${eventDetails.state}`);
@@ -12747,7 +12666,7 @@ const IPAWSAuditLogger = require('./services/ipaws-alert-service-lite');
 const populationService = require('./services/population-density-service');
 
 // POST /api/ipaws/generate - Generate IPAWS alert for an event
-app.post('/api/ipaws/generate', async (req, res) => {
+app.post('/api/ipaws/generate', requireAdmin, async (req, res) => {
   try {
     const {
       eventId,
@@ -12831,7 +12750,7 @@ app.post('/api/ipaws/generate', async (req, res) => {
 });
 
 // POST /api/ipaws/evaluate - Evaluate if event qualifies for IPAWS
-app.post('/api/ipaws/evaluate', async (req, res) => {
+app.post('/api/ipaws/evaluate', requireAdmin, async (req, res) => {
   try {
     const { event } = req.body;
 
@@ -12875,7 +12794,7 @@ app.get('/api/ipaws/templates', async (req, res) => {
 });
 
 // POST /api/ipaws/templates/recommend - Get recommended template for an event
-app.post('/api/ipaws/templates/recommend', async (req, res) => {
+app.post('/api/ipaws/templates/recommend', requireAdmin, async (req, res) => {
   try {
     const { event } = req.body;
 
@@ -13017,7 +12936,7 @@ app.get('/api/ipaws/alerts/:alertId', async (req, res) => {
 });
 
 // POST /api/ipaws/alerts/:alertId/cancel - Cancel an active alert (SOP Section 8.6)
-app.post('/api/ipaws/alerts/:alertId/cancel', async (req, res) => {
+app.post('/api/ipaws/alerts/:alertId/cancel', requireAdmin, async (req, res) => {
   try {
     const { alertId } = req.params;
     const { reason, user } = req.body;
@@ -13074,7 +12993,7 @@ app.post('/api/ipaws/alerts/:alertId/cancel', async (req, res) => {
 });
 
 // DELETE /api/ipaws/alerts/:alertId - Delete an IPAWS alert (training mode or draft only)
-app.delete('/api/ipaws/alerts/:alertId', async (req, res) => {
+app.delete('/api/ipaws/alerts/:alertId', requireAdmin, async (req, res) => {
   try {
     const { alertId } = req.params;
 
@@ -13122,7 +13041,7 @@ app.delete('/api/ipaws/alerts/:alertId', async (req, res) => {
 });
 
 // POST /api/ipaws/alerts/:alertId/update - Update an active alert (SOP Section 8.6)
-app.post('/api/ipaws/alerts/:alertId/update', async (req, res) => {
+app.post('/api/ipaws/alerts/:alertId/update', requireAdmin, async (req, res) => {
   try {
     const { alertId } = req.params;
     const { updates, user } = req.body;
@@ -13168,7 +13087,7 @@ app.post('/api/ipaws/alerts/:alertId/update', async (req, res) => {
 });
 
 // POST /api/ipaws/alerts/:alertId/issue - Mark alert as issued (sent to IPAWS)
-app.post('/api/ipaws/alerts/:alertId/issue', async (req, res) => {
+app.post('/api/ipaws/alerts/:alertId/issue', requireAdmin, async (req, res) => {
   try {
     const { alertId } = req.params;
     const { user } = req.body;
@@ -13207,7 +13126,7 @@ app.post('/api/ipaws/alerts/:alertId/issue', async (req, res) => {
 });
 
 // POST /api/ipaws/alerts/:alertId/review - Submit after-action review (SOP Section 11)
-app.post('/api/ipaws/alerts/:alertId/review', async (req, res) => {
+app.post('/api/ipaws/alerts/:alertId/review', requireAdmin, async (req, res) => {
   try {
     const { alertId } = req.params;
     const { review } = req.body;
@@ -13248,7 +13167,7 @@ app.post('/api/ipaws/alerts/:alertId/review', async (req, res) => {
 });
 
 // POST /api/ipaws/alerts/export-hsemd - Export logs for HSEMD coordination (SOP Section 11)
-app.post('/api/ipaws/alerts/export-hsemd', async (req, res) => {
+app.post('/api/ipaws/alerts/export-hsemd', requireAdmin, async (req, res) => {
   try {
     const { includeReviews = true, format = 'csv' } = req.body;
 
@@ -13364,7 +13283,7 @@ app.get('/api/ipaws/rules', async (req, res) => {
 });
 
 // POST /api/ipaws/rules - Create new IPAWS alert rule
-app.post('/api/ipaws/rules', async (req, res) => {
+app.post('/api/ipaws/rules', requireAdmin, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({
@@ -13421,7 +13340,7 @@ app.post('/api/ipaws/rules', async (req, res) => {
 });
 
 // PUT /api/ipaws/rules/:id - Update IPAWS alert rule
-app.put('/api/ipaws/rules/:id', async (req, res) => {
+app.put('/api/ipaws/rules/:id', requireAdmin, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({
@@ -13486,7 +13405,7 @@ app.put('/api/ipaws/rules/:id', async (req, res) => {
 });
 
 // DELETE /api/ipaws/rules/:id - Delete IPAWS alert rule
-app.delete('/api/ipaws/rules/:id', async (req, res) => {
+app.delete('/api/ipaws/rules/:id', requireAdmin, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({
@@ -13523,7 +13442,7 @@ app.delete('/api/ipaws/rules/:id', async (req, res) => {
 });
 
 // POST /api/ipaws/evaluate-rules - Evaluate event against all active rules
-app.post('/api/ipaws/evaluate-rules', async (req, res) => {
+app.post('/api/ipaws/evaluate-rules', requireAdmin, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({
@@ -13610,7 +13529,7 @@ app.post('/api/ipaws/evaluate-rules', async (req, res) => {
 });
 
 // POST /api/ipaws/submit - Submit IPAWS alert for supervisor approval
-app.post('/api/ipaws/submit', async (req, res) => {
+app.post('/api/ipaws/submit', requireAdmin, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({
@@ -13722,7 +13641,7 @@ app.get('/api/ipaws/users/:userId', async (req, res) => {
 });
 
 // POST /api/ipaws/users - Create new authorized user
-app.post('/api/ipaws/users', async (req, res) => {
+app.post('/api/ipaws/users', requireAdmin, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({ success: false, error: 'Database not configured' });
@@ -13796,7 +13715,7 @@ app.post('/api/ipaws/users', async (req, res) => {
 });
 
 // PUT /api/ipaws/users/:userId - Update user certification/authorization
-app.put('/api/ipaws/users/:userId', async (req, res) => {
+app.put('/api/ipaws/users/:userId', requireAdmin, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({ success: false, error: 'Database not configured' });
@@ -13805,13 +13724,21 @@ app.put('/api/ipaws/users/:userId', async (req, res) => {
     const { userId } = req.params;
     const updates = req.body;
 
-    // Build dynamic UPDATE query
+    // Whitelist of allowed column names to prevent SQL injection
+    const allowedFields = [
+      'full_name', 'email', 'role', 'agency', 'certification_level',
+      'certification_date', 'certification_expiry', 'is_authorized',
+      'authorized_alert_types', 'authorized_jurisdictions', 'status',
+      'phone', 'title', 'notes'
+    ];
+
+    // Build dynamic UPDATE query with validated column names
     const updateFields = [];
     const values = [];
     let paramCount = 0;
 
     for (const [key, value] of Object.entries(updates)) {
-      if (key !== 'user_id') { // Don't allow changing user_id
+      if (key !== 'user_id' && allowedFields.includes(key)) {
         paramCount++;
         updateFields.push(`${key} = $${paramCount}`);
         values.push(value);
@@ -13900,7 +13827,7 @@ app.get('/api/ipaws/certifications/expiring', async (req, res) => {
 });
 
 // POST /api/ipaws/training - Log training session
-app.post('/api/ipaws/training', async (req, res) => {
+app.post('/api/ipaws/training', requireAdmin, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({ success: false, error: 'Database not configured' });
@@ -14023,7 +13950,7 @@ app.get('/api/ipaws/after-action-reviews/outstanding', async (req, res) => {
 });
 
 // POST /api/ipaws/after-action-reviews - Create new AAR
-app.post('/api/ipaws/after-action-reviews', async (req, res) => {
+app.post('/api/ipaws/after-action-reviews', requireAdmin, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({ success: false, error: 'Database not configured' });
@@ -14161,7 +14088,7 @@ app.get('/api/ipaws/violations', async (req, res) => {
 });
 
 // POST /api/ipaws/violations - Log a policy violation
-app.post('/api/ipaws/violations', async (req, res) => {
+app.post('/api/ipaws/violations', requireAdmin, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({ success: false, error: 'Database not configured' });
@@ -15658,7 +15585,7 @@ app.get('/api/states/list', async (req, res) => {
 });
 
 // Admin endpoint to populate states in database
-app.post('/api/admin/populate-states', async (req, res) => {
+app.post('/api/admin/populate-states', requireAdmin, async (req, res) => {
   const { Client } = require('pg');
 
   try {
@@ -16098,7 +16025,7 @@ app.get('/api/truck-parking/predictions', (req, res) => {
 app.get('/api/compliance/summary', async (req, res) => {
   try {
     console.log('Generating compliance summary for all states...');
-    const analyzer = new ComplianceAnalyzer();
+    const analyzer = new (getComplianceAnalyzer())();
     const states = [];
 
     // Fetch events from all states
@@ -16233,7 +16160,7 @@ app.get('/api/compliance/state/:stateKey', async (req, res) => {
       });
     }
 
-    const analyzer = new ComplianceAnalyzer();
+    const analyzer = new (getComplianceAnalyzer())();
     const analysis = analyzer.analyzeState(stateKey.toUpperCase(), stateName, result.events);
 
     res.json({
@@ -16311,7 +16238,7 @@ app.post('/api/admin/users', requireAdmin, async (req, res) => {
 });
 
 // Update user
-app.put('/api/admin/users/:userId', requireAdmin, (req, res) => {
+app.put('/api/admin/users/:userId', requireAdmin, async (req, res) => {
   const userId = parseInt(req.params.userId, 10);
   if (Number.isNaN(userId)) {
     return res.status(400).json({ error: 'Invalid user id' });
@@ -16335,10 +16262,10 @@ app.put('/api/admin/users/:userId', requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'No valid fields to update' });
   }
 
-  const result = db.updateUser(userId, updates);
+  const result = await db.updateUser(userId, updates);
 
   if (result.success) {
-    const updated = db.getUserById(userId);
+    const updated = await db.getUserById(userId);
     res.json({ success: true, user: updated });
   } else {
     res.status(400).json({ error: result.error || 'Failed to update user' });
@@ -16346,14 +16273,14 @@ app.put('/api/admin/users/:userId', requireAdmin, (req, res) => {
 });
 
 // Reset password
-app.post('/api/admin/users/:userId/reset-password', requireAdmin, (req, res) => {
+app.post('/api/admin/users/:userId/reset-password', requireAdmin, async (req, res) => {
   const userId = parseInt(req.params.userId, 10);
   if (Number.isNaN(userId)) {
     return res.status(400).json({ error: 'Invalid user id' });
   }
 
   const newPassword = req.body?.password || generateTemporaryPassword();
-  const result = db.updateUser(userId, { password: newPassword });
+  const result = await db.updateUser(userId, { password: newPassword });
 
   if (result.success) {
     res.json({ success: true, temporaryPassword: newPassword, message: 'Password reset successfully' });
@@ -16381,7 +16308,7 @@ app.delete('/api/admin/users/:userId', requireAdmin, (req, res) => {
 // ==================== ADMIN STATE MANAGEMENT ENDPOINTS ====================
 
 // Generate admin token (one-time setup or regenerate)
-app.post('/api/admin/generate-token', async (req, res) => {
+app.post('/api/admin/generate-token', requireAdmin, async (req, res) => {
   const { description } = req.body;
   const token = await db.createAdminToken(description || 'Admin access token');
 
@@ -16626,7 +16553,7 @@ app.get('/api/projects/:id', async (req, res) => {
 });
 
 // Create new project
-app.post('/api/projects', async (req, res) => {
+app.post('/api/projects', requireAdmin, async (req, res) => {
   try {
     const {
       title,
@@ -16667,7 +16594,7 @@ app.post('/api/projects', async (req, res) => {
 });
 
 // Update project
-app.put('/api/projects/:id', async (req, res) => {
+app.put('/api/projects/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -16709,7 +16636,7 @@ app.put('/api/projects/:id', async (req, res) => {
 });
 
 // Delete project
-app.delete('/api/projects/:id', async (req, res) => {
+app.delete('/api/projects/:id', requireAdmin, async (req, res) => {
   try {
     db.db.prepare('DELETE FROM projects WHERE id = ?').run(req.params.id);
     res.json({ success: true });
@@ -16742,7 +16669,7 @@ app.get('/api/biweekly-reports', async (req, res) => {
 });
 
 // Create new biweekly report
-app.post('/api/biweekly-reports', async (req, res) => {
+app.post('/api/biweekly-reports', requireAdmin, async (req, res) => {
   try {
     const {
       project_id,
@@ -16781,7 +16708,7 @@ app.post('/api/biweekly-reports', async (req, res) => {
 });
 
 // Update biweekly report
-app.put('/api/biweekly-reports/:id', async (req, res) => {
+app.put('/api/biweekly-reports/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -16818,7 +16745,7 @@ app.put('/api/biweekly-reports/:id', async (req, res) => {
 });
 
 // Delete biweekly report
-app.delete('/api/biweekly-reports/:id', async (req, res) => {
+app.delete('/api/biweekly-reports/:id', requireAdmin, async (req, res) => {
   try {
     db.db.prepare('DELETE FROM biweekly_reports WHERE id = ?').run(req.params.id);
     res.json({ success: true });
@@ -16832,6 +16759,129 @@ app.get('/api/corridor-regulations', async (req, res) => {
   const { corridor } = req.query;
   const regulations = await db.getCorridorRegulations(corridor);
   res.json({ success: true, regulations });
+});
+
+// ==================== CORRIDOR DELAY INTELLIGENCE ENGINE ====================
+const CorridorDelayEngine = require('./services/corridor-delay-engine');
+const corridorDelayEngine = new CorridorDelayEngine();
+
+// ==================== PARKING PREDICTION AI CALIBRATION ====================
+const { ParkingCalibrationService, setOpenAIGetter } = require('./services/parking-calibration-service');
+setOpenAIGetter(getOpenAI);
+const parkingCalibrationService = new ParkingCalibrationService(db);
+
+// Run calibration (admin-only, on-demand to conserve API budget)
+app.post('/api/parking/calibrate', requireAdmin, async (req, res) => {
+  try {
+    const result = await parkingCalibrationService.runCalibration();
+    res.json(result);
+  } catch (error) {
+    console.error('Calibration error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get calibration status and budget tracking
+app.get('/api/parking/calibration/status', (req, res) => {
+  res.json({ success: true, ...parkingCalibrationService.getStatus() });
+});
+
+// Get current calibration weights
+app.get('/api/parking/calibration/weights', (req, res) => {
+  res.json({ success: true, calibration: parkingCalibrationService.getCalibration() });
+});
+
+// Get real-time delay analysis for a corridor
+app.get('/api/corridor/:corridor/delays', async (req, res) => {
+  try {
+    const corridor = req.params.corridor.toUpperCase();
+
+    // Use cached events
+    const events = eventsCache.data?.events || [];
+    if (events.length === 0) {
+      return res.json({ success: true, corridor, message: 'No events cached yet', segments: [] });
+    }
+
+    const allDelays = corridorDelayEngine.computeCorridorDelays(events);
+    const corridorData = allDelays[corridor];
+
+    if (!corridorData) {
+      const available = corridorDelayEngine.getAvailableCorridors();
+      return res.status(404).json({
+        success: false,
+        error: `Corridor ${corridor} not found`,
+        availableCorridors: available.map(c => c.corridor)
+      });
+    }
+
+    res.json({ success: true, ...corridorData });
+  } catch (error) {
+    console.error('Error computing corridor delays:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get all corridor summaries at once
+app.get('/api/corridor/delays/summary', async (req, res) => {
+  try {
+    const events = eventsCache.data?.events || [];
+    const allDelays = corridorDelayEngine.computeCorridorDelays(events);
+
+    const summaries = Object.values(allDelays).map(c => ({
+      corridor: c.corridor,
+      ...c.summary,
+      timestamp: c.timestamp
+    }));
+
+    res.json({ success: true, corridors: summaries });
+  } catch (error) {
+    console.error('Error computing corridor summaries:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get travel time estimate between two states on a corridor
+app.get('/api/corridor/:corridor/travel-time', async (req, res) => {
+  try {
+    const corridor = req.params.corridor.toUpperCase();
+    const { from, to } = req.query;
+
+    if (!from || !to) {
+      return res.status(400).json({
+        success: false,
+        error: 'Query params "from" and "to" required (state codes, e.g. ?from=IA&to=OH)'
+      });
+    }
+
+    const events = eventsCache.data?.events || [];
+    const allDelays = corridorDelayEngine.computeCorridorDelays(events);
+    const corridorData = allDelays[corridor];
+
+    if (!corridorData) {
+      return res.status(404).json({ success: false, error: `Corridor ${corridor} not found` });
+    }
+
+    const travelTime = corridorDelayEngine.getTravelTime(corridorData, from, to);
+    if (!travelTime) {
+      return res.status(404).json({
+        success: false,
+        error: `Could not compute travel time from ${from} to ${to} on ${corridor}`
+      });
+    }
+
+    res.json({ success: true, corridor, ...travelTime });
+  } catch (error) {
+    console.error('Error computing travel time:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get available corridors
+app.get('/api/corridor/available', (req, res) => {
+  res.json({
+    success: true,
+    corridors: corridorDelayEngine.getAvailableCorridors()
+  });
 });
 
 // Corridor briefing summary endpoint
@@ -18015,51 +18065,44 @@ const evaluateDetourAlerts = async () => {
 
 async function checkHighSeverityEvents() {
   try {
-    // Fetch all current events
-    const allStates = await db.getAllStates();
-    const results = await Promise.all(
-      allStates.map(state => fetchStateData(state.stateKey))
-    );
+    // Use the existing events cache instead of re-fetching all states
+    if (!eventsCache.data || !eventsCache.data.events) {
+      console.log('⏳ No cached events yet, skipping high-severity check');
+      return;
+    }
 
-    // Check each state's events for high severity
-    for (const result of results) {
-      const highSeverityEvents = result.events.filter(event =>
-        event.severity === 'high' &&
-        event.corridor &&
-        !notifiedEvents.has(event.id)
-      );
+    const allEvents = eventsCache.data.events;
 
-      if (highSeverityEvents.length > 0) {
-        console.log(`🚨 Found ${highSeverityEvents.length} high-severity events in ${result.state}`);
-
-        // Get users who should be notified for this state
-        const usersToNotify = await db.getUsersForHighSeverityNotification(result.state);
-
-        // Safety check: ensure usersToNotify is an array
-        if (!Array.isArray(usersToNotify)) {
-          console.error('⚠️  usersToNotify is not an array, skipping notifications');
-          continue;
-        }
-
-        // Send notifications for each high-severity event
-        for (const event of highSeverityEvents) {
-          console.log(`📧 Sending high-severity alerts for event ${event.id} in ${result.state}`);
-
-          for (const user of usersToNotify) {
-            await emailService.sendHighSeverityEventNotification(
-              user.email,
-              user.fullName || user.username,
-              event
-            );
-          }
-
-          // Mark this event as notified to avoid duplicate alerts
-          notifiedEvents.add(event.id);
-        }
+    // Group events by state for notification routing
+    const eventsByState = {};
+    for (const event of allEvents) {
+      if (event.severity === 'high' && event.corridor && !notifiedEvents.has(event.id)) {
+        const state = event.state || 'unknown';
+        if (!eventsByState[state]) eventsByState[state] = [];
+        eventsByState[state].push(event);
       }
     }
 
-    // Clean up old events from notified set (keep last 1000)
+    // Send notifications per state
+    for (const [state, highSeverityEvents] of Object.entries(eventsByState)) {
+      console.log(`🚨 Found ${highSeverityEvents.length} high-severity events in ${state}`);
+
+      const usersToNotify = await db.getUsersForHighSeverityNotification(state);
+      if (!Array.isArray(usersToNotify)) continue;
+
+      for (const event of highSeverityEvents) {
+        for (const user of usersToNotify) {
+          await emailService.sendHighSeverityEventNotification(
+            user.email,
+            user.fullName || user.username,
+            event
+          );
+        }
+        notifiedEvents.add(event.id);
+      }
+    }
+
+    // Clean up old events from notified set (keep last 500)
     if (notifiedEvents.size > 1000) {
       const eventsArray = Array.from(notifiedEvents);
       notifiedEvents.clear();
@@ -22169,7 +22212,7 @@ app.get('/api/vendors/votes', async (req, res) => {
 });
 
 // Fix TETC validation report URLs (admin only)
-app.post('/api/admin/fix-tetc-urls', async (req, res) => {
+app.post('/api/admin/fix-tetc-urls', requireAdmin, async (req, res) => {
   const { Client } = require('pg');
 
   try {
@@ -24451,7 +24494,7 @@ app.post('/api/digital-infrastructure/upload-base64', express.json({ limit: '50m
       extractionResult = await parser.parseFile(permanentPath);
       console.log(`   ✅ Parsed ${extractionResult.statistics.totalEntities} CAD entities`);
     } else {
-      parser = new IFCParser();
+      parser = new (getIFCParser())();
       extractionResult = await parser.parseFile(permanentPath);
       console.log(`   ✅ Parsed ${extractionResult.statistics.total_entities} IFC entities`);
     }
@@ -24627,7 +24670,7 @@ app.post('/api/digital-infrastructure/upload', (req, res, next) => {
       console.log(`   ✅ Parsed ${extractionResult.statistics.totalEntities} CAD entities`);
       console.log(`   ✅ Extracted ${extractionResult.itsEquipment.length} ITS equipment items`);
     } else {
-      parser = new IFCParser();
+      parser = new (getIFCParser())();
       extractionResult = await parser.parseFile(tempFilePath);
       console.log(`   ✅ Parsed ${extractionResult.statistics.total_entities} IFC entities`);
       console.log(`   ✅ Extracted ${extractionResult.elements.length} infrastructure elements`);
@@ -31637,7 +31680,7 @@ app.post('/api/grants/generate-letter', async (req, res) => {
 });
 
 // Run Users table migration for PostgreSQL
-app.post('/api/admin/migrate-users', async (req, res) => {
+app.post('/api/admin/migrate-users', requireAdmin, async (req, res) => {
   try {
     const { Client } = require('pg');
 
@@ -31711,7 +31754,7 @@ app.post('/api/admin/migrate-users', async (req, res) => {
 });
 
 // Migrate grant tables to PostgreSQL
-app.post('/api/admin/migrate-grants', async (req, res) => {
+app.post('/api/admin/migrate-grants', requireAdmin, async (req, res) => {
   try {
     const { Client } = require('pg');
 
@@ -31947,7 +31990,7 @@ app.post('/api/admin/migrate-grants', async (req, res) => {
  * Migrate ITS Equipment tables to PostgreSQL
  * One-time migration endpoint to create ITS equipment tables in production
  */
-app.post('/api/admin/migrate-its', async (req, res) => {
+app.post('/api/admin/migrate-its', requireAdmin, async (req, res) => {
   try {
     const { Client } = require('pg');
 
@@ -32090,7 +32133,7 @@ app.post('/api/admin/migrate-its', async (req, res) => {
 /**
  * One-time migration endpoint to create state OS/OW regulations table in production
  */
-app.post('/api/admin/migrate-state-osow', async (req, res) => {
+app.post('/api/admin/migrate-state-osow', requireAdmin, async (req, res) => {
   try {
     const { Client } = require('pg');
     const fs = require('fs');
@@ -32148,7 +32191,7 @@ app.post('/api/admin/migrate-state-osow', async (req, res) => {
 /**
  * One-time migration endpoint to create Digital Infrastructure tables in production
  */
-app.post('/api/admin/migrate-digital-infrastructure', async (req, res) => {
+app.post('/api/admin/migrate-digital-infrastructure', requireAdmin, async (req, res) => {
   try {
     const { Client } = require('pg');
 
@@ -32403,18 +32446,30 @@ setTimeout(async () => {
 // TPIMS data fetcher
 const { fetchTPIMSFeed, validatePredictions } = require('./scripts/fetch_tpims_data.js');
 
+// TPIMS feeds are defined in scripts/fetch_tpims_data.js — import them
+const { fetchTPIMSFeed: _fetchTPIMSFeedRef } = require('./scripts/fetch_tpims_data.js');
 const TPIMS_FEEDS = [
-  {
-    name: 'TRIMARC TPIMS',
-    url: 'http://www.trimarc.org/dat/tpims/TPIMS_Dynamic.json',
-    state: 'KY',
-    protocol: require('http')
-  },
-  {
-    name: 'Minnesota DOT TPIMS',
-    url: 'http://iris.dot.state.mn.us/iris/TPIMS_dynamic',
-    state: 'MN',
-    protocol: require('http')
+  { name: 'TRIMARC TPIMS (Kentucky)', url: 'http://www.trimarc.org/dat/tpims/TPIMS_Dynamic.json', state: 'KY', protocol: require('http') },
+  { name: 'Minnesota DOT TPIMS', url: 'http://iris.dot.state.mn.us/iris/TPIMS_dynamic', state: 'MN', protocol: require('http') },
+  { name: 'Illinois TPIMS', url: 'https://truckparking.travelmidwest.com/TPIMS_Dynamic.json', staticUrl: 'https://truckparking.travelmidwest.com/TPIMS_Static.json', state: 'IL', protocol: require('https') },
+  { name: 'Indiana TPIMS', url: 'https://content.trafficwise.org/json/tpims.json', staticUrl: 'https://content.trafficwise.org/json/rest_area.json', state: 'IN', protocol: require('https'),
+    preprocess: (data) => {
+      if (!data || !data.features) return [];
+      return data.features.filter(f => f.properties && f.geometry).map(f => {
+        const p = f.properties;
+        const coords = f.geometry.coordinates || [0, 0];
+        let available = 0;
+        const msg = (p.message1 || '') + ' ' + (p.message2 || '') + ' ' + (p.message3 || '');
+        const spaceMatch = msg.match(/(\d+)\s*(?:spaces?|spots?|available)/i);
+        if (spaceMatch) available = parseInt(spaceMatch[1]);
+        const tpims = p.tpims || {};
+        return { siteId: p.device_nbr || p.title || f.id, name: p.title || tpims.city || 'Unknown',
+          latitude: coords[1] || tpims.latitude, longitude: coords[0] || tpims.longitude,
+          capacity: tpims.capacity || parseInt(p.capacity) || 0,
+          reportedAvailable: tpims.spaces_available ?? available,
+          address: tpims.address || p.route || '', type: 'Rest Area' };
+      });
+    }
   }
 ];
 
@@ -32711,6 +32766,7 @@ const FACILITY_METADATA = {
 };
 
 // Get predictions for all facilities using historical patterns
+// Automatically applies corridor delay surge adjustments when active events cause delays
 app.get('/api/parking/historical/predict-all', (req, res) => {
   try {
     const targetTime = req.query.time ? new Date(req.query.time) : new Date();
@@ -32718,6 +32774,51 @@ app.get('/api/parking/historical/predict-all', (req, res) => {
 
     if (!result.success) {
       return res.status(503).json({ error: result.error });
+    }
+
+    // Apply AI calibration weights (time-of-day, day-of-week, state adjustments)
+    for (const pred of result.predictions) {
+      parkingCalibrationService.applyCalibration(pred);
+    }
+
+    // Apply corridor delay surge adjustments
+    // When corridor segments have active delays, nearby facilities fill faster
+    let surgeApplied = false;
+    const events = eventsCache.data?.events || [];
+    if (events.length > 0) {
+      try {
+        const delays = corridorDelayEngine.computeCorridorDelays(events);
+        const surgeMult = parkingCalibrationService.getCalibration()?.corridorDelaySurgeMultiplier ?? 1.0;
+        truckParkingService.applyCorridorDelaySurge(result.predictions, delays, surgeMult);
+
+        const surgeCount = result.predictions.filter(p => p.surgeAdjustment?.applied).length;
+        if (surgeCount > 0) {
+          surgeApplied = true;
+          // Regenerate alerts with surge-adjusted predictions
+          result.alerts = [];
+          for (const pred of result.predictions) {
+            if (pred.predictedAvailable <= 2 && pred.predictedAvailable >= 0) {
+              result.alerts.push({
+                facilityId: pred.facilityId,
+                facilityName: pred.siteId,
+                state: pred.state,
+                latitude: pred.latitude,
+                longitude: pred.longitude,
+                availableSpaces: pred.predictedAvailable,
+                severity: pred.predictedAvailable === 0 ? 'critical' : 'warning',
+                message: pred.predictedAvailable === 0
+                  ? `🅿️ PARKING FULL at ${pred.siteId}${pred.surgeAdjustment ? ' (corridor delay surge)' : ''}`
+                  : `🅿️ PARKING LIMITED at ${pred.siteId} - Only ${pred.predictedAvailable} space${pred.predictedAvailable === 1 ? '' : 's'}${pred.surgeAdjustment ? ' (corridor delay surge)' : ''}`,
+                timestamp: targetTime.toISOString(),
+                surgeAdjustment: pred.surgeAdjustment || null
+              });
+            }
+          }
+          result.alertCount = result.alerts.length;
+        }
+      } catch (surgeError) {
+        console.error('Warning: corridor delay surge calculation failed:', surgeError.message);
+      }
     }
 
     // Enhance predictions with metadata (friendly names and camera feeds)
@@ -32732,7 +32833,8 @@ app.get('/api/parking/historical/predict-all', (req, res) => {
 
     res.json({
       ...result,
-      predictions: enhancedPredictions
+      predictions: enhancedPredictions,
+      corridorDelayAware: surgeApplied
     });
   } catch (error) {
     console.error('Error generating historical predictions:', error);
@@ -35742,29 +35844,40 @@ app.use(express.static(path.join(__dirname, 'frontend/dist'), {
 }));
 
 // Fallback route - serve index.html for all non-API routes (SPA support)
+// Cache the patched HTML in memory to avoid disk I/O on every request
+let cachedIndexHtml = null;
+const indexPath = path.join(__dirname, 'frontend/dist/index.html');
+
+function getIndexHtml() {
+  if (cachedIndexHtml) return cachedIndexHtml;
+
+  if (!fs.existsSync(indexPath)) return null;
+
+  let html = fs.readFileSync(indexPath, 'utf8');
+
+  // Replace service worker registration block with cache-clearing version
+  const swRegex = /<!-- Service Worker Registration.*?<\/script>/s;
+  if (swRegex.test(html)) {
+    html = html.replace(swRegex,
+      '<!-- SW disabled --><script>' +
+      'if("serviceWorker"in navigator){' +
+      'navigator.serviceWorker.getRegistrations().then(function(r){for(var i of r)i.unregister();});' +
+      'if("caches"in window)caches.keys().then(function(n){for(var i of n)caches.delete(i);});}' +
+      '</script>'
+    );
+  }
+
+  cachedIndexHtml = html;
+  return html;
+}
+
 app.get('*', (req, res) => {
-  // Skip if this is an API request
   if (req.path.startsWith('/api')) {
     return res.status(404).json({ error: 'API endpoint not found' });
   }
 
-  const indexPath = path.join(__dirname, 'frontend/dist/index.html');
-  if (fs.existsSync(indexPath)) {
-    // Read and patch index.html at runtime to disable service worker
-    let html = fs.readFileSync(indexPath, 'utf8');
-
-    // Replace service worker registration block with cache-clearing version
-    const swRegex = /<!-- Service Worker Registration.*?<\/script>/s;
-    if (swRegex.test(html)) {
-      html = html.replace(swRegex,
-        '<!-- SW disabled --><script>' +
-        'if("serviceWorker"in navigator){' +
-        'navigator.serviceWorker.getRegistrations().then(function(r){for(var i of r)i.unregister();});' +
-        'if("caches"in window)caches.keys().then(function(n){for(var i of n)caches.delete(i);});}' +
-        '</script>'
-      );
-    }
-
+  const html = getIndexHtml();
+  if (html) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
@@ -35880,8 +35993,8 @@ function startServer() {
   // Initial fetch
   setTimeout(() => fetchTPIMSDataScheduled(), 5000); // Wait 5 seconds after startup
 
-  // Schedule periodic updates every 15 minutes
-  setInterval(fetchTPIMSDataScheduled, 15 * 60 * 1000);
+  // Schedule periodic updates every 30 minutes (reduced from 15 to lower API/CPU usage)
+  setInterval(fetchTPIMSDataScheduled, 30 * 60 * 1000);
 
   // Diagnostic: Check truck parking JSON file
   console.log(`\n🔍 Diagnostic: Checking truck parking JSON file...`);

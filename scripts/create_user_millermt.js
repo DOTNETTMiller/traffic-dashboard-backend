@@ -28,7 +28,7 @@ async function createUser() {
 
     const email = 'millermt_ia@yahoo.com';
     const username = email;
-    const password = 'TempPass123!';
+    const password = process.env.TEMP_USER_PASSWORD || (() => { throw new Error('TEMP_USER_PASSWORD environment variable required'); })();
     const fullName = 'Matt Miller';
     const role = 'admin';
 

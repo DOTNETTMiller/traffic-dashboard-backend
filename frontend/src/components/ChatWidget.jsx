@@ -38,7 +38,7 @@ export default function ChatWidget({ user, context, isDarkMode }) {
         triggerCorridorBriefing(corridorName);
       }
     }
-  }, [context, isOpen]);
+  }, [context, isOpen, messages]);
 
   const triggerCorridorBriefing = async (corridor) => {
     const briefingPrompt = `Please provide a brief corridor summary for ${corridor} including bridge clearances, regulations, and what drivers should expect.`;

@@ -5,7 +5,6 @@
 
 const { initVolumeData } = require('./scripts/init_volume_data.js');
 const { fixTexasAPI } = require('./scripts/fix_texas_api.js');
-const { spawn } = require('child_process');
 
 async function start() {
   try {
@@ -15,21 +14,9 @@ async function start() {
     // Fix Texas API URL (one-time migration)
     await fixTexasAPI();
 
-    // Start the main server
+    // Start the main server directly (no child process — saves memory)
     console.log('🚀 Starting backend server...\n');
-    const server = spawn('node', ['backend_proxy_server.js'], {
-      stdio: 'inherit',
-      shell: true
-    });
-
-    server.on('error', (error) => {
-      console.error('❌ Server failed to start:', error);
-      process.exit(1);
-    });
-
-    server.on('exit', (code) => {
-      process.exit(code || 0);
-    });
+    require('./backend_proxy_server.js');
 
   } catch (error) {
     console.error('❌ Startup failed:', error);

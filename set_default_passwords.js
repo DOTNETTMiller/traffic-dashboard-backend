@@ -1,7 +1,7 @@
 // Script to set default passwords for all states
 const db = require('./database');
 
-const DEFAULT_PASSWORD = 'ccai2026';
+const DEFAULT_PASSWORD = process.env.DEFAULT_STATE_PASSWORD || (() => { throw new Error('DEFAULT_STATE_PASSWORD environment variable required'); })();
 
 console.log('🔐 Setting default password for all states...\n');
 

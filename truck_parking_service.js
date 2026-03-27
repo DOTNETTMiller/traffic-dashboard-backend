@@ -331,6 +331,105 @@ class TruckParkingService {
     };
   }
 
+  /**
+   * Apply corridor delay surge adjustments to parking predictions.
+   *
+   * When a corridor segment has active delays, nearby parking facilities
+   * will fill up faster as trucks queue or stop to wait. This method
+   * boosts occupancy predictions for facilities near impacted segments.
+   *
+   * @param {Array} predictions - Array of prediction objects from predictAll()
+   * @param {Object} corridorDelays - Output from CorridorDelayEngine.computeCorridorDelays()
+   * @returns {Array} predictions with surgeAdjustment field added
+   */
+  applyCorridorDelaySurge(predictions, corridorDelays, surgeMultiplier = 1.0) {
+    if (!corridorDelays || !predictions || predictions.length === 0) return predictions;
+
+    // Collect all impacted segments across all corridors
+    const impactedSegments = [];
+    for (const corridor of Object.values(corridorDelays)) {
+      if (!corridor.segments) continue;
+      for (const seg of corridor.segments) {
+        if (seg.totalDelayMinutes > 0) {
+          impactedSegments.push(seg);
+        }
+      }
+    }
+
+    if (impactedSegments.length === 0) return predictions;
+
+    // For each prediction, check proximity to impacted segments
+    for (const pred of predictions) {
+      if (!pred.latitude || !pred.longitude) continue;
+
+      let maxSurge = 0;
+      let surgeSource = null;
+
+      for (const seg of impactedSegments) {
+        if (!seg.coordinates) continue;
+
+        // Calculate distance from facility to segment center
+        const segCenterLat = (seg.coordinates.startLat + seg.coordinates.endLat) / 2;
+        const segCenterLon = (seg.coordinates.startLon + seg.coordinates.endLon) / 2;
+
+        // Approximate distance in miles (1 degree lat ≈ 69 miles)
+        const distMiles = Math.sqrt(
+          Math.pow((pred.latitude - segCenterLat) * 69, 2) +
+          Math.pow((pred.longitude - segCenterLon) * 54.6, 2)
+        );
+
+        // Surge impact decays with distance
+        // Within 30 miles: full impact. 30-75 miles: linear decay. Beyond 75: none.
+        if (distMiles > 75) continue;
+
+        // Surge magnitude based on delay severity and proximity
+        // A 60-minute delay on a segment can boost nearby occupancy by up to 25%
+        const delayFactor = Math.min(1.0, seg.totalDelayMinutes / 60);
+        const distanceFactor = distMiles <= 30 ? 1.0 : 1.0 - ((distMiles - 30) / 45);
+        const surge = delayFactor * distanceFactor * 0.25 * surgeMultiplier; // max 25% occupancy boost (scaled by AI calibration)
+
+        if (surge > maxSurge) {
+          maxSurge = surge;
+          surgeSource = {
+            segment: seg.name,
+            state: seg.state,
+            delayMinutes: seg.totalDelayMinutes,
+            distanceMiles: Math.round(distMiles),
+            eventCount: seg.eventCount
+          };
+        }
+      }
+
+      if (maxSurge > 0) {
+        const originalRate = pred.occupancyRate;
+        const boostedRate = Math.min(0.99, originalRate + maxSurge);
+        const capacity = pred.capacity || 0;
+        const newAvailable = Math.max(0, Math.round(capacity * (1 - boostedRate)));
+
+        pred.surgeAdjustment = {
+          applied: true,
+          originalOccupancyRate: originalRate,
+          adjustedOccupancyRate: Math.round(boostedRate * 100) / 100,
+          surgePercent: Math.round(maxSurge * 100),
+          reason: surgeSource,
+          originalAvailable: pred.predictedAvailable,
+          adjustedAvailable: newAvailable
+        };
+
+        // Update the prediction values
+        pred.occupancyRate = Math.round(boostedRate * 100) / 100;
+        pred.predictedAvailable = newAvailable;
+        pred.predictedOccupied = capacity - newAvailable;
+
+        // Update status
+        if (boostedRate > 0.9) pred.status = 'full';
+        else if (boostedRate > 0.7) pred.status = 'limited';
+      }
+    }
+
+    return predictions;
+  }
+
   // Get summary statistics
   getSummary() {
     if (!this.loaded) {

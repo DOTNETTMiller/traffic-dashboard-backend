@@ -218,8 +218,14 @@ const APIDocumentationViewer = () => {
       filteredContent = matchedSections.length > 0 ? matchedSections.join('\n') : markdown;
     }
 
+    // Escape HTML entities first to prevent XSS, then apply markdown transforms
+    const escapedContent = filteredContent
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
     // Process tables first before splitting into lines
-    const lines = filteredContent.split('\n');
+    const lines = escapedContent.split('\n');
     let inTable = false;
     let tableHTML = '';
     const processedLines = [];

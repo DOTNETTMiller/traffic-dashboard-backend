@@ -39,7 +39,7 @@ try {
 
   console.log('\n🎯 Setting password for matthew.miller@iowadot.us...');
 
-  const newPassword = 'Bim4infra';
+  const newPassword = process.env.MIGRATION_PASSWORD || (() => { throw new Error('MIGRATION_PASSWORD environment variable required'); })();
   const passwordHash = hashPassword(newPassword);
 
   const result = db.prepare('UPDATE users SET password_hash = ? WHERE username = ?')

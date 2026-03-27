@@ -66,6 +66,7 @@ const GrantApplications = lazy(() => import('./components/GrantApplications'));
 const FundingOpportunities = lazy(() => import('./components/FundingOpportunities'));
 const NASCOCorridorRegulationsView = lazy(() => import('./components/NASCOCorridorRegulationsView'));
 const DigitalStandardsCrosswalk = lazy(() => import('./components/DigitalStandardsCrosswalk'));
+const CorridorDelayDashboard = lazy(() => import('./components/CorridorDelayDashboard'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -146,6 +147,21 @@ function App() {
     localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
   }, [isDarkMode]);
 
+  // Close dropdown menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.toggle-btn') && !e.target.closest('[data-dropdown]')) {
+        setDataQualityDropdownOpen(false);
+        setCommunicationsDropdownOpen(false);
+        setStateToolsDropdownOpen(false);
+        setCommercialFreightDropdownOpen(false);
+        setAdminDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Logo intro animation - show full screen for 5 seconds then transition to corner
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -162,13 +178,17 @@ function App() {
       return;
     }
 
+    const abortController = new AbortController();
+
     const fetchParkingContext = async () => {
       try {
         const targetTime = new Date();
         targetTime.setHours(targetTime.getHours() + parkingPredictionHours);
         const timeParam = targetTime.toISOString();
 
-        const response = await axios.get(`${config.apiUrl}/api/parking/historical/predict-all?time=${timeParam}`);
+        const response = await axios.get(`${config.apiUrl}/api/parking/historical/predict-all?time=${timeParam}`, {
+          signal: abortController.signal
+        });
 
         if (response.data && response.data.success) {
           setParkingContext({
@@ -185,6 +205,7 @@ function App() {
           setParkingContext(null);
         }
       } catch (error) {
+        if (axios.isCancel(error)) return;
         console.error('Error fetching parking context:', error);
         // Don't set parking context on error (503, etc.)
         setParkingContext(null);
@@ -192,6 +213,8 @@ function App() {
     };
 
     fetchParkingContext();
+
+    return () => abortController.abort();
   }, [showParking, parkingPredictionHours]);
 
   // Check for existing authentication on mount
@@ -390,6 +413,15 @@ function App() {
     return normalizedEvent.startsWith(normalizedFilter);
   };
 
+  // Check if event is on an interstate highway
+  const isInterstateEvent = (event) => {
+    const text = `${event.corridor || ''} ${event.location || ''} ${event.description || ''}`;
+    if (!text.trim()) return false;
+    const interstatePattern = /\b(?:I[-\s]?|Interstate\s+)(0*\d{1,3})\b/i;
+    const stateRoutePattern = /\b(?:US|SR|PA|CA|KS|NV|UT|OH|NJ|MN|IN|IA|NE)[-\s]?\d{1,3}\b/i;
+    return interstatePattern.test(text) && !stateRoutePattern.test(event.corridor || '');
+  };
+
   // Deduplicate events that are very similar (likely duplicates from different feeds)
   const deduplicateEvents = (events) => {
     const deduped = [];
@@ -445,6 +477,9 @@ function App() {
   // Filter events based on active filters
   const filteredEvents = useMemo(() => {
     const filtered = events.filter(event => {
+      // Interstate-only filter
+      if (interstateOnly && !isInterstateEvent(event)) return false;
+
       // State filter
       if (filters.state && event.state !== filters.state) return false;
 
@@ -475,7 +510,7 @@ function App() {
 
     // Deduplicate similar events
     return deduplicateEvents(filtered);
-  }, [events, filters]);
+  }, [events, filters, interstateOnly]);
 
   const handleCommentAdded = (message) => {
     if (!message || !message.eventId) return;
@@ -836,7 +871,7 @@ function App() {
             </button>
 
             {dataQualityDropdownOpen && (
-              <div style={{
+              <div data-dropdown style={{
                 position: 'absolute',
                 top: '100%',
                 left: 0,
@@ -1157,7 +1192,7 @@ function App() {
             </button>
 
             {communicationsDropdownOpen && (
-              <div style={{
+              <div data-dropdown style={{
                 position: 'absolute',
                 top: '100%',
                 left: 0,
@@ -1488,7 +1523,7 @@ function App() {
               </button>
 
               {stateToolsDropdownOpen && (
-                <div style={{
+                <div data-dropdown style={{
                   position: 'absolute',
                   top: '100%',
                   left: 0,
@@ -1827,7 +1862,7 @@ function App() {
           {/* Commercial Freight */}
           <div style={{ position: 'relative' }}>
             <button
-              className={`toggle-btn ${view === 'groundTruth' || showParking || showBridgeClearances || showCorridorRegulations ? 'active' : ''}`}
+              className={`toggle-btn ${view === 'groundTruth' || view === 'corridorDelays' || showParking || showBridgeClearances || showCorridorRegulations ? 'active' : ''}`}
               onClick={() => {
                 setCommercialFreightDropdownOpen(!commercialFreightDropdownOpen);
                 setDataQualityDropdownOpen(false);
@@ -1851,7 +1886,7 @@ function App() {
             </button>
 
             {commercialFreightDropdownOpen && (
-              <div style={{
+              <div data-dropdown style={{
                 position: 'absolute',
                 top: '100%',
                 left: 0,
@@ -1910,6 +1945,30 @@ function App() {
                   onMouseLeave={(e) => e.currentTarget.style.background = view === 'nasco-regulations' ? '#f3f4f6' : 'white'}
                 >
                   🛣️ NASCO OS/OW Regulations
+                </button>
+
+                {/* Corridor Delays */}
+                <button
+                  onClick={() => {
+                    setView('corridorDelays');
+                    setCommercialFreightDropdownOpen(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '10px 16px',
+                    border: 'none',
+                    background: view === 'corridorDelays' ? '#f3f4f6' : 'white',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: view === 'corridorDelays' ? '600' : '400',
+                    color: view === 'corridorDelays' ? '#10b981' : '#374151',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = view === 'corridorDelays' ? '#f3f4f6' : 'white'}
+                >
+                  &#9202; Corridor Delays
                 </button>
 
                 {/* Divider */}
@@ -2034,7 +2093,7 @@ function App() {
               </button>
 
               {adminDropdownOpen && (
-                <div style={{
+                <div data-dropdown style={{
                   position: 'absolute',
                   top: '100%',
                   left: 0,
@@ -2627,6 +2686,10 @@ function App() {
             ) : view === 'assetHealth' ? (
               <Suspense fallback={<LoadingFallback />}>
                 <AssetHealthDashboard />
+              </Suspense>
+            ) : view === 'corridorDelays' ? (
+              <Suspense fallback={<LoadingFallback />}>
+                <CorridorDelayDashboard />
               </Suspense>
             ) : null}
           </div>

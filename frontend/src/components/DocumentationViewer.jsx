@@ -260,8 +260,11 @@ function DocumentationViewer() {
   const renderMarkdown = (markdown) => {
     if (!markdown) return '';
 
-    // Convert markdown to HTML
-    let html = markdown;
+    // Escape HTML entities first to prevent XSS, then apply markdown transforms
+    let html = markdown
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
 
     // Headers (process from most specific to least specific)
     html = html.replace(/^##### (.*$)/gim, '<h5>$1</h5>');

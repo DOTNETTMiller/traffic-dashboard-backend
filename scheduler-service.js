@@ -83,12 +83,12 @@ class SchedulerService {
       }
     };
 
-    // Check every 5 minutes
-    const interval = setInterval(runJob, 5 * 60 * 1000);
+    // Check every 30 minutes (monthly job doesn't need 5-minute precision)
+    const interval = setInterval(runJob, 30 * 60 * 1000);
     this.intervals.set(jobName, interval);
-    this.jobs.set(jobName, { interval: '5 minutes', description: 'Monthly report card generation' });
+    this.jobs.set(jobName, { interval: '30 minutes', description: 'Monthly report card generation' });
 
-    console.log(`  ✓ Scheduled ${jobName} (checks every 5 minutes, runs on 1st at 2:00 AM)`);
+    console.log(`  ✓ Scheduled ${jobName} (checks every 30 minutes, runs on 1st at 2:00 AM)`);
   }
 
   /**
@@ -116,12 +116,12 @@ class SchedulerService {
       }
     };
 
-    // Check every 15 minutes
-    const interval = setInterval(runJob, 15 * 60 * 1000);
+    // Check every 60 minutes (daily job doesn't need 15-minute precision)
+    const interval = setInterval(runJob, 60 * 60 * 1000);
     this.intervals.set(jobName, interval);
-    this.jobs.set(jobName, { interval: '15 minutes', description: 'CIFS expired message cleanup' });
+    this.jobs.set(jobName, { interval: '60 minutes', description: 'CIFS expired message cleanup' });
 
-    console.log(`  ✓ Scheduled ${jobName} (checks every 15 minutes, runs daily at 3:00 AM)`);
+    console.log(`  ✓ Scheduled ${jobName} (checks every 60 minutes, runs daily at 3:00 AM)`);
   }
 
   /**

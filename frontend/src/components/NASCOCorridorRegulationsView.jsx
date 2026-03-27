@@ -225,8 +225,9 @@ export default function NASCOCorridorRegulationsView({ darkMode = false }) {
         );
       }
 
-      // Bold text **text**
-      const boldLine = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      // Bold text **text** - escape HTML first to prevent XSS
+      const escaped = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const boldLine = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
       // Regular paragraph
       if (line.trim() !== '') {

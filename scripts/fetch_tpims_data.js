@@ -8,16 +8,20 @@ const http = require('http');
 const db = new Database.constructor();
 
 // TPIMS data sources
+// MAASTO partnership states use the same JSON format (Dynamic/Static)
+// Indiana uses GeoJSON — handled by the preprocessor below
 const TPIMS_FEEDS = [
   {
-    name: 'TRIMARC TPIMS',
+    name: 'TRIMARC TPIMS (Kentucky)',
     url: 'http://www.trimarc.org/dat/tpims/TPIMS_Dynamic.json',
-    state: 'KY', // Kentucky
+    staticUrl: 'http://www.trimarc.org/dat/tpims/TPIMS_Static.json',
+    state: 'KY',
     protocol: http
   },
   {
     name: 'Minnesota DOT TPIMS',
     url: 'http://iris.dot.state.mn.us/iris/TPIMS_dynamic',
+    staticUrl: 'http://iris.dot.state.mn.us/iris/TPIMS_static',
     state: 'MN',
     protocol: http
   },
@@ -28,9 +32,79 @@ const TPIMS_FEEDS = [
     protocol: https,
     requiresApiKey: true,
     headers: {
-      // API key should be set in environment variable: OHIO_API_KEY
       // Register at https://publicapi.ohgo.com/accounts/registration
       'Authorization': process.env.OHIO_API_KEY ? `Bearer ${process.env.OHIO_API_KEY}` : ''
+    }
+  },
+  {
+    name: 'Illinois TPIMS',
+    url: 'https://truckparking.travelmidwest.com/TPIMS_Dynamic.json',
+    staticUrl: 'https://truckparking.travelmidwest.com/TPIMS_Static.json',
+    state: 'IL',
+    protocol: https
+  },
+  {
+    name: 'Indiana TPIMS',
+    url: 'https://content.trafficwise.org/json/tpims.json',
+    staticUrl: 'https://content.trafficwise.org/json/rest_area.json',
+    state: 'IN',
+    protocol: https,
+    // Indiana returns GeoJSON FeatureCollection — preprocess into standard format
+    preprocess: (data) => {
+      if (!data || !data.features) return [];
+      return data.features
+        .filter(f => f.properties && f.geometry)
+        .map(f => {
+          const p = f.properties;
+          const coords = f.geometry.coordinates || [0, 0];
+          // Parse available spaces from message fields (e.g., "Spaces Available: 12")
+          let available = 0;
+          const msg = (p.message1 || '') + ' ' + (p.message2 || '') + ' ' + (p.message3 || '');
+          const spaceMatch = msg.match(/(\d+)\s*(?:spaces?|spots?|available)/i);
+          if (spaceMatch) available = parseInt(spaceMatch[1]);
+          // Also check TPIMS sub-object in static data
+          const tpims = p.tpims || {};
+          return {
+            siteId: p.device_nbr || p.title || f.id,
+            name: p.title || tpims.city || 'Unknown',
+            latitude: coords[1] || tpims.latitude,
+            longitude: coords[0] || tpims.longitude,
+            capacity: tpims.capacity || parseInt(p.capacity) || 0,
+            reportedAvailable: tpims.spaces_available ?? available,
+            address: tpims.address || p.route || '',
+            type: 'Rest Area',
+            amenities: p.amenities || tpims.amenities || null
+          };
+        });
+    }
+  },
+  {
+    name: 'Kansas TPIMS',
+    url: 'https://tpims.ksdot.gov/api/dynamic',
+    staticUrl: 'https://tpims.ksdot.gov/api/static',
+    state: 'KS',
+    protocol: https,
+    requiresApiKey: true,
+    headers: {
+      // Register at https://tpims.ksdot.gov/account/register
+      'Cookie': process.env.KS_TPIMS_COOKIE || ''
+    }
+  },
+  {
+    name: 'Wisconsin TPIMS',
+    url: 'https://511wi.gov/api/TPIMS_Dynamic?format=Json',
+    staticUrl: 'https://511wi.gov/api/TPIMS_Static?format=Json',
+    state: 'WI',
+    protocol: https,
+    requiresApiKey: true,
+    headers: {
+      // Register at https://511wi.gov/developers/doc and request API key
+    },
+    // Append API key to URL if available
+    getUrl: () => {
+      const key = process.env.WI_TPIMS_KEY;
+      if (!key) return null;
+      return `https://511wi.gov/api/TPIMS_Dynamic?format=Json&key=${key}`;
     }
   }
 ];
@@ -76,23 +150,28 @@ async function fetchJSON(url, protocol = https, headers = {}) {
 async function fetchTPIMSFeed(feed) {
   console.log(`\n🚛 Fetching ${feed.name}...`);
 
+  // Determine the URL (some feeds have dynamic URL builders)
+  const url = feed.getUrl ? feed.getUrl() : feed.url;
+
   // Check if API key is required but missing
-  if (feed.requiresApiKey && (!feed.headers || !feed.headers.Authorization)) {
-    console.warn(`  ⚠️  ${feed.name} requires an API key. Set ${feed.state}_API_KEY environment variable.`);
-    console.warn(`  📝 Register at https://publicapi.ohgo.com/accounts/registration`);
+  if (feed.requiresApiKey && !url) {
+    console.warn(`  ⚠️  ${feed.name} requires credentials. Set the appropriate env variable.`);
     return { imported: 0, updated: 0, failed: 0 };
   }
 
   try {
-    const data = await fetchJSON(feed.url, feed.protocol, feed.headers || {});
+    const data = await fetchJSON(url, feed.protocol, feed.headers || {});
 
     console.log(`✅ Retrieved data from ${feed.name}`);
 
-    // Parse TPIMS data structure
     let sites;
 
-    // Check if data is directly an array (TRIMARC format)
-    if (Array.isArray(data)) {
+    // If feed has a custom preprocessor (e.g., Indiana GeoJSON), use it
+    if (feed.preprocess) {
+      sites = feed.preprocess(data);
+    }
+    // Check if data is directly an array (TRIMARC/MAASTO format)
+    else if (Array.isArray(data)) {
       sites = data;
     }
     // Or check if data has nested structure
@@ -112,6 +191,45 @@ async function fetchTPIMSFeed(feed) {
       console.warn(`⚠️  Unknown data structure from ${feed.name}`);
       console.log('Data structure:', JSON.stringify(data, null, 2).substring(0, 500));
       return { imported: 0, updated: 0, failed: 0 };
+    }
+
+    // Also fetch static data if available (for coordinates, capacity, amenities)
+    if (feed.staticUrl && !feed.requiresApiKey) {
+      try {
+        const staticData = await fetchJSON(feed.staticUrl, feed.protocol, feed.headers || {});
+        const staticSites = Array.isArray(staticData) ? staticData :
+          (staticData?.features || staticData?.results || staticData?.sites || []);
+
+        // Merge static data into dynamic sites (by siteId)
+        if (Array.isArray(staticSites)) {
+          const staticMap = new Map();
+          for (const ss of staticSites) {
+            const id = ss.siteId || ss.site_id || ss.Id || ss.properties?.siteId;
+            if (id) staticMap.set(id, ss);
+          }
+          for (const site of sites) {
+            const id = site.siteId || site.site_id || site.Id;
+            const ss = staticMap.get(id);
+            if (ss) {
+              // Fill in missing fields from static data
+              // Handle nested location object (Illinois format: { location: { latitude, longitude, streetAdr } })
+              const loc = ss.location || {};
+              if (!site.latitude && (ss.latitude || ss.Latitude || loc.latitude)) site.latitude = ss.latitude || ss.Latitude || loc.latitude;
+              if (!site.longitude && (ss.longitude || ss.Longitude || loc.longitude)) site.longitude = ss.longitude || ss.Longitude || loc.longitude;
+              if (!site.name && (ss.name || ss.Name)) site.name = ss.name || ss.Name;
+              if (!site.capacity && (ss.capacity || ss.Capacity)) site.capacity = ss.capacity || ss.Capacity;
+              if (!site.address && (ss.streetAdr || ss.address || loc.streetAdr)) site.address = ss.streetAdr || ss.address || loc.streetAdr;
+              if (!site.amenities && ss.amenities) site.amenities = ss.amenities;
+              if (!site.relevantHighway && ss.relevantHighway) site.relevantHighway = ss.relevantHighway;
+              if (!site.directionOfTravel && ss.directionOfTravel) site.directionOfTravel = ss.directionOfTravel;
+              if (!site.referencePost && ss.referencePost) site.referencePost = ss.referencePost;
+            }
+          }
+          console.log(`  📋 Merged static data for ${staticMap.size} sites`);
+        }
+      } catch (staticErr) {
+        console.warn(`  ⚠️  Could not fetch static data: ${staticErr.message}`);
+      }
     }
 
     return processSites(sites, feed);

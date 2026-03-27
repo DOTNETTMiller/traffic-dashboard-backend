@@ -34,7 +34,7 @@ if (mismatch.length === 0) {
 console.log('\nTEST 3: Testing login for matthew.miller@iowadot.us');
 console.log('─'.repeat(60));
 const username = 'matthew.miller@iowadot.us';
-const password = 'Bim4infra';
+const password = process.env.TEST_PASSWORD || (() => { throw new Error('TEST_PASSWORD environment variable required'); })();
 const passwordHash = hashPassword(password);
 
 const user = db.prepare(`

@@ -1,7 +1,7 @@
 // Script to add FHWA account for messaging
 const db = require('./database');
 
-const FHWA_PASSWORD = 'Moonshot26';
+const FHWA_PASSWORD = process.env.FHWA_PASSWORD || (() => { throw new Error('FHWA_PASSWORD environment variable required'); })();
 
 console.log('🏛️  Adding FHWA account...\n');
 

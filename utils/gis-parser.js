@@ -7,7 +7,7 @@
 
 const fs = require('fs').promises;
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 const shapefile = require('shapefile');
 const tj = require('@tmcw/togeojson');
 const Papa = require('papaparse');
@@ -193,8 +193,8 @@ class GISParser {
       console.log(`   Discovering layers...`);
       let layers = [];
       try {
-        const ogrInfoOutput = execSync(
-          `ogrinfo "${extractPath}"`,
+        const ogrInfoOutput = execFileSync(
+          'ogrinfo', [extractPath],
           { encoding: 'utf8' }
         );
         // Parse layer names from "Layer: <name> (<geometry type>)" format
@@ -226,8 +226,8 @@ class GISParser {
           for (const layerName of layers) {
             try {
               const layerOutputPath = path.join(tempDir, `${gdbName}_${layerName.replace(/[^a-zA-Z0-9]/g, '_')}.geojson`);
-              execSync(
-                `ogr2ogr -f GeoJSON -t_srs EPSG:4326 "${layerOutputPath}" "${extractPath}" "${layerName}"`,
+              execFileSync(
+                'ogr2ogr', ['-f', 'GeoJSON', '-t_srs', 'EPSG:4326', layerOutputPath, extractPath, layerName],
                 { stdio: 'pipe' }
               );
 
@@ -254,8 +254,8 @@ class GISParser {
           }
         } else {
           // Fallback: try converting with -skipfailures
-          execSync(
-            `ogr2ogr -f GeoJSON -t_srs EPSG:4326 -skipfailures "${outputPath}" "${extractPath}"`,
+          execFileSync(
+            'ogr2ogr', ['-f', 'GeoJSON', '-t_srs', 'EPSG:4326', '-skipfailures', outputPath, extractPath],
             { stdio: 'pipe' }
           );
 

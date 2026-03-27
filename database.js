@@ -2,6 +2,9 @@
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcrypt');
+
+const BCRYPT_ROUNDS = 12;
 
 // Detect database type
 const IS_POSTGRES = !!process.env.DATABASE_URL;
@@ -27,8 +30,15 @@ if (IS_POSTGRES) {
   console.log(`🗄️  Database path: ${DB_PATH}`);
 }
 
-// Encryption key (should be stored in environment variable in production)
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
+// Encryption key - required for credential storage
+const ENCRYPTION_KEY = (() => {
+  if (process.env.ENCRYPTION_KEY) return process.env.ENCRYPTION_KEY;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('ENCRYPTION_KEY environment variable is required in production');
+  }
+  console.warn('⚠️  ENCRYPTION_KEY not set - using development-only fallback. Encrypted data will not survive restarts in production!');
+  return 'dev-only-encryption-key-do-not-use-in-production-0000';
+})();
 
 const parseStateList = (value) => {
   if (!value) return [];
@@ -1197,7 +1207,7 @@ class StateDatabase {
         apiUrl: state.api_url,
         apiType: state.api_type,
         format: state.format,
-        enabled: state.enabled === 1,
+        enabled: Boolean(state.enabled),
         createdAt: state.created_at,
         updatedAt: state.updated_at,
         ...(includeCredentials && credentials && { credentials })
@@ -1308,19 +1318,32 @@ class StateDatabase {
   }
 
   // State Authentication Methods
-  hashPassword(password) {
+  hashPasswordLegacy(password) {
     return crypto.createHash('sha256').update(password).digest('hex');
   }
 
-  setStatePassword(stateKey, password) {
+  async hashPassword(password) {
+    return bcrypt.hash(password, BCRYPT_ROUNDS);
+  }
+
+  async verifyPassword(password, hash) {
+    // Check if hash is bcrypt format ($2b$...)
+    if (hash && hash.startsWith('$2')) {
+      return bcrypt.compare(password, hash);
+    }
+    // Legacy SHA-256 comparison
+    return this.hashPasswordLegacy(password) === hash;
+  }
+
+  async setStatePassword(stateKey, password) {
     try {
-      const passwordHash = this.hashPassword(password);
+      const passwordHash = await this.hashPassword(password);
       const stmt = this.db.prepare(`
         INSERT INTO state_passwords (state_key, password_hash)
         VALUES (?, ?)
         ON CONFLICT(state_key) DO UPDATE SET password_hash = excluded.password_hash
       `);
-      stmt.run(stateKey, passwordHash);
+      await stmt.run(stateKey, passwordHash);
       console.log(`✅ Set password for state: ${stateKey}`);
       return { success: true };
     } catch (error) {
@@ -1329,21 +1352,31 @@ class StateDatabase {
     }
   }
 
-  verifyStatePassword(stateKey, password) {
+  async verifyStatePassword(stateKey, password) {
     try {
-      const passwordHash = this.hashPassword(password);
-      const result = this.db.prepare(`
-        SELECT * FROM state_passwords WHERE state_key = ? AND password_hash = ?
-      `).get(stateKey, passwordHash);
+      const result = await this.db.prepare(`
+        SELECT * FROM state_passwords WHERE state_key = ?
+      `).get(stateKey);
 
-      if (result) {
-        // Update last login
-        this.db.prepare(`
-          UPDATE state_passwords SET last_login = CURRENT_TIMESTAMP WHERE state_key = ?
-        `).run(stateKey);
-        return true;
+      if (!result) return false;
+
+      const isValid = await this.verifyPassword(password, result.password_hash);
+      if (!isValid) return false;
+
+      // Auto-rehash legacy SHA-256 passwords to bcrypt
+      if (!result.password_hash.startsWith('$2')) {
+        const newHash = await this.hashPassword(password);
+        await this.db.prepare(`
+          UPDATE state_passwords SET password_hash = ? WHERE state_key = ?
+        `).run(newHash, stateKey);
+        console.log(`🔄 Upgraded password hash to bcrypt for state: ${stateKey}`);
       }
-      return false;
+
+      // Update last login
+      await this.db.prepare(`
+        UPDATE state_passwords SET last_login = CURRENT_TIMESTAMP WHERE state_key = ?
+      `).run(stateKey);
+      return true;
     } catch (error) {
       console.error('Error verifying state password:', error);
       return false;
@@ -1936,7 +1969,7 @@ class StateDatabase {
       // Create safety backup before adding user
       this.createSafetyBackup('user creation');
 
-      const passwordHash = this.hashPassword(password);
+      const passwordHash = await this.hashPassword(password);
 
       if (this.isPostgres) {
         const result = await this.db.query(`
@@ -1963,43 +1996,55 @@ class StateDatabase {
 
   async verifyUserPassword(username, password) {
     try {
-      const passwordHash = this.hashPassword(password);
       let user;
 
       if (this.isPostgres) {
         const result = await this.db.query(`
-          SELECT * FROM users WHERE username = $1 AND password_hash = $2 AND active = true
-        `, [username, passwordHash]);
+          SELECT * FROM users WHERE username = $1 AND active = true
+        `, [username]);
         user = result.rows[0];
       } else {
         user = await this.db.prepare(`
-          SELECT * FROM users WHERE username = ? AND password_hash = ? AND active = true
-        `).get(username, passwordHash);
+          SELECT * FROM users WHERE username = ? AND active = true
+        `).get(username);
       }
 
-      if (user) {
-        // Update last login
+      if (!user) return null;
+
+      const isValid = await this.verifyPassword(password, user.password_hash);
+      if (!isValid) return null;
+
+      // Auto-rehash legacy SHA-256 passwords to bcrypt
+      if (!user.password_hash.startsWith('$2')) {
+        const newHash = await this.hashPassword(password);
         if (this.isPostgres) {
-          await this.db.query(`
-            UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1
-          `, [user.id]);
+          await this.db.query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [newHash, user.id]);
         } else {
-          await this.db.prepare(`
-            UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?
-          `).run(user.id);
+          await this.db.prepare(`UPDATE users SET password_hash = ? WHERE id = ?`).run(newHash, user.id);
         }
-
-        return {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          fullName: user.full_name,
-          organization: user.organization,
-          stateKey: user.state_key,
-          role: user.role
-        };
+        console.log(`🔄 Upgraded password hash to bcrypt for user: ${username}`);
       }
-      return null;
+
+      // Update last login
+      if (this.isPostgres) {
+        await this.db.query(`
+          UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = $1
+        `, [user.id]);
+      } else {
+        await this.db.prepare(`
+          UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?
+        `).run(user.id);
+      }
+
+      return {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.full_name,
+        organization: user.organization,
+        stateKey: user.state_key,
+        role: user.role
+      };
     } catch (error) {
       console.error('Error verifying user password:', error);
       return null;
@@ -2101,7 +2146,7 @@ class StateDatabase {
       }
       if (updates.password) {
         fields.push('password_hash = ?');
-        values.push(this.hashPassword(updates.password));
+        values.push(await this.hashPassword(updates.password));
       }
       if (updates.notifyOnMessages !== undefined) {
         fields.push('notify_on_messages = ?');
