@@ -711,6 +711,43 @@ const API_CONFIG = {
   // pennsylvania: Pennsylvania Turnpike Commission - DISABLED: Requires API key (not username/password)
   // The API expects ?api_key=... but we don't have a Turnpike API key
   // Pennsylvania statewide data is provided by PennDOT RCRS via fetchPennDOTRCRS()
+
+  // WZDx feeds — standardized GeoJSON work zone data from the USDOT Feed Registry
+  missouri: {
+    name: 'Missouri',
+    wzdxUrl: 'https://traveler.modot.org/timconfig/feed/desktop/mo_wzdx.json',
+    format: 'json',
+    corridor: 'I-35,I-70',
+    apiType: 'WZDx'
+  },
+  iowa_wzdx: {
+    name: 'Iowa WZDx',
+    wzdxUrl: 'https://iowa-atms.cloud-q-free.com/api/rest/dataprism/wzdx/wzdxfeed',
+    format: 'geojson',
+    corridor: 'I-80,I-35',
+    apiType: 'WZDx'
+  },
+  newyork: {
+    name: 'New York',
+    wzdxUrl: 'https://511ny.org/api/wzdx',
+    format: 'geojson',
+    corridor: 'I-80,I-90',
+    apiType: 'WZDx'
+  },
+  florida: {
+    name: 'Florida',
+    wzdxUrl: 'https://us-datacloud.one.network/fdot/feed.json?app_key=c4090b04-26de-c9ee-873b2bd9a38c',
+    format: 'json',
+    corridor: 'I-10,I-95,I-75',
+    apiType: 'WZDx'
+  },
+  wisconsin: {
+    name: 'Wisconsin',
+    wzdxUrl: 'https://511wi.gov/api/wzdx',
+    format: 'json',
+    corridor: 'I-90,I-94',
+    apiType: 'WZDx'
+  }
 };
 
 // Add API keys from environment variables to hardcoded configs
