@@ -4698,14 +4698,22 @@ async function fetchAndCacheEvents() {
 
 // Initial cache population on startup
 console.log('🚀 Pre-warming cache on startup...');
-fetchAndCacheEvents().then(() => {
+let startupCachePromise = fetchAndCacheEvents().then(() => {
   console.log('✅ Initial cache population complete');
+  startupCachePromise = null;
 }).catch(err => {
   console.error('❌ Initial cache population failed:', err.message);
+  startupCachePromise = null;
 });
 
 // Main endpoint to fetch all events
 app.get('/api/events', async (req, res) => {
+  // If startup cache is still warming, wait for it instead of returning empty
+  if (!eventsCache.data && startupCachePromise) {
+    console.log('⏳ Waiting for startup cache to warm...');
+    await startupCachePromise;
+  }
+
   const now = Date.now();
   const cacheAge = eventsCache.timestamp ? now - eventsCache.timestamp : Infinity;
 
