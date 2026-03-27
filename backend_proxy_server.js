@@ -12769,7 +12769,7 @@ const IPAWSAuditLogger = require('./services/ipaws-alert-service-lite');
 const populationService = require('./services/population-density-service');
 
 // POST /api/ipaws/generate - Generate IPAWS alert for an event
-app.post('/api/ipaws/generate', requireAdmin, async (req, res) => {
+app.post('/api/ipaws/generate', requireUserOrStateAuth, async (req, res) => {
   try {
     const {
       eventId,
@@ -12853,7 +12853,7 @@ app.post('/api/ipaws/generate', requireAdmin, async (req, res) => {
 });
 
 // POST /api/ipaws/evaluate - Evaluate if event qualifies for IPAWS
-app.post('/api/ipaws/evaluate', requireAdmin, async (req, res) => {
+app.post('/api/ipaws/evaluate', requireUserOrStateAuth, async (req, res) => {
   try {
     const { event } = req.body;
 
@@ -12897,7 +12897,7 @@ app.get('/api/ipaws/templates', async (req, res) => {
 });
 
 // POST /api/ipaws/templates/recommend - Get recommended template for an event
-app.post('/api/ipaws/templates/recommend', requireAdmin, async (req, res) => {
+app.post('/api/ipaws/templates/recommend', requireUserOrStateAuth, async (req, res) => {
   try {
     const { event } = req.body;
 
@@ -13039,7 +13039,7 @@ app.get('/api/ipaws/alerts/:alertId', async (req, res) => {
 });
 
 // POST /api/ipaws/alerts/:alertId/cancel - Cancel an active alert (SOP Section 8.6)
-app.post('/api/ipaws/alerts/:alertId/cancel', requireAdmin, async (req, res) => {
+app.post('/api/ipaws/alerts/:alertId/cancel', requireUserOrStateAuth, async (req, res) => {
   try {
     const { alertId } = req.params;
     const { reason, user } = req.body;
@@ -13096,7 +13096,7 @@ app.post('/api/ipaws/alerts/:alertId/cancel', requireAdmin, async (req, res) => 
 });
 
 // DELETE /api/ipaws/alerts/:alertId - Delete an IPAWS alert (training mode or draft only)
-app.delete('/api/ipaws/alerts/:alertId', requireAdmin, async (req, res) => {
+app.delete('/api/ipaws/alerts/:alertId', requireUserOrStateAuth, async (req, res) => {
   try {
     const { alertId } = req.params;
 
@@ -13144,7 +13144,7 @@ app.delete('/api/ipaws/alerts/:alertId', requireAdmin, async (req, res) => {
 });
 
 // POST /api/ipaws/alerts/:alertId/update - Update an active alert (SOP Section 8.6)
-app.post('/api/ipaws/alerts/:alertId/update', requireAdmin, async (req, res) => {
+app.post('/api/ipaws/alerts/:alertId/update', requireUserOrStateAuth, async (req, res) => {
   try {
     const { alertId } = req.params;
     const { updates, user } = req.body;
@@ -13190,7 +13190,7 @@ app.post('/api/ipaws/alerts/:alertId/update', requireAdmin, async (req, res) => 
 });
 
 // POST /api/ipaws/alerts/:alertId/issue - Mark alert as issued (sent to IPAWS)
-app.post('/api/ipaws/alerts/:alertId/issue', requireAdmin, async (req, res) => {
+app.post('/api/ipaws/alerts/:alertId/issue', requireUserOrStateAuth, async (req, res) => {
   try {
     const { alertId } = req.params;
     const { user } = req.body;
@@ -13229,7 +13229,7 @@ app.post('/api/ipaws/alerts/:alertId/issue', requireAdmin, async (req, res) => {
 });
 
 // POST /api/ipaws/alerts/:alertId/review - Submit after-action review (SOP Section 11)
-app.post('/api/ipaws/alerts/:alertId/review', requireAdmin, async (req, res) => {
+app.post('/api/ipaws/alerts/:alertId/review', requireUserOrStateAuth, async (req, res) => {
   try {
     const { alertId } = req.params;
     const { review } = req.body;
@@ -13270,7 +13270,7 @@ app.post('/api/ipaws/alerts/:alertId/review', requireAdmin, async (req, res) => 
 });
 
 // POST /api/ipaws/alerts/export-hsemd - Export logs for HSEMD coordination (SOP Section 11)
-app.post('/api/ipaws/alerts/export-hsemd', requireAdmin, async (req, res) => {
+app.post('/api/ipaws/alerts/export-hsemd', requireUserOrStateAuth, async (req, res) => {
   try {
     const { includeReviews = true, format = 'csv' } = req.body;
 
@@ -13545,7 +13545,7 @@ app.delete('/api/ipaws/rules/:id', requireAdmin, async (req, res) => {
 });
 
 // POST /api/ipaws/evaluate-rules - Evaluate event against all active rules
-app.post('/api/ipaws/evaluate-rules', requireAdmin, async (req, res) => {
+app.post('/api/ipaws/evaluate-rules', requireUserOrStateAuth, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({
@@ -13632,7 +13632,7 @@ app.post('/api/ipaws/evaluate-rules', requireAdmin, async (req, res) => {
 });
 
 // POST /api/ipaws/submit - Submit IPAWS alert for supervisor approval
-app.post('/api/ipaws/submit', requireAdmin, async (req, res) => {
+app.post('/api/ipaws/submit', requireUserOrStateAuth, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({
@@ -13930,7 +13930,7 @@ app.get('/api/ipaws/certifications/expiring', async (req, res) => {
 });
 
 // POST /api/ipaws/training - Log training session
-app.post('/api/ipaws/training', requireAdmin, async (req, res) => {
+app.post('/api/ipaws/training', requireUserOrStateAuth, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({ success: false, error: 'Database not configured' });
@@ -14053,7 +14053,7 @@ app.get('/api/ipaws/after-action-reviews/outstanding', async (req, res) => {
 });
 
 // POST /api/ipaws/after-action-reviews - Create new AAR
-app.post('/api/ipaws/after-action-reviews', requireAdmin, async (req, res) => {
+app.post('/api/ipaws/after-action-reviews', requireUserOrStateAuth, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({ success: false, error: 'Database not configured' });
