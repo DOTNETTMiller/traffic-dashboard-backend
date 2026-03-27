@@ -452,6 +452,83 @@ class StateDatabase {
         FOREIGN KEY (facility_id) REFERENCES truck_parking_facilities(facility_id)
       );
 
+      CREATE TABLE IF NOT EXISTS dms_message_templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        template_name TEXT NOT NULL UNIQUE,
+        template_category TEXT NOT NULL,
+        message_text TEXT NOT NULL,
+        char_limit INTEGER DEFAULT 3,
+        activation_trigger TEXT,
+        states_approved TEXT DEFAULT '[]',
+        approval_status TEXT DEFAULT 'approved',
+        created_by TEXT DEFAULT 'system',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        usage_count INTEGER DEFAULT 0,
+        effectiveness_score REAL,
+        mutcd_compliant INTEGER DEFAULT 1
+      );
+
+      CREATE TABLE IF NOT EXISTS dms_message_variables (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        template_id INTEGER NOT NULL,
+        variable_name TEXT NOT NULL,
+        variable_type TEXT NOT NULL,
+        example_value TEXT,
+        required INTEGER DEFAULT 0,
+        validation_regex TEXT,
+        FOREIGN KEY (template_id) REFERENCES dms_message_templates(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS dms_activations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        template_id INTEGER,
+        dms_device_id TEXT,
+        event_id TEXT,
+        activated_by TEXT NOT NULL,
+        activated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        deactivated_at DATETIME,
+        states_notified TEXT DEFAULT '[]',
+        custom_message TEXT,
+        final_message TEXT NOT NULL,
+        driver_response_data TEXT,
+        effectiveness_rating INTEGER CHECK(effectiveness_rating BETWEEN 1 AND 5),
+        auto_activated INTEGER DEFAULT 0,
+        FOREIGN KEY (template_id) REFERENCES dms_message_templates(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS dms_template_approvals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        template_id INTEGER NOT NULL,
+        state_key TEXT NOT NULL,
+        approver_name TEXT,
+        approval_status TEXT NOT NULL DEFAULT 'pending',
+        approval_date DATETIME,
+        comments TEXT,
+        revision_notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (template_id) REFERENCES dms_message_templates(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS auto_dms_rules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        rule_name TEXT NOT NULL UNIQUE,
+        enabled INTEGER DEFAULT 1,
+        priority INTEGER DEFAULT 10,
+        event_type_pattern TEXT,
+        event_severity TEXT,
+        event_category TEXT,
+        template_id INTEGER,
+        activation_conditions TEXT,
+        variable_mapping TEXT,
+        dms_device_selector TEXT DEFAULT 'nearest',
+        notify_adjacent_states INTEGER DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        activation_count INTEGER DEFAULT 0,
+        last_activated DATETIME
+      );
+
       CREATE TABLE IF NOT EXISTS user_state_subscriptions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
