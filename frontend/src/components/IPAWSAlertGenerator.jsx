@@ -23,6 +23,20 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
   const [templates, setTemplates] = useState([]);
   const [recommendedTemplate, setRecommendedTemplate] = useState(null);
 
+  // Auth headers for IPAWS API calls
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('authToken');
+    const stateKey = localStorage.getItem('stateKey');
+    const statePassword = localStorage.getItem('statePassword');
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    } else if (stateKey && statePassword) {
+      headers['Authorization'] = `State ${stateKey}:${statePassword}`;
+    }
+    return headers;
+  };
+
   // Editable message fields
   const [editableMessages, setEditableMessages] = useState({
     english: {
@@ -77,7 +91,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     try {
       const response = await fetch(`${config.apiUrl}/api/ipaws/templates/recommend`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ event })
       });
       const data = await response.json();
@@ -337,7 +351,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
       // Translate headline
       const headlineResponse = await fetch('https://libretranslate.com/translate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           q: editableMessages.english.headline,
           source: 'en',
@@ -364,7 +378,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
       // Translate instruction
       const instructionResponse = await fetch('https://libretranslate.com/translate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           q: editableMessages.english.instruction,
           source: 'en',
@@ -428,7 +442,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
       // Pass default SOP-compliant parameters: 100ft buffer, 2mi ahead, 0.5mi behind
       const response = await fetch(`${config.apiUrl}/api/ipaws/generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           event,
           trainingMode,
@@ -499,7 +513,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
 
       const response = await fetch(`${config.apiUrl}/api/ipaws/generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(requestBody)
       });
 
@@ -555,7 +569,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
 
       const response = await fetch(`${config.apiUrl}/api/events/${event.id}/geofence`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           geofence: alert.geofence,
           population: alert.geofence.estimatedPopulation,
@@ -1376,7 +1390,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                 // Trigger urban exclusion
                 const response = await fetch(`${config.apiUrl}/api/population/exclude-urban`, {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers: getAuthHeaders(),
                   body: JSON.stringify({
                     geofence: alert.geofence,
                     maxPopulation: 5000
