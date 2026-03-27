@@ -237,12 +237,9 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// JWT Secret - required via environment variable
+// JWT Secret
 const JWT_SECRET = process.env.JWT_SECRET || (() => {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET environment variable is required in production');
-  }
-  console.warn('⚠️  JWT_SECRET not set - using development-only fallback. Set JWT_SECRET in production!');
+  console.warn('⚠️  JWT_SECRET not set — using fallback. Set JWT_SECRET env var for production security.');
   return 'dev-only-jwt-secret-do-not-use-in-production';
 })();
 

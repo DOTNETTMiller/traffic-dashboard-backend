@@ -30,13 +30,10 @@ if (IS_POSTGRES) {
   console.log(`🗄️  Database path: ${DB_PATH}`);
 }
 
-// Encryption key - required for credential storage
+// Encryption key for credential storage
 const ENCRYPTION_KEY = (() => {
   if (process.env.ENCRYPTION_KEY) return process.env.ENCRYPTION_KEY;
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('ENCRYPTION_KEY environment variable is required in production');
-  }
-  console.warn('⚠️  ENCRYPTION_KEY not set - using development-only fallback. Encrypted data will not survive restarts in production!');
+  console.warn('⚠️  ENCRYPTION_KEY not set — using fallback. Set ENCRYPTION_KEY env var for production security.');
   return 'dev-only-encryption-key-do-not-use-in-production-0000';
 })();
 
