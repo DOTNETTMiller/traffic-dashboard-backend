@@ -669,6 +669,80 @@ class IPAWSAlertService {
     }
   }
 
+  /**
+   * Set the interstate polylines cache reference (called from backend on startup)
+   * This allows geofence extension to follow actual road geometry
+   */
+  setInterstatePolylines(cache) {
+    this.interstatePolylinesCache = cache;
+  }
+
+  /**
+   * Extend along cached interstate polyline geometry
+   * Finds the nearest point on the corridor polyline and extends along it
+   * Uses the same road-snapped polylines that events use on the map
+   */
+  extendAlongCorridorPolyline(event, currentLine, aheadMiles, behindMiles) {
+    if (!this.interstatePolylinesCache) return null;
+
+    const corridor = (event.corridor || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const direction = (event.direction || '').toLowerCase();
+
+    let cacheKey = null;
+    if (corridor.includes('80')) {
+      cacheKey = direction.includes('east') || direction.includes('eb') ? 'i-80-eb' :
+                 direction.includes('west') || direction.includes('wb') ? 'i-80-wb' : 'i-80-eb';
+    } else if (corridor.includes('35')) {
+      cacheKey = direction.includes('north') || direction.includes('nb') ? 'i-35-nb' :
+                 direction.includes('south') || direction.includes('sb') ? 'i-35-sb' : 'i-35-nb';
+    }
+
+    if (!cacheKey || !this.interstatePolylinesCache[cacheKey]) {
+      const possibleKeys = Object.keys(this.interstatePolylinesCache)
+        .filter(k => k.includes(corridor.replace('i', '')));
+      if (possibleKeys.length > 0) cacheKey = possibleKeys[0];
+      else return null;
+    }
+
+    const polylineCoords = this.interstatePolylinesCache[cacheKey];
+    if (!polylineCoords || polylineCoords.length < 2) return null;
+
+    try {
+      let corridorLine;
+      if (Array.isArray(polylineCoords[0]) && polylineCoords[0].length === 2) {
+        corridorLine = turf.lineString(polylineCoords);
+      } else if (polylineCoords[0].latitude !== undefined) {
+        corridorLine = turf.lineString(polylineCoords.map(c => [c.longitude, c.latitude]));
+      } else {
+        return null;
+      }
+
+      const corridorLength = turf.length(corridorLine, { units: 'miles' });
+      console.log(`     🛣️  Using cached ${cacheKey} polyline (${corridorLength.toFixed(0)} mi, ${polylineCoords.length} points)`);
+
+      const eventCoords = currentLine.geometry.coordinates;
+      const eventCenter = turf.point(eventCoords[Math.floor(eventCoords.length / 2)]);
+      const snapped = turf.nearestPointOnLine(corridorLine, eventCenter, { units: 'miles' });
+      const snappedDist = snapped.properties.location;
+
+      const startDist = Math.max(0, snappedDist - behindMiles);
+      const endDist = Math.min(corridorLength, snappedDist + aheadMiles);
+
+      const sliced = turf.lineSliceAlong(corridorLine, startDist, endDist, { units: 'miles' });
+
+      if (sliced && sliced.geometry.coordinates.length >= 2) {
+        const slicedLength = turf.length(sliced, { units: 'miles' });
+        console.log(`     ✅ Extended along corridor: ${slicedLength.toFixed(2)} mi (${startDist.toFixed(1)}-${endDist.toFixed(1)} mi along ${cacheKey})`);
+        return sliced;
+      }
+
+      return null;
+    } catch (error) {
+      console.log(`     ⚠️  Corridor polyline extension failed: ${error.message}`);
+      return null;
+    }
+  }
+
   async extendEventGeometry(event, currentLine, options = {}) {
     const { corridorAheadMiles = 0, corridorBehindMiles = 0 } = options;
 
@@ -681,7 +755,13 @@ class IPAWSAlertService {
         return currentLine;
       }
 
-      // Try to get road-snapped extended geometry from OSRM
+      // Try 1: Use cached interstate polylines (fast, road-following, no API call)
+      const corridorExtended = this.extendAlongCorridorPolyline(
+        event, currentLine, corridorAheadMiles, corridorBehindMiles
+      );
+      if (corridorExtended) return corridorExtended;
+
+      // Try 2: Get road-snapped extended geometry from OSRM
       const roadCoords = await this.fetchCorridorPolyline(
         event, currentLine, corridorAheadMiles, corridorBehindMiles
       );
@@ -690,7 +770,7 @@ class IPAWSAlertService {
         return turf.lineString(roadCoords);
       }
 
-      // Fallback: simple bearing-based extension
+      // Fallback: simple bearing-based extension (straight line, not ideal)
       console.log(`     ⚠️  Falling back to bearing-based extension`);
       const startPoint = turf.point(coords[0]);
       const secondPoint = turf.point(coords[Math.min(1, coords.length - 1)]);
