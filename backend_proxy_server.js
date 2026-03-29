@@ -12793,11 +12793,14 @@ app.post('/api/ipaws/generate', requireUserOrStateAuth, async (req, res) => {
 
     let eventData = event;
 
-    // If eventId provided, ALWAYS prefer cached version — it has the original
-    // road-snapped geometry before the API validator may have converted it to Point
-    if (eventId && eventsCache.data && eventsCache.data.events) {
-      const cachedEvent = eventsCache.data.events.find(e => e.id === eventId);
+    // ALWAYS try to use cached version — it has the original road-snapped geometry
+    // before the API validator may have converted it to Point or stripped it.
+    // The frontend sends `event` (without eventId), so also check event.id.
+    const lookupId = eventId || (event && event.id);
+    if (lookupId && eventsCache.data && eventsCache.data.events) {
+      const cachedEvent = eventsCache.data.events.find(e => e.id === lookupId);
       if (cachedEvent) {
+        console.log(`  📦 IPAWS: Using cached event ${lookupId} (has geometry: ${!!cachedEvent.geometry}, type: ${cachedEvent.geometry?.type}, coords: ${cachedEvent.geometry?.coordinates?.length || 0})`);
         eventData = cachedEvent;
       } else if (!event) {
         return res.status(404).json({
