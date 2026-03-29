@@ -24,8 +24,22 @@ function calculateDistance(coord1, coord2) {
  * @returns {Object} - Event with fixed geometry, or null if unfixable
  */
 function validateAndFixGeometry(event) {
-  if (!event || !event.geometry) {
-    return null; // No geometry - filter out
+  if (!event) return null;
+
+  // If no geometry object but event has lat/lng, create a Point geometry
+  if (!event.geometry) {
+    if (event.latitude && event.longitude && event.latitude !== 0 && event.longitude !== 0) {
+      return {
+        ...event,
+        geometry: {
+          type: 'Point',
+          coordinates: [event.longitude, event.latitude]
+        },
+        _geometryFixed: true,
+        _fixReason: 'Created Point from lat/lng fields'
+      };
+    }
+    return null; // No geometry and no coordinates - filter out
   }
 
   // Filter out events with no description AND no location (likely bad data)
@@ -34,10 +48,26 @@ function validateAndFixGeometry(event) {
     return null; // Invalid event - no content
   }
 
-  // Filter out straight-line fallback geometries (unreliable)
+  // Convert straight-line fallback geometries to Points (midpoint)
+  // These have unreliable line shapes but still have valid start/end coordinates
   if (event.geometry.geometrySource === 'straight_line' ||
       event.geometry.geometrySource === 'straight') {
-    return null; // Unreliable geometry source
+    const coords = event.geometry.coordinates;
+    if (Array.isArray(coords) && coords.length >= 2) {
+      const midIdx = Math.floor(coords.length / 2);
+      const midpoint = Array.isArray(coords[midIdx]) ? coords[midIdx] : coords[0];
+      return {
+        ...event,
+        geometry: {
+          type: 'Point',
+          coordinates: midpoint
+        },
+        _geometryFixed: true,
+        _originalGeometryType: event.geometry.type,
+        _fixReason: 'Converted straight-line fallback to Point'
+      };
+    }
+    return null;
   }
 
   const geom = event.geometry;
