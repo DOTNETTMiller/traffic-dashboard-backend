@@ -851,22 +851,72 @@ class IPAWSAlertService {
     const bufferFeet = bufferMiles * 5280; // Convert miles to feet
 
     // Create line from event geometry
-    // Handle MultiLineString by using the first (longest) line segment
-    let lineCoords;
-    if (event.geometry.type === 'MultiLineString') {
-      // Pick the longest line from the MultiLineString
-      lineCoords = event.geometry.coordinates.reduce((longest, current) =>
-        current.length > longest.length ? current : longest
-      , event.geometry.coordinates[0]);
+    // If event geometry is poor (Point, missing, or only 2 coords), use the cached
+    // corridor polyline directly — same road-snapped geometry that events use on the map
+    let line;
+    let skipTrimming = false;
+    const aheadMiles = corridorAheadMiles !== null ? corridorAheadMiles : 2.0;
+    const behindMiles = corridorBehindMiles !== null ? corridorBehindMiles : 0.5;
+
+    const geomType = event.geometry?.type;
+    const geomCoords = event.geometry?.coordinates;
+    const isGoodLineString = geomType === 'LineString' && Array.isArray(geomCoords) && geomCoords.length > 2;
+    const isGoodMultiLineString = geomType === 'MultiLineString' && Array.isArray(geomCoords) && geomCoords.length > 0;
+
+    if (isGoodLineString || isGoodMultiLineString) {
+      // Event has good geometry — use it
+      let lineCoords;
+      if (isGoodMultiLineString) {
+        lineCoords = geomCoords.reduce((longest, current) =>
+          current.length > longest.length ? current : longest
+        , geomCoords[0]);
+      } else {
+        lineCoords = geomCoords;
+      }
+      line = turf.lineString(lineCoords);
+      console.log(`  📐 Using event geometry: ${lineCoords.length} points, ${turf.length(line, { units: 'miles' }).toFixed(2)} mi`);
     } else {
-      lineCoords = event.geometry.coordinates;
+      // Event geometry is poor — build line from cached corridor polyline
+      console.log(`  ⚠️  Event geometry is poor (type: ${geomType}, coords: ${geomCoords?.length || 0}), using corridor polyline...`);
+
+      // Try to create a corridor segment using cached interstate polylines
+      // Create a dummy line at the event's location for the corridor lookup
+      const eventLat = event.latitude || (geomType === 'Point' && geomCoords ? geomCoords[1] : 0);
+      const eventLng = event.longitude || (geomType === 'Point' && geomCoords ? geomCoords[0] : 0);
+
+      if (eventLat && eventLng) {
+        // Create a tiny line at event location for the corridor polyline lookup
+        const dummyLine = turf.lineString([
+          [eventLng, eventLat],
+          [eventLng + 0.001, eventLat + 0.001]
+        ]);
+
+        const corridorLine = this.extendAlongCorridorPolyline(
+          event, dummyLine, aheadMiles, behindMiles
+        );
+
+        if (corridorLine) {
+          line = corridorLine;
+          skipTrimming = true;
+          console.log(`  ✅ Built line from corridor polyline: ${turf.length(line, { units: 'miles' }).toFixed(2)} mi`);
+        } else {
+          // Last resort: create a minimal line from event lat/lng
+          console.log(`  ⚠️  No corridor polyline available, using event lat/lng as point`);
+          line = turf.lineString([
+            [eventLng - 0.01, eventLat],
+            [eventLng, eventLat],
+            [eventLng + 0.01, eventLat]
+          ]);
+        }
+      } else {
+        throw new Error('Event has no usable geometry or coordinates for geofence');
+      }
     }
-    let line = turf.lineString(lineCoords);
+
     const originalLineLength = turf.length(line, { units: 'miles' });
-    let skipTrimming = false; // Flag to skip trimming if we extended
 
     // If extending ahead/behind, try to get extended corridor geometry
-    if (corridorAheadMiles !== null || corridorBehindMiles !== null) {
+    if (!skipTrimming && (corridorAheadMiles !== null || corridorBehindMiles !== null)) {
       console.log(`  🔧 Attempting to extend event geometry for advance warning...`);
       console.log(`     Original line: ${originalLineLength.toFixed(2)} mi`);
       console.log(`     Requested extension: ${corridorAheadMiles}mi ahead, ${corridorBehindMiles}mi behind`);
@@ -880,7 +930,7 @@ class IPAWSAlertService {
         const extendedLength = turf.length(extendedLine, { units: 'miles' });
         console.log(`     ✅ Extended line: ${extendedLength.toFixed(2)} mi (${(extendedLength - originalLineLength).toFixed(2)} mi added)`);
         line = extendedLine;
-        skipTrimming = true; // Extension already created the correct length - don't trim!
+        skipTrimming = true;
       } else {
         console.log(`     ⚠️  Could not extend geometry - using original event polyline`);
         console.log(`     Note: Extension limited to ${originalLineLength.toFixed(2)} mi`);
