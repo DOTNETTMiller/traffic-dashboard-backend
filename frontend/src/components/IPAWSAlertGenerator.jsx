@@ -445,7 +445,6 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         headers: getAuthHeaders(),
         body: JSON.stringify({
           event,
-          eventId: event?.id,
           trainingMode,
           bufferFeet: bufferFeet,  // Default 100 feet
           corridorAheadMiles: corridorAheadMiles,  // Default 2.0 miles
@@ -487,7 +486,6 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     try {
       const requestBody = {
         event,
-        eventId: event?.id,
         bufferFeet,
         avoidUrbanAreas,
         trainingMode
