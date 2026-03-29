@@ -768,15 +768,37 @@ class IPAWSAlertService {
     const originalLineLength = turf.length(line, { units: 'miles' });
     let skipTrimming = false; // Flag to skip trimming if we extended
 
+    // Determine traffic direction from event data BEFORE extending
+    // so we can swap ahead/behind if the line is reversed
+    const trafficDirection = this.detectTrafficDirection(event);
+
+    // Determine line geometry direction (start to end)
+    const lineDirection = this.detectLineDirection(line);
+
+    // Check if line geometry is reversed relative to traffic flow
+    // If they're opposite, we need to swap ahead/behind
+    const isReversed = this.isLineReversedRelativeToTraffic(trafficDirection, lineDirection);
+
     // If extending ahead/behind, try to get extended corridor geometry
     if (corridorAheadMiles !== null || corridorBehindMiles !== null) {
+      // "Ahead" means upstream of traffic (where drivers approach FROM)
+      // The extension function treats start-of-line as "behind" and end-of-line as "ahead"
+      // If the line is reversed relative to traffic, swap so extension goes the right direction
+      let extendAhead = corridorAheadMiles;
+      let extendBehind = corridorBehindMiles;
+      if (isReversed) {
+        extendAhead = corridorBehindMiles;
+        extendBehind = corridorAheadMiles;
+        console.log(`  🔄 Line is reversed vs traffic (${trafficDirection} traffic on ${lineDirection} line) — swapping extension direction`);
+      }
+
       console.log(`  🔧 Attempting to extend event geometry for advance warning...`);
       console.log(`     Original line: ${originalLineLength.toFixed(2)} mi`);
-      console.log(`     Requested extension: ${corridorAheadMiles}mi ahead, ${corridorBehindMiles}mi behind`);
+      console.log(`     Requested extension: ${corridorAheadMiles}mi ahead, ${corridorBehindMiles}mi behind (traffic: ${trafficDirection})`);
 
       const extendedLine = await this.extendEventGeometry(event, line, {
-        corridorAheadMiles,
-        corridorBehindMiles
+        corridorAheadMiles: extendAhead,
+        corridorBehindMiles: extendBehind
       });
 
       if (extendedLine) {
@@ -789,16 +811,6 @@ class IPAWSAlertService {
         console.log(`     Note: Extension limited to ${originalLineLength.toFixed(2)} mi`);
       }
     }
-
-    // Determine traffic direction from event data
-    const trafficDirection = this.detectTrafficDirection(event);
-
-    // Determine line geometry direction (start to end)
-    const lineDirection = this.detectLineDirection(line);
-
-    // Check if line geometry is reversed relative to traffic flow
-    // If they're opposite, we need to swap ahead/behind
-    const isReversed = this.isLineReversedRelativeToTraffic(trafficDirection, lineDirection);
 
     if (trafficDirection === 'BOTH') {
       console.log(`  Traffic: BOTH DIRECTIONS (bi-directional closure) - symmetric geofence recommended`);
