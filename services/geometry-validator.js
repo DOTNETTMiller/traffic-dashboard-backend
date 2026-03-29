@@ -24,22 +24,8 @@ function calculateDistance(coord1, coord2) {
  * @returns {Object} - Event with fixed geometry, or null if unfixable
  */
 function validateAndFixGeometry(event) {
-  if (!event) return null;
-
-  // If no geometry object but event has lat/lng, create a Point geometry
-  if (!event.geometry) {
-    if (event.latitude && event.longitude && event.latitude !== 0 && event.longitude !== 0) {
-      return {
-        ...event,
-        geometry: {
-          type: 'Point',
-          coordinates: [event.longitude, event.latitude]
-        },
-        _geometryFixed: true,
-        _fixReason: 'Created Point from lat/lng fields'
-      };
-    }
-    return null; // No geometry and no coordinates - filter out
+  if (!event || !event.geometry) {
+    return null; // No geometry - filter out
   }
 
   // Filter out events with no description AND no location (likely bad data)
@@ -48,26 +34,10 @@ function validateAndFixGeometry(event) {
     return null; // Invalid event - no content
   }
 
-  // Convert straight-line fallback geometries to Points (midpoint)
-  // These have unreliable line shapes but still have valid start/end coordinates
+  // Filter out straight-line fallback geometries (unreliable)
   if (event.geometry.geometrySource === 'straight_line' ||
       event.geometry.geometrySource === 'straight') {
-    const coords = event.geometry.coordinates;
-    if (Array.isArray(coords) && coords.length >= 2) {
-      const midIdx = Math.floor(coords.length / 2);
-      const midpoint = Array.isArray(coords[midIdx]) ? coords[midIdx] : coords[0];
-      return {
-        ...event,
-        geometry: {
-          type: 'Point',
-          coordinates: midpoint
-        },
-        _geometryFixed: true,
-        _originalGeometryType: event.geometry.type,
-        _fixReason: 'Converted straight-line fallback to Point'
-      };
-    }
-    return null;
+    return null; // Unreliable geometry source
   }
 
   const geom = event.geometry;
@@ -86,9 +56,9 @@ function validateAndFixGeometry(event) {
       return null; // Invalid LineString
     }
 
-    // FIX: Convert ALL 2-point LineStrings to Points (midpoint)
-    // 2-point LineStrings render as ugly straight lines on the map - they have no
-    // real road shape, just a start and end point. Convert to Point instead.
+    // FIX: Convert SHORT 2-point LineStrings (≤0.5 miles) to Points
+    // Filter out UNREALISTICALLY LONG 2-point LineStrings (>20 miles) - likely errors
+    // Keep REASONABLE 2-point LineStrings (0.5-20 miles) as LineStrings for corridor geofencing
     if (geom.coordinates.length === 2) {
       const [start, end] = geom.coordinates;
       const distanceMiles = calculateDistance(start, end);
@@ -98,7 +68,12 @@ function validateAndFixGeometry(event) {
         return null; // Invalid - unrealistically long segment
       }
 
-      // Convert 2-point LineString to Point (use midpoint)
+      // If 2-point geometry is over 0.5 miles, keep it as LineString
+      if (distanceMiles > 0.5) {
+        return event; // Valid 2-point LineString (long segment)
+      }
+
+      // Convert short 2-point LineString to Point (use midpoint)
       const midpoint = [
         (start[0] + end[0]) / 2,
         (start[1] + end[1]) / 2
@@ -113,28 +88,7 @@ function validateAndFixGeometry(event) {
         _geometryFixed: true,
         _originalGeometryType: 'LineString',
         _originalDistance: distanceMiles,
-        _fixReason: `Converted 2-point LineString (${distanceMiles.toFixed(2)} mi) to Point`
-      };
-    }
-
-    // Filter out excessively long LineStrings (e.g. statewide weather events snapped
-    // to the full interstate corridor). These span hundreds of miles and aren't useful
-    // as line geometry on the map. Convert to Point at midpoint instead.
-    const first = geom.coordinates[0];
-    const last = geom.coordinates[geom.coordinates.length - 1];
-    const endToEndMiles = calculateDistance(first, last);
-    if (endToEndMiles > 150) {
-      const midIdx = Math.floor(geom.coordinates.length / 2);
-      return {
-        ...event,
-        geometry: {
-          type: 'Point',
-          coordinates: geom.coordinates[midIdx]
-        },
-        _geometryFixed: true,
-        _originalGeometryType: 'LineString',
-        _originalDistance: endToEndMiles,
-        _fixReason: `Converted excessively long LineString (${endToEndMiles.toFixed(0)} mi) to Point`
+        _fixReason: `Converted short 2-point LineString (${distanceMiles.toFixed(2)} mi) to Point`
       };
     }
 
@@ -160,32 +114,7 @@ function validateAndFixGeometry(event) {
     if (!Array.isArray(geom.coordinates) || geom.coordinates.length === 0) {
       return null;
     }
-
-    // Filter out excessively long MultiLineStrings (same as LineString check)
-    if (geom.type === 'MultiLineString') {
-      const allCoords = geom.coordinates.flat();
-      if (allCoords.length >= 2) {
-        const first = allCoords[0];
-        const last = allCoords[allCoords.length - 1];
-        const endToEndMiles = calculateDistance(first, last);
-        if (endToEndMiles > 150) {
-          const midIdx = Math.floor(allCoords.length / 2);
-          return {
-            ...event,
-            geometry: {
-              type: 'Point',
-              coordinates: allCoords[midIdx]
-            },
-            _geometryFixed: true,
-            _originalGeometryType: 'MultiLineString',
-            _originalDistance: endToEndMiles,
-            _fixReason: `Converted excessively long MultiLineString (${endToEndMiles.toFixed(0)} mi) to Point`
-          };
-        }
-      }
-    }
-
-    return event;
+    return event; // Assume valid for now
   }
 
   // Unknown geometry type - filter out
