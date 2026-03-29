@@ -851,7 +851,17 @@ class IPAWSAlertService {
     const bufferFeet = bufferMiles * 5280; // Convert miles to feet
 
     // Create line from event geometry
-    let line = turf.lineString(event.geometry.coordinates);
+    // Handle MultiLineString by using the first (longest) line segment
+    let lineCoords;
+    if (event.geometry.type === 'MultiLineString') {
+      // Pick the longest line from the MultiLineString
+      lineCoords = event.geometry.coordinates.reduce((longest, current) =>
+        current.length > longest.length ? current : longest
+      , event.geometry.coordinates[0]);
+    } else {
+      lineCoords = event.geometry.coordinates;
+    }
+    let line = turf.lineString(lineCoords);
     const originalLineLength = turf.length(line, { units: 'miles' });
     let skipTrimming = false; // Flag to skip trimming if we extended
 

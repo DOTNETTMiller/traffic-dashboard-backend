@@ -12793,21 +12793,86 @@ app.post('/api/ipaws/generate', requireUserOrStateAuth, async (req, res) => {
 
     let eventData = event;
 
-    // If eventId provided, fetch event from cache
-    if (eventId && !event) {
+    // If eventId provided, ALWAYS prefer cached version — it has the original
+    // road-snapped geometry before the API validator may have converted it to Point
+    if (eventId && eventsCache.data && eventsCache.data.events) {
+      const cachedEvent = eventsCache.data.events.find(e => e.id === eventId);
+      if (cachedEvent) {
+        eventData = cachedEvent;
+      } else if (!event) {
+        return res.status(404).json({
+          success: false,
+          error: 'Event not found'
+        });
+      }
+    } else if (!event) {
       if (!eventsCache.data || !eventsCache.data.events) {
         return res.status(404).json({
           success: false,
           error: 'Event cache not available. Please try again in a moment.'
         });
       }
+    }
 
-      eventData = eventsCache.data.events.find(e => e.id === eventId);
-      if (!eventData) {
-        return res.status(404).json({
-          success: false,
-          error: 'Event not found'
-        });
+    // Ensure IPAWS has high-quality road-snapped geometry (same as events pipeline)
+    // If geometry is Point, missing, or only has 2 coordinates, re-snap via snapToRoad
+    const geom = eventData.geometry;
+    const needsResnap = !geom
+      || geom.type === 'Point'
+      || (geom.type === 'LineString' && geom.coordinates && geom.coordinates.length <= 2);
+
+    if (needsResnap && eventData.latitude && eventData.longitude) {
+      console.log('  🔄 IPAWS: Event geometry is poor/missing, re-snapping via snapToRoad...');
+      try {
+        // Use event's start/end coordinates, or lat/lng as both endpoints for Point events
+        let lat1, lng1, lat2, lng2;
+        if (geom && geom.type === 'LineString' && geom.coordinates && geom.coordinates.length === 2) {
+          [lng1, lat1] = geom.coordinates[0];
+          [lng2, lat2] = geom.coordinates[1];
+        } else if (geom && geom.type === 'Point' && geom.coordinates) {
+          // Point geometry - use lat/lng and try to find a secondary coordinate from the original event
+          lat1 = geom.coordinates[1];
+          lng1 = geom.coordinates[0];
+          // Look for original distance to create a reasonable segment
+          lat2 = eventData.latitude;
+          lng2 = eventData.longitude;
+        } else {
+          lat1 = eventData.latitude;
+          lng1 = eventData.longitude;
+          lat2 = eventData.latitude;
+          lng2 = eventData.longitude;
+        }
+
+        const stateAbbreviations = {
+          'iowa': 'IA', 'ohio': 'OH', 'pennsylvania': 'PA', 'nevada': 'NV', 'texas': 'TX',
+          'illinois': 'IL', 'kansas': 'KS', 'nebraska': 'NE', 'indiana': 'IN', 'minnesota': 'MN',
+          'utah': 'UT', 'wyoming': 'WY', 'missouri': 'MO', 'wisconsin': 'WI', 'michigan': 'MI',
+          'new jersey': 'NJ', 'california': 'CA', 'oregon': 'OR', 'washington': 'WA',
+          'colorado': 'CO', 'arizona': 'AZ', 'new mexico': 'NM', 'oklahoma': 'OK'
+        };
+        const stateKey = stateAbbreviations[(eventData.state || '').toLowerCase()] || '';
+
+        const snapResult = await snapToRoad(
+          lat1, lng1, lat2, lng2,
+          eventData.direction, eventData.corridor, eventData.state,
+          eventData.id, stateKey
+        );
+
+        if (snapResult && snapResult.coordinates && snapResult.coordinates.length > 2) {
+          console.log(`  ✅ IPAWS: Re-snapped geometry: ${snapResult.coordinates.length} points (source: ${snapResult.geometrySource})`);
+          eventData = {
+            ...eventData,
+            geometry: {
+              type: snapResult.isMultiLine ? 'MultiLineString' : 'LineString',
+              coordinates: snapResult.coordinates,
+              geometrySource: snapResult.geometrySource
+            }
+          };
+        } else {
+          console.log('  ⚠️  IPAWS: Re-snap returned poor geometry, using original');
+        }
+      } catch (snapError) {
+        console.error('  ❌ IPAWS: Re-snap failed:', snapError.message);
       }
     }
 
