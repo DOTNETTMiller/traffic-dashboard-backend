@@ -12822,6 +12822,105 @@ app.post('/api/ipaws/generate', requireUserOrStateAuth, async (req, res) => {
     if (trainingMode !== undefined) options.trainingMode = trainingMode;
     if (user) options.user = user;
 
+    // Use cached event for better geometry (frontend may have stripped/degraded it)
+    const lookupId = eventId || (event && event.id);
+    if (lookupId && eventsCache.data && eventsCache.data.events) {
+      const cachedEvent = eventsCache.data.events.find(e => e.id === lookupId);
+      if (cachedEvent && cachedEvent.geometry && cachedEvent.geometry.coordinates) {
+        eventData = cachedEvent;
+      }
+    }
+
+    // Extend event geometry using snapToRoad (same pipeline events use)
+    // This ensures the extended portion follows the road, not a straight line
+    if ((corridorAheadMiles || corridorBehindMiles) && eventData.geometry &&
+        eventData.geometry.type === 'LineString' && eventData.geometry.coordinates &&
+        eventData.geometry.coordinates.length >= 2) {
+
+      const coords = eventData.geometry.coordinates;
+      const ahead = corridorAheadMiles || 0;
+      const behind = corridorBehindMiles || 0;
+
+      // Determine which end is "ahead" (upstream of traffic) based on direction
+      const dir = (eventData.direction || '').toLowerCase();
+      const isWestOrSouth = dir.includes('west') || dir.includes('wb') ||
+                            dir.includes('south') || dir.includes('sb');
+
+      // Line coords go in geometry order. For EB/NB lines, end = ahead.
+      // For WB/SB events whose line may go EB order, start = ahead.
+      const startCoord = coords[0];
+      const endCoord = coords[coords.length - 1];
+
+      // Bearing at each end for extension
+      const startBearing = Math.atan2(
+        coords[0][0] - coords[1][0],
+        coords[0][1] - coords[1][1]
+      ) * (180 / Math.PI);
+      const endBearing = Math.atan2(
+        coords[coords.length - 1][0] - coords[coords.length - 2][0],
+        coords[coords.length - 1][1] - coords[coords.length - 2][1]
+      ) * (180 / Math.PI);
+
+      // Determine line direction: does the line go west-to-east or east-to-west?
+      const lineGoesEast = endCoord[0] > startCoord[0]; // end longitude > start longitude
+      const lineGoesNorth = endCoord[1] > startCoord[1];
+
+      // For an E-W corridor: "ahead" for WB traffic = start of EB-ordered line (west end)
+      // For an E-W corridor: "ahead" for EB traffic = end of EB-ordered line (east end)
+      let extendStartMiles, extendEndMiles;
+      if (isWestOrSouth) {
+        // WB/SB traffic: "ahead" = upstream = where traffic comes from (east/north for EB/NB line)
+        // If line goes east, start=west end=east. Ahead=east(end), behind=west(start)
+        if (lineGoesEast || lineGoesNorth) {
+          extendEndMiles = ahead;    // extend east/north end = ahead for WB/SB
+          extendStartMiles = behind; // extend west/south end = behind
+        } else {
+          extendStartMiles = ahead;
+          extendEndMiles = behind;
+        }
+      } else {
+        // EB/NB traffic: "ahead" = upstream = where traffic comes from (west/south)
+        if (lineGoesEast || lineGoesNorth) {
+          extendStartMiles = ahead;  // extend west/south end = ahead for EB/NB
+          extendEndMiles = behind;   // extend east/north end = behind
+        } else {
+          extendEndMiles = ahead;
+          extendStartMiles = behind;
+        }
+      }
+
+      // Calculate extended start/end coordinates using bearing
+      const milesToDeg = 1 / 69.0; // rough miles to degrees
+      const extStartLat = startCoord[1] + Math.cos(startBearing * Math.PI / 180) * extendStartMiles * milesToDeg;
+      const extStartLng = startCoord[0] + Math.sin(startBearing * Math.PI / 180) * extendStartMiles * milesToDeg;
+      const extEndLat = endCoord[1] + Math.cos(endBearing * Math.PI / 180) * extendEndMiles * milesToDeg;
+      const extEndLng = endCoord[0] + Math.sin(endBearing * Math.PI / 180) * extendEndMiles * milesToDeg;
+
+      console.log(`🚨 IPAWS: Extending geometry via snapToRoad (${extendStartMiles.toFixed(1)}mi start, ${extendEndMiles.toFixed(1)}mi end)`);
+
+      try {
+        const snapResult = await snapToRoad(
+          extStartLat, extStartLng, extEndLat, extEndLng,
+          eventData.direction, eventData.corridor, eventData.state,
+          eventData.id + '_ipaws_extended', ''
+        );
+
+        if (snapResult && snapResult.coordinates && snapResult.coordinates.length > 2) {
+          console.log(`  ✅ IPAWS road-snapped extension: ${snapResult.coordinates.length} points (source: ${snapResult.geometrySource})`);
+          eventData = {
+            ...eventData,
+            geometry: {
+              ...eventData.geometry,
+              type: snapResult.isMultiLine ? 'MultiLineString' : 'LineString',
+              coordinates: snapResult.coordinates
+            }
+          };
+        }
+      } catch (err) {
+        console.log(`  ⚠️  IPAWS extension snap failed: ${err.message}, using original geometry`);
+      }
+    }
+
     console.log('🚨 Starting IPAWS alert generation for:', eventData.corridor || eventData.id);
     console.log('  📋 Geofence options:', {
       bufferFeet: options.bufferFeet,
