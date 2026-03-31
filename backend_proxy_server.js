@@ -28714,6 +28714,15 @@ app.get('/api/wzdx/feed', async (req, res) => {
       };
     };
 
+    // Filter to work zones only (WZDx spec compliance)
+    const workZoneTypes = ['work-zone', 'construction', 'maintenance', 'roadwork', 'lane-restriction', 'road-construction'];
+    events = events.filter(event => {
+      const type = (event.eventType || '').toLowerCase();
+      return workZoneTypes.includes(type) || type.includes('construction') || type.includes('work') || type.includes('maintenance');
+    });
+
+    console.log(`📡 WZDx: ${events.length} work zone events after filtering`);
+
     // Convert cached events to WZDx format
     // Split "Both" directions into two separate WZDx entries for compliance
     const wzdxEvents = events.flatMap(event => {
