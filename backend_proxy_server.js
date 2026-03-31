@@ -28721,6 +28721,12 @@ app.get('/api/wzdx/feed', async (req, res) => {
       return workZoneTypes.includes(type) || type.includes('construction') || type.includes('work') || type.includes('maintenance');
     });
 
+    // Filter out 2-point straight-line geometries (no real road shape)
+    events = events.filter(event => {
+      if (!event.geometry || event.geometry.type !== 'LineString') return true;
+      return event.geometry.coordinates && event.geometry.coordinates.length > 2;
+    });
+
     console.log(`📡 WZDx: ${events.length} work zone events after filtering`);
 
     // Convert cached events to WZDx format
