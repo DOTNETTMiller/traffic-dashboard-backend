@@ -28721,7 +28721,52 @@ app.get('/api/wzdx/feed', async (req, res) => {
       return workZoneTypes.includes(type) || type.includes('construction') || type.includes('work') || type.includes('maintenance');
     });
 
-    // Filter out 2-point straight-line geometries (no real road shape)
+    // Fix 2-point straight-line geometries by re-snapping through snapToRoad
+    // Same pipeline that gives events their correct road-following geometry
+    const twoPointEvents = events.filter(event =>
+      event.geometry && event.geometry.type === 'LineString' &&
+      event.geometry.coordinates && event.geometry.coordinates.length === 2
+    );
+
+    if (twoPointEvents.length > 0) {
+      console.log(`📡 WZDx: Re-snapping ${twoPointEvents.length} 2-point geometries...`);
+      const stateAbbreviations = {
+        'iowa': 'IA', 'ohio': 'OH', 'pennsylvania': 'PA', 'nevada': 'NV', 'texas': 'TX',
+        'illinois': 'IL', 'kansas': 'KS', 'nebraska': 'NE', 'indiana': 'IN', 'minnesota': 'MN',
+        'utah': 'UT', 'wyoming': 'WY', 'missouri': 'MO', 'wisconsin': 'WI', 'michigan': 'MI',
+        'new jersey': 'NJ', 'california': 'CA', 'oregon': 'OR', 'washington': 'WA',
+        'colorado': 'CO', 'arizona': 'AZ', 'new mexico': 'NM', 'oklahoma': 'OK',
+        'kentucky': 'KY', 'louisiana': 'LA', 'maryland': 'MD', 'massachusetts': 'MA',
+        'delaware': 'DE', 'idaho': 'ID', 'hawaii': 'HI', 'north carolina': 'NC',
+        'florida': 'FL', 'new york': 'NY'
+      };
+
+      await Promise.all(twoPointEvents.map(async (event) => {
+        try {
+          const [lng1, lat1] = event.geometry.coordinates[0];
+          const [lng2, lat2] = event.geometry.coordinates[1];
+          const stateKey = stateAbbreviations[(event.state || '').toLowerCase()] || '';
+
+          const snapResult = await snapToRoad(
+            lat1, lng1, lat2, lng2,
+            event.direction, event.corridor, event.state,
+            event.id, stateKey
+          );
+
+          if (snapResult && snapResult.coordinates && snapResult.coordinates.length > 2) {
+            event.geometry = {
+              type: snapResult.isMultiLine ? 'MultiLineString' : 'LineString',
+              coordinates: snapResult.coordinates,
+              geometrySource: snapResult.geometrySource
+            };
+          }
+        } catch (err) {
+          // Leave original geometry if snap fails
+        }
+      }));
+    }
+
+    // Filter out any remaining 2-point geometries that couldn't be fixed
     events = events.filter(event => {
       if (!event.geometry || event.geometry.type !== 'LineString') return true;
       return event.geometry.coordinates && event.geometry.coordinates.length > 2;
