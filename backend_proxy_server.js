@@ -744,6 +744,77 @@ const API_CONFIG = {
     format: 'json',
     corridor: 'I-90,I-94',
     apiType: 'WZDx'
+  },
+  // Additional WZDx feeds from USDOT Feed Registry
+  delaware: {
+    name: 'Delaware',
+    wzdxUrl: 'https://wzdx.e-dot.com/del_dot_feed_wzdx_v4.1.geojson',
+    format: 'geojson',
+    corridor: 'I-95',
+    apiType: 'WZDx'
+  },
+  hawaii: {
+    name: 'Hawaii',
+    wzdxUrl: 'https://ai.blyncsy.io/wzdx/hidot/feed',
+    format: 'geojson',
+    corridor: 'H-1,H-2,H-3',
+    apiType: 'WZDx'
+  },
+  idaho: {
+    name: 'Idaho',
+    wzdxUrl: 'https://511.idaho.gov/api/wzdx',
+    format: 'geojson',
+    corridor: 'I-84,I-90,I-15',
+    apiType: 'WZDx'
+  },
+  kentucky: {
+    name: 'Kentucky',
+    wzdxUrl: 'https://storage.googleapis.com/kytc-its-2020-openrecords/public/feeds/WZDx/kytc_wzdx_v4.1.geojson',
+    format: 'geojson',
+    corridor: 'I-64,I-65,I-71,I-75',
+    apiType: 'WZDx'
+  },
+  louisiana: {
+    name: 'Louisiana',
+    wzdxUrl: 'https://wzdx.e-dot.com/la_dot_d_feed_wzdx_v4.1.geojson',
+    format: 'geojson',
+    corridor: 'I-10,I-20,I-49',
+    apiType: 'WZDx'
+  },
+  maryland: {
+    name: 'Maryland',
+    wzdxUrl: 'https://filter.ritis.org/wzdx_v4.1/mdot.geojson',
+    format: 'geojson',
+    corridor: 'I-95,I-70,I-83',
+    apiType: 'WZDx'
+  },
+  massachusetts: {
+    name: 'Massachusetts',
+    wzdxUrl: 'https://feed.massdot-swzm.com/massdot_wzdx_v4.1_work_zone_feed.geojson',
+    format: 'geojson',
+    corridor: 'I-90,I-95,I-93',
+    apiType: 'WZDx'
+  },
+  newmexico: {
+    name: 'New Mexico',
+    wzdxUrl: 'https://ai.blyncsy.io/wzdx/nmdot/feed',
+    format: 'geojson',
+    corridor: 'I-10,I-25,I-40',
+    apiType: 'WZDx'
+  },
+  northcarolina: {
+    name: 'North Carolina',
+    wzdxUrl: 'https://us-datacloud.one.network/wzdx-north-carolina.json?app_key=db73336d-85c4-7d0b-258b71e36573',
+    format: 'json',
+    corridor: 'I-40,I-85,I-95,I-77',
+    apiType: 'WZDx'
+  },
+  washington: {
+    name: 'Washington',
+    wzdxUrl: 'https://wzdx.wsdot.wa.gov/api/v4/WorkZoneFeed',
+    format: 'geojson',
+    corridor: 'I-5,I-90,I-82',
+    apiType: 'WZDx'
   }
 };
 

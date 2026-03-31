@@ -23,7 +23,7 @@ const STATE_ABBREV = {
 };
 
 // States that are already configured (we'll skip these)
-const EXISTING_STATES = ['nevada', 'ohio', 'new jersey', 'iowa', 'kansas', 'nebraska', 'indiana', 'minnesota', 'utah', 'texas', 'illinois'];
+const EXISTING_STATES = ['nevada', 'ohio', 'new jersey', 'iowa', 'kansas', 'nebraska', 'indiana', 'minnesota', 'utah', 'texas', 'illinois', 'missouri', 'oklahoma', 'florida', 'wisconsin', 'new york'];
 
 async function fetchWZDxRegistry() {
   return new Promise((resolve, reject) => {
