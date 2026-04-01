@@ -56,24 +56,10 @@ function validateAndFixGeometry(event) {
       return null; // Invalid LineString
     }
 
-    // FIX: Convert SHORT 2-point LineStrings (≤0.5 miles) to Points
-    // Filter out UNREALISTICALLY LONG 2-point LineStrings (>20 miles) - likely errors
-    // Keep REASONABLE 2-point LineStrings (0.5-20 miles) as LineStrings for corridor geofencing
+    // Convert ALL 2-point LineStrings to Points at midpoint
+    // 2-point lines are straight lines with no road shape — show as marker instead
     if (geom.coordinates.length === 2) {
       const [start, end] = geom.coordinates;
-      const distanceMiles = calculateDistance(start, end);
-
-      // Filter out unrealistically long 2-point lines (likely bad data)
-      if (distanceMiles > 20) {
-        return null; // Invalid - unrealistically long segment
-      }
-
-      // If 2-point geometry is over 0.5 miles, keep it as LineString
-      if (distanceMiles > 0.5) {
-        return event; // Valid 2-point LineString (long segment)
-      }
-
-      // Convert short 2-point LineString to Point (use midpoint)
       const midpoint = [
         (start[0] + end[0]) / 2,
         (start[1] + end[1]) / 2
@@ -87,8 +73,7 @@ function validateAndFixGeometry(event) {
         },
         _geometryFixed: true,
         _originalGeometryType: 'LineString',
-        _originalDistance: distanceMiles,
-        _fixReason: `Converted short 2-point LineString (${distanceMiles.toFixed(2)} mi) to Point`
+        _fixReason: 'Converted 2-point LineString to Point'
       };
     }
 
