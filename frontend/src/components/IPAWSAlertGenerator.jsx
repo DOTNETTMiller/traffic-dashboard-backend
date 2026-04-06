@@ -37,6 +37,22 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
     return headers;
   };
 
+  // Detect expired session and force re-login
+  const handleAuthError = (response) => {
+    if (response.status === 401 || response.status === 403) {
+      const hasToken = !!localStorage.getItem('authToken');
+      if (hasToken) {
+        // Token exists but server rejected it - it's expired/invalid
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+        alert('Your session has expired. Please log in again to continue.');
+        window.location.reload();
+        return true;
+      }
+    }
+    return false;
+  };
+
   // Editable message fields
   const [editableMessages, setEditableMessages] = useState({
     english: {
@@ -94,6 +110,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
         headers: getAuthHeaders(),
         body: JSON.stringify({ event })
       });
+      if (handleAuthError(response)) return;
       const data = await response.json();
       if (data.success) {
         setRecommendedTemplate(data);
@@ -451,6 +468,8 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           corridorBehindMiles: corridorBehindMiles  // Default 0.5 miles
         })
       });
+
+      if (handleAuthError(response)) return;
 
       if (!response.ok) {
         throw new Error(`Server error: ${response.status} ${response.statusText}`);
