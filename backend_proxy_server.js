@@ -12840,7 +12840,7 @@ const IPAWSAuditLogger = require('./services/ipaws-alert-service-lite');
 const populationService = require('./services/population-density-service');
 
 // POST /api/ipaws/generate - Generate IPAWS alert for an event
-app.post('/api/ipaws/generate', requireUserOrStateAuth, async (req, res) => {
+app.post('/api/ipaws/generate', requireUser, async (req, res) => {
   try {
     const {
       eventId,
@@ -13067,7 +13067,7 @@ app.get('/api/ipaws/templates', async (req, res) => {
 });
 
 // POST /api/ipaws/templates/recommend - Get recommended template for an event
-app.post('/api/ipaws/templates/recommend', requireUserOrStateAuth, async (req, res) => {
+app.post('/api/ipaws/templates/recommend', requireUser, async (req, res) => {
   try {
     const { event } = req.body;
 
