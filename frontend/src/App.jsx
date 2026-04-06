@@ -217,6 +217,26 @@ function App() {
     return () => abortController.abort();
   }, [showParking, parkingPredictionHours]);
 
+  // Decode JWT payload (no verification - just read exp field)
+  const decodeJwtExp = (token) => {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.exp ? payload.exp * 1000 : null; // ms
+    } catch {
+      return null;
+    }
+  };
+
+  // Force logout with message
+  const expireSession = (reason = 'Your session has expired. Please log in again.') => {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
+    setAuthToken(null);
+    setCurrentUser(null);
+    setIsAuthenticated(false);
+    alert(reason);
+  };
+
   // Check for existing authentication on mount
   useEffect(() => {
     const token = localStorage.getItem('authToken');
@@ -224,6 +244,15 @@ function App() {
 
     if (token && userStr) {
       try {
+        // Check if JWT is expired before restoring session
+        const expMs = decodeJwtExp(token);
+        if (expMs && Date.now() >= expMs) {
+          console.log('🔒 Stored token is expired - clearing session');
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('user');
+          return;
+        }
+
         const user = JSON.parse(userStr);
         setAuthToken(token);
         setCurrentUser(user);
@@ -239,6 +268,27 @@ function App() {
       console.log('❌ No stored authentication found - showing login screen');
     }
   }, []);
+
+  // Schedule auto-logout when JWT expires (matches backend 7-day expiresIn)
+  useEffect(() => {
+    if (!authToken) return;
+
+    const expMs = decodeJwtExp(authToken);
+    if (!expMs) return;
+
+    const msUntilExpiry = expMs - Date.now();
+    if (msUntilExpiry <= 0) {
+      expireSession();
+      return;
+    }
+
+    console.log(`🕒 Session expires in ${Math.round(msUntilExpiry / 1000 / 60)} minutes`);
+    const timer = setTimeout(() => {
+      expireSession('Your session has expired. Please log in again to continue.');
+    }, msUntilExpiry);
+
+    return () => clearTimeout(timer);
+  }, [authToken]);
 
   // Fetch traffic data with auto-refresh (5 minutes = 300 seconds)
   const { events, loading, error, lastUpdate, refetch } = useTrafficData(
