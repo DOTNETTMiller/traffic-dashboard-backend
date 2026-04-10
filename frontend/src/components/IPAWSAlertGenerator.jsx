@@ -684,7 +684,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               <p style={{ color: '#92400e', margin: '0 0 8px 0', fontWeight: '600' }}>
                 ⚠️ The following criteria are not met:
               </p>
-              {alert.warnings.map((warning, idx) => (
+              {(Array.isArray(alert.warnings) ? alert.warnings : []).map((warning, idx) => (
                 <div key={idx} style={{
                   color: '#78350f',
                   marginTop: idx > 0 ? '12px' : '0',
@@ -813,7 +813,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             paddingLeft: theme.spacing.lg,
             margin: 0
           }}>
-            {alert.qualification?.criteria.map((criterion, idx) => (
+            {(Array.isArray(alert.qualification?.criteria) ? alert.qualification.criteria : []).map((criterion, idx) => (
               <li key={idx} style={{ marginBottom: theme.spacing.xs }}>
                 {criterion}
               </li>
