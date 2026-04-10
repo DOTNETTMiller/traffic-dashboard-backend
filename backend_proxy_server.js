@@ -815,7 +815,53 @@ const API_CONFIG = {
     format: 'geojson',
     corridor: 'I-5,I-90,I-82',
     apiType: 'WZDx'
-  }
+  },
+  // WZDx feeds requiring API keys — only enabled if env vars are set
+  ...(process.env.CALIFORNIA_API_KEY && {
+    california: {
+      name: 'California',
+      wzdxUrl: `https://api.511.org/traffic/wzdx?api_key=${process.env.CALIFORNIA_API_KEY}`,
+      format: 'geojson',
+      corridor: 'I-5,I-80,I-101,I-580',
+      apiType: 'WZDx'
+    }
+  }),
+  ...(process.env.COLORADO_API_KEY && {
+    colorado: {
+      name: 'Colorado',
+      wzdxUrl: `https://data.cotrip.org/api/v1/wzdx?apiKey=${process.env.COLORADO_API_KEY}`,
+      format: 'geojson',
+      corridor: 'I-25,I-70,I-76',
+      apiType: 'WZDx'
+    }
+  }),
+  ...(process.env.MICHIGAN_API_KEY && {
+    michigan: {
+      name: 'Michigan',
+      wzdxUrl: `https://mdot-wzdx.azurewebsites.net/api/v4/wzdx?apiKey=${process.env.MICHIGAN_API_KEY}`,
+      format: 'geojson',
+      corridor: 'I-75,I-94,I-96,I-69',
+      apiType: 'WZDx'
+    }
+  }),
+  ...(process.env.PA_TURNPIKE_API_KEY && {
+    paturnpike: {
+      name: 'Pennsylvania Turnpike',
+      wzdxUrl: `https://atms.paturnpike.com/api/WZDxWorkZoneFeed?api_key=${process.env.PA_TURNPIKE_API_KEY}`,
+      format: 'geojson',
+      corridor: 'I-76,I-276,I-376,I-476',
+      apiType: 'WZDx'
+    }
+  }),
+  ...(process.env.VIRGINIA_API_KEY && {
+    virginia: {
+      name: 'Virginia',
+      wzdxUrl: `https://data.511-atis-ttrip-prod.iteriscloud.com/smarterRoads/workzone/workZoneJSON/current/workZone.json?token=${process.env.VIRGINIA_API_KEY}`,
+      format: 'geojson',
+      corridor: 'I-64,I-66,I-81,I-95',
+      apiType: 'WZDx'
+    }
+  })
 };
 
 // Add API keys from environment variables to hardcoded configs
@@ -12903,75 +12949,68 @@ app.post('/api/ipaws/generate', requireUser, async (req, res) => {
     }
 
     // Extend event geometry using snapToRoad (same pipeline events use)
-    // This ensures the extended portion follows the road, not a straight line
+    // Uses turf.destination for proper great-circle bearing math
     if ((corridorAheadMiles || corridorBehindMiles) && eventData.geometry &&
         eventData.geometry.type === 'LineString' && eventData.geometry.coordinates &&
         eventData.geometry.coordinates.length >= 2) {
 
-      const coords = eventData.geometry.coordinates;
-      const ahead = corridorAheadMiles || 0;
-      const behind = corridorBehindMiles || 0;
-
-      // Determine which end is "ahead" (upstream of traffic) based on direction
-      const dir = (eventData.direction || '').toLowerCase();
-      const isWestOrSouth = dir.includes('west') || dir.includes('wb') ||
-                            dir.includes('south') || dir.includes('sb');
-
-      // Line coords go in geometry order. For EB/NB lines, end = ahead.
-      // For WB/SB events whose line may go EB order, start = ahead.
-      const startCoord = coords[0];
-      const endCoord = coords[coords.length - 1];
-
-      // Bearing at each end for extension
-      const startBearing = Math.atan2(
-        coords[0][0] - coords[1][0],
-        coords[0][1] - coords[1][1]
-      ) * (180 / Math.PI);
-      const endBearing = Math.atan2(
-        coords[coords.length - 1][0] - coords[coords.length - 2][0],
-        coords[coords.length - 1][1] - coords[coords.length - 2][1]
-      ) * (180 / Math.PI);
-
-      // Determine line direction: does the line go west-to-east or east-to-west?
-      const lineGoesEast = endCoord[0] > startCoord[0]; // end longitude > start longitude
-      const lineGoesNorth = endCoord[1] > startCoord[1];
-
-      // For an E-W corridor: "ahead" for WB traffic = start of EB-ordered line (west end)
-      // For an E-W corridor: "ahead" for EB traffic = end of EB-ordered line (east end)
-      let extendStartMiles, extendEndMiles;
-      if (isWestOrSouth) {
-        // WB/SB traffic: "ahead" = upstream = where traffic comes from (east/north for EB/NB line)
-        // If line goes east, start=west end=east. Ahead=east(end), behind=west(start)
-        if (lineGoesEast || lineGoesNorth) {
-          extendEndMiles = ahead;    // extend east/north end = ahead for WB/SB
-          extendStartMiles = behind; // extend west/south end = behind
-        } else {
-          extendStartMiles = ahead;
-          extendEndMiles = behind;
-        }
-      } else {
-        // EB/NB traffic: "ahead" = upstream = where traffic comes from (west/south)
-        if (lineGoesEast || lineGoesNorth) {
-          extendStartMiles = ahead;  // extend west/south end = ahead for EB/NB
-          extendEndMiles = behind;   // extend east/north end = behind
-        } else {
-          extendEndMiles = ahead;
-          extendStartMiles = behind;
-        }
-      }
-
-      // Calculate extended start/end coordinates using bearing
-      const milesToDeg = 1 / 69.0; // rough miles to degrees
-      const extStartLat = startCoord[1] + Math.cos(startBearing * Math.PI / 180) * extendStartMiles * milesToDeg;
-      const extStartLng = startCoord[0] + Math.sin(startBearing * Math.PI / 180) * extendStartMiles * milesToDeg;
-      const extEndLat = endCoord[1] + Math.cos(endBearing * Math.PI / 180) * extendEndMiles * milesToDeg;
-      const extEndLng = endCoord[0] + Math.sin(endBearing * Math.PI / 180) * extendEndMiles * milesToDeg;
-
-      console.log(`🚨 IPAWS: Extending geometry via snapToRoad (${extendStartMiles.toFixed(1)}mi start, ${extendEndMiles.toFixed(1)}mi end)`);
-
       try {
+        const turf = require('@turf/turf');
+        const coords = eventData.geometry.coordinates;
+        const ahead = corridorAheadMiles || 0;
+        const behind = corridorBehindMiles || 0;
+
+        // Detect traffic direction
+        const dir = (eventData.direction || '').toLowerCase();
+        const isWestbound = dir.includes('west') || dir.includes('wb');
+        const isEastbound = dir.includes('east') || dir.includes('eb');
+        const isNorthbound = dir.includes('north') || dir.includes('nb');
+        const isSouthbound = dir.includes('south') || dir.includes('sb');
+
+        // Detect line geometry direction (start to end)
+        const startCoord = coords[0];
+        const endCoord = coords[coords.length - 1];
+        const dLon = endCoord[0] - startCoord[0];
+        const dLat = endCoord[1] - startCoord[1];
+        const lineGoesEast = dLon > 0;
+        const lineGoesNorth = dLat > 0;
+        const isEWLine = Math.abs(dLon) >= Math.abs(dLat);
+
+        // Determine which end gets the "ahead" extension
+        // "ahead" = upstream of traffic = where drivers approach FROM
+        // For WB traffic, ahead = east. For EB traffic, ahead = west.
+        // For SB traffic, ahead = north. For NB traffic, ahead = south.
+        let aheadIsLineEnd; // true = extend end-of-line, false = extend start-of-line
+        if (isEWLine) {
+          if (isWestbound) aheadIsLineEnd = lineGoesEast;
+          else if (isEastbound) aheadIsLineEnd = !lineGoesEast;
+          else aheadIsLineEnd = true; // unknown direction, default to end
+        } else {
+          if (isSouthbound) aheadIsLineEnd = lineGoesNorth;
+          else if (isNorthbound) aheadIsLineEnd = !lineGoesNorth;
+          else aheadIsLineEnd = true;
+        }
+
+        // Calculate bearings outward from each end of the line
+        const startBearing = turf.bearing(turf.point(coords[1]), turf.point(coords[0]));
+        const endBearing = turf.bearing(turf.point(coords[coords.length - 2]), turf.point(coords[coords.length - 1]));
+
+        // Determine miles to extend at each end
+        const extendStartMiles = aheadIsLineEnd ? behind : ahead;
+        const extendEndMiles = aheadIsLineEnd ? ahead : behind;
+
+        // Extend with proper great-circle math
+        const extStart = extendStartMiles > 0
+          ? turf.destination(turf.point(coords[0]), extendStartMiles, startBearing, { units: 'miles' }).geometry.coordinates
+          : coords[0];
+        const extEnd = extendEndMiles > 0
+          ? turf.destination(turf.point(coords[coords.length - 1]), extendEndMiles, endBearing, { units: 'miles' }).geometry.coordinates
+          : coords[coords.length - 1];
+
+        console.log(`🚨 IPAWS extension: ${eventData.direction} traffic, line ${isEWLine ? (lineGoesEast ? 'W→E' : 'E→W') : (lineGoesNorth ? 'S→N' : 'N→S')}, extending start ${extendStartMiles}mi / end ${extendEndMiles}mi`);
+
         const snapResult = await snapToRoad(
-          extStartLat, extStartLng, extEndLat, extEndLng,
+          extStart[1], extStart[0], extEnd[1], extEnd[0],
           eventData.direction, eventData.corridor, eventData.state,
           eventData.id + '_ipaws_extended', ''
         );
@@ -12988,7 +13027,7 @@ app.post('/api/ipaws/generate', requireUser, async (req, res) => {
           };
         }
       } catch (err) {
-        console.log(`  ⚠️  IPAWS extension snap failed: ${err.message}, using original geometry`);
+        console.log(`  ⚠️  IPAWS extension failed: ${err.message}, using original geometry`);
       }
     }
 
@@ -13023,7 +13062,7 @@ app.post('/api/ipaws/generate', requireUser, async (req, res) => {
 });
 
 // POST /api/ipaws/evaluate - Evaluate if event qualifies for IPAWS
-app.post('/api/ipaws/evaluate', requireUserOrStateAuth, async (req, res) => {
+app.post('/api/ipaws/evaluate', requireUser, async (req, res) => {
   try {
     const { event } = req.body;
 
@@ -13209,7 +13248,7 @@ app.get('/api/ipaws/alerts/:alertId', async (req, res) => {
 });
 
 // POST /api/ipaws/alerts/:alertId/cancel - Cancel an active alert (SOP Section 8.6)
-app.post('/api/ipaws/alerts/:alertId/cancel', requireUserOrStateAuth, async (req, res) => {
+app.post('/api/ipaws/alerts/:alertId/cancel', requireUser, async (req, res) => {
   try {
     const { alertId } = req.params;
     const { reason, user } = req.body;
@@ -13266,7 +13305,7 @@ app.post('/api/ipaws/alerts/:alertId/cancel', requireUserOrStateAuth, async (req
 });
 
 // DELETE /api/ipaws/alerts/:alertId - Delete an IPAWS alert (training mode or draft only)
-app.delete('/api/ipaws/alerts/:alertId', requireUserOrStateAuth, async (req, res) => {
+app.delete('/api/ipaws/alerts/:alertId', requireUser, async (req, res) => {
   try {
     const { alertId } = req.params;
 
@@ -13314,7 +13353,7 @@ app.delete('/api/ipaws/alerts/:alertId', requireUserOrStateAuth, async (req, res
 });
 
 // POST /api/ipaws/alerts/:alertId/update - Update an active alert (SOP Section 8.6)
-app.post('/api/ipaws/alerts/:alertId/update', requireUserOrStateAuth, async (req, res) => {
+app.post('/api/ipaws/alerts/:alertId/update', requireUser, async (req, res) => {
   try {
     const { alertId } = req.params;
     const { updates, user } = req.body;
@@ -13360,7 +13399,7 @@ app.post('/api/ipaws/alerts/:alertId/update', requireUserOrStateAuth, async (req
 });
 
 // POST /api/ipaws/alerts/:alertId/issue - Mark alert as issued (sent to IPAWS)
-app.post('/api/ipaws/alerts/:alertId/issue', requireUserOrStateAuth, async (req, res) => {
+app.post('/api/ipaws/alerts/:alertId/issue', requireUser, async (req, res) => {
   try {
     const { alertId } = req.params;
     const { user } = req.body;
@@ -13399,7 +13438,7 @@ app.post('/api/ipaws/alerts/:alertId/issue', requireUserOrStateAuth, async (req,
 });
 
 // POST /api/ipaws/alerts/:alertId/review - Submit after-action review (SOP Section 11)
-app.post('/api/ipaws/alerts/:alertId/review', requireUserOrStateAuth, async (req, res) => {
+app.post('/api/ipaws/alerts/:alertId/review', requireUser, async (req, res) => {
   try {
     const { alertId } = req.params;
     const { review } = req.body;
@@ -13440,7 +13479,7 @@ app.post('/api/ipaws/alerts/:alertId/review', requireUserOrStateAuth, async (req
 });
 
 // POST /api/ipaws/alerts/export-hsemd - Export logs for HSEMD coordination (SOP Section 11)
-app.post('/api/ipaws/alerts/export-hsemd', requireUserOrStateAuth, async (req, res) => {
+app.post('/api/ipaws/alerts/export-hsemd', requireUser, async (req, res) => {
   try {
     const { includeReviews = true, format = 'csv' } = req.body;
 
@@ -13715,7 +13754,7 @@ app.delete('/api/ipaws/rules/:id', requireAdmin, async (req, res) => {
 });
 
 // POST /api/ipaws/evaluate-rules - Evaluate event against all active rules
-app.post('/api/ipaws/evaluate-rules', requireUserOrStateAuth, async (req, res) => {
+app.post('/api/ipaws/evaluate-rules', requireUser, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({
@@ -13802,7 +13841,7 @@ app.post('/api/ipaws/evaluate-rules', requireUserOrStateAuth, async (req, res) =
 });
 
 // POST /api/ipaws/submit - Submit IPAWS alert for supervisor approval
-app.post('/api/ipaws/submit', requireUserOrStateAuth, async (req, res) => {
+app.post('/api/ipaws/submit', requireUser, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({
@@ -14100,7 +14139,7 @@ app.get('/api/ipaws/certifications/expiring', async (req, res) => {
 });
 
 // POST /api/ipaws/training - Log training session
-app.post('/api/ipaws/training', requireUserOrStateAuth, async (req, res) => {
+app.post('/api/ipaws/training', requireUser, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({ success: false, error: 'Database not configured' });
@@ -14223,7 +14262,7 @@ app.get('/api/ipaws/after-action-reviews/outstanding', async (req, res) => {
 });
 
 // POST /api/ipaws/after-action-reviews - Create new AAR
-app.post('/api/ipaws/after-action-reviews', requireUserOrStateAuth, async (req, res) => {
+app.post('/api/ipaws/after-action-reviews', requireUser, async (req, res) => {
   try {
     if (!pgPool) {
       return res.status(503).json({ success: false, error: 'Database not configured' });
