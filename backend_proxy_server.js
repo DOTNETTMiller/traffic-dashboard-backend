@@ -4782,6 +4782,14 @@ async function fetchAndCacheEvents() {
 
     console.log(`✅ Fetched ${activeEvents.length} active events (${allEvents.length} total, ${duplicateCount} duplicates, ${removedCount} expired)`);
 
+    // Strip rawFields from cached events to reduce memory footprint
+    // (rawFields holds triplicated debug data — raw/extracted/normalized for many
+    // fields. With 1700+ events that's significant RAM. Geometry is preserved.)
+    for (const evt of activeEvents) {
+      delete evt.rawFields;
+      delete evt._rawFields;
+    }
+
     // Update cache
     const cacheData = {
       success: true,
@@ -4825,6 +4833,10 @@ let startupCachePromise = fetchAndCacheEvents().then(() => {
 
 // Main endpoint to fetch all events
 app.get('/api/events', async (req, res) => {
+  // Allow clients/CDN to cache for 60 seconds to reduce egress
+  // Stale-while-revalidate lets browsers serve stale data while fetching fresh
+  res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+
   // If startup cache is still warming, wait for it instead of returning empty
   if (!eventsCache.data && startupCachePromise) {
     console.log('⏳ Waiting for startup cache to warm...');
