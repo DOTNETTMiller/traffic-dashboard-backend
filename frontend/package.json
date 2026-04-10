@@ -10,6 +10,7 @@
     "postinstall": "node patch-ifc-loader.js"
   },
   "dependencies": {
+    "@mapbox/polyline": "^1.2.1",
     "@vitejs/plugin-react": "^4.2.1",
     "axios": "^1.6.0",
     "date-fns": "^2.30.0",

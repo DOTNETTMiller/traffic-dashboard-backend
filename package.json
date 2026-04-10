@@ -17,6 +17,7 @@
   "license": "MIT",
   "dependencies": {
     "@google/earthengine": "^1.7.16",
+    "@mapbox/polyline": "^1.2.1",
     "@sendgrid/mail": "^8.1.6",
     "@tmcw/togeojson": "^7.1.2",
     "@turf/turf": "^7.3.4",

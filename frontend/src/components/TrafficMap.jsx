@@ -7,6 +7,38 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { isNearBorder } from '../utils/borderProximity';
 import { analyzePolyline, validateAndFixGeometry } from '../utils/polylineDiagnostics';
+import polyline from '@mapbox/polyline';
+
+// Decode an encodedPolyline string back into [lng, lat] coordinate array
+// (polyline lib returns [lat, lng] so we swap to GeoJSON order)
+const decodePolyline = (encoded) => {
+  if (!encoded) return [];
+  try {
+    return polyline.decode(encoded).map(([lat, lng]) => [lng, lat]);
+  } catch {
+    return [];
+  }
+};
+
+// Materialize geometry: if event.geometry has encodedPolyline(s), decode them
+// back into coordinates so the rest of the rendering code works unchanged.
+const materializeGeometry = (event) => {
+  if (!event || !event.geometry) return event;
+  const geom = event.geometry;
+  if (geom.type === 'LineString' && geom.encodedPolyline && !geom.coordinates) {
+    return {
+      ...event,
+      geometry: { ...geom, coordinates: decodePolyline(geom.encodedPolyline) }
+    };
+  }
+  if (geom.type === 'MultiLineString' && Array.isArray(geom.encodedPolylines) && !geom.coordinates) {
+    return {
+      ...event,
+      geometry: { ...geom, coordinates: geom.encodedPolylines.map(decodePolyline) }
+    };
+  }
+  return event;
+};
 import ParkingLayer from './ParkingLayer';
 import { config } from '../config';
 import InterchangeLayer from './InterchangeLayer';
@@ -543,6 +575,7 @@ export default function TrafficMap({
 
   // Filter out events without valid coordinates and validate/fix geometries
   const validEvents = events
+    .map(materializeGeometry) // decode polyline strings → coordinate arrays
     .filter(e => {
       const lat = parseFloat(e.latitude);
       const lng = parseFloat(e.longitude);

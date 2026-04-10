@@ -4619,24 +4619,41 @@ const fetchStateData = async (stateKey) => {
 
 // Strip bloat from event objects for API responses
 // Removes rawFields (triple-stored debug data) and simplifies geometry coordinates
+const polyline = require('@mapbox/polyline');
+
+// Encode a [lng, lat] coordinate array as a Google polyline string.
+// Polyline expects [lat, lng] pairs, so we swap.
+const encodeCoords = (coords) => {
+  if (!Array.isArray(coords) || coords.length === 0) return null;
+  return polyline.encode(coords.map(c => [c[1], c[0]]));
+};
+
 const slimEvent = (event) => {
   const slim = { ...event };
   delete slim.rawFields;
   delete slim._rawFields;
 
-  // Simplify geometry: keep type and reduce coordinate precision
+  // Encode geometry coordinates as a polyline string instead of full arrays.
+  // ~6x smaller, preserves full precision (~1m), no downsampling needed.
+  // Frontend decodes via @mapbox/polyline before passing to Leaflet.
   if (slim.geometry && slim.geometry.coordinates) {
-    const coords = slim.geometry.coordinates;
-    if (Array.isArray(coords) && coords.length > 50) {
-      // Downsample long coordinate arrays (keep every Nth point + first/last)
-      const step = Math.ceil(coords.length / 50);
-      const simplified = [coords[0]];
-      for (let i = step; i < coords.length - 1; i += step) {
-        simplified.push(coords[i]);
-      }
-      simplified.push(coords[coords.length - 1]);
-      slim.geometry = { ...slim.geometry, coordinates: simplified };
+    const geom = slim.geometry;
+    if (geom.type === 'LineString' && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
+      slim.geometry = {
+        type: 'LineString',
+        encodedPolyline: encodeCoords(geom.coordinates),
+        encoding: 'polyline5',
+        ...(geom.geometrySource && { geometrySource: geom.geometrySource })
+      };
+    } else if (geom.type === 'MultiLineString' && Array.isArray(geom.coordinates) && geom.coordinates.length > 0) {
+      slim.geometry = {
+        type: 'MultiLineString',
+        encodedPolylines: geom.coordinates.map(line => encodeCoords(line)),
+        encoding: 'polyline5',
+        ...(geom.geometrySource && { geometrySource: geom.geometrySource })
+      };
     }
+    // Point geometries pass through unchanged (already tiny)
   }
 
   return slim;
