@@ -16739,7 +16739,7 @@ app.delete('/api/admin/states/:stateKey', requireAdmin, (req, res) => {
 app.get('/api/admin/states', async (req, res) => {
   const authHeader = req.headers.authorization;
   const isAdmin = authHeader && authHeader.startsWith('Bearer ') &&
-                  db.verifyAdminToken(authHeader.substring(7));
+                  await db.verifyAdminToken(authHeader.substring(7));
 
   const states = await db.getAllStates(isAdmin);
 
@@ -34516,7 +34516,7 @@ app.get('/api/parking/validation', requireAdmin, async (req, res) => {
 // the database with read-only permissions using API key authentication
 
 // API Key authentication middleware for ChatGPT
-const requireAPIKey = (req, res, next) => {
+const requireAPIKey = async (req, res, next) => {
   const apiKey = req.headers['x-api-key'];
 
   if (!apiKey) {
@@ -34524,7 +34524,7 @@ const requireAPIKey = (req, res, next) => {
   }
 
   // Verify API key using admin tokens table
-  if (db.verifyAdminToken(apiKey)) {
+  if (await db.verifyAdminToken(apiKey)) {
     req.apiKeyAuth = true;
     return next();
   }
@@ -35293,10 +35293,10 @@ app.get('/api/chatgpt/events/id/:eventId', requireAPIKey, async (req, res) => {
 });
 
 // Get parking facilities (read-only for ChatGPT)
-app.get('/api/chatgpt/parking/facilities', requireAPIKey, (req, res) => {
+app.get('/api/chatgpt/parking/facilities', requireAPIKey, async (req, res) => {
   try {
     const { state } = req.query;
-    const facilities = db.getParkingFacilities(state || null);
+    const facilities = await db.getParkingFacilities(state || null);
 
     res.json({
       success: true,
@@ -35310,10 +35310,10 @@ app.get('/api/chatgpt/parking/facilities', requireAPIKey, (req, res) => {
 });
 
 // Get parking availability (read-only for ChatGPT)
-app.get('/api/chatgpt/parking/availability', requireAPIKey, (req, res) => {
+app.get('/api/chatgpt/parking/availability', requireAPIKey, async (req, res) => {
   try {
     const { facilityId } = req.query;
-    const availability = db.getLatestParkingAvailability(facilityId || null);
+    const availability = await db.getLatestParkingAvailability(facilityId || null);
 
     res.json({
       success: true,
@@ -35326,11 +35326,11 @@ app.get('/api/chatgpt/parking/availability', requireAPIKey, (req, res) => {
 });
 
 // Get parking history (read-only for ChatGPT)
-app.get('/api/chatgpt/parking/history/:facilityId', requireAPIKey, (req, res) => {
+app.get('/api/chatgpt/parking/history/:facilityId', requireAPIKey, async (req, res) => {
   try {
     const { facilityId } = req.params;
     const { hours } = req.query;
-    const history = db.getParkingHistory(facilityId, parseInt(hours) || 24);
+    const history = await db.getParkingHistory(facilityId, parseInt(hours) || 24);
 
     res.json({
       success: true,

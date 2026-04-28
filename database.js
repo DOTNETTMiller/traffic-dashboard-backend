@@ -2626,11 +2626,11 @@ class StateDatabase {
     }
   }
 
-  getLatestParkingAvailability(facilityId = null) {
+  async getLatestParkingAvailability(facilityId = null) {
     try {
       if (facilityId) {
         // Get latest for specific facility
-        const row = this.db.prepare(`
+        const row = await this.db.prepare(`
           SELECT pa.*, tpf.facility_name, tpf.state, tpf.latitude, tpf.longitude, tpf.truck_spaces
           FROM parking_availability pa
           JOIN truck_parking_facilities tpf ON pa.facility_id = tpf.facility_id
@@ -2657,7 +2657,7 @@ class StateDatabase {
         };
       } else {
         // Get latest for all facilities
-        const rows = this.db.prepare(`
+        const rows = await this.db.prepare(`
           SELECT pa.*, tpf.facility_name, tpf.state, tpf.latitude, tpf.longitude, tpf.truck_spaces
           FROM parking_availability pa
           JOIN truck_parking_facilities tpf ON pa.facility_id = tpf.facility_id
@@ -2690,9 +2690,9 @@ class StateDatabase {
     }
   }
 
-  getParkingHistory(facilityId, hours = 24) {
+  async getParkingHistory(facilityId, hours = 24) {
     try {
-      const rows = this.db.prepare(`
+      const rows = await this.db.prepare(`
         SELECT * FROM parking_availability
         WHERE facility_id = ?
           AND timestamp >= datetime('now', '-' || ? || ' hours')
