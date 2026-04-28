@@ -11,6 +11,23 @@ class TrafficAPI {
       baseURL: API_BASE_URL,
       timeout: 300000 // Increased to 5 minutes for large GIS file uploads (.gdb.zip)
     });
+
+    this.client.interceptors.request.use((cfg) => {
+      if (cfg.headers?.Authorization) return cfg;
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        cfg.headers = cfg.headers || {};
+        cfg.headers.Authorization = `Bearer ${token}`;
+        return cfg;
+      }
+      const stateKey = localStorage.getItem('stateKey');
+      const statePassword = localStorage.getItem('statePassword');
+      if (stateKey && statePassword) {
+        cfg.headers = cfg.headers || {};
+        cfg.headers.Authorization = `State ${stateKey}:${statePassword}`;
+      }
+      return cfg;
+    });
   }
 
   // Generic GET method for any endpoint
