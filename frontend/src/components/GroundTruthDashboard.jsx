@@ -235,9 +235,10 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
           [facility.facilityId]: consensus.occupied
         }));
 
-        // Use consensus totalCapacity if available, otherwise fallback to prediction capacity
-        const pred = predictions[facility.facilityId];
-        const capacityToUse = consensus.totalCapacity || (pred ? pred.capacity : null);
+        // Use consensus totalCapacity if available, otherwise fall back to the
+        // first non-null capacity from this facility's hourly predictions
+        const fallbackCapacity = facility.hourlyPredictions?.find(p => p.capacity)?.capacity ?? null;
+        const capacityToUse = consensus.totalCapacity || fallbackCapacity;
 
         setTotalCapacityCounts(prev => ({
           ...prev,
