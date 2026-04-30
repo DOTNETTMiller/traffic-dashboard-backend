@@ -3,9 +3,10 @@ node_modules/
 */node_modules/
 
 # Production builds
-# dist/ - COMMENTED OUT: We need frontend/dist in production
+# Railway runs `vite build` in nixpacks.toml's build phase, so frontend/dist
+# is generated on deploy rather than committed.
+frontend/dist/
 build/
-# */dist/ - COMMENTED OUT: We need frontend/dist in production
 */build/
 
 # Environment variables
