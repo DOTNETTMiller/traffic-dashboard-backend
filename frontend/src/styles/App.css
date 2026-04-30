@@ -1,34 +1,88 @@
+/* =========================================================================
+   Design tokens — chrome + typography pass (design/chrome-typography branch)
+   ========================================================================= */
+:root {
+  /* Type ramp */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+    'Helvetica Neue', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --fs-11: 11px;
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-15: 15px;
+  --fs-18: 18px;
+  --fs-24: 24px;
+
+  /* Chrome — slate / off-white. One accent. */
+  --chrome-bg: #0f172a;        /* deep slate, header */
+  --chrome-fg: #f8fafc;        /* near-white text on chrome */
+  --chrome-muted: #94a3b8;     /* slate-400, secondary text */
+  --chrome-border: #1e293b;    /* slate-800, dividers */
+
+  --surface: #ffffff;
+  --surface-alt: #f8fafc;      /* page bg */
+  --border: #e5e7eb;
+  --border-strong: #cbd5e1;
+
+  --fg: #0f172a;
+  --fg-muted: #475569;
+
+  --accent: #2563eb;           /* one accent: blue-600 */
+  --accent-hover: #1d4ed8;
+
+  /* Severity */
+  --severity-major: #dc2626;
+  --severity-moderate: #d97706;
+  --severity-minor: #64748b;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  color: var(--fg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11', 'ss01', 'ss03'; /* Inter stylistic alternates */
+  letter-spacing: -0.005em;
+}
+
+/* Live numbers (counts, timestamps, IDs, coords, capacities) shouldn't jiggle. */
+.tabular-nums,
+.last-update,
+.event-count,
+.user-info {
+  font-variant-numeric: tabular-nums;
+}
+
+/* For monospaced data — IDs, lat/lon, raw payloads. Apply with class="mono". */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95em;
 }
 
 .app {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background-color: #f9fafb;
+  background-color: var(--surface-alt);
 }
 
 .header {
-  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
-  color: white;
-  padding: 8px 16px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  background: var(--chrome-bg);
+  color: var(--chrome-fg);
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--chrome-border);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
   position: sticky;
   top: 0;
   z-index: 10000;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  transition: all 0.2s ease;
+  transition: none;
 }
 
 .header-content {
@@ -41,37 +95,77 @@ body {
 
 .title {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--fs-15);
   font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--chrome-fg);
 }
 
 .header-info {
   display: flex;
-  gap: 12px;
-  font-size: 12px;
+  gap: 16px;
+  font-size: var(--fs-12);
+  color: var(--chrome-muted);
+  align-items: center;
 }
 
 .last-update,
 .event-count {
-  opacity: 0.9;
+  color: var(--chrome-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.event-count {
+  color: var(--chrome-fg);
+  font-weight: 500;
+}
+
+/* Feed-export chip rail. One quiet outline, emojis carry identity. */
+.tim-links {
+  display: flex;
+  gap: 4px;
+  margin-left: 8px;
+}
+
+.tim-link {
+  padding: 4px 9px;
+  border-radius: 4px;
+  border: 1px solid rgba(248, 250, 252, 0.18);
+  background: rgba(248, 250, 252, 0.04);
+  color: var(--chrome-fg);
+  text-decoration: none;
+  font-size: var(--fs-11);
+  font-weight: 500;
+  white-space: nowrap;
+  display: inline-block;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.tim-link:hover {
+  background: rgba(248, 250, 252, 0.10);
+  border-color: rgba(248, 250, 252, 0.32);
+}
+
+/* Quiet "brought to you by" byline — was 10px white/0.8 on blue, now slate-400. */
+.title > span {
+  color: var(--chrome-muted);
+  font-weight: 400;
 }
 
 .controls {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 8px 16px;
+  padding: 8px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border-bottom: 1px solid #e5e7eb;
+  background-color: var(--surface);
+  border-bottom: 1px solid var(--border);
   position: sticky;
-  top: 38px;
+  top: 42px;
   z-index: 9999;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  transition: all 0.2s ease;
+  box-shadow: none;
+  transition: none;
 }
 
 .view-toggle {
@@ -84,28 +178,31 @@ body {
 }
 
 .toggle-btn {
-  padding: 6px 12px;
+  padding: 5px 10px;
   border: none;
   background-color: transparent;
-  color: #374151;
+  color: var(--fg-muted);
   cursor: pointer;
   border-radius: 4px;
   font-weight: 500;
-  font-size: 12px;
-  transition: all 0.2s ease;
+  font-size: var(--fs-12);
+  font-family: var(--font-sans);
+  letter-spacing: -0.005em;
+  transition: background-color 120ms ease, color 120ms ease;
   position: relative;
 }
 
 .toggle-btn:hover {
-  background-color: #e5e7eb;
-  transform: translateY(-1px);
+  background-color: var(--border);
+  color: var(--fg);
+  transform: none;
 }
 
 .toggle-btn.active {
-  background-color: white;
-  color: #1e40af;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  transform: translateY(0);
+  background-color: var(--surface);
+  color: var(--fg);
+  box-shadow: 0 0 0 1px var(--border-strong);
+  transform: none;
 }
 
 .control-buttons {
@@ -128,26 +225,28 @@ body {
 
 .refresh-btn {
   padding: 6px 12px;
-  background-color: #3b82f6;
-  color: white;
+  background-color: var(--accent);
+  color: #ffffff;
   border: none;
-  border-radius: 6px;
+  border-radius: 5px;
   cursor: pointer;
   font-weight: 500;
-  font-size: 12px;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3);
+  font-size: var(--fs-12);
+  font-family: var(--font-sans);
+  letter-spacing: -0.005em;
+  transition: background-color 120ms ease;
+  box-shadow: none;
 }
 
 .refresh-btn:hover:not(:disabled) {
-  background-color: #2563eb;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 6px rgba(59, 130, 246, 0.4);
+  background-color: var(--accent-hover);
+  transform: none;
+  box-shadow: none;
 }
 
 .refresh-btn:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: 0 1px 2px rgba(59, 130, 246, 0.3);
+  transform: none;
+  box-shadow: none;
 }
 
 .refresh-btn:disabled {
@@ -181,16 +280,17 @@ body {
 
 .view-container {
   flex: 1;
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  background-color: var(--surface);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  box-shadow: none;
   overflow-y: auto;
   overflow-x: hidden;
-  transition: box-shadow 0.2s ease;
+  transition: none;
 }
 
 .view-container:hover {
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  box-shadow: none;
 }
 
 .error-banner {

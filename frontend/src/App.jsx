@@ -730,24 +730,12 @@ function App() {
             <span className="event-count">
               {filteredEvents.length} {filteredEvents.length === 1 ? 'event' : 'events'}
             </span>
-            <div className="tim-links" style={{ display: 'flex', gap: '6px', marginLeft: '8px' }}>
+            <div className="tim-links">
               <a
                 href={`${config.apiUrl}/api/convert/tim`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="tim-link"
-                style={{
-                  padding: '4px 8px',
-                  borderRadius: '3px',
-                  border: '1px solid #3b82f6',
-                  backgroundColor: '#3b82f6',
-                  color: 'white',
-                  textDecoration: 'none',
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  display: 'inline-block'
-                }}
                 title="SAE J2735 Traveler Information Message feed for connected vehicles"
               >
                 📡 TIM
@@ -757,18 +745,6 @@ function App() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="tim-link"
-                style={{
-                  padding: '4px 8px',
-                  borderRadius: '3px',
-                  border: '1px solid #8b5cf6',
-                  backgroundColor: '#8b5cf6',
-                  color: 'white',
-                  textDecoration: 'none',
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  display: 'inline-block'
-                }}
                 title="SAE J2540 Commercial Vehicle TIM feed with truck-specific advisories"
               >
                 🚛 CV-TIM
@@ -778,18 +754,6 @@ function App() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="tim-link"
-                style={{
-                  padding: '4px 8px',
-                  borderRadius: '3px',
-                  border: '1px solid #10b981',
-                  backgroundColor: '#10b981',
-                  color: 'white',
-                  textDecoration: 'none',
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  display: 'inline-block'
-                }}
                 title="Common Incident Feed Specification"
               >
                 🚨 CIFS
@@ -799,18 +763,6 @@ function App() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="tim-link"
-                style={{
-                  padding: '4px 8px',
-                  borderRadius: '3px',
-                  border: '1px solid #f59e0b',
-                  backgroundColor: '#f59e0b',
-                  color: 'white',
-                  textDecoration: 'none',
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  display: 'inline-block'
-                }}
                 title="WZDx v4.2 Work Zone Data Exchange feed - USDOT standard for work zones and incidents"
               >
                 🚧 WZDx
