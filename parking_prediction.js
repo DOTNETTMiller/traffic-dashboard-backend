@@ -14,9 +14,9 @@ class ParkingPredictor {
    * @param {Date} targetTime - Time to predict for (defaults to now)
    * @returns {Object} Prediction with confidence score
    */
-  predictAvailability(facilityId, targetTime = new Date()) {
+  async predictAvailability(facilityId, targetTime = new Date()) {
     // Get historical data for the past 7 days
-    const history = this.db.getParkingHistory(facilityId, 24 * 7);
+    const history = await this.db.getParkingHistory(facilityId, 24 * 7);
 
     if (history.length === 0) {
       return {
@@ -97,12 +97,12 @@ class ParkingPredictor {
    * Predict availability for all facilities
    * @returns {Array} Predictions for all facilities
    */
-  predictAllFacilities(targetTime = new Date()) {
-    const facilities = this.db.getParkingFacilities();
+  async predictAllFacilities(targetTime = new Date()) {
+    const facilities = await this.db.getParkingFacilities();
     const predictions = [];
 
     for (const facility of facilities) {
-      const prediction = this.predictAvailability(facility.facilityId, targetTime);
+      const prediction = await this.predictAvailability(facility.facilityId, targetTime);
 
       if (prediction.success) {
         predictions.push({
@@ -124,10 +124,10 @@ class ParkingPredictor {
    * Generate predictions and save to database
    * This should be run periodically (e.g., every hour)
    */
-  generateAndStorePredictions() {
+  async generateAndStorePredictions() {
     console.log('🔮 Generating parking availability predictions...');
 
-    const predictions = this.predictAllFacilities();
+    const predictions = await this.predictAllFacilities();
     let stored = 0;
     let failed = 0;
 
@@ -156,8 +156,8 @@ class ParkingPredictor {
    * Analyze utilization patterns for a facility
    * Returns insights about peak times, average occupancy, etc.
    */
-  analyzeUtilizationPattern(facilityId, days = 7) {
-    const history = this.db.getParkingHistory(facilityId, days * 24);
+  async analyzeUtilizationPattern(facilityId, days = 7) {
+    const history = await this.db.getParkingHistory(facilityId, days * 24);
 
     if (history.length === 0) {
       return { error: 'No data available' };
@@ -207,8 +207,8 @@ class ParkingPredictor {
    * @param {number} radiusKm - Search radius in kilometers
    * @param {number} minAvailable - Minimum available spaces needed
    */
-  findAvailableNearby(latitude, longitude, radiusKm = 50, minAvailable = 1) {
-    const allAvailability = this.db.getLatestParkingAvailability();
+  async findAvailableNearby(latitude, longitude, radiusKm = 50, minAvailable = 1) {
+    const allAvailability = await this.db.getLatestParkingAvailability();
 
     // Calculate distance and filter
     const nearby = allAvailability

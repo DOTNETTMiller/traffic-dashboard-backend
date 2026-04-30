@@ -4,5 +4,8 @@ nixPkgs = ["nodejs"]
 [phases.install]
 cmds = ["npm install --production"]
 
+[phases.build]
+cmds = ["cd frontend && npm install && npm run build"]
+
 [start]
 cmd = "NODE_ENV=production node start.js"

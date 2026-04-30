@@ -2727,7 +2727,7 @@ async function initializeDatabase() {
     // Generate admin token if none exist
     const tokenCheck = db.db.prepare('SELECT COUNT(*) as count FROM admin_tokens').get();
     if (tokenCheck.count === 0) {
-      const initialToken = db.createAdminToken('Initial admin token');
+      const initialToken = await db.createAdminToken('Initial admin token');
       console.log('\n🔑 ═══════════════════════════════════════════════════════════');
       console.log('🔑 ADMIN TOKEN GENERATED (SAVE THIS SECURELY):');
       console.log(`🔑 ${initialToken}`);
@@ -16825,14 +16825,14 @@ app.delete('/api/admin/interchanges/:id', requireAdmin, (req, res) => {
   }
 });
 
-app.post('/api/admin/detour-alerts/:id/resolve', requireAdmin, (req, res) => {
+app.post('/api/admin/detour-alerts/:id/resolve', requireAdmin, async (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (Number.isNaN(id)) {
     return res.status(400).json({ error: 'Invalid alert id' });
   }
 
   const note = req.body?.note || null;
-  const result = db.resolveDetourAlert(id, note);
+  const result = await db.resolveDetourAlert(id, note);
   if (result.success) {
     res.json({ success: true });
   } else {
@@ -18174,10 +18174,11 @@ const notifyDetourSubscribers = async (alertRecord, interchange, event) => {
 
   console.log(`📨 Notifying ${relevantStates.length} relevant state(s) for ${event.corridor}: ${relevantStates.join(', ')}`);
 
-  relevantStates.forEach(stateKey => {
+  for (const stateKey of relevantStates) {
     const normalizedState = stateKey.toLowerCase();
 
     // Check if we already sent a message for this event+state combination in the last hour
+    let skipDuplicate = false;
     try {
       const recentMessage = db.db.prepare(`
         SELECT id FROM state_messages
@@ -18191,11 +18192,12 @@ const notifyDetourSubscribers = async (alertRecord, interchange, event) => {
 
       if (recentMessage) {
         console.log(`⏭️  Skipping duplicate detour message for ${normalizedState} (event ${event.id})`);
-        return; // Skip sending duplicate message
+        skipDuplicate = true;
       }
     } catch (err) {
       console.error('Error checking for duplicate message:', err);
     }
+    if (skipDuplicate) continue;
 
     db.sendMessage({
       fromState: 'ADMIN',
@@ -18235,7 +18237,7 @@ const notifyDetourSubscribers = async (alertRecord, interchange, event) => {
     // Only send email notifications for NEW alerts (not duplicates)
     // This prevents email spam when the same alert is detected repeatedly
     if (isNewAlert) {
-      const recipients = db.getUsersForMessageNotification(normalizedState);
+      const recipients = await db.getUsersForMessageNotification(normalizedState);
       if (Array.isArray(recipients)) {
         console.log(`📧 Sending detour alert emails to ${recipients.length} recipients for ${interchange.name}`);
         recipients.forEach(recipient => {
@@ -18254,7 +18256,7 @@ const notifyDetourSubscribers = async (alertRecord, interchange, event) => {
     } else {
       console.log(`📧 Skipped duplicate detour alert emails for event ${event.id}`);
     }
-  });
+  }
 };
 
 const evaluateDetourAlerts = async () => {
@@ -18283,11 +18285,11 @@ const evaluateDetourAlerts = async () => {
     const processedInterchanges = new Set();
     const now = Date.now();
 
-    interchanges.forEach(interchange => {
+    for (const interchange of interchanges) {
       // Skip interchanges without an ID
       if (!interchange.id) {
         console.warn(`⚠️  Skipping interchange without ID: ${interchange.name}`);
-        return;
+        continue;
       }
 
       const radius = interchange.watchRadiusKm || 15;
@@ -18318,10 +18320,10 @@ const evaluateDetourAlerts = async () => {
         processedInterchanges.add(interchange.id);
         const existingAlert = alertByInterchange.get(interchange.id);
         if (existingAlert) {
-          db.resolveDetourAlert(existingAlert.id, 'No qualifying events in watch radius');
+          await db.resolveDetourAlert(existingAlert.id, 'No qualifying events in watch radius');
           console.log(`✅ Resolved detour alert at ${interchange.name}`);
         }
-        return;
+        continue;
       }
 
       const event = candidates[0];
@@ -18329,11 +18331,11 @@ const evaluateDetourAlerts = async () => {
       const existingAlert = alertByInterchange.get(interchange.id);
 
       if (existingAlert && existingAlert.eventId === event.id) {
-        return; // already active for this event
+        continue; // already active for this event
       }
 
       if (existingAlert && existingAlert.eventId !== event.id) {
-        db.resolveDetourAlert(existingAlert.id, 'Superseded by new event');
+        await db.resolveDetourAlert(existingAlert.id, 'Superseded by new event');
       }
 
       const message = buildDetourMessage(interchange, event);
@@ -18349,7 +18351,7 @@ const evaluateDetourAlerts = async () => {
       });
 
       try {
-        const createResult = db.createDetourAlert({
+        const createResult = await db.createDetourAlert({
           interchangeId: interchange.id,
           eventId: event.id,
           eventState: (event.state || '').toLowerCase(),
@@ -18367,36 +18369,36 @@ const evaluateDetourAlerts = async () => {
           notifyDetourSubscribers({
             id: createResult.id,
             message
-          }, interchange, event);
+          }, interchange, event).catch(err => console.error('notifyDetourSubscribers error:', err));
         }
       } catch (error) {
         console.error(`⚠️  Error creating detour alert for ${interchange.name}: ${error.message}`);
       }
-    });
+    }
 
     // Clean up alerts for interchanges no longer monitored
-    activeAlerts.forEach(alert => {
+    for (const alert of activeAlerts) {
       if (!processedInterchanges.has(alert.interchangeId)) {
-        db.resolveDetourAlert(alert.id, 'Interchange no longer monitored');
+        await db.resolveDetourAlert(alert.id, 'Interchange no longer monitored');
       }
-    });
+    }
 
     // Clean up alerts for events that no longer exist
     const currentEventIds = new Set(allEvents.map(e => e.id));
-    activeAlerts.forEach(alert => {
+    for (const alert of activeAlerts) {
       if (alert.eventId && !currentEventIds.has(alert.eventId)) {
-        db.resolveDetourAlert(alert.id, 'Event no longer active');
+        await db.resolveDetourAlert(alert.id, 'Event no longer active');
       }
-    });
+    }
 
     // Clean up alerts older than 24 hours
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    activeAlerts.forEach(alert => {
+    for (const alert of activeAlerts) {
       const createdAt = new Date(alert.createdAt);
       if (createdAt < twentyFourHoursAgo) {
-        db.resolveDetourAlert(alert.id, 'Alert expired (>24 hours old)');
+        await db.resolveDetourAlert(alert.id, 'Alert expired (>24 hours old)');
       }
-    });
+    }
   } catch (error) {
     console.error('Error evaluating detour alerts:', error);
   } finally {
@@ -32887,9 +32889,9 @@ app.get('/api/parking/facilities', async (req, res) => {
 });
 
 // Get latest parking availability for all facilities
-app.get('/api/parking/availability', (req, res) => {
+app.get('/api/parking/availability', async (req, res) => {
   try {
-    const availability = db.getLatestParkingAvailability();
+    const availability = await db.getLatestParkingAvailability();
     res.json({ success: true, availability });
   } catch (error) {
     console.error('Error fetching parking availability:', error);
@@ -32898,10 +32900,10 @@ app.get('/api/parking/availability', (req, res) => {
 });
 
 // Get parking availability for a specific facility
-app.get('/api/parking/availability/:facilityId', (req, res) => {
+app.get('/api/parking/availability/:facilityId', async (req, res) => {
   try {
     const facilityId = req.params.facilityId;
-    const availability = db.getLatestParkingAvailability(facilityId);
+    const availability = await db.getLatestParkingAvailability(facilityId);
 
     if (!availability) {
       return res.status(404).json({ error: 'Facility not found or no availability data' });
@@ -32915,11 +32917,11 @@ app.get('/api/parking/availability/:facilityId', (req, res) => {
 });
 
 // Get parking history for a facility
-app.get('/api/parking/history/:facilityId', (req, res) => {
+app.get('/api/parking/history/:facilityId', async (req, res) => {
   try {
     const facilityId = req.params.facilityId;
     const hours = parseInt(req.query.hours || '24', 10);
-    const history = db.getParkingHistory(facilityId, hours);
+    const history = await db.getParkingHistory(facilityId, hours);
     res.json({ success: true, history });
   } catch (error) {
     console.error('Error fetching parking history:', error);
@@ -32993,12 +32995,12 @@ app.post('/api/admin/parking/availability', requireAdmin, (req, res) => {
 // ========================================
 
 // Get prediction for a specific facility
-app.get('/api/parking/predict/:facilityId', (req, res) => {
+app.get('/api/parking/predict/:facilityId', async (req, res) => {
   try {
     const facilityId = req.params.facilityId;
     const targetTime = req.query.time ? new Date(req.query.time) : new Date();
 
-    const prediction = parkingPredictor.predictAvailability(facilityId, targetTime);
+    const prediction = await parkingPredictor.predictAvailability(facilityId, targetTime);
 
     if (!prediction.success) {
       return res.status(404).json({ error: prediction.error });
@@ -33012,10 +33014,10 @@ app.get('/api/parking/predict/:facilityId', (req, res) => {
 });
 
 // Get predictions for all facilities
-app.get('/api/parking/predict-all', (req, res) => {
+app.get('/api/parking/predict-all', async (req, res) => {
   try {
     const targetTime = req.query.time ? new Date(req.query.time) : new Date();
-    const predictions = parkingPredictor.predictAllFacilities(targetTime);
+    const predictions = await parkingPredictor.predictAllFacilities(targetTime);
     res.json({ success: true, predictions, count: predictions.length });
   } catch (error) {
     console.error('Error generating predictions:', error);
@@ -33024,7 +33026,7 @@ app.get('/api/parking/predict-all', (req, res) => {
 });
 
 // Find available parking nearby
-app.get('/api/parking/nearby', (req, res) => {
+app.get('/api/parking/nearby', async (req, res) => {
   try {
     const lat = parseFloat(req.query.lat);
     const lon = parseFloat(req.query.lon);
@@ -33035,7 +33037,7 @@ app.get('/api/parking/nearby', (req, res) => {
       return res.status(400).json({ error: 'lat and lon query parameters are required' });
     }
 
-    const nearby = parkingPredictor.findAvailableNearby(lat, lon, radius, minAvailable);
+    const nearby = await parkingPredictor.findAvailableNearby(lat, lon, radius, minAvailable);
     res.json({ success: true, facilities: nearby, count: nearby.length });
   } catch (error) {
     console.error('Error finding nearby parking:', error);
@@ -33044,12 +33046,12 @@ app.get('/api/parking/nearby', (req, res) => {
 });
 
 // Analyze utilization patterns for a facility
-app.get('/api/parking/analyze/:facilityId', (req, res) => {
+app.get('/api/parking/analyze/:facilityId', async (req, res) => {
   try {
     const facilityId = req.params.facilityId;
     const days = parseInt(req.query.days) || 7;
 
-    const analysis = parkingPredictor.analyzeUtilizationPattern(facilityId, days);
+    const analysis = await parkingPredictor.analyzeUtilizationPattern(facilityId, days);
 
     if (analysis.error) {
       return res.status(404).json({ error: analysis.error });
@@ -33063,9 +33065,9 @@ app.get('/api/parking/analyze/:facilityId', (req, res) => {
 });
 
 // Admin: Generate and store predictions for all facilities
-app.post('/api/admin/parking/generate-predictions', requireAdmin, (req, res) => {
+app.post('/api/admin/parking/generate-predictions', requireAdmin, async (req, res) => {
   try {
-    const result = parkingPredictor.generateAndStorePredictions();
+    const result = await parkingPredictor.generateAndStorePredictions();
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('Error generating predictions:', error);
@@ -35101,10 +35103,10 @@ app.post('/api/calendar/progress/upload-minutes', requireAdmin, async (req, res)
 // ==================== CHATGPT API ENDPOINTS ====================
 
 // Generate API key for ChatGPT (admin only)
-app.post('/api/chatgpt/generate-key', requireAdmin, (req, res) => {
+app.post('/api/chatgpt/generate-key', requireAdmin, async (req, res) => {
   try {
     const { description } = req.body;
-    const apiKey = db.createAdminToken(description || 'ChatGPT API Access');
+    const apiKey = await db.createAdminToken(description || 'ChatGPT API Access');
 
     res.json({
       success: true,

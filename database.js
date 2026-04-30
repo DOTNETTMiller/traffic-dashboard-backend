@@ -2692,12 +2692,16 @@ class StateDatabase {
 
   async getParkingHistory(facilityId, hours = 24) {
     try {
-      const rows = await this.db.prepare(`
-        SELECT * FROM parking_availability
-        WHERE facility_id = ?
-          AND timestamp >= datetime('now', '-' || ? || ' hours')
-        ORDER BY timestamp DESC
-      `).all(facilityId, hours);
+      const sql = this.isPostgres
+        ? `SELECT * FROM parking_availability
+           WHERE facility_id = ?
+             AND timestamp >= NOW() - (? || ' hours')::interval
+           ORDER BY timestamp DESC`
+        : `SELECT * FROM parking_availability
+           WHERE facility_id = ?
+             AND timestamp >= datetime('now', '-' || ? || ' hours')
+           ORDER BY timestamp DESC`;
+      const rows = await this.db.prepare(sql).all(facilityId, hours);
 
       return rows.map(row => ({
         id: row.id,
