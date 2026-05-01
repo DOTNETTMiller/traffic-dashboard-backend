@@ -3,6 +3,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { isNearBorder } from '../utils/borderProximity';
 import { theme } from '../styles/theme';
 import EnhancedEventCard from './EnhancedEventCard';
+import Skeleton from './Skeleton';
 // GLOBAL_TEXT_VISIBILITY_FIX_APPLIED: Ensures readable text on all backgrounds
 
 
@@ -15,7 +16,7 @@ const normalizeSeverity = (severity) => {
   return value;
 };
 
-export default function EventTable({ events, messages = {}, onEventSelect, onGeofenceUpdate }) {
+export default function EventTable({ events, messages = {}, loading = false, onEventSelect, onGeofenceUpdate }) {
   const [sortField, setSortField] = useState('startTime');
   const [sortDirection, setSortDirection] = useState('desc');
   const [viewMode, setViewMode] = useState('cards'); // 'table' or 'cards'
@@ -320,15 +321,32 @@ export default function EventTable({ events, messages = {}, onEventSelect, onGeo
       </table>
         )}
 
-        {/* No Events Message */}
+        {/* Empty / loading state */}
         {sortedEvents.length === 0 && (
-          <div style={{
-            padding: '40px',
-            textAlign: 'center',
-            color: '#6b7280'
-          }}>
-            No events found
-          </div>
+          loading ? (
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <Skeleton circle size={28} />
+                  <div style={{ flex: 1 }}>
+                    <Skeleton width="38%" height={12} />
+                    <div style={{ height: 6 }} />
+                    <Skeleton width="72%" height={10} />
+                  </div>
+                  <Skeleton width="84px" height={10} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{
+              padding: '40px',
+              textAlign: 'center',
+              color: '#6e6e73',
+              fontSize: '13px'
+            }}>
+              No events found
+            </div>
+          )
         )}
       </div>
     </div>

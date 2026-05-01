@@ -222,29 +222,29 @@ const getWeatherType = (description) => {
 const getPolylineColor = (eventType, severity) => {
   // Closure - red (most severe)
   if (eventType === 'Closure') {
-    return '#dc2626'; // red-600
+    return '#d83a3a'; // red-600
   }
 
   // Incident - red/orange based on severity
   if (eventType === 'Incident') {
-    return severity === 'high' ? '#dc2626' : '#f97316'; // red-600 or orange-500
+    return severity === 'high' ? '#d83a3a' : '#c97a16'; // red-600 or orange-500
   }
 
   // Construction - orange/yellow based on severity
   if (eventType === 'Construction') {
-    return severity === 'high' ? '#f97316' : '#fbbf24'; // orange-500 or amber-400
+    return severity === 'high' ? '#c97a16' : '#fbbf24'; // orange-500 or amber-400
   }
 
   // Weather - blue/red based on severity
   if (eventType === 'Weather') {
-    return severity === 'high' ? '#dc2626' : '#3b82f6'; // red-600 or blue-500
+    return severity === 'high' ? '#d83a3a' : '#3b82f6'; // red-600 or blue-500
   }
 
   // Default - based on severity
   const colors = {
-    high: '#dc2626',    // red-600
-    medium: '#f97316',  // orange-500
-    low: '#10b981'      // green-500
+    high: '#d83a3a',    // desaturated red
+    medium: '#c97a16',  // desaturated amber
+    low: '#8e8e93'      // neutral gray (low severity = informational, not "go")
   };
   return colors[severity] || colors.medium;
 };
@@ -298,7 +298,7 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
       // Red circle with white bar (Do Not Enter)
       iconSvg = `
         <svg width="32" height="32" viewBox="0 0 32 32">
-          <circle cx="16" cy="16" r="14" fill="#dc2626" stroke="white" stroke-width="2"/>
+          <circle cx="16" cy="16" r="14" fill="#d83a3a" stroke="white" stroke-width="2"/>
           <rect x="6" y="14" width="20" height="4" fill="white" rx="1"/>
         </svg>
       `;
@@ -306,7 +306,7 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
       // Orange diamond with left-pointing arrow (right lane closed, merge left)
       iconSvg = `
         <svg width="32" height="32" viewBox="0 0 32 32">
-          <rect x="16" y="0" width="18" height="18" fill="#f97316" stroke="white"
+          <rect x="16" y="0" width="18" height="18" fill="#c97a16" stroke="white"
                 stroke-width="2" transform="rotate(45 16 16)"/>
           <path d="M 20 16 L 12 16 L 15 12 M 12 16 L 15 20"
                 stroke="black" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
@@ -316,7 +316,7 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
       // Orange diamond with right-pointing arrow (left lane closed, merge right)
       iconSvg = `
         <svg width="32" height="32" viewBox="0 0 32 32">
-          <rect x="16" y="0" width="18" height="18" fill="#f97316" stroke="white"
+          <rect x="16" y="0" width="18" height="18" fill="#c97a16" stroke="white"
                 stroke-width="2" transform="rotate(45 16 16)"/>
           <path d="M 12 16 L 20 16 L 17 12 M 20 16 L 17 20"
                 stroke="black" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
@@ -326,14 +326,14 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
       // Orange diamond only (multiple lanes or unspecified)
       iconSvg = `
         <svg width="32" height="32" viewBox="0 0 32 32">
-          <rect x="16" y="0" width="18" height="18" fill="#f97316" stroke="white"
+          <rect x="16" y="0" width="18" height="18" fill="#c97a16" stroke="white"
                 stroke-width="2" transform="rotate(45 16 16)"/>
         </svg>
       `;
   }
   } else if (eventType === 'Weather') {
     const weatherType = getWeatherType(description);
-    const color = normalizedSeverity === 'high' ? '#dc2626' : '#3b82f6';
+    const color = normalizedSeverity === 'high' ? '#d83a3a' : '#3b82f6';
 
     if (weatherType === 'snow') {
       // Snowflake
@@ -389,14 +389,14 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
     iconSvg = `
       <svg width="32" height="32" viewBox="0 0 32 32">
         <path d="M 10 4 L 22 4 L 28 10 L 28 22 L 22 28 L 10 28 L 4 22 L 4 10 Z"
-              fill="#dc2626" stroke="white" stroke-width="2"/>
+              fill="#d83a3a" stroke="white" stroke-width="2"/>
         <text x="16" y="23" font-size="20" font-weight="bold" fill="white"
               text-anchor="middle">!</text>
       </svg>
     `;
   } else if (eventType === 'Construction') {
     // Orange triangle (warning sign)
-    const color = normalizedSeverity === 'high' ? '#dc2626' : '#f97316';
+    const color = normalizedSeverity === 'high' ? '#d83a3a' : '#c97a16';
     iconSvg = `
       <svg width="32" height="32" viewBox="0 0 32 32">
         <path d="M 16 4 L 28 26 L 4 26 Z" fill="${color}" stroke="white" stroke-width="2"/>
@@ -407,8 +407,8 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
   } else {
     // Default: Circle
     const colors = {
-      high: '#dc2626',
-      medium: '#f97316',
+      high: '#d83a3a',
+      medium: '#c97a16',
       low: '#10b981'
     };
     const color = colors[normalizedSeverity] || colors.medium;
@@ -481,7 +481,7 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
               <line x1="24" y1="12" x2="24" y2="22" stroke="white" stroke-width="4" stroke-linecap="round"/>
               <circle cx="24" cy="26" r="2.5" fill="white"/>
               <!-- Count badge -->
-              <circle cx="38" cy="12" r="10" fill="#dc2626" stroke="white" stroke-width="3"/>
+              <circle cx="38" cy="12" r="10" fill="#d83a3a" stroke="white" stroke-width="3"/>
               <text x="38" y="17" font-size="14" font-weight="bold" fill="white" text-anchor="middle">${messageCount > 9 ? '9+' : messageCount}</text>
             </svg>
           </div>
@@ -496,7 +496,7 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
             filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
           ">
             <svg width="20" height="20" viewBox="0 0 20 20">
-              <circle cx="10" cy="10" r="9" fill="${isEnhanced ? '#10b981' : '#dc2626'}" stroke="white" stroke-width="2"/>
+              <circle cx="10" cy="10" r="9" fill="${isEnhanced ? '#10b981' : '#d83a3a'}" stroke="white" stroke-width="2"/>
               ${isEnhanced ? `
                 <!-- Checkmark -->
                 <path d="M 6 10 L 9 13 L 14 7" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
@@ -943,7 +943,7 @@ export default function TrafficMap({
             key={`detour-${alert.id}`}
             center={[alert.latitude, alert.longitude]}
             radius={14}
-            pathOptions={{ color: '#dc2626', weight: 3, fillOpacity: 0.25 }}
+            pathOptions={{ color: '#d83a3a', weight: 3, fillOpacity: 0.25 }}
           >
             <Popup
               autoPan={false}
@@ -1117,7 +1117,7 @@ export default function TrafficMap({
                       width: '100%',
                       marginTop: '8px',
                       padding: '8px',
-                      backgroundColor: '#dc2626',
+                      backgroundColor: '#d83a3a',
                       color: 'white',
                       border: 'none',
                       borderRadius: '4px',
@@ -1126,7 +1126,7 @@ export default function TrafficMap({
                       cursor: 'pointer'
                     }}
                     onMouseOver={(e) => e.target.style.backgroundColor = '#b91c1c'}
-                    onMouseOut={(e) => e.target.style.backgroundColor = '#dc2626'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = '#d83a3a'}
                   >
                     🗑️ Delete Geofence
                   </button>

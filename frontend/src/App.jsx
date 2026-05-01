@@ -773,33 +773,15 @@ function App() {
             </div>
             <button
               onClick={() => setView('profile')}
-              className="profile-btn"
-              style={{
-                padding: '4px 8px',
-                borderRadius: '3px',
-                border: '1px solid #6b7280',
-                backgroundColor: view === 'profile' ? '#3b82f6' : 'white',
-                color: view === 'profile' ? 'white' : '#374151',
-                cursor: 'pointer',
-                fontSize: '11px',
-                marginLeft: '8px'
-              }}
+              className={`chrome-btn ${view === 'profile' ? 'is-active' : ''}`}
+              style={{ marginLeft: '8px' }}
             >
               Profile
             </button>
             <button
               onClick={handleLogout}
-              className="logout-btn"
-              style={{
-                padding: '4px 8px',
-                borderRadius: '3px',
-                border: 'none',
-                backgroundColor: '#ef4444',
-                color: 'white',
-                cursor: 'pointer',
-                fontSize: '11px',
-                marginLeft: '8px'
-              }}
+              className="chrome-btn chrome-btn--destructive"
+              style={{ marginLeft: '6px' }}
             >
               Logout
             </button>
@@ -2594,6 +2576,7 @@ function App() {
               <EventTable
                 events={filteredEvents}
                 messages={messages}
+                loading={loading}
                 onGeofenceUpdate={setIpawsGeofence}
                 onEventSelect={(event) => {
                   setSelectedEvent(event);
