@@ -9581,7 +9581,7 @@ app.post('/api/states/login', async (req, res) => {
 });
 
 // Send direct message (state to state)
-app.post('/api/states/messages', requireStateAuth, (req, res) => {
+app.post('/api/states/messages', requireStateAuth, async (req, res) => {
   const { toState, subject, message, eventId, priority } = req.body;
 
   if (!toState || !subject || !message) {
@@ -9596,7 +9596,7 @@ app.post('/api/states/messages', requireStateAuth, (req, res) => {
     }
   }
 
-  const result = db.sendMessage({
+  const result = await db.sendMessage({
     fromState: req.stateKey,
     toState,
     subject,
@@ -9665,8 +9665,8 @@ app.get('/api/states/sent', requireStateAuth, async (req, res) => {
 });
 
 // Mark message as read
-app.post('/api/states/messages/:id/read', requireStateAuth, (req, res) => {
-  const result = db.markMessageRead(req.params.id, req.stateKey);
+app.post('/api/states/messages/:id/read', requireStateAuth, async (req, res) => {
+  const result = await db.markMessageRead(req.params.id, req.stateKey);
 
   if (result.success) {
     res.json({ success: true, message: 'Message marked as read' });
@@ -9731,7 +9731,7 @@ app.post('/api/events/:eventId/comments', requireUserOrStateAuth, async (req, re
     return res.status(400).json({ error: 'Missing comment' });
   }
 
-  const result = db.addEventComment({
+  const result = await db.addEventComment({
     eventId: req.params.eventId,
     stateKey: req.stateKey,
     stateName: req.stateName,
@@ -10068,7 +10068,7 @@ async function checkBorderProximityAndNotify(event) {
           const messageBody = `${state} reports ${severity} severity event near your border:\n\n${description || title}\n\nDistance to border: ~${Math.round(notification.distance_miles)} miles\nCoordinates: ${latitude}, ${longitude}\n\nEvent ID: ${id}`;
 
           try {
-            db.sendMessage({
+            await db.sendMessage({
               fromState: state,
               toState: notification.notified_state,
               subject: messageSubject,
@@ -17959,7 +17959,7 @@ app.get('/api/admin/test-state/:stateKey', requireAdmin, async (req, res) => {
 });
 
 // Admin send message to state (no state login required)
-app.post('/api/admin/messages', requireAdmin, (req, res) => {
+app.post('/api/admin/messages', requireAdmin, async (req, res) => {
   const { toState, messageType, messageContent } = req.body;
 
   if (!toState || !messageType || !messageContent) {
@@ -17973,7 +17973,7 @@ app.post('/api/admin/messages', requireAdmin, (req, res) => {
   }
 
   // Send message with fromState as 'ADMIN'
-  const result = db.sendMessage({
+  const result = await db.sendMessage({
     fromState: 'ADMIN',
     toState,
     subject: messageType.charAt(0).toUpperCase() + messageType.slice(1), // Capitalize message type
@@ -18249,7 +18249,7 @@ const notifyDetourSubscribers = async (alertRecord, interchange, event) => {
     }
     if (skipDuplicate) continue;
 
-    db.sendMessage({
+    await db.sendMessage({
       fromState: 'ADMIN',
       toState: normalizedState,
       subject: `Detour Advisory: ${interchange.name}`,
@@ -18273,7 +18273,7 @@ const notifyDetourSubscribers = async (alertRecord, interchange, event) => {
     // Only add comment if it doesn't already exist recently
     const isNewAlert = !recentComments;
     if (isNewAlert) {
-      db.addEventComment({
+      await db.addEventComment({
         eventId: event.id,
         stateKey: normalizedState,
         stateName: 'DOT Corridor Communicator',
@@ -33013,7 +33013,7 @@ app.post('/api/admin/parking/facility', requireAdmin, (req, res) => {
 });
 
 // Admin: Add parking availability data
-app.post('/api/admin/parking/availability', requireAdmin, (req, res) => {
+app.post('/api/admin/parking/availability', requireAdmin, async (req, res) => {
   try {
     const { facilityId, availableSpaces, occupiedSpaces, isPrediction, predictionConfidence } = req.body;
 
@@ -33021,7 +33021,7 @@ app.post('/api/admin/parking/availability', requireAdmin, (req, res) => {
       return res.status(400).json({ error: 'facilityId, availableSpaces, and occupiedSpaces are required' });
     }
 
-    const result = db.addParkingAvailability({
+    const result = await db.addParkingAvailability({
       facilityId,
       availableSpaces,
       occupiedSpaces,
@@ -33204,7 +33204,7 @@ const FACILITY_METADATA = {
       truckParking1: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-TruckParking1.jpg',
       truckParking2: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-TruckParking2.jpg',
       entrance: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-Entrance.jpg',
-      exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-01-EXIT.jpg'
+      exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35NB120-EXIT.jpg'
     }
   },
   'tpims-historical-ia00035is0012000sra120s00': {
@@ -33213,7 +33213,7 @@ const FACILITY_METADATA = {
       truckParking1: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-TruckParking1.jpg',
       truckParking2: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-TruckParking2.jpg',
       entrance: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-Entrance.jpg',
-      exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-01-EXIT.jpg'
+      exit: 'https://atmsqf.iowadot.gov/snapshots/Public/RestAreas/RA35SB119-EXIT.jpg'
     }
   }
 };

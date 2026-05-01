@@ -1458,7 +1458,7 @@ class StateDatabase {
   }
 
   // Direct Messaging Methods
-  sendMessage(messageData) {
+  async sendMessage(messageData) {
     const { fromState, toState, subject, message, eventId = null, priority = 'normal' } = messageData;
     try {
       const id = crypto.randomBytes(16).toString('hex');
@@ -1467,7 +1467,7 @@ class StateDatabase {
         INSERT INTO state_messages (id, from_state, to_state, subject, message, event_id, priority, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(id, fromState, toState, subject, message, eventId, priority, now);
+      await stmt.run(id, fromState, toState, subject, message, eventId, priority, now);
       console.log(`💬 Message sent from ${fromState} to ${toState}`);
       return { success: true, id, created_at: now };
     } catch (error) {
@@ -1504,14 +1504,14 @@ class StateDatabase {
     }
   }
 
-  markMessageRead(messageId, stateKey) {
+  async markMessageRead(messageId, stateKey) {
     try {
       const stmt = this.db.prepare(`
         UPDATE state_messages
         SET read = 1
         WHERE id = ? AND (to_state = ? OR to_state = 'ALL')
       `);
-      stmt.run(messageId, stateKey);
+      await stmt.run(messageId, stateKey);
       return { success: true };
     } catch (error) {
       console.error('Error marking message read:', error);
@@ -1937,7 +1937,7 @@ class StateDatabase {
   }
 
   // Event Comments Methods
-  addEventComment(commentData) {
+  async addEventComment(commentData) {
     const { eventId, stateKey, stateName, comment } = commentData;
     try {
       const id = crypto.randomBytes(16).toString('hex');
@@ -1946,7 +1946,7 @@ class StateDatabase {
         INSERT INTO event_comments (id, event_id, state_key, state_name, comment, created_at)
         VALUES (?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(id, eventId, stateKey, stateName, comment, now);
+      await stmt.run(id, eventId, stateKey, stateName, comment, now);
       console.log(`💬 Comment added by ${stateName} on event ${eventId}`);
       return { success: true, id, created_at: now };
     } catch (error) {
@@ -2602,7 +2602,7 @@ class StateDatabase {
     }
   }
 
-  addParkingAvailability(availabilityData) {
+  async addParkingAvailability(availabilityData) {
     const {
       facilityId,
       availableSpaces,
@@ -2618,7 +2618,7 @@ class StateDatabase {
           is_prediction, prediction_confidence
         ) VALUES (?, ?, ?, ?, ?)
       `);
-      stmt.run(facilityId, availableSpaces, occupiedSpaces, isPrediction ? 1 : 0, predictionConfidence);
+      await stmt.run(facilityId, availableSpaces, occupiedSpaces, isPrediction ? 1 : 0, predictionConfidence);
       return { success: true };
     } catch (error) {
       console.error('Error adding parking availability:', error);

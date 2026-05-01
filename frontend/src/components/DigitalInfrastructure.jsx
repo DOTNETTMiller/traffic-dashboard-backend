@@ -1,8 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import axios from 'axios';
 import { config } from '../config';
-import IFCViewer from './IFCViewer';
-import IFCModelViewer from './IFCModelViewer';
+
+// Three.js + web-ifc are ~3 MB minified. Defer them until the user actually
+// opens a 3D viewer rather than loading them with the rest of this view.
+const IFCViewer = lazy(() => import('./IFCViewer'));
+const IFCModelViewer = lazy(() => import('./IFCModelViewer'));
+
+const ViewerFallback = () => (
+  <div style={{
+    padding: 40, textAlign: 'center', color: '#6e6e73', fontSize: 13
+  }}>
+    Loading 3D viewer…
+  </div>
+);
 
 // Use config.apiUrl which handles both development (localhost) and production (Railway)
 const API_BASE = config.apiUrl;
@@ -810,7 +821,9 @@ function DigitalInfrastructure() {
                   <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
                     {/* 3D Preview Thumbnail */}
                     <div style={{ flexShrink: 0, width: '200px' }}>
-                      <IFCViewer model={model} width="200px" height="150px" />
+                      <Suspense fallback={<ViewerFallback />}>
+                        <IFCViewer model={model} width="200px" height="150px" />
+                      </Suspense>
                     </div>
 
                     {/* Model Info */}
@@ -893,7 +906,9 @@ function DigitalInfrastructure() {
           {modelDetails.filename?.toLowerCase().endsWith('.ifc') && (
             <div style={{ marginBottom: '30px' }}>
               <h3 style={{ fontSize: '20px', marginBottom: '15px' }}>3D Model Viewer</h3>
-              <IFCModelViewer modelId={modelDetails.id} filename={modelDetails.filename} />
+              <Suspense fallback={<ViewerFallback />}>
+                <IFCModelViewer modelId={modelDetails.id} filename={modelDetails.filename} />
+              </Suspense>
             </div>
           )}
 
