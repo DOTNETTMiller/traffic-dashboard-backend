@@ -142,32 +142,58 @@ body {
   font-weight: 500;
 }
 
-/* Feed-export chip rail — quiet pill outlines on glass chrome. */
+/* Feed-export chips — glass pebbles on the dark chrome. */
 .tim-links {
   display: flex;
+  align-items: center;
   gap: 6px;
   margin-left: 12px;
 }
 
 .tim-link {
-  padding: 5px 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 28px;
+  min-height: 28px;
+  min-width: 0;
+  padding: 0 12px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--chrome-fg);
   text-decoration: none;
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
   font-weight: 500;
   letter-spacing: -0.005em;
+  line-height: 1;
   white-space: nowrap;
-  display: inline-block;
+  /* Glass: inner highlight on top, micro-lift below. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18),
+    0 1px 2px rgba(0, 0, 0, 0.18);
   transition: background-color 200ms var(--ease-spring),
-              border-color 200ms var(--ease-spring);
+              border-color 200ms var(--ease-spring),
+              transform 200ms var(--ease-spring);
+}
+
+@supports (backdrop-filter: blur(12px)) or (-webkit-backdrop-filter: blur(12px)) {
+  .tim-link {
+    backdrop-filter: blur(14px) saturate(180%);
+    -webkit-backdrop-filter: blur(14px) saturate(180%);
+  }
 }
 
 .tim-link:hover {
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.26);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.tim-link:active {
+  transform: scale(0.97);
 }
 
 /* Quiet "brought to you by" byline — was 10px white/0.8 on blue, now slate-400. */

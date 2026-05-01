@@ -1,111 +1,72 @@
-import { useEffect, useState } from 'react';
-import { theme } from '../styles/theme';
+import { useState } from 'react';
 
+/**
+ * iOS-style toggle switch. Flat track, white knob, sun/moon icon inside knob.
+ * No gradients, no stars — calm.
+ */
 export default function DarkModeToggle({ isDarkMode, onToggle }) {
-  const [isAnimating, setIsAnimating] = useState(false);
+  const [pressed, setPressed] = useState(false);
 
-  useEffect(() => {
-    if (isAnimating) {
-      const timer = setTimeout(() => setIsAnimating(false), 300);
-      return () => clearTimeout(timer);
-    }
-  }, [isAnimating]);
+  const W = 51;       // iOS Settings switch is ~51x31
+  const H = 31;
+  const KNOB = 27;
+  const PAD = 2;
 
-  const handleToggle = () => {
-    setIsAnimating(true);
-    onToggle();
-  };
+  const trackOff = '#d1d1d6';   // iOS gray
+  const trackOn = '#1c1c1e';    // near-black for "dark mode on"
+  const knobShadow = '0 2px 4px rgba(0,0,0,0.14), 0 0 0 0.5px rgba(0,0,0,0.04)';
 
   return (
-    <>
-      <button
-        onClick={handleToggle}
-        aria-label={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
+    <button
+      type="button"
+      onClick={onToggle}
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+      onMouseLeave={() => setPressed(false)}
+      onTouchStart={() => setPressed(true)}
+      onTouchEnd={() => setPressed(false)}
+      role="switch"
+      aria-checked={isDarkMode}
+      aria-label={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
+      style={{
+        position: 'relative',
+        width: `${W}px`,
+        height: `${H}px`,
+        minWidth: `${W}px`,
+        minHeight: `${H}px`,
+        borderRadius: `${H / 2}px`,
+        border: 'none',
+        padding: 0,
+        cursor: 'pointer',
+        background: isDarkMode ? trackOn : trackOff,
+        transition: 'background-color 220ms cubic-bezier(0.32, 0.72, 0, 1)',
+        outline: 'none',
+        boxShadow: 'inset 0 0 0 0.5px rgba(0,0,0,0.04)',
+        flexShrink: 0
+      }}
+    >
+      <span
+        aria-hidden
         style={{
-          position: 'relative',
-          width: '64px',
-          height: '32px',
-          borderRadius: '16px',
-          border: `2px solid ${isDarkMode ? theme.colors.accentBlue : theme.colors.gray[300]}`,
-          background: isDarkMode
-            ? 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%)'
-            : 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
-          cursor: 'pointer',
-          padding: 0,
-          transition: `all ${theme.transitions.medium}`,
-          boxShadow: isDarkMode ? theme.shadows.lg : theme.shadows.md,
-          overflow: 'hidden'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'scale(1.05)';
-          e.currentTarget.style.boxShadow = theme.shadows.xl;
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'scale(1)';
-          e.currentTarget.style.boxShadow = isDarkMode ? theme.shadows.lg : theme.shadows.md;
+          position: 'absolute',
+          top: `${PAD}px`,
+          left: isDarkMode ? `${W - KNOB - PAD}px` : `${PAD}px`,
+          width: `${KNOB}px`,
+          height: `${KNOB}px`,
+          borderRadius: '50%',
+          background: '#ffffff',
+          boxShadow: knobShadow,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '13px',
+          lineHeight: 1,
+          transition: 'left 260ms cubic-bezier(0.32, 0.72, 0, 1), width 200ms cubic-bezier(0.32, 0.72, 0, 1)',
+          width: pressed ? `${KNOB + 4}px` : `${KNOB}px`
         }}
       >
-        {/* Background stars for dark mode */}
-        {isDarkMode && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            overflow: 'hidden'
-          }}>
-            {[...Array(5)].map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  position: 'absolute',
-                  width: '2px',
-                  height: '2px',
-                  background: 'white',
-                  borderRadius: '50%',
-                  top: `${20 + i * 15}%`,
-                  left: `${15 + i * 12}%`,
-                  opacity: 0.6,
-                  animation: `twinkle ${1 + i * 0.3}s ease-in-out infinite`
-                }}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Sliding toggle */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '2px',
-            left: isDarkMode ? 'calc(100% - 30px)' : '2px',
-            width: '24px',
-            height: '24px',
-            borderRadius: '12px',
-            background: 'white',
-            boxShadow: theme.shadows.md,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '14px',
-            transition: `all ${theme.transitions.medium}`,
-            transform: isAnimating ? 'rotate(360deg)' : 'rotate(0deg)'
-          }}
-        >
-          {isDarkMode ? '🌙' : '☀️'}
-        </div>
-      </button>
-
-      <style>{`
-        @keyframes twinkle {
-          0%, 100% {
-            opacity: 0.3;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 0.8;
-            transform: scale(1.2);
-          }
-        }
-      `}</style>
-    </>
+        <span style={{ opacity: 0.55 }}>{isDarkMode ? '🌙' : '☀️'}</span>
+      </span>
+    </button>
   );
 }
