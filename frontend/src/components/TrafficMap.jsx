@@ -679,23 +679,24 @@ export default function TrafficMap({
                 return messages[eventId] && messages[eventId].length > 0;
               });
 
+              // Non-linear sizing: 24 → 36px from a count of 1 → 500+
+              const size = Math.max(24, Math.min(36, 22 + Math.log10(count + 1) * 6));
+              const fontSize = count >= 100 ? 11 : count >= 10 ? 12 : 13;
+
+              // Halo color: green if any cluster member has messages, else neutral.
+              const halo = hasAnyMessages
+                ? 'rgba(16, 185, 129, 0.32)'    // emerald glow
+                : 'rgba(0, 113, 227, 0.18)';    // accent blue glow
+
               return L.divIcon({
-                html: `<div style="
-                  background-color: ${hasAnyMessages ? '#10b981' : '#3b82f6'};
-                  color: white;
-                  border-radius: 50%;
-                  width: 40px;
-                  height: 40px;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  font-weight: bold;
-                  font-size: 16px;
-                  border: 3px solid white;
-                  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                html: `<div class="cc-cluster" style="
+                  width: ${size}px;
+                  height: ${size}px;
+                  font-size: ${fontSize}px;
+                  --cc-cluster-halo: ${halo};
                 ">${count}</div>`,
-                className: 'custom-cluster-icon',
-                iconSize: L.point(40, 40, true),
+                className: 'cc-cluster-wrap',
+                iconSize: L.point(size, size, true),
               });
             }}
           >

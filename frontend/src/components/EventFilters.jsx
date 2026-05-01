@@ -50,12 +50,13 @@ export default function EventFilters({ events, filters, onFilterChange }) {
 
   return (
     <div className="event-filters-container" style={{
-      ...theme.glass.light,
+      background: '#ffffff',
+      border: '1px solid rgba(0, 0, 0, 0.08)',
       padding: theme.spacing.md,
-      borderRadius: theme.borderRadius.lg,
+      borderRadius: '14px',
       marginBottom: theme.spacing.sm,
-      boxShadow: theme.shadows.md,
-      transition: theme.transitions.all
+      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.02)',
+      transition: 'box-shadow 200ms cubic-bezier(0.32, 0.72, 0, 1)'
     }}>
       <div style={{
         display: 'flex',
@@ -91,21 +92,30 @@ export default function EventFilters({ events, filters, onFilterChange }) {
               handleReset();
             }}
             style={{
-              padding: `${theme.spacing.xs} ${theme.spacing.md}`,
-              backgroundColor: theme.colors.error.main,
-              color: theme.colors.white,
-              border: 'none',
-              borderRadius: theme.borderRadius.md,
+              padding: '5px 12px',
+              backgroundColor: 'transparent',
+              color: '#6e6e73',
+              border: '1px solid rgba(0, 0, 0, 0.12)',
+              borderRadius: '999px',
               cursor: 'pointer',
-              fontSize: theme.fontSize.sm,
-              fontWeight: theme.fontWeight.medium,
-              transition: theme.transitions.all,
-              boxShadow: theme.shadows.sm
+              fontSize: '12px',
+              fontWeight: 500,
+              fontFamily: 'inherit',
+              letterSpacing: '-0.005em',
+              transition: 'background-color 200ms cubic-bezier(0.32, 0.72, 0, 1), color 200ms cubic-bezier(0.32, 0.72, 0, 1)'
             }}
-            onMouseEnter={(e) => e.target.style.backgroundColor = theme.colors.error.dark}
-            onMouseLeave={(e) => e.target.style.backgroundColor = theme.colors.error.main}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = 'rgba(216, 58, 58, 0.08)';
+              e.target.style.color = '#d83a3a';
+              e.target.style.borderColor = 'rgba(216, 58, 58, 0.32)';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = 'transparent';
+              e.target.style.color = '#6e6e73';
+              e.target.style.borderColor = 'rgba(0, 0, 0, 0.12)';
+            }}
           >
-            Clear All
+            Clear all
           </button>
         )}
       </div>

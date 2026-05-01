@@ -135,7 +135,6 @@ function App() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showCorridorBriefing, setShowCorridorBriefing] = useState(false);
   const [hasITSEquipment, setHasITSEquipment] = useState(false);
-  const [logoIntroComplete, setLogoIntroComplete] = useState(false);
 
   // Apply dark mode class to document root
   useEffect(() => {
@@ -160,15 +159,6 @@ function App() {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Logo intro animation - show full screen for 5 seconds then transition to corner
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setLogoIntroComplete(true);
-    }, 5000); // 5 seconds
-
-    return () => clearTimeout(timer);
   }, []);
 
   // Fetch parking data when parking view is active
@@ -710,26 +700,33 @@ function App() {
               fontSize: '10px',
               fontWeight: '400',
               marginLeft: '12px',
-              opacity: '0.8'
+              opacity: '0.7'
             }}>
               brought to you by Matt Miller, CPM
             </span>
+            <span className="sandbox-pill" style={{ marginLeft: '12px' }}>Sandbox</span>
           </h1>
           <div className="header-info">
             {currentUser && (
-              <span className="user-info">
-                👤 {currentUser.fullName || currentUser.username || 'User'}
-                {currentUser.organization && ` - ${currentUser.organization}`}
+              <span className="user-info" title={currentUser.organization || ''}>
+                {currentUser.fullName || currentUser.username || 'User'}
               </span>
             )}
-            {lastUpdate && (
-              <span className="last-update">
-                Last updated: {lastUpdate.toLocaleTimeString()}
+            <div className="header-meta">
+              {lastUpdate && (
+                <span className="header-meta-line">
+                  Updated {lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </span>
+              )}
+            </div>
+            <div className="header-metric" title="Events currently in view">
+              <span className="header-metric-value">
+                {filteredEvents.length.toLocaleString()}
               </span>
-            )}
-            <span className="event-count">
-              {filteredEvents.length} {filteredEvents.length === 1 ? 'event' : 'events'}
-            </span>
+              <span className="header-metric-label">
+                {filteredEvents.length === 1 ? 'Event' : 'Events'}
+              </span>
+            </div>
             <div className="tim-links">
               <a
                 href={`${config.apiUrl}/api/convert/tim`}
@@ -2493,37 +2490,10 @@ function App() {
               </button>
             )}
 
-            {/* Matt's Experimental Sandbox Logo Overlay - hide when IPAWS active */}
-            {!ipawsGeofence && (
-              <div style={{
-                position: logoIntroComplete ? 'absolute' : 'fixed',
-                top: logoIntroComplete ? '80px' : '50%',
-                left: logoIntroComplete ? '20px' : '50%',
-                transform: logoIntroComplete ? 'translate(0, 0)' : 'translate(-50%, -50%)',
-                zIndex: logoIntroComplete ? 10000 : 20000,
-                pointerEvents: 'none',
-                transition: 'all 1.5s ease-in-out',
-                backgroundColor: logoIntroComplete ? 'transparent' : '#000000',
-                width: logoIntroComplete ? 'auto' : '100vw',
-                height: logoIntroComplete ? 'auto' : '100vh',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <img
-                  src="/assets/sandbox-logo.png"
-                  alt="Matt's Experimental Sandbox Logo"
-                  style={{
-                    height: logoIntroComplete ? '120px' : '60vh',
-                    maxHeight: logoIntroComplete ? '120px' : '80vh',
-                    maxWidth: logoIntroComplete ? 'none' : '90vw',
-                    objectFit: 'contain',
-                    filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))',
-                    transition: 'all 1.5s ease-in-out'
-                  }}
-                />
-              </div>
-            )}
+            {/* Sandbox indicator now lives as a small pill in the header chrome
+                (.sandbox-pill). The big intro/overlay logo was removed because
+                it fought with the new design language. The intro splash, if
+                desired, can be reintroduced as a brief fade-in dialog. */}
 
             <div style={{
               flex: 1,
@@ -2619,7 +2589,7 @@ function App() {
             )}
           </>
         ) : (
-          <div className="view-container">
+          <div className="view-container" key={view}>
             {view === 'table' ? (
               <EventTable
                 events={filteredEvents}
