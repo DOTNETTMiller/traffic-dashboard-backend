@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
-// Vite configuration for Corridor Communicator - includes 3D model viewer support and PWA
+// Vite configuration for Matt's Experimental Sandbox - includes 3D model viewer support and PWA
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
     proxy: {

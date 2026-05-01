@@ -1,0 +1,55 @@
+/**
+ * Tailwind v4 entry — utilities + theme only, no preflight.
+ *
+ * Preflight resets margins, list-styles, and button defaults globally.
+ * That would clash with the 113 components and the hand-rolled App.css
+ * already in this project. By importing only theme + utilities, we get
+ * the className utilities (`bg-accent`, `text-fg-muted`, etc.) without
+ * disturbing existing styles. New shadcn-style primitives in
+ * `components/ui/` use these utilities; everything else keeps working.
+ */
+
+@layer theme, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/**
+ * Map the existing design tokens (defined in App.css :root) into the
+ * Tailwind theme so utility classes share the same palette.
+ *
+ * Note: only listing tokens we actually want exposed as utilities. The
+ * `--color-*` namespace makes a token available as `bg-*`/`text-*`/etc.
+ */
+@theme {
+  --color-fg: #1d1d1f;
+  --color-fg-muted: #6e6e73;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f5f5f7;
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-border-strong: rgba(0, 0, 0, 0.16);
+
+  --color-accent: #0071e3;
+  --color-accent-hover: #0077ed;
+
+  --color-severity-major: #d83a3a;
+  --color-severity-moderate: #c97a16;
+  --color-severity-minor: #8e8e93;
+
+  --color-chrome-fg: #f5f5f7;
+  --color-chrome-bg: #1d1d1f;
+
+  /* Type — Tailwind reads --font-* for text utilities */
+  --font-sans: 'Inter Tight', -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+    'SF Pro Text', 'Inter', 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* Easings */
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}

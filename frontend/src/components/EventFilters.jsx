@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import AdvancedSearch from './AdvancedSearch';
+import { Button } from './ui';
 
 /**
  * Filters trigger button (in line with the rest of the controls bar) that
@@ -178,21 +179,17 @@ export default function EventFilters({ events, filters, onFilterChange }) {
             </div>
 
             <div className="cc-sheet-footer">
-              <button
-                type="button"
+              <Button
+                variant="outline"
+                size="md"
                 onClick={handleReset}
-                style={ghostButtonStyle}
                 disabled={activeFilterCount === 0}
               >
                 Clear all
-              </button>
-              <button
-                type="button"
-                onClick={requestClose}
-                style={primaryButtonStyle}
-              >
+              </Button>
+              <Button variant="primary" size="md" onClick={requestClose}>
                 Done
-              </button>
+              </Button>
             </div>
           </aside>
         </>,
@@ -261,30 +258,3 @@ const inputStyle = {
   outline: 'none'
 };
 
-const primaryButtonStyle = {
-  padding: '8px 18px',
-  borderRadius: '999px',
-  border: 'none',
-  background: '#0071e3',
-  color: '#ffffff',
-  fontFamily: 'inherit',
-  fontSize: '13px',
-  fontWeight: 500,
-  letterSpacing: '-0.01em',
-  cursor: 'pointer',
-  transition: 'background-color 180ms cubic-bezier(0.32, 0.72, 0, 1)'
-};
-
-const ghostButtonStyle = {
-  padding: '8px 18px',
-  borderRadius: '999px',
-  border: '1px solid rgba(0, 0, 0, 0.12)',
-  background: 'transparent',
-  color: '#6e6e73',
-  fontFamily: 'inherit',
-  fontSize: '13px',
-  fontWeight: 500,
-  letterSpacing: '-0.01em',
-  cursor: 'pointer',
-  transition: 'background-color 180ms cubic-bezier(0.32, 0.72, 0, 1), color 180ms cubic-bezier(0.32, 0.72, 0, 1)'
-};
