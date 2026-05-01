@@ -262,7 +262,7 @@ export function addTable(doc, headers, data, yPosition, options = {}) {
     },
     didDrawPage: function(data) {
       // Add footer on each page
-      addFooter(doc, 'DOT Corridor Communicator', { margin });
+      addFooter(doc, "Matt's Experimental Sandbox", { margin });
     }
   });
 

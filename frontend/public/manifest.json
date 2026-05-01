@@ -1,6 +1,6 @@
 {
-  "name": "DOT Corridor Communicator",
-  "short_name": "DOT Corridor",
+  "name": "Matt's Experimental Sandbox",
+  "short_name": "Matt's Sandbox",
   "description": "Real-time traffic monitoring and corridor communication dashboard for state DOTs",
   "start_url": "/",
   "display": "standalone",

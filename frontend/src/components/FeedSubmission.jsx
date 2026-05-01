@@ -175,7 +175,7 @@ export default function FeedSubmission({ authToken, user }) {
           backgroundClip: 'text',
           textAlign: 'center'
         }}>
-          How the DOT Corridor Communicator Works
+          How the Matt's Experimental Sandbox Works
         </h3>
 
         <div style={{

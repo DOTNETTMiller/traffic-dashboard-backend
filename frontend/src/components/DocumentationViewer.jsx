@@ -94,7 +94,7 @@ function DocumentationViewer() {
       title: 'Pooled Fund Enablement',
       url: '/docs/pooled-fund-enablement.md',
       pdfUrl: `${config.apiUrl}/pdfs/Pooled-Fund-Enablement.pdf`,
-      description: 'How DOT Corridor Communicator enables the Connected Corridors Advancement Initiative (CCAI) Pooled Fund Study for I-80/I-35 corridors across 8 states with $2M budget.',
+      description: "How Matt's Experimental Sandbox enables the Connected Corridors Advancement Initiative (CCAI) Pooled Fund Study for I-80/I-35 corridors across 8 states with $2M budget.",
       icon: '🤝'
     },
     {
@@ -759,7 +759,7 @@ function DocumentationViewer() {
           color: '#6b7280',
           margin: 0
         }}>
-          Comprehensive guides, technical documentation, and resources for the DOT Corridor Communicator platform
+          Comprehensive guides, technical documentation, and resources for the Matt's Experimental Sandbox platform
         </p>
       </div>
 

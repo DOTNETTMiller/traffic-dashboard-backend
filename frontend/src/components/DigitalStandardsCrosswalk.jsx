@@ -61,7 +61,7 @@ function DigitalStandardsCrosswalk() {
       // Add organization badge
       yPos = pdfUtils.addSectionHeading(
         doc,
-        'DOT Corridor Communicator Digital Infrastructure Suite',
+        "Matt's Experimental Sandbox Digital Infrastructure Suite",
         yPos,
         3,
         { color: pdfUtils.COLORS.gray }
@@ -247,7 +247,7 @@ function DigitalStandardsCrosswalk() {
         fontSize: '0.9rem'
       }}>
         <p>
-          Part of the DOT Corridor Communicator Digital Infrastructure Suite
+          Part of the Matt's Experimental Sandbox Digital Infrastructure Suite
         </p>
         <p style={{ marginTop: '10px' }}>
           For questions about implementing standards crosswalks, contact your administrator.

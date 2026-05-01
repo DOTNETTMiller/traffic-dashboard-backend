@@ -793,7 +793,7 @@ export default function CorridorBriefing({ events, detourAlerts, onClose }) {
                   <strong>Important:</strong> Conditions can change rapidly. Monitor updates and drive safely.
                 </p>
                 <p style={{ margin: 0 }}>
-                  DOT Corridor Communicator • Real-time Interstate Corridor Information
+                  Matt's Experimental Sandbox • Real-time Interstate Corridor Information
                 </p>
               </div>
             </>

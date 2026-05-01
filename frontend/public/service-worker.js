@@ -1,5 +1,5 @@
 /**
- * DOT Corridor Communicator - Service Worker
+ * Matt's Experimental Sandbox - Service Worker
  * Enables offline functionality and caching for PWA
  */
 
@@ -163,7 +163,7 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification('DOT Corridor Communicator', options)
+    self.registration.showNotification('Matt's Experimental Sandbox', options)
   );
 });
 

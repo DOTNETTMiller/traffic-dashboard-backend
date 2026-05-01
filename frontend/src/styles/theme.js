@@ -1,4 +1,4 @@
-// Unified Design System for DOT Corridor Communicator
+// Unified Design System for Matt's Experimental Sandbox
 
 // Base theme tokens (mode-agnostic)
 const baseTheme = {

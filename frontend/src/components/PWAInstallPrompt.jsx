@@ -103,7 +103,7 @@ function PWAInstallPrompt() {
               </svg>
             </div>
             <div className="pwa-prompt-text">
-              <div className="pwa-prompt-title">Install DOT Corridor Communicator</div>
+              <div className="pwa-prompt-title">Install Matt's Experimental Sandbox</div>
               <div className="pwa-prompt-description">
                 {isIOS
                   ? 'Add to your home screen for quick access and offline support'

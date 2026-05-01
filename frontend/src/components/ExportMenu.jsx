@@ -140,7 +140,7 @@ export default function ExportMenu({ events, messages, onClose }) {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>DOT Corridor Communicator Report</title>
+          <title>Matt's Experimental Sandbox Report</title>
           <style>
             body {
               font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -251,7 +251,7 @@ export default function ExportMenu({ events, messages, onClose }) {
         </head>
         <body>
           <div class="header">
-            <h1>DOT Corridor Communicator Report</h1>
+            <h1>Matt's Experimental Sandbox Report</h1>
             <p>Generated: ${format(new Date(), 'MMMM dd, yyyy HH:mm:ss')}</p>
             <p>Date Range: ${dateRange === 'all' ? 'All Events' : dateRange === '24h' ? 'Last 24 Hours' : dateRange === '7d' ? 'Last 7 Days' : 'Last 30 Days'}</p>
           </div>
@@ -317,7 +317,7 @@ export default function ExportMenu({ events, messages, onClose }) {
           }).join('')}
 
           <div class="footer">
-            <p>DOT Corridor Communicator - Traffic Event Management System</p>
+            <p>Matt's Experimental Sandbox - Traffic Event Management System</p>
             <p>This report was automatically generated and contains ${filteredEvents.length} event(s)</p>
           </div>
         </body>

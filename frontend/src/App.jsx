@@ -695,16 +695,15 @@ function App() {
       <header className="header">
         <div className="header-content">
           <h1 className="title">
-            DOT Corridor Communicator
+            Matt&rsquo;s Experimental Sandbox
             <span style={{
               fontSize: '10px',
               fontWeight: '400',
               marginLeft: '12px',
               opacity: '0.7'
             }}>
-              brought to you by Matt Miller, CPM
+              by Matt Miller, CPM
             </span>
-            <span className="sandbox-pill" style={{ marginLeft: '12px' }}>Sandbox</span>
           </h1>
           <div className="header-info">
             {currentUser && (

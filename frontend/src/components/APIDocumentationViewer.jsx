@@ -78,7 +78,7 @@ const APIDocumentationViewer = () => {
       let yPos = pdfUtils.addHeader(
         doc,
         docTitle,
-        'DOT Corridor Communicator Documentation',
+        "Matt's Experimental Sandbox Documentation",
         { titleColor: pdfUtils.COLORS.primary }
       );
 

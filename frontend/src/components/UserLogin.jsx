@@ -146,7 +146,7 @@ export default function UserLogin({ onLoginSuccess }) {
     <div className="user-login-container">
       <div className="user-login-card">
         <div className="user-login-header">
-          <h1>DOT Corridor Communicator</h1>
+          <h1>Matt's Experimental Sandbox</h1>
           <p>Real-time traffic event monitoring and collaboration</p>
         </div>
 

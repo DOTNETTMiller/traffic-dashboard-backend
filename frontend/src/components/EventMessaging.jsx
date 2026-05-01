@@ -237,14 +237,14 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
                   marginBottom: '8px',
                   gap: '12px'
                 }}>
-                  {/* Only show sender name if it's not "DOT Corridor Communicator" */}
+                  {/* Only show sender name if it's not "Matt's Experimental Sandbox" */}
                   <span style={{
                     fontWeight: '600',
                     fontSize: '14px',
                     color: '#374151',
                     flexShrink: 0
                   }}>
-                    {comment.state_name !== 'DOT Corridor Communicator' ? comment.state_name : ''}
+                    {comment.state_name !== "Matt's Experimental Sandbox" ? comment.state_name : ''}
                   </span>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
