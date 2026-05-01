@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { theme } from '../styles/theme';
 import DashboardWidget from './DashboardWidget';
+import Skeleton from './Skeleton';
 
-export default function DashboardWidgets({ events }) {
+export default function DashboardWidgets({ events, loading = false }) {
+  const isInitialLoading = loading && (!events || events.length === 0);
   const [visibleWidgets, setVisibleWidgets] = useState(() => {
     const saved = localStorage.getItem('dashboardWidgets');
     return saved ? JSON.parse(saved) : ['eventCount', 'severity', 'states', 'recentActivity'];
@@ -380,6 +382,33 @@ export default function DashboardWidgets({ events }) {
         return null;
     }
   };
+
+  if (isInitialLoading) {
+    return (
+      <div style={{ padding: 22 }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: 14
+        }}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} style={{
+              background: '#ffffff',
+              border: '1px solid rgba(0, 0, 0, 0.08)',
+              borderRadius: 14,
+              padding: '18px 18px 20px'
+            }}>
+              <Skeleton width="44%" height={11} />
+              <div style={{ height: 14 }} />
+              <Skeleton width="60%" height={26} />
+              <div style={{ height: 18 }} />
+              <Skeleton lines={2} height={9} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{

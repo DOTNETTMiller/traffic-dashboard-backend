@@ -2587,10 +2587,12 @@ function App() {
               <ActivityTimeline
                 events={filteredEvents}
                 messages={messages}
+                loading={loading}
               />
             ) : view === 'dashboard' ? (
               <DashboardWidgets
                 events={filteredEvents}
+                loading={loading}
               />
             ) : view === 'calendar' ? (
               <Calendar authToken={authToken} currentUser={currentUser} />

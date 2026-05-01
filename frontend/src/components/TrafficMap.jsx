@@ -232,12 +232,12 @@ const getPolylineColor = (eventType, severity) => {
 
   // Construction - orange/yellow based on severity
   if (eventType === 'Construction') {
-    return severity === 'high' ? '#c97a16' : '#fbbf24'; // orange-500 or amber-400
+    return severity === 'high' ? '#c97a16' : '#d4a55b'; // orange-500 or amber-400
   }
 
   // Weather - blue/red based on severity
   if (eventType === 'Weather') {
-    return severity === 'high' ? '#d83a3a' : '#3b82f6'; // red-600 or blue-500
+    return severity === 'high' ? '#d83a3a' : '#5a8dd6'; // red-600 or blue-500
   }
 
   // Default - based on severity
@@ -333,7 +333,7 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
   }
   } else if (eventType === 'Weather') {
     const weatherType = getWeatherType(description);
-    const color = normalizedSeverity === 'high' ? '#d83a3a' : '#3b82f6';
+    const color = normalizedSeverity === 'high' ? '#d83a3a' : '#5a8dd6';
 
     if (weatherType === 'snow') {
       // Snowflake
@@ -845,7 +845,7 @@ export default function TrafficMap({
                       key={`polyline-${event.id}`}
                       positions={polylinePositions}
                       pathOptions={{
-                        color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)) || '#FF0000', // Fallback to bright red
+                        color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)) || '#d83a3a', // Fallback to bright red
                         weight: 8, // Extra thick for visibility
                         opacity: eventOpacity, // Dim when IPAWS geofence is active
                         lineJoin: 'round',
@@ -873,7 +873,7 @@ export default function TrafficMap({
                         key={`polyline-${event.id}-${index}`}
                         positions={linePositions}
                         pathOptions={{
-                          color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)) || '#FF0000', // Fallback to bright red
+                          color: getPolylineColor(event.eventType, normalizeSeverity(event.severityLevel || event.severity)) || '#d83a3a', // Fallback to bright red
                           weight: 8, // Extra thick for visibility
                           opacity: eventOpacity, // Dim when IPAWS geofence is active
                           lineJoin: 'round',
@@ -1025,7 +1025,7 @@ export default function TrafficMap({
                 pathOptions={{
                   color: '#111827',
                   weight: 3,
-                  fillColor: '#fbbf24',
+                  fillColor: '#d4a55b',
                   fillOpacity: 1
                 }}
               >
@@ -1156,7 +1156,7 @@ export default function TrafficMap({
                     fontSize: '16px',
                     fontWeight: 'bold',
                     color: '#1f2937',
-                    borderBottom: '2px solid #3b82f6',
+                    borderBottom: '2px solid #5a8dd6',
                     paddingBottom: '8px'
                   }}>
                     🌉 {bridge.name || 'BIM Bridge Model'}

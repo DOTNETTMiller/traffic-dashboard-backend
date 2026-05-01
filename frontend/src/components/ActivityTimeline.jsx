@@ -2,8 +2,10 @@ import { useState, useMemo, useEffect } from 'react';
 import { format } from 'date-fns';
 import { config } from '../config';
 import { theme } from '../styles/theme';
+import Skeleton from './Skeleton';
 
-export default function ActivityTimeline({ events, messages = {} }) {
+export default function ActivityTimeline({ events, messages = {}, loading = false }) {
+  const isInitialLoading = loading && (!events || events.length === 0);
   const [filter, setFilter] = useState('all'); // 'all', 'events', 'messages'
   const [timeRange, setTimeRange] = useState('24h'); // '1h', '6h', '24h', '7d', 'all'
   const [expanded, setExpanded] = useState({});
@@ -106,6 +108,24 @@ export default function ActivityTimeline({ events, messages = {} }) {
   const toggleExpanded = (itemId) => {
     setExpanded(prev => ({ ...prev, [itemId]: !prev[itemId] }));
   };
+
+  if (isInitialLoading) {
+    return (
+      <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+            <Skeleton circle size={24} />
+            <div style={{ flex: 1 }}>
+              <Skeleton width="44%" height={12} />
+              <div style={{ height: 6 }} />
+              <Skeleton width="86%" height={10} />
+            </div>
+            <Skeleton width="60px" height={10} />
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div style={{

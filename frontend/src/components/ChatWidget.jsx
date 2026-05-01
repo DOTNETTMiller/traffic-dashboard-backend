@@ -173,45 +173,57 @@ export default function ChatWidget({ user, context, isDarkMode }) {
         <div style={{
           width: '400px',
           height: '600px',
-          backgroundColor: isDarkMode ? '#1f2937' : 'white',
-          borderRadius: '12px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+          backgroundColor: isDarkMode ? '#1d1d1f' : '#ffffff',
+          borderRadius: '14px',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 16px 40px rgba(0,0,0,0.12)',
           display: 'flex',
           flexDirection: 'column',
           marginBottom: '12px',
-          border: `1px solid ${isDarkMode ? '#374151' : '#e5e7eb'}`
+          border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`,
+          overflow: 'hidden'
         }}>
-          {/* Header */}
+          {/* Header — flat surface, hairline border, restrained */}
           <div style={{
-            padding: '16px',
-            backgroundColor: '#3b82f6',
-            color: '#111827',
-            borderTopLeftRadius: '12px',
-            borderTopRightRadius: '12px',
+            padding: '14px 18px',
+            background: isDarkMode ? '#1d1d1f' : '#ffffff',
+            color: isDarkMode ? '#f5f5f7' : '#1d1d1f',
+            borderTopLeftRadius: '14px',
+            borderTopRightRadius: '14px',
+            borderBottom: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center'
           }}>
             <div>
-              <div style={{ fontWeight: '700', fontSize: '16px' }}>DOT Assistant</div>
-              <div style={{ fontSize: '12px', opacity: 0.9 }}>
+              <div style={{
+                fontWeight: 600,
+                fontSize: '14px',
+                letterSpacing: '-0.01em'
+              }}>DOT Assistant</div>
+              <div style={{
+                fontSize: '11px',
+                color: isDarkMode ? 'rgba(245,245,247,0.62)' : '#6e6e73',
+                marginTop: '2px'
+              }}>
                 {context && context.type === 'corridor'
-                  ? `📍 ${context.data.corridor} Corridor Expert`
-                  : 'WZDx, TMDD, SAE J2735 Expert'
+                  ? `${context.data.corridor} corridor expert`
+                  : 'WZDx · TMDD · SAE J2735'
                 }
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '6px' }}>
               <button
                 onClick={clearHistory}
                 style={{
-                  background: 'rgba(255,255,255,0.2)',
-                  border: 'none',
-                  color: '#111827',
-                  padding: '4px 8px',
-                  borderRadius: '4px',
+                  background: 'transparent',
+                  border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.10)'}`,
+                  color: isDarkMode ? '#f5f5f7' : '#6e6e73',
+                  padding: '4px 10px',
+                  borderRadius: '999px',
                   cursor: 'pointer',
-                  fontSize: '12px'
+                  fontSize: '11px',
+                  fontFamily: 'inherit',
+                  fontWeight: 500
                 }}
                 title="Clear history"
               >
@@ -220,18 +232,24 @@ export default function ChatWidget({ user, context, isDarkMode }) {
               <button
                 onClick={() => setIsOpen(false)}
                 style={{
-                  background: 'rgba(255,255,255,0.2)',
+                  background: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
                   border: 'none',
-                  color: '#111827',
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '4px',
+                  color: isDarkMode ? '#f5f5f7' : '#6e6e73',
+                  width: '24px',
+                  height: '24px',
+                  minWidth: '24px',
+                  minHeight: '24px',
+                  borderRadius: '999px',
                   cursor: 'pointer',
-                  fontSize: '18px',
-                  lineHeight: '1'
+                  fontSize: '13px',
+                  lineHeight: 1,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}
+                aria-label="Close chat"
               >
-                ×
+                ✕
               </button>
             </div>
           </div>
@@ -292,7 +310,7 @@ export default function ChatWidget({ user, context, isDarkMode }) {
                   maxWidth: '80%',
                   padding: '10px 14px',
                   borderRadius: '12px',
-                  backgroundColor: msg.role === 'user' ? '#3b82f6' : (isDarkMode ? '#374151' : 'white'),
+                  backgroundColor: msg.role === 'user' ? '#0071e3' : (isDarkMode ? '#374151' : 'white'),
                   color: msg.role === 'user' ? 'white' : (isDarkMode ? '#f9fafb' : '#1f2937'),
                   fontSize: '14px',
                   lineHeight: '1.5',
@@ -386,22 +404,24 @@ export default function ChatWidget({ user, context, isDarkMode }) {
                   backgroundColor: isDarkMode ? '#374151' : 'white',
                   color: isDarkMode ? '#f9fafb' : '#1f2937'
                 }}
-                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                onFocus={(e) => e.target.style.borderColor = '#0071e3'}
                 onBlur={(e) => e.target.style.borderColor = isDarkMode ? '#4b5563' : '#d1d5db'}
               />
               <button
                 type="submit"
                 disabled={isLoading || !inputMessage.trim()}
                 style={{
-                  padding: '10px 20px',
-                  backgroundColor: isLoading || !inputMessage.trim() ? '#9ca3af' : '#3b82f6',
-                  color: '#111827',
+                  padding: '8px 18px',
+                  backgroundColor: isLoading || !inputMessage.trim() ? '#c7c7cc' : '#0071e3',
+                  color: '#ffffff',
                   border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '14px',
-                  fontWeight: '600',
+                  borderRadius: '999px',
+                  fontSize: '13px',
+                  fontFamily: 'inherit',
+                  fontWeight: 500,
+                  letterSpacing: '-0.01em',
                   cursor: isLoading || !inputMessage.trim() ? 'not-allowed' : 'pointer',
-                  transition: 'background-color 0.2s'
+                  transition: 'background-color 200ms cubic-bezier(0.32, 0.72, 0, 1)'
                 }}
               >
                 Send
@@ -411,33 +431,32 @@ export default function ChatWidget({ user, context, isDarkMode }) {
         </div>
       )}
 
-      {/* Toggle Button - Robot Icon */}
+      {/* Toggle Button — glass pebble matching header chrome */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
-          width: '60px',
-          height: '60px',
+          width: '52px',
+          height: '52px',
           borderRadius: '50%',
-          backgroundColor: '#3b82f6',
-          color: '#111827',
-          border: 'none',
-          boxShadow: '0 4px 12px rgba(59,130,246,0.4)',
+          background: 'rgba(29, 29, 31, 0.78)',
+          color: '#f5f5f7',
+          border: '1px solid rgba(255, 255, 255, 0.10)',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.16), 0 6px 16px rgba(0,0,0,0.18)',
           cursor: 'pointer',
-          fontSize: '28px',
+          fontSize: '22px',
+          lineHeight: 1,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          transition: 'all 0.2s',
-          position: 'relative'
+          transition: 'transform 200ms cubic-bezier(0.32, 0.72, 0, 1), background-color 200ms cubic-bezier(0.32, 0.72, 0, 1)',
+          position: 'relative',
+          backdropFilter: 'blur(14px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(14px) saturate(180%)'
         }}
-        onMouseOver={(e) => {
-          e.currentTarget.style.backgroundColor = '#2563eb';
-          e.currentTarget.style.transform = 'scale(1.05)';
-        }}
-        onMouseOut={(e) => {
-          e.currentTarget.style.backgroundColor = '#3b82f6';
-          e.currentTarget.style.transform = 'scale(1)';
-        }}
+        onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(29, 29, 31, 0.92)'; }}
+        onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(29, 29, 31, 0.78)'; }}
+        onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.96)'; }}
+        onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
         title="AI Assistant"
       >
         {isOpen ? '✕' : '🤖'}
