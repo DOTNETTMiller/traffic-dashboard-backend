@@ -207,8 +207,9 @@ body {
   margin: 0 auto;
   padding: 10px 24px;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;   /* nav lives in the left rail now; right-align refresh/auto controls */
   align-items: center;
+  gap: 16px;
   background-color: var(--surface-elevated);
   border-bottom: 1px solid var(--border);
   position: sticky;
@@ -655,6 +656,233 @@ body {
   padding: 14px 22px;
   border-top: 1px solid var(--border);
   background: var(--surface);
+}
+
+/* =========================================================================
+   NavSidebar — fixed left rail. 56px collapsed (icon-only), 220px expanded.
+   Sits below the header. Mobile (<=768px): hidden until hamburger opens it.
+   ========================================================================= */
+.nav-sidebar {
+  position: fixed;
+  top: 50px;                          /* matches sticky header height */
+  left: 0;
+  bottom: 0;
+  width: var(--nav-w, 56px);
+  z-index: 9998;
+  background: rgba(245, 245, 247, 0.78);
+  border-right: 1px solid var(--border);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  display: flex;
+  flex-direction: column;
+  transition: width 220ms var(--ease-spring);
+}
+
+.nav-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 8px;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.nav-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  min-width: 28px;
+  margin: 2px 6px 8px auto;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background-color 180ms var(--ease-spring), color 180ms var(--ease-spring);
+}
+.nav-toggle:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--fg);
+}
+
+.nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 36px;
+  min-height: 36px;
+  min-width: 0;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background-color 180ms var(--ease-spring), color 180ms var(--ease-spring);
+}
+.nav-link:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+.nav-link.is-active {
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: 0 0 0 1px var(--border-strong), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.nav-link.is-group {
+  /* Slightly different active-state styling for the parent of an active item */
+}
+
+.nav-link-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.nav-link-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-link-chev {
+  font-size: 14px;
+  color: var(--fg-muted);
+  transition: transform 200ms var(--ease-spring);
+  flex-shrink: 0;
+}
+
+.nav-subitems {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0 4px 28px;
+  gap: 1px;
+}
+
+.nav-subitem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 30px;
+  min-height: 30px;
+  min-width: 0;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background-color 180ms var(--ease-spring), color 180ms var(--ease-spring);
+}
+.nav-subitem:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--fg);
+}
+.nav-subitem.is-active {
+  background: rgba(0, 113, 227, 0.10);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nav-subitem-icon {
+  font-size: 13px;
+  line-height: 1;
+  width: 18px;
+  flex-shrink: 0;
+}
+.nav-subitem-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Make room for the rail beside the main content. */
+body.has-nav-sidebar .controls,
+body.has-nav-sidebar .main-content {
+  padding-left: calc(var(--nav-w, 56px) + 24px);
+  transition: padding-left 220ms var(--ease-spring);
+}
+
+/* Mobile: hide rail by default, show hamburger. Sidebar slides in from left. */
+.nav-mobile-toggle {
+  display: none;
+}
+.nav-mobile-backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .nav-sidebar {
+    transform: translateX(-100%);
+    transition: transform 240ms var(--ease-spring);
+  }
+  .nav-sidebar.is-mobile-open {
+    transform: translateX(0);
+  }
+  body.has-nav-sidebar .controls,
+  body.has-nav-sidebar .main-content {
+    padding-left: 0;
+  }
+  .nav-mobile-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    bottom: 90px;
+    right: 20px;
+    width: 48px;
+    height: 48px;
+    min-height: 48px;
+    min-width: 48px;
+    border-radius: 999px;
+    background: rgba(29, 29, 31, 0.86);
+    color: #f5f5f7;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+    cursor: pointer;
+    font-size: 18px;
+    z-index: 10001;
+    backdrop-filter: blur(14px) saturate(180%);
+    -webkit-backdrop-filter: blur(14px) saturate(180%);
+  }
+  .nav-mobile-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.32);
+    z-index: 9997;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
 }
 
 /* Sandbox pill — replaces the giant overlay logo. Glass amber chip. */
