@@ -134,48 +134,46 @@
     </div>
     <script type="module" src="./src/main.jsx"></script>
 
-    <!-- Service Worker Registration - TEMPORARILY DISABLED FOR CACHE BUSTING -->
+    <!-- Service Worker registration -->
     <script>
-      if ('serviceWorker' in navigator) {
-        // Unregister ALL existing service workers
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for(let registration of registrations) {
-            registration.unregister();
-            console.log('🗑️ Unregistered old service worker');
-          }
-        });
+      (function() {
+        if (!('serviceWorker' in navigator)) return;
 
-        // Clear all caches
-        if ('caches' in window) {
-          caches.keys().then(function(names) {
-            for (let name of names) {
-              caches.delete(name);
-              console.log('🗑️ Deleted cache:', name);
-            }
+        // Kill switch: append ?clear-sw=1 to any URL to unregister every service
+        // worker for this origin and wipe caches. Useful if a deploy ever ships
+        // a broken SW that's pinning users to stale code. Reload after.
+        if (new URLSearchParams(window.location.search).has('clear-sw')) {
+          Promise.all([
+            navigator.serviceWorker.getRegistrations().then(regs =>
+              Promise.all(regs.map(r => r.unregister()))
+            ),
+            ('caches' in window
+              ? caches.keys().then(names => Promise.all(names.map(n => caches.delete(n))))
+              : Promise.resolve())
+          ]).then(() => {
+            console.log('🗑️ Service workers unregistered and caches cleared. Reloading…');
+            window.location.replace(window.location.pathname);
           });
+          return;
         }
 
-        console.log('✅ Service worker disabled and caches cleared');
-
-        // TODO: Re-enable service worker after cache issues are resolved
-        // Uncomment below to re-enable:
-        /*
+        // Normal path: register the SW after first paint so it doesn't compete
+        // with critical resource loading. Network-first strategy means HTML/JS
+        // are always fetched fresh when online; the cache is just a fallback.
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/service-worker.js')
             .then((registration) => {
-              console.log('ServiceWorker registered:', registration.scope);
-              setInterval(() => {
-                registration.update();
-              }, 60000);
+              console.log('✅ ServiceWorker registered:', registration.scope);
+              // Check for updates every minute while the tab is open.
+              setInterval(() => { registration.update().catch(() => {}); }, 60_000);
             })
-            .catch((error) => {
-              console.log('ServiceWorker registration failed:', error);
+            .catch((err) => {
+              console.warn('ServiceWorker registration failed:', err);
             });
         });
-        */
-      }
+      })();
 
-      // Install prompt handling
+      // PWA install-prompt handling
       let deferredPrompt;
       window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
@@ -183,7 +181,6 @@
         console.log('Install prompt available');
       });
 
-      // App installed event
       window.addEventListener('appinstalled', () => {
         console.log('PWA was installed');
         deferredPrompt = null;

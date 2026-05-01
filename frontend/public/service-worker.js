@@ -3,7 +3,9 @@
  * Enables offline functionality and caching for PWA
  */
 
-const CACHE_NAME = 'dot-corridor-v3-network-first-js';
+// Bump this whenever the cache strategy changes; the activate handler clears
+// every cache that doesn't match.
+const CACHE_NAME = 'mes-v4-2026-05-relaunch';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -71,7 +73,8 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Network-first strategy for HTML pages
-  if (event.request.headers.get('accept').includes('text/html')) {
+  const acceptHeader = event.request.headers.get('accept') || '';
+  if (acceptHeader.includes('text/html')) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
@@ -163,7 +166,7 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification('Matt's Experimental Sandbox', options)
+    self.registration.showNotification("Matt's Experimental Sandbox", options)
   );
 });
 
