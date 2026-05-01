@@ -652,12 +652,12 @@ export default function TrafficMap({
         {/* Auto-center map when IPAWS geofence is updated */}
         <IPAWSGeofenceCenterController ipawsGeofence={ipawsGeofence} />
 
-        {/* ESRI World Street Map - excellent highway visibility */}
+        {/* CartoDB Positron / Dark Matter — Apple-Maps-style minimal cartography */}
         <TileLayer
-          attribution='Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url={isDarkMode
             ? "https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png"
-            : "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+            : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
           }
           subdomains="abcd"
           maxZoom={20}
