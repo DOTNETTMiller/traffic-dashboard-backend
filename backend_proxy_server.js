@@ -9811,6 +9811,56 @@ app.post('/api/events/:eventId/comments', requireUserOrStateAuth, async (req, re
   }
 });
 
+// Per-event compliance grades — lazy, computed only when the user opens
+// an event. Cached by event id + events-cache timestamp so a single event
+// is graded at most once per refresh cycle (~60s).
+const eventGradeCache = new Map();
+
+app.get('/api/events/:eventId/compliance', async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+
+  // Wait for startup cache if it's still warming.
+  if (!eventsCache.data && startupCachePromise) {
+    await startupCachePromise;
+  }
+
+  const eventId = req.params.eventId;
+  const cacheStamp = eventsCache.timestamp || 0;
+  const cacheKey = `${eventId}:${cacheStamp}`;
+
+  // In-memory cache hit
+  if (eventGradeCache.has(cacheKey)) {
+    return res.json({ success: true, ...eventGradeCache.get(cacheKey) });
+  }
+
+  // Locate the event in the cached payload
+  const event = (eventsCache.data || []).find(e => e && e.id === eventId);
+  if (!event) {
+    return res.status(404).json({ error: 'Event not found in current cache' });
+  }
+
+  try {
+    const { gradeEvent } = getComplianceAnalyzer();
+    const result = gradeEvent(event);
+    eventGradeCache.set(cacheKey, result);
+
+    // Bound the cache so it doesn't grow forever — keep the 5000 most recent entries.
+    if (eventGradeCache.size > 5000) {
+      const drop = eventGradeCache.size - 5000;
+      let i = 0;
+      for (const k of eventGradeCache.keys()) {
+        if (i++ >= drop) break;
+        eventGradeCache.delete(k);
+      }
+    }
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Error grading event:', error);
+    res.status(500).json({ error: 'Failed to grade event' });
+  }
+});
+
 // Get comments for an event (public - no auth required)
 app.get('/api/events/:eventId/comments', async (req, res) => {
   try {

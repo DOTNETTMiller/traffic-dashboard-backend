@@ -1466,5 +1466,80 @@ class ComplianceAnalyzer {
   }
 }
 
+// =============================================================================
+// Per-event compliance grading (lazy: computed on-demand for one event)
+// =============================================================================
+
+function percentageToGrade(p) {
+  if (p >= 92) return 'A';
+  if (p >= 85) return 'A-';
+  if (p >= 78) return 'B';
+  if (p >= 70) return 'C';
+  if (p >= 60) return 'D';
+  return 'F';
+}
+
+function gradeEventAgainstSpec(event, spec) {
+  const required = spec.requiredFields.filter(req => !req.optional);
+
+  let earned = 0;
+  let total = 0;
+  let criticalEarned = 0;
+  let criticalTotal = 0;
+  const missing = [];
+
+  for (const requirement of required) {
+    const weight = SEVERITY_WEIGHTS[requirement.severity] || 0.1;
+    total += weight;
+    if (requirement.severity === 'critical') criticalTotal += 1;
+
+    const value = getRequirementValue(event, requirement);
+    const result = validateRequirementValue(event, requirement, value);
+
+    if (result.passed) {
+      earned += weight;
+      if (requirement.severity === 'critical') criticalEarned += 1;
+    } else {
+      missing.push({
+        field: requirement.field,
+        severity: requirement.severity,
+        description: requirement.description,
+        reason: result.message || 'Missing'
+      });
+    }
+  }
+
+  const percentage = total === 0 ? 0 : Math.round((earned / total) * 100);
+  const criticalRatio = criticalTotal === 0 ? 1 : criticalEarned / criticalTotal;
+  const grade = adjustGradeForCritical(percentageToGrade(percentage), criticalRatio);
+
+  return {
+    label: spec.label,
+    grade,
+    percentage,
+    criticalRatio: Math.round(criticalRatio * 100),
+    missing
+  };
+}
+
+/**
+ * Grade a single event against all known standards. Returns a compact summary
+ * suitable for tooltips and detail panes. Pure function — does not mutate event.
+ */
+function gradeEvent(event) {
+  if (!event) return null;
+  return {
+    eventId: event.id,
+    standards: {
+      wzdx: gradeEventAgainstSpec(event, STANDARD_REQUIREMENTS.WZDx_v4),
+      tmdd: gradeEventAgainstSpec(event, STANDARD_REQUIREMENTS.TMDD_ngC2C),
+      sae: gradeEventAgainstSpec(event, STANDARD_REQUIREMENTS.SAE_J2735_TIM),
+      cwz: gradeEventAgainstSpec(event, STANDARD_REQUIREMENTS.CWZ_v1)
+    },
+    gradedAt: new Date().toISOString()
+  };
+}
+
 module.exports = ComplianceAnalyzer;
 module.exports.STANDARD_REQUIREMENTS = STANDARD_REQUIREMENTS;
+module.exports.gradeEvent = gradeEvent;

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import axios from 'axios';
 import { config } from '../config';
+import ComplianceGrades from './ComplianceGrades';
 
 export default function EventMessaging({ event, messages, onSendMessage, onClose, currentUser }) {
   const [newComment, setNewComment] = useState('');
@@ -167,13 +168,14 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
           justifyContent: 'space-between',
           alignItems: 'flex-start'
         }}>
-          <div>
-            <h2 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '600' }}>
-              {event.eventType} - {event.state}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2 style={{ margin: '0 0 6px 0', fontSize: '17px', fontWeight: 600, letterSpacing: '-0.022em' }}>
+              {event.eventType} <span style={{ color: '#6e6e73', fontWeight: 500 }}>· {event.state}</span>
             </h2>
-            <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>
+            <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#6e6e73' }}>
               {event.location}
             </p>
+            <ComplianceGrades eventId={event.id} />
           </div>
           <button
             onClick={onClose}
