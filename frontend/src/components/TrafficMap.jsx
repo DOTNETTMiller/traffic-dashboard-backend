@@ -56,6 +56,7 @@ import HeatMapControl from './HeatMapControl';
 import HeatMapLayer from './HeatMapLayer';
 import NASCOAIAnalysis from './NASCOAIAnalysis';
 import NearbyITSEquipment from './NearbyITSEquipment';
+import ComplianceGrades from './ComplianceGrades';
 
 // Component to center map on selected event (only once when event changes)
 function MapCenterController({ selectedEvent }) {
@@ -547,6 +548,23 @@ export default function TrafficMap({
   const [bimBridges, setBimBridges] = useState([]);
   const [savedGeofences, setSavedGeofences] = useState([]);
 
+  // Track which marker is currently hovered so we only fetch compliance grades
+  // for that one event (rather than all 1.9k events on every render). The
+  // 220ms debounce means quick scans across the map don't fire requests.
+  const [hoveredEventId, setHoveredEventId] = useState(null);
+  const hoverTimerRef = useRef(null);
+  const handleMarkerHover = (eventId) => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = setTimeout(() => setHoveredEventId(eventId), 220);
+  };
+  const handleMarkerLeave = () => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    setHoveredEventId(null);
+  };
+  useEffect(() => () => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+  }, []);
+
   // Load BIM bridges from database with V2X/AV tagging
   useEffect(() => {
     fetch(`${config.apiUrl}/api/bim/bridges`)
@@ -777,6 +795,13 @@ export default function TrafficMap({
               {hasMessages && <div style={{ marginTop: '4px', color: '#1e40af', fontWeight: 'bold' }}>
                 💬 {messageCount} message{messageCount !== 1 ? 's' : ''}
               </div>}
+              {/* Compliance grades — only mounted for the currently-hovered event
+                  (220ms debounce upstream) so we don't fetch for all 1.9k events. */}
+              {hoveredEventId === event.id && (
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+                  <ComplianceGrades eventId={event.id} compact />
+                </div>
+              )}
             </div>
           );
 
@@ -851,6 +876,10 @@ export default function TrafficMap({
                         lineJoin: 'round',
                         lineCap: 'round'
                       }}
+                      eventHandlers={{
+                        mouseover: () => handleMarkerHover(event.id),
+                        mouseout: handleMarkerLeave
+                      }}
                     >
                       <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
                         {tooltipContent}
@@ -879,6 +908,10 @@ export default function TrafficMap({
                           lineJoin: 'round',
                           lineCap: 'round'
                         }}
+                        eventHandlers={index === 0 ? {
+                          mouseover: () => handleMarkerHover(event.id),
+                          mouseout: handleMarkerLeave
+                        } : undefined}
                       >
                         {/* Only attach tooltip/popup to first line to avoid duplicates; hide when IPAWS active */}
                         {index === 0 && !ipawsGeofence && (
@@ -912,6 +945,10 @@ export default function TrafficMap({
                 zIndexOffset={hasMessages ? 1000 : 0}
                 eventId={event.id}
                 opacity={eventOpacity}
+                eventHandlers={{
+                  mouseover: () => handleMarkerHover(event.id),
+                  mouseout: handleMarkerLeave
+                }}
               >
                 {!ipawsGeofence && (
                   <>
