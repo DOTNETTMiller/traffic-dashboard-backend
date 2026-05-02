@@ -91,8 +91,31 @@ class PostgreSQLAdapter {
       'SERIAL PRIMARY KEY'
     );
 
-    // DATETIME -> TIMESTAMP
-    converted = converted.replace(/DATETIME/gi, 'TIMESTAMP');
+    // DATETIME (type) -> TIMESTAMP
+    // Only the column-type form, not the SQLite datetime() function — that
+    // gets translated below. Use a negative lookahead to skip `datetime(`.
+    converted = converted.replace(/DATETIME(?!\s*\()/gi, 'TIMESTAMP');
+
+    // SQLite datetime() function -> Postgres NOW() / interval arithmetic.
+    // datetime('now', '-1 hour')                  -> (NOW() - INTERVAL '1 hour')
+    // datetime('now', '-30 days')                 -> (NOW() - INTERVAL '30 days')
+    // datetime('now', '-12 months')               -> (NOW() - INTERVAL '12 months')
+    // datetime('now', '-' || ? || ' days')        -> (NOW() - (? || ' days')::interval)
+    // datetime('now', '-' || ? || ' hours')       -> (NOW() - (? || ' hours')::interval)
+    // datetime('now')                             -> NOW()
+    // datetime(col)                               -> col   (Postgres compares timestamps directly)
+    converted = converted.replace(
+      /datetime\(\s*'now'\s*,\s*'-(\d+)\s+(\w+)'\s*\)/gi,
+      "(NOW() - INTERVAL '$1 $2')"
+    );
+    converted = converted.replace(
+      /datetime\(\s*'now'\s*,\s*'-'\s*\|\|\s*\?\s*\|\|\s*'\s*(\w+)\s*'\s*\)/gi,
+      "(NOW() - (? || ' $1')::interval)"
+    );
+    converted = converted.replace(/datetime\(\s*'now'\s*\)/gi, 'NOW()');
+    // Strip the no-op datetime() wrapper around bare column references
+    // (e.g. `datetime(timestamp) >= ...`); the column is already a timestamp.
+    converted = converted.replace(/datetime\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)/gi, '$1');
 
     // REAL -> DOUBLE PRECISION
     converted = converted.replace(/\bREAL\b/gi, 'DOUBLE PRECISION');

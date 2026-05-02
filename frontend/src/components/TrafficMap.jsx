@@ -795,13 +795,19 @@ export default function TrafficMap({
               {hasMessages && <div style={{ marginTop: '4px', color: '#1e40af', fontWeight: 'bold' }}>
                 💬 {messageCount} message{messageCount !== 1 ? 's' : ''}
               </div>}
-              {/* Compliance grades — only mounted for the currently-hovered event
-                  (220ms debounce upstream) so we don't fetch for all 1.9k events. */}
-              {hoveredEventId === event.id && (
-                <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+              {/* Compliance grades — only fetched for the currently-hovered event
+                  (220ms debounce upstream). We reserve the row's height even when
+                  not hovered so Leaflet doesn't re-position the tooltip on load. */}
+              <div style={{
+                marginTop: 8,
+                paddingTop: 8,
+                borderTop: '1px solid rgba(0, 0, 0, 0.08)',
+                minHeight: 30
+              }}>
+                {hoveredEventId === event.id && (
                   <ComplianceGrades eventId={event.id} compact />
-                </div>
-              )}
+                )}
+              </div>
             </div>
           );
 

@@ -138,68 +138,104 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
   if (!event) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000
-    }}>
+    <div
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0, 0, 0, 0.32)',
+        backdropFilter: 'blur(2px)',
+        WebkitBackdropFilter: 'blur(2px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        animation: 'cc-sheet-backdrop-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both'
+      }}
+    >
       <div style={{
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        width: '90%',
-        maxWidth: '600px',
-        maxHeight: '80vh',
+        background: '#ffffff',
+        borderRadius: '14px',
+        border: '1px solid rgba(0, 0, 0, 0.08)',
+        width: '92%',
+        maxWidth: '620px',
+        maxHeight: '82vh',
         display: 'flex',
         flexDirection: 'column',
-        boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
+        boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 24px 48px rgba(0,0,0,0.16)',
+        overflow: 'hidden',
+        fontFamily: "'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif",
+        color: '#1d1d1f',
+        animation: 'cc-dialog-in 240ms cubic-bezier(0.32, 0.72, 0, 1) both'
       }}>
         {/* Header */}
         <div style={{
-          padding: '16px 20px',
-          borderBottom: '1px solid #e5e7eb',
+          padding: '18px 22px 14px',
+          borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'flex-start'
+          alignItems: 'flex-start',
+          gap: 12
         }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <h2 style={{ margin: '0 0 6px 0', fontSize: '17px', fontWeight: 600, letterSpacing: '-0.022em' }}>
-              {event.eventType} <span style={{ color: '#6e6e73', fontWeight: 500 }}>· {event.state}</span>
+            <h2 style={{
+              margin: '0 0 4px 0',
+              fontSize: '17px',
+              fontWeight: 600,
+              letterSpacing: '-0.022em',
+              color: '#1d1d1f'
+            }}>
+              {event.eventType}
+              <span style={{ color: '#6e6e73', fontWeight: 500, marginLeft: 6 }}>· {event.state}</span>
             </h2>
-            <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#6e6e73' }}>
+            <p style={{ margin: 0, fontSize: '12px', color: '#6e6e73' }}>
               {event.location}
             </p>
-            <ComplianceGrades eventId={event.id} />
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             style={{
-              padding: '4px 8px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 28,
+              height: 28,
+              minWidth: 28,
+              minHeight: 28,
               border: 'none',
-              backgroundColor: 'transparent',
+              borderRadius: '999px',
+              background: 'rgba(0, 0, 0, 0.05)',
+              color: '#6e6e73',
               cursor: 'pointer',
-              fontSize: '24px',
-              color: '#6b7280'
+              fontSize: 14,
+              lineHeight: 1,
+              transition: 'background-color 180ms cubic-bezier(0.32, 0.72, 0, 1)'
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0, 0, 0, 0.10)'; e.currentTarget.style.color = '#1d1d1f'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)'; e.currentTarget.style.color = '#6e6e73'; }}
           >
-            ×
+            ✕
           </button>
+        </div>
+
+        {/* Compliance grades — own row so they're always visible */}
+        <div style={{
+          padding: '12px 22px',
+          borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
+          background: '#f5f5f7'
+        }}>
+          <ComplianceGrades eventId={event.id} />
         </div>
 
         {/* State Login Notice */}
         {!isStateLoggedIn && (
           <div style={{
-            padding: '20px',
-            backgroundColor: '#6b7280',
-            borderBottom: '1px solid #e5e7eb'
+            padding: '14px 22px',
+            background: 'rgba(0, 113, 227, 0.06)',
+            borderBottom: '1px solid rgba(0, 0, 0, 0.06)'
           }}>
-            <p style={{ margin: 0, fontSize: '14px', color: '#92400e' }}>
+            <p style={{ margin: 0, fontSize: '12px', color: '#0a4a8f' }}>
               To comment on this event, please log in as your state from the <strong>Messages</strong> tab.
             </p>
           </div>
@@ -209,14 +245,15 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
         <div style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '20px',
-          backgroundColor: '#6b7280'
+          padding: '16px 22px',
+          background: '#ffffff'
         }}>
           {groupedComments.length === 0 ? (
             <div style={{
               textAlign: 'center',
-              color: '#6b7280',
-              padding: '40px 20px'
+              color: '#6e6e73',
+              padding: '40px 20px',
+              fontSize: 13
             }}>
               No comments yet. {isStateLoggedIn ? 'Start the conversation!' : 'Log in to add the first comment.'}
             </div>
@@ -225,11 +262,13 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
               <div
                 key={comment.id}
                 style={{
-                  marginBottom: '20px',
-                  padding: '14px',
-                  backgroundColor: comment.state_key === stateKey ? '#dbeafe' : 'white',
-                  borderRadius: '8px',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                  marginBottom: 12,
+                  padding: '12px 14px',
+                  background: comment.state_key === stateKey ? 'rgba(0, 113, 227, 0.06)' : '#ffffff',
+                  border: comment.state_key === stateKey
+                    ? '1px solid rgba(0, 113, 227, 0.20)'
+                    : '1px solid rgba(0, 0, 0, 0.08)',
+                  borderRadius: 10
                 }}
               >
                 <div style={{
@@ -241,37 +280,46 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
                 }}>
                   {/* Only show sender name if it's not "Matt's Experimental Sandbox" */}
                   <span style={{
-                    fontWeight: '600',
-                    fontSize: '14px',
-                    color: '#374151',
-                    flexShrink: 0
+                    fontWeight: 600,
+                    fontSize: 13,
+                    color: '#1d1d1f',
+                    flexShrink: 0,
+                    letterSpacing: '-0.01em'
                   }}>
-                    {comment.state_name !== "Matt's Experimental Sandbox" ? comment.state_name : ''}
+                    {comment.state_name !== "Matt's Experimental Sandbox" ? comment.state_name : 'System'}
                   </span>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
                     {comment.count > 1 && (
                       <span style={{
-                        fontSize: '11px',
-                        backgroundColor: '#3b82f6',
-                        color: '#111827',
-                        padding: '3px 8px',
-                        borderRadius: '12px',
-                        fontWeight: '600',
-                        flexShrink: 0
+                        fontSize: 10,
+                        background: '#0071e3',
+                        color: '#ffffff',
+                        padding: '2px 7px',
+                        borderRadius: 999,
+                        fontWeight: 600,
+                        flexShrink: 0,
+                        letterSpacing: '0.02em',
+                        fontVariantNumeric: 'tabular-nums'
                       }}>
                         ×{comment.count}
                       </span>
                     )}
-                    <span style={{ fontSize: '12px', color: '#6b7280', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    <span style={{
+                      fontSize: 11,
+                      color: '#6e6e73',
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      fontVariantNumeric: 'tabular-nums'
+                    }}>
                       {comment.count > 1
-                        ? `${format(new Date(comment.firstTimestamp), 'MMM d')} - ${format(new Date(comment.latestTimestamp), 'MMM d')}`
+                        ? `${format(new Date(comment.firstTimestamp), 'MMM d')} – ${format(new Date(comment.latestTimestamp), 'MMM d')}`
                         : format(new Date(comment.latestTimestamp), 'MMM d, h:mm a')
                       }
                     </span>
                   </div>
                 </div>
-                <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.6', whiteSpace: 'pre-wrap', clear: 'both' }}>
+                <p style={{ margin: 0, fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap', color: '#1d1d1f' }}>
                   {comment.comment}
                 </p>
               </div>
@@ -283,47 +331,54 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
         {/* Input */}
         {isStateLoggedIn && (
           <div style={{
-            padding: '16px 20px',
-            borderTop: '1px solid #e5e7eb',
-            backgroundColor: 'white'
+            padding: '14px 22px 16px',
+            borderTop: '1px solid rgba(0, 0, 0, 0.08)',
+            background: '#ffffff'
           }}>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
               <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Type a comment... (Press Enter to send)"
+                placeholder="Type a comment… (Press Enter to send)"
                 rows={2}
                 disabled={loading}
                 style={{
                   flex: 1,
-                  padding: '8px 12px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '4px',
-                  fontSize: '14px',
+                  padding: '9px 12px',
+                  border: '1px solid rgba(0, 0, 0, 0.12)',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontFamily: 'inherit',
                   resize: 'none',
-                  fontFamily: 'inherit'
+                  outline: 'none',
+                  color: '#1d1d1f',
+                  background: '#ffffff'
                 }}
               />
               <button
                 onClick={handleAddComment}
                 disabled={!newComment.trim() || loading}
                 style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#3b82f6',
-                  color: '#111827',
+                  padding: '0 16px',
+                  height: 36,
+                  background: !newComment.trim() || loading ? '#c7c7cc' : '#0071e3',
+                  color: '#ffffff',
                   border: 'none',
-                  borderRadius: '4px',
+                  borderRadius: 999,
+                  fontFamily: 'inherit',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  letterSpacing: '-0.01em',
                   cursor: newComment.trim() && !loading ? 'pointer' : 'not-allowed',
-                  opacity: newComment.trim() && !loading ? 1 : 0.5,
-                  height: '40px'
+                  transition: 'background-color 200ms cubic-bezier(0.32, 0.72, 0, 1)'
                 }}
               >
-                {loading ? 'Sending...' : 'Send'}
+                {loading ? 'Sending…' : 'Send'}
               </button>
             </div>
-            <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
-              Commenting as: <strong>{stateName}</strong>
+            <div style={{ marginTop: 8, fontSize: 11, color: '#6e6e73' }}>
+              Commenting as <strong style={{ color: '#1d1d1f' }}>{stateName}</strong>
             </div>
           </div>
         )}
