@@ -20476,15 +20476,109 @@ const CoverageGapAnalyzer = require('./services/coverage-gap-analyzer');
  */
 app.get('/api/asset-health/dashboard/:stateKey', async (req, res) => {
   try {
-    const { stateKey } = req.params;
-    const monitor = new AssetHealthMonitor();
+    res.set('Cache-Control', 'public, max-age=120, stale-while-revalidate=300');
+    const stateKey = req.params.stateKey;
 
-    const dashboard = monitor.getStateDashboard(stateKey);
-    monitor.close();
+    // Pull live ITS equipment for this state. The original AssetHealthMonitor
+    // queried a separate `asset_health` table that was never populated; the
+    // `its_equipment` table is the source of truth and already has data.
+    let rows;
+    try {
+      const stmt = db.db.prepare(
+        'SELECT id, state_key, equipment_type, equipment_subtype, status, ' +
+        'data_source, latitude, longitude, location_description, updated_at ' +
+        'FROM its_equipment WHERE LOWER(state_key) = LOWER(?)'
+      );
+      rows = await stmt.all(stateKey);
+    } catch (err) {
+      console.error('asset-health: query failed', err.message);
+      rows = [];
+    }
+    const assets = Array.isArray(rows) ? rows : [];
+
+    // Map raw equipment statuses to the operational vocabulary the dashboard
+    // already understands. Anything we don't recognize falls into UNKNOWN.
+    const STATUS_MAP = {
+      active:      'OPERATIONAL',
+      ok:          'OPERATIONAL',
+      operational: 'OPERATIONAL',
+      degraded:    'DEGRADED',
+      warning:     'DEGRADED',
+      failed:      'FAILED',
+      error:       'FAILED',
+      maintenance: 'MAINTENANCE',
+      inactive:    'OFFLINE',
+      offline:     'OFFLINE'
+    };
+    const TYPE_LABEL = {
+      camera: 'CCTV',
+      sensor: 'Detector',
+      dms:    'DMS',
+      rwis:   'RWIS',
+      rsu:    'RSU'
+    };
+    const STATUS_WEIGHT = {
+      OPERATIONAL: 100,
+      DEGRADED:    60,
+      MAINTENANCE: 80,
+      FAILED:      0,
+      OFFLINE:     20,
+      UNKNOWN:     50
+    };
+
+    const normalized = assets.map(a => ({
+      asset_id: a.id,
+      asset_type: TYPE_LABEL[String(a.equipment_type || '').toLowerCase()]
+        || a.equipment_type
+        || 'Unknown',
+      corridor: a.location_description || null,
+      status: STATUS_MAP[String(a.status || '').toLowerCase()] || 'UNKNOWN',
+      uptime_30d: null,                  // not tracked in its_equipment yet
+      last_online: a.updated_at || null
+    }));
+
+    const summary = {
+      total_assets: normalized.length,
+      operational: normalized.filter(a => a.status === 'OPERATIONAL').length,
+      degraded:    normalized.filter(a => a.status === 'DEGRADED').length,
+      failed:      normalized.filter(a => a.status === 'FAILED').length,
+      maintenance: normalized.filter(a => a.status === 'MAINTENANCE').length,
+      offline:     normalized.filter(a => a.status === 'OFFLINE').length
+    };
+    summary.overall_health_score = normalized.length === 0 ? 0
+      : Math.round(
+          normalized.reduce((s, a) => s + (STATUS_WEIGHT[a.status] ?? 50), 0)
+          / normalized.length * 10
+        ) / 10;
+
+    // Per-type breakdown with health scores
+    const byType = {};
+    for (const a of normalized) {
+      const t = a.asset_type;
+      if (!byType[t]) {
+        byType[t] = { total: 0, operational: 0, degraded: 0, failed: 0, maintenance: 0, offline: 0 };
+      }
+      byType[t].total += 1;
+      const k = a.status.toLowerCase();
+      if (byType[t][k] !== undefined) byType[t][k] += 1;
+    }
+    for (const t of Object.keys(byType)) {
+      const td = byType[t];
+      td.health_score = Math.round(
+        ((td.operational * 100) + (td.degraded * 60) + (td.maintenance * 80) + (td.offline * 20))
+        / td.total * 10
+      ) / 10;
+    }
 
     res.json({
       success: true,
-      ...dashboard
+      state_key: stateKey,
+      summary,
+      by_type: byType,
+      assets: normalized,
+      alerts: [],            // alert history not derivable from current schema
+      maintenance_due: [],   // schedule data not present in its_equipment
+      generated_at: new Date().toISOString()
     });
   } catch (error) {
     console.error('Error generating asset health dashboard:', error);

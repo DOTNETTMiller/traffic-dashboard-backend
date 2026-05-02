@@ -3,7 +3,10 @@ import api from '../services/api';
 // GLOBAL_TEXT_VISIBILITY_FIX_APPLIED: Ensures readable text on all backgrounds
 
 
-const AssetHealthDashboard = ({ stateKey = 'OH' }) => {
+// Iowa is the only state with seeded ITS equipment in the current cache
+// (3.1k assets across CCTV, sensors, DMS). Default to it so the dashboard
+// shows real numbers; can be overridden by parent prop.
+const AssetHealthDashboard = ({ stateKey = 'ia' }) => {
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -18,7 +21,7 @@ const AssetHealthDashboard = ({ stateKey = 'OH' }) => {
   const fetchAssetData = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/asset-health/dashboard/${stateKey}`);
+      const response = await api.get(`/api/asset-health/dashboard/${stateKey}`);
 
       if (response.data.success) {
         setDashboard(response.data);
