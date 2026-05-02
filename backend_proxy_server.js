@@ -9844,7 +9844,7 @@ app.get('/api/events/:eventId/compliance', async (req, res) => {
 
     // Locate the event in the cached payload. Some pipelines key events by
     // a normalized id while the front-end uses the raw id, so match either.
-    const data = Array.isArray(eventsCache.data) ? eventsCache.data : [];
+    const data = eventsCache.data?.events || [];
     const event = data.find(e => e && (e.id === eventId || e.eventId === eventId));
     if (!event) {
       clearTimeout(timer);
@@ -21020,7 +21020,7 @@ app.get('/api/predictive/congestion-forecast', async (req, res) => {
     const { corridorId } = req.query;
 
     const now = Date.now();
-    const events = eventsCache.data || [];
+    const events = eventsCache.data?.events || [];
 
     // Group active events by their corridor (when present).
     const byCorridor = new Map();
@@ -21146,7 +21146,7 @@ app.get('/api/predictive/incident-impact', async (req, res) => {
     if (!eventsCache.data && startupCachePromise) await startupCachePromise;
     const { eventId } = req.query;
     const now = new Date();
-    const events = eventsCache.data || [];
+    const events = eventsCache.data?.events || [];
 
     const sevValue = (s) => {
       const v = (s || '').toString().toLowerCase();
@@ -21247,7 +21247,7 @@ app.get('/api/predictive/safety-risk', async (req, res) => {
     if (!eventsCache.data && startupCachePromise) await startupCachePromise;
     const { eventId, riskLevel } = req.query;
     const now = new Date();
-    const events = eventsCache.data || [];
+    const events = eventsCache.data?.events || [];
 
     // Score every active work-zone or construction event.
     const candidates = events.filter(e => {
@@ -21504,7 +21504,7 @@ const { scoreEventConfidence } = require('./services/event-confidence');
 let _confidenceCache = { stamp: null, scored: null, comments: null };
 
 async function buildConfidenceData() {
-  const events = eventsCache.data || [];
+  const events = eventsCache.data?.events || [];
   // Pull comments once so we can detect multi-source verification per event.
   // getAllEventComments returns rows with event_id and state_name.
   let commentsByEventId = new Map();
@@ -21813,7 +21813,7 @@ app.get('/api/procurement/contracts', async (req, res) => {
     }
 
     // Derive cost_per_event from live event counts where missing
-    const events = eventsCache.data || [];
+    const events = eventsCache.data?.events || [];
     const last30d = Date.now() - 30 * 86400_000;
     const eventsByState = events.reduce((m, e) => {
       if (!e.state) return m;
@@ -22078,7 +22078,7 @@ app.get('/api/procurement/cost-analysis', async (req, res) => {
     }
 
     // Real 30-day event counts per state
-    const events = eventsCache.data || [];
+    const events = eventsCache.data?.events || [];
     const last30d = Date.now() - 30 * 86400_000;
     const eventsByState = events.reduce((m, e) => {
       if (!e.state) return m;
