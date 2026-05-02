@@ -668,16 +668,15 @@ body {
   left: 0;
   bottom: 0;
   width: var(--nav-w, 56px);
-  z-index: 100000 !important;         /* TEMP: above EVERYTHING for debug */
-  background: #ffffff !important;
-  border-right: 3px solid #d83a3a !important;  /* TEMP: bright red so we can spot it */
-  box-shadow: 4px 0 12px rgba(0, 0, 0, 0.08);
+  z-index: 9998;
+  background: #ffffff;
+  border-right: 1px solid var(--border-strong);
+  box-shadow: 1px 0 0 rgba(0, 0, 0, 0.04);
   display: flex !important;
   flex-direction: column;
   visibility: visible !important;
   opacity: 1 !important;
-  transform: none !important;
-  transition: none;
+  transition: width 220ms var(--ease-spring);
 }
 
 @supports (backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px)) {
