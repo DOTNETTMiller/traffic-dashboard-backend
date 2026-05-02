@@ -36437,6 +36437,15 @@ function startServer() {
     console.log(`   💡 See EMAIL_SETUP.md for configuration instructions`);
   }
 
+  // Seed NASCO corridor regulations if the table is empty (idempotent —
+  // skips if already populated, so manual edits aren't wiped on redeploy).
+  try {
+    const { seedCorridorRegulationsIfEmpty } = require('./scripts/seed_corridor_regulations_if_empty.js');
+    await seedCorridorRegulationsIfEmpty();
+  } catch (err) {
+    console.error('⚠️  NASCO seed step failed (non-fatal):', err.message);
+  }
+
   // Start TPIMS real-time data fetching
   console.log(`\n🚛 Truck Parking (TPIMS):`);
   console.log(`   📡 Real-time data feeds: ${TPIMS_FEEDS.length} sources`);
