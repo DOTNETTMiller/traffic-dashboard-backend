@@ -116,15 +116,21 @@ const NAV_FOOTER = [
 const COLLAPSED_W = 56;
 const EXPANDED_W = 220;
 
+const SECONDARY_W = 360;
+
 export default function NavSidebar({
   view,
   onViewChange,
   isAdmin = true,
   actions = {},
   chatOpen = false,
-  messagesOpen = false
+  messagesOpen = false,
+  // Optional content rendered in a panel attached to the rail's right edge.
+  // Provided by the parent based on which footer item (Inbox / AI) is active.
+  secondary = null
 }) {
   const footerToggleStates = { chatOpen, messagesOpen };
+  const hasSecondary = !!secondary;
   // User preference: persist expanded state across sessions.
   const [expanded, setExpanded] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nav.expanded') ?? 'false'); }
@@ -136,13 +142,13 @@ export default function NavSidebar({
 
   useEffect(() => {
     try { localStorage.setItem('nav.expanded', JSON.stringify(expanded)); } catch {}
-    // Make the rail width readable from anywhere (App.css uses var(--nav-w)
-    // on `.controls` and `.main-content` to leave room beside the rail).
-    document.documentElement.style.setProperty(
-      '--nav-w',
-      `${expanded ? EXPANDED_W : COLLAPSED_W}px`
-    );
-  }, [expanded]);
+    // --nav-w  = rail width only (icon strip)
+    // --nav-total-w = rail + secondary panel; what main-content needs to clear
+    const railW = expanded ? EXPANDED_W : COLLAPSED_W;
+    const total = railW + (hasSecondary ? SECONDARY_W : 0);
+    document.documentElement.style.setProperty('--nav-w',       `${railW}px`);
+    document.documentElement.style.setProperty('--nav-total-w', `${total}px`);
+  }, [expanded, hasSecondary]);
 
   // Mark <body> so the layout rule activates only when the rail is mounted.
   useEffect(() => {
@@ -204,8 +210,8 @@ export default function NavSidebar({
       )}
 
       <aside
-        className={`nav-sidebar ${expanded ? 'is-expanded' : 'is-collapsed'} ${mobileOpen ? 'is-mobile-open' : ''}`}
-        style={{ '--nav-w': `${railWidth}px` }}
+        className={`nav-sidebar ${expanded ? 'is-expanded' : 'is-collapsed'} ${mobileOpen ? 'is-mobile-open' : ''} ${hasSecondary ? 'has-secondary' : ''}`}
+        style={{ '--nav-w': `${railWidth}px`, '--nav-secondary-w': `${SECONDARY_W}px` }}
         aria-label="Primary navigation"
       >
         <div className="nav-rail">
@@ -308,6 +314,12 @@ export default function NavSidebar({
             })}
           </nav>
         </div>
+
+        {hasSecondary && (
+          <div className="nav-secondary" role="region" aria-label="Sidebar panel">
+            {secondary}
+          </div>
+        )}
       </aside>
     </>
   );

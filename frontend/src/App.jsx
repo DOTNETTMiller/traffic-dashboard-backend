@@ -787,9 +787,56 @@ function App() {
           'open-ipaws-active':      () => setShowIPAWSActiveAlerts(true),
           'open-ipaws-rules':       () => setShowIPAWSRules(true),
           'open-ipaws-after-action': () => setShowIPAWSAfterAction(true),
-          'toggle-ai':              () => setChatOpen(o => !o),
-          'toggle-messages':        () => setDesktopMessagesOpen(o => !o)
+          // Toggling either footer item closes the other so only one
+          // secondary panel shows at a time (single-pane sidebar UX).
+          'toggle-ai':       () => { setChatOpen(o => !o); setDesktopMessagesOpen(false); },
+          'toggle-messages': () => { setDesktopMessagesOpen(o => !o); setChatOpen(false); }
         }}
+        secondary={
+          chatOpen && currentUser ? (
+            <ChatWidget
+              user={currentUser}
+              isDarkMode={isDarkMode}
+              isOpen={true}
+              onOpenChange={setChatOpen}
+              showFloatingButton={false}
+              context={
+                parkingContext ? parkingContext :
+                filters.corridor ? {
+                  type: 'corridor',
+                  data: {
+                    corridor: filters.corridor,
+                    events: filteredEvents.filter(e =>
+                      e.corridor && e.corridor.toLowerCase().includes(filters.corridor.toLowerCase())
+                    )
+                  }
+                } : null
+              }
+            />
+          ) : desktopMessagesOpen && !ipawsGeofence ? (
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <div style={{ padding: '12px', borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
+                <LiveStatistics
+                  events={filteredEvents}
+                  isExpanded={statsExpanded}
+                  onToggle={() => setStatsExpanded(!statsExpanded)}
+                />
+              </div>
+              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                <MessagesPanel
+                  events={filteredEvents}
+                  messages={messages}
+                  detourAlerts={detourAlerts}
+                  filters={filters}
+                  onEventSelect={(event) => {
+                    setSelectedEvent(event);
+                  }}
+                  onClose={() => setDesktopMessagesOpen(false)}
+                />
+              </div>
+            </div>
+          ) : null
+        }
       />
 
       {/* Controls */}
@@ -1043,38 +1090,8 @@ function App() {
               boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
               position: 'relative'
             }}>
-              {/* Hide messages panel when IPAWS geofence is active */}
-              {!ipawsGeofence && (
-                <div className={`messages-panel-mobile ${mobileMenuOpen ? 'open' : ''} ${desktopMessagesOpen ? '' : 'closed'}`}>
-                  <div className="messages-panel-content">
-                  <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <LiveStatistics
-                      events={filteredEvents}
-                      isExpanded={statsExpanded}
-                      onToggle={() => setStatsExpanded(!statsExpanded)}
-                    />
-                  </div>
-                  <MessagesPanel
-                    events={filteredEvents}
-                    messages={messages}
-                    detourAlerts={detourAlerts}
-                    filters={filters}
-                    onEventSelect={(event) => {
-                      setSelectedEvent(event);
-                      setMobileMenuOpen(false);
-                      setDesktopMessagesOpen(true);
-                    }}
-                    onClose={() => {
-                      if (window.innerWidth < 769) {
-                        setMobileMenuOpen(false);
-                      } else {
-                        setDesktopMessagesOpen(false);
-                      }
-                    }}
-                  />
-                  </div>
-                </div>
-              )}
+              {/* Messages panel is now rendered inside the NavSidebar's
+                  secondary slot — see <NavSidebar secondary={...}> above. */}
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <TrafficMap
                   events={filteredEvents}
@@ -1219,40 +1236,8 @@ function App() {
         />
       )}
 
-      {/* AI Chat Widget - hide when IPAWS geofence is active.
-          Controlled by NavSidebar's "AI Assistant" item via chatOpen state. */}
-      {isAuthenticated && currentUser && !ipawsGeofence && (
-        <ChatWidget
-          user={currentUser}
-          isDarkMode={isDarkMode}
-          isOpen={chatOpen}
-          onOpenChange={setChatOpen}
-          context={
-            parkingContext ? parkingContext :
-            filters.corridor ? {
-              type: 'corridor',
-              data: {
-                corridor: filters.corridor,
-                events: filteredEvents.filter(e =>
-                  e.corridor && e.corridor.toLowerCase().includes(filters.corridor.toLowerCase())
-                )
-              }
-            } :
-            view === 'report' ? {
-              type: 'compliance',
-              data: {
-                stateKey: currentUser.stateKey,
-                view: 'data-quality'
-              }
-            } : view === 'alignment' ? {
-              type: 'feed-alignment',
-              data: {
-                view: 'alignment-analysis'
-              }
-            } : null
-          }
-        />
-      )}
+      {/* AI Chat Widget moved into NavSidebar's secondary slot —
+          see <NavSidebar secondary={...}> above. */}
 
       {/* Command Palette */}
       <CommandPalette

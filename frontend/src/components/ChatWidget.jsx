@@ -179,25 +179,33 @@ export default function ChatWidget({
 
   if (!user) return null;
 
+  // Embedded mode: parent (NavSidebar's secondary slot) gives us the box.
+  // We render inline with width/height 100% instead of position:fixed.
+  // The floating bubble is suppressed; the rail's icon is the only toggle.
+  const embedded = !renderFloatingButton;
+  const wrapperStyle = embedded
+    ? { height: '100%', width: '100%' }
+    : {
+        position: 'fixed',
+        bottom: '20px',
+        left: 'calc(var(--nav-w, 56px) + 20px)',
+        zIndex: 1000
+      };
+
   return (
-    <div style={{
-      position: 'fixed',
-      bottom: '20px',
-      left: 'calc(var(--nav-w, 56px) + 20px)',  /* clear the rail */
-      zIndex: 1000
-    }}>
+    <div style={wrapperStyle}>
       {/* Chat Widget */}
-      {isOpen && (
+      {(isOpen || embedded) && (
         <div style={{
-          width: '400px',
-          height: '600px',
+          width: embedded ? '100%' : '400px',
+          height: embedded ? '100%' : '600px',
           backgroundColor: isDarkMode ? '#1d1d1f' : '#ffffff',
-          borderRadius: '14px',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 16px 40px rgba(0,0,0,0.12)',
+          borderRadius: embedded ? 0 : '14px',
+          boxShadow: embedded ? 'none' : '0 1px 2px rgba(0,0,0,0.04), 0 16px 40px rgba(0,0,0,0.12)',
           display: 'flex',
           flexDirection: 'column',
-          marginBottom: '12px',
-          border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`,
+          marginBottom: embedded ? 0 : '12px',
+          border: embedded ? 'none' : `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`,
           overflow: 'hidden'
         }}>
           {/* Header — flat surface, hairline border, restrained */}

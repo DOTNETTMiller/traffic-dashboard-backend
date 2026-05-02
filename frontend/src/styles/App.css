@@ -673,10 +673,30 @@ body {
   border-right: 1px solid var(--border-strong);
   box-shadow: 1px 0 0 rgba(0, 0, 0, 0.04);
   display: flex !important;
-  flex-direction: column;
+  flex-direction: row;          /* row so .nav-rail + .nav-secondary sit side-by-side */
   visibility: visible !important;
   opacity: 1 !important;
   transition: width 220ms var(--ease-spring);
+}
+
+.nav-sidebar.has-secondary {
+  width: calc(var(--nav-w, 56px) + var(--nav-secondary-w, 360px));
+}
+
+.nav-secondary {
+  flex: 1;
+  min-width: 0;
+  background: #ffffff;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: cc-secondary-in 240ms var(--ease-spring) both;
+}
+
+@keyframes cc-secondary-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 @supports (backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px)) {
@@ -692,9 +712,12 @@ body {
   flex-direction: column;
   gap: 2px;
   padding: 10px 8px;
+  width: var(--nav-w, 56px);
+  flex-shrink: 0;
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  border-right: 1px solid var(--border);
 }
 
 .nav-toggle {
@@ -844,10 +867,12 @@ body {
   text-overflow: ellipsis;
 }
 
-/* Make room for the rail beside the main content. */
+/* Make room for the rail (and secondary panel if open) beside the main content.
+   --nav-total-w is set by NavSidebar's useEffect to the full sidebar width
+   including any active secondary panel (Inbox / AI Assistant). */
 body.has-nav-sidebar .controls,
 body.has-nav-sidebar .main-content {
-  padding-left: calc(var(--nav-w, 56px) + 24px);
+  padding-left: calc(var(--nav-total-w, var(--nav-w, 56px)) + 24px);
   transition: padding-left 220ms var(--ease-spring);
 }
 
