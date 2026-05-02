@@ -32,10 +32,10 @@ const NAV = [
       { view: 'gapAnalysis',           icon: '📊', label: 'Vendor Gap Analysis' },
       { view: 'coverageGaps',          icon: '🗺️', label: 'Coverage Gap Analysis' },
       { view: 'alignment',             icon: '🔗', label: 'Feed Alignment' },
-      { view: 'eventConfidence',       icon: '✓',  label: 'Event Confidence' },
-      { view: 'procurement',           icon: '💰', label: 'Procurement' },
-      { view: 'predictiveAnalytics',   icon: '🔮', label: 'Predictive Analytics' },
-      { view: 'assetHealth',           icon: '🔧', label: 'Asset Health' }
+      { view: 'eventConfidence',       icon: '✓',  label: 'Event Confidence',   preview: true },
+      { view: 'procurement',           icon: '💰', label: 'Procurement',        preview: true },
+      { view: 'predictiveAnalytics',   icon: '🔮', label: 'Predictive Analytics', preview: true },
+      { view: 'assetHealth',           icon: '🔧', label: 'Asset Health',       preview: true }
     ]
   },
   {
@@ -279,9 +279,13 @@ export default function NavSidebar({
                           type="button"
                           className={`nav-subitem ${item.view && view === item.view ? 'is-active' : ''}`}
                           onClick={() => handleSubItem(item)}
+                          title={item.preview ? `${item.label} — preview (data wiring incomplete)` : undefined}
                         >
                           <span className="nav-subitem-icon" aria-hidden>{item.icon}</span>
                           <span className="nav-subitem-label">{item.label}</span>
+                          {item.preview && (
+                            <span className="nav-subitem-badge" aria-label="Preview">Preview</span>
+                          )}
                         </button>
                       ))}
                     </div>

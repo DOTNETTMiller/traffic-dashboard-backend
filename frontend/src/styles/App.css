@@ -867,6 +867,24 @@ body {
   text-overflow: ellipsis;
 }
 
+/* Small badge next to a sub-item label — e.g. "Preview" for views whose
+   data pipeline is still partial. Quiet by default; doesn't dominate. */
+.nav-subitem-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(201, 122, 22, 0.12);
+  color: #7a4d12;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  margin-left: 6px;
+}
+
 /* Make room for the rail (and secondary panel if open) beside the main content.
    --nav-total-w is set by NavSidebar's useEffect to the full sidebar width
    including any active secondary panel (Inbox / AI Assistant). */
