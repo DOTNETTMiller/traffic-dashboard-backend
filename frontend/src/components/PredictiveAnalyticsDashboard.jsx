@@ -20,10 +20,10 @@ const PredictiveAnalyticsDashboard = () => {
     try {
       setLoading(true);
       const [congestion, incident, safety, routing] = await Promise.all([
-        api.get('/predictive/congestion-forecast'),
-        api.get('/predictive/incident-impact'),
-        api.get('/predictive/safety-risk'),
-        api.get('/predictive/dynamic-routing?originLat=41.6&originLon=-93.6&destLat=41.8&destLon=-80.2')
+        api.get('/api/predictive/congestion-forecast'),
+        api.get('/api/predictive/incident-impact'),
+        api.get('/api/predictive/safety-risk'),
+        api.get('/api/predictive/dynamic-routing?originLat=41.6&originLon=-93.6&destLat=41.8&destLon=-80.2')
       ]);
 
       setCongestionData(congestion.data);

@@ -20980,66 +20980,126 @@ app.get('/api/coverage-gaps/summary/:stateKey', async (req, res) => {
 
 // 6.1 Predictive Congestion Modeling
 // Returns 4-hour traffic forecasts for corridors
+// Statistical baseline forecast over the live events cache. No ML — but no
+// invented numbers either. Per-corridor activity index derived from current
+// event count + severity mix + recent start-time trend.
+//
+// Approach:
+//   1. Group active events by corridor (e.g. "I-80")
+//   2. For each, compute:
+//        - active count
+//        - severity-weighted count (high=3, medium=2, low=1)
+//        - 1h trend: events that started in last hour vs prior 3-hour window
+//   3. Project a "predicted_speed_mph" / congestion level from severity-weighted
+//      count using a simple monotonic mapping (more events = slower predicted speed)
+//   4. Return one row per corridor per horizon (15/30/60/120/240 min) with
+//      decaying confidence — this matches the dashboard's existing render shape
 app.get('/api/predictive/congestion-forecast', async (req, res) => {
   try {
-    const { corridorId, horizonMinutes } = req.query;
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+    if (!eventsCache.data && startupCachePromise) await startupCachePromise;
+    const { corridorId } = req.query;
 
-    // Phase 6 MVP: Return sample predictions
-    // Future: Query congestion_predictions table with ML model outputs
-    const now = new Date();
-    const forecasts = [];
+    const now = Date.now();
+    const events = eventsCache.data || [];
 
-    const sampleCorridors = corridorId ? [corridorId] : ['I80_IA', 'I80_PA', 'I76_PA', 'I64_VA'];
-    const horizons = [15, 30, 60, 120, 240]; // minutes ahead
+    // Group active events by their corridor (when present).
+    const byCorridor = new Map();
+    for (const e of events) {
+      const c = (e.corridor || '').trim();
+      if (!c) continue;
+      if (!byCorridor.has(c)) byCorridor.set(c, []);
+      byCorridor.get(c).push(e);
+    }
 
-    sampleCorridors.forEach(corridor => {
-      horizons.forEach(horizon => {
-        const forecastTime = new Date(now.getTime() + horizon * 60000);
+    const sevWeight = s => {
+      const v = (s || '').toString().toLowerCase();
+      if (v === 'high' || v === 'major') return 3;
+      if (v === 'medium' || v === 'moderate') return 2;
+      return 1;
+    };
 
-        // Simulate varying congestion levels based on time and horizon
-        const baseSpeed = 65;
-        const congestionFactor = Math.max(0, 1 - (horizon / 300)); // more uncertain further out
-        const predictedSpeed = baseSpeed * (0.7 + Math.random() * 0.3 * congestionFactor);
-
-        let congestionLevel = 'FREE_FLOW';
-        if (predictedSpeed < 45) congestionLevel = 'SEVERE';
-        else if (predictedSpeed < 55) congestionLevel = 'HEAVY';
-        else if (predictedSpeed < 60) congestionLevel = 'MODERATE';
-
-        forecasts.push({
-          corridor_id: corridor,
-          prediction_time: now.toISOString(),
-          forecast_time: forecastTime.toISOString(),
-          forecast_horizon_minutes: horizon,
-          predicted_speed_mph: Math.round(predictedSpeed),
-          predicted_volume_vph: Math.round(1500 + Math.random() * 1000),
-          predicted_density_vpm: Math.round(30 + Math.random() * 20),
-          congestion_level: congestionLevel,
-          confidence_score: Math.round(95 - (horizon / 10)), // confidence decreases with time
-          work_zone_impact: Math.random() > 0.7,
-          incident_impact: Math.random() > 0.85,
-          weather_impact: Math.random() > 0.8,
-          recommended_alternate_routes: congestionLevel === 'SEVERE' ? ['US30_IA', 'US6_IA'] : [],
-          recommended_departure_window: congestionLevel === 'SEVERE' ? 'Depart 30 mins earlier or later' : null,
-          estimated_delay_minutes: congestionLevel === 'SEVERE' ? Math.round(20 + Math.random() * 30) : 0,
-          model_version: 'v1.0-mvp',
-          model_confidence: congestionLevel === 'SEVERE' ? 'MEDIUM' : 'HIGH'
-        });
+    // Per-corridor stats
+    const corridorStats = [];
+    for (const [corridor, ce] of byCorridor.entries()) {
+      const sevWeighted = ce.reduce((s, e) => s + sevWeight(e.severity || e.severityLevel), 0);
+      const startedLastHour = ce.filter(e => {
+        const t = Date.parse(e.startTime || 0);
+        return !Number.isNaN(t) && now - t <= 3600_000;
+      }).length;
+      const startedPrior3Hours = ce.filter(e => {
+        const t = Date.parse(e.startTime || 0);
+        const age = now - t;
+        return !Number.isNaN(t) && age > 3600_000 && age <= 4 * 3600_000;
+      }).length;
+      // Trend: positive = activity rising, negative = falling
+      const trend = startedLastHour - (startedPrior3Hours / 3);
+      corridorStats.push({
+        corridor_id: corridor,
+        active_events: ce.length,
+        severity_weighted: sevWeighted,
+        started_last_hour: startedLastHour,
+        trend
       });
-    });
+    }
+
+    // Sort by severity-weighted activity desc; cap to top 12 unless filtered
+    corridorStats.sort((a, b) => b.severity_weighted - a.severity_weighted);
+    const filtered = corridorId
+      ? corridorStats.filter(s => s.corridor_id === corridorId)
+      : corridorStats.slice(0, 12);
+
+    // Map severity-weighted count to a predicted speed (monotonic decay).
+    // 0 events  -> ~65 mph (free flow)
+    // 30+ events -> ~30 mph (severe)
+    const speedFor = (sw) => Math.max(28, Math.round(65 - Math.min(35, sw * 1.2)));
+    const levelFor = (mph) => mph < 35 ? 'SEVERE' : mph < 50 ? 'HEAVY' : mph < 58 ? 'MODERATE' : 'FREE_FLOW';
+
+    const horizons = [15, 30, 60, 120, 240]; // minutes
+    const forecasts = [];
+    for (const stat of filtered) {
+      // Project trend forward: each hour ahead, severity-weighted count drifts
+      // by `trend` (capped). This is a naive linear projection — real ML
+      // would use seasonal patterns, weather, day-of-week, etc.
+      for (const horizon of horizons) {
+        const hoursAhead = horizon / 60;
+        const projectedSw = Math.max(0, stat.severity_weighted + Math.round(stat.trend * hoursAhead));
+        const speed = speedFor(projectedSw);
+        const level = levelFor(speed);
+        forecasts.push({
+          corridor_id: stat.corridor_id,
+          prediction_time: new Date(now).toISOString(),
+          forecast_time: new Date(now + horizon * 60_000).toISOString(),
+          forecast_horizon_minutes: horizon,
+          predicted_speed_mph: speed,
+          // Volume/density we don't have ground truth for; derive from sw count
+          predicted_volume_vph: 1000 + projectedSw * 50,
+          predicted_density_vpm: Math.min(80, 25 + projectedSw),
+          congestion_level: level,
+          // Confidence: decays linearly from 95 (now) to 50 (4h out)
+          confidence_score: Math.round(95 - (horizon / 240) * 45),
+          active_events: stat.active_events,
+          severity_weighted: stat.severity_weighted,
+          trend_direction: stat.trend > 0.5 ? 'rising' : stat.trend < -0.5 ? 'falling' : 'stable',
+          estimated_delay_minutes: level === 'SEVERE' ? Math.round(projectedSw * 1.5)
+                                   : level === 'HEAVY' ? Math.round(projectedSw * 0.8) : 0,
+          model_version: 'baseline-statistical-v1',
+          model_confidence: horizon <= 60 ? 'HIGH' : horizon <= 120 ? 'MEDIUM' : 'LOW'
+        });
+      }
+    }
 
     res.json({
       success: true,
-      forecasts: corridorId ? forecasts.filter(f => f.corridor_id === corridorId) : forecasts,
+      forecasts,
       summary: {
         total_forecasts: forecasts.length,
-        corridors_monitored: sampleCorridors.length,
-        prediction_time: now.toISOString(),
-        max_horizon_minutes: 240
-      },
-      note: 'Phase 6 MVP - Sample congestion predictions. ML models ready for training.'
+        corridors_monitored: filtered.length,
+        prediction_time: new Date(now).toISOString(),
+        max_horizon_minutes: 240,
+        model_note: 'Baseline statistical projection from live event severity + 1h trend. No ML training yet.'
+      }
     });
-
   } catch (error) {
     console.error('Error fetching congestion forecast:', error);
     res.status(500).json({
@@ -21051,214 +21111,226 @@ app.get('/api/predictive/congestion-forecast', async (req, res) => {
 
 // 6.2 Incident Impact Forecasting
 // Predicts queue length, clearance time, and economic impact
+// Real per-incident impact forecast. For each active high/medium-severity
+// non-construction event, estimate clearance time + economic impact from
+// type-based defaults adjusted by lane-closure scope and severity.
+//
+// Approach (no ML, all derived from event fields):
+//   - Base duration by eventType (Incident=45m, Crash=60m, Closure=90m,
+//     Weather=120m, Construction=180m)
+//   - Multiply by lane-closure scope (all=1.5x, multi-lane=1.2x, shoulder=0.6x)
+//   - Multiply by severity (high=1.4x, medium=1.0x, low=0.7x)
+//   - FHWA cost-of-congestion ≈ $70/veh-hr
 app.get('/api/predictive/incident-impact', async (req, res) => {
   try {
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+    if (!eventsCache.data && startupCachePromise) await startupCachePromise;
     const { eventId } = req.query;
-
-    // Phase 6 MVP: Return sample incident predictions
-    // Future: Query incident_impact_predictions table with ML outputs
     const now = new Date();
+    const events = eventsCache.data || [];
 
-    const samplePredictions = [
-      {
-        event_id: 'INCIDENT_001',
-        event_type: 'CRASH',
-        corridor_id: 'I80_PA',
+    const sevValue = (s) => {
+      const v = (s || '').toString().toLowerCase();
+      if (v === 'high' || v === 'major') return 'high';
+      if (v === 'medium' || v === 'moderate') return 'medium';
+      return 'low';
+    };
+    const BASE_DURATION = {
+      incident: 45, crash: 60, closure: 90, weather: 120,
+      construction: 180, 'work zone': 180, 'work-zone': 180
+    };
+    const SEV_MULT = { high: 1.4, medium: 1.0, low: 0.7 };
+
+    const candidates = events.filter(e => {
+      const t = (e.eventType || '').toLowerCase();
+      return t.length > 0 && sevValue(e.severity || e.severityLevel) !== 'low';
+    });
+
+    const predictions = candidates.map(e => {
+      const type = (e.eventType || 'incident').toLowerCase();
+      const sev = sevValue(e.severity || e.severityLevel);
+      const desc = String(e.description || '').toLowerCase();
+      const lanes = String(e.lanesAffected || '').toLowerCase();
+
+      const baseDuration = Object.entries(BASE_DURATION).find(([k]) => type.includes(k))?.[1] || 45;
+      let laneMult = 1.0;
+      if (lanes.includes('all') || desc.includes('all lanes') || desc.includes('road closed')) laneMult = 1.5;
+      else if (desc.includes('two lanes') || desc.includes('2 lanes')) laneMult = 1.2;
+      else if (desc.includes('shoulder')) laneMult = 0.6;
+
+      const duration = Math.round(baseDuration * SEV_MULT[sev] * laneMult);
+      const queueMiles = Math.round((sev === 'high' ? 2.5 : sev === 'medium' ? 1.5 : 0.8) * laneMult * 10) / 10;
+      const affectedVolume = sev === 'high' ? 1500 : sev === 'medium' ? 1000 : 600;
+      const maxDelayMin = Math.round(duration * 0.6);
+      const economicCostUsd = Math.round((affectedVolume * (maxDelayMin / 60)) * 70);
+      const fuelGal = Math.round(affectedVolume * (maxDelayMin / 60) * 0.5);
+      const emissionsKg = Math.round(fuelGal * 8.8);
+
+      const dmsMsgs = [];
+      if (laneMult >= 1.5) dmsMsgs.push('ROAD CLOSED AHEAD - USE ALT ROUTE');
+      else if (sev === 'high') dmsMsgs.push((type.includes('crash') ? 'CRASH' : 'INCIDENT') + ' AHEAD - USE CAUTION');
+      else dmsMsgs.push((type.toUpperCase()) + ' AHEAD');
+      if (maxDelayMin >= 15) dmsMsgs.push(`EXPECT ${maxDelayMin} MIN DELAY`);
+
+      return {
+        event_id: e.id,
+        event_type: e.eventType || null,
+        corridor_id: e.corridor || null,
+        state: e.state || null,
         prediction_time: now.toISOString(),
-        predicted_queue_length_miles: 2.8,
-        predicted_max_delay_minutes: 35,
-        affected_volume_vehicles: 1250,
-        predicted_clearance_time: new Date(now.getTime() + 45 * 60000).toISOString(),
-        predicted_duration_minutes: 45,
-        clearance_confidence_score: 78,
-        estimated_economic_cost_usd: 87500,
-        estimated_fuel_wasted_gallons: 625,
-        estimated_emissions_kg_co2: 5500,
-        evacuation_timeline_minutes: 12,
-        critical_decision_point: new Date(now.getTime() + 10 * 60000).toISOString(),
-        recommended_diversion_routes: ['US22_PA', 'PA283_PA'],
-        dms_message_recommendations: [
-          'CRASH AHEAD - USE ALT ROUTE',
-          'EXPECT 35 MIN DELAY',
-          'EXIT 247 TO US-22 EAST'
-        ],
-        estimated_diversion_benefit_minutes: 20,
-        model_version: 'v1.0-mvp',
-        confidence_level: 'MEDIUM'
-      },
-      {
-        event_id: 'WORKZONE_042',
-        event_type: 'CONSTRUCTION',
-        corridor_id: 'I64_VA',
-        prediction_time: now.toISOString(),
-        predicted_queue_length_miles: 1.2,
-        predicted_max_delay_minutes: 15,
-        affected_volume_vehicles: 800,
-        predicted_clearance_time: new Date(now.getTime() + 180 * 60000).toISOString(),
-        predicted_duration_minutes: 180,
-        clearance_confidence_score: 92,
-        estimated_economic_cost_usd: 24000,
-        estimated_fuel_wasted_gallons: 180,
-        estimated_emissions_kg_co2: 1600,
-        recommended_diversion_routes: ['US60_VA'],
-        dms_message_recommendations: [
-          'WORK ZONE AHEAD - LANE CLOSED',
-          'EXPECT 15 MIN DELAY'
-        ],
-        estimated_diversion_benefit_minutes: 8,
-        model_version: 'v1.0-mvp',
-        confidence_level: 'HIGH'
-      }
-    ];
+        predicted_queue_length_miles: queueMiles,
+        predicted_max_delay_minutes: maxDelayMin,
+        affected_volume_vehicles: affectedVolume,
+        predicted_clearance_time: new Date(now.getTime() + duration * 60_000).toISOString(),
+        predicted_duration_minutes: duration,
+        clearance_confidence_score: sev === 'high' ? 65 : sev === 'medium' ? 78 : 88,
+        estimated_economic_cost_usd: economicCostUsd,
+        estimated_fuel_wasted_gallons: fuelGal,
+        estimated_emissions_kg_co2: emissionsKg,
+        dms_message_recommendations: dmsMsgs,
+        model_version: 'baseline-heuristic-v1',
+        confidence_level: sev === 'high' ? 'MEDIUM' : 'HIGH',
+        components: { base_duration_min: baseDuration, severity: sev, lane_scope_multiplier: laneMult }
+      };
+    });
+
+    let filtered = predictions;
+    if (eventId) filtered = filtered.filter(p => p.event_id === eventId);
+    filtered.sort((a, b) => b.estimated_economic_cost_usd - a.estimated_economic_cost_usd);
+    const trimmed = filtered.slice(0, 50);
 
     res.json({
       success: true,
-      predictions: eventId ? samplePredictions.filter(p => p.event_id === eventId) : samplePredictions,
+      predictions: trimmed,
       summary: {
-        total_predictions: samplePredictions.length,
-        avg_clearance_time_minutes: Math.round(samplePredictions.reduce((sum, p) => sum + p.predicted_duration_minutes, 0) / samplePredictions.length),
-        total_economic_impact_usd: samplePredictions.reduce((sum, p) => sum + p.estimated_economic_cost_usd, 0),
-        prediction_time: now.toISOString()
-      },
-      note: 'Phase 6 MVP - Sample incident impact predictions. ML models ready for training.'
+        total_predictions: predictions.length,
+        showing: trimmed.length,
+        avg_clearance_time_minutes: predictions.length === 0 ? 0
+          : Math.round(predictions.reduce((s, p) => s + p.predicted_duration_minutes, 0) / predictions.length),
+        total_economic_impact_usd: predictions.reduce((s, p) => s + p.estimated_economic_cost_usd, 0),
+        prediction_time: now.toISOString(),
+        model_note: 'Heuristic estimates from event type + lane-scope + severity. FHWA avg cost-of-congestion = $70/veh-hr. No ML training yet.'
+      }
     });
-
   } catch (error) {
     console.error('Error fetching incident impact:', error);
-    res.status(500).json({
-      error: 'Failed to fetch incident impact predictions',
-      details: error.message
-    });
+    res.status(500).json({ error: 'Failed to fetch incident impact predictions', details: error.message });
   }
 });
 
-// 6.3 Work Zone Safety Risk Scoring
-// Analyzes historical crash rates and current conditions
+// Real per-event safety risk scoring derived from active work zones in the
+// cache. Heuristic — combines severity, lane-closure indicators, work-zone
+// type, time-of-day, and description keywords. No ML, but every number has
+// a defensible source.
 app.get('/api/predictive/safety-risk', async (req, res) => {
   try {
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+    if (!eventsCache.data && startupCachePromise) await startupCachePromise;
     const { eventId, riskLevel } = req.query;
-
-    // Phase 6 MVP: Return sample safety risk scores
-    // Future: Query work_zone_safety_scores table with ML risk assessments
     const now = new Date();
+    const events = eventsCache.data || [];
 
-    const sampleScores = [
-      {
-        event_id: 'WORKZONE_042',
-        corridor_id: 'I64_VA',
-        description: 'Bridge Rehabilitation - 2 lanes closed',
-        assessment_time: now.toISOString(),
-        risk_score: 78,
-        risk_level: 'HIGH',
-        historical_crash_rate: 2.8,
-        similar_site_crash_rate: 1.5,
-        crash_rate_percentile: 85,
-        lane_closure_risk_score: 82,
-        speed_differential_risk_score: 75,
-        visibility_risk_score: 45,
-        geometry_risk_score: 68,
-        duration_risk_score: 72,
-        current_weather_risk: 'MODERATE',
-        time_of_day_risk: 'HIGH',
-        traffic_volume_risk: 'HIGH',
-        recommended_countermeasures: [
-          'Add advanced warning signs at 2 miles',
-          'Deploy law enforcement presence',
-          'Increase lighting in work zone',
-          'Install rumble strips approaching taper'
-        ],
-        countermeasure_costs: {
-          'Additional signage': 5000,
-          'Law enforcement (per shift)': 1200,
-          'Temporary lighting': 8000,
-          'Rumble strips': 3500
-        },
-        estimated_crash_reduction_pct: 35,
-        estimated_roi_ratio: 8.2,
-        predicted_crash_probability: 0.18,
-        predicted_severity_level: 'INJURY'
-      },
-      {
-        event_id: 'WORKZONE_015',
-        corridor_id: 'I80_IA',
-        description: 'Pavement resurfacing - rolling closures',
-        assessment_time: now.toISOString(),
-        risk_score: 35,
-        risk_level: 'LOW',
-        historical_crash_rate: 0.8,
-        similar_site_crash_rate: 1.2,
-        crash_rate_percentile: 35,
-        lane_closure_risk_score: 40,
-        speed_differential_risk_score: 35,
-        visibility_risk_score: 25,
-        geometry_risk_score: 30,
-        duration_risk_score: 45,
-        current_weather_risk: 'LOW',
-        time_of_day_risk: 'LOW',
-        traffic_volume_risk: 'MODERATE',
-        recommended_countermeasures: [
-          'Maintain current safety protocols'
-        ],
-        countermeasure_costs: {},
-        estimated_crash_reduction_pct: 10,
-        estimated_roi_ratio: 2.1,
-        predicted_crash_probability: 0.04,
-        predicted_severity_level: 'PDO'
-      },
-      {
-        event_id: 'WORKZONE_088',
-        corridor_id: 'I80_PA',
-        description: 'Full reconstruction - 24/7 operations',
-        assessment_time: now.toISOString(),
-        risk_score: 92,
-        risk_level: 'CRITICAL',
-        historical_crash_rate: 4.2,
-        similar_site_crash_rate: 2.1,
-        crash_rate_percentile: 95,
-        lane_closure_risk_score: 95,
-        speed_differential_risk_score: 88,
-        visibility_risk_score: 85,
-        geometry_risk_score: 90,
-        duration_risk_score: 85,
-        current_weather_risk: 'HIGH',
-        time_of_day_risk: 'CRITICAL',
-        traffic_volume_risk: 'CRITICAL',
-        recommended_countermeasures: [
-          'URGENT: Deploy immediate speed enforcement',
-          'Install concrete barriers (replace delineators)',
-          'Add camera monitoring system',
-          'Increase sign retroreflectivity',
-          'Deploy incident response team on-site'
-        ],
-        countermeasure_costs: {
-          'Speed enforcement (30 days)': 36000,
-          'Concrete barriers': 125000,
-          'Camera system': 45000,
-          'Enhanced signage': 12000,
-          'Incident response team': 80000
-        },
-        estimated_crash_reduction_pct: 55,
-        estimated_roi_ratio: 12.5,
-        predicted_crash_probability: 0.32,
-        predicted_severity_level: 'FATAL'
-      }
-    ];
+    // Score every active work-zone or construction event.
+    const candidates = events.filter(e => {
+      const t = (e.eventType || '').toLowerCase();
+      return t.includes('construction') || t.includes('work') || t.includes('closure');
+    });
 
-    let filtered = sampleScores;
+    const sevWeight = (s) => {
+      const v = (s || '').toString().toLowerCase();
+      if (v === 'high' || v === 'major') return 50;
+      if (v === 'medium' || v === 'moderate') return 30;
+      return 15;
+    };
+
+    const scored = candidates.map(e => {
+      const desc = String(e.description || '').toLowerCase();
+      const lanes = String(e.lanesAffected || '').toLowerCase();
+
+      // Component scores
+      const sevComponent = sevWeight(e.severity || e.severityLevel);
+
+      // Lane-closure intensity from description and lanesAffected
+      let laneComponent = 0;
+      if (lanes.includes('all') || desc.includes('all lanes') || desc.includes('road closed')) laneComponent = 25;
+      else if (desc.includes('two lanes') || desc.includes('2 lanes')) laneComponent = 18;
+      else if (desc.includes('one lane') || desc.includes('1 lane') || desc.includes('right lane') || desc.includes('left lane')) laneComponent = 10;
+      else if (desc.includes('shoulder')) laneComponent = 5;
+
+      // Time-of-day risk: rush hours are higher risk
+      const hour = new Date(e.startTime || Date.now()).getHours();
+      const isRushHour = (hour >= 6 && hour <= 9) || (hour >= 16 && hour <= 19);
+      const todComponent = isRushHour ? 12 : 5;
+
+      // Geometry / location risk keywords
+      let geoComponent = 0;
+      if (desc.includes('bridge') || desc.includes('overpass')) geoComponent += 6;
+      if (desc.includes('curve') || desc.includes('ramp') || desc.includes('interchange')) geoComponent += 4;
+      if (desc.includes('tunnel')) geoComponent += 5;
+
+      // Severity-keyword bumps
+      let severityKwComponent = 0;
+      if (desc.match(/\b(fatal|fatality|death)\b/)) severityKwComponent += 10;
+      if (desc.match(/\b(major|severe|critical|emergency)\b/)) severityKwComponent += 6;
+
+      const score = Math.min(100, sevComponent + laneComponent + todComponent + geoComponent + severityKwComponent);
+      const level = score >= 80 ? 'CRITICAL'
+                  : score >= 60 ? 'HIGH'
+                  : score >= 40 ? 'MEDIUM'
+                  : 'LOW';
+
+      // Recommended countermeasures based on what dominated the score
+      const recs = [];
+      if (laneComponent >= 18) recs.push('Deploy additional advance warning signs (≥2 mi)');
+      if (sevComponent >= 50) recs.push('Increase law enforcement presence in work zone');
+      if (todComponent >= 12) recs.push('Schedule lane closures outside rush hours where possible');
+      if (geoComponent >= 6) recs.push('Add temporary lighting and reflective markers');
+      if (score >= 60) recs.push('Activate dynamic message signs upstream');
+      if (recs.length === 0) recs.push('Maintain current safety protocols');
+
+      return {
+        event_id: e.id,
+        corridor_id: e.corridor || null,
+        state: e.state || null,
+        description: e.description || '',
+        assessment_time: now.toISOString(),
+        risk_score: score,
+        risk_level: level,
+        components: {
+          severity: sevComponent,
+          lane_closure: laneComponent,
+          time_of_day: todComponent,
+          geometry: geoComponent,
+          severity_keywords: severityKwComponent
+        },
+        time_of_day_risk: isRushHour ? 'HIGH' : 'LOW',
+        recommended_countermeasures: recs,
+        model_version: 'baseline-heuristic-v1'
+      };
+    });
+
+    let filtered = scored;
     if (eventId) filtered = filtered.filter(s => s.event_id === eventId);
     if (riskLevel) filtered = filtered.filter(s => s.risk_level === riskLevel);
 
+    // Sort by risk descending so worst things bubble up
+    filtered.sort((a, b) => b.risk_score - a.risk_score);
+    const cap = Math.min(50, filtered.length);
+    const trimmed = filtered.slice(0, cap);
+
     res.json({
       success: true,
-      safety_scores: filtered,
+      safety_scores: trimmed,
       summary: {
-        total_work_zones_assessed: sampleScores.length,
-        high_risk_count: sampleScores.filter(s => s.risk_level === 'HIGH' || s.risk_level === 'CRITICAL').length,
-        critical_risk_count: sampleScores.filter(s => s.risk_level === 'CRITICAL').length,
-        avg_risk_score: Math.round(sampleScores.reduce((sum, s) => sum + s.risk_score, 0) / sampleScores.length),
-        assessment_time: now.toISOString()
-      },
-      note: 'Phase 6 MVP - Sample work zone safety risk scores. ML models ready for training on historical crash data.'
+        total_work_zones_assessed: scored.length,
+        showing: trimmed.length,
+        critical_risk_count: scored.filter(s => s.risk_level === 'CRITICAL').length,
+        high_risk_count: scored.filter(s => s.risk_level === 'HIGH' || s.risk_level === 'CRITICAL').length,
+        avg_risk_score: scored.length === 0 ? 0
+          : Math.round(scored.reduce((sum, s) => sum + s.risk_score, 0) / scored.length),
+        assessment_time: now.toISOString(),
+        model_note: 'Heuristic risk score from severity, lane-closure scope, time-of-day, geometry keywords. No ML training yet.'
+      }
     });
 
   } catch (error) {
@@ -21269,6 +21341,7 @@ app.get('/api/predictive/safety-risk', async (req, res) => {
     });
   }
 });
+
 
 // 6.4 Demand-Based Dynamic Routing
 // Calculates optimal routes with load balancing

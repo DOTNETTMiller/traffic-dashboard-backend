@@ -34,7 +34,7 @@ const NAV = [
       { view: 'alignment',             icon: '🔗', label: 'Feed Alignment' },
       { view: 'eventConfidence',       icon: '✓',  label: 'Event Confidence' },
       { view: 'procurement',           icon: '💰', label: 'Procurement' },
-      { view: 'predictiveAnalytics',   icon: '🔮', label: 'Predictive Analytics', preview: true },
+      { view: 'predictiveAnalytics',   icon: '🔮', label: 'Predictive Analytics' },
       { view: 'assetHealth',           icon: '🔧', label: 'Asset Health' }
     ]
   },
