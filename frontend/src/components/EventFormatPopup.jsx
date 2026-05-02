@@ -353,32 +353,35 @@ function RawFormatView({ event, borderInfo, showCVTIM }) {
  */
 function TIMFormatView({ event, timFormat, showCVTIM }) {
   return (
-    <div style={{ fontSize: '12px', lineHeight: '1.5' }}>
+    <div style={{ fontSize: 12, lineHeight: 1.5, color: '#1d1d1f' }}>
       {/* Header */}
-      <div style={{
-        padding: '6px',
-        backgroundColor: '#eff6ff',
-        borderRadius: '4px',
-        marginBottom: '8px',
-        borderLeft: '3px solid #3b82f6'
-      }}>
-        <div style={{ fontSize: '10px', color: '#3b82f6', fontWeight: '600', marginBottom: '2px' }}>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{
+          fontSize: 9,
+          fontWeight: 600,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+          color: '#0a4a8f',
+          marginBottom: 2
+        }}>
           SAE J2735 TIM
         </div>
-        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e40af' }}>
+        <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: '#1d1d1f' }}>
           {timFormat.data.msgType}
         </div>
       </div>
 
       {showCVTIM && (
         <div style={{
-          padding: '5px 6px',
-          backgroundColor: 'white',
-          borderRadius: '3px',
-          marginBottom: '6px',
-          fontSize: '10px',
-          color: '#92400e',
-          fontWeight: '600'
+          margin: '0 0 10px',
+          padding: '6px 10px',
+          background: 'rgba(201, 122, 22, 0.10)',
+          border: '1px solid rgba(201, 122, 22, 0.28)',
+          borderRadius: 999,
+          fontSize: 10,
+          color: '#7a4d12',
+          fontWeight: 600,
+          display: 'inline-block'
         }}>
           🚛 Commercial Vehicle Relevant
         </div>
@@ -413,50 +416,39 @@ function TIMFormatView({ event, timFormat, showCVTIM }) {
  */
 function CIFSFormatView({ event, cifsFormat }) {
   return (
-    <div style={{ fontSize: '12px', lineHeight: '1.5' }}>
+    <div style={{ fontSize: 12, lineHeight: 1.5, color: '#1d1d1f' }}>
       {/* Header */}
-      <div style={{
-        padding: '6px',
-        backgroundColor: '#d1fae5',
-        borderRadius: '4px',
-        marginBottom: '8px',
-        borderLeft: '3px solid #10b981'
-      }}>
-        <div style={{ fontSize: '10px', color: '#10b981', fontWeight: '600', marginBottom: '2px' }}>
-          COMMON INCIDENT FEED SPECIFICATION
+      <div style={{ marginBottom: 10 }}>
+        <div style={{
+          fontSize: 9,
+          fontWeight: 600,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+          color: '#1d6f3b',
+          marginBottom: 2
+        }}>
+          Common Incident Feed Specification
         </div>
-        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#065f46' }}>
+        <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: '#1d1d1f' }}>
           {cifsFormat.data.type}
         </div>
-        <div style={{ fontSize: '10px', color: '#6b7280', marginTop: '2px' }}>
-          Subtype: {cifsFormat.data.subtype}
+        <div style={{ fontSize: 11, color: '#6e6e73', marginTop: 2 }}>
+          Subtype: <span style={{ color: '#1d1d1f' }}>{cifsFormat.data.subtype}</span>
         </div>
       </div>
 
       {/* Status Badges */}
-      <div style={{ marginBottom: '8px', display: 'flex', gap: '4px' }}>
-        <span style={{
-          display: 'inline-block',
-          padding: '3px 8px',
-          borderRadius: '3px',
-          backgroundColor: getStatusColor(cifsFormat.data.status),
-          color: '#111827',
-          fontSize: '10px',
-          fontWeight: '700'
-        }}>
+      <div style={{ marginBottom: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <Pill bg={pillBg(getStatusColor(cifsFormat.data.status))}
+              fg={pillFg(getStatusColor(cifsFormat.data.status))}
+              border={pillBorder(getStatusColor(cifsFormat.data.status))}>
           {cifsFormat.data.status}
-        </span>
-        <span style={{
-          display: 'inline-block',
-          padding: '3px 8px',
-          borderRadius: '3px',
-          backgroundColor: getCIFSSeverityColor(cifsFormat.data.severity),
-          color: '#111827',
-          fontSize: '10px',
-          fontWeight: '700'
-        }}>
+        </Pill>
+        <Pill bg={getSeverityBg(cifsFormat.data.severity)}
+              fg={getSeverityFg(cifsFormat.data.severity)}
+              border={getSeverityBorder(cifsFormat.data.severity)}>
           {cifsFormat.data.severity}
-        </span>
+        </Pill>
       </div>
 
       {/* CIFS Fields - Clean list format */}
@@ -533,6 +525,56 @@ function getSeverityColor(severity) {
   if (s.includes('high') || s.includes('major')) return '#d83a3a';
   if (s.includes('medium') || s.includes('moderate')) return '#c97a16';
   return '#8e8e93';
+}
+
+// Generic pill component for status / severity / etc.
+function Pill({ children, bg, fg, border }) {
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      padding: '3px 9px',
+      borderRadius: 999,
+      background: bg,
+      color: fg,
+      border: `1px solid ${border}`,
+      fontSize: 10,
+      fontWeight: 600,
+      letterSpacing: '0.04em',
+      textTransform: 'uppercase'
+    }}>{children}</span>
+  );
+}
+
+// Convert any solid color into a calm tinted background / matching foreground /
+// matching border. Used for status badges where the source palette is the
+// existing getStatusColor / getCIFSSeverityColor (still needed for legend
+// dots elsewhere).
+function pillBg(hex)     { return hexAlpha(hex, 0.10); }
+function pillBorder(hex) { return hexAlpha(hex, 0.32); }
+function pillFg(hex) {
+  // Darker variant of the same hex for AA contrast on the tinted bg.
+  // Naive: shift lightness down by mixing with #1d1d1f.
+  return mixHex(hex, '#1d1d1f', 0.5);
+}
+function hexAlpha(hex, alpha) {
+  const m = (hex || '').match(/^#([0-9a-f]{6})$/i);
+  if (!m) return `rgba(142,142,147,${alpha})`;
+  const r = parseInt(m[1].slice(0,2), 16);
+  const g = parseInt(m[1].slice(2,4), 16);
+  const b = parseInt(m[1].slice(4,6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+function mixHex(a, b, t) {
+  const ma = (a || '').match(/^#([0-9a-f]{6})$/i);
+  const mb = (b || '').match(/^#([0-9a-f]{6})$/i);
+  if (!ma || !mb) return a || '#1d1d1f';
+  const ar = parseInt(ma[1].slice(0,2),16), ag = parseInt(ma[1].slice(2,4),16), ab = parseInt(ma[1].slice(4,6),16);
+  const br = parseInt(mb[1].slice(0,2),16), bg = parseInt(mb[1].slice(2,4),16), bb = parseInt(mb[1].slice(4,6),16);
+  const r = Math.round(ar*(1-t) + br*t);
+  const g = Math.round(ag*(1-t) + bg*t);
+  const bl = Math.round(ab*(1-t) + bb*t);
+  return `rgb(${r},${g},${bl})`;
 }
 
 // Calmer severity-pill palette: tinted background + matching foreground +
@@ -640,73 +682,58 @@ function GeometryDiagnosticsView({ diagnostics }) {
   const hasIssues = diagnostics.issues && diagnostics.issues.length > 0;
 
   return (
-    <div style={{ fontSize: '13px' }}>
-      {/* Header */}
+    <div style={{ fontSize: 12, color: '#1d1d1f', lineHeight: 1.5 }}>
+      {/* Status header — calm tinted card */}
       <div style={{
-        backgroundColor: hasIssues ? '#fef3c7' : '#d1fae5',
-        padding: '8px',
-        borderRadius: '4px',
-        marginBottom: '10px',
-        fontWeight: 'bold',
-        color: hasIssues ? '#92400e' : '#065f46'
+        marginBottom: 10,
+        padding: '8px 12px',
+        borderRadius: 8,
+        background: hasIssues ? 'rgba(201, 122, 22, 0.10)' : 'rgba(38, 153, 76, 0.10)',
+        border: `1px solid ${hasIssues ? 'rgba(201, 122, 22, 0.32)' : 'rgba(38, 153, 76, 0.32)'}`,
+        color: hasIssues ? '#7a4d12' : '#1d6f3b',
+        fontWeight: 600,
+        fontSize: 12
       }}>
         {hasIssues ? '⚠️ Geometry Quality Issues Detected' : '✅ Geometry Quality: Good'}
       </div>
 
       {/* Coordinates */}
-      <div style={{ marginBottom: '12px' }}>
-        <strong>📍 Start Coordinate</strong>
-        <div style={{ fontFamily: 'monospace', fontSize: '12px', padding: '4px', backgroundColor: 'white', borderRadius: '3px', marginTop: '4px' }}>
-          Lat: {diagnostics.startCoordinate.lat}<br/>
-          Lng: {diagnostics.startCoordinate.lng}
-        </div>
-      </div>
-
-      <div style={{ marginBottom: '12px' }}>
-        <strong>📍 End Coordinate</strong>
-        <div style={{ fontFamily: 'monospace', fontSize: '12px', padding: '4px', backgroundColor: 'white', borderRadius: '3px', marginTop: '4px' }}>
-          Lat: {diagnostics.endCoordinate.lat}<br/>
-          Lng: {diagnostics.endCoordinate.lng}
-        </div>
-      </div>
+      <CoordBlock label="Start" lat={diagnostics.startCoordinate.lat} lng={diagnostics.startCoordinate.lng} />
+      <CoordBlock label="End"   lat={diagnostics.endCoordinate.lat}   lng={diagnostics.endCoordinate.lng} />
 
       {/* Metrics */}
-      <div style={{ marginBottom: '12px' }}>
-        <strong>📊 Metrics</strong>
-        <div style={{ marginTop: '4px', paddingLeft: '8px' }}>
-          <div style={{ marginBottom: '3px' }}>
-            <span style={{ color: '#6b7280' }}>Total Distance:</span>{' '}
-            <strong>{diagnostics.totalDistance} miles</strong>
-          </div>
-          <div style={{ marginBottom: '3px' }}>
-            <span style={{ color: '#6b7280' }}>Points:</span>{' '}
-            <strong>{diagnostics.pointCount}</strong>
-          </div>
-          <div>
-            <span style={{ color: '#6b7280' }}>Longest Segment:</span>{' '}
-            <strong>{diagnostics.longestSegment.distance} mi</strong>
-            {' '}(point {diagnostics.longestSegment.from} → {diagnostics.longestSegment.to})
-          </div>
-        </div>
+      <div style={{ marginBottom: 12 }}>
+        <SectionLabel>Metrics</SectionLabel>
+        <Field label="Total Distance" value={`${diagnostics.totalDistance} miles`} compact />
+        <Field label="Points"         value={diagnostics.pointCount} compact />
+        <Field label="Longest Segment"
+               value={`${diagnostics.longestSegment.distance} mi (${diagnostics.longestSegment.from} → ${diagnostics.longestSegment.to})`}
+               compact />
       </div>
 
-      {/* Source Info */}
-      <div style={{ marginBottom: '12px' }}>
-        <strong>📡 Geometry Source</strong>
-        <div style={{ marginTop: '4px', padding: '6px 8px', backgroundColor: getSourceBackgroundColor(diagnostics.source), borderLeft: `3px solid ${getSourceBorderColor(diagnostics.source)}`, borderRadius: '3px' }}>
-          <div style={{ fontWeight: '600', marginBottom: '2px' }}>
+      {/* Source */}
+      <div style={{ marginBottom: 12 }}>
+        <SectionLabel>Geometry Source</SectionLabel>
+        <div style={{
+          marginTop: 4,
+          padding: '8px 10px',
+          background: 'rgba(0, 0, 0, 0.03)',
+          border: '1px solid rgba(0, 0, 0, 0.08)',
+          borderRadius: 8
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: 2, color: '#1d1d1f' }}>
             {getSourceLabel(diagnostics.source)}
           </div>
           {isCorrectedGeometry(diagnostics.source) && (
-            <div style={{ fontSize: '12px', color: '#065f46', marginTop: '2px', marginBottom: '4px' }}>
+            <div style={{ fontSize: 11, color: '#1d6f3b', marginTop: 2 }}>
               Source: {getCorrectionSource(diagnostics.source)}
             </div>
           )}
-          <div style={{ fontSize: '11px', color: '#374151', marginTop: '4px' }}>
+          <div style={{ fontSize: 11, color: '#6e6e73', marginTop: 4 }}>
             {getSourceDescription(diagnostics.source, diagnostics.feedUrl)}
           </div>
           {diagnostics.corrected && (
-            <div style={{ marginTop: '4px', fontSize: '12px', color: '#1e40af' }}>
+            <div style={{ marginTop: 4, fontSize: 11, color: '#0a4a8f' }}>
               ✨ Client-side corrected (smoothed/simplified)
             </div>
           )}
@@ -716,19 +743,64 @@ function GeometryDiagnosticsView({ diagnostics }) {
       {/* Issues */}
       {hasIssues && (
         <div>
-          <strong style={{ color: '#dc2626' }}>⚠️ Issues Found</strong>
-          <ul style={{ marginTop: '6px', marginLeft: '16px', marginBottom: '0', paddingLeft: '4px' }}>
+          <SectionLabel tone="severity">Issues Found</SectionLabel>
+          <ul style={{ marginTop: 4, marginLeft: 16, marginBottom: 0, paddingLeft: 0, fontSize: 11 }}>
             {diagnostics.issues.map((issue, idx) => (
-              <li key={idx} style={{ marginBottom: '4px', color: '#991b1b' }}>
+              <li key={idx} style={{ marginBottom: 3, color: '#902929' }}>
                 {issue}
               </li>
             ))}
           </ul>
-          <div style={{ marginTop: '8px', padding: '6px', backgroundColor: '#fee2e2', borderRadius: '3px', fontSize: '12px', color: '#7f1d1d' }}>
+          <div style={{
+            marginTop: 8,
+            padding: '8px 10px',
+            background: 'rgba(216, 58, 58, 0.08)',
+            border: '1px solid rgba(216, 58, 58, 0.24)',
+            borderRadius: 8,
+            fontSize: 11,
+            color: '#902929'
+          }}>
             💡 These issues may indicate incorrect polyline data from the source feed. The route shown may not accurately follow the roadway.
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function CoordBlock({ label, lat, lng }) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <SectionLabel>{label} Coordinate</SectionLabel>
+      <div style={{
+        marginTop: 4,
+        padding: '6px 10px',
+        background: 'rgba(0, 0, 0, 0.03)',
+        border: '1px solid rgba(0, 0, 0, 0.08)',
+        borderRadius: 8,
+        fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace",
+        fontSize: 11,
+        color: '#1d1d1f',
+        fontVariantNumeric: 'tabular-nums',
+        lineHeight: 1.5
+      }}>
+        <div>lat &nbsp;{lat}</div>
+        <div>lng &nbsp;{lng}</div>
+      </div>
+    </div>
+  );
+}
+
+function SectionLabel({ children, tone }) {
+  return (
+    <div style={{
+      fontSize: 9,
+      fontWeight: 600,
+      letterSpacing: '0.06em',
+      textTransform: 'uppercase',
+      color: tone === 'severity' ? '#902929' : '#6e6e73'
+    }}>
+      {children}
     </div>
   );
 }
