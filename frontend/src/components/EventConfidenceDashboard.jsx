@@ -16,8 +16,8 @@ const EventConfidenceDashboard = () => {
     try {
       setLoading(true);
       const [eventsResp, vendorsResp] = await Promise.all([
-        api.get('/confidence/events'),
-        api.get('/confidence/vendor-reliability')
+        api.get('/api/confidence/events'),
+        api.get('/api/confidence/vendor-reliability')
       ]);
 
       if (eventsResp.data.success) setEvents(eventsResp.data.events);

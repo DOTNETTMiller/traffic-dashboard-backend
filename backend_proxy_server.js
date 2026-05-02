@@ -21312,74 +21312,105 @@ app.get('/api/predictive/dynamic-routing', async (req, res) => {
 // PHASE 1.2: EVENT-LEVEL CONFIDENCE SCORING
 // ============================================
 
+// Real per-event confidence scoring over the live events cache.
+// Cached by events-cache timestamp so the work runs at most once per refresh.
+const { scoreEventConfidence } = require('./services/event-confidence');
+let _confidenceCache = { stamp: null, scored: null, comments: null };
+
+async function buildConfidenceData() {
+  const events = eventsCache.data || [];
+  // Pull comments once so we can detect multi-source verification per event.
+  // getAllEventComments returns rows with event_id and state_name.
+  let commentsByEventId = new Map();
+  try {
+    const allComments = (await db.getAllEventComments?.()) || [];
+    for (const c of allComments) {
+      const id = c.event_id || c.eventId;
+      if (!id) continue;
+      const arr = commentsByEventId.get(id) || [];
+      arr.push(c);
+      commentsByEventId.set(id, arr);
+    }
+  } catch (err) {
+    console.warn('confidence: could not load comments —', err.message);
+  }
+
+  const nowMs = Date.now();
+  const scored = events.map(ev => {
+    const result = scoreEventConfidence(ev, {
+      comments: commentsByEventId.get(ev.id) || [],
+      nowMs
+    });
+    return {
+      event_id: ev.id,
+      event_type: ev.eventType || null,
+      description: ev.description || null,
+      corridor_id: ev.corridor || null,
+      state: ev.state || null,
+      latitude: ev.latitude ?? null,
+      longitude: ev.longitude ?? null,
+      severity: ev.severity || null,
+      start_time: ev.startTime || null,
+      confidence_score: result?.score ?? 0,
+      confidence_level: result?.level ?? 'UNVERIFIED',
+      false_positive_probability: result?.falsePositiveProbability ?? 0.6,
+      components: result?.components ?? null,
+      verification_sources: (commentsByEventId.get(ev.id) || [])
+        .map(c => c.state_name).filter(Boolean)
+    };
+  });
+
+  return scored;
+}
+
 // Get event confidence scores
 app.get('/api/confidence/events', async (req, res) => {
   try {
-    const { minConfidence, confidenceLevel, eventType } = req.query;
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
 
-    // Phase 1.2 MVP: Return sample event confidence data
-    const sampleEvents = [
-      {
-        event_id: 'WZ_I80_PA_001',
-        event_type: 'WORK_ZONE',
-        description: 'Bridge rehabilitation - 2 lanes closed',
-        corridor_id: 'I80_PA',
-        confidence_score: 95,
-        confidence_level: 'VERIFIED',
-        primary_source: 'PennDOT',
-        cctv_verified: true,
-        sensor_verified: true,
-        multi_source_confirmed: true,
-        verification_sources: ['PennDOT', 'CCTV_MM_123', 'DETECTOR_456'],
-        false_positive_probability: 0.02
-      },
-      {
-        event_id: 'INC_I80_IA_042',
-        event_type: 'INCIDENT',
-        description: 'Multi-vehicle crash - right shoulder',
-        corridor_id: 'I80_IA',
-        confidence_score: 78,
-        confidence_level: 'HIGH',
-        primary_source: 'Iowa DOT 511',
-        cctv_verified: false,
-        sensor_verified: true,
-        crowdsource_verified: true,
-        multi_source_confirmed: false,
-        verification_sources: ['Iowa DOT 511', 'Waze'],
-        false_positive_probability: 0.12
-      },
-      {
-        event_id: 'INC_I64_VA_089',
-        event_type: 'INCIDENT',
-        description: 'Disabled vehicle - right lane',
-        corridor_id: 'I64_VA',
-        confidence_score: 45,
-        confidence_level: 'MEDIUM',
-        primary_source: 'VDOT',
-        cctv_verified: false,
-        sensor_verified: false,
-        crowdsource_verified: false,
-        multi_source_confirmed: false,
-        verification_sources: ['VDOT'],
-        false_positive_probability: 0.35
-      }
-    ];
+    if (!eventsCache.data && startupCachePromise) {
+      await startupCachePromise;
+    }
 
-    let filtered = sampleEvents;
-    if (minConfidence) filtered = filtered.filter(e => e.confidence_score >= parseFloat(minConfidence));
-    if (confidenceLevel) filtered = filtered.filter(e => e.confidence_level === confidenceLevel);
-    if (eventType) filtered = filtered.filter(e => e.event_type === eventType);
+    const stamp = eventsCache.timestamp || 0;
+    if (_confidenceCache.stamp !== stamp) {
+      _confidenceCache.scored = await buildConfidenceData();
+      _confidenceCache.stamp = stamp;
+    }
+
+    const { minConfidence, confidenceLevel, eventType, limit } = req.query;
+    let scored = _confidenceCache.scored || [];
+
+    if (minConfidence) scored = scored.filter(e => e.confidence_score >= parseFloat(minConfidence));
+    if (confidenceLevel) scored = scored.filter(e => e.confidence_level === confidenceLevel);
+    if (eventType) scored = scored.filter(e => e.event_type === eventType);
+
+    // Default sort: lowest-confidence first (most actionable to investigate),
+    // then highest impact. Limit defaults to 200 to keep payloads small.
+    scored = scored.slice().sort((a, b) => a.confidence_score - b.confidence_score);
+    const cap = Math.max(1, Math.min(parseInt(limit, 10) || 200, scored.length));
+    const trimmed = scored.slice(0, cap);
+
+    const total = scored.length;
+    const avg = total === 0 ? 0
+      : Math.round(scored.reduce((s, e) => s + e.confidence_score, 0) / total);
+    const counts = scored.reduce((acc, e) => {
+      acc[e.confidence_level] = (acc[e.confidence_level] || 0) + 1;
+      return acc;
+    }, {});
 
     res.json({
       success: true,
-      events: filtered,
+      events: trimmed,
       summary: {
-        total_events: filtered.length,
-        avg_confidence: filtered.reduce((sum, e) => sum + e.confidence_score, 0) / filtered.length,
-        verified_count: filtered.filter(e => e.confidence_level === 'VERIFIED').length,
-        high_confidence_count: filtered.filter(e => e.confidence_score >= 75).length
+        total_events: total,
+        showing: trimmed.length,
+        avg_confidence: avg,
+        verified_count: counts.VERIFIED || 0,
+        high_confidence_count: (counts.VERIFIED || 0) + (counts.HIGH || 0),
+        by_level: counts
       },
-      note: 'Phase 1.2 MVP - Sample confidence data. Real-time scoring ready for deployment.'
+      generated_at: new Date(stamp || Date.now()).toISOString()
     });
   } catch (error) {
     console.error('Error fetching event confidence:', error);
