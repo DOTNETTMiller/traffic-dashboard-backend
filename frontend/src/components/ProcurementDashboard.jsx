@@ -17,9 +17,9 @@ const ProcurementDashboard = () => {
     try {
       setLoading(true);
       const [contractsResp, alertsResp, costResp] = await Promise.all([
-        api.get('/procurement/contracts'),
-        api.get('/procurement/expiration-alerts'),
-        api.get('/procurement/cost-analysis')
+        api.get('/api/procurement/contracts'),
+        api.get('/api/procurement/expiration-alerts'),
+        api.get('/api/procurement/cost-analysis')
       ]);
 
       if (contractsResp.data.success) setContracts(contractsResp.data.contracts);

@@ -33,7 +33,7 @@ const NAV = [
       { view: 'coverageGaps',          icon: '🗺️', label: 'Coverage Gap Analysis' },
       { view: 'alignment',             icon: '🔗', label: 'Feed Alignment' },
       { view: 'eventConfidence',       icon: '✓',  label: 'Event Confidence' },
-      { view: 'procurement',           icon: '💰', label: 'Procurement',        preview: true },
+      { view: 'procurement',           icon: '💰', label: 'Procurement' },
       { view: 'predictiveAnalytics',   icon: '🔮', label: 'Predictive Analytics', preview: true },
       { view: 'assetHealth',           icon: '🔧', label: 'Asset Health' }
     ]

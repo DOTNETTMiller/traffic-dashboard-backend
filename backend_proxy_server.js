@@ -21623,70 +21623,142 @@ app.get('/api/confidence/vendor-reliability', async (req, res) => {
 });
 
 // ============================================
-// PHASE 1.3: PROCUREMENT TRANSPARENCY
+// PROCUREMENT TRANSPARENCY — real CRUD over procurement_contracts table
 // ============================================
 
-// Get vendor contracts
+// Idempotent table creation (runs on first request).
+let _procurementSchemaReady = false;
+async function ensureProcurementSchema() {
+  if (_procurementSchemaReady) return;
+  try {
+    if (db.isPostgres) {
+      await db.db.query(`
+        CREATE TABLE IF NOT EXISTS procurement_contracts (
+          id SERIAL PRIMARY KEY,
+          state_key TEXT NOT NULL,
+          vendor_name TEXT NOT NULL,
+          contract_type TEXT,
+          data_type TEXT,
+          contract_value_annual NUMERIC,
+          cost_per_event NUMERIC,
+          contract_start_date DATE,
+          contract_end_date DATE,
+          sla_uptime_target NUMERIC,
+          status TEXT DEFAULT 'ACTIVE',
+          renewal_option_available BOOLEAN DEFAULT FALSE,
+          notes TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      await db.db.query(`CREATE INDEX IF NOT EXISTS idx_procurement_state ON procurement_contracts(state_key)`);
+      await db.db.query(`CREATE INDEX IF NOT EXISTS idx_procurement_end ON procurement_contracts(contract_end_date)`);
+    } else {
+      db.db.prepare(`
+        CREATE TABLE IF NOT EXISTS procurement_contracts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          state_key TEXT NOT NULL,
+          vendor_name TEXT NOT NULL,
+          contract_type TEXT,
+          data_type TEXT,
+          contract_value_annual REAL,
+          cost_per_event REAL,
+          contract_start_date TEXT,
+          contract_end_date TEXT,
+          sla_uptime_target REAL,
+          status TEXT DEFAULT 'ACTIVE',
+          renewal_option_available INTEGER DEFAULT 0,
+          notes TEXT,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now'))
+        )
+      `).run();
+      db.db.prepare(`CREATE INDEX IF NOT EXISTS idx_procurement_state ON procurement_contracts(state_key)`).run();
+      db.db.prepare(`CREATE INDEX IF NOT EXISTS idx_procurement_end ON procurement_contracts(contract_end_date)`).run();
+    }
+    _procurementSchemaReady = true;
+  } catch (err) {
+    console.error('procurement: schema init failed —', err.message);
+  }
+}
+
+// Helper: derive cost_per_event from contract value + actual event volume from
+// this vendor over the last 30 days (using the live events cache).
+function deriveCostPerEvent(annualValue, vendorEventCount30d) {
+  if (!annualValue || !vendorEventCount30d) return null;
+  // Annual cost / (events per year extrapolated from 30-day count)
+  const annualEvents = (vendorEventCount30d * 365) / 30;
+  if (annualEvents === 0) return null;
+  return Math.round((annualValue / annualEvents) * 100) / 100;
+}
+
+// GET /api/procurement/contracts — real list with optional filters
 app.get('/api/procurement/contracts', async (req, res) => {
   try {
+    res.set('Cache-Control', 'private, max-age=30');
+    await ensureProcurementSchema();
     const { stateKey, status } = req.query;
 
-    const sampleContracts = [
-      {
-        id: 1,
-        state_key: 'PA',
-        vendor_name: 'INRIX',
-        contract_type: 'DATA_FEED',
-        data_type: 'probe_data',
-        contract_value_annual: 250000,
-        cost_per_event: 0.12,
-        contract_start_date: '2023-01-01',
-        contract_end_date: '2025-12-31',
-        sla_uptime_target: 99.5,
-        status: 'ACTIVE'
-      },
-      {
-        id: 2,
-        state_key: 'IA',
-        vendor_name: 'Iteris',
-        contract_type: 'DATA_FEED',
-        data_type: 'wzdx',
-        contract_value_annual: 180000,
-        cost_per_event: 1.85,
-        contract_start_date: '2024-03-01',
-        contract_end_date: '2026-02-28',
-        sla_uptime_target: 99.0,
-        status: 'ACTIVE'
-      },
-      {
-        id: 3,
-        state_key: 'VA',
-        vendor_name: 'HERE Technologies',
-        contract_type: 'DATA_FEED',
-        data_type: 'incidents',
-        contract_value_annual: 320000,
-        cost_per_event: 0.45,
-        contract_start_date: '2022-07-01',
-        contract_end_date: '2025-06-30',
-        sla_uptime_target: 99.9,
-        status: 'ACTIVE',
-        renewal_option_available: true
-      }
-    ];
+    let rows;
+    if (db.isPostgres) {
+      const conditions = [];
+      const params = [];
+      if (stateKey) { params.push(stateKey); conditions.push(`state_key = $${params.length}`); }
+      if (status)   { params.push(status);   conditions.push(`status = $${params.length}`); }
+      const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+      const r = await db.db.query(
+        `SELECT * FROM procurement_contracts ${where} ORDER BY contract_end_date ASC NULLS LAST`,
+        params
+      );
+      rows = r.rows;
+    } else {
+      let q = 'SELECT * FROM procurement_contracts WHERE 1=1';
+      const params = [];
+      if (stateKey) { q += ' AND state_key = ?'; params.push(stateKey); }
+      if (status)   { q += ' AND status = ?';    params.push(status); }
+      q += ' ORDER BY contract_end_date ASC';
+      rows = db.db.prepare(q).all(...params);
+    }
 
-    let filtered = sampleContracts;
-    if (stateKey) filtered = filtered.filter(c => c.state_key === stateKey);
-    if (status) filtered = filtered.filter(c => c.status === status);
+    // Derive cost_per_event from live event counts where missing
+    const events = eventsCache.data || [];
+    const last30d = Date.now() - 30 * 86400_000;
+    const eventsByState = events.reduce((m, e) => {
+      if (!e.state) return m;
+      const t = Date.parse(e.startTime || 0);
+      if (Number.isNaN(t) || t < last30d) return m;
+      const k = String(e.state).toLowerCase();
+      m.set(k, (m.get(k) || 0) + 1);
+      return m;
+    }, new Map());
+
+    const contracts = rows.map(c => {
+      const stateEvents = eventsByState.get(String(c.state_key || '').toLowerCase()) || 0;
+      return {
+        ...c,
+        renewal_option_available: !!c.renewal_option_available,
+        contract_value_annual: c.contract_value_annual !== null ? Number(c.contract_value_annual) : null,
+        sla_uptime_target: c.sla_uptime_target !== null ? Number(c.sla_uptime_target) : null,
+        cost_per_event: c.cost_per_event !== null && c.cost_per_event !== undefined
+          ? Number(c.cost_per_event)
+          : deriveCostPerEvent(Number(c.contract_value_annual), stateEvents)
+      };
+    });
+
+    const totalAnnual = contracts.reduce((s, c) => s + (c.contract_value_annual || 0), 0);
+    const cpeVals = contracts.map(c => c.cost_per_event).filter(v => typeof v === 'number');
+    const avgCostPerEvent = cpeVals.length === 0 ? 0
+      : Math.round((cpeVals.reduce((s, v) => s + v, 0) / cpeVals.length) * 100) / 100;
 
     res.json({
       success: true,
-      contracts: filtered,
+      contracts,
       summary: {
-        total_contracts: filtered.length,
-        total_annual_value: filtered.reduce((sum, c) => sum + c.contract_value_annual, 0),
-        avg_cost_per_event: filtered.reduce((sum, c) => sum + c.cost_per_event, 0) / filtered.length
-      },
-      note: 'Phase 1.3 MVP - Sample contract data.'
+        total_contracts: contracts.length,
+        total_annual_value: totalAnnual,
+        avg_cost_per_event: avgCostPerEvent,
+        active_count: contracts.filter(c => (c.status || '').toUpperCase() === 'ACTIVE').length
+      }
     });
   } catch (error) {
     console.error('Error fetching contracts:', error);
@@ -21694,32 +21766,185 @@ app.get('/api/procurement/contracts', async (req, res) => {
   }
 });
 
-// Get contract expiration alerts
+// POST /api/procurement/contracts — create (admin-only)
+app.post('/api/procurement/contracts', requireAdmin, async (req, res) => {
+  try {
+    await ensureProcurementSchema();
+    const {
+      state_key, vendor_name, contract_type, data_type,
+      contract_value_annual, cost_per_event, contract_start_date,
+      contract_end_date, sla_uptime_target, status,
+      renewal_option_available, notes
+    } = req.body;
+
+    if (!state_key || !vendor_name) {
+      return res.status(400).json({ error: 'state_key and vendor_name are required' });
+    }
+
+    if (db.isPostgres) {
+      const r = await db.db.query(
+        `INSERT INTO procurement_contracts (
+          state_key, vendor_name, contract_type, data_type,
+          contract_value_annual, cost_per_event, contract_start_date,
+          contract_end_date, sla_uptime_target, status,
+          renewal_option_available, notes
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+        [state_key, vendor_name, contract_type || null, data_type || null,
+         contract_value_annual ?? null, cost_per_event ?? null,
+         contract_start_date || null, contract_end_date || null,
+         sla_uptime_target ?? null, status || 'ACTIVE',
+         !!renewal_option_available, notes || null]
+      );
+      res.status(201).json({ success: true, id: r.rows[0].id });
+    } else {
+      const r = db.db.prepare(`
+        INSERT INTO procurement_contracts (
+          state_key, vendor_name, contract_type, data_type,
+          contract_value_annual, cost_per_event, contract_start_date,
+          contract_end_date, sla_uptime_target, status,
+          renewal_option_available, notes
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+      `).run(
+        state_key, vendor_name, contract_type || null, data_type || null,
+        contract_value_annual ?? null, cost_per_event ?? null,
+        contract_start_date || null, contract_end_date || null,
+        sla_uptime_target ?? null, status || 'ACTIVE',
+        renewal_option_available ? 1 : 0, notes || null
+      );
+      res.status(201).json({ success: true, id: r.lastInsertRowid });
+    }
+  } catch (error) {
+    console.error('Error creating contract:', error);
+    res.status(500).json({ error: 'Failed to create contract', details: error.message });
+  }
+});
+
+// PUT /api/procurement/contracts/:id — update (admin-only)
+app.put('/api/procurement/contracts/:id', requireAdmin, async (req, res) => {
+  try {
+    await ensureProcurementSchema();
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+
+    const allowed = [
+      'state_key', 'vendor_name', 'contract_type', 'data_type',
+      'contract_value_annual', 'cost_per_event', 'contract_start_date',
+      'contract_end_date', 'sla_uptime_target', 'status',
+      'renewal_option_available', 'notes'
+    ];
+    const setClauses = [];
+    const values = [];
+    for (const k of allowed) {
+      if (k in req.body) {
+        const v = k === 'renewal_option_available' ? !!req.body[k] : req.body[k];
+        if (db.isPostgres) {
+          values.push(v);
+          setClauses.push(`${k} = $${values.length}`);
+        } else {
+          values.push(k === 'renewal_option_available' ? (v ? 1 : 0) : v);
+          setClauses.push(`${k} = ?`);
+        }
+      }
+    }
+    if (setClauses.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    if (db.isPostgres) {
+      values.push(id);
+      await db.db.query(
+        `UPDATE procurement_contracts SET ${setClauses.join(', ')}, updated_at = NOW()
+         WHERE id = $${values.length}`,
+        values
+      );
+    } else {
+      values.push(id);
+      db.db.prepare(
+        `UPDATE procurement_contracts SET ${setClauses.join(', ')}, updated_at = datetime('now')
+         WHERE id = ?`
+      ).run(...values);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating contract:', error);
+    res.status(500).json({ error: 'Failed to update contract', details: error.message });
+  }
+});
+
+// DELETE /api/procurement/contracts/:id (admin-only)
+app.delete('/api/procurement/contracts/:id', requireAdmin, async (req, res) => {
+  try {
+    await ensureProcurementSchema();
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) return res.status(400).json({ error: 'Invalid id' });
+
+    if (db.isPostgres) {
+      await db.db.query('DELETE FROM procurement_contracts WHERE id = $1', [id]);
+    } else {
+      db.db.prepare('DELETE FROM procurement_contracts WHERE id = ?').run(id);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting contract:', error);
+    res.status(500).json({ error: 'Failed to delete contract', details: error.message });
+  }
+});
+
+// GET /api/procurement/expiration-alerts — derived from real contract end dates
 app.get('/api/procurement/expiration-alerts', async (req, res) => {
   try {
-    const alerts = [
-      {
-        contract_id: 3,
-        state_key: 'VA',
-        vendor_name: 'HERE Technologies',
-        data_type: 'incidents',
-        contract_end_date: '2025-06-30',
-        days_until_expiration: 162,
-        alert_level: 'NOTICE',
-        contract_value_annual: 320000,
-        renewal_option_available: true
-      }
-    ];
+    res.set('Cache-Control', 'private, max-age=60');
+    await ensureProcurementSchema();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let rows;
+    if (db.isPostgres) {
+      const r = await db.db.query(
+        `SELECT * FROM procurement_contracts
+         WHERE contract_end_date IS NOT NULL
+           AND contract_end_date >= CURRENT_DATE
+           AND contract_end_date <= CURRENT_DATE + INTERVAL '180 days'
+         ORDER BY contract_end_date ASC`
+      );
+      rows = r.rows;
+    } else {
+      rows = db.db.prepare(
+        `SELECT * FROM procurement_contracts
+         WHERE contract_end_date IS NOT NULL
+           AND date(contract_end_date) >= date('now')
+           AND date(contract_end_date) <= date('now', '+180 days')
+         ORDER BY date(contract_end_date) ASC`
+      ).all();
+    }
+
+    const alerts = rows.map(c => {
+      const end = new Date(c.contract_end_date);
+      const days = Math.ceil((end - today) / 86400_000);
+      let level = 'NOTICE';
+      if (days <= 30) level = 'URGENT';
+      else if (days <= 90) level = 'WARNING';
+      return {
+        contract_id: c.id,
+        state_key: c.state_key,
+        vendor_name: c.vendor_name,
+        data_type: c.data_type,
+        contract_end_date: c.contract_end_date,
+        days_until_expiration: days,
+        alert_level: level,
+        contract_value_annual: c.contract_value_annual !== null ? Number(c.contract_value_annual) : null,
+        renewal_option_available: !!c.renewal_option_available
+      };
+    });
 
     res.json({
       success: true,
       alerts,
       summary: {
-        urgent_count: alerts.filter(a => a.alert_level === 'URGENT').length,
+        urgent_count:  alerts.filter(a => a.alert_level === 'URGENT').length,
         warning_count: alerts.filter(a => a.alert_level === 'WARNING').length,
-        notice_count: alerts.filter(a => a.alert_level === 'NOTICE').length
-      },
-      note: 'Phase 1.3 MVP - Contract expiration tracking.'
+        notice_count:  alerts.filter(a => a.alert_level === 'NOTICE').length
+      }
     });
   } catch (error) {
     console.error('Error fetching expiration alerts:', error);
@@ -21727,45 +21952,79 @@ app.get('/api/procurement/expiration-alerts', async (req, res) => {
   }
 });
 
-// Get procurement cost analysis
+// GET /api/procurement/cost-analysis — per-state aggregates against real
+// 30-day event volume from the cache. No more peer-percentile fiction —
+// we expose the actual numbers instead.
 app.get('/api/procurement/cost-analysis', async (req, res) => {
   try {
+    res.set('Cache-Control', 'private, max-age=60');
+    await ensureProcurementSchema();
     const { stateKey } = req.query;
 
-    const sampleAnalysis = [
-      {
-        state_key: 'PA',
-        total_annual_contract_costs: 850000,
-        total_events_processed: 5800,
-        cost_per_event: 146.55,
-        peer_state_avg_cost_per_event: 175.20,
-        cost_efficiency_percentile: 72,
-        estimated_economic_benefit: 2400000,
-        benefit_cost_ratio: 2.82,
-        renewal_recommended: true
-      },
-      {
-        state_key: 'IA',
-        total_annual_contract_costs: 620000,
-        total_events_processed: 3200,
-        cost_per_event: 193.75,
-        peer_state_avg_cost_per_event: 175.20,
-        cost_efficiency_percentile: 45,
-        estimated_economic_benefit: 1800000,
-        benefit_cost_ratio: 2.90,
-        renewal_recommended: false,
-        estimated_savings_with_alternative: 85000
-      }
-    ];
+    let rows;
+    if (db.isPostgres) {
+      const where = stateKey ? `WHERE state_key = $1` : '';
+      const params = stateKey ? [stateKey] : [];
+      const r = await db.db.query(
+        `SELECT state_key, SUM(contract_value_annual) AS total_annual,
+                COUNT(*) AS contract_count
+         FROM procurement_contracts ${where} AND status = 'ACTIVE'
+         GROUP BY state_key`,
+        params
+      );
+      rows = r.rows;
+    } else {
+      const where = stateKey ? `WHERE state_key = ? AND status = 'ACTIVE'`
+                              : `WHERE status = 'ACTIVE'`;
+      const params = stateKey ? [stateKey] : [];
+      rows = db.db.prepare(
+        `SELECT state_key, SUM(contract_value_annual) AS total_annual,
+                COUNT(*) AS contract_count
+         FROM procurement_contracts ${where}
+         GROUP BY state_key`
+      ).all(...params);
+    }
 
-    let filtered = sampleAnalysis;
-    if (stateKey) filtered = filtered.filter(a => a.state_key === stateKey);
+    // Real 30-day event counts per state
+    const events = eventsCache.data || [];
+    const last30d = Date.now() - 30 * 86400_000;
+    const eventsByState = events.reduce((m, e) => {
+      if (!e.state) return m;
+      const t = Date.parse(e.startTime || 0);
+      if (Number.isNaN(t) || t < last30d) return m;
+      const k = String(e.state).toLowerCase();
+      m.set(k, (m.get(k) || 0) + 1);
+      return m;
+    }, new Map());
 
-    res.json({
-      success: true,
-      analysis: filtered,
-      note: 'Phase 1.3 MVP - Cost-benefit analysis with peer comparisons.'
+    const analysis = rows.map(r => {
+      const events30 = eventsByState.get(String(r.state_key || '').toLowerCase()) || 0;
+      const annualEvents = (events30 * 365) / 30;
+      const total = Number(r.total_annual) || 0;
+      return {
+        state_key: r.state_key,
+        active_contract_count: Number(r.contract_count),
+        total_annual_contract_costs: total,
+        events_last_30_days: events30,
+        events_annualized: Math.round(annualEvents),
+        cost_per_event: annualEvents > 0 ? Math.round((total / annualEvents) * 100) / 100 : null
+      };
     });
+
+    // Peer comparison: compute mean cost-per-event across all states with data
+    const cpeAll = analysis.map(a => a.cost_per_event).filter(v => typeof v === 'number');
+    const peerAvg = cpeAll.length === 0 ? null
+      : Math.round((cpeAll.reduce((s, v) => s + v, 0) / cpeAll.length) * 100) / 100;
+
+    const annotated = analysis.map(a => ({
+      ...a,
+      peer_state_avg_cost_per_event: peerAvg,
+      vs_peer_avg_pct: (a.cost_per_event != null && peerAvg)
+        ? Math.round(((a.cost_per_event - peerAvg) / peerAvg) * 1000) / 10
+        : null
+    }));
+
+    res.json({ success: true, analysis: annotated });
   } catch (error) {
     console.error('Error fetching cost analysis:', error);
     res.status(500).json({ error: 'Failed to fetch cost analysis', details: error.message });
