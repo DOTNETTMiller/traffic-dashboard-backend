@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { formatAsTIM, formatAsCIFS, isCommercialVehicleRelevant } from '../utils/messageFormatters';
 import NearbyITSEquipment from './NearbyITSEquipment';
 import IPAWSAlertGenerator from './IPAWSAlertGenerator';
+import ComplianceGrades from './ComplianceGrades';
 
 /**
  * Safe date formatter that handles invalid dates gracefully
@@ -56,13 +57,33 @@ export default function EventFormatPopup({
   }
 
   return (
-    <div style={{ padding: '0', width: '280px', maxWidth: '90vw', maxHeight: '70vh', backgroundColor: 'white', display: showIPAWS ? 'none' : 'flex', flexDirection: 'column' }}>
-      {/* Tab Navigation */}
+    <div style={{
+      padding: 0,
+      width: 320,
+      maxWidth: '92vw',
+      maxHeight: '72vh',
+      background: '#ffffff',
+      display: showIPAWS ? 'none' : 'flex',
+      flexDirection: 'column',
+      fontFamily: "'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif",
+      color: '#1d1d1f',
+      letterSpacing: '-0.005em'
+    }}>
+      {/* Compliance grades — visible across all tabs */}
+      <div style={{
+        padding: '10px 12px',
+        background: '#f5f5f7',
+        borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
+        flexShrink: 0
+      }}>
+        <ComplianceGrades eventId={event.id} compact />
+      </div>
+
+      {/* Tab Navigation — quiet underline indicator */}
       <div style={{
         display: 'flex',
-        borderBottom: '2px solid #e5e7eb',
-        marginBottom: '6px',
-        backgroundColor: 'white',
+        borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
+        background: '#ffffff',
         flexShrink: 0
       }}>
         {tabs.map(tab => (
@@ -74,27 +95,29 @@ export default function EventFormatPopup({
             }}
             style={{
               flex: 1,
-              padding: '10px 8px',
+              padding: '10px 6px 9px',
               border: 'none',
-              backgroundColor: activeTab === tab.id ? 'white' : 'transparent',
-              borderBottom: activeTab === tab.id ? '3px solid #3b82f6' : '3px solid transparent',
-              marginBottom: '-2px',
+              background: 'transparent',
+              borderBottom: activeTab === tab.id ? '2px solid #0071e3' : '2px solid transparent',
+              marginBottom: '-1px',
               cursor: 'pointer',
-              fontSize: '11px',
-              fontWeight: activeTab === tab.id ? '700' : '500',
-              color: activeTab === tab.id ? '#3b82f6' : '#6b7280',
-              transition: 'all 0.2s',
+              fontSize: 11,
+              fontWeight: activeTab === tab.id ? 600 : 500,
+              color: activeTab === tab.id ? '#1d1d1f' : '#6e6e73',
+              fontFamily: 'inherit',
+              letterSpacing: '-0.005em',
+              transition: 'color 180ms cubic-bezier(0.32, 0.72, 0, 1), border-color 180ms cubic-bezier(0.32, 0.72, 0, 1)',
               textAlign: 'center'
             }}
           >
-            <div style={{ fontSize: '16px', marginBottom: '2px' }}>{tab.icon}</div>
+            <div style={{ fontSize: 14, marginBottom: 2, opacity: activeTab === tab.id ? 1 : 0.7 }}>{tab.icon}</div>
             {tab.label}
           </button>
         ))}
       </div>
 
       {/* Tab Content - Scrollable */}
-      <div style={{ padding: '6px 10px', backgroundColor: 'white', overflowY: 'auto', flex: 1 }}>
+      <div style={{ padding: '10px 14px', background: '#ffffff', overflowY: 'auto', flex: 1 }}>
         {activeTab === 'raw' && (
           <RawFormatView
             event={event}
@@ -129,24 +152,26 @@ export default function EventFormatPopup({
 
       {/* Action Buttons */}
       <div style={{
-        padding: '8px 12px',
-        borderTop: '1px solid #e5e7eb',
+        padding: '12px 14px',
+        borderTop: '1px solid rgba(0, 0, 0, 0.08)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px',
-        backgroundColor: 'white'
+        gap: 8,
+        background: '#ffffff'
       }}>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {hasMessages && (
             <div style={{
               flex: 1,
-              padding: '8px',
-              backgroundColor: '#dbeafe',
-              borderRadius: '4px',
-              fontSize: '11px',
+              padding: '6px 10px',
+              background: 'rgba(0, 113, 227, 0.10)',
+              border: '1px solid rgba(0, 113, 227, 0.20)',
+              borderRadius: 999,
+              fontSize: 11,
               textAlign: 'center',
-              fontWeight: '600',
-              color: '#1e40af'
+              fontWeight: 600,
+              color: '#0a4a8f',
+              fontVariantNumeric: 'tabular-nums'
             }}>
               💬 {messageCount} Message{messageCount !== 1 ? 's' : ''}
             </div>
@@ -156,20 +181,25 @@ export default function EventFormatPopup({
             style={{
               flex: hasMessages ? 1 : 2,
               padding: '8px 16px',
-              backgroundColor: '#3b82f6',
-              color: '#111827',
+              background: '#0071e3',
+              color: '#ffffff',
               border: 'none',
-              borderRadius: '4px',
+              borderRadius: 999,
               cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: '600'
+              fontSize: 12,
+              fontWeight: 500,
+              fontFamily: 'inherit',
+              letterSpacing: '-0.01em',
+              transition: 'background-color 200ms cubic-bezier(0.32, 0.72, 0, 1)'
             }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#0077ed'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#0071e3'; }}
           >
             {hasMessages ? 'View Messages' : 'Add Message'}
           </button>
         </div>
 
-        {/* IPAWS Alert Button */}
+        {/* IPAWS Alert Button — calmer amber, pill, no gradient */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -177,24 +207,25 @@ export default function EventFormatPopup({
           }}
           style={{
             width: '100%',
-            padding: '10px 16px',
-            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-            color: '#111827',
-            border: 'none',
-            borderRadius: '6px',
+            padding: '8px 16px',
+            background: 'rgba(201, 122, 22, 0.10)',
+            color: '#7a4d12',
+            border: '1px solid rgba(201, 122, 22, 0.32)',
+            borderRadius: 999,
             cursor: 'pointer',
-            fontSize: '13px',
-            fontWeight: '700',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-            transition: 'all 0.2s'
+            fontSize: 12,
+            fontWeight: 600,
+            fontFamily: 'inherit',
+            letterSpacing: '-0.005em',
+            transition: 'background-color 200ms cubic-bezier(0.32, 0.72, 0, 1), border-color 200ms cubic-bezier(0.32, 0.72, 0, 1)'
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-1px)';
-            e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+          onMouseEnter={e => {
+            e.currentTarget.style.background = 'rgba(201, 122, 22, 0.16)';
+            e.currentTarget.style.borderColor = 'rgba(201, 122, 22, 0.44)';
           }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+          onMouseLeave={e => {
+            e.currentTarget.style.background = 'rgba(201, 122, 22, 0.10)';
+            e.currentTarget.style.borderColor = 'rgba(201, 122, 22, 0.32)';
           }}
         >
           🚨 Generate IPAWS Alert
@@ -219,19 +250,20 @@ export default function EventFormatPopup({
  */
 function RawFormatView({ event, borderInfo, showCVTIM }) {
   return (
-    <div style={{ fontSize: '12px', lineHeight: '1.5' }}>
+    <div style={{ fontSize: 12, lineHeight: 1.5, color: '#1d1d1f' }}>
       {/* Header */}
-      <div style={{
-        padding: '6px',
-        backgroundColor: 'white',
-        borderRadius: '4px',
-        marginBottom: '8px',
-        borderLeft: '3px solid #6b7280'
-      }}>
-        <div style={{ fontSize: '10px', color: '#6b7280', fontWeight: '600', marginBottom: '2px' }}>
-          RAW FEED DATA
+      <div style={{ marginBottom: 10 }}>
+        <div style={{
+          fontSize: 9,
+          fontWeight: 600,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+          color: '#6e6e73',
+          marginBottom: 2
+        }}>
+          Raw Feed Data
         </div>
-        <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#111827' }}>
+        <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: '#1d1d1f' }}>
           {event.eventType}
         </div>
       </div>
@@ -246,17 +278,26 @@ function RawFormatView({ event, borderInfo, showCVTIM }) {
       <Field label="Lanes Affected" value={event.lanesAffected} />
 
       {event.severity && (
-        <div style={{ margin: '6px 0' }}>
-          <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '500' }}>Severity: </span>
+        <div style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 11, color: '#6e6e73', fontWeight: 500 }}>Severity</span>
           <span style={{
-            display: 'inline-block',
-            padding: '2px 8px',
-            borderRadius: '3px',
-            backgroundColor: getSeverityColor(event.severity),
-            color: '#111827',
-            fontSize: '10px',
-            fontWeight: '700'
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '2px 9px',
+            borderRadius: 999,
+            background: getSeverityBg(event.severity),
+            color: getSeverityFg(event.severity),
+            border: `1px solid ${getSeverityBorder(event.severity)}`,
+            fontSize: 10,
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase'
           }}>
+            <span style={{
+              width: 5, height: 5, borderRadius: '50%',
+              background: getSeverityFg(event.severity)
+            }} />
             {event.severity}
           </span>
         </div>
@@ -271,30 +312,34 @@ function RawFormatView({ event, borderInfo, showCVTIM }) {
 
       {borderInfo && borderInfo.nearBorder && (
         <div style={{
-          margin: '8px 0',
-          padding: '6px',
-          backgroundColor: '#e0e7ff',
-          borderRadius: '3px',
-          borderLeft: '3px solid #6366f1',
-          fontSize: '10px'
+          margin: '10px 0',
+          padding: '8px 10px',
+          background: 'rgba(0, 113, 227, 0.06)',
+          border: '1px solid rgba(0, 113, 227, 0.16)',
+          borderRadius: 8,
+          fontSize: 11
         }}>
-          <strong>🔵 Border Event</strong><br/>
-          {borderInfo.distance} miles from {borderInfo.borderName}<br/>
-          <span style={{ fontSize: '9px', fontStyle: 'italic', color: '#4338ca' }}>
-            Requires {borderInfo.borderStates.join('-')} coordination
+          <strong style={{ color: '#0a4a8f' }}>🔵 Border Event</strong>{' '}
+          <span style={{ fontVariantNumeric: 'tabular-nums', color: '#1d1d1f' }}>
+            {borderInfo.distance} mi from {borderInfo.borderName}
           </span>
+          <div style={{ fontSize: 10, color: '#0a4a8f', marginTop: 2 }}>
+            Requires {borderInfo.borderStates.join('–')} coordination
+          </div>
         </div>
       )}
 
       {showCVTIM && (
         <div style={{
           margin: '8px 0',
-          padding: '5px 6px',
-          backgroundColor: 'white',
-          borderRadius: '3px',
-          fontSize: '10px',
-          color: '#92400e',
-          fontWeight: '600'
+          padding: '6px 10px',
+          background: 'rgba(201, 122, 22, 0.10)',
+          border: '1px solid rgba(201, 122, 22, 0.28)',
+          borderRadius: 999,
+          fontSize: 10,
+          color: '#7a4d12',
+          fontWeight: 600,
+          display: 'inline-block'
         }}>
           🚛 Commercial Vehicle Relevant
         </div>
@@ -455,23 +500,24 @@ function CIFSFormatView({ event, cifsFormat }) {
 function Field({ label, value, multiline, compact }) {
   if (!value) return null;
 
-  const marginStyle = compact ? '2px 0' : '4px 0';
+  const marginStyle = compact ? '2px 0' : '5px 0';
 
   return (
     <div style={{ margin: marginStyle }}>
       <span style={{
-        fontSize: '11px',
-        color: '#6b7280',
-        fontWeight: '500',
+        fontSize: 11,
+        color: '#6e6e73',
+        fontWeight: 500,
         display: multiline ? 'block' : 'inline'
       }}>
-        {label}:{multiline ? '' : ' '}
+        {label}{multiline ? '' : ': '}
       </span>
       <span style={{
-        color: '#374151',
-        fontSize: '11px',
+        color: '#1d1d1f',
+        fontSize: 12,
         display: multiline ? 'block' : 'inline',
-        marginTop: multiline ? '2px' : '0'
+        marginTop: multiline ? 2 : 0,
+        fontVariantNumeric: 'tabular-nums'
       }}>
         {value}
       </span>
@@ -484,9 +530,30 @@ function Field({ label, value, multiline, compact }) {
  */
 function getSeverityColor(severity) {
   const s = (severity || '').toLowerCase();
-  if (s.includes('high') || s.includes('major')) return '#ef4444';
-  if (s.includes('medium') || s.includes('moderate')) return '#f59e0b';
-  return '#10b981';
+  if (s.includes('high') || s.includes('major')) return '#d83a3a';
+  if (s.includes('medium') || s.includes('moderate')) return '#c97a16';
+  return '#8e8e93';
+}
+
+// Calmer severity-pill palette: tinted background + matching foreground +
+// matching border. Same desaturated tones used by the rest of the new chrome.
+function getSeverityBg(severity) {
+  const s = (severity || '').toLowerCase();
+  if (s.includes('high') || s.includes('major')) return 'rgba(216, 58, 58, 0.10)';
+  if (s.includes('medium') || s.includes('moderate')) return 'rgba(201, 122, 22, 0.10)';
+  return 'rgba(142, 142, 147, 0.12)';
+}
+function getSeverityFg(severity) {
+  const s = (severity || '').toLowerCase();
+  if (s.includes('high') || s.includes('major')) return '#902929';
+  if (s.includes('medium') || s.includes('moderate')) return '#7a4d12';
+  return '#48484a';
+}
+function getSeverityBorder(severity) {
+  const s = (severity || '').toLowerCase();
+  if (s.includes('high') || s.includes('major')) return 'rgba(216, 58, 58, 0.32)';
+  if (s.includes('medium') || s.includes('moderate')) return 'rgba(201, 122, 22, 0.32)';
+  return 'rgba(142, 142, 147, 0.28)';
 }
 
 function getStatusColor(status) {
