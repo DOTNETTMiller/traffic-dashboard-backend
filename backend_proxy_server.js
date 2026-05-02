@@ -21418,51 +21418,109 @@ app.get('/api/confidence/events', async (req, res) => {
   }
 });
 
-// Get vendor reliability scores
+// Real vendor reliability — derived per-state from the live events cache.
+// Each state DOT IS the data vendor in this system; reliability is the
+// average per-event confidence + composite of feed-quality measures.
+async function buildVendorReliability() {
+  // Reuse the same scored data the events endpoint already builds.
+  const stamp = eventsCache.timestamp || 0;
+  if (_confidenceCache.stamp !== stamp) {
+    _confidenceCache.scored = await buildConfidenceData();
+    _confidenceCache.stamp = stamp;
+  }
+  const scored = _confidenceCache.scored || [];
+
+  // Group by state (= vendor in this system).
+  const byState = new Map();
+  for (const e of scored) {
+    const key = e.state || 'Unknown';
+    if (!byState.has(key)) byState.set(key, []);
+    byState.get(key).push(e);
+  }
+
+  const vendors = [];
+  for (const [stateName, events] of byState.entries()) {
+    if (events.length === 0) continue;
+
+    // Most common eventType for this vendor's reported data
+    const typeCounts = {};
+    for (const e of events) {
+      const t = e.event_type || 'Unknown';
+      typeCounts[t] = (typeCounts[t] || 0) + 1;
+    }
+    const dataType = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0][0];
+
+    const total = events.length;
+    const sumConfidence = events.reduce((s, e) => s + (e.confidence_score || 0), 0);
+    const avgConfidence = Math.round(sumConfidence / total);
+
+    // Verified-correct = events at HIGH+ confidence (operator could act on them)
+    // Verified-incorrect = events at UNVERIFIED confidence (likely incomplete / stale)
+    const verifiedCorrect   = events.filter(e => e.confidence_score >= 70).length;
+    const verifiedIncorrect = events.filter(e => e.confidence_score < 30).length;
+
+    // Component aggregates (when scored.components is available)
+    const compAvg = (key) => {
+      const vals = events.map(e => e.components?.[key]).filter(v => typeof v === 'number');
+      if (vals.length === 0) return null;
+      return Math.round(vals.reduce((s, v) => s + v, 0) / vals.length);
+    };
+
+    // Reliability = blend of average confidence (60%) and completeness (40%).
+    // Completeness is the most actionable single signal for feed quality.
+    const completeness = compAvg('completeness') ?? avgConfidence;
+    const reliability = Math.round(avgConfidence * 0.6 + completeness * 0.4);
+
+    vendors.push({
+      vendor_name: stateName,
+      data_type: dataType,
+      reliability_score: reliability,
+      accuracy_rate: Math.round(completeness) / 100,
+      false_positive_rate: Math.round((verifiedIncorrect / total) * 100) / 100,
+      total_events: total,
+      verified_correct: verifiedCorrect,
+      verified_incorrect: verifiedIncorrect,
+      avg_confidence: avgConfidence,
+      completeness_pct: completeness,
+      geospatial_pct: compAvg('geospatial'),
+      temporal_pct: compAvg('temporal'),
+      description_pct: compAvg('description')
+    });
+  }
+
+  // Sort by reliability desc, then by event volume so high-volume tier rises.
+  vendors.sort((a, b) => b.reliability_score - a.reliability_score || b.total_events - a.total_events);
+  return vendors;
+}
+
 app.get('/api/confidence/vendor-reliability', async (req, res) => {
   try {
-    const sampleVendors = [
-      {
-        vendor_name: 'PennDOT',
-        data_type: 'WORK_ZONE',
-        reliability_score: 94,
-        accuracy_rate: 0.96,
-        false_positive_rate: 0.03,
-        total_events: 1250,
-        verified_correct: 1200,
-        verified_incorrect: 50
-      },
-      {
-        vendor_name: 'Iowa DOT 511',
-        data_type: 'INCIDENT',
-        reliability_score: 88,
-        accuracy_rate: 0.91,
-        false_positive_rate: 0.08,
-        total_events: 890,
-        verified_correct: 810,
-        verified_incorrect: 80
-      },
-      {
-        vendor_name: 'VDOT',
-        data_type: 'INCIDENT',
-        reliability_score: 76,
-        accuracy_rate: 0.82,
-        false_positive_rate: 0.15,
-        total_events: 620,
-        verified_correct: 508,
-        verified_incorrect: 112
-      }
-    ];
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+
+    if (!eventsCache.data && startupCachePromise) {
+      await startupCachePromise;
+    }
+
+    const vendors = await buildVendorReliability();
+    const { limit, minVolume } = req.query;
+    let list = vendors;
+    if (minVolume) list = list.filter(v => v.total_events >= parseInt(minVolume, 10));
+    const cap = Math.max(1, Math.min(parseInt(limit, 10) || 50, list.length || 1));
+    list = list.slice(0, cap);
 
     res.json({
       success: true,
-      vendors: sampleVendors,
+      vendors: list,
       summary: {
-        total_vendors: sampleVendors.length,
-        avg_reliability: sampleVendors.reduce((sum, v) => sum + v.reliability_score, 0) / sampleVendors.length,
-        avg_accuracy: sampleVendors.reduce((sum, v) => sum + v.accuracy_rate, 0) / sampleVendors.length
+        total_vendors: vendors.length,
+        showing: list.length,
+        avg_reliability: vendors.length === 0 ? 0
+          : Math.round(vendors.reduce((s, v) => s + v.reliability_score, 0) / vendors.length),
+        avg_accuracy: vendors.length === 0 ? 0
+          : Math.round((vendors.reduce((s, v) => s + v.accuracy_rate, 0) / vendors.length) * 100) / 100,
+        total_events_scored: vendors.reduce((s, v) => s + v.total_events, 0)
       },
-      note: 'Phase 1.2 MVP - Sample vendor reliability data.'
+      generated_at: new Date(eventsCache.timestamp || Date.now()).toISOString()
     });
   } catch (error) {
     console.error('Error fetching vendor reliability:', error);
