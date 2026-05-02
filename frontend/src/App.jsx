@@ -769,21 +769,26 @@ function App() {
         </div>
       </header>
 
+      {/* Nav rail — must NOT be a descendant of any element with
+          backdrop-filter (e.g. .controls). Per the CSS spec, those
+          properties change the containing block for position:fixed
+          descendants, which would pin the rail inside that ancestor
+          instead of the viewport. */}
+      <NavSidebar
+        view={view}
+        onViewChange={setView}
+        isAdmin={currentUser?.role === "admin"}
+        actions={{
+          'open-corridor-briefing': () => setShowCorridorBriefing(true),
+          'open-alerts':            () => setShowAlertsModal(true),
+          'open-ipaws-active':      () => setShowIPAWSActiveAlerts(true),
+          'open-ipaws-rules':       () => setShowIPAWSRules(true),
+          'open-ipaws-after-action': () => setShowIPAWSAfterAction(true)
+        }}
+      />
+
       {/* Controls */}
       <div className="controls">
-        <NavSidebar
-          view={view}
-          onViewChange={setView}
-          isAdmin={currentUser?.role === "admin"}
-          actions={{
-            'open-corridor-briefing': () => setShowCorridorBriefing(true),
-            'open-alerts':            () => setShowAlertsModal(true),
-            'open-ipaws-active':      () => setShowIPAWSActiveAlerts(true),
-            'open-ipaws-rules':       () => setShowIPAWSRules(true),
-            'open-ipaws-after-action': () => setShowIPAWSAfterAction(true)
-          }}
-        />
-
         <div className="control-buttons">
           <label className="refresh-toggle">
             <input

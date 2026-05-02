@@ -108,16 +108,7 @@ const NAV = [
 const COLLAPSED_W = 56;
 const EXPANDED_W = 220;
 
-// Module-load probe so we can confirm in DevTools that NavSidebar.jsx
-// was actually parsed (not tree-shaken or chunk-split away).
-if (typeof console !== 'undefined') {
-  console.log('🟣 [NavSidebar] module loaded, NAV count:', NAV.length);
-}
-
 export default function NavSidebar({ view, onViewChange, isAdmin = true, actions = {} }) {
-  if (typeof console !== 'undefined') {
-    console.log('🟣 [NavSidebar] render called, view=', view, 'isAdmin=', isAdmin);
-  }
   // User preference: persist expanded state across sessions.
   const [expanded, setExpanded] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nav.expanded') ?? 'false'); }
@@ -140,11 +131,8 @@ export default function NavSidebar({ view, onViewChange, isAdmin = true, actions
   // Mark <body> so the layout rule activates only when the rail is mounted.
   useEffect(() => {
     document.body.classList.add('has-nav-sidebar');
-    if (typeof console !== 'undefined') {
-      console.log('[NavSidebar] mounted, items:', NAV.length, 'isAdmin:', isAdmin);
-    }
     return () => document.body.classList.remove('has-nav-sidebar');
-  }, [isAdmin]);
+  }, []);
 
   // When collapsed, treat hovers as temporary expansions of the relevant group.
   // When expanded, openGroups is sticky.
