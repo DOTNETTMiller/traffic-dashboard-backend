@@ -396,13 +396,32 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
       </svg>
     `;
   } else if (eventType === 'Construction') {
-    // Orange triangle (warning sign)
-    const color = normalizedSeverity === 'high' ? '#d83a3a' : '#c97a16';
+    // MUTCD W21-1a "Workers" work-zone sign — orange diamond with a worker
+    // silhouette in black. Toned to the desaturated-orange palette; high
+    // severity bumps to red the way fluorescent pink work-zone signs do.
+    const fill = normalizedSeverity === 'high' ? '#d83a3a' : '#e08a1f';
     iconSvg = `
       <svg width="32" height="32" viewBox="0 0 32 32">
-        <path d="M 16 4 L 28 26 L 4 26 Z" fill="${color}" stroke="white" stroke-width="2"/>
-        <text x="16" y="22" font-size="14" font-weight="bold" fill="black"
-              text-anchor="middle">!</text>
+        <!-- Orange diamond (rotated square) -->
+        <polygon points="16,2.5 29.5,16 16,29.5 2.5,16"
+                 fill="${fill}"
+                 stroke="#1d1d1f"
+                 stroke-width="0.9"
+                 stroke-linejoin="round"/>
+        <!-- Hard hat brim -->
+        <path d="M 12.5 11.5 L 19.5 11.5 L 19 10 L 13 10 Z" fill="#1d1d1f"/>
+        <!-- Hard hat dome -->
+        <path d="M 13.4 10 L 18.6 10 Q 18.4 7.5 16 7.5 Q 13.6 7.5 13.4 10 Z" fill="#1d1d1f"/>
+        <!-- Head -->
+        <circle cx="16" cy="13" r="1.4" fill="#1d1d1f"/>
+        <!-- Body / shoulders -->
+        <path d="M 12 15.5 L 20 15.5 L 19 21 L 13 21 Z" fill="#1d1d1f"/>
+        <!-- Legs -->
+        <rect x="13.2" y="20.6" width="2"   height="4.5" fill="#1d1d1f"/>
+        <rect x="16.8" y="20.6" width="2"   height="4.5" fill="#1d1d1f"/>
+        <!-- Arm holding shovel -->
+        <line x1="19.5" y1="17" x2="22" y2="22"
+              stroke="#1d1d1f" stroke-width="1.1" stroke-linecap="round"/>
       </svg>
     `;
   } else {
