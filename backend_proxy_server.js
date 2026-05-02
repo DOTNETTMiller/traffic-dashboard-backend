@@ -9817,34 +9817,49 @@ app.post('/api/events/:eventId/comments', requireUserOrStateAuth, async (req, re
 const eventGradeCache = new Map();
 
 app.get('/api/events/:eventId/compliance', async (req, res) => {
-  res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
-
-  // Wait for startup cache if it's still warming.
-  if (!eventsCache.data && startupCachePromise) {
-    await startupCachePromise;
-  }
-
-  const eventId = req.params.eventId;
-  const cacheStamp = eventsCache.timestamp || 0;
-  const cacheKey = `${eventId}:${cacheStamp}`;
-
-  // In-memory cache hit
-  if (eventGradeCache.has(cacheKey)) {
-    return res.json({ success: true, ...eventGradeCache.get(cacheKey) });
-  }
-
-  // Locate the event in the cached payload
-  const event = (eventsCache.data || []).find(e => e && e.id === eventId);
-  if (!event) {
-    return res.status(404).json({ error: 'Event not found in current cache' });
-  }
-
+  // Hard timeout — guarantee a response within 6s no matter what.
+  const timer = setTimeout(() => {
+    if (!res.headersSent) {
+      console.error('[compliance] timeout for event', req.params.eventId);
+      res.status(504).json({ error: 'compliance timed out' });
+    }
+  }, 6000);
   try {
-    const { gradeEvent } = getComplianceAnalyzer();
-    const result = gradeEvent(event);
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+
+    const eventId = req.params.eventId;
+    if (!eventId) {
+      clearTimeout(timer);
+      return res.status(400).json({ error: 'Missing eventId' });
+    }
+
+    const cacheStamp = eventsCache.timestamp || 0;
+    const cacheKey = `${eventId}:${cacheStamp}`;
+
+    // In-memory cache hit
+    if (eventGradeCache.has(cacheKey)) {
+      clearTimeout(timer);
+      return res.json({ success: true, ...eventGradeCache.get(cacheKey) });
+    }
+
+    // Locate the event in the cached payload. Some pipelines key events by
+    // a normalized id while the front-end uses the raw id, so match either.
+    const data = Array.isArray(eventsCache.data) ? eventsCache.data : [];
+    const event = data.find(e => e && (e.id === eventId || e.eventId === eventId));
+    if (!event) {
+      clearTimeout(timer);
+      return res.status(404).json({ error: 'Event not found in current cache' });
+    }
+
+    const mod = getComplianceAnalyzer();
+    if (typeof mod.gradeEvent !== 'function') {
+      clearTimeout(timer);
+      return res.status(500).json({ error: 'gradeEvent not available' });
+    }
+    const result = mod.gradeEvent(event);
     eventGradeCache.set(cacheKey, result);
 
-    // Bound the cache so it doesn't grow forever — keep the 5000 most recent entries.
+    // Bound the cache.
     if (eventGradeCache.size > 5000) {
       const drop = eventGradeCache.size - 5000;
       let i = 0;
@@ -9854,10 +9869,14 @@ app.get('/api/events/:eventId/compliance', async (req, res) => {
       }
     }
 
-    res.json({ success: true, ...result });
+    clearTimeout(timer);
+    return res.json({ success: true, ...result });
   } catch (error) {
-    console.error('Error grading event:', error);
-    res.status(500).json({ error: 'Failed to grade event' });
+    clearTimeout(timer);
+    console.error('[compliance] error grading event:', error);
+    if (!res.headersSent) {
+      return res.status(500).json({ error: 'Failed to grade event', details: error.message });
+    }
   }
 });
 
