@@ -8,6 +8,9 @@ import { useEffect, useState } from 'react';
  * Data-driven so that adding a new view is a one-line edit.
  */
 
+// Items can be:
+//   { view: 'xxx' }         -> calls onViewChange('xxx')
+//   { actionKey: 'open-x' } -> calls actions['open-x']() — for modals
 const NAV = [
   { type: 'item', view: 'map',       icon: '🗺️', label: 'Map' },
   { type: 'item', view: 'table',     icon: '📋', label: 'Table' },
@@ -32,7 +35,7 @@ const NAV = [
       { view: 'eventConfidence',       icon: '✓',  label: 'Event Confidence' },
       { view: 'procurement',           icon: '💰', label: 'Procurement' },
       { view: 'predictiveAnalytics',   icon: '🔮', label: 'Predictive Analytics' },
-      { view: 'assetHealth',           icon: '🩺', label: 'Asset Health' }
+      { view: 'assetHealth',           icon: '🔧', label: 'Asset Health' }
     ]
   },
   {
@@ -41,11 +44,24 @@ const NAV = [
     icon: '💬',
     label: 'Communications',
     items: [
-      { view: 'messages',         icon: '✉️', label: 'Messages' },
-      { view: 'dmsMessaging',     icon: '🚧', label: 'DMS Messaging' },
-      { view: 'closureApproval',  icon: '✅', label: 'Closure Approval' },
-      { view: 'diversionRoutes',  icon: '🛣️', label: 'Diversion Routes' },
-      { view: 'corridorDelays',   icon: '⏰', label: 'Corridor Delays' }
+      { view: 'messages',                  icon: '✉️', label: 'Messages' },
+      { actionKey: 'open-corridor-briefing', icon: '📋', label: 'Corridor Briefing' },
+      { actionKey: 'open-alerts',          icon: '🔔', label: 'Alerts' },
+      { view: 'dmsMessaging',              icon: '🚧', label: 'DMS Messaging' },
+      { view: 'closureApproval',           icon: '✅', label: 'Closure Approval' },
+      { view: 'diversionRoutes',           icon: '🛣️', label: 'Diversion Routes' },
+      { view: 'corridorDelays',            icon: '⏰', label: 'Corridor Delays' }
+    ]
+  },
+  {
+    type: 'group',
+    key: 'ipaws',
+    icon: '🚨',
+    label: 'IPAWS',
+    items: [
+      { actionKey: 'open-ipaws-active',       icon: '⏰', label: 'Active Alerts' },
+      { actionKey: 'open-ipaws-rules',        icon: '⚙️', label: 'Rules Config' },
+      { actionKey: 'open-ipaws-after-action', icon: '📋', label: 'After-Action Reviews' }
     ]
   },
   {
@@ -69,18 +85,30 @@ const NAV = [
     items: [
       { view: 'vendorPortal',    icon: '🏢', label: 'Vendor Portal' },
       { view: 'feedSubmission',  icon: '📤', label: 'Feed Submission' },
-      { view: 'grants',          icon: '💵', label: 'Grants' }
+      { view: 'grants',          icon: '💵', label: 'Funding Opportunities' }
     ]
   },
 
-  { type: 'item', view: 'docs',  icon: '📚', label: 'Docs' },
-  { type: 'item', view: 'admin', icon: '⚙️', label: 'Admin' }
+  { type: 'item', view: 'docs', icon: '📚', label: 'Docs' },
+
+  {
+    type: 'group',
+    key: 'admin',
+    icon: '⚙️',
+    label: 'Admin',
+    adminOnly: true,
+    items: [
+      { view: 'admin',       icon: '⚙️', label: 'Admin Panel' },
+      { view: 'adminUsers',  icon: '👥', label: 'Users' },
+      { view: 'adminFeeds',  icon: '📡', label: 'Feed Submissions' }
+    ]
+  }
 ];
 
 const COLLAPSED_W = 56;
 const EXPANDED_W = 220;
 
-export default function NavSidebar({ view, onViewChange, isAdmin = true }) {
+export default function NavSidebar({ view, onViewChange, isAdmin = true, actions = {} }) {
   // User preference: persist expanded state across sessions.
   const [expanded, setExpanded] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nav.expanded') ?? 'false'); }
@@ -120,7 +148,18 @@ export default function NavSidebar({ view, onViewChange, isAdmin = true }) {
     setMobileOpen(false);
   };
 
+  // Either selects a view or fires a registered modal-opener action.
+  const handleSubItem = (item) => {
+    if (item.view) {
+      handleSelect(item.view);
+    } else if (item.actionKey && typeof actions[item.actionKey] === 'function') {
+      actions[item.actionKey]();
+      setMobileOpen(false);
+    }
+  };
+
   const filteredNav = NAV.filter(node => {
+    if (node.adminOnly && !isAdmin) return false;
     if (node.type === 'item' && node.view === 'admin' && !isAdmin) return false;
     return true;
   });
@@ -214,10 +253,10 @@ export default function NavSidebar({ view, onViewChange, isAdmin = true }) {
                     <div className="nav-subitems">
                       {node.items.map(item => (
                         <button
-                          key={item.view}
+                          key={item.view || item.actionKey}
                           type="button"
-                          className={`nav-subitem ${view === item.view ? 'is-active' : ''}`}
-                          onClick={() => handleSelect(item.view)}
+                          className={`nav-subitem ${item.view && view === item.view ? 'is-active' : ''}`}
+                          onClick={() => handleSubItem(item)}
                         >
                           <span className="nav-subitem-icon" aria-hidden>{item.icon}</span>
                           <span className="nav-subitem-label">{item.label}</span>

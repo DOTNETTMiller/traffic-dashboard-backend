@@ -771,7 +771,18 @@ function App() {
 
       {/* Controls */}
       <div className="controls">
-        <NavSidebar view={view} onViewChange={setView} isAdmin={currentUser?.role === "admin"} />
+        <NavSidebar
+          view={view}
+          onViewChange={setView}
+          isAdmin={currentUser?.role === "admin"}
+          actions={{
+            'open-corridor-briefing': () => setShowCorridorBriefing(true),
+            'open-alerts':            () => setShowAlertsModal(true),
+            'open-ipaws-active':      () => setShowIPAWSActiveAlerts(true),
+            'open-ipaws-rules':       () => setShowIPAWSRules(true),
+            'open-ipaws-after-action': () => setShowIPAWSAfterAction(true)
+          }}
+        />
 
         <div className="control-buttons">
           <label className="refresh-toggle">
