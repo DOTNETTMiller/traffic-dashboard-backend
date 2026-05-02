@@ -111,6 +111,7 @@ function App() {
   const [loadingMessages, setLoadingMessages] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false); // Mobile starts closed
   const [desktopMessagesOpen, setDesktopMessagesOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [authToken, setAuthToken] = useState(null);
@@ -778,12 +779,16 @@ function App() {
         view={view}
         onViewChange={setView}
         isAdmin={currentUser?.role === "admin"}
+        chatOpen={chatOpen}
+        messagesOpen={desktopMessagesOpen}
         actions={{
           'open-corridor-briefing': () => setShowCorridorBriefing(true),
           'open-alerts':            () => setShowAlertsModal(true),
           'open-ipaws-active':      () => setShowIPAWSActiveAlerts(true),
           'open-ipaws-rules':       () => setShowIPAWSRules(true),
-          'open-ipaws-after-action': () => setShowIPAWSAfterAction(true)
+          'open-ipaws-after-action': () => setShowIPAWSAfterAction(true),
+          'toggle-ai':              () => setChatOpen(o => !o),
+          'toggle-messages':        () => setDesktopMessagesOpen(o => !o)
         }}
       />
 
@@ -1019,22 +1024,8 @@ function App() {
               onClick={() => setMobileMenuOpen(false)}
             />
 
-            {/* Messages toggle button - show when panel is closed and IPAWS not active */}
-            {!mobileMenuOpen && !ipawsGeofence && (
-              <button
-                className="mobile-menu-btn"
-                onClick={() => {
-                  if (window.innerWidth < 769) {
-                    setMobileMenuOpen(true);
-                  } else {
-                    setDesktopMessagesOpen(true);
-                  }
-                }}
-                aria-label="Open messages"
-              >
-                💬
-              </button>
-            )}
+            {/* Messages toggle is now in the NavSidebar (Inbox item).
+                Floating bubble removed because the rail covered it. */}
 
             {/* Sandbox indicator now lives as a small pill in the header chrome
                 (.sandbox-pill). The big intro/overlay logo was removed because
@@ -1228,11 +1219,14 @@ function App() {
         />
       )}
 
-      {/* AI Chat Widget - hide when IPAWS geofence is active */}
+      {/* AI Chat Widget - hide when IPAWS geofence is active.
+          Controlled by NavSidebar's "AI Assistant" item via chatOpen state. */}
       {isAuthenticated && currentUser && !ipawsGeofence && (
         <ChatWidget
           user={currentUser}
           isDarkMode={isDarkMode}
+          isOpen={chatOpen}
+          onOpenChange={setChatOpen}
           context={
             parkingContext ? parkingContext :
             filters.corridor ? {

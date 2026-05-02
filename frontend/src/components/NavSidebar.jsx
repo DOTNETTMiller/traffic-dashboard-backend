@@ -105,10 +105,26 @@ const NAV = [
   }
 ];
 
+// Footer rail items — pinned to the bottom of the sidebar so they're
+// always one click away regardless of scroll position. These open
+// floating panels rather than switching views.
+const NAV_FOOTER = [
+  { type: 'action', actionKey: 'toggle-messages', icon: '📨', label: 'Inbox',        toggleProp: 'messagesOpen' },
+  { type: 'action', actionKey: 'toggle-ai',       icon: '🤖', label: 'AI Assistant', toggleProp: 'chatOpen' }
+];
+
 const COLLAPSED_W = 56;
 const EXPANDED_W = 220;
 
-export default function NavSidebar({ view, onViewChange, isAdmin = true, actions = {} }) {
+export default function NavSidebar({
+  view,
+  onViewChange,
+  isAdmin = true,
+  actions = {},
+  chatOpen = false,
+  messagesOpen = false
+}) {
+  const footerToggleStates = { chatOpen, messagesOpen };
   // User preference: persist expanded state across sessions.
   const [expanded, setExpanded] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nav.expanded') ?? 'false'); }
@@ -265,6 +281,29 @@ export default function NavSidebar({ view, onViewChange, isAdmin = true, actions
                     </div>
                   )}
                 </div>
+              );
+            })}
+          </nav>
+
+          {/* Footer rail — pinned to the bottom. Persistent shortcuts to
+              the floating Inbox + AI Assistant panels. */}
+          <nav className="nav-footer">
+            {NAV_FOOTER.map(item => {
+              const active = item.toggleProp ? !!footerToggleStates[item.toggleProp] : false;
+              return (
+                <NavLink
+                  key={item.actionKey}
+                  icon={item.icon}
+                  label={item.label}
+                  active={active}
+                  expanded={expanded}
+                  onClick={() => {
+                    if (typeof actions[item.actionKey] === 'function') {
+                      actions[item.actionKey]();
+                    }
+                    setMobileOpen(false);
+                  }}
+                />
               );
             })}
           </nav>

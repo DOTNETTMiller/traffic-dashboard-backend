@@ -2,8 +2,26 @@ import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { config } from '../config';
 
-export default function ChatWidget({ user, context, isDarkMode }) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function ChatWidget({
+  user,
+  context,
+  isDarkMode,
+  // Controlled open-state. If provided, parent owns the toggle (e.g. via the
+  // NavSidebar). The floating bubble is hidden in controlled mode so the
+  // sidebar is the single way to open the panel.
+  isOpen: controlledOpen,
+  onOpenChange,
+  showFloatingButton
+}) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = typeof controlledOpen === 'boolean';
+  const isOpen = isControlled ? controlledOpen : internalOpen;
+  const setIsOpen = (next) => {
+    const value = typeof next === 'function' ? next(isOpen) : next;
+    if (onOpenChange) onOpenChange(value);
+    if (!isControlled) setInternalOpen(value);
+  };
+  const renderFloatingButton = showFloatingButton !== false && !isControlled;
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -165,7 +183,7 @@ export default function ChatWidget({ user, context, isDarkMode }) {
     <div style={{
       position: 'fixed',
       bottom: '20px',
-      left: '20px',
+      left: 'calc(var(--nav-w, 56px) + 20px)',  /* clear the rail */
       zIndex: 1000
     }}>
       {/* Chat Widget */}
@@ -431,7 +449,9 @@ export default function ChatWidget({ user, context, isDarkMode }) {
         </div>
       )}
 
-      {/* Toggle Button — glass pebble matching header chrome */}
+      {/* Toggle Button — glass pebble matching header chrome.
+          Hidden when the parent controls open-state via the NavSidebar. */}
+      {renderFloatingButton && (
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
@@ -461,6 +481,7 @@ export default function ChatWidget({ user, context, isDarkMode }) {
       >
         {isOpen ? '✕' : '🤖'}
       </button>
+      )}
 
       <style>{`
         @keyframes pulse {

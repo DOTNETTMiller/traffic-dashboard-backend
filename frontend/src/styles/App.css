@@ -722,6 +722,16 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1;     /* push the footer to the bottom */
+}
+
+.nav-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 8px;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
 }
 
 .nav-link {
