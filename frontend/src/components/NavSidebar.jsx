@@ -131,8 +131,11 @@ export default function NavSidebar({ view, onViewChange, isAdmin = true, actions
   // Mark <body> so the layout rule activates only when the rail is mounted.
   useEffect(() => {
     document.body.classList.add('has-nav-sidebar');
+    if (typeof console !== 'undefined') {
+      console.log('[NavSidebar] mounted, items:', NAV.length, 'isAdmin:', isAdmin);
+    }
     return () => document.body.classList.remove('has-nav-sidebar');
-  }, []);
+  }, [isAdmin]);
 
   // When collapsed, treat hovers as temporary expansions of the relevant group.
   // When expanded, openGroups is sticky.
