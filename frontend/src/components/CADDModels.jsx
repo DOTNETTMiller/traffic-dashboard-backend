@@ -409,9 +409,9 @@ export default function CADDModels() {
             </ul>
           </div>
 
-          <div style={{ marginTop: '20px', padding: '20px', backgroundColor: '#eff6ff', borderRadius: '4px', border: '2px solid #3b82f6' }}>
-            <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#1e40af' }}>🗺️ Georeferencing Workflow</h3>
-            <ol style={{ lineHeight: '1.8', color: '#1e40af', fontWeight: '500' }}>
+          <div style={{ marginTop: '20px', padding: '20px', backgroundColor: '#eff6ff', borderRadius: '4px', border: '2px solid #FF8F35' }}>
+            <h3 style={{ fontSize: '18px', marginBottom: '15px', color: '#C66A1F' }}>🗺️ Georeferencing Workflow</h3>
+            <ol style={{ lineHeight: '1.8', color: '#C66A1F', fontWeight: '500' }}>
               <li><strong>Upload CAD File:</strong> System extracts ITS equipment and road geometry</li>
               <li><strong>Export to GeoJSON or CSV:</strong> Download extracted elements with CAD coordinates</li>
               <li><strong>Import to ArcGIS/QGIS:</strong>
@@ -484,7 +484,7 @@ export default function CADDModels() {
                         </div>
                         <div>
                           <div style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>Entities</div>
-                          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#3b82f6' }}>{model.total_entities || 0}</div>
+                          <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#FF8F35' }}>{model.total_entities || 0}</div>
                         </div>
                         <div>
                           <div style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>Layers</div>

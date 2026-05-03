@@ -621,7 +621,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                                 backgroundColor: color,
                                 borderRadius: '2px 2px 0 0',
                                 transition: 'all 0.2s ease',
-                                border: isCurrentHour ? '2px solid #3b82f6' : 'none',
+                                border: isCurrentHour ? '2px solid #FF8F35' : 'none',
                                 boxSizing: 'border-box',
                                 position: 'relative'
                               }}
@@ -634,7 +634,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                                   transform: 'translateX(-50%)',
                                   fontSize: '9px',
                                   fontWeight: '600',
-                                  color: '#3b82f6',
+                                  color: '#FF8F35',
                                   whiteSpace: 'nowrap'
                                 }}>
                                   {Math.round(percentage)}%
@@ -686,7 +686,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                         <span>Full (&gt;80%)</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                        <div style={{ width: '2px', height: '8px', backgroundColor: '#3b82f6', borderRadius: '1px' }} />
+                        <div style={{ width: '2px', height: '8px', backgroundColor: '#FF8F35', borderRadius: '1px' }} />
                         <span>Now ({new Date().getHours()}:00)</span>
                       </div>
                     </div>
@@ -726,7 +726,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                               display: 'block',
                               padding: 0,
                               background: 'none',
-                              border: `2px solid ${isSelected ? '#3b82f6' : '#e5e7eb'}`,
+                              border: `2px solid ${isSelected ? '#FF8F35' : '#e5e7eb'}`,
                               borderRadius: '4px',
                               overflow: 'hidden',
                               cursor: 'pointer',
@@ -734,11 +734,11 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                               position: 'relative'
                             }}
                             onMouseOver={(e) => {
-                              e.currentTarget.style.borderColor = '#3b82f6';
-                              e.currentTarget.style.boxShadow = '0 2px 8px rgba(59, 130, 246, 0.3)';
+                              e.currentTarget.style.borderColor = '#FF8F35';
+                              e.currentTarget.style.boxShadow = '0 2px 8px rgba(255, 143, 53, 0.3)';
                             }}
                             onMouseOut={(e) => {
-                              e.currentTarget.style.borderColor = isSelected ? '#3b82f6' : '#e5e7eb';
+                              e.currentTarget.style.borderColor = isSelected ? '#FF8F35' : '#e5e7eb';
                               e.currentTarget.style.boxShadow = 'none';
                             }}
                           >
@@ -747,7 +747,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                                 position: 'absolute',
                                 top: '4px',
                                 right: '4px',
-                                backgroundColor: '#3b82f6',
+                                backgroundColor: '#FF8F35',
                                 color: '#111827',
                                 borderRadius: '50%',
                                 width: '20px',
@@ -928,7 +928,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
             position: 'sticky',
             top: 0,
             padding: '16px',
-            backgroundColor: '#3b82f6',
+            backgroundColor: '#FF8F35',
             color: '#111827',
             borderTopLeftRadius: '12px',
             borderTopRightRadius: '12px',
@@ -1096,7 +1096,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
           <button
             onClick={() => setIsCameraViewerOpen(true)}
             style={{
-              backgroundColor: '#3b82f6',
+              backgroundColor: '#FF8F35',
               color: '#111827',
               border: 'none',
               borderRadius: '50%',
@@ -1104,7 +1104,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
               height: '60px',
               cursor: 'pointer',
               fontSize: '24px',
-              boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)',
+              boxShadow: '0 4px 12px rgba(255, 143, 53, 0.4)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -1113,11 +1113,11 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
               position: 'relative'
             }}
             onMouseOver={(e) => {
-              e.currentTarget.style.backgroundColor = '#2563eb';
+              e.currentTarget.style.backgroundColor = '#F08230';
               e.currentTarget.style.transform = 'scale(1.05)';
             }}
             onMouseOut={(e) => {
-              e.currentTarget.style.backgroundColor = '#3b82f6';
+              e.currentTarget.style.backgroundColor = '#FF8F35';
               e.currentTarget.style.transform = 'scale(1)';
             }}
             title={`View ${selectedCameras.length} camera${selectedCameras.length !== 1 ? 's' : ''}`}

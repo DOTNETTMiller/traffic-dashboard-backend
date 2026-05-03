@@ -51,7 +51,7 @@ export default function BridgeClearanceWarnings({ onViewOnMap, isDarkMode }) {
   const getClearanceColor = (clearanceFeet) => {
     if (clearanceFeet < 13.67) return '#dc2626'; // Critical (under 13'8")
     if (clearanceFeet < 14.0) return '#f59e0b'; // Warning (under 14'0")
-    return '#3b82f6'; // Caution
+    return '#FF8F35'; // Caution
   };
 
   const getClearanceBadge = (clearanceFeet) => {
@@ -141,7 +141,7 @@ export default function BridgeClearanceWarnings({ onViewOnMap, isDarkMode }) {
             onClick={() => setIsExpanded(!isExpanded)}
             style={{
               padding: '8px 16px',
-              backgroundColor: '#3b82f6',
+              backgroundColor: '#FF8F35',
               color: '#111827',
               border: 'none',
               borderRadius: '6px',
@@ -150,8 +150,8 @@ export default function BridgeClearanceWarnings({ onViewOnMap, isDarkMode }) {
               cursor: 'pointer',
               transition: 'all 0.2s'
             }}
-            onMouseOver={(e) => e.target.style.backgroundColor = '#2563eb'}
-            onMouseOut={(e) => e.target.style.backgroundColor = '#3b82f6'}
+            onMouseOver={(e) => e.target.style.backgroundColor = '#F08230'}
+            onMouseOut={(e) => e.target.style.backgroundColor = '#FF8F35'}
           >
             {isExpanded ? 'Collapse' : 'Expand'}
           </button>

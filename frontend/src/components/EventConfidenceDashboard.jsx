@@ -33,7 +33,7 @@ const EventConfidenceDashboard = () => {
   const getConfidenceColor = (level) => {
     const colors = {
       'VERIFIED': '#10b981',
-      'HIGH': '#3b82f6',
+      'HIGH': '#FF8F35',
       'MEDIUM': '#f59e0b',
       'LOW': '#ef4444',
       'UNVERIFIED': '#6b7280'
@@ -106,7 +106,7 @@ const EventConfidenceDashboard = () => {
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: vendor.reliability_score >= 90 ? '#10b981' : vendor.reliability_score >= 80 ? '#3b82f6' : '#f59e0b' }}>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: vendor.reliability_score >= 90 ? '#10b981' : vendor.reliability_score >= 80 ? '#FF8F35' : '#f59e0b' }}>
                     {vendor.reliability_score}
                   </div>
                   <div style={{ fontSize: '11px', color: '#6b7280' }}>Reliability</div>
@@ -202,7 +202,7 @@ const EventConfidenceDashboard = () => {
                   <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>Verification</div>
                   <div style={{ display: 'flex', gap: '8px', fontSize: '12px' }}>
                     {event.cctv_verified && <span style={{ padding: '2px 8px', background: '#dcfce7', color: '#166534', borderRadius: '4px', fontWeight: '600' }}>CCTV</span>}
-                    {event.sensor_verified && <span style={{ padding: '2px 8px', background: '#dbeafe', color: '#1e40af', borderRadius: '4px', fontWeight: '600' }}>Sensor</span>}
+                    {event.sensor_verified && <span style={{ padding: '2px 8px', background: '#dbeafe', color: '#C66A1F', borderRadius: '4px', fontWeight: '600' }}>Sensor</span>}
                     {event.crowdsource_verified && <span style={{ padding: '2px 8px', background: '#fef3c7', color: '#92400e', borderRadius: '4px', fontWeight: '600' }}>Crowd</span>}
                     {event.multi_source_confirmed && <span style={{ padding: '2px 8px', background: '#f3e8ff', color: '#6b21a8', borderRadius: '4px', fontWeight: '600' }}>Multi-Source</span>}
                   </div>
@@ -314,7 +314,7 @@ const EventConfidenceDashboard = () => {
               style={{
                 width: '100%',
                 padding: '12px',
-                background: '#3b82f6',
+                background: '#FF8F35',
                 color: '#111827',
                 border: 'none',
                 borderRadius: '8px',

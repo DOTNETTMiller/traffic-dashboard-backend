@@ -82,8 +82,8 @@ export default function ToastContainer() {
         color: '#1f2937'
       },
       info: {
-        background: 'rgba(59, 130, 246, 0.95)',
-        borderColor: '#3b82f6',
+        background: 'rgba(255, 143, 53, 0.95)',
+        borderColor: '#FF8F35',
         color: '#111827'
       }
     };

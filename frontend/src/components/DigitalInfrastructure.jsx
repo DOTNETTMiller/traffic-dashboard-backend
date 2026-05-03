@@ -1251,7 +1251,7 @@ function DigitalInfrastructure() {
                 href={`${API_BASE}/docs/digital-standards-crosswalk.md`}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ fontSize: '14px', color: '#2563eb', textDecoration: 'underline', fontWeight: '500' }}
+                style={{ fontSize: '14px', color: '#F08230', textDecoration: 'underline', fontWeight: '500' }}
               >
                 Open Markdown
               </a>
@@ -1354,11 +1354,11 @@ function DigitalInfrastructure() {
               list-style-type: disc;
             }
             .markdown-content a {
-              color: #2563eb;
+              color: #F08230;
               text-decoration: underline;
             }
             .markdown-content a:hover {
-              color: #1d4ed8;
+              color: #C66A1F;
             }
             .doc-table {
               width: 100%;
@@ -1389,11 +1389,11 @@ function DigitalInfrastructure() {
               border-radius: 10px;
             }
             .markdown-content::-webkit-scrollbar-thumb {
-              background: #3b82f6;
+              background: #FF8F35;
               border-radius: 10px;
             }
             .markdown-content::-webkit-scrollbar-thumb:hover {
-              background: #2563eb;
+              background: #F08230;
             }
           `}</style>
         </div>

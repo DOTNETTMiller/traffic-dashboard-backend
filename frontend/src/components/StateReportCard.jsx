@@ -92,7 +92,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
 
   const getComplianceColor = (percentage) => {
     if (percentage >= 90) return '#10b981';
-    if (percentage >= 75) return '#3b82f6';
+    if (percentage >= 75) return '#FF8F35';
     if (percentage >= 60) return '#f59e0b';
     if (percentage >= 40) return '#f97316';
     return '#ef4444';
@@ -107,7 +107,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
   const getPriorityColor = (priority) => {
     if (priority === 'HIGH') return '#ef4444';
     if (priority === 'MEDIUM') return '#f59e0b';
-    return '#3b82f6';
+    return '#FF8F35';
   };
 
   if (loading) {
@@ -130,7 +130,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
           style={{
             marginTop: '16px',
             padding: '8px 16px',
-            backgroundColor: '#3b82f6',
+            backgroundColor: '#FF8F35',
             color: '#111827',
             border: 'none',
             borderRadius: '6px',
@@ -166,7 +166,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
         }}>
           <div style={{
             padding: '24px',
-            background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+            background: 'linear-gradient(135deg, #FF8F35 0%, #C66A1F 100%)',
             borderRadius: '12px',
             color: '#111827'
           }}>
@@ -368,7 +368,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
         <div style={{
           marginBottom: '32px',
           padding: '32px',
-          background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+          background: 'linear-gradient(135deg, #FF8F35 0%, #C66A1F 100%)',
           borderRadius: '16px',
           color: '#111827'
         }}>
@@ -456,12 +456,12 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
                 padding: '12px 24px',
                 backgroundColor: viewMode === mode ? 'white' : 'transparent',
                 border: 'none',
-                borderBottom: viewMode === mode ? '3px solid #3b82f6' : '3px solid transparent',
+                borderBottom: viewMode === mode ? '3px solid #FF8F35' : '3px solid transparent',
                 marginBottom: '-2px',
                 cursor: 'pointer',
                 fontSize: '14px',
                 fontWeight: viewMode === mode ? '600' : '500',
-                color: viewMode === mode ? '#3b82f6' : '#6b7280',
+                color: viewMode === mode ? '#FF8F35' : '#6b7280',
                 textTransform: 'capitalize'
               }}
             >
@@ -607,7 +607,7 @@ const StateReportCard = ({ stateKey: propStateKey }) => {
                         transition: 'all 0.2s'
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#3b82f6';
+                        e.currentTarget.style.backgroundColor = '#FF8F35';
                         e.currentTarget.style.color = 'white';
                       }}
                       onMouseLeave={(e) => {
@@ -699,7 +699,7 @@ const DimensionsDetailView = ({ dimensions }) => {
 
   const getComplianceColor = (score) => {
     if (score >= 90) return '#10b981';
-    if (score >= 80) return '#3b82f6';
+    if (score >= 80) return '#FF8F35';
     if (score >= 70) return '#f59e0b';
     if (score >= 60) return '#f97316';
     return '#ef4444';
@@ -792,7 +792,7 @@ const HistoryView = ({ history }) => {
                 return `${x}%,${y}%`;
               }).join(' ')}
               fill="none"
-              stroke="#3b82f6"
+              stroke="#FF8F35"
               strokeWidth="3"
             />
             {history.history.map((h, i) => {
@@ -804,7 +804,7 @@ const HistoryView = ({ history }) => {
                     cx={`${x}%`}
                     cy={`${y}%`}
                     r="4"
-                    fill="#3b82f6"
+                    fill="#FF8F35"
                   />
                   <text
                     x={`${x}%`}
@@ -863,7 +863,7 @@ const RecommendationsView = ({ recommendations, contracts }) => {
   const getPriorityColor = (priority) => {
     if (priority === 'HIGH') return '#ef4444';
     if (priority === 'MEDIUM') return '#f59e0b';
-    return '#3b82f6';
+    return '#FF8F35';
   };
 
   return (
@@ -978,7 +978,7 @@ const RecommendationsView = ({ recommendations, contracts }) => {
                         padding: '4px 8px',
                         borderRadius: '4px',
                         backgroundColor: '#dbeafe',
-                        color: '#1e40af',
+                        color: '#C66A1F',
                         fontWeight: '600'
                       }}>
                         {contract.sla_uptime_target}%

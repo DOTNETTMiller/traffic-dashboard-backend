@@ -241,13 +241,13 @@ export default function ClosureApprovalDashboard({ userState, onClose }) {
   const getStatusColor = (status) => {
     const colors = {
       draft: '#6b7280',
-      submitted: '#3b82f6',
+      submitted: '#FF8F35',
       pending_review: '#f59e0b',
       under_review: '#8b5cf6',
       approved: '#10b981',
       approved_conditional: '#14b8a6',
       rejected: '#ef4444',
-      active: '#3b82f6',
+      active: '#FF8F35',
       completed: '#6b7280'
     };
     return colors[status] || '#6b7280';
@@ -874,12 +874,12 @@ export default function ClosureApprovalDashboard({ userState, onClose }) {
                     borderRadius: '8px'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                      <svg style={{ width: '20px', height: '20px', color: '#2563eb', marginTop: '2px', flexShrink: 0 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg style={{ width: '20px', height: '20px', color: '#F08230', marginTop: '2px', flexShrink: 0 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                       <div style={{ flex: 1 }}>
                         <p style={{ fontSize: '14px', fontWeight: '500', color: '#1e3a5f', margin: 0 }}>Smart Coordination Active</p>
-                        <p style={{ fontSize: '14px', color: '#1e40af', marginTop: '4px', marginBottom: 0 }}>
+                        <p style={{ fontSize: '14px', color: '#C66A1F', marginTop: '4px', marginBottom: 0 }}>
                           System will automatically detect proximity to state borders and notify affected states for approval.
                         </p>
                       </div>
@@ -1158,11 +1158,11 @@ export default function ClosureApprovalDashboard({ userState, onClose }) {
                           marginBottom: '16px'
                         }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <svg style={{ width: '20px', height: '20px', color: '#1d4ed8', flexShrink: 0 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg style={{ width: '20px', height: '20px', color: '#C66A1F', flexShrink: 0 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                             <span style={{ fontWeight: '600', color: '#1e3a5f' }}>Response Due: </span>
-                            <span style={{ color: '#1e40af' }}>
+                            <span style={{ color: '#C66A1F' }}>
                               {format(new Date(closure.response_due), 'MMM d, yyyy')}
                               <span style={{ fontSize: '12px', marginLeft: '4px' }}>({formatDistanceToNow(new Date(closure.response_due))})</span>
                             </span>
@@ -1458,7 +1458,7 @@ function ClosureDetailModal({ closure, onClose }) {
                       {approval.approver_name && <p style={{ fontSize: '14px', color: '#4b5563' }}>Reviewed by: {approval.approver_name}</p>}
                       {approval.rejection_reason && <p style={{ fontSize: '14px', color: '#b91c1c', marginTop: '4px', fontStyle: 'italic' }}>"{approval.rejection_reason}"</p>}
                       {approval.conditions && approval.conditions.length > 0 && (
-                        <p style={{ fontSize: '14px', color: '#1d4ed8', marginTop: '4px', fontStyle: 'italic' }}>Conditions: {approval.conditions.join('; ')}</p>
+                        <p style={{ fontSize: '14px', color: '#C66A1F', marginTop: '4px', fontStyle: 'italic' }}>Conditions: {approval.conditions.join('; ')}</p>
                       )}
                       <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
                         {approval.approval_date

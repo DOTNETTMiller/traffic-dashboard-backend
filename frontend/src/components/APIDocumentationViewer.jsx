@@ -256,7 +256,7 @@ const APIDocumentationViewer = () => {
               processedHeader = processedHeader.replace(/`([^`]+)`/g, '$1'); // Remove code
 
               const borderRight = idx < headers.length - 1 ? 'border-right: 1px solid rgba(255,255,255,0.15);' : '';
-              tableHTML += `<th style="background: linear-gradient(to bottom, #1e40af 0%, #1e3a8a 100%); color: white; border: 1px solid #1e3a8a; border-bottom: 3px solid #1e3a8a; padding: 14px 18px; text-align: left; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; ${borderRight}">${processedHeader}</th>`;
+              tableHTML += `<th style="background: linear-gradient(to bottom, #C66A1F 0%, #0E0E10 100%); color: white; border: 1px solid #0E0E10; border-bottom: 3px solid #0E0E10; padding: 14px 18px; text-align: left; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; ${borderRight}">${processedHeader}</th>`;
             });
             tableHTML += '</tr></thead><tbody>';
             i++; // Skip separator line
@@ -362,7 +362,7 @@ const APIDocumentationViewer = () => {
         line = line.replace(/`([^`]+)`/g, '<code style="background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 13px;">$1</code>');
 
         // Links (after images)
-        line = line.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #3b82f6; text-decoration: underline;">$1</a>');
+        line = line.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #FF8F35; text-decoration: underline;">$1</a>');
 
         // List items
         if (trimmedLine.startsWith('- ')) {
@@ -435,7 +435,7 @@ const APIDocumentationViewer = () => {
                 width: '100%',
                 textAlign: 'left',
                 padding: '8px 12px',
-                background: currentDoc === 'api' ? '#3b82f6' : 'white',
+                background: currentDoc === 'api' ? '#FF8F35' : 'white',
                 color: currentDoc === 'api' ? '#ffffff' : '#374151',
                 border: '1px solid #e5e7eb',
                 borderRadius: '6px',
@@ -456,7 +456,7 @@ const APIDocumentationViewer = () => {
                 width: '100%',
                 textAlign: 'left',
                 padding: '8px 12px',
-                background: currentDoc === 'roadmap' ? '#3b82f6' : 'white',
+                background: currentDoc === 'roadmap' ? '#FF8F35' : 'white',
                 color: currentDoc === 'roadmap' ? '#ffffff' : '#374151',
                 border: '1px solid #e5e7eb',
                 borderRadius: '6px',
@@ -486,7 +486,7 @@ const APIDocumentationViewer = () => {
                   width: '100%',
                   textAlign: 'left',
                   padding: '8px 12px',
-                  background: currentDoc === doc.path ? '#3b82f6' : 'white',
+                  background: currentDoc === doc.path ? '#FF8F35' : 'white',
                   color: currentDoc === doc.path ? '#ffffff' : '#374151',
                   border: '1px solid #e5e7eb',
                   borderRadius: '6px',
@@ -517,7 +517,7 @@ const APIDocumentationViewer = () => {
               onClick={() => setShowSidebar(true)}
               style={{
                 padding: '8px 16px',
-                background: '#3b82f6',
+                background: '#FF8F35',
                 color: '#111827',
                 border: 'none',
                 borderRadius: '6px',
@@ -562,7 +562,7 @@ const APIDocumentationViewer = () => {
             outline: 'none',
             transition: 'border 0.2s'
           }}
-          onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+          onFocus={(e) => e.target.style.borderColor = '#FF8F35'}
           onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
         />
         {searchTerm && (
@@ -633,7 +633,7 @@ const APIDocumentationViewer = () => {
         .api-doc-table tbody tr:hover {
           background: linear-gradient(to right, #dbeafe 0%, #e0f2fe 100%) !important;
           transform: scale(1.001);
-          box-shadow: inset 0 0 0 1px #3b82f6;
+          box-shadow: inset 0 0 0 1px #FF8F35;
         }
 
         .api-doc-table tbody tr:last-child td {

@@ -167,7 +167,7 @@ export default function NearbyITSEquipment({ event }) {
             {/* Camera recommendations */}
             {grouped.cameras.length > 0 && (
               <div style={{ marginBottom: '8px' }}>
-                <div style={{ fontSize: '10px', fontWeight: '600', color: '#3b82f6', marginBottom: '4px' }}>
+                <div style={{ fontSize: '10px', fontWeight: '600', color: '#FF8F35', marginBottom: '4px' }}>
                   📹 View Cameras ({grouped.cameras.length})
                 </div>
                 {grouped.cameras.slice(0, 3).map((cam, idx) => (
@@ -180,11 +180,11 @@ export default function NearbyITSEquipment({ event }) {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    color: '#1e40af'
+                    color: '#C66A1F'
                   }}>
                     <div>
                       <span style={{ fontWeight: '600' }}>{cam.route || 'Camera'}</span>
-                      {cam.milepost && <span style={{ color: '#3b82f6' }}> MP {cam.milepost}</span>}
+                      {cam.milepost && <span style={{ color: '#FF8F35' }}> MP {cam.milepost}</span>}
                       <span style={{ color: '#6b7280', marginLeft: '4px' }}>
                         ({cam.distance_miles?.toFixed(1)} mi)
                       </span>
@@ -197,7 +197,7 @@ export default function NearbyITSEquipment({ event }) {
                         style={{
                           fontSize: '9px',
                           padding: '2px 6px',
-                          backgroundColor: '#3b82f6',
+                          backgroundColor: '#FF8F35',
                           color: 'white',
                           borderRadius: '3px',
                           textDecoration: 'none'

@@ -52,7 +52,7 @@ export default function DataQualityReport() {
 
   const getComplianceColor = (percentage) => {
     if (percentage >= 90) return '#10b981';
-    if (percentage >= 75) return '#3b82f6';
+    if (percentage >= 75) return '#FF8F35';
     if (percentage >= 60) return '#f59e0b';
     if (percentage >= 40) return '#f97316';
     return '#ef4444';
@@ -61,7 +61,7 @@ export default function DataQualityReport() {
   const severityLevels = [
     { key: 'critical', label: 'Critical', color: '#dc2626' },
     { key: 'high', label: 'High', color: '#6b7280' },
-    { key: 'medium', label: 'Medium', color: '#3b82f6' }
+    { key: 'medium', label: 'Medium', color: '#FF8F35' }
   ];
 
   const renderSeverityBreakdown = (breakdown) => {
@@ -148,7 +148,7 @@ export default function DataQualityReport() {
           return '#f97316';
         case 'medium':
         default:
-          return '#3b82f6';
+          return '#FF8F35';
       }
     };
 
@@ -388,7 +388,7 @@ export default function DataQualityReport() {
             fontSize: '11px',
             fontWeight: 600,
             backgroundColor: showEnhancedScores ? '#dbeafe' : '#fef3c7',
-            color: showEnhancedScores ? '#1e40af' : '#92400e',
+            color: showEnhancedScores ? '#C66A1F' : '#92400e',
             border: `1px solid ${showEnhancedScores ? '#93c5fd' : '#fcd34d'}`
           }}>
             {showEnhancedScores ? '✨ Enhanced Data' : '📊 Raw Feed Data'}
@@ -470,7 +470,7 @@ export default function DataQualityReport() {
                 </div>
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ color: '#1e40af', fontWeight: 600 }}>Enhanced</div>
+                <div style={{ color: '#C66A1F', fontWeight: 600 }}>Enhanced</div>
                 <div style={{ color: '#6b7280' }}>
                   {enhancedData.percentage}%
                 </div>
@@ -563,7 +563,7 @@ export default function DataQualityReport() {
           <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '5px' }}>
             WZDx Compliant
           </div>
-          <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#3b82f6' }}>
+          <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#FF8F35' }}>
             {statesWithEvents.filter(s => s.wzdxCompliant).length}
           </div>
         </div>
@@ -615,7 +615,7 @@ export default function DataQualityReport() {
               boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
               cursor: 'pointer',
               transition: 'all 0.2s',
-              border: selectedState?.name === state.name ? '2px solid #3b82f6' : '2px solid transparent'
+              border: selectedState?.name === state.name ? '2px solid #FF8F35' : '2px solid transparent'
             }}
             onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.15)'}
             onMouseLeave={(e) => e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)'}
@@ -689,12 +689,12 @@ export default function DataQualityReport() {
                   padding: '12px',
                   backgroundColor: 'white',
                   borderRadius: '8px',
-                  border: '2px solid #3b82f6',
+                  border: '2px solid #FF8F35',
                   textAlign: 'center',
                   boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
                 }}>
                   <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px', fontWeight: '600' }}>WZDx</div>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#3b82f6', lineHeight: 1 }}>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#FF8F35', lineHeight: 1 }}>
                     {state.overallScore.breakdown.wzdx.percentage}%
                   </div>
                   {state.overallScore.breakdown.wzdx.severityBreakdown && (
@@ -789,7 +789,7 @@ export default function DataQualityReport() {
             <div style={{
               marginTop: '12px',
               fontSize: '12px',
-              color: '#3b82f6',
+              color: '#FF8F35',
               fontWeight: '600',
               textAlign: 'center'
             }}>
@@ -949,11 +949,11 @@ export default function DataQualityReport() {
                             padding: '12px',
                             backgroundColor: 'white',
                             borderRadius: '8px',
-                            border: '2px solid #3b82f6',
+                            border: '2px solid #FF8F35',
                             textAlign: 'center'
                           }}>
                             <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '4px' }}>WZDx</div>
-                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#3b82f6' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#FF8F35' }}>
                               {stateGuide.overallScore.breakdown.wzdx.percentage}%
                             </div>
                           {renderSeverityBreakdown(stateGuide.overallScore.breakdown.wzdx.severityBreakdown)}
@@ -1061,9 +1061,9 @@ export default function DataQualityReport() {
                             style={{
                               padding: '6px 14px',
                               borderRadius: '6px',
-                              border: showEnhancedScores ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+                              border: showEnhancedScores ? '2px solid #FF8F35' : '1px solid #e5e7eb',
                               backgroundColor: showEnhancedScores ? '#eff6ff' : 'white',
-                              color: showEnhancedScores ? '#1e40af' : '#6b7280',
+                              color: showEnhancedScores ? '#C66A1F' : '#6b7280',
                               fontSize: '13px',
                               fontWeight: 600,
                               cursor: 'pointer',
@@ -1227,7 +1227,7 @@ export default function DataQualityReport() {
                             fontSize: '16px',
                             fontWeight: '600',
                             color: selectedState.tmddStandards.compliance === 'Direct TMDD' ? '#10b981' :
-                                   selectedState.tmddStandards.compliance === 'WZDx (TMDD-adjacent)' ? '#3b82f6' : '#6b7280'
+                                   selectedState.tmddStandards.compliance === 'WZDx (TMDD-adjacent)' ? '#FF8F35' : '#6b7280'
                           }}>
                             {selectedState.tmddStandards.compliance || 'Not TMDD'}
                           </div>
@@ -1280,7 +1280,7 @@ export default function DataQualityReport() {
                           padding: '12px',
                           backgroundColor: '#dbeafe',
                           borderRadius: '6px',
-                          border: '1px solid #3b82f6'
+                          border: '1px solid #FF8F35'
                         }}>
                           <a
                             href={selectedState.tmddStandards.documentationUrl}
@@ -1289,7 +1289,7 @@ export default function DataQualityReport() {
                             style={{
                               fontSize: '14px',
                               fontWeight: '600',
-                              color: '#1e40af',
+                              color: '#C66A1F',
                               textDecoration: 'none',
                               display: 'flex',
                               alignItems: 'center',
@@ -1447,10 +1447,10 @@ export default function DataQualityReport() {
                           padding: '6px 12px',
                           borderRadius: '6px',
                           backgroundColor: stateGuide.fieldLevelAnalysis.feedType === 'WZDx' ? '#dbeafe' : '#fef3c7',
-                          border: `1px solid ${stateGuide.fieldLevelAnalysis.feedType === 'WZDx' ? '#3b82f6' : '#f59e0b'}`,
+                          border: `1px solid ${stateGuide.fieldLevelAnalysis.feedType === 'WZDx' ? '#FF8F35' : '#f59e0b'}`,
                           fontSize: '12px',
                           fontWeight: '600',
-                          color: stateGuide.fieldLevelAnalysis.feedType === 'WZDx' ? '#1e40af' : '#92400e'
+                          color: stateGuide.fieldLevelAnalysis.feedType === 'WZDx' ? '#C66A1F' : '#92400e'
                         }}>
                           {stateGuide.fieldLevelAnalysis.feedType === 'WZDx' ? '📋 WZDx v4.x Spec' : `📡 TMDD/ngTMDD via C2C-MVT`}
                         </div>
@@ -1755,7 +1755,7 @@ export default function DataQualityReport() {
                             fontSize: '14px',
                             fontWeight: '600',
                             marginBottom: '8px',
-                            color: '#3b82f6'
+                            color: '#FF8F35'
                           }}>
                             🎯 LONG-TERM ENHANCEMENTS ({stateGuide.actionPlan.longTerm.length})
                           </div>

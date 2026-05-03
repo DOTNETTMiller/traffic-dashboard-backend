@@ -305,10 +305,10 @@ export default function IPAWSAfterActionReview({ onClose }) {
               padding: theme.spacing.md,
               backgroundColor: '#dbeafe',
               borderRadius: '8px',
-              border: '1px solid #3b82f6',
+              border: '1px solid #FF8F35',
               marginBottom: theme.spacing.lg,
               fontSize: '12px',
-              color: '#1e40af'
+              color: '#C66A1F'
             }}>
               <strong>📋 SOP Section 11 & 6.4.5:</strong> Analyze timing, scope, unintended effects. Document public feedback. Integrate lessons into training materials.
             </div>
@@ -918,7 +918,7 @@ export default function IPAWSAfterActionReview({ onClose }) {
               disabled={saving || !reviewData.reviewedBy}
               style={{
                 padding: '10px 20px',
-                backgroundColor: !reviewData.reviewedBy ? '#9ca3af' : '#3b82f6',
+                backgroundColor: !reviewData.reviewedBy ? '#9ca3af' : '#FF8F35',
                 color: 'white',
                 border: 'none',
                 borderRadius: '8px',
@@ -1018,7 +1018,7 @@ export default function IPAWSAfterActionReview({ onClose }) {
             onClick={exportForHSEMD}
             style={{
               padding: '8px 16px',
-              backgroundColor: '#3b82f6',
+              backgroundColor: '#FF8F35',
               color: 'white',
               border: 'none',
               borderRadius: '6px',
@@ -1159,7 +1159,7 @@ export default function IPAWSAfterActionReview({ onClose }) {
                           onClick={() => startReview(alert)}
                           style={{
                             padding: '6px 12px',
-                            backgroundColor: '#3b82f6',
+                            backgroundColor: '#FF8F35',
                             color: 'white',
                             border: 'none',
                             borderRadius: '6px',

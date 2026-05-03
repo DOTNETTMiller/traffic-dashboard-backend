@@ -37,7 +37,7 @@ const ProcurementDashboard = () => {
     const colors = {
       'URGENT': '#ef4444',
       'WARNING': '#f59e0b',
-      'NOTICE': '#3b82f6',
+      'NOTICE': '#FF8F35',
       'OK': '#10b981'
     };
     return colors[level] || '#6b7280';
@@ -46,7 +46,7 @@ const ProcurementDashboard = () => {
   const getPerformanceColor = (rating) => {
     const colors = {
       'EXCELLENT': '#10b981',
-      'GOOD': '#3b82f6',
+      'GOOD': '#FF8F35',
       'FAIR': '#f59e0b',
       'POOR': '#ef4444'
     };
@@ -267,7 +267,7 @@ const ProcurementDashboard = () => {
                       </span>
                     )}
                     {contract.renewal_option_available && (
-                      <span style={{ padding: '2px 8px', background: '#dbeafe', color: '#1e40af', borderRadius: '4px', fontWeight: '600' }}>
+                      <span style={{ padding: '2px 8px', background: '#dbeafe', color: '#C66A1F', borderRadius: '4px', fontWeight: '600' }}>
                         Renewable
                       </span>
                     )}
@@ -445,7 +445,7 @@ const ProcurementDashboard = () => {
               style={{
                 width: '100%',
                 padding: '12px',
-                background: '#3b82f6',
+                background: '#FF8F35',
                 color: '#111827',
                 border: 'none',
                 borderRadius: '8px',

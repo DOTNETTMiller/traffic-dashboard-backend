@@ -66,7 +66,7 @@ button {
 
 button.btn-primary {
   color: #ffffff !important;
-  background-color: #3b82f6;
+  background-color: #FF8F35;
 }
 
 button.btn-secondary {
@@ -106,7 +106,7 @@ label,
 
 /* Safe colored text (maintains readability) */
 .text-blue {
-  color: #1e40af !important;
+  color: #C66A1F !important;
 }
 
 .text-green {

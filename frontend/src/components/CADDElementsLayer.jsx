@@ -9,7 +9,7 @@ const elementStyles = {
   its_equipment: {
     Sign: { icon: '🚏', color: '#f59e0b', label: 'Sign' },
     'Traffic Signal': { icon: '🚦', color: '#ef4444', label: 'Traffic Signal' },
-    Camera: { icon: '📹', color: '#3b82f6', label: 'Camera' },
+    Camera: { icon: '📹', color: '#FF8F35', label: 'Camera' },
     DMS: { icon: '📺', color: '#8b5cf6', label: 'DMS' },
     Detector: { icon: '🌡️', color: '#10b981', label: 'Detector' },
     RSU: { icon: '📡', color: '#6366f1', label: 'RSU' },
@@ -60,7 +60,7 @@ const createCADDIcon = (elementType, equipmentType) => {
           width: 10px;
           height: 10px;
           border-radius: 50%;
-          background: #3b82f6;
+          background: #FF8F35;
           border: 2px solid white;
           box-shadow: 0 1px 3px rgba(0,0,0,0.3);
         "></div>
@@ -254,7 +254,7 @@ export default function CADDElementsLayer({ visible = true, stateKey = null, mod
               const count = cluster.getChildCount();
               return L.divIcon({
                 html: `<div style="
-                  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+                  background: linear-gradient(135deg, #FF8F35 0%, #8b5cf6 100%);
                   width: 40px;
                   height: 40px;
                   border-radius: 50%;

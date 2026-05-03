@@ -82,7 +82,7 @@ export default function CorridorDataQuality() {
 
   const getComplianceColor = (percentage) => {
     if (percentage >= 90) return '#10b981';
-    if (percentage >= 75) return '#3b82f6';
+    if (percentage >= 75) return '#FF8F35';
     if (percentage >= 60) return '#f59e0b';
     if (percentage >= 40) return '#f97316';
     return '#ef4444';
@@ -134,7 +134,7 @@ export default function CorridorDataQuality() {
             rel="noopener noreferrer"
             style={{
               padding: '10px 16px',
-              backgroundColor: '#3b82f6',
+              backgroundColor: '#FF8F35',
               color: '#111827',
               borderRadius: '6px',
               fontSize: '14px',
@@ -143,18 +143,18 @@ export default function CorridorDataQuality() {
               display: 'inline-flex',
               alignItems: 'center',
               gap: '8px',
-              boxShadow: '0 2px 4px rgba(59, 130, 246, 0.3)',
+              boxShadow: '0 2px 4px rgba(255, 143, 53, 0.3)',
               transition: 'all 0.2s',
               border: 'none',
               cursor: 'pointer'
             }}
             onMouseOver={(e) => {
-              e.currentTarget.style.backgroundColor = '#2563eb';
-              e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.4)';
+              e.currentTarget.style.backgroundColor = '#F08230';
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(255, 143, 53, 0.4)';
             }}
             onMouseOut={(e) => {
-              e.currentTarget.style.backgroundColor = '#3b82f6';
-              e.currentTarget.style.boxShadow = '0 2px 4px rgba(59, 130, 246, 0.3)';
+              e.currentTarget.style.backgroundColor = '#FF8F35';
+              e.currentTarget.style.boxShadow = '0 2px 4px rgba(255, 143, 53, 0.3)';
             }}
           >
             <span>📋</span>
@@ -253,7 +253,7 @@ export default function CorridorDataQuality() {
                     ? '#eff6ff'
                     : 'transparent',
                   border: selectedCorridor?.corridor_id === corridor.corridor_id
-                    ? '1px solid #3b82f6'
+                    ? '1px solid #FF8F35'
                     : '1px solid #e5e7eb',
                   borderRadius: '6px',
                   cursor: 'pointer',
@@ -310,7 +310,7 @@ export default function CorridorDataQuality() {
                   }}
                   onMouseOver={(e) => {
                     e.currentTarget.style.backgroundColor = '#f3f4f6';
-                    e.currentTarget.style.borderColor = '#3b82f6';
+                    e.currentTarget.style.borderColor = '#FF8F35';
                   }}
                   onMouseOut={(e) => {
                     e.currentTarget.style.backgroundColor = '#f9fafb';

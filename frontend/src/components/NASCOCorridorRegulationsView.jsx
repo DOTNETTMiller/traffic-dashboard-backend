@@ -20,7 +20,7 @@ export default function NASCOCorridorRegulationsView({ darkMode = false }) {
     text: darkMode ? '#f1f5f9' : '#0f172a',
     textSecondary: darkMode ? '#94a3b8' : '#64748b',
     border: darkMode ? '#334155' : '#e2e8f0',
-    accent: '#3b82f6',
+    accent: '#FF8F35',
     success: '#10b981',
     warning: '#f59e0b',
     danger: '#ef4444',

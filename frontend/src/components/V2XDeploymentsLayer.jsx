@@ -78,7 +78,7 @@ const createV2XIcon = (deployment) => {
           width: 10px;
           height: 10px;
           border-radius: 50%;
-          background: #1e40af;
+          background: #C66A1F;
           border: 2px solid white;
           box-shadow: 0 1px 3px rgba(0,0,0,0.3);
         "></div>
@@ -153,7 +153,7 @@ export default function V2XDeploymentsLayer({ visible = true, stateKey = null })
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '20px' }}>{error ? '❌' : '⏳'}</span>
-          <div style={{ fontSize: '13px', color: error ? '#991b1b' : '#1e40af' }}>
+          <div style={{ fontSize: '13px', color: error ? '#991b1b' : '#C66A1F' }}>
             <strong>{error ? 'V2X Data Error' : 'Loading V2X Deployments...'}</strong>
             {error && <p style={{ margin: '4px 0 0 0' }}>{error}</p>}
           </div>
@@ -212,7 +212,7 @@ export default function V2XDeploymentsLayer({ visible = true, stateKey = null })
         maxWidth: '300px',
         boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
       }}>
-        <div style={{ fontSize: '13px', color: '#1e40af' }}>
+        <div style={{ fontSize: '13px', color: '#C66A1F' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
             <span style={{ fontSize: '20px' }}>🇺🇸</span>
             <strong>USDOT V2X Deployments</strong>
@@ -259,7 +259,7 @@ export default function V2XDeploymentsLayer({ visible = true, stateKey = null })
                 position: absolute;
                 top: -5px;
                 right: -5px;
-                background: #1e40af;
+                background: #C66A1F;
                 color: white;
                 border-radius: 10px;
                 padding: 2px 6px;

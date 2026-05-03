@@ -160,7 +160,7 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
   const getCategoryColor = (category) => {
     const colors = {
       incident: '#ef4444',
-      weather: '#3b82f6',
+      weather: '#FF8F35',
       construction: '#f59e0b',
       parking: '#8b5cf6',
       amber_alert: '#dc2626',
@@ -187,7 +187,7 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
       }}>
         {/* Header */}
         <div style={{
-          background: 'linear-gradient(to right, #2563eb, #1d4ed8)',
+          background: 'linear-gradient(to right, #F08230, #C66A1F)',
           color: 'white',
           padding: '24px'
         }}>
@@ -224,7 +224,7 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
                 justifyContent: 'center',
                 transition: 'background-color 0.2s'
               }}
-              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.5)'}
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255, 143, 53,0.5)'}
               onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
             >
               <svg style={{ width: '24px', height: '24px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -236,7 +236,7 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
           {selectedEvent && (
             <div style={{
               marginTop: '16px',
-              backgroundColor: 'rgba(59,130,246,0.3)',
+              backgroundColor: 'rgba(255, 143, 53,0.3)',
               borderRadius: '4px',
               padding: '12px',
               fontSize: '14px'
@@ -259,7 +259,7 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
               background: 'none',
               cursor: 'pointer',
               ...(activeTab === 'templates'
-                ? { borderBottom: '2px solid #2563eb', color: '#2563eb', backgroundColor: 'white' }
+                ? { borderBottom: '2px solid #F08230', color: '#F08230', backgroundColor: 'white' }
                 : { color: '#4b5563' })
             }}
           >
@@ -275,7 +275,7 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
               background: 'none',
               cursor: 'pointer',
               ...(activeTab === 'history'
-                ? { borderBottom: '2px solid #2563eb', color: '#2563eb', backgroundColor: 'white' }
+                ? { borderBottom: '2px solid #F08230', color: '#F08230', backgroundColor: 'white' }
                 : { color: '#4b5563' })
             }}
           >
@@ -364,7 +364,7 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
                         padding: '16px',
                         borderRadius: '8px',
                         border: selectedTemplate?.id === template.id
-                          ? '1px solid #3b82f6'
+                          ? '1px solid #FF8F35'
                           : '1px solid #e5e7eb',
                         backgroundColor: selectedTemplate?.id === template.id ? '#eff6ff' : 'white',
                         boxShadow: selectedTemplate?.id === template.id
@@ -533,7 +533,7 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
                       disabled={loading}
                       style={{
                         width: '100%',
-                        backgroundColor: '#2563eb',
+                        backgroundColor: '#F08230',
                         color: 'white',
                         padding: '12px 16px',
                         borderRadius: '8px',
@@ -544,8 +544,8 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
                         transition: 'background-color 0.2s',
                         fontSize: '16px'
                       }}
-                      onMouseEnter={e => { if (!loading) e.currentTarget.style.backgroundColor = '#1d4ed8'; }}
-                      onMouseLeave={e => { if (!loading) e.currentTarget.style.backgroundColor = '#2563eb'; }}
+                      onMouseEnter={e => { if (!loading) e.currentTarget.style.backgroundColor = '#C66A1F'; }}
+                      onMouseLeave={e => { if (!loading) e.currentTarget.style.backgroundColor = '#F08230'; }}
                     >
                       {loading ? 'Activating...' : 'Activate DMS Message'}
                     </button>

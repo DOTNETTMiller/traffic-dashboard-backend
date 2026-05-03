@@ -39,7 +39,7 @@ export default function IPAWSScenarioSelector({ event, onScenarioSelect }) {
       escalationTrigger: 'Hazard arises from weather/incidents that threaten life safety',
       ipawsRequired: 'Only if unforeseen life-safety hazard develops',
       color: '#dbeafe',
-      borderColor: '#3b82f6',
+      borderColor: '#FF8F35',
       steps: [
         '1. Internal DOT notification 48-72 hours advance',
         '2. DMS and 511 updates',
@@ -155,10 +155,10 @@ export default function IPAWSScenarioSelector({ event, onScenarioSelect }) {
         padding: theme.spacing.sm,
         backgroundColor: '#eff6ff',
         borderRadius: '6px',
-        border: '1px solid #3b82f6',
+        border: '1px solid #FF8F35',
         marginBottom: theme.spacing.md,
         fontSize: '11px',
-        color: '#1e40af'
+        color: '#C66A1F'
       }}>
         <strong>Purpose:</strong> Select the scenario type to view escalation triggers and IPAWS activation criteria per SOP Section 6.2
       </div>

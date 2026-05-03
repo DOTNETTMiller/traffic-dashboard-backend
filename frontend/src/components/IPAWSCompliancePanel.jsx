@@ -303,11 +303,11 @@ export default function IPAWSCompliancePanel() {
         <div style={{
           padding: theme.spacing.md,
           backgroundColor: '#eff6ff',
-          border: '2px solid #3b82f6',
+          border: '2px solid #FF8F35',
           borderRadius: '8px',
           marginBottom: theme.spacing.lg
         }}>
-          <div style={{ fontSize: '13px', color: '#1e40af', lineHeight: '1.6' }}>
+          <div style={{ fontSize: '13px', color: '#C66A1F', lineHeight: '1.6' }}>
             <strong>SOP Requirement:</strong> All IPAWS activations must undergo an after-action review within <strong>7 days</strong> of transmission.
             Reviews analyze timing, scope, unintended effects, and identify lessons learned for future improvements.
           </div>

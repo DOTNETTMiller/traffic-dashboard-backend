@@ -336,8 +336,8 @@ export default function ChatWidget({
                   maxWidth: '80%',
                   padding: '10px 14px',
                   borderRadius: '12px',
-                  backgroundColor: msg.role === 'user' ? '#0071e3' : (isDarkMode ? '#374151' : 'white'),
-                  color: msg.role === 'user' ? 'white' : (isDarkMode ? '#f9fafb' : '#1f2937'),
+                  backgroundColor: msg.role === 'user' ? '#F08230' : (isDarkMode ? '#374151' : 'white'),
+                  color: msg.role === 'user' ? '#0E0E10' : (isDarkMode ? '#f9fafb' : '#1f2937'),
                   fontSize: '14px',
                   lineHeight: '1.5',
                   boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
@@ -430,7 +430,7 @@ export default function ChatWidget({
                   backgroundColor: isDarkMode ? '#374151' : 'white',
                   color: isDarkMode ? '#f9fafb' : '#1f2937'
                 }}
-                onFocus={(e) => e.target.style.borderColor = '#0071e3'}
+                onFocus={(e) => e.target.style.borderColor = '#F08230'}
                 onBlur={(e) => e.target.style.borderColor = isDarkMode ? '#4b5563' : '#d1d5db'}
               />
               <button
@@ -438,14 +438,14 @@ export default function ChatWidget({
                 disabled={isLoading || !inputMessage.trim()}
                 style={{
                   padding: '8px 18px',
-                  backgroundColor: isLoading || !inputMessage.trim() ? '#c7c7cc' : '#0071e3',
-                  color: '#ffffff',
+                  backgroundColor: isLoading || !inputMessage.trim() ? '#c7c7cc' : '#F08230',
+                  color: isLoading || !inputMessage.trim() ? '#ffffff' : '#0E0E10',
                   border: 'none',
                   borderRadius: '999px',
                   fontSize: '13px',
                   fontFamily: 'inherit',
-                  fontWeight: 500,
-                  letterSpacing: '-0.01em',
+                  fontWeight: 700,
+                  letterSpacing: '0.02em',
                   cursor: isLoading || !inputMessage.trim() ? 'not-allowed' : 'pointer',
                   transition: 'background-color 200ms cubic-bezier(0.32, 0.72, 0, 1)'
                 }}

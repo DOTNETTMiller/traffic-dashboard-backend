@@ -634,13 +634,13 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                           }))}
                           style={{
                             cursor: 'pointer',
-                            border: view === currentView ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+                            border: view === currentView ? '2px solid #FF8F35' : '1px solid #e5e7eb',
                             borderRadius: '4px',
                             overflow: 'hidden',
                             transition: 'all 0.2s'
                           }}
                           onMouseEnter={(e) => {
-                            if (view !== currentView) e.currentTarget.style.borderColor = '#3b82f6';
+                            if (view !== currentView) e.currentTarget.style.borderColor = '#FF8F35';
                           }}
                           onMouseLeave={(e) => {
                             if (view !== currentView) e.currentTarget.style.borderColor = '#e5e7eb';
@@ -662,7 +662,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                           />
                           <div style={{
                             padding: '4px',
-                            backgroundColor: view === currentView ? '#3b82f6' : '#f9fafb',
+                            backgroundColor: view === currentView ? '#FF8F35' : '#f9fafb',
                             color: view === currentView ? 'white' : '#374151',
                             fontSize: '9px',
                             textAlign: 'center',
@@ -800,7 +800,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                           <div style={{
                             fontSize: '18px',
                             fontWeight: 'bold',
-                            color: '#3b82f6'
+                            color: '#FF8F35'
                           }}>
                             {pred.capacity}
                           </div>
@@ -921,7 +921,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                                       backgroundColor: color,
                                       borderRadius: '2px 2px 0 0',
                                       transition: 'all 0.2s ease',
-                                      border: isCurrentHour ? '2px solid #3b82f6' : 'none',
+                                      border: isCurrentHour ? '2px solid #FF8F35' : 'none',
                                       boxSizing: 'border-box',
                                       position: 'relative'
                                     }}
@@ -934,7 +934,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                                         transform: 'translateX(-50%)',
                                         fontSize: '9px',
                                         fontWeight: '600',
-                                        color: '#3b82f6',
+                                        color: '#FF8F35',
                                         whiteSpace: 'nowrap'
                                       }}>
                                         {Math.round(percentage)}%
@@ -987,7 +987,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                               <span>Full (&gt;80%)</span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                              <div style={{ width: '2px', height: '8px', backgroundColor: '#3b82f6', borderRadius: '1px' }} />
+                              <div style={{ width: '2px', height: '8px', backgroundColor: '#FF8F35', borderRadius: '1px' }} />
                               <span>Now ({new Date().getHours()}:00)</span>
                             </div>
                           </div>
@@ -1014,7 +1014,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                     padding: '12px',
                     backgroundColor: '#eff6ff',
                     borderRadius: '6px',
-                    border: '1px solid #3b82f6'
+                    border: '1px solid #FF8F35'
                   }}>
                     {/* AI Count Button */}
                     <button
@@ -1128,7 +1128,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                       display: 'block',
                       fontSize: '12px',
                       fontWeight: '600',
-                      color: '#1e40af',
+                      color: '#C66A1F',
                       marginBottom: '6px'
                     }}>
                       Occupied Spaces:
@@ -1159,7 +1159,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                       display: 'block',
                       fontSize: '12px',
                       fontWeight: '600',
-                      color: '#1e40af',
+                      color: '#C66A1F',
                       marginBottom: '6px'
                     }}>
                       Total Capacity:
@@ -1191,7 +1191,7 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
                           padding: '8px 16px',
                           borderRadius: '4px',
                           border: 'none',
-                          backgroundColor: submitStatus[facility.facilityId]?.type === 'submitting' ? '#9ca3af' : '#3b82f6',
+                          backgroundColor: submitStatus[facility.facilityId]?.type === 'submitting' ? '#9ca3af' : '#FF8F35',
                           color: '#111827',
                           fontSize: '13px',
                           fontWeight: '600',

@@ -5,7 +5,7 @@ import api from '../services/api';
 // Connection type styles
 const connectionStyles = {
   fiber: {
-    color: '#3b82f6',      // blue
+    color: '#FF8F35',      // blue
     label: 'Fiber Optic',
     icon: '🔵'
   },

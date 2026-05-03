@@ -796,7 +796,7 @@ export default function TrafficMap({
               {borderInfo && borderInfo.nearBorder && <div style={{ marginTop: '4px', color: '#6366f1', fontWeight: 'bold' }}>
                 🔵 {borderInfo.distance} mi from {borderInfo.borderStates.join('-')} border
               </div>}
-              {hasMessages && <div style={{ marginTop: '4px', color: '#1e40af', fontWeight: 'bold' }}>
+              {hasMessages && <div style={{ marginTop: '4px', color: '#C66A1F', fontWeight: 'bold' }}>
                 💬 {messageCount} message{messageCount !== 1 ? 's' : ''}
               </div>}
               {/* Compliance grades show in the event detail modal (EventMessaging),

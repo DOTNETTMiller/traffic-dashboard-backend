@@ -67,7 +67,7 @@ export default function DetourAlerts({ authToken, onViewOnMap, isDarkMode }) {
       case 'moderate':
         return '#f59e0b'; // amber-500
       default:
-        return '#3b82f6'; // blue-500
+        return '#FF8F35'; // blue-500
     }
   };
 
@@ -161,7 +161,7 @@ export default function DetourAlerts({ authToken, onViewOnMap, isDarkMode }) {
             onClick={() => setIsExpanded(!isExpanded)}
             style={{
               padding: '8px 16px',
-              backgroundColor: '#3b82f6',
+              backgroundColor: '#FF8F35',
               color: '#111827',
               border: 'none',
               borderRadius: '6px',
@@ -170,8 +170,8 @@ export default function DetourAlerts({ authToken, onViewOnMap, isDarkMode }) {
               cursor: 'pointer',
               transition: 'all 0.2s'
             }}
-            onMouseOver={(e) => e.target.style.backgroundColor = '#2563eb'}
-            onMouseOut={(e) => e.target.style.backgroundColor = '#3b82f6'}
+            onMouseOver={(e) => e.target.style.backgroundColor = '#F08230'}
+            onMouseOut={(e) => e.target.style.backgroundColor = '#FF8F35'}
           >
             {isExpanded ? 'Collapse' : 'Expand'}
           </button>

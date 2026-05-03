@@ -714,13 +714,13 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               padding: theme.spacing.md,
               backgroundColor: '#eff6ff',
               borderRadius: '8px',
-              borderLeft: '4px solid #3b82f6',
+              borderLeft: '4px solid #FF8F35',
               marginBottom: theme.spacing.md
             }}>
-              <p style={{ color: '#1e40af', margin: '0 0 8px 0', fontWeight: '600' }}>
+              <p style={{ color: '#C66A1F', margin: '0 0 8px 0', fontWeight: '600' }}>
                 💡 Recommendations:
               </p>
-              <ul style={{ color: '#1e3a8a', margin: 0, paddingLeft: '20px' }}>
+              <ul style={{ color: '#0E0E10', margin: 0, paddingLeft: '20px' }}>
                 {alert.warnings.find(w => w.type === 'population') && (
                   <li>Try narrowing the buffer width or shortening the corridor length in the "Geofence Adjustment" section</li>
                 )}
@@ -1025,7 +1025,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           <div style={{
             padding: theme.spacing.sm,
             background: '#dbeafe',
-            border: '1px solid #3b82f6',
+            border: '1px solid #FF8F35',
             borderRadius: '6px',
             marginBottom: theme.spacing.md,
             display: 'flex',
@@ -1033,7 +1033,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             gap: theme.spacing.xs
           }}>
             <div style={{ fontSize: '14px' }}>🗺️</div>
-            <div style={{ flex: 1, fontSize: '11px', color: '#1e3a8a' }}>
+            <div style={{ flex: 1, fontSize: '11px', color: '#0E0E10' }}>
               Geofence displayed on map (orange). <strong>Adjust below</strong>
             </div>
           </div>
@@ -1385,12 +1385,12 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             {livePreview && regenerating && (
               <div style={{
                 padding: '8px',
-                background: 'rgba(59, 130, 246, 0.2)',
+                background: 'rgba(255, 143, 53, 0.2)',
                 borderRadius: '6px',
-                border: '1px solid rgba(59, 130, 246, 0.4)',
+                border: '1px solid rgba(255, 143, 53, 0.4)',
                 textAlign: 'center'
               }}>
-                <div style={{ color: '#3b82f6', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                <div style={{ color: '#FF8F35', fontSize: '11px', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                   <svg className="animate-spin" style={{ width: '14px', height: '14px' }} fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -1562,7 +1562,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           <div style={{
             padding: theme.spacing.md,
             backgroundColor: '#dbeafe',
-            border: '2px solid #3b82f6',
+            border: '2px solid #FF8F35',
             borderRadius: '8px',
             marginBottom: theme.spacing.lg
           }}>
@@ -1576,7 +1576,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               <div style={{
                 fontSize: '13px',
                 fontWeight: '700',
-                color: '#1e40af'
+                color: '#C66A1F'
               }}>
                 SOP Appendix A Template: {recommendedTemplate.templateLabel}
               </div>
@@ -1586,7 +1586,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               backgroundColor: 'white',
               borderRadius: '6px',
               fontSize: '13px',
-              color: '#1e3a8a',
+              color: '#0E0E10',
               fontFamily: 'monospace',
               border: '1px solid #93c5fd'
             }}>
@@ -1594,7 +1594,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             </div>
             <div style={{
               fontSize: '11px',
-              color: '#1e3a8a',
+              color: '#0E0E10',
               marginTop: theme.spacing.xs,
               fontStyle: 'italic'
             }}>
@@ -1798,7 +1798,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
               style={{
                 padding: '4px 12px',
                 fontSize: '11px',
-                backgroundColor: translating ? '#e5e7eb' : '#3b82f6',
+                backgroundColor: translating ? '#e5e7eb' : '#FF8F35',
                 color: translating ? '#6b7280' : 'white',
                 border: 'none',
                 borderRadius: '6px',
@@ -1953,8 +1953,8 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
           backgroundColor: "#eff6ff",
           borderRadius: '8px',
           fontSize: '11px',
-          color: "#1e40af",
-          border: '1px solid #3b82f6',
+          color: "#C66A1F",
+          border: '1px solid #FF8F35',
           marginBottom: theme.spacing.md
         }}>
           <div style={{ fontWeight: '700', marginBottom: '6px', fontSize: '12px' }}>
@@ -2030,7 +2030,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                 border: '1px solid #d1d5db',
                 borderRadius: '4px',
                 cursor: 'pointer',
-                backgroundColor: capViewMode === 'xml' ? '#2563eb' : 'white',
+                backgroundColor: capViewMode === 'xml' ? '#F08230' : 'white',
                 color: capViewMode === 'xml' ? 'white' : '#374151'
               }}
             >XML</button>
@@ -2043,7 +2043,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                 border: '1px solid #d1d5db',
                 borderRadius: '4px',
                 cursor: 'pointer',
-                backgroundColor: capViewMode === 'json' ? '#2563eb' : 'white',
+                backgroundColor: capViewMode === 'json' ? '#F08230' : 'white',
                 color: capViewMode === 'json' ? 'white' : '#374151'
               }}
             >JSON</button>
@@ -2101,7 +2101,7 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
             style={{
               flex: 1,
               padding: '10px',
-              backgroundColor: '#2563eb',
+              backgroundColor: '#F08230',
               color: 'white',
               border: 'none',
               borderRadius: '6px',
@@ -2338,11 +2338,11 @@ export default function IPAWSAlertGenerator({ event, onClose, onGeofenceUpdate }
                 background: activeTab === tab.id ? 'white' : 'transparent',
                 border: 'none',
                 padding: '10px 12px',
-                color: activeTab === tab.id ? '#3b82f6' : '#6b7280',
+                color: activeTab === tab.id ? '#FF8F35' : '#6b7280',
                 fontSize: '13px',
                 fontWeight: '600',
                 cursor: tab.disabled ? 'not-allowed' : 'pointer',
-                borderBottom: activeTab === tab.id ? '3px solid #3b82f6' : '3px solid transparent',
+                borderBottom: activeTab === tab.id ? '3px solid #FF8F35' : '3px solid transparent',
                 borderTop: activeTab === tab.id ? '2px solid #e5e7eb' : '2px solid transparent',
                 borderLeft: activeTab === tab.id ? '1px solid #e5e7eb' : 'none',
                 borderRight: activeTab === tab.id ? '1px solid #e5e7eb' : 'none',

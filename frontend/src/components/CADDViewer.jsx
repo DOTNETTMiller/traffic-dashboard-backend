@@ -130,11 +130,11 @@ export default function CADDViewer({ model, onClose }) {
                 background: activeTab === tab.id ? 'white' : 'transparent',
                 border: 'none',
                 padding: '10px 12px',
-                color: activeTab === tab.id ? '#3b82f6' : '#6b7280',
+                color: activeTab === tab.id ? '#FF8F35' : '#6b7280',
                 fontSize: '13px',
                 fontWeight: '600',
                 cursor: 'pointer',
-                borderBottom: activeTab === tab.id ? '3px solid #3b82f6' : '3px solid transparent',
+                borderBottom: activeTab === tab.id ? '3px solid #FF8F35' : '3px solid transparent',
                 borderTop: activeTab === tab.id ? '2px solid #e5e7eb' : '2px solid transparent',
                 borderLeft: activeTab === tab.id ? '1px solid #e5e7eb' : 'none',
                 borderRight: activeTab === tab.id ? '1px solid #e5e7eb' : 'none',
@@ -194,7 +194,7 @@ function OverviewTab({ model, stats, extractionData }) {
           icon="📐"
           label="Total Entities"
           value={stats.totalEntities || model.total_entities || 0}
-          color="#3b82f6"
+          color="#FF8F35"
         />
         <StatCard
           icon="🗂️"
@@ -355,7 +355,7 @@ function ITSEquipmentTab({ extractionData }) {
               <span style={{
                 padding: '4px 8px',
                 backgroundColor: '#dbeafe',
-                color: '#1e40af',
+                color: '#C66A1F',
                 borderRadius: '4px',
                 fontSize: '11px',
                 fontWeight: '600'

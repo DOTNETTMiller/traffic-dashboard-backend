@@ -600,12 +600,12 @@ function DocumentationViewer() {
           }
 
           .markdown-content a {
-            color: #2563eb !important;
+            color: #F08230 !important;
             text-decoration: underline;
           }
 
           .markdown-content a:hover {
-            color: #1d4ed8 !important;
+            color: #C66A1F !important;
           }
 
           .doc-table {
@@ -673,7 +673,7 @@ function DocumentationViewer() {
           .doc-table tbody tr:hover {
             background: linear-gradient(to right, #dbeafe 0%, #e0f2fe 100%) !important;
             transform: scale(1.001);
-            box-shadow: inset 0 0 0 1px #3b82f6;
+            box-shadow: inset 0 0 0 1px #FF8F35;
           }
 
           .doc-table tbody tr:last-child td {
@@ -722,12 +722,12 @@ function DocumentationViewer() {
           }
 
           .markdown-content::-webkit-scrollbar-thumb {
-            background: #3b82f6;
+            background: #FF8F35;
             border-radius: 10px;
           }
 
           .markdown-content::-webkit-scrollbar-thumb:hover {
-            background: #2563eb;
+            background: #F08230;
           }
         `}</style>
       </div>
@@ -831,16 +831,16 @@ function DocumentationViewer() {
                     flex: 1,
                     padding: '10px 16px',
                     borderRadius: '6px',
-                    border: '1px solid #3b82f6',
-                    backgroundColor: '#3b82f6',
+                    border: '1px solid #FF8F35',
+                    backgroundColor: '#FF8F35',
                     color: '#111827',
                     cursor: 'pointer',
                     fontSize: '14px',
                     fontWeight: '500',
                     transition: 'background-color 0.2s'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3b82f6'}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F08230'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FF8F35'}
                 >
                   🔗 Visit External Site
                 </button>
@@ -852,16 +852,16 @@ function DocumentationViewer() {
                       flex: 1,
                       padding: '10px 16px',
                       borderRadius: '6px',
-                      border: '1px solid #3b82f6',
-                      backgroundColor: '#3b82f6',
+                      border: '1px solid #FF8F35',
+                      backgroundColor: '#FF8F35',
                       color: '#111827',
                       cursor: 'pointer',
                       fontSize: '14px',
                       fontWeight: '500',
                       transition: 'background-color 0.2s'
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3b82f6'}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F08230'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FF8F35'}
                   >
                     👁️ Preview
                   </button>
@@ -922,7 +922,7 @@ function DocumentationViewer() {
             style={{
               padding: '10px 20px',
               borderRadius: '6px',
-              backgroundColor: '#3b82f6',
+              backgroundColor: '#FF8F35',
               color: '#111827',
               textDecoration: 'none',
               fontSize: '14px',

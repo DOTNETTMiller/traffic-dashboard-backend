@@ -18,7 +18,7 @@ export function formatAsTIM(event) {
     messageType: 'TIM',
     standard: 'SAE J2735',
     icon: '📡',
-    color: '#3b82f6',
+    color: '#FF8F35',
     data: {
       msgID: `TIM-${event.id}`,
       msgType: timCode.type,

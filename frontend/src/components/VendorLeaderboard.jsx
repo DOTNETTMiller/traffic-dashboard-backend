@@ -52,7 +52,7 @@ const VendorLeaderboard = () => {
 
   const getGradeColor = (grade) => {
     if (grade === 'A+' || grade === 'A' || grade === 'A-') return '#10b981';
-    if (grade.startsWith('B')) return '#3b82f6';
+    if (grade.startsWith('B')) return '#FF8F35';
     if (grade.startsWith('C')) return '#f59e0b';
     if (grade.startsWith('D')) return '#f97316';
     return '#ef4444';
@@ -141,11 +141,11 @@ const VendorLeaderboard = () => {
             border: '1px solid #bfdbfe',
             borderRadius: '8px'
           }}>
-            <div style={{ fontSize: '12px', color: '#1e40af', fontWeight: '500' }}>TOTAL FEEDS</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#1e3a8a' }}>
+            <div style={{ fontSize: '12px', color: '#C66A1F', fontWeight: '500' }}>TOTAL FEEDS</div>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#0E0E10' }}>
               {summary.total_feeds}
             </div>
-            <div style={{ fontSize: '11px', color: '#1e40af' }}>Market coverage</div>
+            <div style={{ fontSize: '11px', color: '#C66A1F' }}>Market coverage</div>
           </div>
         </div>
       )}
@@ -307,7 +307,7 @@ const VendorLeaderboard = () => {
                           borderRadius: '12px',
                           fontSize: '12px',
                           fontWeight: '500',
-                          color: badge.type === 'medal' ? '#92400e' : '#1e40af',
+                          color: badge.type === 'medal' ? '#92400e' : '#C66A1F',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '4px'

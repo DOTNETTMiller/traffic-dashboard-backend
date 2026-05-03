@@ -44,7 +44,7 @@ const VendorGapAnalysis = () => {
 
   const getGradeColor = (grade) => {
     if (grade === 'A' || grade === 'A+' || grade === 'A-') return '#10b981';
-    if (grade.startsWith('B')) return '#3b82f6';
+    if (grade.startsWith('B')) return '#FF8F35';
     if (grade.startsWith('C')) return '#f59e0b';
     if (grade.startsWith('D')) return '#f97316';
     return '#ef4444';
@@ -191,16 +191,16 @@ const VendorGapAnalysis = () => {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <div style={{ fontSize: '12px', color: '#1e40af', fontWeight: '500' }}>
+                    <div style={{ fontSize: '12px', color: '#C66A1F', fontWeight: '500' }}>
                       POTENTIAL IF ALL GAPS CLOSED
                     </div>
-                    <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#1e40af' }}>
+                    <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#C66A1F' }}>
                       {feed.max_potential_dqi} DQI
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '12px', color: '#1e40af' }}>To reach A- grade (90):</div>
-                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#1e40af' }}>
+                    <div style={{ fontSize: '12px', color: '#C66A1F' }}>To reach A- grade (90):</div>
+                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#C66A1F' }}>
                       +{feed.points_to_next_grade} points
                     </div>
                   </div>

@@ -487,7 +487,7 @@ export default function CalendarAdmin({ authToken }) {
                       rel="noopener noreferrer"
                       style={{
                         padding: '6px 12px',
-                        backgroundColor: '#3b82f6',
+                        backgroundColor: '#FF8F35',
                         color: '#111827',
                         textDecoration: 'none',
                         borderRadius: '6px',
@@ -764,7 +764,7 @@ Action Items:
       {editingEvent && (
         <div style={{
           backgroundColor: 'white',
-          border: '2px solid #3b82f6',
+          border: '2px solid #FF8F35',
           borderRadius: '12px',
           padding: '24px',
           marginBottom: '24px'
@@ -1020,7 +1020,7 @@ Action Items:
               onClick={handleSave}
               style={{
                 padding: '12px 24px',
-                backgroundColor: '#3b82f6',
+                backgroundColor: '#FF8F35',
                 color: '#111827',
                 border: 'none',
                 borderRadius: '8px',
@@ -1100,7 +1100,7 @@ Action Items:
                       <span style={{
                         padding: '2px 6px',
                         backgroundColor: '#dbeafe',
-                        color: '#1e40af',
+                        color: '#C66A1F',
                         fontSize: '11px',
                         fontWeight: '600',
                         borderRadius: '4px'
@@ -1124,7 +1124,7 @@ Action Items:
                         href={event.virtual_link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ color: '#3b82f6', textDecoration: 'none' }}
+                        style={{ color: '#FF8F35', textDecoration: 'none' }}
                       >
                         🔗 Link
                       </a>
@@ -1137,7 +1137,7 @@ Action Items:
                       onClick={() => handleEdit(event)}
                       style={{
                         padding: '6px 12px',
-                        backgroundColor: '#3b82f6',
+                        backgroundColor: '#FF8F35',
                         color: '#111827',
                         border: 'none',
                         borderRadius: '6px',

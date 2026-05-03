@@ -202,7 +202,7 @@ export default function GrantApplications({ user }) {
       case 'awarded':
         return { color: '#10b981', bg: '#d1fae5', icon: '🎉' };
       case 'submitted':
-        return { color: '#3b82f6', bg: '#dbeafe', icon: '📤' };
+        return { color: '#FF8F35', bg: '#dbeafe', icon: '📤' };
       case 'draft':
         return { color: '#6b7280', bg: '#f3f4f6', icon: '📝' };
       case 'denied':
@@ -224,9 +224,9 @@ export default function GrantApplications({ user }) {
     textMuted: darkMode ? '#64748b' : '#94a3b8',
     border: darkMode ? '#334155' : '#e2e8f0',
     borderLight: darkMode ? '#1e293b' : '#f1f5f9',
-    primary: '#3b82f6',
-    primaryHover: '#2563eb',
-    primaryLight: darkMode ? '#1e3a8a' : '#dbeafe',
+    primary: '#FF8F35',
+    primaryHover: '#F08230',
+    primaryLight: darkMode ? '#0E0E10' : '#dbeafe',
     accent: '#8b5cf6',
     success: '#10b981',
     error: '#ef4444',

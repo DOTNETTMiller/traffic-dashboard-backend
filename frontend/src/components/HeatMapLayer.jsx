@@ -74,7 +74,7 @@ export default function HeatMapLayer({ events, mode = 'density', isVisible }) {
 
         default:
           intensity = 0.5;
-          color = '#3b82f6';
+          color = '#FF8F35';
       }
 
       return {
@@ -145,11 +145,11 @@ function getSeverityColor(severity) {
 function getRecentColor(intensity) {
   // Blue gradient for recent activity
   if (intensity < 0.33) {
-    return interpolateColor('#60a5fa', '#3b82f6', intensity * 3);
+    return interpolateColor('#60a5fa', '#FF8F35', intensity * 3);
   } else if (intensity < 0.66) {
-    return interpolateColor('#3b82f6', '#2563eb', (intensity - 0.33) * 3);
+    return interpolateColor('#FF8F35', '#F08230', (intensity - 0.33) * 3);
   } else {
-    return interpolateColor('#2563eb', '#1d4ed8', (intensity - 0.66) * 3);
+    return interpolateColor('#F08230', '#C66A1F', (intensity - 0.66) * 3);
   }
 }
 

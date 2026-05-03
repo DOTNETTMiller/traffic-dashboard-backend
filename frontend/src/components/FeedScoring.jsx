@@ -86,7 +86,7 @@ export default function FeedScoring() {
   const getGradeColor = (grade) => {
     switch (grade) {
       case 'A': return '#10b981';
-      case 'B': return '#3b82f6';
+      case 'B': return '#FF8F35';
       case 'C': return '#f59e0b';
       case 'D': return '#f97316';
       case 'F': return '#ef4444';
@@ -194,8 +194,8 @@ export default function FeedScoring() {
             boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = '#3b82f6';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.15)';
+            e.currentTarget.style.borderColor = '#FF8F35';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 143, 53, 0.15)';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.borderColor = '#e5e7eb';
@@ -272,7 +272,7 @@ export default function FeedScoring() {
               style={{
                 width: '100%',
                 padding: '12px',
-                backgroundColor: currentUser ? '#3b82f6' : '#d1d5db',
+                backgroundColor: currentUser ? '#FF8F35' : '#d1d5db',
                 color: '#111827',
                 border: 'none',
                 borderRadius: '8px',
@@ -282,10 +282,10 @@ export default function FeedScoring() {
                 transition: 'background-color 0.2s'
               }}
               onMouseEnter={(e) => {
-                if (currentUser) e.target.style.backgroundColor = '#2563eb';
+                if (currentUser) e.target.style.backgroundColor = '#F08230';
               }}
               onMouseLeave={(e) => {
-                if (currentUser) e.target.style.backgroundColor = '#3b82f6';
+                if (currentUser) e.target.style.backgroundColor = '#FF8F35';
               }}
             >
               {currentUser ? (feed.dqi ? 'Update Score' : 'Score Feed') : 'Login to Score'}

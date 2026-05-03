@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { formatAsTIM, formatAsCIFS, isCommercialVehicleRelevant } from '../utils/messageFormatters';
+import { validateAgainstSpec, listSpecs } from '../utils/specValidators';
 import NearbyITSEquipment from './NearbyITSEquipment';
 import IPAWSAlertGenerator from './IPAWSAlertGenerator';
 import ComplianceGrades from './ComplianceGrades';
@@ -65,7 +66,7 @@ export default function EventFormatPopup({
       background: '#ffffff',
       display: showIPAWS ? 'none' : 'flex',
       flexDirection: 'column',
-      fontFamily: "'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif",
+      fontFamily: "'Open Sans', -apple-system, BlinkMacSystemFont, sans-serif",
       color: '#1d1d1f',
       letterSpacing: '-0.005em'
     }}>
@@ -98,7 +99,7 @@ export default function EventFormatPopup({
               padding: '10px 6px 9px',
               border: 'none',
               background: 'transparent',
-              borderBottom: activeTab === tab.id ? '2px solid #0071e3' : '2px solid transparent',
+              borderBottom: activeTab === tab.id ? '2px solid #F08230' : '2px solid transparent',
               marginBottom: '-1px',
               cursor: 'pointer',
               fontSize: 11,
@@ -164,13 +165,13 @@ export default function EventFormatPopup({
             <div style={{
               flex: 1,
               padding: '6px 10px',
-              background: 'rgba(0, 113, 227, 0.10)',
-              border: '1px solid rgba(0, 113, 227, 0.20)',
+              background: 'rgba(240, 130, 48, 0.12)',
+              border: '1px solid rgba(240, 130, 48, 0.28)',
               borderRadius: 999,
               fontSize: 11,
               textAlign: 'center',
               fontWeight: 600,
-              color: '#0a4a8f',
+              color: '#C66A1F',
               fontVariantNumeric: 'tabular-nums'
             }}>
               💬 {messageCount} Message{messageCount !== 1 ? 's' : ''}
@@ -181,19 +182,19 @@ export default function EventFormatPopup({
             style={{
               flex: hasMessages ? 1 : 2,
               padding: '8px 16px',
-              background: '#0071e3',
-              color: '#ffffff',
+              background: '#F08230',
+              color: '#0E0E10',
               border: 'none',
               borderRadius: 999,
               cursor: 'pointer',
               fontSize: 12,
-              fontWeight: 500,
+              fontWeight: 700,
               fontFamily: 'inherit',
-              letterSpacing: '-0.01em',
+              letterSpacing: '0.02em',
               transition: 'background-color 200ms cubic-bezier(0.32, 0.72, 0, 1)'
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#0077ed'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#0071e3'; }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#FF8F35'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#F08230'; }}
           >
             {hasMessages ? 'View Messages' : 'Add Message'}
           </button>
@@ -246,13 +247,31 @@ export default function EventFormatPopup({
 }
 
 /**
- * Raw Feed Format - Shows data as received from DOT feed
+ * Raw Feed Format — shows data as received from the DOT feed, with an
+ * inline per-field compliance validator. Pick a spec from the selector and
+ * each row recolors against that spec's required-field schema:
+ *   ✓ pass   • field is present and value validates
+ *   ⚠ warn   • value is recommended-tier or out of preferred enum
+ *   ✗ fail   • required field absent, or value invalid (range/format)
+ *   –        • field not used by this spec (shown as context only)
+ *
+ * Rules live in `utils/specValidators.js` and stay deliberately conservative —
+ * they encode what an operator should fix, not full conformance to every spec
+ * subclause.
  */
 function RawFormatView({ event, borderInfo, showCVTIM }) {
+  const SPEC_OPTIONS = listSpecs();
+  const [specKey, setSpecKey] = useState(SPEC_OPTIONS[0]?.key || 'wzdx');
+
+  const validation = validateAgainstSpec(event, specKey);
+  // Build a map so we can attach the validator's status/message onto rows
+  // we render with raw event keys (not every event key is in every spec).
+  const fieldByName = new Map((validation?.fields || []).map(f => [f.name, f]));
+
   return (
     <div style={{ fontSize: 12, lineHeight: 1.5, color: '#1d1d1f' }}>
       {/* Header */}
-      <div style={{ marginBottom: 10 }}>
+      <div style={{ marginBottom: 8 }}>
         <div style={{
           fontSize: 9,
           fontWeight: 600,
@@ -268,62 +287,111 @@ function RawFormatView({ event, borderInfo, showCVTIM }) {
         </div>
       </div>
 
-      {/* Event Details */}
-      <Field label="Event Type" value={event.eventType} />
-      <Field label="Description" value={event.description} multiline />
-      <Field label="Location" value={event.location} />
-      <Field label="Corridor" value={event.corridor} />
-      <Field label="Direction" value={event.direction} />
-      <Field label="State" value={event.state} />
-      <Field label="Lanes Affected" value={event.lanesAffected} />
+      {/* Validate-against spec selector */}
+      <SpecSelector
+        options={SPEC_OPTIONS}
+        value={specKey}
+        onChange={setSpecKey}
+        summary={validation?.summary}
+      />
 
-      {event.severity && (
-        <div style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 11, color: '#6e6e73', fontWeight: 500 }}>Severity</span>
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            padding: '2px 9px',
-            borderRadius: 999,
-            background: getSeverityBg(event.severity),
-            color: getSeverityFg(event.severity),
-            border: `1px solid ${getSeverityBorder(event.severity)}`,
-            fontSize: 10,
-            fontWeight: 600,
-            letterSpacing: '0.04em',
-            textTransform: 'uppercase'
-          }}>
-            <span style={{
-              width: 5, height: 5, borderRadius: '50%',
-              background: getSeverityFg(event.severity)
-            }} />
-            {event.severity}
-          </span>
-        </div>
-      )}
-
-      {event.startTime && safeFormatDate(event.startTime) && (
-        <Field
+      {/* Field rows — each annotated with status against the selected spec */}
+      <div style={{ marginTop: 8 }}>
+        <ValidatedField label="Event Type"      value={event.eventType}     v={fieldByName.get('eventType')} />
+        <ValidatedField label="Description"     value={event.description}   v={fieldByName.get('description')} multiline />
+        <ValidatedField label="Location"        value={event.location}      v={fieldByName.get('corridor')} />
+        <ValidatedField label="Corridor"        value={event.corridor}      v={fieldByName.get('corridor')} />
+        <ValidatedField label="Direction"       value={event.direction}     v={fieldByName.get('direction')} />
+        <ValidatedField label="State"           value={event.state}         v={fieldByName.get('state')} />
+        <ValidatedField label="Lanes Affected"  value={event.lanesAffected} v={fieldByName.get('lanesAffected')} />
+        <ValidatedField
           label="Start Time"
-          value={safeFormatDate(event.startTime)}
+          value={safeFormatDate(event.startTime || event.startDate)}
+          v={fieldByName.get('startTime')}
         />
+        <ValidatedField
+          label="End Time"
+          value={safeFormatDate(event.endTime || event.endDate)}
+          v={fieldByName.get('endTime')}
+        />
+        <ValidatedField
+          label="Coordinates"
+          value={isFinite(parseFloat(event.latitude)) && isFinite(parseFloat(event.longitude))
+            ? `${parseFloat(event.latitude).toFixed(4)}, ${parseFloat(event.longitude).toFixed(4)}`
+            : null}
+          v={fieldByName.get('latitude') || fieldByName.get('longitude')}
+        />
+        <ValidatedField
+          label="Geometry"
+          value={event.geometry
+            ? `${event.geometry.type} (${(event.geometry.coordinates || []).length} pts)`
+            : null}
+          v={fieldByName.get('geometry')}
+        />
+        <ValidatedField
+          label="Severity"
+          value={event.severity}
+          v={fieldByName.get('severity')}
+          renderValue={(val) => (
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '2px 9px',
+              borderRadius: 999,
+              background: getSeverityBg(val),
+              color: getSeverityFg(val),
+              border: `1px solid ${getSeverityBorder(val)}`,
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase'
+            }}>
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: getSeverityFg(val) }} />
+              {val}
+            </span>
+          )}
+        />
+      </div>
+
+      {/* Required-but-missing section — explicit list of what to fix to pass */}
+      {validation && validation.missing.length > 0 && (
+        <div style={{
+          marginTop: 12,
+          padding: '8px 10px',
+          background: 'rgba(211, 47, 47, 0.06)',
+          border: '1px solid rgba(211, 47, 47, 0.20)',
+          borderRadius: 8
+        }}>
+          <div style={{
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
+            textTransform: 'uppercase', color: '#9a1c1c', marginBottom: 4
+          }}>
+            Required but missing — {validation.specLabel}
+          </div>
+          {validation.missing.map(m => (
+            <div key={m.name} style={{ fontSize: 11, color: '#1d1d1f', marginTop: 3 }}>
+              <span style={{ fontWeight: 600 }}>{m.label}</span>
+              {m.hint && <span style={{ color: '#6e6e73' }}> — {m.hint}</span>}
+            </div>
+          ))}
+        </div>
       )}
 
       {borderInfo && borderInfo.nearBorder && (
         <div style={{
           margin: '10px 0',
           padding: '8px 10px',
-          background: 'rgba(0, 113, 227, 0.06)',
-          border: '1px solid rgba(0, 113, 227, 0.16)',
+          background: 'rgba(240, 130, 48, 0.08)',
+          border: '1px solid rgba(240, 130, 48, 0.24)',
           borderRadius: 8,
           fontSize: 11
         }}>
-          <strong style={{ color: '#0a4a8f' }}>🔵 Border Event</strong>{' '}
+          <strong style={{ color: '#C66A1F' }}>🔶 Border Event</strong>{' '}
           <span style={{ fontVariantNumeric: 'tabular-nums', color: '#1d1d1f' }}>
             {borderInfo.distance} mi from {borderInfo.borderName}
           </span>
-          <div style={{ fontSize: 10, color: '#0a4a8f', marginTop: 2 }}>
+          <div style={{ fontSize: 10, color: '#C66A1F', marginTop: 2 }}>
             Requires {borderInfo.borderStates.join('–')} coordination
           </div>
         </div>
@@ -345,6 +413,146 @@ function RawFormatView({ event, borderInfo, showCVTIM }) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Segmented selector for spec validation. Default selection is the first
+ * spec option; could later auto-select the lowest-grade spec to surface the
+ * most actionable issue first.
+ */
+function SpecSelector({ options, value, onChange, summary }) {
+  return (
+    <div>
+      <div style={{
+        fontSize: 9, fontWeight: 600, letterSpacing: '0.06em',
+        textTransform: 'uppercase', color: '#6e6e73', marginBottom: 4
+      }}>
+        Validate against
+      </div>
+      <div style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 4,
+        padding: 3,
+        background: 'rgba(0, 0, 0, 0.04)',
+        borderRadius: 8
+      }}>
+        {options.map(opt => {
+          const active = opt.key === value;
+          return (
+            <button
+              key={opt.key}
+              onClick={(e) => { e.stopPropagation(); onChange(opt.key); }}
+              style={{
+                flex: '1 1 auto',
+                padding: '5px 8px',
+                background: active ? '#ffffff' : 'transparent',
+                color: active ? '#1d1d1f' : '#6e6e73',
+                border: 'none',
+                borderRadius: 6,
+                fontSize: 10,
+                fontWeight: active ? 600 : 500,
+                letterSpacing: '-0.005em',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                boxShadow: active ? '0 0 0 1px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.04)' : 'none',
+                transition: 'background-color 160ms cubic-bezier(0.32, 0.72, 0, 1), color 160ms cubic-bezier(0.32, 0.72, 0, 1)'
+              }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+      {summary && (
+        <div style={{
+          display: 'flex', gap: 8, marginTop: 5, fontSize: 10,
+          color: '#6e6e73', fontVariantNumeric: 'tabular-nums'
+        }}>
+          <span><span style={{ color: '#16a34a', fontWeight: 700 }}>{summary.pass}</span> pass</span>
+          <span><span style={{ color: '#c97a16', fontWeight: 700 }}>{summary.warn}</span> warn</span>
+          <span><span style={{ color: '#d32f2f', fontWeight: 700 }}>{summary.fail}</span> fail</span>
+          {summary.missing > 0 && (
+            <span><span style={{ color: '#d32f2f', fontWeight: 700 }}>{summary.missing}</span> missing</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Field row with status pill from validator. Renders nothing if both the
+ * value AND the validator entry are absent (e.g. End Time when the spec
+ * doesn't reference it and the event doesn't carry it).
+ */
+function ValidatedField({ label, value, v, multiline, renderValue }) {
+  if (!value && !v) return null;
+  // If we have no validation entry for this field, render the value plain.
+  // If we have a value, show it with the status pill.
+  // If value is missing but the field is required by this spec, show "—" with a fail pill.
+  const status = v?.status;
+  const message = v?.message;
+
+  return (
+    <div style={{
+      margin: '4px 0',
+      display: 'flex',
+      alignItems: multiline ? 'flex-start' : 'center',
+      gap: 8,
+      flexWrap: multiline ? 'wrap' : 'nowrap'
+    }} title={message || ''}>
+      <span style={{
+        fontSize: 11,
+        color: '#6e6e73',
+        fontWeight: 500,
+        minWidth: 96,
+        flexShrink: 0
+      }}>
+        {label}
+      </span>
+      <span style={{
+        flex: 1,
+        color: value ? '#1d1d1f' : '#9ca3af',
+        fontSize: 12,
+        fontVariantNumeric: 'tabular-nums',
+        wordBreak: 'break-word',
+        ...(multiline ? { display: 'block', width: '100%' } : {})
+      }}>
+        {value ? (renderValue ? renderValue(value) : value) : '—'}
+      </span>
+      {status && <StatusPill status={status} />}
+    </div>
+  );
+}
+
+function StatusPill({ status }) {
+  const config = {
+    pass: { bg: 'rgba(22, 163, 74, 0.10)', fg: '#15803d', border: 'rgba(22, 163, 74, 0.28)', glyph: '✓' },
+    warn: { bg: 'rgba(201, 122, 22, 0.12)', fg: '#a55e10', border: 'rgba(201, 122, 22, 0.32)', glyph: '⚠' },
+    fail: { bg: 'rgba(211, 47, 47, 0.10)', fg: '#b91c1c', border: 'rgba(211, 47, 47, 0.28)', glyph: '✗' },
+    na:   { bg: 'rgba(0, 0, 0, 0.04)',     fg: '#9ca3af', border: 'rgba(0, 0, 0, 0.08)',     glyph: '–' }
+  }[status] || null;
+  if (!config) return null;
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: 18,
+      height: 18,
+      borderRadius: 999,
+      background: config.bg,
+      color: config.fg,
+      border: `1px solid ${config.border}`,
+      fontSize: 10,
+      fontWeight: 700,
+      flexShrink: 0,
+      lineHeight: 1
+    }}>
+      {config.glyph}
+    </span>
   );
 }
 
@@ -601,7 +809,7 @@ function getSeverityBorder(severity) {
 function getStatusColor(status) {
   if (status === 'ACTIVE') return '#10b981';
   if (status === 'CLOSED') return '#6b7280';
-  return '#3b82f6';
+  return '#FF8F35';
 }
 
 function getCIFSSeverityColor(severity) {

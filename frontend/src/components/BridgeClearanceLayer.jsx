@@ -8,7 +8,7 @@ const createBridgeIcon = (clearanceFeet) => {
   const getClearanceColor = (feet) => {
     if (feet < 13.67) return '#dc2626'; // Critical (under 13'8")
     if (feet < 14.0) return '#f59e0b';   // Warning (under 14'0")
-    if (feet < 14.5) return '#3b82f6';   // Caution (under 14'6")
+    if (feet < 14.5) return '#FF8F35';   // Caution (under 14'6")
     return '#10b981';                     // Safe
   };
 
@@ -67,7 +67,7 @@ export default function BridgeClearanceLayer({ onBridgeClick }) {
   const getClearanceStatus = (clearanceFeet) => {
     if (clearanceFeet < 13.67) return { label: 'CRITICAL', color: '#dc2626' };
     if (clearanceFeet < 14.0) return { label: 'WARNING', color: '#6b7280' };
-    if (clearanceFeet < 14.5) return { label: 'CAUTION', color: '#3b82f6' };
+    if (clearanceFeet < 14.5) return { label: 'CAUTION', color: '#FF8F35' };
     return { label: 'SAFE', color: '#10b981' };
   };
 

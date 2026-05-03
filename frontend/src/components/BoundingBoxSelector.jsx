@@ -194,8 +194,8 @@ function BoundingBoxSelector({ isDarkMode }) {
         <Rectangle
           bounds={rectangleBounds}
           pathOptions={{
-            color: '#3b82f6',
-            fillColor: '#3b82f6',
+            color: '#FF8F35',
+            fillColor: '#FF8F35',
             fillOpacity: 0.1,
             weight: 2,
             dashArray: isDrawing ? '5, 5' : null

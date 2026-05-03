@@ -305,7 +305,7 @@ export default function IPAWSActiveAlertsManager({ onClose, compact = false }) {
             style={{
               flex: 1,
               padding: '8px 16px',
-              backgroundColor: shouldRenew ? '#f59e0b' : '#3b82f6',
+              backgroundColor: shouldRenew ? '#f59e0b' : '#FF8F35',
               color: 'white',
               border: 'none',
               borderRadius: '6px',
@@ -552,10 +552,10 @@ export default function IPAWSActiveAlertsManager({ onClose, compact = false }) {
                   padding: theme.spacing.md,
                   backgroundColor: '#dbeafe',
                   borderRadius: '8px',
-                  border: '1px solid #3b82f6',
+                  border: '1px solid #FF8F35',
                   marginBottom: theme.spacing.lg,
                   fontSize: '12px',
-                  color: '#1e40af'
+                  color: '#C66A1F'
                 }}>
                   <strong>📋 SOP Reminder:</strong> Per Section 10, WEA alerts default to 30-60 min (max 4 hr). Renew every 60-90 min if hazard persists. Cancel promptly once hazard cleared.
                 </div>

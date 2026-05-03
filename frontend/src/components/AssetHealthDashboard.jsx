@@ -39,7 +39,7 @@ const AssetHealthDashboard = ({ stateKey = 'ia' }) => {
       'OPERATIONAL': '#10b981',
       'DEGRADED': '#f59e0b',
       'FAILED': '#ef4444',
-      'MAINTENANCE': '#3b82f6',
+      'MAINTENANCE': '#FF8F35',
       'OFFLINE': '#6b7280',
       'UNKNOWN': '#9ca3af'
     };
@@ -508,7 +508,7 @@ const AssetHealthDashboard = ({ stateKey = 'ia' }) => {
               style={{
                 width: '100%',
                 padding: '12px',
-                background: '#3b82f6',
+                background: '#FF8F35',
                 color: '#111827',
                 border: 'none',
                 borderRadius: '8px',

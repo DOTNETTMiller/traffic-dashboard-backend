@@ -206,7 +206,7 @@ export default function UserLogin({ onLoginSuccess }) {
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#3b82f6',
+                    color: '#FF8F35',
                     cursor: 'pointer',
                     textDecoration: 'underline',
                     fontSize: '14px'
@@ -422,7 +422,7 @@ export default function UserLogin({ onLoginSuccess }) {
                   style={{
                     flex: 1,
                     padding: '10px 20px',
-                    backgroundColor: loading ? '#9ca3af' : '#3b82f6',
+                    backgroundColor: loading ? '#9ca3af' : '#FF8F35',
                     color: '#111827',
                     border: 'none',
                     borderRadius: '6px',

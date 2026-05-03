@@ -78,7 +78,7 @@ export default function TETCDataGrading() {
 
   const getComplianceColor = (percentage) => {
     if (percentage >= 90) return '#10b981';
-    if (percentage >= 75) return '#3b82f6';
+    if (percentage >= 75) return '#FF8F35';
     if (percentage >= 60) return '#f59e0b';
     if (percentage >= 40) return '#f97316';
     return '#ef4444';
@@ -158,7 +158,7 @@ export default function TETCDataGrading() {
               rel="noopener noreferrer"
               style={{
                 padding: '10px 20px',
-                backgroundColor: '#3b82f6',
+                backgroundColor: '#FF8F35',
                 color: '#111827',
                 textDecoration: 'none',
                 borderRadius: '8px',
@@ -171,8 +171,8 @@ export default function TETCDataGrading() {
                 whiteSpace: 'nowrap',
                 marginLeft: '16px'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3b82f6'}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F08230'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FF8F35'}
             >
               📚 TETC Validation Docs →
             </a>
@@ -198,9 +198,9 @@ export default function TETCDataGrading() {
                 style={{
                   padding: '8px 16px',
                   borderRadius: '6px',
-                  border: selectedService === service ? '2px solid #3b82f6' : '1px solid #d1d5db',
+                  border: selectedService === service ? '2px solid #FF8F35' : '1px solid #d1d5db',
                   backgroundColor: selectedService === service ? '#eff6ff' : 'white',
-                  color: selectedService === service ? '#1e40af' : '#6b7280',
+                  color: selectedService === service ? '#C66A1F' : '#6b7280',
                   fontSize: '13px',
                   fontWeight: '600',
                   cursor: 'pointer',
@@ -272,7 +272,7 @@ export default function TETCDataGrading() {
                       rel="noopener noreferrer"
                       style={{
                         fontSize: '12px',
-                        color: '#3b82f6',
+                        color: '#FF8F35',
                         textDecoration: 'none',
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -370,10 +370,10 @@ export default function TETCDataGrading() {
                   borderRadius: '6px',
                   border: '1px solid #93c5fd'
                 }}>
-                  <div style={{ fontSize: '10px', color: '#1e40af', marginBottom: '4px', fontWeight: '600' }}>
+                  <div style={{ fontSize: '10px', color: '#C66A1F', marginBottom: '4px', fontWeight: '600' }}>
                     COVERAGE
                   </div>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e3a8a' }}>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#0E0E10' }}>
                     {Math.round(feed.cov_score || 0)}
                   </div>
                 </div>
@@ -457,7 +457,7 @@ export default function TETCDataGrading() {
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
-                      color: '#3b82f6',
+                      color: '#FF8F35',
                       textDecoration: 'underline'
                     }}
                   >
@@ -622,7 +622,7 @@ export default function TETCDataGrading() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {[
               { range: '90-100%', color: '#10b981', label: 'Excellent' },
-              { range: '75-89%', color: '#3b82f6', label: 'Good' },
+              { range: '75-89%', color: '#FF8F35', label: 'Good' },
               { range: '60-74%', color: '#f59e0b', label: 'Moderate' },
               { range: '40-59%', color: '#f97316', label: 'Below Standard' },
               { range: '0-39%', color: '#ef4444', label: 'Poor' }
@@ -693,10 +693,10 @@ export default function TETCDataGrading() {
               borderRadius: '6px',
               border: '1px solid #93c5fd'
             }}>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#1e40af', marginBottom: '4px' }}>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#C66A1F', marginBottom: '4px' }}>
                 📍 COVERAGE (COV)
               </div>
-              <p style={{ fontSize: '11px', lineHeight: '1.5', color: '#1e40af', margin: '0' }}>
+              <p style={{ fontSize: '11px', lineHeight: '1.5', color: '#C66A1F', margin: '0' }}>
                 Completeness of data across the corridor. Measures geographic and temporal coverage.
               </p>
             </div>
@@ -751,15 +751,15 @@ export default function TETCDataGrading() {
           padding: '16px',
           backgroundColor: '#eff6ff',
           borderRadius: '8px',
-          border: '2px solid #3b82f6'
+          border: '2px solid #FF8F35'
         }}>
-          <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: '#1e40af' }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: '#C66A1F' }}>
             ✍️ How to Score Your Data
           </div>
-          <p style={{ fontSize: '12px', lineHeight: '1.6', color: '#1e40af', margin: '0 0 12px 0' }}>
+          <p style={{ fontSize: '12px', lineHeight: '1.6', color: '#C66A1F', margin: '0 0 12px 0' }}>
             Each dimension is scored 0-100 based on these criteria:
           </p>
-          <div style={{ fontSize: '11px', lineHeight: '1.6', color: '#1e3a8a' }}>
+          <div style={{ fontSize: '11px', lineHeight: '1.6', color: '#0E0E10' }}>
             <strong>ACCURACY:</strong> Compare against ground truth. 95%+ match = 90-100, 85-94% = 80-89, 75-84% = 70-79
             <br /><br />
             <strong>COVERAGE:</strong> % of corridor/time covered. 90%+ = 90-100, 75-89% = 80-89, 60-74% = 70-79

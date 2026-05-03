@@ -91,7 +91,7 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
     const colors = {
       approved: '#10b981',
       pending: '#f59e0b',
-      active: '#3b82f6'
+      active: '#FF8F35'
     };
     return colors[status] || '#6b7280';
   };
@@ -309,7 +309,7 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
                             <span style={{
                               padding: '4px 8px',
                               backgroundColor: '#dbeafe',
-                              color: '#1e40af',
+                              color: '#C66A1F',
                               borderRadius: '4px',
                               fontSize: '12px'
                             }}>
@@ -414,7 +414,7 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
                             <span key={state} style={{
                               padding: '4px 8px',
                               backgroundColor: '#dbeafe',
-                              color: '#1e40af',
+                              color: '#C66A1F',
                               borderRadius: '4px',
                               fontSize: '14px'
                             }}>

@@ -55,7 +55,7 @@ export default function FundingOpportunities() {
   const getAlignmentColor = (level) => {
     switch (level) {
       case 'excellent': return '#16a34a';
-      case 'good': return '#2563eb';
+      case 'good': return '#F08230';
       case 'fair': return '#ca8a04';
       default: return '#64748b';
     }
@@ -97,7 +97,7 @@ export default function FundingOpportunities() {
             padding: '8px 16px',
             borderRadius: '6px',
             border: 'none',
-            backgroundColor: filter === 'all' ? '#2563eb' : 'white',
+            backgroundColor: filter === 'all' ? '#F08230' : 'white',
             color: filter === 'all' ? 'white' : '#334155',
             fontWeight: '500',
             cursor: 'pointer'
@@ -111,7 +111,7 @@ export default function FundingOpportunities() {
             padding: '8px 16px',
             borderRadius: '6px',
             border: 'none',
-            backgroundColor: filter === 'ccai' ? '#2563eb' : 'white',
+            backgroundColor: filter === 'ccai' ? '#F08230' : 'white',
             color: filter === 'ccai' ? 'white' : '#334155',
             fontWeight: '500',
             cursor: 'pointer'
@@ -125,7 +125,7 @@ export default function FundingOpportunities() {
             padding: '8px 16px',
             borderRadius: '6px',
             border: 'none',
-            backgroundColor: filter === 'its' ? '#2563eb' : 'white',
+            backgroundColor: filter === 'its' ? '#F08230' : 'white',
             color: filter === 'its' ? 'white' : '#334155',
             fontWeight: '500',
             cursor: 'pointer'
@@ -169,7 +169,7 @@ export default function FundingOpportunities() {
                     marginBottom: '16px',
                     padding: '20px',
                     backgroundColor: 'white',
-                    border: selectedOpp?.id === opp.id ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                    border: selectedOpp?.id === opp.id ? '2px solid #F08230' : '1px solid #e2e8f0',
                     borderRadius: '8px',
                     cursor: 'pointer',
                     transition: 'all 0.2s'
@@ -348,12 +348,12 @@ export default function FundingOpportunities() {
                   }}>
                     <div style={{ fontWeight: '600', marginBottom: '6px' }}>Data Quality:</div>
                     {evidence.dataQuality.slice(0, 3).map((item, i) => (
-                      <div key={i} style={{ color: '#1e40af', marginBottom: '3px' }}>• {item}</div>
+                      <div key={i} style={{ color: '#C66A1F', marginBottom: '3px' }}>• {item}</div>
                     ))}
 
                     <div style={{ fontWeight: '600', marginTop: '12px', marginBottom: '6px' }}>Multi-State Coordination:</div>
                     {evidence.multiStateCoordination.slice(0, 2).map((item, i) => (
-                      <div key={i} style={{ color: '#1e40af', marginBottom: '3px' }}>• {item}</div>
+                      <div key={i} style={{ color: '#C66A1F', marginBottom: '3px' }}>• {item}</div>
                     ))}
                   </div>
                 </div>
@@ -366,7 +366,7 @@ export default function FundingOpportunities() {
                 style={{
                   display: 'block',
                   padding: '12px',
-                  backgroundColor: '#2563eb',
+                  backgroundColor: '#F08230',
                   color: '#111827',
                   textAlign: 'center',
                   borderRadius: '6px',

@@ -303,7 +303,7 @@ export default function EventTable({ events, messages = {}, loading = false, onE
                   }}
                   style={{
                     padding: '4px 12px',
-                    backgroundColor: messageCount > 0 ? '#10b981' : '#3b82f6',
+                    backgroundColor: messageCount > 0 ? '#10b981' : '#FF8F35',
                     color: '#111827',
                     border: 'none',
                     borderRadius: '4px',

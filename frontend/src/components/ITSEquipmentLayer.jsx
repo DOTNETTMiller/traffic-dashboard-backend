@@ -8,7 +8,7 @@ import api from '../services/api';
 const equipmentStyles = {
   camera: {
     icon: '📹',
-    color: '#3b82f6', // blue
+    color: '#FF8F35', // blue
     label: 'Camera'
   },
   dms: {
@@ -31,7 +31,7 @@ const equipmentStyles = {
 // Health status colors
 const healthColors = {
   excellent: '#10b981',  // green
-  good: '#3b82f6',       // blue
+  good: '#FF8F35',       // blue
   fair: '#f59e0b',       // orange
   poor: '#ef4444',       // red
   critical: '#dc2626',   // dark red
@@ -242,7 +242,7 @@ export default function ITSEquipmentLayer({ visible = true, stateKey = null, equ
                                      item.health_category === 'critical' ? '#fee2e2' : '#f3f4f6',
                       color: item.is_online === false ? '#991b1b' :
                             item.health_category === 'excellent' ? '#065f46' :
-                            item.health_category === 'good' ? '#1e40af' :
+                            item.health_category === 'good' ? '#C66A1F' :
                             item.health_category === 'fair' ? '#9a3412' :
                             item.health_category === 'poor' ? '#991b1b' :
                             item.health_category === 'critical' ? '#991b1b' : '#6b7280'

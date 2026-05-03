@@ -205,7 +205,7 @@ const FeedScoringModal = ({ feed, onClose, onSubmit, currentUser }) => {
                 <div style={{
                   padding: '12px 24px',
                   backgroundColor: getLetterGrade(dqi) === 'A' ? '#10b981' :
-                                   getLetterGrade(dqi) === 'B' ? '#3b82f6' :
+                                   getLetterGrade(dqi) === 'B' ? '#FF8F35' :
                                    getLetterGrade(dqi) === 'C' ? '#f59e0b' :
                                    getLetterGrade(dqi) === 'D' ? '#f97316' : '#ef4444',
                   color: '#111827',
@@ -270,7 +270,7 @@ const FeedScoringModal = ({ feed, onClose, onSubmit, currentUser }) => {
                     outline: 'none',
                     transition: 'border-color 0.2s'
                   }}
-                  onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                  onFocus={(e) => e.target.style.borderColor = '#FF8F35'}
                   onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                 />
               </div>
@@ -301,7 +301,7 @@ const FeedScoringModal = ({ feed, onClose, onSubmit, currentUser }) => {
                     resize: 'vertical',
                     transition: 'border-color 0.2s'
                   }}
-                  onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                  onFocus={(e) => e.target.style.borderColor = '#FF8F35'}
                   onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                 />
               </div>
@@ -384,7 +384,7 @@ const FeedScoringModal = ({ feed, onClose, onSubmit, currentUser }) => {
               disabled={!isComplete}
               style={{
                 padding: '12px 24px',
-                backgroundColor: isComplete ? '#3b82f6' : '#d1d5db',
+                backgroundColor: isComplete ? '#FF8F35' : '#d1d5db',
                 border: 'none',
                 borderRadius: '6px',
                 fontSize: '14px',

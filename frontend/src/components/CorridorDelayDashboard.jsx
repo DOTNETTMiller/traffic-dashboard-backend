@@ -165,7 +165,7 @@ const CorridorDelayDashboard = () => {
               style={{
                 padding: '8px 20px',
                 border: 'none',
-                background: selectedCorridor === c ? '#3b82f6' : 'white',
+                background: selectedCorridor === c ? '#FF8F35' : 'white',
                 color: selectedCorridor === c ? 'white' : '#374151',
                 fontSize: '14px',
                 fontWeight: selectedCorridor === c ? '600' : '400',
@@ -683,7 +683,7 @@ const CorridorDelayDashboard = () => {
               padding: '8px 20px',
               borderRadius: '6px',
               border: 'none',
-              background: (!travelFrom || !travelTo || travelFrom === travelTo) ? '#d1d5db' : '#3b82f6',
+              background: (!travelFrom || !travelTo || travelFrom === travelTo) ? '#d1d5db' : '#FF8F35',
               color: 'white',
               fontSize: '14px',
               fontWeight: '500',

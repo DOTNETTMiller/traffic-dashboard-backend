@@ -87,7 +87,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
 
     if (severeCounts.severe > 0) return { level: 'severe', count: severeCounts.severe, color: '#dc2626' };
     if (severeCounts.high > 0) return { level: 'high', count: severeCounts.high, color: '#6b7280' };
-    return { level: 'moderate', count: severeCounts.moderate, color: '#3b82f6' };
+    return { level: 'moderate', count: severeCounts.moderate, color: '#FF8F35' };
   };
 
   if (!corridor) {
@@ -107,7 +107,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
       }}>
         <div style={{
           padding: '8px 12px',
-          backgroundColor: '#3b82f6',
+          backgroundColor: '#FF8F35',
           color: '#111827',
           display: 'flex',
           alignItems: 'center',
@@ -186,8 +186,8 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
       case 'moderate':
         return {
           backgroundColor: '#dbeafe',
-          borderLeft: '4px solid #3b82f6',
-          color: '#1e40af'
+          borderLeft: '4px solid #FF8F35',
+          color: '#C66A1F'
         };
       default:
         return {
@@ -283,7 +283,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
               <div style={{ fontSize: '10px', color: '#6b7280' }}>High</div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#3b82f6' }}>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#FF8F35' }}>
                 {stats?.moderate || 0}
               </div>
               <div style={{ fontSize: '10px', color: '#6b7280' }}>Moderate</div>
@@ -404,7 +404,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
                               fontWeight: '600',
                               backgroundColor:
                                 warning.warningLevel === 'severe' ? '#dc2626' :
-                                warning.warningLevel === 'high' ? '#f59e0b' : '#3b82f6',
+                                warning.warningLevel === 'high' ? '#f59e0b' : '#FF8F35',
                               color: '#111827',
                               padding: '2px 6px',
                               borderRadius: '10px',
@@ -421,7 +421,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
                               style={{
                                 marginTop: '4px',
                                 padding: '4px 8px',
-                                backgroundColor: '#3b82f6',
+                                backgroundColor: '#FF8F35',
                                 color: '#111827',
                                 border: 'none',
                                 borderRadius: '3px',
@@ -429,8 +429,8 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
                                 fontWeight: '500',
                                 cursor: 'pointer'
                               }}
-                              onMouseOver={(e) => e.target.style.backgroundColor = '#2563eb'}
-                              onMouseOut={(e) => e.target.style.backgroundColor = '#3b82f6'}
+                              onMouseOver={(e) => e.target.style.backgroundColor = '#F08230'}
+                              onMouseOut={(e) => e.target.style.backgroundColor = '#FF8F35'}
                             >
                               📍 View on Map
                             </button>
@@ -467,7 +467,7 @@ export default function CorridorWarnings({ corridor, onViewOnMap }) {
             <strong>Impact:</strong>{' '}
             <span style={{ color: '#dc2626' }}>⛔ Severe (70+)</span> •{' '}
             <span style={{ color: '#6b7280' }}>⚠️ High (50-69)</span> •{' '}
-            <span style={{ color: '#3b82f6' }}>⚡ Moderate (30-49)</span>
+            <span style={{ color: '#FF8F35' }}>⚡ Moderate (30-49)</span>
           </div>
         </div>
       )}

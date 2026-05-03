@@ -223,7 +223,7 @@ export default function Calendar({ authToken, currentUser }) {
 
   const getEventTypeColor = (type) => {
     const colors = {
-      'Technical Working Group': '#3b82f6',
+      'Technical Working Group': '#FF8F35',
       'Workshop': '#8b5cf6',
       'Coalition Update': '#10b981',
       'Working Group': '#f59e0b',
@@ -330,7 +330,7 @@ export default function Calendar({ authToken, currentUser }) {
             onClick={downloadFullCalendar}
             style={{
               padding: '12px 24px',
-              backgroundColor: '#3b82f6',
+              backgroundColor: '#FF8F35',
               color: '#111827',
               border: 'none',
               borderRadius: '8px',
@@ -404,7 +404,7 @@ export default function Calendar({ authToken, currentUser }) {
             onClick={() => setShowPastEvents(false)}
             style={{
               padding: '10px 16px',
-              backgroundColor: !showPastEvents ? '#3b82f6' : '#f3f4f6',
+              backgroundColor: !showPastEvents ? '#FF8F35' : '#f3f4f6',
               color: !showPastEvents ? '#111827' : '#374151',
               border: '1px solid #d1d5db',
               borderRadius: '6px',
@@ -419,7 +419,7 @@ export default function Calendar({ authToken, currentUser }) {
             onClick={() => setShowPastEvents(true)}
             style={{
               padding: '10px 16px',
-              backgroundColor: showPastEvents ? '#3b82f6' : '#f3f4f6',
+              backgroundColor: showPastEvents ? '#FF8F35' : '#f3f4f6',
               color: showPastEvents ? '#111827' : '#374151',
               border: '1px solid #d1d5db',
               borderRadius: '6px',
@@ -441,7 +441,7 @@ export default function Calendar({ authToken, currentUser }) {
       {/* I-80 Coalition Progress Dashboard */}
       <div style={{
         backgroundColor: 'white',
-        border: '2px solid #3b82f6',
+        border: '2px solid #FF8F35',
         borderRadius: '12px',
         marginBottom: '20px',
         overflow: 'hidden'
@@ -473,7 +473,7 @@ export default function Calendar({ authToken, currentUser }) {
               onClick={(e) => { e.stopPropagation(); setShowMinutesModal(true); setMinutesResult(null); }}
               style={{
                 padding: '8px 14px',
-                backgroundColor: '#3b82f6',
+                backgroundColor: '#FF8F35',
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
@@ -495,11 +495,11 @@ export default function Calendar({ authToken, currentUser }) {
           {/* Current Tasks */}
           <div style={{
             backgroundColor: '#eff6ff',
-            border: '2px solid #3b82f6',
+            border: '2px solid #FF8F35',
             borderRadius: '8px',
             padding: '16px'
           }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '700', color: '#1e40af' }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '700', color: '#C66A1F' }}>
               📋 Active Tasks
             </h3>
             <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#1f2937', lineHeight: '1.6' }}>
@@ -576,7 +576,7 @@ export default function Calendar({ authToken, currentUser }) {
           gap: '12px'
         }}>
           <div style={{ padding: '12px', backgroundColor: '#eff6ff', borderRadius: '6px', textAlign: 'center', border: '1px solid #bfdbfe' }}>
-            <div style={{ fontSize: '24px', fontWeight: '700', color: '#3b82f6' }}>11</div>
+            <div style={{ fontSize: '24px', fontWeight: '700', color: '#FF8F35' }}>11</div>
             <div style={{ fontSize: '12px', color: '#374151' }}>States in Coalition</div>
           </div>
           <div style={{ padding: '12px', backgroundColor: '#f0fdf4', borderRadius: '6px', textAlign: 'center', border: '1px solid #bbf7d0' }}>
@@ -627,12 +627,12 @@ export default function Calendar({ authToken, currentUser }) {
                 style={{
                   padding: '20px',
                   backgroundColor: 'white',
-                  border: `2px solid ${selectedEvent?.id === event.id ? '#3b82f6' : '#e5e7eb'}`,
+                  border: `2px solid ${selectedEvent?.id === event.id ? '#FF8F35' : '#e5e7eb'}`,
                   borderLeft: `6px solid ${getEventTypeColor(event.event_type)}`,
                   borderRadius: '12px',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
-                  boxShadow: selectedEvent?.id === event.id ? '0 4px 12px rgba(59, 130, 246, 0.15)' : 'none'
+                  boxShadow: selectedEvent?.id === event.id ? '0 4px 12px rgba(255, 143, 53, 0.15)' : 'none'
                 }}
                 onMouseEnter={(e) => {
                   if (selectedEvent?.id !== event.id) {
@@ -694,7 +694,7 @@ export default function Calendar({ authToken, currentUser }) {
                         <span style={{
                           padding: '2px 8px',
                           backgroundColor: '#dbeafe',
-                          color: '#1e40af',
+                          color: '#C66A1F',
                           fontSize: '11px',
                           fontWeight: '600',
                           borderRadius: '4px'
@@ -746,7 +746,7 @@ export default function Calendar({ authToken, currentUser }) {
             position: 'sticky',
             top: '20px',
             backgroundColor: 'white',
-            border: '2px solid #3b82f6',
+            border: '2px solid #FF8F35',
             borderRadius: '12px',
             padding: '24px',
             maxHeight: 'calc(100vh - 160px)',
@@ -967,7 +967,7 @@ export default function Calendar({ authToken, currentUser }) {
                     onClick={() => handleEditEvent(selectedEvent)}
                     style={{
                       padding: '6px 12px',
-                      backgroundColor: '#3b82f6',
+                      backgroundColor: '#FF8F35',
                       color: '#111827',
                       border: 'none',
                       borderRadius: '6px',
@@ -1038,7 +1038,7 @@ export default function Calendar({ authToken, currentUser }) {
                   href={selectedEvent.virtual_link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ fontSize: '14px', color: '#3b82f6' }}
+                  style={{ fontSize: '14px', color: '#FF8F35' }}
                 >
                   🔗 Join Meeting
                 </a>
@@ -1124,10 +1124,10 @@ export default function Calendar({ authToken, currentUser }) {
               <div style={{
                 padding: '12px',
                 backgroundColor: '#eff6ff',
-                borderLeft: '3px solid #3b82f6',
+                borderLeft: '3px solid #FF8F35',
                 borderRadius: '4px',
                 fontSize: '13px',
-                color: '#1e40af',
+                color: '#C66A1F',
                 marginBottom: '20px'
               }}>
                 🔄 {selectedEvent.recurrence_rule}
@@ -1181,7 +1181,7 @@ export default function Calendar({ authToken, currentUser }) {
                           {artifact.artifact_type.charAt(0).toUpperCase() + artifact.artifact_type.slice(1)}
                         </div>
                       </div>
-                      <span style={{ fontSize: '18px', color: '#3b82f6' }}>→</span>
+                      <span style={{ fontSize: '18px', color: '#FF8F35' }}>→</span>
                     </a>
                   ))}
                 </div>
@@ -1346,7 +1346,7 @@ export default function Calendar({ authToken, currentUser }) {
                 disabled={minutesUploading || !minutesText.trim()}
                 style={{
                   padding: '9px 18px',
-                  backgroundColor: minutesUploading || !minutesText.trim() ? '#93c5fd' : '#3b82f6',
+                  backgroundColor: minutesUploading || !minutesText.trim() ? '#93c5fd' : '#FF8F35',
                   color: 'white',
                   border: 'none',
                   borderRadius: '6px',

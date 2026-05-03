@@ -7,7 +7,7 @@ import api from '../services/api';
 const getDQIColor = (dqi) => {
   if (!dqi) return '#9ca3af'; // gray for no data
   if (dqi >= 90) return '#10b981'; // green (A/A-)
-  if (dqi >= 80) return '#3b82f6'; // blue (B+/B/B-)
+  if (dqi >= 80) return '#FF8F35'; // blue (B+/B/B-)
   if (dqi >= 70) return '#f59e0b'; // orange (C+/C/C-)
   if (dqi >= 60) return '#f97316'; // dark orange (D+/D)
   return '#ef4444'; // red (F/D-)
@@ -17,7 +17,7 @@ const getDQIColor = (dqi) => {
 const getOpportunityColor = (score) => {
   if (score > 60) return '#dc2626'; // Red - High priority
   if (score > 30) return '#f59e0b'; // Orange - Moderate
-  if (score > 0) return '#3b82f6'; // Blue - Low priority
+  if (score > 0) return '#FF8F35'; // Blue - Low priority
   return '#10b981'; // Green - Well-served
 };
 

@@ -187,7 +187,7 @@ const filterButtonStyle = (active) => ({
   padding: '8px 12px',
   borderRadius: '20px',
   border: 'none',
-  backgroundColor: active ? '#2563eb' : '#e5e7eb',
+  backgroundColor: active ? '#F08230' : '#e5e7eb',
   color: active ? '#111827' : '#1f2937',
   cursor: 'pointer',
   fontSize: '12px',

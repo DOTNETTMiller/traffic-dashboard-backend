@@ -9,7 +9,7 @@
     <!-- PWA Meta Tags -->
     <meta name="application-name" content="Matt's Experimental Sandbox" />
     <meta name="description" content="Real-time traffic monitoring and corridor communication dashboard for state DOTs" />
-    <meta name="theme-color" content="#2563eb" />
+    <meta name="theme-color" content="#0E0E10" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -39,12 +39,12 @@
     <link rel="apple-touch-icon" sizes="72x72" href="/icons/icon-72x72.png" />
     <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
 
-    <!-- Typography: Inter Tight (SF-adjacent display), JetBrains Mono for IDs/coords -->
+    <!-- Typography: PurposeBuilt brand — Open Sans body + Open Sans Condensed display, JetBrains Mono for IDs/coords -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&family=Open+Sans+Condensed:wght@300;700&family=JetBrains+Mono:wght@400;500&display=swap"
     />
 
     <!-- Leaflet CSS -->
@@ -82,32 +82,33 @@
         min-width: 44px;
       }
 
-      /* Loading screen */
+      /* Loading screen — PurposeBuilt dark + orange spinner */
       .app-loading {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         height: 100vh;
-        background: #1d1d1f;
-        color: #f5f5f7;
-        font-family: 'Inter Tight', -apple-system, BlinkMacSystemFont,
-          'SF Pro Display', sans-serif;
-        letter-spacing: -0.022em;
+        background: #0E0E10;
+        color: #FFFFFF;
+        font-family: 'Open Sans Condensed', 'Open Sans', -apple-system,
+          BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       }
 
       .app-loading h1 {
-        font-size: 18px;
-        font-weight: 600;
-        letter-spacing: -0.01em;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: #F08230;
         margin-bottom: 24px;
       }
 
       .spinner {
         width: 32px;
         height: 32px;
-        border: 2px solid rgba(248, 250, 252, 0.15);
-        border-top-color: #f8fafc;
+        border: 2px solid rgba(240, 130, 48, 0.18);
+        border-top-color: #F08230;
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
       }

@@ -148,8 +148,8 @@ export default function ExportMenu({ events, messages, onClose }) {
               color: #1f2937;
             }
             h1 {
-              color: #1e40af;
-              border-bottom: 3px solid #3b82f6;
+              color: #C66A1F;
+              border-bottom: 3px solid #FF8F35;
               padding-bottom: 10px;
               margin-bottom: 20px;
             }
@@ -179,7 +179,7 @@ export default function ExportMenu({ events, messages, onClose }) {
             .summary-value {
               font-size: 32px;
               font-weight: bold;
-              color: #1e40af;
+              color: #C66A1F;
             }
             .summary-label {
               font-size: 14px;

@@ -103,8 +103,8 @@ const PredictiveAnalyticsDashboard = () => {
               fontWeight: '600',
               background: 'none',
               border: 'none',
-              borderBottom: activeTab === tab.id ? '3px solid #3b82f6' : '3px solid transparent',
-              color: activeTab === tab.id ? '#3b82f6' : '#6b7280',
+              borderBottom: activeTab === tab.id ? '3px solid #FF8F35' : '3px solid transparent',
+              color: activeTab === tab.id ? '#FF8F35' : '#6b7280',
               cursor: 'pointer',
               marginBottom: '-2px',
               transition: 'all 0.2s'
@@ -199,7 +199,7 @@ const PredictiveAnalyticsDashboard = () => {
                 </div>
 
                 {forecast.recommended_departure_window && (
-                  <div style={{ fontSize: '12px', color: '#3b82f6', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #e5e7eb' }}>
+                  <div style={{ fontSize: '12px', color: '#FF8F35', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #e5e7eb' }}>
                     💡 {forecast.recommended_departure_window}
                   </div>
                 )}
@@ -447,19 +447,19 @@ const PredictiveAnalyticsDashboard = () => {
       {activeTab === 'routing' && routingData && (
         <div>
           <div style={{ marginBottom: '24px', padding: '20px', background: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
-            <h2 style={{ margin: '0 0 16px 0', fontSize: '20px', fontWeight: 'bold', color: '#1e40af' }}>
+            <h2 style={{ margin: '0 0 16px 0', fontSize: '20px', fontWeight: 'bold', color: '#C66A1F' }}>
               🗺️ Optimal Route Recommendations
             </h2>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div>
-                <div style={{ fontSize: '12px', color: '#1e3a8a', marginBottom: '4px' }}>Origin</div>
-                <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#1e40af' }}>
+                <div style={{ fontSize: '12px', color: '#0E0E10', marginBottom: '4px' }}>Origin</div>
+                <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#C66A1F' }}>
                   {routingData.routing.origin.lat.toFixed(2)}, {routingData.routing.origin.lon.toFixed(2)}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '12px', color: '#1e3a8a', marginBottom: '4px' }}>Destination</div>
-                <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#1e40af' }}>
+                <div style={{ fontSize: '12px', color: '#0E0E10', marginBottom: '4px' }}>Destination</div>
+                <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#C66A1F' }}>
                   {routingData.routing.destination.lat.toFixed(2)}, {routingData.routing.destination.lon.toFixed(2)}
                 </div>
               </div>
@@ -503,13 +503,13 @@ const PredictiveAnalyticsDashboard = () => {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px', marginBottom: '20px' }}>
                 <div>
                   <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Distance</div>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#3b82f6' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#FF8F35' }}>
                     {route.distance_miles} mi
                   </div>
                 </div>
                 <div>
                   <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Estimated Time</div>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#3b82f6' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#FF8F35' }}>
                     {route.estimated_time_display}
                   </div>
                 </div>

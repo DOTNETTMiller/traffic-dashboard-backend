@@ -164,7 +164,7 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
         flexDirection: 'column',
         boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 24px 48px rgba(0,0,0,0.16)',
         overflow: 'hidden',
-        fontFamily: "'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily: "'Open Sans', -apple-system, BlinkMacSystemFont, sans-serif",
         color: '#1d1d1f',
         animation: 'cc-dialog-in 240ms cubic-bezier(0.32, 0.72, 0, 1) both'
       }}>
@@ -293,8 +293,8 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
                     {comment.count > 1 && (
                       <span style={{
                         fontSize: 10,
-                        background: '#0071e3',
-                        color: '#ffffff',
+                        background: '#F08230',
+                        color: '#0E0E10',
                         padding: '2px 7px',
                         borderRadius: 999,
                         fontWeight: 600,
@@ -362,14 +362,14 @@ export default function EventMessaging({ event, messages, onSendMessage, onClose
                 style={{
                   padding: '0 16px',
                   height: 36,
-                  background: !newComment.trim() || loading ? '#c7c7cc' : '#0071e3',
-                  color: '#ffffff',
+                  background: !newComment.trim() || loading ? '#c7c7cc' : '#F08230',
+                  color: !newComment.trim() || loading ? '#ffffff' : '#0E0E10',
                   border: 'none',
                   borderRadius: 999,
                   fontFamily: 'inherit',
                   fontSize: 13,
-                  fontWeight: 500,
-                  letterSpacing: '-0.01em',
+                  fontWeight: 700,
+                  letterSpacing: '0.02em',
                   cursor: newComment.trim() && !loading ? 'pointer' : 'not-allowed',
                   transition: 'background-color 200ms cubic-bezier(0.32, 0.72, 0, 1)'
                 }}

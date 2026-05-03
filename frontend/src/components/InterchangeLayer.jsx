@@ -223,9 +223,9 @@ export default function InterchangeLayer({ showInterchanges = false }) {
               center={[lat, lon]}
               radius={0}
               pathOptions={{
-                fillColor: '#3b82f6',
+                fillColor: '#FF8F35',
                 fillOpacity: 0,
-                color: '#3b82f6',
+                color: '#FF8F35',
                 weight: 0,
                 opacity: 0
               }}

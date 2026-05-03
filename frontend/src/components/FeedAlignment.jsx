@@ -30,7 +30,7 @@ export default function FeedAlignment() {
     switch (priority) {
       case 'CRITICAL': return '#dc2626';
       case 'HIGH': return '#f59e0b';
-      case 'MEDIUM': return '#3b82f6';
+      case 'MEDIUM': return '#FF8F35';
       default: return '#6b7280';
     }
   };
@@ -101,8 +101,8 @@ export default function FeedAlignment() {
           borderRadius: '8px',
           border: '1px solid #dbeafe'
         }}>
-          <div style={{ fontSize: '14px', color: '#1e40af', fontWeight: '600' }}>Total States</div>
-          <div style={{ fontSize: '32px', fontWeight: '700', color: '#1e3a8a' }}>
+          <div style={{ fontSize: '14px', color: '#C66A1F', fontWeight: '600' }}>Total States</div>
+          <div style={{ fontSize: '32px', fontWeight: '700', color: '#0E0E10' }}>
             {alignment.summary.totalStates}
           </div>
         </div>
@@ -227,7 +227,7 @@ export default function FeedAlignment() {
               <details style={{ marginTop: '12px' }}>
                 <summary style={{
                   cursor: 'pointer',
-                  color: '#3b82f6',
+                  color: '#FF8F35',
                   fontWeight: '600',
                   fontSize: '14px'
                 }}>
@@ -252,7 +252,7 @@ export default function FeedAlignment() {
               <details style={{ marginTop: '12px' }}>
                 <summary style={{
                   cursor: 'pointer',
-                  color: '#3b82f6',
+                  color: '#FF8F35',
                   fontWeight: '600',
                   fontSize: '14px'
                 }}>
@@ -312,7 +312,7 @@ export default function FeedAlignment() {
               <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '12px' }}>
                 <span style={{
                   backgroundColor: '#dbeafe',
-                  color: '#1e40af',
+                  color: '#C66A1F',
                   padding: '2px 8px',
                   borderRadius: '4px',
                   marginRight: '6px'
@@ -363,7 +363,7 @@ export default function FeedAlignment() {
                       <div style={{
                         fontSize: '12px',
                         fontWeight: '600',
-                        color: '#3b82f6',
+                        color: '#FF8F35',
                         marginBottom: '4px'
                       }}>
                         💡 Recommendations ({mapping.recommendations.length})

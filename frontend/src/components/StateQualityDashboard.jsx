@@ -55,7 +55,7 @@ const StateQualityDashboard = () => {
 
   const getComplianceColor = (percentage) => {
     if (percentage >= 90) return '#10b981';
-    if (percentage >= 75) return '#3b82f6';
+    if (percentage >= 75) return '#FF8F35';
     if (percentage >= 60) return '#f59e0b';
     if (percentage >= 40) return '#f97316';
     return '#ef4444';
@@ -143,11 +143,11 @@ const StateQualityDashboard = () => {
             border: '1px solid #bfdbfe',
             borderRadius: '8px'
           }}>
-            <div style={{ fontSize: '12px', color: '#1e40af', fontWeight: '500' }}>TOTAL FEEDS</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#1e3a8a' }}>
+            <div style={{ fontSize: '12px', color: '#C66A1F', fontWeight: '500' }}>TOTAL FEEDS</div>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#0E0E10' }}>
               {summary.total_feeds}
             </div>
-            <div style={{ fontSize: '11px', color: '#1e40af' }}>Data sources</div>
+            <div style={{ fontSize: '11px', color: '#C66A1F' }}>Data sources</div>
           </div>
         </div>
       )}
@@ -313,7 +313,7 @@ const StateQualityDashboard = () => {
                           borderRadius: '12px',
                           fontSize: '12px',
                           fontWeight: '500',
-                          color: badge.type === 'medal' ? '#92400e' : '#1e40af',
+                          color: badge.type === 'medal' ? '#92400e' : '#C66A1F',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '4px'

@@ -143,7 +143,7 @@ export default function ParkingAccuracyMetrics({ authToken, currentUser }) {
             disabled={retraining}
             style={{
               padding: '8px 16px',
-              backgroundColor: retraining ? '#9ca3af' : '#3b82f6',
+              backgroundColor: retraining ? '#9ca3af' : '#FF8F35',
               color: '#111827',
               border: 'none',
               borderRadius: '6px',
@@ -152,8 +152,8 @@ export default function ParkingAccuracyMetrics({ authToken, currentUser }) {
               cursor: retraining ? 'not-allowed' : 'pointer',
               transition: 'all 0.2s'
             }}
-            onMouseOver={(e) => !retraining && (e.target.style.backgroundColor = '#2563eb')}
-            onMouseOut={(e) => !retraining && (e.target.style.backgroundColor = '#3b82f6')}
+            onMouseOver={(e) => !retraining && (e.target.style.backgroundColor = '#F08230')}
+            onMouseOut={(e) => !retraining && (e.target.style.backgroundColor = '#FF8F35')}
           >
             {retraining ? '⏳ Retraining...' : '🔄 Retrain Model'}
           </button>

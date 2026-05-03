@@ -4,8 +4,8 @@
   "description": "Real-time traffic monitoring and corridor communication dashboard for state DOTs",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#2563eb",
+  "background_color": "#0E0E10",
+  "theme_color": "#F08230",
   "orientation": "any",
   "icons": [
     {

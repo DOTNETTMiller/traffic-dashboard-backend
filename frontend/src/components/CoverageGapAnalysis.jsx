@@ -103,7 +103,7 @@ const CoverageGapAnalysis = () => {
   const getOpportunityColor = (score) => {
     if (score > 60) return '#dc2626'; // High priority
     if (score > 30) return '#f59e0b'; // Moderate
-    if (score > 0) return '#3b82f6'; // Low
+    if (score > 0) return '#FF8F35'; // Low
     return '#10b981'; // Well-served
   };
 
@@ -180,11 +180,11 @@ const CoverageGapAnalysis = () => {
             border: '1px solid #bfdbfe',
             borderRadius: '8px'
           }}>
-            <div style={{ fontSize: '12px', color: '#1e40af', fontWeight: '500' }}>LOW PRIORITY</div>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#3b82f6' }}>
+            <div style={{ fontSize: '12px', color: '#C66A1F', fontWeight: '500' }}>LOW PRIORITY</div>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#FF8F35' }}>
               {summary.low_priority}
             </div>
-            <div style={{ fontSize: '11px', color: '#1e40af' }}>Incremental improvements</div>
+            <div style={{ fontSize: '11px', color: '#C66A1F' }}>Incremental improvements</div>
           </div>
         </div>
       )}
@@ -204,7 +204,7 @@ const CoverageGapAnalysis = () => {
           style={{
             padding: '8px 16px',
             border: 'none',
-            background: viewMode === 'vendors' ? '#3b82f6' : 'transparent',
+            background: viewMode === 'vendors' ? '#FF8F35' : 'transparent',
             color: viewMode === 'vendors' ? 'white' : '#374151',
             borderRadius: '6px',
             cursor: 'pointer',
@@ -219,7 +219,7 @@ const CoverageGapAnalysis = () => {
           style={{
             padding: '8px 16px',
             border: 'none',
-            background: viewMode === 'states' ? '#3b82f6' : 'transparent',
+            background: viewMode === 'states' ? '#FF8F35' : 'transparent',
             color: viewMode === 'states' ? 'white' : '#374151',
             borderRadius: '6px',
             cursor: 'pointer',
@@ -258,7 +258,7 @@ const CoverageGapAnalysis = () => {
                 <div style={{ fontWeight: 'bold', fontSize: '18px', color: '#1f2937', marginBottom: '4px' }}>
                   {corridor.corridor_name}
                 </div>
-                <div style={{ fontSize: '14px', color: '#3b82f6', fontWeight: '600', marginBottom: '6px' }}>
+                <div style={{ fontSize: '14px', color: '#FF8F35', fontWeight: '600', marginBottom: '6px' }}>
                   📍 {formatCorridorSegment(corridor)}
                 </div>
                 <div style={{ fontSize: '13px', color: '#6b7280' }}>
@@ -272,7 +272,7 @@ const CoverageGapAnalysis = () => {
                   style={{
                     marginTop: '8px',
                     padding: '6px 12px',
-                    background: '#3b82f6',
+                    background: '#FF8F35',
                     color: '#111827',
                     border: 'none',
                     borderRadius: '6px',
@@ -430,7 +430,7 @@ const CoverageGapAnalysis = () => {
                       <div style={{
                         fontSize: '14px',
                         fontWeight: 'bold',
-                        color: viewMode === 'vendors' ? '#065f46' : '#1e40af'
+                        color: viewMode === 'vendors' ? '#065f46' : '#C66A1F'
                       }}>
                         {opp.action}
                       </div>
@@ -448,7 +448,7 @@ const CoverageGapAnalysis = () => {
                     </div>
                     <div style={{
                       fontSize: '13px',
-                      color: viewMode === 'vendors' ? '#047857' : '#1d4ed8',
+                      color: viewMode === 'vendors' ? '#047857' : '#C66A1F',
                       fontStyle: 'italic'
                     }}>
                       {opp.reason}
@@ -514,7 +514,7 @@ const CoverageGapAnalysis = () => {
                 <h3 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: 'bold' }}>
                   {selectedCorridor.corridor_name}
                 </h3>
-                <div style={{ fontSize: '14px', color: '#3b82f6', fontWeight: '600' }}>
+                <div style={{ fontSize: '14px', color: '#FF8F35', fontWeight: '600' }}>
                   📍 {formatCorridorSegment(selectedCorridor)}
                 </div>
               </div>

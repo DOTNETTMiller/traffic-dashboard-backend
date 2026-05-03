@@ -115,7 +115,7 @@ export default function MessagesPanel({ events = [], messages = {}, detourAlerts
       minWidth: '350px',
       height: '100%',
       backgroundColor: 'white',
-      borderRight: '2px solid #3b82f6',
+      borderRight: '2px solid #FF8F35',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
@@ -295,12 +295,12 @@ export default function MessagesPanel({ events = [], messages = {}, detourAlerts
                   transition: 'all 0.2s',
                   ':hover': {
                     backgroundColor: '#6b7280',
-                    borderColor: '#3b82f6'
+                    borderColor: '#FF8F35'
                   }
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.backgroundColor = '#f3f4f6';
-                  e.currentTarget.style.borderColor = '#3b82f6';
+                  e.currentTarget.style.borderColor = '#FF8F35';
                   e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
                 }}
                 onMouseLeave={(e) => {
@@ -398,7 +398,7 @@ export default function MessagesPanel({ events = [], messages = {}, detourAlerts
                     <div style={{
                       fontSize: '12px',
                       fontWeight: '600',
-                      color: '#3b82f6',
+                      color: '#FF8F35',
                       marginBottom: '4px'
                     }}>
                       {latestMessage.sender}

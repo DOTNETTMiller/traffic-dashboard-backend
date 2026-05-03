@@ -90,7 +90,7 @@ export default function OSWRegulationsLayer({ corridor = 'I-35' }) {
           <Marker
             key={reg.id}
             position={[centerLat, centerLng]}
-            icon={createStateRegulationIcon(reg.state_code, reg.color || '#3b82f6')}
+            icon={createStateRegulationIcon(reg.state_code, reg.color || '#FF8F35')}
           >
             <Popup>
                 <div style={{ minWidth: '320px', padding: '8px' }}>
