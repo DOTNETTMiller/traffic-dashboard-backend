@@ -1,6 +1,6 @@
 # ChatGPT Database Access Setup Guide
 
-This guide explains how to give your ChatGPT assistant access to the DOT Corridor Communicator database using secure API endpoints.
+This guide explains how to give your ChatGPT assistant access to the Matt's Experimental Sandbox database using secure API endpoints.
 
 ## Overview
 
@@ -42,7 +42,7 @@ You can also test locally at `http://localhost:3001`
 2. Click on your name → "My GPTs" → "Create a GPT"
 3. In the "Configure" tab:
    - **Name**: DOT Corridor Assistant (or your preferred name)
-   - **Description**: Access to DOT Corridor Communicator traffic data and parking information
+   - **Description**: Access to Matt's Experimental Sandbox traffic data and parking information
    - **Instructions**: Add instructions for how the GPT should use the data
 
 4. In the "Actions" section:
@@ -55,7 +55,7 @@ You can also test locally at `http://localhost:3001`
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "DOT Corridor Communicator API",
+    "title": "Matt's Experimental Sandbox API",
     "version": "1.0.0",
     "description": "Read-only access to traffic events, parking data, and interstate communications"
   },

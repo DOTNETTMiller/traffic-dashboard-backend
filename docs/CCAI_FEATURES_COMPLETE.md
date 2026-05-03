@@ -473,7 +473,7 @@ import DMSMessagingPanel from './components/DMSMessagingPanel';
 
 ## 🏆 Industry Leadership
 
-With these 12 features, the DOT Corridor Communicator now has:
+With these 12 features, the Matt's Experimental Sandbox now has:
 
 - **Most comprehensive** CCAI implementation (92% alignment)
 - **Only platform** with auto-DMS activation

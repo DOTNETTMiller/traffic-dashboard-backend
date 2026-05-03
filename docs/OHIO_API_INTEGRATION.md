@@ -2,7 +2,7 @@
 
 ## Overview
 
-The DOT Corridor Communicator now integrates with the Ohio Department of Transportation's public OHGO API to provide **significantly enhanced** traffic and parking data for Ohio.
+The Matt's Experimental Sandbox now integrates with the Ohio Department of Transportation's public OHGO API to provide **significantly enhanced** traffic and parking data for Ohio.
 
 ## What We Added
 

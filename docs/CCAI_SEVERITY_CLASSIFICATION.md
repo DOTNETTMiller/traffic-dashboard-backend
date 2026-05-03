@@ -8,7 +8,7 @@
 
 ## Overview
 
-This document defines the standardized severity classification system aligned with CCAI Tactical Use Cases for consistent incident categorization across all 44+ states in the DOT Corridor Communicator platform.
+This document defines the standardized severity classification system aligned with CCAI Tactical Use Cases for consistent incident categorization across all 44+ states in the Matt's Experimental Sandbox platform.
 
 ---
 
@@ -187,7 +187,7 @@ States may apply local severity adjustments but must document reason in event no
 
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
-| 1.0 | 2026-03-03 | Initial CCAI-aligned classification | DOT Corridor Communicator Team |
+| 1.0 | 2026-03-03 | Initial CCAI-aligned classification | Matt's Experimental Sandbox Team |
 
 ---
 

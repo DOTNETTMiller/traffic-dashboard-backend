@@ -2,7 +2,7 @@
 
 ## Overview
 
-The DOT Corridor Communicator now integrates with **LandScan Global 2024** (Oak Ridge National Lab) via **Google Earth Engine** for the highest-accuracy population data available.
+The Matt's Experimental Sandbox now integrates with **LandScan Global 2024** (Oak Ridge National Lab) via **Google Earth Engine** for the highest-accuracy population data available.
 
 **Key Benefits:**
 - ✅ **FREE ACCESS** - No cost for non-commercial use
@@ -291,7 +291,7 @@ Free tier limits:
 - **Concurrent requests**: 100
 - **Response time**: 5-30 seconds per query
 
-**DOT Corridor Communicator usage:**
+**Matt's Experimental Sandbox usage:**
 - 1-10 queries per IPAWS alert
 - ~30 alerts per day (peak)
 - **Well within free tier limits** ✅

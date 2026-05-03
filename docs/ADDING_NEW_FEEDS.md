@@ -1,6 +1,6 @@
 # How to Add New Data Feeds
 
-This guide explains how to add new state DOT or city traffic data feeds to the DOT Corridor Communicator.
+This guide explains how to add new state DOT or city traffic data feeds to the Matt's Experimental Sandbox.
 
 ## IMPORTANT: Production Deployment
 

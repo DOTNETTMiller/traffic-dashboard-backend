@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-The **DOT Corridor Communicator** serves as a **reference implementation** for AASHTO Joint Subcommittee on Data Standardization (JSTAN) standards, demonstrating how open data standards can enable seamless multi-state transportation coordination, connected vehicle readiness, and competitive federal grant applications.
+The **Matt's Experimental Sandbox** serves as a **reference implementation** for AASHTO Joint Subcommittee on Data Standardization (JSTAN) standards, demonstrating how open data standards can enable seamless multi-state transportation coordination, connected vehicle readiness, and competitive federal grant applications.
 
 **Key Achievement**: Platform successfully integrates **40+ state DOT feeds** using JSTAN-endorsed standards including WZDx, IFC, SAE J2735, TMDD, and CTI protocols—proving that standards-based interoperability works at production scale.
 
@@ -295,7 +295,7 @@ https://api.aashto.org/tmdd/v3.1/
 
 **[Pooled Fund Enablement Guide](./pooled-fund-enablement.md)** (1,037 lines)
 - **Audience**: Pooled fund study managers, regional coalitions, interstate partnerships
-- **Purpose**: Show how DOT Corridor Communicator enables Connected Corridors Advancement Initiative (CCAI)
+- **Purpose**: Show how Matt's Experimental Sandbox enables Connected Corridors Advancement Initiative (CCAI)
 - **Key Sections**:
   - CCAI pooled fund overview (8 states)
   - Gap analysis of existing state data feeds
@@ -467,7 +467,7 @@ https://api.aashto.org/tmdd/v3.1/
 - **Chair**: Mike Bousliman (Montana DOT)
 - **Website**: https://transportation.org/data/jstan/
 
-### DOT Corridor Communicator
+### Matt's Experimental Sandbox
 - **Technical Lead**: Matthew Miller, Iowa DOT (Matthew.Miller@iowadot.us)
 - **CCAI Pooled Fund Study**: Khyle Clute, Iowa DOT (Khyle.Clute@iowadot.us)
 - **Platform Support**: See individual documentation files for specific contacts
@@ -524,7 +524,7 @@ A: Currently independent platform. Seeking AASHTO endorsement as JSTAN reference
 
 - **Version**: 1.0
 - **Last Updated**: January 12, 2025
-- **Prepared By**: DOT Corridor Communicator Development Team
+- **Prepared By**: Matt's Experimental Sandbox Development Team
 - **Next Review**: June 2025
 
 ---
@@ -550,4 +550,4 @@ A: Currently independent platform. Seeking AASHTO endorsement as JSTAN reference
 
 ---
 
-**For questions about this documentation suite, contact the AASHTO JSTAN committee (jstan@aashto.org) or the DOT Corridor Communicator development team.**
+**For questions about this documentation suite, contact the AASHTO JSTAN committee (jstan@aashto.org) or the Matt's Experimental Sandbox development team.**

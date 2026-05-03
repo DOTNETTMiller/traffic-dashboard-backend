@@ -295,7 +295,7 @@ Digital Infrastructure Dashboard displays:
 - **What-If Scenarios** - Simulate equipment failures, upgrades
 - **Historical Playback** - Replay traffic incidents with infrastructure context
 
-## Implementation in DOT Corridor Communicator
+## Implementation in Matt's Experimental Sandbox
 
 ### Database Schema Enhancement
 

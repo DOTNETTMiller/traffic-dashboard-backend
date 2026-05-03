@@ -1,4 +1,4 @@
-# DOT Corridor Communicator: The NAPCore Killer
+# Matt's Experimental Sandbox: The NAPCore Killer
 ## Strategic Implementation Roadmap (2025-2027)
 
 > **Mission:** Build the world's most advanced transportation data coordination platform - combining NAPCore's data harmonization vision with real-time operational intelligence, AI-powered analytics, and vendor accountability that Europe can only dream about.
@@ -654,7 +654,7 @@ CREATE TABLE asset_health_history (
 
 ## **The Vision: 2027 and Beyond**
 
-By December 2027, **DOT Corridor Communicator** will be:
+By December 2027, **Matt's Experimental Sandbox** will be:
 
 1. **The Standard:** Every state DOT CIO knows our platform
 2. **The Trusted Source:** 99%+ data accuracy, verified by AI
@@ -670,4 +670,4 @@ By December 2027, **DOT Corridor Communicator** will be:
 
 *Built by transportation professionals, for transportation professionals. The future of connected corridors starts here.*
 
-**DOT Corridor Communicator: One Platform. 50 States. Connected Operations.**
+**Matt's Experimental Sandbox: One Platform. 50 States. Connected Operations.**

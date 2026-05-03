@@ -274,7 +274,7 @@ const APIDocumentationViewer = () => {
           let processedCell = cell.trim();
           processedCell = processedCell.replace(/\*\*(.*?)\*\*/g, '<strong style="font-weight: 700; color: #111827;">$1</strong>');
           processedCell = processedCell.replace(/\*(.*?)\*/g, '<em>$1</em>');
-          processedCell = processedCell.replace(/`([^`]+)`/g, '<code style="background: #e0e7ff; padding: 3px 7px; border-radius: 4px; font-family: Consolas, Monaco, monospace; font-size: 12px; color: #3730a3; border: 1px solid #c7d2fe;">$1</code>');
+          processedCell = processedCell.replace(/`([^`]+)`/g, '<code style="background: rgba(240, 130, 48, 0.10); padding: 3px 7px; border-radius: 4px; font-family: \'JetBrains Mono\', Consolas, Monaco, monospace; font-size: 12px; color: #C66A1F; border: 1px solid rgba(240, 130, 48, 0.24);">$1</code>');
 
           const borderRight = cellIndex < cells.length - 1 ? 'border-right: 1px solid #e5e7eb;' : '';
 
@@ -322,21 +322,21 @@ const APIDocumentationViewer = () => {
 
         // Headers (including #### and #####)
         if (trimmedLine.startsWith('##### ')) {
-          return `<h5 key="${index}" style="font-size: 14px; font-weight: 600; margin: 14px 0 8px 0; color: #374151;">${trimmedLine.substring(6)}</h5>`;
+          return `<h5 key="${index}" style="font-family: var(--font-sans); font-size: 14px; font-weight: 600; margin: 14px 0 8px 0; color: #374151;">${trimmedLine.substring(6)}</h5>`;
         }
         if (trimmedLine.startsWith('#### ')) {
-          return `<h4 key="${index}" style="font-size: 16px; font-weight: 700; margin: 16px 0 10px 0; color: #1f2937;">${trimmedLine.substring(5)}</h4>`;
+          return `<h4 key="${index}" style="font-family: var(--font-sans); font-size: 16px; font-weight: 700; margin: 16px 0 10px 0; color: #1f2937;">${trimmedLine.substring(5)}</h4>`;
         }
         if (trimmedLine.startsWith('### ')) {
-          return `<h3 key="${index}" style="font-size: 18px; font-weight: 700; margin: 20px 0 12px 0; color: #1f2937;">${trimmedLine.substring(4)}</h3>`;
+          return `<h3 key="${index}" style="font-family: var(--font-display); font-size: 18px; font-weight: 700; letter-spacing: 0.01em; margin: 20px 0 12px 0; color: #1f2937;">${trimmedLine.substring(4)}</h3>`;
         }
         if (trimmedLine.startsWith('## ')) {
           const headerText = trimmedLine.substring(3);
           const headerId = headerText.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-          return `<h2 id="${headerId}" key="${index}" style="font-size: 22px; font-weight: 700; margin: 24px 0 16px 0; color: #111827; border-bottom: 2px solid #e5e7eb; padding-bottom: 8px;">${headerText}</h2>`;
+          return `<h2 id="${headerId}" key="${index}" style="font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: 0.01em; text-transform: uppercase; margin: 24px 0 16px 0; color: #111827; border-bottom: 2px solid var(--accent); padding-bottom: 8px;">${headerText}</h2>`;
         }
         if (trimmedLine.startsWith('# ')) {
-          return `<h1 key="${index}" style="font-size: 28px; font-weight: 700; margin: 32px 0 20px 0; color: #111827;">${trimmedLine.substring(2)}</h1>`;
+          return `<h1 key="${index}" style="font-family: var(--font-display); font-size: 32px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; margin: 32px 0 20px 0; color: var(--accent);">${trimmedLine.substring(2)}</h1>`;
         }
 
         // Code blocks
@@ -359,7 +359,7 @@ const APIDocumentationViewer = () => {
         line = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
         // Inline code
-        line = line.replace(/`([^`]+)`/g, '<code style="background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-family: monospace; font-size: 13px;">$1</code>');
+        line = line.replace(/`([^`]+)`/g, '<code style="background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-family: \'JetBrains Mono\', Consolas, monospace; font-size: 13px; color: #1d1d1f;">$1</code>');
 
         // Links (after images)
         line = line.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #FF8F35; text-decoration: underline;">$1</a>');
@@ -394,7 +394,7 @@ const APIDocumentationViewer = () => {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: 'var(--font-sans)' }}>
       {/* Sidebar */}
       {showSidebar && (
         <div style={{
@@ -405,7 +405,15 @@ const APIDocumentationViewer = () => {
           padding: '20px'
         }}>
           <div style={{ marginBottom: '20px' }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: 'bold', color: '#111827' }}>
+            <h3 style={{
+              margin: '0 0 12px 0',
+              fontFamily: 'var(--font-display)',
+              fontSize: '18px',
+              fontWeight: 700,
+              letterSpacing: '0.02em',
+              textTransform: 'uppercase',
+              color: 'var(--accent)'
+            }}>
               Documentation
             </h3>
             <button

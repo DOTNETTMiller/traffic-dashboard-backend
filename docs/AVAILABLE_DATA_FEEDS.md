@@ -1,12 +1,12 @@
 # Available Data Feeds for Integration
 
-This document lists all available state DOT and major city traffic data feeds that can be integrated into the DOT Corridor Communicator.
+This document lists all available state DOT and major city traffic data feeds that can be integrated into the Matt's Experimental Sandbox.
 
 ---
 
 ## 📡 Generated WZDx Feeds
 
-The DOT Corridor Communicator generates **WZDx v4.2 compliant feeds** for states that don't provide official feeds. These feeds are publicly accessible and suitable for consumption by navigation apps, traveler information systems, and data consumers.
+The Matt's Experimental Sandbox generates **WZDx v4.2 compliant feeds** for states that don't provide official feeds. These feeds are publicly accessible and suitable for consumption by navigation apps, traveler information systems, and data consumers.
 
 ### 🌟 Nebraska WZDx Feed
 
@@ -15,7 +15,7 @@ The DOT Corridor Communicator generates **WZDx v4.2 compliant feeds** for states
 - **Format:** WZDx v4.2 GeoJSON
 - **Update Frequency:** Real-time (as events are added/updated)
 - **Coverage:** All Nebraska interstate work zones and incidents
-- **Source:** DOT Corridor Communicator event database
+- **Source:** Matt's Experimental Sandbox event database
 - **Compliance:** Full WZDx v4.2 specification
 
 **Example Usage:**
@@ -30,7 +30,7 @@ curl https://your-domain/api/wzdx/feed/NE
 - **Format:** WZDx v4.2 GeoJSON
 - **Update Frequency:** Real-time
 - **Coverage:** All Nevada interstate work zones and incidents
-- **Source:** DOT Corridor Communicator event database
+- **Source:** Matt's Experimental Sandbox event database
 - **Compliance:** Full WZDx v4.2 specification
 
 ### 🔗 All States Feed

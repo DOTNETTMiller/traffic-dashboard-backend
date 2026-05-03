@@ -4,14 +4,14 @@
 
 ## Overview
 
-The **Closure and Incident Feed Specification (CIFS)** is Waze's open protocol for describing road incidents and closures in partner data feeds. This guide shows state DOTs how to create CIFS-compliant data feeds that integrate with Waze for Drivers and the DOT Corridor Communicator platform.
+The **Closure and Incident Feed Specification (CIFS)** is Waze's open protocol for describing road incidents and closures in partner data feeds. This guide shows state DOTs how to create CIFS-compliant data feeds that integrate with Waze for Drivers and the Matt's Experimental Sandbox platform.
 
 **What You'll Learn:**
 - CIFS message format and required fields
 - How to convert your existing data (WZDx, 511, ATMS) to CIFS format
 - Implementation examples in Python and Node.js
 - Best practices for polyline encoding and incident classification
-- API integration with DOT Corridor Communicator
+- API integration with Matt's Experimental Sandbox
 
 ---
 
@@ -25,7 +25,7 @@ CIFS is a JSON-based specification developed by Waze (Google) to standardize how
 - ✅ **Standardized Format**: Single specification accepted by multiple navigation platforms
 - ✅ **Simple Implementation**: JSON format with straightforward field requirements
 - ✅ **Flexible**: Supports both closures and incidents with detailed classification
-- ✅ **WZDx Compatible**: DOT Corridor Communicator auto-converts WZDx to CIFS
+- ✅ **WZDx Compatible**: Matt's Experimental Sandbox auto-converts WZDx to CIFS
 
 **Official Specification**: https://developers.google.com/waze/data-feed/cifs-specification
 
@@ -159,7 +159,7 @@ Full list: https://developers.google.com/waze/data-feed/incident-information/inc
 
 ## Converting WZDx to CIFS
 
-The DOT Corridor Communicator automatically converts WZDx feeds to CIFS format. Here's the mapping logic:
+The Matt's Experimental Sandbox automatically converts WZDx feeds to CIFS format. Here's the mapping logic:
 
 ### Field Mapping
 
@@ -416,7 +416,7 @@ import json
 
 def publish_to_corridor_communicator(cifs_feed, api_key):
     """
-    Publish CIFS feed to DOT Corridor Communicator
+    Publish CIFS feed to Matt's Experimental Sandbox
     """
 
     url = "https://api.corridor-communicator.com/api/cifs/submit"
@@ -446,11 +446,11 @@ publish_to_corridor_communicator(feed, api_key)
 
 ---
 
-## DOT Corridor Communicator Integration
+## Matt's Experimental Sandbox Integration
 
 ### Automatic CIFS Conversion
 
-The DOT Corridor Communicator provides automatic WZDx → CIFS conversion:
+The Matt's Experimental Sandbox provides automatic WZDx → CIFS conversion:
 
 **Endpoint**: `GET /api/convert/cifs`
 
@@ -653,7 +653,7 @@ Iowa DOT provides WZDx data at:
    # Endpoint provided by Waze partnership agreement
    ```
 
-4. **Publish to DOT Corridor Communicator**
+4. **Publish to Matt's Experimental Sandbox**
    ```python
    publish_to_corridor_communicator(cifs_feed, api_key)
    ```
@@ -662,7 +662,7 @@ Iowa DOT provides WZDx data at:
 
 - **470+ incidents** converted from WZDx to CIFS daily
 - **5-minute update cycle** ensures real-time accuracy
-- **Multi-state visibility** via DOT Corridor Communicator I-80 corridor view
+- **Multi-state visibility** via Matt's Experimental Sandbox I-80 corridor view
 - **Driver reach**: Millions of Waze users receive Iowa work zone alerts
 
 ---
@@ -744,7 +744,7 @@ Use this checklist to implement CIFS at your DOT:
 - [ ] Set up automated feed generation
 - [ ] Configure update schedule (cron job, task scheduler)
 - [ ] Implement error logging and monitoring
-- [ ] Publish feed to DOT Corridor Communicator
+- [ ] Publish feed to Matt's Experimental Sandbox
 - [ ] (Optional) Submit to Waze CCP partnership
 
 ### Phase 5: Maintenance
@@ -763,7 +763,7 @@ Use this checklist to implement CIFS at your DOT:
 - **Waze for Cities**: https://www.waze.com/wazeforcities
 - **WZDx Specification**: https://github.com/usdot-jpo-ode/wzdx
 
-### DOT Corridor Communicator APIs
+### Matt's Experimental Sandbox APIs
 
 - **CIFS Endpoint**: `GET /api/convert/cifs`
 - **State Filter**: `GET /api/convert/cifs?state={STATE_CODE}`
@@ -778,7 +778,7 @@ Use this checklist to implement CIFS at your DOT:
 
 ### Support
 
-For questions about implementing CIFS feeds or integrating with DOT Corridor Communicator:
+For questions about implementing CIFS feeds or integrating with Matt's Experimental Sandbox:
 
 - **Documentation**: https://corridor-communicator.com/docs
 - **Email**: support@corridor-communicator.com
@@ -790,4 +790,4 @@ For questions about implementing CIFS feeds or integrating with DOT Corridor Com
 **Version**: 1.0
 **Maintained By**: Connected Corridors Advancement Initiative (CCAI)
 
-For the latest version of this guide, visit the DOT Corridor Communicator Documentation Portal.
+For the latest version of this guide, visit the Matt's Experimental Sandbox Documentation Portal.

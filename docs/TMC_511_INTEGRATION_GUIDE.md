@@ -1,7 +1,7 @@
 # TMC & 511 System Integration Guide
 ## National Event Feeds & Auto-Notification System
 
-### DOT Corridor Communicator Integration Architecture
+### Matt's Experimental Sandbox Integration Architecture
 
 ---
 
@@ -26,7 +26,7 @@
 
 ### Purpose
 
-This document describes how to integrate the DOT Corridor Communicator with Traffic Management Centers (TMCs) and 511 traveler information systems to:
+This document describes how to integrate the Matt's Experimental Sandbox with Traffic Management Centers (TMCs) and 511 traveler information systems to:
 
 - **Aggregate national event feeds** from multiple sources
 - **Distribute corridor-specific messages** to TMCs and 511 systems
@@ -60,7 +60,7 @@ This document describes how to integrate the DOT Corridor Communicator with Traf
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    DOT Corridor Communicator                     │
+│                    Matt's Experimental Sandbox                     │
 │                                                                   │
 │  ┌────────────────────────────────────────────────────────────┐ │
 │  │             Event Aggregation Engine                        │ │
@@ -312,7 +312,7 @@ This document describes how to integrate the DOT Corridor Communicator with Traf
 ### Architecture
 
 ```
-DOT Corridor Communicator ↔ TMC System
+Matt's Experimental Sandbox ↔ TMC System
         ↓                        ↓
    [REST API]              [TMDD Feed]
         ↓                        ↓
@@ -344,7 +344,7 @@ GET /api/tmc/events/tmdd
 <?xml version="1.0" encoding="UTF-8"?>
 <tmdd:eventFeed xmlns:tmdd="http://www.tmdd.org/303/messages">
   <feed-metadata>
-    <publisher>DOT Corridor Communicator</publisher>
+    <publisher>Matt's Experimental Sandbox</publisher>
     <update-frequency>60</update-frequency>
     <last-updated>2025-12-27T10:15:00Z</last-updated>
   </feed-metadata>
@@ -549,7 +549,7 @@ GET /api/511/events/xml
 <?xml version="1.0" encoding="UTF-8"?>
 <traffic-data xmlns="http://www.sae.org/j2354">
   <metadata>
-    <provider>Iowa DOT Corridor Communicator</provider>
+    <provider>Iowa Matt's Experimental Sandbox</provider>
     <timestamp>2025-12-27T10:15:00Z</timestamp>
     <coverage-area>
       <state>IA</state>
@@ -610,7 +610,7 @@ GET /api/511/events/json?format=v2
 {
   "metadata": {
     "version": "2.0",
-    "provider": "Iowa DOT Corridor Communicator",
+    "provider": "Iowa Matt's Experimental Sandbox",
     "timestamp": "2025-12-27T10:15:00Z",
     "update_frequency": 60,
     "coverage": {
@@ -1713,7 +1713,7 @@ app.get('/api/511/events/json', async (req, res) => {
     const feed = {
       metadata: {
         version: format,
-        provider: 'DOT Corridor Communicator',
+        provider: 'Matt's Experimental Sandbox',
         timestamp: new Date().toISOString(),
         update_frequency: 60,
         coverage: {
@@ -2041,7 +2041,7 @@ function buildTMDDFeed(events) {
 
   const tmddData = {
     'feed-metadata': {
-      publisher: 'DOT Corridor Communicator',
+      publisher: 'Matt's Experimental Sandbox',
       'update-frequency': 60,
       'last-updated': new Date().toISOString()
     },
@@ -2071,7 +2071,7 @@ function build511XMLFeed(events, state) {
 
   const feedData = {
     metadata: {
-      provider: `${state} DOT Corridor Communicator`,
+      provider: `${state} Matt's Experimental Sandbox`,
       timestamp: new Date().toISOString(),
       'coverage-area': {
         state: state,
@@ -3309,7 +3309,7 @@ function getCurrentStats() {
 
 ## Conclusion
 
-This TMC & 511 System Integration Guide provides a comprehensive framework for connecting the DOT Corridor Communicator with Traffic Management Centers and 511 traveler information systems nationwide.
+This TMC & 511 System Integration Guide provides a comprehensive framework for connecting the Matt's Experimental Sandbox with Traffic Management Centers and 511 traveler information systems nationwide.
 
 ### Key Capabilities Enabled
 
@@ -3386,4 +3386,4 @@ This TMC & 511 System Integration Guide provides a comprehensive framework for c
 **Version:** 1.0
 **Last Updated:** December 27, 2025
 **Document:** TMC & 511 System Integration Guide
-**Component:** DOT Corridor Communicator - National Event Feeds & Auto-Notifications
+**Component:** Matt's Experimental Sandbox - National Event Feeds & Auto-Notifications

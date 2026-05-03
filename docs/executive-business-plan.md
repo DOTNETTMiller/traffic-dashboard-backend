@@ -1,10 +1,10 @@
 ![CCAI Logo](./ccai-logo.png)
 
-# DOT Corridor Communicator: Executive Business Plan
+# Matt's Experimental Sandbox: Executive Business Plan
 
 ## Executive Summary
 
-The **DOT Corridor Communicator** is a transformative digital infrastructure platform that addresses one of transportation's most critical challenges: **fragmented data across jurisdictional boundaries and lifecycle phases**. By aggregating real-time traffic data from 46+ states and integrating Building Information Models (BIM/IFC) with operational systems, we enable true digital infrastructure for the connected, autonomous vehicle era.
+The **Matt's Experimental Sandbox** is a transformative digital infrastructure platform that addresses one of transportation's most critical challenges: **fragmented data across jurisdictional boundaries and lifecycle phases**. By aggregating real-time traffic data from 46+ states and integrating Building Information Models (BIM/IFC) with operational systems, we enable true digital infrastructure for the connected, autonomous vehicle era.
 
 **The Opportunity**: Federal transportation funding programs prioritize digital infrastructure, data sharing, and connected vehicle readiness. States that demonstrate interoperable systems and data-driven decision-making have competitive advantages for SMART, BUILD, RAISE, and ATCMTD grants.
 
@@ -83,7 +83,7 @@ FHWA increasingly requires:
 
 ## The Solution: Integrated Digital Infrastructure Platform
 
-The DOT Corridor Communicator provides **three transformational capabilities**:
+The Matt's Experimental Sandbox provides **three transformational capabilities**:
 
 ### 1. Real-Time Multi-State Data Aggregation
 
@@ -843,7 +843,7 @@ We assist with SMART, RAISE, ATCMTD applications that can fully fund platform co
 
 ## Conclusion
 
-The DOT Corridor Communicator addresses a critical market need at the intersection of three mega-trends:
+The Matt's Experimental Sandbox addresses a critical market need at the intersection of three mega-trends:
 1. **Infrastructure modernization** (Federal transportation funding programs)
 2. **Connected/autonomous vehicles** (20M+ vehicles by 2025)
 3. **Digital transformation** (public sector moving to data-driven operations)

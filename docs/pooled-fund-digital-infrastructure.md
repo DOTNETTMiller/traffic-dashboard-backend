@@ -56,7 +56,7 @@ Total Program: $10M
 
 Outcomes:
 ✓ Common IFC specification for all 11 states
-✓ Shared digital twin platform (DOT Corridor Communicator)
+✓ Shared digital twin platform (Matt's Experimental Sandbox)
 ✓ Regional training program (120 staff trained)
 ✓ Unified V2X message generation
 ✓ Corridor-wide analytics and reporting
@@ -299,7 +299,7 @@ Example: $2.5M study → $125K-$250K to lead state
 *Budget: $600K*
 
 **Activities:**
-- Procure digital twin platform (DOT Corridor Communicator or similar)
+- Procure digital twin platform (Matt's Experimental Sandbox or similar)
 - Select 50-100 mile pilot corridor (crossing 2-3 states)
 - Upload existing IFC models (if available) or create new
 - Integrate with ATMS systems (NTCIP device data)
@@ -413,7 +413,7 @@ Example: $2.5M study → $125K-$250K to lead state
 Lead State executes single contract with vendor/platform provider
 
 Example:
-Contract: Iowa DOT (Lead State) ↔ DOT Corridor Communicator
+Contract: Iowa DOT (Lead State) ↔ Matt's Experimental Sandbox
 Scope: Digital twin platform for I-80 Consortium
 Term: 3 years
 Value: $1.2M
@@ -981,7 +981,7 @@ Q4 (Months 34-36):
 
 ### 9.1 Downloadable Templates
 
-**Available via DOT Corridor Communicator platform:**
+**Available via Matt's Experimental Sandbox platform:**
 
 □ Pooled Fund Study Charter Template (Word)
 □ Data Sharing Agreement Template (Word)
@@ -1070,7 +1070,7 @@ Q4 (Months 34-36):
 
 ### 10.2 Getting Support
 
-**DOT Corridor Communicator Can Help:**
+**Matt's Experimental Sandbox Can Help:**
 - **Proposal Development:** Template work plans, budgets, use cases
 - **Champion State Recruitment:** Connect interested states
 - **Business Case:** ROI calculators, grant opportunity analysis
@@ -1085,7 +1085,7 @@ Q4 (Months 34-36):
 
 **Document Version:** 1.0
 **Last Updated:** December 2024
-**Author:** DOT Corridor Communicator Team
+**Author:** Matt's Experimental Sandbox Team
 
 **Related Documentation:**
 - [Executive Business Plan](/docs/executive-business-plan.md)

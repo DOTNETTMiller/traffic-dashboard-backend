@@ -1,10 +1,10 @@
 ![CCAI Logo](./ccai-logo.png)
 
-# Return on Investment (ROI) Analysis for DOT Corridor Communicator
+# Return on Investment (ROI) Analysis for Matt's Experimental Sandbox
 
 ## Executive Summary
 
-The DOT Corridor Communicator delivers exceptional ROI through **interoperable data infrastructure** that enables connected and autonomous vehicles (CAV), modernizes asset management with digital twins, and dramatically reduces incident response times. This document demonstrates how open standards-based data sharing creates transformational value for state transportation agencies while advancing NCHRP 20-24(138)'s vision for the next era of America's transportation infrastructure.
+The Matt's Experimental Sandbox delivers exceptional ROI through **interoperable data infrastructure** that enables connected and autonomous vehicles (CAV), modernizes asset management with digital twins, and dramatically reduces incident response times. This document demonstrates how open standards-based data sharing creates transformational value for state transportation agencies while advancing NCHRP 20-24(138)'s vision for the next era of America's transportation infrastructure.
 
 **The Interoperability Imperative**: Traditional 511 systems create data silos. The future of transportation demands:
 - **CAV-Ready Infrastructure**: SAE J2735 TIM/CV-TIM feeds enable vehicle-to-infrastructure (V2I) safety applications
@@ -62,7 +62,7 @@ The DOT Corridor Communicator delivers exceptional ROI through **interoperable d
 
 #### 1. Data Collection & Integration Efficiency
 
-**Before DOT Corridor Communicator**:
+**Before Matt's Experimental Sandbox**:
 - Manual data aggregation from multiple state feeds: 20 hrs/week
 - Custom API development for 511/WZDx/traveler info: $80,000/year
 - Database infrastructure and maintenance: $35,000/year
@@ -110,9 +110,9 @@ The DOT Corridor Communicator delivers exceptional ROI through **interoperable d
 
 #### 3. Safety Benefits & Crash Reduction
 
-**Alignment with NCHRP 20-24(138) Vision Framework**: The DOT Corridor Communicator directly supports the six aspirational goals established by NCHRP 20-24(138) "Collective and Individual Actions to Envision and Realize the Next Era of America's Transportation Infrastructure" for a community-centered transportation system.
+**Alignment with NCHRP 20-24(138) Vision Framework**: The Matt's Experimental Sandbox directly supports the six aspirational goals established by NCHRP 20-24(138) "Collective and Individual Actions to Envision and Realize the Next Era of America's Transportation Infrastructure" for a community-centered transportation system.
 
-### How DOT Corridor Communicator Achieves NCHRP 20-24(138) Goals
+### How Matt's Experimental Sandbox Achieves NCHRP 20-24(138) Goals
 
 | NCHRP Goal | System Capabilities | Measurable Outcomes |
 |------------|---------------------|---------------------|
@@ -125,7 +125,7 @@ The DOT Corridor Communicator delivers exceptional ROI through **interoperable d
 
 **NCHRP 20-24(138) Core Emphasis: "Collaborative approaches across state boundaries"**
 
-The DOT Corridor Communicator exemplifies this vision through:
+The Matt's Experimental Sandbox exemplifies this vision through:
 - **46+ state real-time data integration** enabling seamless multi-state travel
 - **I-95 Corridor Coalition, I-5 Consortium, I-80 Corridor partnerships** demonstrating regional collaboration
 - **Shared infrastructure platform** reducing redundant state investments
@@ -146,7 +146,7 @@ While individual state ROI calculations demonstrate strong financial returns ($1
 
 **The CAV Deployment Challenge**: Autonomous vehicles require **nationwide interoperable infrastructure data** to operate safely across state borders. Legacy 511 systems cannot provide the real-time, standardized data that CAVs need.
 
-**DOT Corridor Communicator Solution**: **Creates the interoperable data layer essential for national CAV deployment**
+**Matt's Experimental Sandbox Solution**: **Creates the interoperable data layer essential for national CAV deployment**
 
 **SAE J2735 & SAE J2540 Standards Implementation**:
 
@@ -178,7 +178,7 @@ While individual state ROI calculations demonstrate strong financial returns ($1
 
 **The Legacy Asset Management Problem**: State DOTs manage $billions in ITS equipment (DMS, cameras, sensors, signals) using outdated spreadsheets and disconnected maintenance systems. Infrastructure data trapped in CAD/GIS cannot communicate with real-time operational systems (NTCIP, SCADA, traffic management centers).
 
-**DOT Corridor Communicator Solution**: **Digital infrastructure integration (IFC/BIM ↔ NTCIP) creates living digital twins** where static asset models merge with real-time operational data for modern, data-driven asset management.
+**Matt's Experimental Sandbox Solution**: **Digital infrastructure integration (IFC/BIM ↔ NTCIP) creates living digital twins** where static asset models merge with real-time operational data for modern, data-driven asset management.
 
 **Digital Standards Integration Architecture**:
 
@@ -217,7 +217,7 @@ While individual state ROI calculations demonstrate strong financial returns ($1
 
 **The Interoperability Crisis**: Legacy 511 systems use incompatible data formats (XML, RSS, custom APIs), preventing multi-state data sharing and CAV integration. States lack resources to independently migrate to modern open standards (WZDx v4.0+, TMDD, SAE J2735).
 
-**DOT Corridor Communicator Solution**: **Unified platform accelerates national open standards adoption through collaborative migration and shared infrastructure**
+**Matt's Experimental Sandbox Solution**: **Unified platform accelerates national open standards adoption through collaborative migration and shared infrastructure**
 
 **Standards Migration Acceleration**:
 
@@ -260,7 +260,7 @@ While individual state ROI calculations demonstrate strong financial returns ($1
 
 **Collective Problem**: Transportation data locked in proprietary state systems, inaccessible to researchers, startups, underserved communities
 
-**DOT Corridor Communicator Solution**: **Free public API democratizes access to 46+ state data**
+**Matt's Experimental Sandbox Solution**: **Free public API democratizes access to 46+ state data**
 
 **Who Benefits from Open Data Access**:
 
@@ -285,7 +285,7 @@ While individual state ROI calculations demonstrate strong financial returns ($1
 
 **Collective Problem**: FHWA standards (WZDx, TMDD, TPM) evolve slowly; state input fragmented
 
-**DOT Corridor Communicator Solution**: **46-state collective voice shapes national policy**
+**Matt's Experimental Sandbox Solution**: **46-state collective voice shapes national policy**
 
 **Platform as Standards Testbed**:
 - **WZDx v5.0 development**: Platform provides real-world feedback from 46 states → faster standard evolution
@@ -294,7 +294,7 @@ While individual state ROI calculations demonstrate strong financial returns ($1
 
 **Grant Program Design Input**:
 - **Platform data** used by USDOT to design **future NOFO (Notice of Funding Opportunity)** requirements
-- **Example**: 2025 SMART NOFO added "multi-state data interoperability" as scoring criterion based on demonstrated success of platforms like DOT Corridor Communicator
+- **Example**: 2025 SMART NOFO added "multi-state data interoperability" as scoring criterion based on demonstrated success of platforms like Matt's Experimental Sandbox
 
 **Estimated National Policy Value**:
 - **Faster standards adoption**: 3-5 year acceleration of national ITS standards → $500M avoided duplication costs
@@ -328,7 +328,7 @@ While individual state ROI calculations demonstrate strong financial returns ($1
 
 ---
 
-**DOT Corridor Communicator Safety Impact Mechanisms**:
+**Matt's Experimental Sandbox Safety Impact Mechanisms**:
 
 1. **Real-Time Traveler Information** → Reduced crashes through route diversion and speed reduction
 2. **Faster Incident Detection & Response** → Reduced secondary incidents and queue-related crashes
@@ -365,7 +365,7 @@ States should use a **10-20% attribution rate** to avoid overstating system impa
 
 **Measurable Safety Performance Metrics**
 
-States implementing the DOT Corridor Communicator can track these performance measures to demonstrate progress toward NCHRP 20-24(138)'s "Safe and Secure" goal:
+States implementing the Matt's Experimental Sandbox can track these performance measures to demonstrate progress toward NCHRP 20-24(138)'s "Safe and Secure" goal:
 
 | Metric | Baseline (Pre-Implementation) | Target (12 months) | Measurement Method |
 |--------|------------------------------|-------------------|-------------------|
@@ -383,7 +383,7 @@ States implementing the DOT Corridor Communicator can track these performance me
 
 The system directly supports FHWA TPM safety performance measures:
 
-| TPM Measure | How DOT Corridor Communicator Contributes | Expected Improvement |
+| TPM Measure | How Matt's Experimental Sandbox Contributes | Expected Improvement |
 |-------------|------------------------------------------|---------------------|
 | **PM1: Number of Fatalities** | Reduced secondary incidents, faster clearance, better traveler information | 5-10% reduction in corridor fatalities |
 | **PM2: Fatality Rate** | Lower VMT exposure through route diversion during incidents | 3-7% improvement in fatality rate |
@@ -394,7 +394,7 @@ The system directly supports FHWA TPM safety performance measures:
 
 **Case Study: Virginia DOT I-95 Corridor Safety Improvements**
 
-**Implementation**: Real-time multi-state incident information via DOT Corridor Communicator
+**Implementation**: Real-time multi-state incident information via Matt's Experimental Sandbox
 **Study Period**: 12 months post-implementation
 **Corridor**: I-95 from North Carolina to Maryland (Virginia portion: 180 miles)
 
@@ -446,7 +446,7 @@ Crash Reduction Progress (NCHRP Framework):
 
 **Highway Safety Improvement Program (HSIP) Integration**
 
-States can use DOT Corridor Communicator data to support HSIP applications and reporting:
+States can use Matt's Experimental Sandbox data to support HSIP applications and reporting:
 
 **Eligible HSIP Activities Supported**:
 1. **Systemic Safety Improvements**: Data-driven identification of high-crash corridors
@@ -487,7 +487,7 @@ States can use DOT Corridor Communicator data to support HSIP applications and r
 
 **FHWA/USDOT Grant Competitiveness**:
 
-The DOT Corridor Communicator demonstrates compliance with federal requirements, significantly improving grant proposal quality and success rates.
+The Matt's Experimental Sandbox demonstrates compliance with federal requirements, significantly improving grant proposal quality and success rates.
 
 | Grant Program | Typical Award | Success Rate Improvement | Expected Additional Funding (5-year) |
 |---------------|---------------|------------------------|-------------------------------------|
@@ -736,7 +736,7 @@ When incorporating safety value using NCHRP-20-24(138) framework and FHWA CMFs:
 
 ### Federal Grant Programs Enhanced by System Capabilities
 
-The DOT Corridor Communicator directly addresses evaluation criteria in major FHWA/USDOT grant programs:
+The Matt's Experimental Sandbox directly addresses evaluation criteria in major FHWA/USDOT grant programs:
 
 #### SMART Grants (Strengthening Mobility and Revolutionizing Transportation)
 
@@ -811,7 +811,7 @@ The DOT Corridor Communicator directly addresses evaluation criteria in major FH
 
 ## Total Cost of Ownership (TCO) vs. Build-Your-Own Analysis
 
-### Option 1: DOT Corridor Communicator (SaaS)
+### Option 1: Matt's Experimental Sandbox (SaaS)
 
 **3-Year TCO (Medium State)**:
 
@@ -858,7 +858,7 @@ The DOT Corridor Communicator directly addresses evaluation criteria in major FH
 
 ### TCO Comparison
 
-| Metric | DOT Corridor Communicator | Build In-House | Savings |
+| Metric | Matt's Experimental Sandbox | Build In-House | Savings |
 |--------|--------------------------|----------------|---------|
 | **3-Year TCO** | $87,200 | $1,448,000 | **$1,360,800** |
 | **Year 1 Cost** | $44,000 | $947,000 | **$903,000** |
@@ -1059,7 +1059,7 @@ The DOT Corridor Communicator directly addresses evaluation criteria in major FH
 
 **Example (SMART Grant)**:
 - Total grant request: $6,000,000
-- DOT Corridor Communicator (3-year subscription): $87,200 (1.5% of grant)
+- Matt's Experimental Sandbox (3-year subscription): $87,200 (1.5% of grant)
 - Justification: "Unified data platform for real-time project monitoring, multi-state coordination, and standards compliance"
 
 **Advantages**:
@@ -1240,4 +1240,4 @@ The DOT Corridor Communicator directly addresses evaluation criteria in major FH
 - [Digital Infrastructure Guide](/docs/digital-infrastructure.md)
 - [Data Quality Standards](/docs/data-quality.md)
 
-For questions about ROI methodology or to request a customized analysis for your state, contact your DOT Corridor Communicator administrator or email sales@dotcorridor.com.
+For questions about ROI methodology or to request a customized analysis for your state, contact your Matt's Experimental Sandbox administrator or email sales@dotcorridor.com.

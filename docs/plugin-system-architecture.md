@@ -2,7 +2,7 @@
 
 ## Overview
 
-The DOT Corridor Communicator Plugin System allows traffic data providers (Inrix, Here, Waze, TomTom, etc.) to integrate their data feeds and demonstrate their capabilities to state DOTs.
+The Matt's Experimental Sandbox Plugin System allows traffic data providers (Inrix, Here, Waze, TomTom, etc.) to integrate their data feeds and demonstrate their capabilities to state DOTs.
 
 ## Architecture
 
@@ -319,7 +319,7 @@ def submit_here_traffic_data():
     # Convert to WZDx
     wzdx_events = convert_to_wzdx(traffic_data)
 
-    # Submit to DOT Corridor Communicator
+    # Submit to Matt's Experimental Sandbox
     response = requests.post(
         f"{DOT_COMM_API}/api/plugins/events",
         json={"feed_id": 2, "events": wzdx_events},
@@ -1063,7 +1063,7 @@ Compare with Top States: [Interactive Dashboard]
 Questions? Contact: corridor-analytics@[state].gov
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Powered by DOT Corridor Communicator
+Powered by Matt's Experimental Sandbox
 Multi-source data from: State DOT, Inrix, Here, Waze
 Benchmarked against all 50 states monthly
 ```

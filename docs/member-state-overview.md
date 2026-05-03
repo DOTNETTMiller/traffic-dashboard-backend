@@ -5,11 +5,11 @@
 **Comprehensive guide for state DOTs: Features, benefits, use cases, technical specs, and getting started**
 *(46+ states, real-time operations, digital infrastructure)*
 
-# DOT Corridor Communicator: Comprehensive Overview for Member States
+# Matt's Experimental Sandbox: Comprehensive Overview for Member States
 
 ## Executive Summary
 
-The **DOT Corridor Communicator** is a comprehensive real-time traffic operations and digital infrastructure platform that aggregates, normalizes, and analyzes data from **46+ state DOT feeds** across the United States. The system provides unified access to work zones, incidents, road conditions, and digital infrastructure data, enabling multi-state corridor coordination, data-driven decision-making, and advanced transportation system management.
+The **Matt's Experimental Sandbox** is a comprehensive real-time traffic operations and digital infrastructure platform that aggregates, normalizes, and analyzes data from **46+ state DOT feeds** across the United States. The system provides unified access to work zones, incidents, road conditions, and digital infrastructure data, enabling multi-state corridor coordination, data-driven decision-making, and advanced transportation system management.
 
 **Key Statistics:**
 - **46+ State Coverage**: Real-time data from 40+ state DOT feeds plus FHWA DTCD sources
@@ -23,9 +23,9 @@ The **DOT Corridor Communicator** is a comprehensive real-time traffic operation
 
 ## System Overview
 
-### What is the DOT Corridor Communicator?
+### What is the Matt's Experimental Sandbox?
 
-The DOT Corridor Communicator is a **centralized data hub** that solves one of transportation's biggest challenges: **fragmented data across state boundaries**. When an incident occurs on I-80 in Iowa, traffic managers in Nebraska, Wyoming, and California need to know about it. When a major work zone closes lanes on I-95 in Virginia, freight operators planning routes from Maine to Florida need that information.
+The Matt's Experimental Sandbox is a **centralized data hub** that solves one of transportation's biggest challenges: **fragmented data across state boundaries**. When an incident occurs on I-80 in Iowa, traffic managers in Nebraska, Wyoming, and California need to know about it. When a major work zone closes lanes on I-95 in Virginia, freight operators planning routes from Maine to Florida need that information.
 
 This system:
 1. **Aggregates** data from 46+ state DOT feeds in real-time
@@ -738,7 +738,7 @@ A trucking company operates routes on I-80 from California to New Jersey, spanni
 - Commercial vehicle restrictions vary by state
 - Detour planning requires manual coordination
 
-**Solution with DOT Corridor Communicator:**
+**Solution with Matt's Experimental Sandbox:**
 
 1. **Single Dashboard View**
    - All I-80 events from CA → NJ visible in one interface
@@ -777,7 +777,7 @@ A state DOT needs to prepare annual Transportation Performance Management (TPM) 
 - Inconsistent event classification
 - Difficulty demonstrating multi-state coordination
 
-**Solution with DOT Corridor Communicator:**
+**Solution with Matt's Experimental Sandbox:**
 
 1. **Automated Data Collection**
    - All work zones, incidents, and conditions already aggregated
@@ -816,7 +816,7 @@ A state DOT is planning a connected vehicle pilot project along a 50-mile urban 
 - Determine gaps in digital infrastructure
 - Plan for interoperability with neighboring states
 
-**Solution with DOT Corridor Communicator:**
+**Solution with Matt's Experimental Sandbox:**
 
 1. **Digital Infrastructure Assessment**
    - Upload BIM/IFC models for corridor infrastructure
@@ -856,7 +856,7 @@ Major winter storm impacts I-90 across 4 states (NY, PA, OH, IN), causing multip
 - Communicating consistent traveler information
 - Managing detour routes that cross state lines
 
-**Solution with DOT Corridor Communicator:**
+**Solution with Matt's Experimental Sandbox:**
 
 1. **Real-Time Situation Awareness**
    - Dashboard shows all I-90 incidents across 4 states
@@ -896,7 +896,7 @@ A state DOT manages 2,500 bridges and needs to integrate BIM models with operati
 - Real-time sensor data (strain gauges, accelerometers) not visualized
 - Condition assessment relies on manual inspections
 
-**Solution with DOT Corridor Communicator:**
+**Solution with Matt's Experimental Sandbox:**
 
 1. **IFC Model Integration**
    - Upload bridge BIM models (IFC format)
@@ -1327,7 +1327,7 @@ https://traffic-dashboard-backend-production.up.railway.app/api
 
 **Document Version:** 1.0
 **Last Updated:** January 15, 2025
-**Author:** DOT Corridor Communicator Project Team
+**Author:** Matt's Experimental Sandbox Project Team
 **Classification:** Public
 
-This document provides a comprehensive overview of the DOT Corridor Communicator for state DOT decision-makers, traffic operations staff, and technical teams. For additional information or to schedule a demonstration, please contact our partnerships team.
+This document provides a comprehensive overview of the Matt's Experimental Sandbox for state DOT decision-makers, traffic operations staff, and technical teams. For additional information or to schedule a demonstration, please contact our partnerships team.

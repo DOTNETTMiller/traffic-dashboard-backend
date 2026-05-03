@@ -337,7 +337,7 @@ if (element.ifc_type === 'IFCBRIDGE' && !element.properties.ClearHeight) {
 
 ---
 
-## Integration with DOT Corridor Communicator
+## Integration with Matt's Experimental Sandbox
 
 The Digital Infrastructure module uses these crosswalks to:
 
@@ -357,4 +357,4 @@ The Digital Infrastructure module uses these crosswalks to:
 - [ARC-ITS Integration](/docs/arc-its-ifc-integration.md)
 - [Data Quality Standards](/docs/data-quality.md)
 
-For questions about implementing standards crosswalks, contact your DOT Corridor Communicator administrator.
+For questions about implementing standards crosswalks, contact your Matt's Experimental Sandbox administrator.

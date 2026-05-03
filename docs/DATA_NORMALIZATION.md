@@ -2,7 +2,7 @@
 
 ## Overview
 
-The DOT Corridor Communicator aggregates traffic event data from **46 different sources** across multiple data formats and normalizes them into a unified structure focused on **interstate highway corridors**. This document explains how data from various states and sources is normalized to provide consistent, actionable traffic information.
+The Matt's Experimental Sandbox aggregates traffic event data from **46 different sources** across multiple data formats and normalizes them into a unified structure focused on **interstate highway corridors**. This document explains how data from various states and sources is normalized to provide consistent, actionable traffic information.
 
 ## Data Sources
 
@@ -54,7 +54,7 @@ To enable:
 
 ### Step 0: Interstate Highway Filtering
 
-**Critical**: The DOT Corridor Communicator focuses exclusively on **interstate highway corridors** to support cross-state DOT coordination and V2X communication.
+**Critical**: The Matt's Experimental Sandbox focuses exclusively on **interstate highway corridors** to support cross-state DOT coordination and V2X communication.
 
 #### Filtering Strategy
 
@@ -870,7 +870,7 @@ Returns all events in SAE J2540 format with truck-specific extensions.
 
 ## Conclusion
 
-The DOT Corridor Communicator's data normalization strategy enables:
+The Matt's Experimental Sandbox's data normalization strategy enables:
 
 1. **Unified Interface**: Consistent data structure across 46 diverse sources
 2. **Enhanced Coverage**: 4,050+ events vs. ~1,000 with WZDx alone

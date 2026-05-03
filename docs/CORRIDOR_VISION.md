@@ -34,7 +34,7 @@ This is not a theoretical future. The foundation is built and operating today.
 
 ## What Exists Today (March 2026)
 
-The DOT Corridor Communicator is live in production, serving real traffic operations:
+The Matt's Experimental Sandbox is live in production, serving real traffic operations:
 
 | Capability | Status | Scale |
 |-----------|--------|-------|
@@ -322,7 +322,7 @@ In return: cross-border incident notification measured in seconds instead of min
 
 The only thing missing is the decision to operate as one corridor instead of eleven separate states.
 
-The DOT Corridor Communicator is that decision made real.
+The Matt's Experimental Sandbox is that decision made real.
 
 ---
 

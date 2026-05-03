@@ -6,7 +6,7 @@
 
 ## Overview
 
-The DOT Corridor Communicator automatically generates **WZDx v4.2 compliant feeds** for states that don't provide official Work Zone Data Exchange feeds. These feeds are publicly accessible and suitable for consumption by:
+The Matt's Experimental Sandbox automatically generates **WZDx v4.2 compliant feeds** for states that don't provide official Work Zone Data Exchange feeds. These feeds are publicly accessible and suitable for consumption by:
 
 - Navigation applications (Waze, Google Maps, Apple Maps, HERE)
 - Commercial fleet routing systems
@@ -73,13 +73,13 @@ curl https://your-domain/api/wzdx/feed?format=geojson
 ```json
 {
   "feed_info": {
-    "publisher": "DOT Corridor Communicator",
+    "publisher": "Matt's Experimental Sandbox",
     "version": "4.2",
     "license": "https://creativecommons.org/publicdomain/zero/1.0/",
     "data_sources": [
       {
         "data_source_id": "corridor-communicator",
-        "organization_name": "DOT Corridor Communicator",
+        "organization_name": "Matt's Experimental Sandbox",
         "update_frequency": 60,
         "update_date": "2026-03-12T18:30:00Z"
       }
@@ -243,7 +243,7 @@ Validates a WZDx feed against the v4.2 specification.
 
 ## Upgraded Feeds (v3.1/v4.0/v4.1 → v4.2)
 
-The DOT Corridor Communicator also **upgrades older WZDx feeds to v4.2** from states that have official feeds but use outdated versions.
+The Matt's Experimental Sandbox also **upgrades older WZDx feeds to v4.2** from states that have official feeds but use outdated versions.
 
 ### Why Upgrade Feeds?
 
@@ -523,7 +523,7 @@ Generated feeds combine data from multiple sources:
 
 ### Q: How do I report data quality issues?
 
-**A:** Please contact your DOT Corridor Communicator administrator or file an issue through the appropriate channels.
+**A:** Please contact your Matt's Experimental Sandbox administrator or file an issue through the appropriate channels.
 
 ### Q: Will these feeds be discontinued when official feeds become available?
 

@@ -8,7 +8,7 @@
 
 ## Overview
 
-Phase 2 transforms the DOT Corridor Communicator into a comprehensive ITS asset management platform. This phase tracks the health, performance, and maintenance needs of transportation infrastructure equipment across all corridors.
+Phase 2 transforms the Matt's Experimental Sandbox into a comprehensive ITS asset management platform. This phase tracks the health, performance, and maintenance needs of transportation infrastructure equipment across all corridors.
 
 ### Key Components
 

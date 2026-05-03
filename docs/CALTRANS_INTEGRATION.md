@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the integration of California Department of Transportation (Caltrans) data sources into the DOT Corridor Communicator system.
+This document describes the integration of California Department of Transportation (Caltrans) data sources into the Matt's Experimental Sandbox system.
 
 ## Current Integration Status
 

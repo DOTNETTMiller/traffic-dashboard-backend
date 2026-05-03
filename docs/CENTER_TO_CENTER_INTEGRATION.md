@@ -2,7 +2,7 @@
 
 ## Overview
 
-The DOT Corridor Communicator Messenger can be deployed as a **modular backend server** that integrates with any traffic management software to enable **national center-to-center communication**. This document explains the architecture, deployment strategies, and integration methods for using the Corridor Communicator as a communication layer for Traffic Management Centers (TMCs).
+The Matt's Experimental Sandbox Messenger can be deployed as a **modular backend server** that integrates with any traffic management software to enable **national center-to-center communication**. This document explains the architecture, deployment strategies, and integration methods for using the Corridor Communicator as a communication layer for Traffic Management Centers (TMCs).
 
 ---
 
@@ -727,7 +727,7 @@ GET /api/convert/wzdx?state=ia
 # Response is valid WZDx GeoJSON
 {
   "feed_info": {
-    "publisher": "Iowa DOT Corridor Communicator",
+    "publisher": "Iowa Matt's Experimental Sandbox",
     "version": "4.2",
     "update_date": "2026-01-12T10:00:00Z"
   },
@@ -1194,7 +1194,7 @@ ENABLE_AI_CONSENSUS=true
 
 ## Conclusion
 
-The DOT Corridor Communicator provides a **flexible, modular backend** that can be integrated into any traffic management system. Whether you choose cloud hosting, on-premises deployment, or a hybrid approach, the system's standards-based APIs and event-driven architecture make it easy to:
+The Matt's Experimental Sandbox provides a **flexible, modular backend** that can be integrated into any traffic management system. Whether you choose cloud hosting, on-premises deployment, or a hybrid approach, the system's standards-based APIs and event-driven architecture make it easy to:
 
 - Share traffic data between TMCs
 - Enable center-to-center communication
@@ -1208,4 +1208,4 @@ By following the integration patterns and examples in this guide, your TMC can b
 
 **Last Updated**: January 12, 2026
 **Version**: 1.0
-**Maintained By**: DOT Corridor Communicator Team
+**Maintained By**: Matt's Experimental Sandbox Team

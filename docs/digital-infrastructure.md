@@ -4,7 +4,7 @@
 
 ## Overview
 
-The DOT Corridor Communicator provides comprehensive digital infrastructure capabilities that integrate Building Information Models (BIM/IFC) with real-time operational data from Intelligent Transportation Systems (ITS).
+The Matt's Experimental Sandbox provides comprehensive digital infrastructure capabilities that integrate Building Information Models (BIM/IFC) with real-time operational data from Intelligent Transportation Systems (ITS).
 
 This documentation suite covers:
 - BIM/IFC infrastructure modeling standards
@@ -240,7 +240,7 @@ IFC 4.3 introduced `IfcAlignment` and `IfcLinearPlacement` specifically to solve
 
 ### Recommended Solution: Multi-Reference Approach
 
-The DOT Corridor Communicator implements a **hybrid referencing strategy** that maintains all reference systems and their translations:
+The Matt's Experimental Sandbox implements a **hybrid referencing strategy** that maintains all reference systems and their translations:
 
 #### 1. Primary Reference: IFC Alignment with IfcLinearPlacement
 
@@ -289,7 +289,7 @@ IfcAlignment
 </PropertySet>
 ```
 
-**Implementation in DOT Corridor Communicator:**
+**Implementation in Matt's Experimental Sandbox:**
 - `infrastructure_elements` table stores all four reference types
 - API endpoints accept queries in any format:
   - `/api/infrastructure/query?station=125+50`
@@ -378,7 +378,7 @@ CREATE TABLE alignment_lrs_mapping (
 </specification>
 ```
 
-**Gap Analysis Impact:** The DOT Corridor Communicator flags elements missing alignment-based placement or cross-references as **high-severity gaps** because they cannot be queried by operational systems.
+**Gap Analysis Impact:** The Matt's Experimental Sandbox flags elements missing alignment-based placement or cross-references as **high-severity gaps** because they cannot be queried by operational systems.
 
 #### 5. Procurement Language for DOT Contracts
 
@@ -892,4 +892,4 @@ POST /api/infrastructure/device/:guid/link-arc-its
 **Version:** 1.1
 **Access:** https://[your-domain]/docs/digital-infrastructure.md
 
-For questions or feedback, contact your DOT Corridor Communicator administrator.
+For questions or feedback, contact your Matt's Experimental Sandbox administrator.

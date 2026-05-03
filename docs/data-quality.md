@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the data quality standards and field availability for traffic events from state DOT feeds across the DOT Corridor Communicator system.
+This document describes the data quality standards and field availability for traffic events from state DOT feeds across the Matt's Experimental Sandbox system.
 
 Last Updated: 2025-01-15
 

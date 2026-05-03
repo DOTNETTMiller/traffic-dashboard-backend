@@ -13,7 +13,7 @@ A **Common Data Environment (CDE)** is the foundational platform for ISO 19650-c
 **Key Findings:**
 - ISO 19650 mandates CDEs for all BIM projects
 - Transportation infrastructure requires specialized CDE capabilities beyond standard construction
-- Your DOT Corridor Communicator platform already has **70% of core CDE requirements**
+- Your Matt's Experimental Sandbox platform already has **70% of core CDE requirements**
 - Critical gaps: Workflow state management, formal information protocols, document retention compliance
 
 ---
@@ -464,7 +464,7 @@ CDE → Data Integration → Digital Twin → Analytics → Decision Support
 
 ---
 
-## 9. Gap Analysis: DOT Corridor Communicator vs. ISO 19650 CDE
+## 9. Gap Analysis: Matt's Experimental Sandbox vs. ISO 19650 CDE
 
 ### ✅ Current Capabilities (Already Implemented)
 
@@ -712,7 +712,7 @@ CREATE TABLE file_access_log (
 
 ## 11. Conclusion
 
-**DOT Corridor Communicator Current Status:**
+**Matt's Experimental Sandbox Current Status:**
 
 Your platform already provides a **strong foundation** for CDE capabilities:
 - ✅ Digital infrastructure data management (IFC, BIM, GIS)
@@ -731,7 +731,7 @@ Your platform already provides a **strong foundation** for CDE capabilities:
 
 **Competitive Position:**
 
-With these enhancements, DOT Corridor Communicator would be a **first-of-its-kind** platform combining:
+With these enhancements, Matt's Experimental Sandbox would be a **first-of-its-kind** platform combining:
 - ✅ ISO 19650-compliant CDE
 - ✅ Digital twin operational capabilities
 - ✅ Real-time ITS integration
@@ -755,4 +755,4 @@ With these enhancements, DOT Corridor Communicator would be a **first-of-its-kin
 
 **Last Updated:** 2026-03-12
 **Version:** 1.0
-**Author:** DOT Corridor Communicator Development Team
+**Author:** Matt's Experimental Sandbox Development Team

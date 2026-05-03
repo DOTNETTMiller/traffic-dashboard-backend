@@ -616,7 +616,7 @@ State agrees to provide:
 a) IDS (Information Delivery Specification) file within 10 days of Amendment execution
 b) Property naming conventions and device_id standards
 c) Technical point of contact for IFC-related questions
-d) Access to DOT Corridor Communicator platform for validation (if applicable)
+d) Access to Matt's Experimental Sandbox platform for validation (if applicable)
 
 6. GENERAL PROVISIONS
 

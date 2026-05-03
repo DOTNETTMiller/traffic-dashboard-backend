@@ -1,7 +1,7 @@
 # JSTAN Integration Guide
 ## AASHTO Joint Subcommittee on Data Standardization
 
-### DOT Corridor Communicator Integration with JSTAN Standards
+### Matt's Experimental Sandbox Integration with JSTAN Standards
 
 ---
 
@@ -10,7 +10,7 @@
 1. [What is JSTAN?](#what-is-jstan)
 2. [JSTAN Mission & Scope](#jstan-mission--scope)
 3. [Key Standards & Schemas](#key-standards--schemas)
-4. [Integration with DOT Corridor Communicator](#integration-with-dot-corridor-communicator)
+4. [Integration with Matt's Experimental Sandbox](#integration-with-dot-corridor-communicator)
 5. [Implementation Guidelines](#implementation-guidelines)
 6. [Data Exchange Protocols](#data-exchange-protocols)
 7. [Use Cases & Examples](#use-cases--examples)
@@ -159,7 +159,7 @@
 
 ---
 
-## Integration with DOT Corridor Communicator
+## Integration with Matt's Experimental Sandbox
 
 ### Current Integration Points
 
@@ -170,7 +170,7 @@
 - Supports spatial relationships (corridor → segment → device)
 - Uses standardized property sets for device attributes
 
-**DOT Corridor Communicator Implementation:**
+**Matt's Experimental Sandbox Implementation:**
 ```javascript
 // ITS Equipment with JSTAN-compatible structure
 {
@@ -210,7 +210,7 @@
 - Clearance data uses IDS-specified properties
 - Supports design-to-construction data exchange
 
-**DOT Corridor Communicator Integration:**
+**Matt's Experimental Sandbox Integration:**
 ```javascript
 // Bridge data following IFC Bridge + IDS
 {
@@ -259,7 +259,7 @@
 - RSU data follows NTCIP protocols
 - Multi-state coordination uses CTI standards
 
-**DOT Corridor Communicator Implementation:**
+**Matt's Experimental Sandbox Implementation:**
 ```javascript
 // V2X Message (SPaT - Signal Phase and Timing)
 {
@@ -301,7 +301,7 @@
 - Incident data follows TMDD (Traffic Management Data Dictionary)
 - Work zone data follows WZDx specification
 
-**DOT Corridor Communicator Implementation:**
+**Matt's Experimental Sandbox Implementation:**
 ```javascript
 // Incident Report (TMDD-compliant)
 {
@@ -629,7 +629,7 @@ const inspections = await aashtowareClient.bridges.inspections.list({
   inspection_date_to: '2024-12-31'
 });
 
-// Sync to DOT Corridor Communicator
+// Sync to Matt's Experimental Sandbox
 await syncBridgeInspections(inspections);
 ```
 
@@ -926,7 +926,7 @@ await syncBridgeInspections(inspections);
 
 ## Quick Start Checklist
 
-### For DOT Corridor Communicator Administrators:
+### For Matt's Experimental Sandbox Administrators:
 
 - [ ] Review current data structures against JSTAN standards
 - [ ] Identify gaps in IFC/IDS compliance
@@ -973,7 +973,7 @@ await syncBridgeInspections(inspections);
 - Phone: (202) 624-5800
 - Address: 555 12th Street NW, Suite 1000, Washington, DC 20004
 
-**DOT Corridor Communicator Support:**
+**Matt's Experimental Sandbox Support:**
 - Issues: https://github.com/your-repo/issues
 - Documentation: See `/docs` folder
 - Email: support@dot-corridor.gov
@@ -982,5 +982,5 @@ await syncBridgeInspections(inspections);
 
 **Document Version:** 1.0
 **Last Updated:** December 27, 2025
-**Prepared By:** DOT Corridor Communicator Development Team
+**Prepared By:** Matt's Experimental Sandbox Development Team
 **Next Review:** June 2026

@@ -17,7 +17,7 @@ This guide provides a practical, step-by-step process for state DOTs to transfor
 - CAD design files for bridges, roads, or ITS equipment
 - Access to ARC-ITS/ATMS system with device inventory
 - Basic understanding of your traffic management architecture
-- DOT Corridor Communicator account (free tier works for pilot)
+- Matt's Experimental Sandbox account (free tier works for pilot)
 
 ---
 
@@ -213,7 +213,7 @@ This guide provides a practical, step-by-step process for state DOTs to transfor
    print(f"Site location: {site.RefLatitude}, {site.RefLongitude}")
    ```
 
-**Day 10: Upload to DOT Corridor Communicator**
+**Day 10: Upload to Matt's Experimental Sandbox**
 
 1. **Initial Upload**
    ```
@@ -796,7 +796,7 @@ Track these KPIs to measure digital twin effectiveness:
 - **AASHTO TIG**: Technology Implementation Group
 - **ITE Connected Vehicle Committee**
 - **buildingSMART North America**
-- **DOT Corridor Communicator Forum**: community.corridor-communicator.org
+- **Matt's Experimental Sandbox Forum**: community.corridor-communicator.org
 
 ### Contact
 - Technical Support: support@corridor-communicator.org
@@ -807,5 +807,5 @@ Track these KPIs to measure digital twin effectiveness:
 
 **Document Version**: 1.0
 **Last Updated**: December 2024
-**Author**: DOT Corridor Communicator Team
+**Author**: Matt's Experimental Sandbox Team
 **License**: Public Domain (use freely for DOT implementations)

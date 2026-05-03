@@ -83,7 +83,7 @@
 - **I-35 (Texas to Minnesota):** Critical freight corridor, 6 states
 - **I-95 (Florida to Maine):** Highest traffic volume on East Coast
 
-**Proof Point:** The DOT Corridor Communicator project demonstrates federated work zone data exchange across Iowa, Nebraska, Wyoming, and other I-80 states using WZDx standard. Real-time deployment shows this approach works.
+**Proof Point:** The Matt's Experimental Sandbox project demonstrates federated work zone data exchange across Iowa, Nebraska, Wyoming, and other I-80 states using WZDx standard. Real-time deployment shows this approach works.
 
 ---
 
@@ -91,7 +91,7 @@
 
 **Leverage Existing Deployments (Don't Reinvent the Wheel):**
 
-**1. DOT Corridor Communicator (I-80, I-35)**
+**1. Matt's Experimental Sandbox (I-80, I-35)**
 - **Status:** Operational production deployment
 - **Coverage:** 15+ state DOT WZDx feeds across I-80 and I-35 corridors
 - **Technology:** Federated data aggregation, OSRM routing, PostgreSQL/Railway cloud deployment
@@ -288,7 +288,7 @@ Corridor Communicator demonstrates integration of:
 4. **Mode-agnostic:** Same architecture for highway, transit, rail, aviation
 5. **Open access:** Public APIs with standard authentication (OAuth 2.0)
 
-**Real-World Example:** DOT Corridor Communicator uses this exact architecture:
+**Real-World Example:** Matt's Experimental Sandbox uses this exact architecture:
 - Federates data from 15+ state DOT WZDx feeds
 - RESTful API for applications to consume
 - Standard GeoJSON output
@@ -1166,7 +1166,7 @@ This is POLICY research, not technical research - but it's critical.
 - K-anonymity for origin-destination studies
 - Geographic aggregation (traffic circles, not individual intersections)
 
-**Real Example:** DOT Corridor Communicator:
+**Real Example:** Matt's Experimental Sandbox:
 - Public WZDx data requires no authentication
 - Open source code allows security audit
 - HTTPS-only API
@@ -1192,7 +1192,7 @@ This is POLICY research, not technical research - but it's critical.
 - State-level authentication (API keys, OAuth)
 - HTTPS/TLS 1.3 mandatory
 
-**Example:** DOT Corridor Communicator uses this model
+**Example:** Matt's Experimental Sandbox uses this model
 - Queries 15+ state WZDx feeds directly
 - Aggregates client-side
 - No federal database intermediary
@@ -2009,6 +2009,6 @@ The Corridor Communicator project provides **proof points** for many of these re
 **Contact:** [Contact Information]
 
 **Supporting Evidence:**
-- DOT Corridor Communicator (https://corridor-communication-dashboard-production.up.railway.app)
+- Matt's Experimental Sandbox (https://corridor-communication-dashboard-production.up.railway.app)
 - Open source codebase demonstrating WZDx federation across 15+ states
 - Operational deployment proving technical feasibility

@@ -1,8 +1,8 @@
-# DOT Corridor Communicator - Platform Overview
+# Matt's Experimental Sandbox - Platform Overview
 
 ## Executive Summary
 
-The **DOT Corridor Communicator** is a comprehensive, intelligent transportation data integration and collaboration platform that connects 44+ state Department of Transportation (DOT) agencies across the United States. The system aggregates real-time traffic events, work zones, incidents, and truck parking information into a unified interface while providing advanced AI-powered analytics, federal grant assistance, and standards compliance validation.
+The **Matt's Experimental Sandbox** is a comprehensive, intelligent transportation data integration and collaboration platform that connects 44+ state Department of Transportation (DOT) agencies across the United States. The system aggregates real-time traffic events, work zones, incidents, and truck parking information into a unified interface while providing advanced AI-powered analytics, federal grant assistance, and standards compliance validation.
 
 **Live Platform:** https://corridor-communication-dashboard-production.up.railway.app
 

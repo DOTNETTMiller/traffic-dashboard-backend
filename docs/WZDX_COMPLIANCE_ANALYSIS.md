@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-The TETC DOT Corridor Communicator currently **consumes** WZDx feeds from 21+ state DOTs but does **not publish** a WZDx-compliant feed. This document outlines the requirements for creating a compliant WZDx feed and our current gaps.
+The TETC Matt's Experimental Sandbox currently **consumes** WZDx feeds from 21+ state DOTs but does **not publish** a WZDx-compliant feed. This document outlines the requirements for creating a compliant WZDx feed and our current gaps.
 
 ## WZDx Business Rules (Non-Negotiable)
 
@@ -84,7 +84,7 @@ The TETC DOT Corridor Communicator currently **consumes** WZDx feeds from 21+ st
 - Includes:
   - `feed_info_id`: UUID
   - `update_date`: UTC timestamp
-  - `publisher`: TETC DOT Corridor Communicator
+  - `publisher`: TETC Matt's Experimental Sandbox
   - `contact_name`: TETC Operations
   - `contact_email`: operations@tetcoalition.org
   - `update_frequency`: 300 seconds (5 minutes)
@@ -199,7 +199,7 @@ Access-Control-Allow-Origin: *
   "road_event_feed_info": {
     "feed_info_id": "uuid",
     "update_date": "2026-03-03T12:00:00Z",
-    "publisher": "TETC DOT Corridor Communicator",
+    "publisher": "TETC Matt's Experimental Sandbox",
     "contact_name": "TETC Operations",
     "contact_email": "operations@tetcoalition.org",
     "update_frequency": 300,

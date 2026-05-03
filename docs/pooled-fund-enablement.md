@@ -1,10 +1,10 @@
 ![CCAI Logo](./ccai-logo.png)
 
-# How DOT Corridor Communicator Enables the Connected Corridors Advancement Initiative
+# How Matt's Experimental Sandbox Enables the Connected Corridors Advancement Initiative
 
 ## Executive Summary
 
-The **DOT Corridor Communicator** serves as the foundational technical platform for the **Connected Corridors Advancement Initiative (CCAI)** Pooled Fund Study (Solicitation #1633). As states commit $2M collectively to modernize I-80 and I-35 corridors, this tool provides immediate, tangible value by addressing every major objective of the study through proven, production-ready capabilities.
+The **Matt's Experimental Sandbox** serves as the foundational technical platform for the **Connected Corridors Advancement Initiative (CCAI)** Pooled Fund Study (Solicitation #1633). As states commit $2M collectively to modernize I-80 and I-35 corridors, this tool provides immediate, tangible value by addressing every major objective of the study through proven, production-ready capabilities.
 
 **Bottom Line:** Rather than starting from scratch, participating states leverage a mature platform that already aggregates data from 40+ state DOTs, validates WZDx compliance, provides real-time corridor visualization, and enables the precise multi-state collaboration the pooled fund envisions.
 
@@ -37,14 +37,14 @@ The **DOT Corridor Communicator** serves as the foundational technical platform 
 
 ---
 
-## How DOT Corridor Communicator Directly Addresses Study Objectives
+## How Matt's Experimental Sandbox Directly Addresses Study Objectives
 
 ### 1. Gap Analysis of Existing State Data Feeds
 
 **Pooled Fund Requirement:**
 > "Conducting gap analysis of existing state data feeds"
 
-**What DOT Corridor Communicator Provides:**
+**What Matt's Experimental Sandbox Provides:**
 
 #### Real-Time Data Quality Monitoring
 - **40+ State DOT Feeds Already Integrated** - Including all 8 CCAI participating states
@@ -80,7 +80,7 @@ The system provides:
 **Pooled Fund Requirement:**
 > "Standardizing data formats across participating states"
 
-**What DOT Corridor Communicator Provides:**
+**What Matt's Experimental Sandbox Provides:**
 
 #### WZDx Standardization Engine
 - **Automated Normalization** - Converts Custom APIs → WZDx v4.2 format
@@ -128,7 +128,7 @@ The Corridor Communicator already handles:
 **Pooled Fund Requirement:**
 > "Developing consistent shared data policies"
 
-**What DOT Corridor Communicator Provides:**
+**What Matt's Experimental Sandbox Provides:**
 
 #### Policy Framework Already Implemented
 - **Data Sharing Governance** - 40+ states already using common access policies
@@ -159,7 +159,7 @@ The system demonstrates operational data sharing:
 **Pooled Fund Requirement:**
 > "Establishing compatible data schemas with mapping partners and fleet operators"
 
-**What DOT Corridor Communicator Provides:**
+**What Matt's Experimental Sandbox Provides:**
 
 #### Industry-Standard Schema Integration
 - **Google Maps Integration** - Export WZDx to Google's incident format
@@ -184,7 +184,7 @@ The Corridor Communicator supports:
 
 **Example Schema Compatibility:**
 ```
-State DOT Feed (WZDx) → DOT Corridor Communicator → Fleet Operator API
+State DOT Feed (WZDx) → Matt's Experimental Sandbox → Fleet Operator API
 
 Texas WZDx Event
   ↓
@@ -197,7 +197,7 @@ Normalized Schema (internal)
   └─→ CAV RSU (SAE J2735 TIM message)
 ```
 
-**Immediate Value:** Participating states don't build 8 different API integrations for mapping partners—they configure one integration to DOT Corridor Communicator, which handles all downstream schema translations.
+**Immediate Value:** Participating states don't build 8 different API integrations for mapping partners—they configure one integration to Matt's Experimental Sandbox, which handles all downstream schema translations.
 
 ---
 
@@ -206,7 +206,7 @@ Normalized Schema (internal)
 **Pooled Fund Requirement:**
 > "Piloting open data exchange systems"
 
-**What DOT Corridor Communicator Provides:**
+**What Matt's Experimental Sandbox Provides:**
 
 #### Production-Ready Open Data Platform
 - **40+ States Live** - Not a pilot, a proven production system
@@ -251,7 +251,7 @@ Pre-built components:
 **Pooled Fund Requirement:**
 > "Evaluating IoT device interoperability"
 
-**What DOT Corridor Communicator Provides:**
+**What Matt's Experimental Sandbox Provides:**
 
 #### Digital Infrastructure Module (New Feature)
 Comprehensive BIM/IFC integration for physical infrastructure:
@@ -297,7 +297,7 @@ Solves the "LRS vs. Milepost vs. Stationing vs. GPS" problem:
 **Pooled Fund Requirement:**
 > "Providing stakeholder training and technical support"
 
-**What DOT Corridor Communicator Provides:**
+**What Matt's Experimental Sandbox Provides:**
 
 #### Comprehensive Documentation Suite
 Live in production:
@@ -325,7 +325,7 @@ Available for immediate use:
 - **Data Normalization Playbook** - How to adapt legacy feeds to WZDx
 - **Adaptive Normalization Strategies** - Handling missing or inconsistent fields
 - **TETC DQI Scoring Matrix** - Understanding data quality metrics
-- **Multi-State Grant Integration** - Using DOT Corridor Communicator for SMART/RAISE/ATCMTD applications
+- **Multi-State Grant Integration** - Using Matt's Experimental Sandbox for SMART/RAISE/ATCMTD applications
 
 **Immediate Value:** Instead of developing training materials from scratch, participating states leverage documentation refined through 40+ state onboardings—accelerating staff ramp-up and reducing support burden.
 
@@ -335,7 +335,7 @@ Available for immediate use:
 
 ### Deliverable: Unified Standardized Data Dictionary
 
-**How DOT Corridor Communicator Satisfies This:**
+**How Matt's Experimental Sandbox Satisfies This:**
 
 The system implements a **comprehensive data model** based on:
 - **WZDx v4.2 Specification** - 80+ standardized fields for work zones
@@ -370,7 +370,7 @@ start_date:
 
 ### Deliverable: XML and JSON Format Validation Tools
 
-**How DOT Corridor Communicator Satisfies This:**
+**How Matt's Experimental Sandbox Satisfies This:**
 
 Built-in validation engine checks:
 - **WZDx JSON Schema** - Automated validation against official WZDx v4.2 schema
@@ -416,7 +416,7 @@ Built-in validation engine checks:
 
 ### Deliverable: Technology Integration Studies
 
-**How DOT Corridor Communicator Satisfies This:**
+**How Matt's Experimental Sandbox Satisfies This:**
 
 The system demonstrates **proven integrations** across multiple technology domains:
 
@@ -462,7 +462,7 @@ The system demonstrates **proven integrations** across multiple technology domai
 
 ### Deliverable: Infrastructure Enhancement Guides
 
-**How DOT Corridor Communicator Satisfies This:**
+**How Matt's Experimental Sandbox Satisfies This:**
 
 Extensive documentation on modernizing physical and digital infrastructure:
 
@@ -497,7 +497,7 @@ Extensive documentation on modernizing physical and digital infrastructure:
 
 ### Deliverable: In-Person Stakeholder Collaboration Events
 
-**How DOT Corridor Communicator Facilitates This:**
+**How Matt's Experimental Sandbox Facilitates This:**
 
 #### Real-Time Collaboration Tools
 - **Shared Dashboards** - All 8 states view I-80/I-35 data simultaneously during meetings
@@ -517,7 +517,7 @@ Extensive documentation on modernizing physical and digital infrastructure:
 - **API Access** - Technical staff can query data during meetings via API
 - **Screen Sharing Optimized** - High-contrast visuals for remote viewing
 
-**Example Meeting Agenda (Supported by DOT Corridor Communicator):**
+**Example Meeting Agenda (Supported by Matt's Experimental Sandbox):**
 1. **Data Quality Review** - Dashboard showing each state's WZDx compliance scores
 2. **Corridor Gap Analysis** - Interactive map highlighting I-80 segments lacking real-time data
 3. **Winter Ops Planning** - RWIS sensor coverage review + equipment gap identification
@@ -530,7 +530,7 @@ Extensive documentation on modernizing physical and digital infrastructure:
 
 ### Deliverable: Multi-State Grant Coordination Activities
 
-**How DOT Corridor Communicator Supports This:**
+**How Matt's Experimental Sandbox Supports This:**
 
 #### USDOT Grant Application Support
 The platform provides **evidence-based data** for major grant programs:
@@ -560,16 +560,16 @@ Pre-built reports for common grant requirements:
 - **Multi-State Partnership Letters** - Export collaboration evidence for applications
 - **Cost-Benefit Analysis** - Quantify ROI of improved data dissemination
 
-**Example Grant Narrative (Auto-Generated from DOT Corridor Communicator Data):**
-> "The I-80/I-35 Coalition partners currently exchange work zone data via the DOT Corridor Communicator platform, serving 8 states with real-time incident information. Analysis shows current WZDx compliance at 72% across participating states, with gaps identified in end time coverage (affecting CAV route planning) and equipment metadata (impacting V2X deployment). This SMART grant will address these gaps through coordinated digital infrastructure enhancement, leveraging existing platform integration with NTCIP devices, buildingSMART IFC standards, and SAE J2735 V2X messages. Expected outcomes: 95%+ WZDx compliance, 500+ IFC-compliant ITS devices cataloged, 50% reduction in work zone-related crashes."
+**Example Grant Narrative (Auto-Generated from Matt's Experimental Sandbox Data):**
+> "The I-80/I-35 Coalition partners currently exchange work zone data via the Matt's Experimental Sandbox platform, serving 8 states with real-time incident information. Analysis shows current WZDx compliance at 72% across participating states, with gaps identified in end time coverage (affecting CAV route planning) and equipment metadata (impacting V2X deployment). This SMART grant will address these gaps through coordinated digital infrastructure enhancement, leveraging existing platform integration with NTCIP devices, buildingSMART IFC standards, and SAE J2735 V2X messages. Expected outcomes: 95%+ WZDx compliance, 500+ IFC-compliant ITS devices cataloged, 50% reduction in work zone-related crashes."
 
-**Immediate Value:** Participating states don't start grant applications with blank pages—they export comprehensive data from DOT Corridor Communicator, dramatically reducing application preparation time and improving competitiveness.
+**Immediate Value:** Participating states don't start grant applications with blank pages—they export comprehensive data from Matt's Experimental Sandbox, dramatically reducing application preparation time and improving competitiveness.
 
 ---
 
 ### Deliverable: Formal Governance Charter Based on MOUs
 
-**How DOT Corridor Communicator Informs Governance:**
+**How Matt's Experimental Sandbox Informs Governance:**
 
 #### Proven Governance Models
 The platform operates under **existing multi-state agreements**:
@@ -593,7 +593,7 @@ The system demonstrates operational answers to common MOU questions:
 - Escalation Path: Persistent failures trigger manual review + technical assistance
 
 **3. System Maintenance Responsibilities**
-- Current Model: Central platform (DOT Corridor Communicator) maintained by host agency
+- Current Model: Central platform (Matt's Experimental Sandbox) maintained by host agency
 - State Responsibilities: Maintain source feeds, respond to validation errors
 - Cost Model: Shared hosting costs, per-state API usage fees (if applicable)
 
@@ -607,13 +607,13 @@ The system demonstrates operational answers to common MOU questions:
 - Data Portability: Full export of historical events in WZDx JSON format
 - Transition Support: 60-day grace period for alternative solution setup
 
-**Template MOU Language (Based on DOT Corridor Communicator Operations):**
+**Template MOU Language (Based on Matt's Experimental Sandbox Operations):**
 ```
 ARTICLE III - DATA EXCHANGE STANDARDS
 
 Section 3.1: Data Format
 All participating agencies agree to provide traffic event data in WZDx v4.2
-format or compatible format convertible via DOT Corridor Communicator normalization engine.
+format or compatible format convertible via Matt's Experimental Sandbox normalization engine.
 
 Section 3.2: Update Frequency
 Participating agencies shall refresh event data at intervals not exceeding 15 minutes
@@ -669,7 +669,7 @@ All participating agencies receive:
 
 ---
 
-### If Pooled Fund Leverages DOT Corridor Communicator
+### If Pooled Fund Leverages Matt's Experimental Sandbox
 
 **Month 1: Onboarding**
 - Integrate any remaining state feeds not already live
@@ -746,7 +746,7 @@ All participating agencies receive:
 - Incident clearance: Qualitative (improved reliability, reduced secondary crashes)
 
 **ROI Calculation:**
-- Investment: $150K (DOT Corridor Communicator customization)
+- Investment: $150K (Matt's Experimental Sandbox customization)
 - Annual Benefits: $40M (crash + delay reduction)
 - **Benefit-Cost Ratio:** 267:1
 - **Payback Period:** <1 month
@@ -954,11 +954,11 @@ All participating agencies receive:
 
 ---
 
-## Conclusion: Why DOT Corridor Communicator is the Right Choice
+## Conclusion: Why Matt's Experimental Sandbox is the Right Choice
 
 ### Summary of Value Proposition
 
-The Connected Corridors Advancement Initiative aims to modernize I-80 and I-35 operations through multi-state collaboration, open data standards, and CAV readiness. **DOT Corridor Communicator directly addresses every objective** of the pooled fund study through proven, production-ready capabilities:
+The Connected Corridors Advancement Initiative aims to modernize I-80 and I-35 operations through multi-state collaboration, open data standards, and CAV readiness. **Matt's Experimental Sandbox directly addresses every objective** of the pooled fund study through proven, production-ready capabilities:
 
 ✅ **Gap Analysis** - Automated validation of 40+ state feeds with detailed compliance reporting
 ✅ **Data Standardization** - WZDx normalization engine converts disparate formats to unified schema
@@ -990,7 +990,7 @@ The CCAI Pooled Fund Study advances USDOT strategic goals:
 - **Equity** - Rural traveler access to real-time information
 - **Climate** - Emissions reduction through congestion mitigation
 
-DOT Corridor Communicator provides the **technical foundation** to achieve these outcomes while establishing **replicable best practices** for other corridor coalitions nationwide.
+Matt's Experimental Sandbox provides the **technical foundation** to achieve these outcomes while establishing **replicable best practices** for other corridor coalitions nationwide.
 
 ---
 
@@ -1005,12 +1005,12 @@ DOT Corridor Communicator provides the **technical foundation** to achieve these
 **For State Technical Staff:**
 1. Audit current data feeds for WZDx compliance
 2. Identify gaps in end time coverage, equipment metadata, alignment data
-3. Coordinate with DOT Corridor Communicator team on API integration
+3. Coordinate with Matt's Experimental Sandbox team on API integration
 4. Participate in weekly office hours during Phase 1 onboarding
 
 **For Study Champions (Matt Miller, Tracy Larkin Thomason, Erika Kemp):**
 1. Present this enablement case to pooled fund steering committee
-2. Secure consensus on leveraging DOT Corridor Communicator as technical platform
+2. Secure consensus on leveraging Matt's Experimental Sandbox as technical platform
 3. Draft initial MOU language based on template provided
 4. Coordinate kickoff meeting with all 8 states + platform technical lead
 
@@ -1018,8 +1018,8 @@ DOT Corridor Communicator provides the **technical foundation** to achieve these
 
 ### Contact Information
 
-**DOT Corridor Communicator Platform:**
-- **Repository:** [GitHub - DOT Corridor Communicator](https://github.com/DOTNETTMiller/traffic-dashboard-backend)
+**Matt's Experimental Sandbox Platform:**
+- **Repository:** [GitHub - Matt's Experimental Sandbox](https://github.com/DOTNETTMiller/traffic-dashboard-backend)
 - **Live System:** https://traffic-dashboard-backend-production.up.railway.app
 - **Documentation:** `/docs/digital-infrastructure.md` (in repo)
 

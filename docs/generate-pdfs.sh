@@ -25,7 +25,7 @@ DOCS=(
 
 # Custom CSS for better table formatting and text rendering
 CSS_FILE="/tmp/pdf-styles.css"
-LOGO_PATH="/Users/mattmiller/Projects/DOT/DOT Corridor Communicator/frontend/public/assets/ccai-logo.png"
+LOGO_PATH="/Users/mattmiller/Projects/DOT/Matt's Experimental Sandbox/frontend/public/assets/ccai-logo.png"
 
 cat > "$CSS_FILE" << 'EOF'
 /* Logo Header */
@@ -35,7 +35,7 @@ body::before {
   width: 150px;
   height: 100px;
   margin-bottom: 30px;
-  background-image: url('/Users/mattmiller/Projects/DOT/DOT Corridor Communicator/frontend/public/assets/ccai-logo.png');
+  background-image: url('/Users/mattmiller/Projects/DOT/Matt's Experimental Sandbox/frontend/public/assets/ccai-logo.png');
   background-size: contain;
   background-repeat: no-repeat;
   background-position: left center;
@@ -193,7 +193,7 @@ p {
 EOF
 
 # Generate PDFs
-cd "/Users/mattmiller/Projects/DOT/DOT Corridor Communicator/docs"
+cd "/Users/mattmiller/Projects/DOT/Matt's Experimental Sandbox/docs"
 
 for doc in "${DOCS[@]}"; do
   IFS=":" read -r source_file output_name <<< "$doc"

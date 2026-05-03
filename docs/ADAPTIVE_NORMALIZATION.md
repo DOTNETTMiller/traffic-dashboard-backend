@@ -2,7 +2,7 @@
 
 ## Overview
 
-The DOT Corridor Communicator now includes an **adaptive normalization system** that automatically benefits from data quality improvements as states adopt better standards, without requiring code changes.
+The Matt's Experimental Sandbox now includes an **adaptive normalization system** that automatically benefits from data quality improvements as states adopt better standards, without requiring code changes.
 
 ## The Problem
 

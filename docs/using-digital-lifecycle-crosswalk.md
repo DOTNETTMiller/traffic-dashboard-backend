@@ -197,7 +197,7 @@ Simply customize the template with your project specifics!
 
 **Validation Process:**
 
-**STEP 1: Upload to DOT Corridor Communicator Platform**
+**STEP 1: Upload to Matt's Experimental Sandbox Platform**
 
 ```
 Platform automatically runs crosswalk validation:
@@ -566,7 +566,7 @@ Procurement:
 ```
 
 **Step 5: Share with Crosswalk Community**
-- Submit to DOT Corridor Communicator for inclusion in next crosswalk version
+- Submit to Matt's Experimental Sandbox for inclusion in next crosswalk version
 - Other states benefit from your work!
 
 ### 7.2 Use Case: Troubleshooting Data Integration Issue
@@ -658,7 +658,7 @@ Version 2.0: Major update for IFC4x4 (January 2025)
 
 ### 9.1 Downloadable Templates
 
-**Available via DOT Corridor Communicator:**
+**Available via Matt's Experimental Sandbox:**
 
 □ RFP Section Template (generated from Crosswalk Tab 5)
 □ Validation Checklist (generated from Crosswalk Tab 6)
@@ -683,7 +683,7 @@ Version 2.0: Major update for IFC4x4 (January 2025)
 
 ### 9.3 Community Forum
 
-**DOT Corridor Communicator Forum: Crosswalk Section**
+**Matt's Experimental Sandbox Forum: Crosswalk Section**
 - Share use cases and lessons learned
 - Ask questions (answered by peers and experts)
 - Download agency-specific addendums shared by other states

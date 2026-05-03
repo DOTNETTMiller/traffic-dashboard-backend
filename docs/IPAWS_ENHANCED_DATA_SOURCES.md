@@ -2,7 +2,7 @@
 
 ## Overview
 
-The DOT Corridor Communicator IPAWS Alert Generator now integrates with multiple authoritative data sources for highly accurate population impact analysis. This enables precise geofencing that targets rural/highway corridors while intelligently excluding urban areas to prevent false WEA alerts.
+The Matt's Experimental Sandbox IPAWS Alert Generator now integrates with multiple authoritative data sources for highly accurate population impact analysis. This enables precise geofencing that targets rural/highway corridors while intelligently excluding urban areas to prevent false WEA alerts.
 
 ## Integrated Data Sources
 
