@@ -7,6 +7,7 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { isNearBorder } from '../utils/borderProximity';
 import { analyzePolyline, validateAndFixGeometry } from '../utils/polylineDiagnostics';
+import { signFor } from '../utils/mutcdSigns';
 import polyline from '@mapbox/polyline';
 
 // Decode an encodedPolyline string back into [lng, lat] coordinate array
@@ -276,10 +277,12 @@ const isInterstateEvent = (event) => {
   return interstatePattern.test(text) && !stateRoutePattern.test(corridor);
 };
 
-// Custom marker icons based on event type with traffic sign symbols
+// Custom marker icons based on event type with traffic sign symbols.
+// Sign selection delegates to mutcdSigns.js — picks the right MUTCD sign
+// (W21-1 workers, W20-3 road closed, M4-9 detour, R5-1 do not enter, etc.)
+// for the event's type / description / lanes-affected combination.
 const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
-  const { eventType, description = '', lanesAffected = '', severity, severityLevel, geometry } = event;
-  const normalizedSeverity = normalizeSeverity(severityLevel || severity);
+  const { geometry } = event;
 
   // Check if event is near a state border
   const borderInfo = isNearBorder(event);
@@ -290,154 +293,9 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
   const isEnhanced = geometrySource === 'osrm' || geometrySource === 'state_dot_wfs' || geometrySource === 'interstate_polyline' || geometrySource === 'interstate' || geometrySource === 'feed_polyline';
   const isFallback = geometrySource === 'straight_line' || geometrySource === 'straight';
 
-  let iconSvg = '';
+  const sign = signFor(event);
+  const iconSvg = sign.svg;
 
-  if (eventType === 'Closure') {
-    const closureType = getLaneClosureType(description, lanesAffected);
-
-    if (closureType === 'full') {
-      // Red circle with white bar (Do Not Enter)
-      iconSvg = `
-        <svg width="32" height="32" viewBox="0 0 32 32">
-          <circle cx="16" cy="16" r="14" fill="#d83a3a" stroke="white" stroke-width="2"/>
-          <rect x="6" y="14" width="20" height="4" fill="white" rx="1"/>
-        </svg>
-      `;
-    } else if (closureType === 'right') {
-      // Orange diamond with left-pointing arrow (right lane closed, merge left)
-      iconSvg = `
-        <svg width="32" height="32" viewBox="0 0 32 32">
-          <rect x="16" y="0" width="18" height="18" fill="#c97a16" stroke="white"
-                stroke-width="2" transform="rotate(45 16 16)"/>
-          <path d="M 20 16 L 12 16 L 15 12 M 12 16 L 15 20"
-                stroke="black" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      `;
-    } else if (closureType === 'left') {
-      // Orange diamond with right-pointing arrow (left lane closed, merge right)
-      iconSvg = `
-        <svg width="32" height="32" viewBox="0 0 32 32">
-          <rect x="16" y="0" width="18" height="18" fill="#c97a16" stroke="white"
-                stroke-width="2" transform="rotate(45 16 16)"/>
-          <path d="M 12 16 L 20 16 L 17 12 M 20 16 L 17 20"
-                stroke="black" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      `;
-    } else {
-      // Orange diamond only (multiple lanes or unspecified)
-      iconSvg = `
-        <svg width="32" height="32" viewBox="0 0 32 32">
-          <rect x="16" y="0" width="18" height="18" fill="#c97a16" stroke="white"
-                stroke-width="2" transform="rotate(45 16 16)"/>
-        </svg>
-      `;
-  }
-  } else if (eventType === 'Weather') {
-    const weatherType = getWeatherType(description);
-    const color = normalizedSeverity === 'high' ? '#d83a3a' : '#5a8dd6';
-
-    if (weatherType === 'snow') {
-      // Snowflake
-      iconSvg = `
-        <svg width="32" height="32" viewBox="0 0 32 32">
-          <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
-          <g stroke="white" stroke-width="2" stroke-linecap="round">
-            <line x1="16" y1="8" x2="16" y2="24"/>
-            <line x1="8" y1="16" x2="24" y2="16"/>
-            <line x1="11" y1="11" x2="21" y2="21"/>
-            <line x1="21" y1="11" x2="11" y2="21"/>
-            <line x1="16" y1="8" x2="13" y2="11"/>
-            <line x1="16" y1="8" x2="19" y2="11"/>
-          </g>
-        </svg>
-      `;
-    } else if (weatherType === 'rain') {
-      // Raindrops
-      iconSvg = `
-        <svg width="32" height="32" viewBox="0 0 32 32">
-          <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
-          <path d="M 12 12 Q 12 10 14 10 Q 16 10 16 12 L 16 18 Q 16 20 14 20 Q 12 20 12 18 Z"
-                fill="white"/>
-          <path d="M 18 14 Q 18 12 20 12 Q 22 12 22 14 L 22 20 Q 22 22 20 22 Q 18 22 18 20 Z"
-                fill="white" opacity="0.8"/>
-        </svg>
-      `;
-    } else if (weatherType === 'wind') {
-      // Wavy lines (wind/fog)
-      iconSvg = `
-        <svg width="32" height="32" viewBox="0 0 32 32">
-          <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
-          <path d="M 8 12 Q 12 10 16 12 Q 20 14 24 12" stroke="white" stroke-width="2"
-                fill="none" stroke-linecap="round"/>
-          <path d="M 8 16 Q 12 14 16 16 Q 20 18 24 16" stroke="white" stroke-width="2"
-                fill="none" stroke-linecap="round"/>
-          <path d="M 8 20 Q 12 18 16 20 Q 20 22 24 20" stroke="white" stroke-width="2"
-                fill="none" stroke-linecap="round"/>
-        </svg>
-      `;
-    } else {
-      // General weather (cloud)
-      iconSvg = `
-        <svg width="32" height="32" viewBox="0 0 32 32">
-          <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
-          <path d="M 10 18 Q 10 14 13 14 Q 13 12 15 12 Q 17 12 17 14 Q 20 14 20 17 Q 20 20 17 20 L 13 20 Q 10 20 10 18 Z"
-                fill="white"/>
-        </svg>
-      `;
-    }
-  } else if (eventType === 'Incident') {
-    // Red octagon (stop sign shape) with exclamation
-    iconSvg = `
-      <svg width="32" height="32" viewBox="0 0 32 32">
-        <path d="M 10 4 L 22 4 L 28 10 L 28 22 L 22 28 L 10 28 L 4 22 L 4 10 Z"
-              fill="#d83a3a" stroke="white" stroke-width="2"/>
-        <text x="16" y="23" font-size="20" font-weight="bold" fill="white"
-              text-anchor="middle">!</text>
-      </svg>
-    `;
-  } else if (eventType === 'Construction') {
-    // MUTCD W21-1a "Workers" work-zone sign — orange diamond with a worker
-    // silhouette in black. Toned to the desaturated-orange palette; high
-    // severity bumps to red the way fluorescent pink work-zone signs do.
-    const fill = normalizedSeverity === 'high' ? '#d83a3a' : '#e08a1f';
-    iconSvg = `
-      <svg width="32" height="32" viewBox="0 0 32 32">
-        <!-- Orange diamond (rotated square) -->
-        <polygon points="16,2.5 29.5,16 16,29.5 2.5,16"
-                 fill="${fill}"
-                 stroke="#1d1d1f"
-                 stroke-width="0.9"
-                 stroke-linejoin="round"/>
-        <!-- Hard hat brim -->
-        <path d="M 12.5 11.5 L 19.5 11.5 L 19 10 L 13 10 Z" fill="#1d1d1f"/>
-        <!-- Hard hat dome -->
-        <path d="M 13.4 10 L 18.6 10 Q 18.4 7.5 16 7.5 Q 13.6 7.5 13.4 10 Z" fill="#1d1d1f"/>
-        <!-- Head -->
-        <circle cx="16" cy="13" r="1.4" fill="#1d1d1f"/>
-        <!-- Body / shoulders -->
-        <path d="M 12 15.5 L 20 15.5 L 19 21 L 13 21 Z" fill="#1d1d1f"/>
-        <!-- Legs -->
-        <rect x="13.2" y="20.6" width="2"   height="4.5" fill="#1d1d1f"/>
-        <rect x="16.8" y="20.6" width="2"   height="4.5" fill="#1d1d1f"/>
-        <!-- Arm holding shovel -->
-        <line x1="19.5" y1="17" x2="22" y2="22"
-              stroke="#1d1d1f" stroke-width="1.1" stroke-linecap="round"/>
-      </svg>
-    `;
-  } else {
-    // Default: Circle
-    const colors = {
-      high: '#d83a3a',
-      medium: '#c97a16',
-      low: '#10b981'
-    };
-    const color = colors[normalizedSeverity] || colors.medium;
-    iconSvg = `
-      <svg width="32" height="32" viewBox="0 0 32 32">
-        <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
-      </svg>
-    `;
-  }
 
   return L.divIcon({
     className: 'custom-marker',
