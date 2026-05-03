@@ -42,6 +42,7 @@ import ClosureApprovalDashboard from './components/ClosureApprovalDashboard';
 import DMSMessagingPanel from './components/DMSMessagingPanel';
 import DiversionRoutePanel from './components/DiversionRoutePanel';
 import NavSidebar from './components/NavSidebar';
+import IntroSplash from './components/IntroSplash';
 import './styles/App.css';
 
 // Lazy load heavy components (reduces initial bundle by ~4 MB)
@@ -673,13 +674,19 @@ function App() {
 
   return (
     <div className={`app ${view === 'groundTruth' ? 'ground-truth-view' : ''}`}>
+      {/* Intro splash — plays once per session, then unmounts */}
+      <IntroSplash targetSelector=".title-logo" />
       {/* Header */}
       <header className="header">
         <div className="header-content">
           <h1 className="title">
-            Matt&rsquo;s Experimental Sandbox
+            <img
+              className="title-logo"
+              src="/assets/sandbox-logo.png"
+              alt="Matt's Experimental Sandbox"
+            />
             <span style={{
-              fontSize: '10px',
+              fontSize: '11px',
               fontWeight: '400',
               marginLeft: '12px',
               opacity: '0.7'

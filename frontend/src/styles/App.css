@@ -144,12 +144,25 @@ body {
 
 .title {
   margin: 0;
+  display: inline-flex;
+  align-items: center;
   font-family: var(--font-display);
   font-size: var(--fs-22);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.02em;
   color: var(--accent);
+}
+
+/* Logo wordmark in the header — replaces text title. The PNG itself
+   contains the styled "MATT'S EXPERIMENTAL SANDBOX" lettering, so
+   this is the visual title and the byline span sits beside it. */
+.title-logo {
+  height: 36px;
+  width: auto;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .header-info {
@@ -233,6 +246,85 @@ body {
   text-transform: none;
   letter-spacing: 0;
   color: var(--chrome-muted);
+}
+
+/* =========================================================================
+   Intro splash — opens logo large + centered, hazard-stripe wipe across,
+   logo springs to its final header position via FLIP. JS computes the
+   destination transform; CSS just defines the easing + the sweep keyframe.
+   See components/IntroSplash.jsx for phase orchestration.
+   ========================================================================= */
+.intro-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;            /* above sticky header (10000) and dialogs */
+  background: var(--chrome-bg-solid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;       /* never trap clicks even if animation hitches */
+  transition: opacity 400ms var(--ease-soft) 800ms,
+              background-color 600ms var(--ease-soft) 600ms;
+}
+
+/* During shrink phase the bg fades out so the chrome reveals behind the
+   in-flight logo. */
+.intro-splash--shrink {
+  background: transparent;
+  opacity: 0;
+}
+
+.intro-splash__logo {
+  /* Initial state: large, centered, soft glow in brand orange. */
+  height: 180px;
+  width: auto;
+  filter: drop-shadow(0 0 36px rgba(240, 130, 48, 0.45))
+          drop-shadow(0 8px 24px rgba(0, 0, 0, 0.4));
+  animation: intro-logo-pop 600ms var(--ease-spring) both;
+  transform-origin: center center;
+  /* Default transition for the FLIP: gets overridden by inline style during
+     shrink phase to hit the precise destination. */
+  transition: transform 800ms var(--ease-spring);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+@keyframes intro-logo-pop {
+  0%   { opacity: 0; transform: scale(0.7); }
+  60%  { opacity: 1; transform: scale(1.04); }   /* slight overshoot */
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Hazard-stripe sweep — sized larger than the viewport so the diagonal
+   pattern fully covers, translates from off-screen left to off-screen right
+   during the 'sweep' phase. PurposeBuilt's signature visual element. */
+.intro-splash__sweep {
+  position: absolute;
+  top: -50%;
+  left: -100%;
+  width: 250%;
+  height: 200%;
+  background: repeating-linear-gradient(-45deg,
+    var(--accent) 0 28px,
+    transparent 28px 56px);
+  opacity: 0.85;
+  transform: translateX(0);
+  transition: transform 700ms var(--ease-spring);
+  will-change: transform;
+}
+
+.intro-splash--sweep .intro-splash__sweep,
+.intro-splash--shrink .intro-splash__sweep {
+  transform: translateX(60%);  /* sweeps off the right edge */
+}
+
+/* Reduced motion: never animate. Component already short-circuits in JS,
+   but this is the belt-and-suspenders for any phase that does mount. */
+@media (prefers-reduced-motion: reduce) {
+  .intro-splash {
+    display: none !important;
+  }
 }
 
 .controls {
