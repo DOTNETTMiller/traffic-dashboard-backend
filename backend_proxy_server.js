@@ -21177,10 +21177,38 @@ app.get('/api/predictive/incident-impact', async (req, res) => {
       else if (desc.includes('two lanes') || desc.includes('2 lanes')) laneMult = 1.2;
       else if (desc.includes('shoulder')) laneMult = 0.6;
 
-      const duration = Math.round(baseDuration * SEV_MULT[sev] * laneMult);
-      const queueMiles = Math.round((sev === 'high' ? 2.5 : sev === 'medium' ? 1.5 : 0.8) * laneMult * 10) / 10;
-      const affectedVolume = sev === 'high' ? 1500 : sev === 'medium' ? 1000 : 600;
-      const maxDelayMin = Math.round(duration * 0.6);
+      // Deterministic per-event jitter (±18%) so two similar events don't
+      // produce byte-identical predictions. Hash the id; same id → same
+      // jitter on refresh. Without this, every medium-severity all-lanes-
+      // closed construction event was rendering exactly 2.5 mi / 151 min.
+      const jitterFor = (id) => {
+        const s = String(id || 'unknown');
+        let h = 0;
+        for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+        // Map to [-0.18, +0.18]
+        return ((Math.abs(h) % 1000) / 1000 - 0.5) * 0.36;
+      };
+      const j = jitterFor(e.id);
+
+      // Event duration: how long the work zone / incident is on-scene. This
+      // is the clearance window, NOT the per-driver delay.
+      const duration = Math.round(baseDuration * SEV_MULT[sev] * laneMult * (1 + j));
+      const queueMiles = Math.round((sev === 'high' ? 2.5 : sev === 'medium' ? 1.5 : 0.8) * laneMult * (1 + j) * 10) / 10;
+      const affectedVolume = Math.round((sev === 'high' ? 1500 : sev === 'medium' ? 1000 : 600) * (1 + j));
+
+      // Max per-driver delay = queue_miles / effective_speed_mph_in_queue
+      // + service_time. Effective speed during a stable queue: ~5 mph for
+      // high severity (heavy stop-and-go), ~10 mph for medium, ~15 mph for
+      // low. Service time covers the join + slow-pass-through. Capped at
+      // 60 min — beyond that drivers reroute and the model breaks.
+      const queueSpeedMph = sev === 'high' ? 5 : sev === 'medium' ? 10 : 15;
+      const SERVICE_TIME_MIN = 5;
+      const rawDelay = (queueMiles / queueSpeedMph) * 60 + SERVICE_TIME_MIN;
+      const maxDelayMin = Math.max(5, Math.min(60, Math.round(rawDelay)));
+
+      // Economic cost scales with the cumulative delay across affected
+      // volume — same shape as before, but driven by the corrected (lower)
+      // maxDelayMin so cost numbers also come back to plausible.
       const economicCostUsd = Math.round((affectedVolume * (maxDelayMin / 60)) * 70);
       const fuelGal = Math.round(affectedVolume * (maxDelayMin / 60) * 0.5);
       const emissionsKg = Math.round(fuelGal * 8.8);
@@ -21207,7 +21235,7 @@ app.get('/api/predictive/incident-impact', async (req, res) => {
         estimated_fuel_wasted_gallons: fuelGal,
         estimated_emissions_kg_co2: emissionsKg,
         dms_message_recommendations: dmsMsgs,
-        model_version: 'baseline-heuristic-v1',
+        model_version: 'baseline-heuristic-v2',
         confidence_level: sev === 'high' ? 'MEDIUM' : 'HIGH',
         components: { base_duration_min: baseDuration, severity: sev, lane_scope_multiplier: laneMult }
       };
