@@ -158,7 +158,7 @@ body {
    contains the styled "MATT'S EXPERIMENTAL SANDBOX" lettering, so
    this is the visual title and the byline span sits beside it. */
 .title-logo {
-  height: 36px;
+  height: 56px;
   width: auto;
   display: block;
   user-select: none;
@@ -264,8 +264,11 @@ body {
   justify-content: center;
   overflow: hidden;
   pointer-events: none;       /* never trap clicks even if animation hitches */
-  transition: opacity 400ms var(--ease-soft) 800ms,
-              background-color 600ms var(--ease-soft) 600ms;
+  /* Delays sync with IntroSplash.jsx phase timings. Background fades
+     transparent during the shrink so the chrome reveals behind the in-flight
+     logo; opacity completes the dissolve as the shrink lands. */
+  transition: opacity 500ms var(--ease-soft) 1100ms,
+              background-color 800ms var(--ease-soft) 700ms;
 }
 
 /* During shrink phase the bg fades out so the chrome reveals behind the
@@ -279,7 +282,7 @@ body {
   /* Initial state: hero-large, centered, soft glow in brand orange.
      clamp scales with viewport: 240px floor, 480px ceiling, 38vh in between.
      This is the size as it appears at the start of the intro; FLIP shrink
-     transforms it down to the header's .title-logo height (36px). */
+     transforms it down to the header's .title-logo height (56px). */
   height: clamp(240px, 38vh, 480px);
   width: auto;
   filter: drop-shadow(0 0 48px rgba(240, 130, 48, 0.55))
@@ -287,8 +290,8 @@ body {
   animation: intro-logo-pop 600ms var(--ease-spring) both;
   transform-origin: center center;
   /* Default transition for the FLIP: gets overridden by inline style during
-     shrink phase to hit the precise destination. */
-  transition: transform 800ms var(--ease-spring);
+     shrink phase to hit the precise destination (uses SHRINK_MS=1100ms). */
+  transition: transform 1100ms var(--ease-spring);
   user-select: none;
   -webkit-user-drag: none;
 }
@@ -313,7 +316,7 @@ body {
     transparent 28px 56px);
   opacity: 0.85;
   transform: translateX(0);
-  transition: transform 700ms var(--ease-spring);
+  transition: transform 1000ms var(--ease-spring);
   will-change: transform;
 }
 
@@ -341,7 +344,7 @@ body {
   background-color: var(--surface-elevated);
   border-bottom: 1px solid var(--border);
   position: sticky;
-  top: 50px;
+  top: 80px;
   z-index: 9999;
 }
 
@@ -793,7 +796,7 @@ body {
    ========================================================================= */
 .nav-sidebar {
   position: fixed !important;
-  top: 50px;
+  top: 80px;
   left: 0;
   bottom: 0;
   width: var(--nav-w, 56px);

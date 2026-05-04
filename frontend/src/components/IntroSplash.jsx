@@ -24,10 +24,11 @@ const SESSION_KEY = 'pbs-intro-played';
 
 // Phase timing (ms). Tuned so the moment the sweep crosses the logo,
 // the shrink starts — feels like the sweep "carries" the logo to the chrome.
-const HOLD_MS = 700;        // logo at full size, splash bg solid
-const SWEEP_MS = 700;       // hazard stripe wipe duration
-const SHRINK_MS = 800;      // logo spring to final position
-const FADE_MS = 400;        // overlay fade-out tail
+// Total ~3.7s, deliberately unhurried for a once-per-session hero moment.
+const HOLD_MS = 1200;       // logo at full size, splash bg solid
+const SWEEP_MS = 1000;      // hazard stripe wipe duration
+const SHRINK_MS = 1100;     // logo spring to final position
+const FADE_MS = 500;        // overlay fade-out tail
 
 export default function IntroSplash({ targetSelector = '.title-logo' }) {
   const [phase, setPhase] = useState('idle');  // idle | show | sweep | shrink | done
@@ -66,7 +67,8 @@ export default function IntroSplash({ targetSelector = '.title-logo' }) {
           const ty = dRect.top + dRect.height / 2 - (sRect.top + sRect.height / 2);
           setDestStyle({
             transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
-            transition: `transform ${SHRINK_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`
+            transition: `transform ${SHRINK_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`,
+            filter: 'drop-shadow(0 0 12px rgba(240, 130, 48, 0.25))'
           });
         }
       }
