@@ -42,41 +42,40 @@ export default function IntroSplash({ targetSelector = '.title-logo' }) {
       sessionStorage.setItem(SESSION_KEY, '1');
       return;
     }
-
     sessionStorage.setItem(SESSION_KEY, '1');
+
+    // All phase transitions scheduled in a single mount-only effect so a
+    // mid-flight phase change doesn't cancel the next timer via deps cleanup.
     setPhase('show');
-  }, []);
 
-  useEffect(() => {
-    if (phase !== 'show') return;
-
-    // Schedule the sweep and shrink phases off the hold.
     const t1 = setTimeout(() => setPhase('sweep'), HOLD_MS);
     const t2 = setTimeout(() => {
-      // Measure the destination header logo right before we animate to it.
-      // Doing this late means the destination has settled into its final
-      // layout (after the chrome's fonts loaded etc).
+      // Measure destination header logo right before flying to it. Late
+      // measurement means the destination layout has settled (fonts loaded,
+      // logo PNG decoded into intrinsic dimensions).
       const dest = document.querySelector(targetSelector);
       const splashLogo = splashLogoRef.current;
       if (dest && splashLogo) {
         const dRect = dest.getBoundingClientRect();
         const sRect = splashLogo.getBoundingClientRect();
-        // Translate from current (centered) position to the destination
-        // top-left, plus scale to match destination height.
-        const scale = dRect.height / sRect.height;
-        const tx = dRect.left + dRect.width / 2 - (sRect.left + sRect.width / 2);
-        const ty = dRect.top + dRect.height / 2 - (sRect.top + sRect.height / 2);
-        setDestStyle({
-          transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
-          transition: `transform ${SHRINK_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`
-        });
+        // Guard against unloaded destination (height === 0) — without this,
+        // scale would be 0 and the logo would vanish before fade-out.
+        if (dRect.height > 0 && sRect.height > 0) {
+          const scale = dRect.height / sRect.height;
+          const tx = dRect.left + dRect.width / 2 - (sRect.left + sRect.width / 2);
+          const ty = dRect.top + dRect.height / 2 - (sRect.top + sRect.height / 2);
+          setDestStyle({
+            transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
+            transition: `transform ${SHRINK_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`
+          });
+        }
       }
       setPhase('shrink');
     }, HOLD_MS + 200);
     const t3 = setTimeout(() => setPhase('done'), HOLD_MS + 200 + SHRINK_MS + FADE_MS);
 
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [phase, targetSelector]);
+  }, [targetSelector]);
 
   if (phase === 'idle' || phase === 'done') return null;
 

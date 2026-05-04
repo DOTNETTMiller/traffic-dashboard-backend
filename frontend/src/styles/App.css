@@ -276,11 +276,14 @@ body {
 }
 
 .intro-splash__logo {
-  /* Initial state: large, centered, soft glow in brand orange. */
-  height: 180px;
+  /* Initial state: hero-large, centered, soft glow in brand orange.
+     clamp scales with viewport: 240px floor, 480px ceiling, 38vh in between.
+     This is the size as it appears at the start of the intro; FLIP shrink
+     transforms it down to the header's .title-logo height (36px). */
+  height: clamp(240px, 38vh, 480px);
   width: auto;
-  filter: drop-shadow(0 0 36px rgba(240, 130, 48, 0.45))
-          drop-shadow(0 8px 24px rgba(0, 0, 0, 0.4));
+  filter: drop-shadow(0 0 48px rgba(240, 130, 48, 0.55))
+          drop-shadow(0 12px 32px rgba(0, 0, 0, 0.45));
   animation: intro-logo-pop 600ms var(--ease-spring) both;
   transform-origin: center center;
   /* Default transition for the FLIP: gets overridden by inline style during
