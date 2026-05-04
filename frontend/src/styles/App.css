@@ -106,6 +106,7 @@ body {
   position: sticky;
   top: 0;
   z-index: 10000;
+  overflow: visible;          /* let the oversized .title-logo hang over */
 }
 
 /* PurposeBuilt brand signature — thin construction-orange hazard-stripe seam
@@ -156,11 +157,18 @@ body {
 
 /* Logo wordmark in the header — replaces text title. The PNG itself
    contains the styled "MATT'S EXPERIMENTAL SANDBOX" lettering, so
-   this is the visual title and the byline span sits beside it. */
+   this is the visual title and the byline span sits beside it.
+   Visually 112px tall but contributes only 56px to flex layout via
+   negative vertical margins, so the chrome strip stays 80px. The logo
+   overflows above (clipped by viewport edge) and below (hangs into the
+   controls area like a badge). */
 .title-logo {
-  height: 56px;
+  height: 112px;
+  margin: -28px 0;
   width: auto;
   display: block;
+  position: relative;
+  z-index: 1;
   user-select: none;
   -webkit-user-drag: none;
 }
@@ -282,7 +290,7 @@ body {
   /* Initial state: hero-large, centered, soft glow in brand orange.
      clamp scales with viewport: 240px floor, 480px ceiling, 38vh in between.
      This is the size as it appears at the start of the intro; FLIP shrink
-     transforms it down to the header's .title-logo height (56px). */
+     transforms it down to the header's .title-logo height (112px). */
   height: clamp(240px, 38vh, 480px);
   width: auto;
   filter: drop-shadow(0 0 48px rgba(240, 130, 48, 0.55))
