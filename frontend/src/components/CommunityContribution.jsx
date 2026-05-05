@@ -350,7 +350,7 @@ const CommunityContribution = () => {
               type="submit"
               disabled={loading}
               style={{
-                background: '#28a745',
+                background: '#16a34a',
                 color: '#111827',
                 padding: '10px 20px',
                 borderRadius: '4px',

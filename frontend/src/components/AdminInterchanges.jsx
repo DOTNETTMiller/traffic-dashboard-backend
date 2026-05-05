@@ -115,17 +115,43 @@ export default function AdminInterchanges({ authToken }) {
   };
 
   return (
-    <div style={{ maxWidth: '960px', margin: '0 auto', padding: '16px' }}>
-      <h2 style={{ marginBottom: '16px' }}>Detour Interchanges</h2>
+    <div style={{ maxWidth: '960px', margin: '0 auto', padding: '16px', fontFamily: 'var(--font-sans)' }}>
+      <h2 style={{
+        marginBottom: '16px',
+        fontFamily: 'var(--font-display)',
+        fontSize: '28px',
+        fontWeight: 700,
+        letterSpacing: '0.02em',
+        textTransform: 'uppercase',
+        color: 'var(--accent)'
+      }}>
+        Detour Interchanges
+      </h2>
 
       {error && (
-        <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '6px', backgroundColor: '#6b7280', color: '#991b1b' }}>
+        <div style={{
+          marginBottom: '12px',
+          padding: '10px 14px',
+          borderRadius: '8px',
+          background: 'rgba(211, 47, 47, 0.08)',
+          border: '1px solid rgba(211, 47, 47, 0.24)',
+          color: '#9a1c1c',
+          fontSize: '13px'
+        }}>
           {error}
         </div>
       )}
 
       {success && (
-        <div style={{ marginBottom: '12px', padding: '12px', borderRadius: '6px', backgroundColor: '#dcfce7', color: '#15803d' }}>
+        <div style={{
+          marginBottom: '12px',
+          padding: '10px 14px',
+          borderRadius: '8px',
+          background: 'rgba(22, 163, 74, 0.08)',
+          border: '1px solid rgba(22, 163, 74, 0.24)',
+          color: '#15803d',
+          fontSize: '13px'
+        }}>
           {success}
         </div>
       )}

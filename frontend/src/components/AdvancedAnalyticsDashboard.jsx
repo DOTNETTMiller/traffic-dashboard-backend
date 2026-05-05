@@ -190,7 +190,7 @@ const AdvancedAnalyticsDashboard = () => {
               background: 'white',
               padding: '20px',
               borderRadius: '8px',
-              border: `2px solid ${pred.severity === 'high' ? '#dc3545' : '#ffc107'}`,
+              border: `2px solid ${pred.severity === 'high' ? '#D32F2F' : '#F5C842'}`,
               boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -209,7 +209,7 @@ const AdvancedAnalyticsDashboard = () => {
                   <div style={{
                     fontSize: '36px',
                     fontWeight: 'bold',
-                    color: pred.severity === 'high' ? '#dc3545' : '#ffc107'
+                    color: pred.severity === 'high' ? '#D32F2F' : '#F5C842'
                   }}>
                     {Math.round(pred.probability * 100)}%
                   </div>
@@ -361,7 +361,7 @@ const AdvancedAnalyticsDashboard = () => {
               </div>
             </div>
             <div style={{ textAlign: 'center', padding: '16px', background: '#f8f9fa', borderRadius: '8px' }}>
-              <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#28a745' }}>
+              <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#16a34a' }}>
                 +{Math.round(federatedProgress.improvementOverBaseline * 100)}%
               </div>
               <div style={{ fontSize: '14px', color: '#666', marginTop: '4px' }}>

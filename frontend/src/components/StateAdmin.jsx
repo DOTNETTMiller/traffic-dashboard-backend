@@ -404,21 +404,48 @@ export default function StateAdmin({ user, authToken }) {
 
   if (usingUserJwt && !isAuthenticated) {
     return (
-      <div style={{ maxWidth: '500px', margin: '50px auto', padding: '20px', textAlign: 'center' }}>
-        <h2>Verifying Admin Access</h2>
-        <p>Your account has admin privileges. Verifying access…</p>
+      <div style={{ maxWidth: '500px', margin: '50px auto', padding: '20px', textAlign: 'center', fontFamily: 'var(--font-sans)' }}>
+        <h2 style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: '24px',
+          fontWeight: 700,
+          letterSpacing: '0.02em',
+          textTransform: 'uppercase',
+          color: 'var(--accent)'
+        }}>
+          Verifying Admin Access
+        </h2>
+        <p style={{ color: 'var(--fg-muted)' }}>Your account has admin privileges. Verifying access…</p>
       </div>
     );
   }
 
   if (!usingUserJwt && !isAuthenticated) {
     return (
-      <div style={{ maxWidth: '500px', margin: '50px auto', padding: '20px' }}>
-        <h2 style={{ marginBottom: '20px' }}>State Management Admin</h2>
+      <div style={{ maxWidth: '500px', margin: '50px auto', padding: '20px', fontFamily: 'var(--font-sans)' }}>
+        <h2 style={{
+          marginBottom: '20px',
+          fontFamily: 'var(--font-display)',
+          fontSize: '28px',
+          fontWeight: 700,
+          letterSpacing: '0.02em',
+          textTransform: 'uppercase',
+          color: 'var(--accent)'
+        }}>
+          State Management
+        </h2>
         <form onSubmit={handleTokenSubmit}>
           <div style={{ marginBottom: '15px' }}>
-            <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-              Admin Token:
+            <label style={{
+              display: 'block',
+              marginBottom: '6px',
+              fontSize: '11px',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              color: 'var(--fg-muted)'
+            }}>
+              Admin Token
             </label>
             <input
               type="password"
@@ -427,29 +454,43 @@ export default function StateAdmin({ user, authToken }) {
               placeholder="Enter admin token"
               style={{
                 width: '100%',
-                padding: '8px',
+                padding: '10px 12px',
                 fontSize: '14px',
-                border: '1px solid #ccc',
-                borderRadius: '4px'
+                border: '1px solid var(--border-strong)',
+                borderRadius: '8px',
+                fontFamily: 'var(--font-sans)',
+                outline: 'none'
               }}
               required
             />
           </div>
           {error && (
-            <div style={{ padding: '10px', marginBottom: '15px', backgroundColor: '#fee', border: '1px solid #fcc', borderRadius: '4px', color: '#c00' }}>
+            <div style={{
+              padding: '10px 14px',
+              marginBottom: '15px',
+              background: 'rgba(211, 47, 47, 0.08)',
+              border: '1px solid rgba(211, 47, 47, 0.24)',
+              borderRadius: '8px',
+              color: '#9a1c1c',
+              fontSize: '13px'
+            }}>
               {error}
             </div>
           )}
           <button
             type="submit"
             style={{
-              padding: '10px 20px',
-              backgroundColor: '#007bff',
-              color: '#111827',
+              padding: '10px 24px',
+              backgroundColor: 'var(--accent)',
+              color: 'var(--chrome-bg)',
               border: 'none',
-              borderRadius: '4px',
+              borderRadius: '999px',
               cursor: 'pointer',
-              fontSize: '14px'
+              fontSize: '12px',
+              fontFamily: 'var(--font-sans)',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em'
             }}
           >
             Login
@@ -460,12 +501,22 @@ export default function StateAdmin({ user, authToken }) {
   }
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '20px auto', padding: '20px', height: 'calc(100vh - 200px)', overflowY: 'auto' }}>
+    <div style={{ maxWidth: '1200px', margin: '20px auto', padding: '20px', height: 'calc(100vh - 200px)', overflowY: 'auto', fontFamily: 'var(--font-sans)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
-          <h2>State Management Admin</h2>
+          <h2 style={{
+            margin: 0,
+            fontFamily: 'var(--font-display)',
+            fontSize: '28px',
+            fontWeight: 700,
+            letterSpacing: '0.02em',
+            textTransform: 'uppercase',
+            color: 'var(--accent)'
+          }}>
+            State Management
+          </h2>
           {usingUserJwt && user && (
-            <p style={{ margin: 0, color: '#555', fontSize: '14px' }}>
+            <p style={{ margin: '4px 0 0', color: 'var(--fg-muted)', fontSize: '13px' }}>
               Access granted via user account <strong>{user.username}</strong>
             </p>
           )}
@@ -474,12 +525,17 @@ export default function StateAdmin({ user, authToken }) {
           <button
             onClick={handleLogout}
             style={{
-              padding: '8px 16px',
-              backgroundColor: '#dc3545',
-              color: '#111827',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
+              padding: '8px 18px',
+              backgroundColor: 'transparent',
+              color: 'var(--severity-major)',
+              border: '1px solid rgba(211, 47, 47, 0.4)',
+              borderRadius: '999px',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-sans)',
+              fontSize: '12px',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em'
             }}
           >
             Logout
@@ -488,13 +544,29 @@ export default function StateAdmin({ user, authToken }) {
       </div>
 
       {error && (
-        <div style={{ padding: '10px', marginBottom: '15px', backgroundColor: '#fee', border: '1px solid #fcc', borderRadius: '4px', color: '#c00' }}>
+        <div style={{
+          padding: '10px 14px',
+          marginBottom: '15px',
+          background: 'rgba(211, 47, 47, 0.08)',
+          border: '1px solid rgba(211, 47, 47, 0.24)',
+          borderRadius: '8px',
+          color: '#9a1c1c',
+          fontSize: '13px'
+        }}>
           {error}
         </div>
       )}
 
       {success && (
-        <div style={{ padding: '10px', marginBottom: '15px', backgroundColor: '#efe', border: '1px solid #cfc', borderRadius: '4px', color: '#060' }}>
+        <div style={{
+          padding: '10px 14px',
+          marginBottom: '15px',
+          background: 'rgba(22, 163, 74, 0.08)',
+          border: '1px solid rgba(22, 163, 74, 0.24)',
+          borderRadius: '8px',
+          color: '#15803d',
+          fontSize: '13px'
+        }}>
           {success}
         </div>
       )}
@@ -505,7 +577,7 @@ export default function StateAdmin({ user, authToken }) {
             onClick={() => setShowAddForm(true)}
             style={{
               padding: '10px 20px',
-              backgroundColor: '#28a745',
+              backgroundColor: '#16a34a',
               color: '#111827',
               border: 'none',
               borderRadius: '4px',
@@ -519,7 +591,7 @@ export default function StateAdmin({ user, authToken }) {
             onClick={() => setShowPasswordForm(true)}
             style={{
               padding: '10px 20px',
-              backgroundColor: '#007bff',
+              backgroundColor: '#F08230',
               color: '#111827',
               border: 'none',
               borderRadius: '4px',
@@ -533,7 +605,7 @@ export default function StateAdmin({ user, authToken }) {
             onClick={() => setShowMessageForm(true)}
             style={{
               padding: '10px 20px',
-              backgroundColor: '#17a2b8',
+              backgroundColor: '#F08230',
               color: '#111827',
               border: 'none',
               borderRadius: '4px',
@@ -547,7 +619,7 @@ export default function StateAdmin({ user, authToken }) {
       )}
 
       {(showAddForm || editingState) && (
-        <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #ddd', borderRadius: '4px', backgroundColor: '#6b7280' }}>
+        <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid var(--border)', borderRadius: '8px', backgroundColor: '#f9fafb' }}>
           <h3>{editingState ? 'Edit State' : 'Add New State'}</h3>
           <form onSubmit={editingState ? handleUpdateState : handleAddState}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
@@ -715,7 +787,7 @@ export default function StateAdmin({ user, authToken }) {
                 type="submit"
                 style={{
                   padding: '10px 20px',
-                  backgroundColor: editingState ? '#ffc107' : '#28a745',
+                  backgroundColor: editingState ? '#F5C842' : '#16a34a',
                   color: editingState ? 'black' : 'white',
                   border: 'none',
                   borderRadius: '4px',
@@ -744,7 +816,7 @@ export default function StateAdmin({ user, authToken }) {
       )}
 
       {showPasswordForm && (
-        <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #007bff', borderRadius: '4px', backgroundColor: '#6b7280' }}>
+        <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid rgba(240, 130, 48, 0.32)', borderRadius: '8px', backgroundColor: '#fff7ed' }}>
           <h3>Set State Password for Messaging</h3>
           <p style={{ marginBottom: '15px', color: '#666', fontSize: '14px' }}>
             Set a password for a state to allow them to log in to the state-to-state messaging system.
@@ -798,7 +870,7 @@ export default function StateAdmin({ user, authToken }) {
                 type="submit"
                 style={{
                   padding: '10px 20px',
-                  backgroundColor: '#007bff',
+                  backgroundColor: '#F08230',
                   color: '#111827',
                   border: 'none',
                   borderRadius: '4px',
@@ -830,7 +902,7 @@ export default function StateAdmin({ user, authToken }) {
       )}
 
       {showMessageForm && (
-        <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #17a2b8', borderRadius: '4px', backgroundColor: '#e7f9fc' }}>
+        <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #F08230', borderRadius: '4px', backgroundColor: '#e7f9fc' }}>
           <h3>Send Message to State</h3>
           <p style={{ marginBottom: '15px', color: '#666', fontSize: '14px' }}>
             As an admin, you can send messages directly to any state without needing their login credentials.
@@ -908,7 +980,7 @@ export default function StateAdmin({ user, authToken }) {
                 type="submit"
                 style={{
                   padding: '10px 20px',
-                  backgroundColor: '#17a2b8',
+                  backgroundColor: '#F08230',
                   color: '#111827',
                   border: 'none',
                   borderRadius: '4px',
@@ -946,7 +1018,7 @@ export default function StateAdmin({ user, authToken }) {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
             <thead>
-              <tr style={{ backgroundColor: '#6b7280', borderBottom: '2px solid #dee2e6' }}>
+              <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid var(--border-strong)' }}>
                 <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>State</th>
                 <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>API URL</th>
                 <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Type</th>
@@ -966,7 +1038,7 @@ export default function StateAdmin({ user, authToken }) {
                   <td style={{ padding: '12px', fontSize: '12px' }}>{state.format.toUpperCase()}</td>
                   <td style={{ padding: '12px', fontSize: '12px' }}>
                     {state.credentials ? (
-                      <span style={{ color: '#28a745' }}>
+                      <span style={{ color: '#16a34a' }}>
                         {state.credentials.apiKey ? 'API Key' : state.credentials.username ? 'Basic Auth' : 'Yes'}
                       </span>
                     ) : (
@@ -979,7 +1051,7 @@ export default function StateAdmin({ user, authToken }) {
                         onClick={() => handleTestConnection(state.stateKey, state.stateName)}
                         style={{
                           padding: '5px 10px',
-                          backgroundColor: '#17a2b8',
+                          backgroundColor: '#F08230',
                           color: '#111827',
                           border: 'none',
                           borderRadius: '3px',
@@ -1009,7 +1081,7 @@ export default function StateAdmin({ user, authToken }) {
                         onClick={() => handleDeleteState(state.stateKey, state.stateName)}
                         style={{
                           padding: '5px 10px',
-                          backgroundColor: '#dc3545',
+                          backgroundColor: '#D32F2F',
                           color: '#111827',
                           border: 'none',
                           borderRadius: '3px',

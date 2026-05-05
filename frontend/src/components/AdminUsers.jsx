@@ -336,20 +336,39 @@ export default function AdminUsers({ user, authToken }) {
 
   if (!isAdmin && !storedToken) {
     return (
-      <div style={{ margin: '60px auto', maxWidth: '480px', textAlign: 'center', padding: '20px' }}>
-        <h2>Admin Access Required</h2>
-        <p>You need an admin account or token to manage users.</p>
+      <div style={{ margin: '60px auto', maxWidth: '480px', textAlign: 'center', padding: '20px', fontFamily: 'var(--font-sans)' }}>
+        <h2 style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: '24px',
+          fontWeight: 700,
+          letterSpacing: '0.02em',
+          textTransform: 'uppercase',
+          color: 'var(--accent)'
+        }}>
+          Admin Access Required
+        </h2>
+        <p style={{ color: 'var(--fg-muted)' }}>You need an admin account or token to manage users.</p>
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '20px auto', padding: '20px', height: 'calc(100vh - 200px)', overflowY: 'auto' }}>
+    <div style={{ maxWidth: '1200px', margin: '20px auto', padding: '20px', height: 'calc(100vh - 200px)', overflowY: 'auto', fontFamily: 'var(--font-sans)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
-          <h2>User Management</h2>
+          <h2 style={{
+            margin: 0,
+            fontFamily: 'var(--font-display)',
+            fontSize: '28px',
+            fontWeight: 700,
+            letterSpacing: '0.02em',
+            textTransform: 'uppercase',
+            color: 'var(--accent)'
+          }}>
+            User Management
+          </h2>
           {user && (
-            <p style={{ margin: 0, color: '#555', fontSize: '14px' }}>
+            <p style={{ margin: '4px 0 0', color: 'var(--fg-muted)', fontSize: '13px' }}>
               Logged in as <strong>{user.username}</strong>
             </p>
           )}
@@ -357,12 +376,17 @@ export default function AdminUsers({ user, authToken }) {
         <button
           onClick={handleCreateClick}
           style={{
-            padding: '10px 20px',
-            backgroundColor: '#28a745',
-            color: '#111827',
+            padding: '10px 22px',
+            backgroundColor: 'var(--accent)',
+            color: 'var(--chrome-bg)',
             border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
+            borderRadius: '999px',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-sans)',
+            fontSize: '12px',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em'
           }}
         >
           + Create User
@@ -370,19 +394,35 @@ export default function AdminUsers({ user, authToken }) {
       </div>
 
       {error && (
-        <div style={{ padding: '10px', marginBottom: '15px', backgroundColor: '#fee', border: '1px solid #fcc', borderRadius: '4px', color: '#c00' }}>
+        <div style={{
+          padding: '10px 14px',
+          marginBottom: '15px',
+          background: 'rgba(211, 47, 47, 0.08)',
+          border: '1px solid rgba(211, 47, 47, 0.24)',
+          borderRadius: '8px',
+          color: '#9a1c1c',
+          fontSize: '13px'
+        }}>
           {error}
         </div>
       )}
 
       {success && (
-        <div style={{ padding: '10px', marginBottom: '15px', backgroundColor: '#efe', border: '1px solid #cfc', borderRadius: '4px', color: '#060' }}>
+        <div style={{
+          padding: '10px 14px',
+          marginBottom: '15px',
+          background: 'rgba(22, 163, 74, 0.08)',
+          border: '1px solid rgba(22, 163, 74, 0.24)',
+          borderRadius: '8px',
+          color: '#15803d',
+          fontSize: '13px'
+        }}>
           {success}
         </div>
       )}
 
       {showForm && (
-        <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #ddd', borderRadius: '4px', backgroundColor: '#6b7280' }}>
+        <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid var(--border)', borderRadius: '8px', backgroundColor: '#f9fafb' }}>
           <h3>{editingUser ? `Edit ${editingUser.username}` : 'Create New User'}</h3>
           {!editingUser && (
             <p style={{ fontSize: '0.9em', color: '#666', margin: '0 0 15px 0' }}>
@@ -545,7 +585,7 @@ export default function AdminUsers({ user, authToken }) {
                 type="submit"
                 style={{
                   padding: '10px 20px',
-                  backgroundColor: editingUser ? '#ffc107' : '#28a745',
+                  backgroundColor: editingUser ? '#F5C842' : '#16a34a',
                   color: editingUser ? '#222' : 'white',
                   border: 'none',
                   borderRadius: '4px',
@@ -582,7 +622,7 @@ export default function AdminUsers({ user, authToken }) {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
             <thead>
-              <tr style={{ backgroundColor: '#6b7280', borderBottom: '2px solid #dee2e6' }}>
+              <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid var(--border-strong)' }}>
                 <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Username</th>
                 <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Email</th>
                 <th style={{ padding: '12px', textAlign: 'left' , color: '#111827'}}>Role</th>
@@ -630,7 +670,7 @@ export default function AdminUsers({ user, authToken }) {
                         onClick={() => handleResetPassword(userRecord)}
                         style={{
                           padding: '6px 10px',
-                          backgroundColor: '#17a2b8',
+                          backgroundColor: '#F08230',
                           color: '#111827',
                           border: 'none',
                           borderRadius: '3px',
@@ -644,7 +684,7 @@ export default function AdminUsers({ user, authToken }) {
                         onClick={() => handleToggleActive(userRecord)}
                         style={{
                           padding: '6px 10px',
-                          backgroundColor: userRecord.active ? '#dc3545' : '#28a745',
+                          backgroundColor: userRecord.active ? '#D32F2F' : '#16a34a',
                           color: '#111827',
                           border: 'none',
                           borderRadius: '3px',
@@ -672,7 +712,7 @@ export default function AdminUsers({ user, authToken }) {
                         onClick={() => handleDeleteUser(userRecord)}
                         style={{
                           padding: '6px 10px',
-                          backgroundColor: '#dc3545',
+                          backgroundColor: '#D32F2F',
                           color: '#111827',
                           border: 'none',
                           borderRadius: '3px',

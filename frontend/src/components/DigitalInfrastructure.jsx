@@ -1232,7 +1232,7 @@ function DigitalInfrastructure() {
               dangerouslySetInnerHTML={{ __html: renderMarkdown(docContent) }}
             />
           ) : (
-            <div style={{ padding: '20px', backgroundColor: '#fffbeb', borderRadius: '8px', border: '1px solid #ffc107' }}>
+            <div style={{ padding: '20px', backgroundColor: '#fffbeb', borderRadius: '8px', border: '1px solid #F5C842' }}>
               <p style={{ margin: 0, color: '#856404' }}>
                 Click the Documentation tab to load the comprehensive digital infrastructure guide.
               </p>
