@@ -24,11 +24,12 @@ const SESSION_KEY = 'pbs-intro-played';
 
 // Phase timing (ms). Tuned so the moment the sweep crosses the logo,
 // the shrink starts — feels like the sweep "carries" the logo to the chrome.
-// Total ~3.7s, deliberately unhurried for a once-per-session hero moment.
-const HOLD_MS = 1200;       // logo at full size, splash bg solid
-const SWEEP_MS = 1000;      // hazard stripe wipe duration
-const SHRINK_MS = 1100;     // logo spring to final position
-const FADE_MS = 500;        // overlay fade-out tail
+// Total ~2.5s. Data loading happens in parallel via useTrafficData on App
+// mount, so by the time the splash dismisses the map is usually populated.
+const HOLD_MS = 800;        // logo at full size, splash bg solid
+const SWEEP_MS = 800;       // hazard stripe wipe duration
+const SHRINK_MS = 700;      // logo spring to final position
+const FADE_MS = 200;        // overlay fade-out tail
 
 export default function IntroSplash({ targetSelector = '.title-logo' }) {
   const [phase, setPhase] = useState('idle');  // idle | show | sweep | shrink | done
