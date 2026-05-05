@@ -4848,6 +4848,22 @@ let startupCachePromise = fetchAndCacheEvents().then(() => {
   startupCachePromise = null;
 });
 
+// Periodic cache warmer — keeps eventsCache fresh on a fixed cadence so the
+// cold-cache path (synchronous fetch from 50+ state APIs) never trips for a
+// real visitor. Cadence is below refreshAfter (4min) so the cache is always
+// well within its TTL when someone hits /api/events.
+//
+// Runs as long as the dyno is alive. On Railway, dynos may sleep on
+// inactivity; when they wake, this interval re-arms after the next request
+// imports this module, so behavior is self-healing.
+const CACHE_WARMER_INTERVAL_MS = 3 * 60 * 1000;  // 3 min
+setInterval(() => {
+  if (eventsCache.isRefreshing) return;
+  fetchAndCacheEvents().catch(err => {
+    console.error('🔥 Periodic warmer failed:', err.message);
+  });
+}, CACHE_WARMER_INTERVAL_MS).unref();  // .unref() so the timer doesn't block process exit
+
 // Main endpoint to fetch all events
 app.get('/api/events', async (req, res) => {
   // Allow clients/CDN to cache for 60 seconds to reduce egress

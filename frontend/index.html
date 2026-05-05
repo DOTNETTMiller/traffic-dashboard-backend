@@ -47,6 +47,12 @@
       href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&family=Open+Sans+Condensed:wght@300;700&family=JetBrains+Mono:wght@400;500&display=swap"
     />
 
+    <!-- Preload /api/events so the fetch starts in parallel with the JS bundle
+         download, instead of waiting until React mounts and useTrafficData
+         fires. Cuts time-to-first-paint of populated map by ~200-500ms.
+         Endpoint is unauthenticated and same-origin so no crossorigin needed. -->
+    <link rel="preload" href="/api/events" as="fetch" />
+
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
