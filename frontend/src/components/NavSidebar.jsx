@@ -48,6 +48,7 @@ const NAV = [
       { actionKey: 'open-corridor-briefing', icon: '📋', label: 'Corridor Briefing' },
       { actionKey: 'open-alerts',          icon: '🔔', label: 'Alerts' },
       { view: 'dmsMessaging',              icon: '🚧', label: 'DMS Messaging' },
+      { view: 'dmsPreview',                icon: '🛑', label: 'DMS Preview' },
       { view: 'closureApproval',           icon: '✅', label: 'Closure Approval' },
       { view: 'diversionRoutes',           icon: '🛣️', label: 'Diversion Routes' },
       { view: 'corridorDelays',            icon: '⏰', label: 'Corridor Delays' }
