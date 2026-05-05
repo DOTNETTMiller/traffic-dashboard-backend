@@ -48,24 +48,36 @@ export function useComplianceGrades(eventId) {
   return { data, loading, error };
 }
 
-const GRADE_COLORS = {
-  'A':  { fg: '#1d6f3b', bg: 'rgba(38, 153, 76, 0.10)',  border: 'rgba(38, 153, 76, 0.32)' },
-  'A-': { fg: '#1d6f3b', bg: 'rgba(38, 153, 76, 0.10)',  border: 'rgba(38, 153, 76, 0.28)' },
-  'B':  { fg: '#0a4a8f', bg: 'rgba(0, 113, 227, 0.10)',  border: 'rgba(0, 113, 227, 0.30)' },
-  'C':  { fg: '#7a4d12', bg: 'rgba(201, 122, 22, 0.10)', border: 'rgba(201, 122, 22, 0.32)' },
-  'D':  { fg: '#7a4d12', bg: 'rgba(201, 122, 22, 0.14)', border: 'rgba(201, 122, 22, 0.36)' },
-  'F':  { fg: '#902929', bg: 'rgba(216, 58, 58, 0.10)',  border: 'rgba(216, 58, 58, 0.34)' },
-  'N/A':{ fg: '#6e6e73', bg: 'rgba(0, 0, 0, 0.04)',      border: 'rgba(0, 0, 0, 0.10)' }
-};
+/**
+ * Tone band by percentage. Three semantic states matching the per-field
+ * validator on the Raw Feed tab (pass / warn / fail) so the dashboard reads
+ * coherently — a chip's color always means the same thing wherever it sits.
+ *   ≥85   pass (brand green)
+ *   70-84 warn (brand amber)
+ *   <70   fail (brand red)
+ *   null  N/A (neutral gray)
+ */
+const TONE_NA   = { fg: '#6e6e73', bg: 'rgba(0, 0, 0, 0.04)',       border: 'rgba(0, 0, 0, 0.10)' };
+const TONE_PASS = { fg: '#15803d', bg: 'rgba(22, 163, 74, 0.10)',   border: 'rgba(22, 163, 74, 0.30)' };
+const TONE_WARN = { fg: '#a55e10', bg: 'rgba(201, 122, 22, 0.10)',  border: 'rgba(201, 122, 22, 0.32)' };
+const TONE_FAIL = { fg: '#9a1c1c', bg: 'rgba(211, 47, 47, 0.10)',   border: 'rgba(211, 47, 47, 0.32)' };
+
+function toneFor(percentage) {
+  if (percentage === null || percentage === undefined) return TONE_NA;
+  if (percentage >= 85) return TONE_PASS;
+  if (percentage >= 70) return TONE_WARN;
+  return TONE_FAIL;
+}
 
 function GradeChip({ label, grade, percentage, criticalRatio, missing, loading }) {
-  const tone = GRADE_COLORS[grade] || GRADE_COLORS['N/A'];
+  const hasScore = !loading && percentage !== null && percentage !== undefined;
+  const tone = hasScore ? toneFor(percentage) : TONE_NA;
 
   const tooltipLines = loading
     ? [`${label}`, 'Grading…']
     : [
         `${label}`,
-        `Score: ${percentage}%`,
+        hasScore ? `Score: ${percentage}% (${grade || '—'})` : 'Score: not available',
         `Critical fields: ${criticalRatio}%`,
         missing && missing.length > 0
           ? `Missing (${missing.length}): ${missing.slice(0, 5).map(m => m.field).join(', ')}${missing.length > 5 ? '…' : ''}`
@@ -100,7 +112,7 @@ function GradeChip({ label, grade, percentage, criticalRatio, missing, loading }
         letterSpacing: '-0.01em',
         textTransform: 'none'
       }}>
-        {loading ? '…' : grade}
+        {loading ? '…' : hasScore ? `${Math.round(percentage)}%` : 'N/A'}
       </span>
     </span>
   );
