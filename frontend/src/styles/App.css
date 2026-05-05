@@ -275,8 +275,8 @@ body {
   /* Delays sync with IntroSplash.jsx phase timings. Background fades
      transparent during the shrink so the chrome reveals behind the in-flight
      logo; opacity completes the dissolve as the shrink lands. */
-  transition: opacity 200ms var(--ease-soft) 700ms,
-              background-color 500ms var(--ease-soft) 400ms;
+  transition: opacity 500ms var(--ease-soft) 1100ms,
+              background-color 800ms var(--ease-soft) 700ms;
 }
 
 /* During shrink phase the bg fades out so the chrome reveals behind the
@@ -298,8 +298,8 @@ body {
   animation: intro-logo-pop 600ms var(--ease-spring) both;
   transform-origin: center center;
   /* Default transition for the FLIP: gets overridden by inline style during
-     shrink phase to hit the precise destination (uses SHRINK_MS=700ms). */
-  transition: transform 700ms var(--ease-spring);
+     shrink phase to hit the precise destination (uses SHRINK_MS=1100ms). */
+  transition: transform 1100ms var(--ease-spring);
   user-select: none;
   -webkit-user-drag: none;
 }
@@ -324,7 +324,7 @@ body {
     transparent 28px 56px);
   opacity: 0.85;
   transform: translateX(0);
-  transition: transform 800ms var(--ease-spring);
+  transition: transform 1000ms var(--ease-spring);
   will-change: transform;
 }
 
