@@ -19,6 +19,26 @@ const NAV = [
   { type: 'item', view: 'calendar',  icon: '📅', label: 'Calendar' },
 
   {
+    // Sub-items here are toggles, not view-changers — clicking flips the
+    // matching map overlay's visibility instead of navigating. Each sub-item
+    // declares an actionKey (the toggle handler in App.jsx) and a toggleProp
+    // (the boolean field in mapLayerStates that decides the active style).
+    type: 'group',
+    key: 'map-layers',
+    icon: '🗺️',
+    label: 'Map Layers',
+    items: [
+      { actionKey: 'toggle-parking',          toggleProp: 'showParking',             icon: '🅿️', label: 'Truck Parking' },
+      { actionKey: 'toggle-its-equipment',    toggleProp: 'showITSEquipment',        icon: '📡', label: 'ITS Equipment' },
+      { actionKey: 'toggle-v2x',              toggleProp: 'showV2XDeployments',      icon: '📶', label: 'V2X Deployments' },
+      { actionKey: 'toggle-cadd',             toggleProp: 'showCADDElements',        icon: '📐', label: 'CADD Elements' },
+      { actionKey: 'toggle-interchanges',     toggleProp: 'showInterchanges',        icon: '🔀', label: 'Interchanges' },
+      { actionKey: 'toggle-bridge-clearance', toggleProp: 'showBridgeClearances',    icon: '🌉', label: 'Bridge Clearances' },
+      { actionKey: 'toggle-corridor-regs',    toggleProp: 'showCorridorRegulations', icon: '📜', label: 'Corridor Regulations' }
+    ]
+  },
+
+  {
     type: 'group',
     key: 'data-quality',
     icon: '📈',
@@ -126,6 +146,10 @@ export default function NavSidebar({
   actions = {},
   chatOpen = false,
   messagesOpen = false,
+  // Boolean states for toggle-style sub-items. Sub-items in the Map Layers
+  // group declare a toggleProp; if mapLayerStates[toggleProp] is truthy the
+  // sub-item paints active. Wired by App.jsx with showParking / showV2X / etc.
+  mapLayerStates = {},
   // Optional content rendered in a panel attached to the rail's right edge.
   // Provided by the parent based on which footer item (Inbox / AI) is active.
   secondary = null
@@ -274,21 +298,46 @@ export default function NavSidebar({
                   />
                   {open && expanded && (
                     <div className="nav-subitems">
-                      {node.items.map(item => (
-                        <button
-                          key={item.view || item.actionKey}
-                          type="button"
-                          className={`nav-subitem ${item.view && view === item.view ? 'is-active' : ''}`}
-                          onClick={() => handleSubItem(item)}
-                          title={item.preview ? `${item.label} — preview (data wiring incomplete)` : undefined}
-                        >
-                          <span className="nav-subitem-icon" aria-hidden>{item.icon}</span>
-                          <span className="nav-subitem-label">{item.label}</span>
-                          {item.preview && (
-                            <span className="nav-subitem-badge" aria-label="Preview">Preview</span>
-                          )}
-                        </button>
-                      ))}
+                      {node.items.map(item => {
+                        // Toggle sub-items (Map Layers): active when the
+                        // bound state is on. View sub-items: active when
+                        // current view matches.
+                        const isToggle = !!item.toggleProp;
+                        const isActive = isToggle
+                          ? !!mapLayerStates[item.toggleProp]
+                          : (item.view && view === item.view);
+                        return (
+                          <button
+                            key={item.view || item.actionKey}
+                            type="button"
+                            className={`nav-subitem ${isActive ? 'is-active' : ''}`}
+                            onClick={() => handleSubItem(item)}
+                            title={item.preview ? `${item.label} — preview (data wiring incomplete)` : undefined}
+                          >
+                            <span className="nav-subitem-icon" aria-hidden>{item.icon}</span>
+                            <span className="nav-subitem-label">{item.label}</span>
+                            {isToggle && (
+                              <span
+                                aria-hidden
+                                style={{
+                                  marginLeft: 'auto',
+                                  fontSize: 9,
+                                  fontWeight: 700,
+                                  letterSpacing: '0.06em',
+                                  textTransform: 'uppercase',
+                                  color: isActive ? 'var(--accent)' : 'var(--fg-muted)',
+                                  opacity: isActive ? 1 : 0.5
+                                }}
+                              >
+                                {isActive ? 'On' : 'Off'}
+                              </span>
+                            )}
+                            {item.preview && (
+                              <span className="nav-subitem-badge" aria-label="Preview">Preview</span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

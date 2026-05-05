@@ -789,12 +789,31 @@ function App() {
         isAdmin={currentUser?.role === "admin"}
         chatOpen={chatOpen}
         messagesOpen={desktopMessagesOpen}
+        mapLayerStates={{
+          showParking,
+          showITSEquipment,
+          showV2XDeployments,
+          showCADDElements,
+          showInterchanges,
+          showBridgeClearances,
+          showCorridorRegulations
+        }}
         actions={{
           'open-corridor-briefing': () => setShowCorridorBriefing(true),
           'open-alerts':            () => setShowAlertsModal(true),
           'open-ipaws-active':      () => setShowIPAWSActiveAlerts(true),
           'open-ipaws-rules':       () => setShowIPAWSRules(true),
           'open-ipaws-after-action': () => setShowIPAWSAfterAction(true),
+          // Map Layers toggles — flipping any of these layer-visibility
+          // booleans navigates to the map view first so the user actually
+          // sees what they just turned on.
+          'toggle-parking':            () => { setView('map'); setShowParking(p => !p); },
+          'toggle-its-equipment':      () => { setView('map'); setShowITSEquipment(p => !p); },
+          'toggle-v2x':                () => { setView('map'); setShowV2XDeployments(p => !p); },
+          'toggle-cadd':               () => { setView('map'); setShowCADDElements(p => !p); },
+          'toggle-interchanges':       () => { setView('map'); setShowInterchanges(p => !p); },
+          'toggle-bridge-clearance':   () => { setView('map'); setShowBridgeClearances(p => !p); },
+          'toggle-corridor-regs':      () => { setView('map'); setShowCorridorRegulations(p => !p); },
           // Toggling either footer item closes the other so only one
           // secondary panel shows at a time (single-pane sidebar UX).
           'toggle-ai':       () => { setChatOpen(o => !o); setDesktopMessagesOpen(false); },
