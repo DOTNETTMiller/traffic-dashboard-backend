@@ -29938,8 +29938,14 @@ app.get('/api/v2x/deployments', async (req, res) => {
   try {
     const axios = require('axios');
 
-    // USDOT official V2X deployment feature service
-    const serviceUrl = 'https://geo.dot.gov/server/rest/services/Hosted/Vehicle_to_Everything__V2X__Deployment_Map_UPDATED_2_11_26_WFL1/FeatureServer/0/query';
+    // USDOT republishes the V2X dataset on a date-stamped slug whenever they
+    // refresh it (e.g. ..._UPDATED_2_11_26_WFL1, ..._Updated_4_17_26_WFL1).
+    // The previous hardcoded slug went 404 once they pushed a new version.
+    // The ungated alias `Vehicle_to_Everything__V2X__Deployment_Map_WFL1`
+    // (no date suffix) always points to the latest published copy, so it
+    // survives future republishes without code changes.
+    const SERVICE_BASE = 'https://geo.dot.gov/server/rest/services/Hosted/Vehicle_to_Everything__V2X__Deployment_Map_WFL1/FeatureServer';
+    const serviceUrl = `${SERVICE_BASE}/0/query`;
 
     // Query parameters
     const params = {
@@ -29957,7 +29963,7 @@ app.get('/api/v2x/deployments', async (req, res) => {
     res.json({
       success: true,
       source: 'USDOT Federal V2X Deployment Map',
-      serviceUrl: 'https://geo.dot.gov/server/rest/services/Hosted/Vehicle_to_Everything__V2X__Deployment_Map_UPDATED_2_11_26_WFL1/FeatureServer',
+      serviceUrl: SERVICE_BASE,
       data: response.data
     });
 
