@@ -104,6 +104,7 @@ function App() {
   const [showCADDElements, setShowCADDElements] = useState(false);
   const [showV2XDeployments, setShowV2XDeployments] = useState(false);
   const [showEvents, setShowEvents] = useState(true);
+  const [showDiversionRoutes, setShowDiversionRoutes] = useState(false);
   const [availableRoutes, setAvailableRoutes] = useState([]);
   const [showInterchanges, setShowInterchanges] = useState(false); // Hidden by default - toggle to show
   const [showBridgeClearances, setShowBridgeClearances] = useState(false); // Hidden by default - toggle to show
@@ -797,6 +798,7 @@ function App() {
           showInterchanges,
           showBridgeClearances,
           showCorridorRegulations,
+          showDiversionRoutes,
           interstateOnly
         }}
         actions={{
@@ -822,6 +824,7 @@ function App() {
           'toggle-interchanges':       () => { setView('map'); setShowInterchanges(p => !p); },
           'toggle-bridge-clearance':   () => { setView('map'); setShowBridgeClearances(p => !p); },
           'toggle-corridor-regs':      () => { setView('map'); setShowCorridorRegulations(p => !p); },
+          'toggle-diversion-routes':   () => { setView('map'); setShowDiversionRoutes(p => !p); },
           // Toggling either footer item closes the other so only one
           // secondary panel shows at a time (single-pane sidebar UX).
           'toggle-ai':       () => { setChatOpen(o => !o); setDesktopMessagesOpen(false); },
@@ -1147,6 +1150,7 @@ function App() {
                   showCADDElements={showCADDElements}
                   showV2XDeployments={showV2XDeployments}
                   showEvents={showEvents}
+                  showDiversionRoutes={showDiversionRoutes}
                   interstateOnly={interstateOnly}
                   heatMapActive={heatMapActive}
                   heatMapMode={heatMapMode}

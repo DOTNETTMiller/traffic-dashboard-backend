@@ -51,6 +51,7 @@ import NetworkTopologyLayer from './NetworkTopologyLayer';
 import TETCCorridorsLayer from './TETCCorridorsLayer';
 import CADDElementsLayer from './CADDElementsLayer';
 import V2XDeploymentsLayer from './V2XDeploymentsLayer';
+import DiversionRoutesLayer from './DiversionRoutesLayer';
 import EventFormatPopup from './EventFormatPopup';
 import BoundingBoxSelector from './BoundingBoxSelector';
 import HeatMapControl from './HeatMapControl';
@@ -412,6 +413,7 @@ export default function TrafficMap({
   showCADDElements = false,
   showV2XDeployments = false,
   showEvents = true,
+  showDiversionRoutes = false,
   interstateOnly = true,
   heatMapActive = false,
   heatMapMode = 'density',
@@ -1193,6 +1195,9 @@ export default function TrafficMap({
         {showV2XDeployments && (
           <V2XDeploymentsLayer visible={showV2XDeployments} stateKey={stateKey} />
         )}
+
+        {/* Diversion Routes Layer — approved routes drawn as polylines, road-snapped via OSRM */}
+        <DiversionRoutesLayer visible={showDiversionRoutes} />
 
         {/* Heat Map Visualization */}
         <HeatMapLayer
