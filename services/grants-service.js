@@ -354,6 +354,47 @@ class GrantsService {
   }
 
   /**
+   * Get funding opportunities relevant to the topics the dashboard actually
+   * surfaces — work zones, V2X / connected vehicles, ITS equipment, truck
+   * parking, multi-state corridor coordination, traveler-information
+   * systems, transportation safety / IPAWS, and traffic data exchange.
+   *
+   * Runs each topic as a parallel grants.gov search, dedupes by grant id,
+   * sorts by relevance. Targets the same union the dashboard's screens
+   * cover so a user clicking the default "all" filter sees grants that
+   * could fund what they're already doing.
+   */
+  async getDashboardAlignedOpportunities() {
+    const topics = [
+      'work zone',                         // WZDx, lane closures, MUTCD signs
+      'intelligent transportation systems',// ITS equipment / deployment
+      'connected vehicle',                 // V2X, RSUs
+      'transportation data',               // data exchange / CDE / integration
+      'truck parking',                     // commercial freight
+      'transportation safety',             // IPAWS, Safe Streets, Vision Zero
+      'highway corridor',                  // multi-state corridor coordination
+      'traveler information'               // TIM / 511 / traveler info
+    ];
+
+    const searches = topics.map(keyword =>
+      this.searchOpportunities({ keyword, maxResults: 25 })
+    );
+    const results = await Promise.all(searches);
+
+    const seen = new Set();
+    const merged = [];
+    for (const resultSet of results) {
+      for (const opp of resultSet) {
+        if (!seen.has(opp.id)) {
+          seen.add(opp.id);
+          merged.push(opp);
+        }
+      }
+    }
+    return merged.sort((a, b) => b.relevanceScore - a.relevanceScore);
+  }
+
+  /**
    * Get comprehensive funding opportunities for all CCAI states
    */
   async getCCAIOpportunities() {

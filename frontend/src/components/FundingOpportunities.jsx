@@ -16,19 +16,20 @@ export default function FundingOpportunities() {
   const fetchOpportunities = async () => {
     try {
       setLoading(true);
-      // The 'all' filter used to send keyword=transportation, which on
-      // grants.gov returns mostly medical/clinical results that loosely
-      // match the word — and those all got filtered out by the ITS-relevance
-      // scorer, leaving the page showing 0 opportunities. Send the more
-      // targeted ITS phrase as the default; users still see the ITS,
-      // CCAI, and surface-transit grants they care about.
+      // 'all' triggers a multi-keyword union on the backend aligned to the
+      // dashboard's actual feature topics (work zones, V2X, ITS, truck
+      // parking, corridor coord, traveler info, safety, transportation
+      // data). 'ccai' and 'its' keep their narrow single-keyword behavior.
       const keyword =
         filter === 'ccai' ? 'ccai' :
         filter === 'its'  ? 'intelligent transportation' :
-                            'intelligent transportation systems';
+                            'dashboard';
 
       const response = await api.get('/api/funding-opportunities', {
-        params: { keyword, category: filter === 'ccai' ? 'ccai' : null }
+        params: {
+          keyword,
+          category: filter === 'ccai' ? 'ccai' : filter === 'all' ? 'dashboard' : null
+        }
       });
 
       if (response.data.success) {

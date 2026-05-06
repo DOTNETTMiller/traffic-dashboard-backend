@@ -23433,10 +23433,15 @@ app.get('/api/funding-opportunities', async (req, res) => {
     if (keyword === 'ccai' || category === 'ccai') {
       // Get CCAI-specific opportunities
       opportunities = await grantsService.getCCAIOpportunities();
+    } else if (keyword === 'dashboard' || category === 'dashboard') {
+      // Default "all" filter on the Funding Opportunities page hits this:
+      // multi-keyword union aligned with the dashboard's actual feature
+      // topics so users see grants relevant to what they're already doing.
+      opportunities = await grantsService.getDashboardAlignedOpportunities();
     } else {
-      // General search
+      // General single-keyword search
       opportunities = await grantsService.searchOpportunities({
-        keyword: keyword || 'transportation',
+        keyword: keyword || 'intelligent transportation systems',
         maxResults: parseInt(maxResults) || 50,
         stateFilter: stateKey,
         includeResearch: true
