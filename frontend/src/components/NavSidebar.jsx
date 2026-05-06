@@ -19,6 +19,23 @@ const NAV = [
   { type: 'item', view: 'calendar',  icon: '📅', label: 'Calendar' },
 
   {
+    // Quick actions — replaces the floating ⚡ menu that used to sit in the
+    // bottom-right. Actions fire one-shot handlers; the Interstate Only
+    // entry is a stateful toggle (On/Off pill like Map Layers).
+    type: 'group',
+    key: 'actions',
+    icon: '⚡',
+    label: 'Actions',
+    items: [
+      { actionKey: 'open-command-palette', icon: '⌘', label: 'Command Palette' },
+      { actionKey: 'refresh-data',         icon: '🔄', label: 'Refresh Data' },
+      { actionKey: 'clear-filters',        icon: '🧹', label: 'Clear Filters' },
+      { actionKey: 'export-data',          icon: '📥', label: 'Export Data' },
+      { actionKey: 'toggle-interstate-only', toggleProp: 'interstateOnly', icon: '🛣️', label: 'Interstate Only' }
+    ]
+  },
+
+  {
     // Sub-items here are toggles, not view-changers — clicking flips the
     // matching map overlay's visibility instead of navigating. Each sub-item
     // declares an actionKey (the toggle handler in App.jsx) and a toggleProp

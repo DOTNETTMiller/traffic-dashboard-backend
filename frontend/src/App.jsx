@@ -16,7 +16,6 @@ import FeedAlignment from './components/FeedAlignment';
 import MessagesPanel from './components/MessagesPanel';
 import LiveStatistics from './components/LiveStatistics';
 import CommandPalette from './components/CommandPalette';
-import QuickActionToolbar from './components/QuickActionToolbar';
 import ActivityTimeline from './components/ActivityTimeline';
 import DarkModeToggle from './components/DarkModeToggle';
 import ToastContainer, { showToast } from './components/ToastContainer';
@@ -796,7 +795,8 @@ function App() {
           showCADDElements,
           showInterchanges,
           showBridgeClearances,
-          showCorridorRegulations
+          showCorridorRegulations,
+          interstateOnly
         }}
         actions={{
           'open-corridor-briefing': () => setShowCorridorBriefing(true),
@@ -804,6 +804,12 @@ function App() {
           'open-ipaws-active':      () => setShowIPAWSActiveAlerts(true),
           'open-ipaws-rules':       () => setShowIPAWSRules(true),
           'open-ipaws-after-action': () => setShowIPAWSAfterAction(true),
+          // Quick actions (formerly the floating ⚡ menu)
+          'open-command-palette':   () => setCommandPaletteOpen(true),
+          'refresh-data':           () => refetch(),
+          'clear-filters':          () => handleClearFilters(),
+          'export-data':            () => setShowExportMenu(true),
+          'toggle-interstate-only': () => setInterstateOnly(p => !p),
           // Map Layers toggles — flipping any of these layer-visibility
           // booleans navigates to the map view first so the user actually
           // sees what they just turned on.
@@ -1162,25 +1168,10 @@ function App() {
               </div>
             </div>
 
-            {/* Quick Action Toolbar - hide when IPAWS geofence is active */}
-            {!ipawsGeofence && (
-              <QuickActionToolbar
-                onRefresh={refetch}
-                onClearFilters={handleClearFilters}
-                onToggleParking={handleToggleParking}
-                onToggleInterchanges={handleToggleInterchanges}
-                onToggleInterstateOnly={() => setInterstateOnly(prev => !prev)}
-                onOpenCommandPalette={() => setCommandPaletteOpen(true)}
-                onFilterSeverity={handleFilterSeverity}
-                onExport={() => setShowExportMenu(true)}
-                autoRefresh={autoRefresh}
-                showParking={showParking}
-                showInterchanges={showInterchanges}
-                interstateOnly={interstateOnly}
-                currentSeverityFilter={filters.severity}
-                eventCount={filteredEvents.length}
-              />
-            )}
+            {/* Floating ⚡ QuickActionToolbar removed — its actions
+                (Command Palette, Refresh, Clear Filters, Export, Interstate
+                Only) live in the new "Actions" group in the left rail.
+                Parking + Interchanges moved to the "Map Layers" group. */}
           </>
         ) : (
           <div className="view-container" key={view}>
