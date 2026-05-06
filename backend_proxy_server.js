@@ -5745,6 +5745,12 @@ app.get('/api/users/me', requireUser, async (req, res) => {
   const user = await db.getUserByUsername(req.user.username);
 
   if (user) {
+    // Bump last_login on session restore so Last Login reflects "last
+    // active session" not "last password-typed login." Self-throttled to
+    // once per hour per user inside the SQL WHERE — safe to call on
+    // every request.
+    db.touchUserLastLogin(user.id).catch(() => {});
+
     res.json({
       success: true,
       user: {

@@ -2125,6 +2125,40 @@ class StateDatabase {
     }
   }
 
+  /**
+   * Bump last_login for an authenticated user, but only if it hasn't been
+   * updated in the last hour. Used by /api/users/me so JWT session
+   * restoration counts toward "last active" — without this, a user who
+   * keeps a tab open or re-uses a stored token never advances the
+   * timestamp, and Last Login reads as "last password-typed login."
+   *
+   * The 1-hour throttle lives in the SQL WHERE so it works without an
+   * in-memory cache (survives server restarts, multi-instance safe).
+   */
+  async touchUserLastLogin(userId) {
+    if (!userId) return;
+    try {
+      if (this.isPostgres) {
+        await this.db.query(`
+          UPDATE users
+          SET last_login = NOW()
+          WHERE id = $1
+            AND (last_login IS NULL OR last_login < NOW() - INTERVAL '1 hour')
+        `, [userId]);
+      } else {
+        await this.db.prepare(`
+          UPDATE users
+          SET last_login = CURRENT_TIMESTAMP
+          WHERE id = ?
+            AND (last_login IS NULL OR last_login < datetime('now', '-1 hour'))
+        `).run(userId);
+      }
+    } catch (err) {
+      // Last-login is non-critical observability — never let it break a request.
+      console.warn('touchUserLastLogin failed:', err.message);
+    }
+  }
+
   async getUserByUsername(username) {
     try {
       const user = await this.db.prepare(`
