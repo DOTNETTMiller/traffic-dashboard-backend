@@ -617,9 +617,23 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
  * The production rows currently fall into mode 3 (no coords yet); the component is
  * built so the same panel just lights up once geometry is added without further work.
  */
+// Approximate coordinates for the seed routes shipped in production whose
+// DB rows still have null start_lat/lon (no admin UI yet to enter them).
+// Keyed by route_name so DB-supplied coords always take precedence — the
+// fallback only kicks in when the row's own fields are missing. Real
+// coordinates can replace these as soon as someone runs an UPDATE.
+const SEED_ROUTE_FALLBACKS = {
+  'I-35 to I-80 East (Iowa)':                   [[41.6005, -93.6092], [41.7297, -93.6065]],
+  'I-35 to US-69 (Iowa-Missouri Border)':       [[40.6500, -93.6200], [40.4000, -93.7500]],
+  'I-35 to US-75 (Minnesota)':                  [[46.3000, -94.3000], [46.5500, -94.4500]],
+  'I-70 to US-40 (Kansas-Colorado)':            [[39.0000, -101.9000], [39.0500, -101.7500]],
+  'I-80 to I-35 South (Iowa)':                  [[41.6005, -93.6092], [41.4200, -93.6300]],
+  'I-80 to US-30 (Nebraska)':                   [[41.0000, -98.0000], [41.1500, -98.2000]]
+};
+
 function DiversionRouteMap({ route }) {
-  const { polyline, markers, bounds, hasGeometry } = useMemo(() => {
-    if (!route) return { polyline: null, markers: [], bounds: null, hasGeometry: false };
+  const { polyline, markers, bounds, hasGeometry, approximate } = useMemo(() => {
+    if (!route) return { polyline: null, markers: [], bounds: null, hasGeometry: false, approximate: false };
 
     // Mode 1: GeoJSON polyline
     const geom = route.geometry_geojson;
@@ -632,7 +646,8 @@ function DiversionRouteMap({ route }) {
           { pos: coords[coords.length - 1], label: route.end_location || 'End' }
         ],
         bounds: L.latLngBounds(coords),
-        hasGeometry: true
+        hasGeometry: true,
+        approximate: false
       };
     }
 
@@ -650,11 +665,27 @@ function DiversionRouteMap({ route }) {
           { pos: coords[1], label: route.end_location || 'End' }
         ],
         bounds: L.latLngBounds(coords),
-        hasGeometry: true
+        hasGeometry: true,
+        approximate: false
       };
     }
 
-    return { polyline: null, markers: [], bounds: null, hasGeometry: false };
+    // Mode 2b: fallback to approximate coords for seed routes
+    const fallback = SEED_ROUTE_FALLBACKS[route.route_name];
+    if (fallback) {
+      return {
+        polyline: fallback,
+        markers: [
+          { pos: fallback[0], label: route.start_location || 'Start' },
+          { pos: fallback[1], label: route.end_location || 'End' }
+        ],
+        bounds: L.latLngBounds(fallback),
+        hasGeometry: true,
+        approximate: true
+      };
+    }
+
+    return { polyline: null, markers: [], bounds: null, hasGeometry: false, approximate: false };
   }, [route]);
 
   // Mode 3: nothing to render → placeholder
@@ -690,8 +721,29 @@ function DiversionRouteMap({ route }) {
       height: '220px',
       borderRadius: '8px',
       overflow: 'hidden',
-      border: '1px solid #e5e7eb'
+      border: '1px solid #e5e7eb',
+      position: 'relative'
     }}>
+      {approximate && (
+        <div style={{
+          position: 'absolute',
+          top: '8px',
+          left: '8px',
+          zIndex: 500,
+          background: 'rgba(255, 255, 255, 0.92)',
+          border: '1px solid rgba(201, 122, 22, 0.32)',
+          color: '#a55e10',
+          fontSize: '10px',
+          fontWeight: 600,
+          letterSpacing: '0.04em',
+          textTransform: 'uppercase',
+          padding: '4px 8px',
+          borderRadius: '999px'
+        }}
+        title="DB row has no coordinates yet — showing approximate placement based on route name. Add start_lat/lon and end_lat/lon to make this exact.">
+          Approximate
+        </div>
+      )}
       <MapContainer
         bounds={padded}
         scrollWheelZoom={false}
