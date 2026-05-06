@@ -299,7 +299,12 @@ class GrantsService {
           platformAlignment: this.calculatePlatformAlignment(opp)
         };
       })
-      .filter(opp => opp.relevanceScore >= 35) // Higher threshold - only ITS/digital infrastructure relevant grants
+      // Threshold lowered 35 → 20 so legitimately ITS-relevant grants whose
+      // titles don't drop the literal word "ITS" still surface (FHWA,
+      // FTA, FRA digital-infrastructure programs frequently get filtered
+      // by stricter thresholds). The score cap on no-keyword-match grants
+      // (20) still gates the long tail of unrelated grants.
+      .filter(opp => opp.relevanceScore >= 20)
       .sort((a, b) => b.relevanceScore - a.relevanceScore);
   }
 

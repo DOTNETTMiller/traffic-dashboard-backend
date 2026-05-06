@@ -16,7 +16,16 @@ export default function FundingOpportunities() {
   const fetchOpportunities = async () => {
     try {
       setLoading(true);
-      const keyword = filter === 'ccai' ? 'ccai' : filter === 'its' ? 'intelligent transportation' : 'transportation';
+      // The 'all' filter used to send keyword=transportation, which on
+      // grants.gov returns mostly medical/clinical results that loosely
+      // match the word — and those all got filtered out by the ITS-relevance
+      // scorer, leaving the page showing 0 opportunities. Send the more
+      // targeted ITS phrase as the default; users still see the ITS,
+      // CCAI, and surface-transit grants they care about.
+      const keyword =
+        filter === 'ccai' ? 'ccai' :
+        filter === 'its'  ? 'intelligent transportation' :
+                            'intelligent transportation systems';
 
       const response = await api.get('/api/funding-opportunities', {
         params: { keyword, category: filter === 'ccai' ? 'ccai' : null }
