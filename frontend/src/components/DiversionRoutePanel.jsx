@@ -1,5 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { formatDistanceToNow } from 'date-fns';
+import { MapContainer, TileLayer, Marker, Polyline, Tooltip } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { config } from '../config';
 
 export default function DiversionRoutePanel({ selectedEvent, onClose }) {
@@ -361,6 +364,13 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
                         <div style={{ fontSize: '16px', fontWeight: '600' }}>{selectedRoute.route_name}</div>
                       </div>
 
+                      <div>
+                        <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '6px' }}>
+                          Map Preview
+                        </label>
+                        <DiversionRouteMap route={selectedRoute} />
+                      </div>
+
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
                         <div>
                           <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '4px' }}>
@@ -591,6 +601,133 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Inline Leaflet preview of a diversion route.
+ *
+ * Three rendering modes by data quality:
+ *   1. geometry_geojson present  → render the actual polyline with start/end markers
+ *   2. only start/end coords     → markers + a straight orange line between them
+ *   3. neither                   → placeholder card noting the route geometry isn't
+ *                                  yet defined and which fields would unlock the map
+ *
+ * The production rows currently fall into mode 3 (no coords yet); the component is
+ * built so the same panel just lights up once geometry is added without further work.
+ */
+function DiversionRouteMap({ route }) {
+  const { polyline, markers, bounds, hasGeometry } = useMemo(() => {
+    if (!route) return { polyline: null, markers: [], bounds: null, hasGeometry: false };
+
+    // Mode 1: GeoJSON polyline
+    const geom = route.geometry_geojson;
+    if (geom && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
+      const coords = geom.coordinates.map(c => [c[1], c[0]]); // [lng,lat] → [lat,lng]
+      return {
+        polyline: coords,
+        markers: [
+          { pos: coords[0], label: route.start_location || 'Start' },
+          { pos: coords[coords.length - 1], label: route.end_location || 'End' }
+        ],
+        bounds: L.latLngBounds(coords),
+        hasGeometry: true
+      };
+    }
+
+    // Mode 2: only start + end point coords
+    const sLat = parseFloat(route.start_lat);
+    const sLon = parseFloat(route.start_lon);
+    const eLat = parseFloat(route.end_lat);
+    const eLon = parseFloat(route.end_lon);
+    if ([sLat, sLon, eLat, eLon].every(Number.isFinite)) {
+      const coords = [[sLat, sLon], [eLat, eLon]];
+      return {
+        polyline: coords,
+        markers: [
+          { pos: coords[0], label: route.start_location || 'Start' },
+          { pos: coords[1], label: route.end_location || 'End' }
+        ],
+        bounds: L.latLngBounds(coords),
+        hasGeometry: true
+      };
+    }
+
+    return { polyline: null, markers: [], bounds: null, hasGeometry: false };
+  }, [route]);
+
+  // Mode 3: nothing to render → placeholder
+  if (!hasGeometry) {
+    return (
+      <div style={{
+        background: '#f9fafb',
+        border: '1px dashed #d1d5db',
+        borderRadius: '8px',
+        padding: '20px',
+        textAlign: 'center',
+        fontSize: '12px',
+        color: '#6b7280'
+      }}>
+        <div style={{ fontSize: '20px', marginBottom: '6px' }}>🗺️</div>
+        <div style={{ fontWeight: 600, color: '#374151', marginBottom: '4px' }}>
+          Route geometry not yet defined
+        </div>
+        <div>
+          Add <code style={{ background: '#e5e7eb', padding: '1px 4px', borderRadius: '3px' }}>start_lat/lon</code> and{' '}
+          <code style={{ background: '#e5e7eb', padding: '1px 4px', borderRadius: '3px' }}>end_lat/lon</code>{' '}
+          (or a <code style={{ background: '#e5e7eb', padding: '1px 4px', borderRadius: '3px' }}>geometry_geojson</code>) to enable the map preview.
+        </div>
+      </div>
+    );
+  }
+
+  // Pad bounds slightly so markers aren't right at the edges
+  const padded = bounds.pad(0.18);
+
+  return (
+    <div style={{
+      height: '220px',
+      borderRadius: '8px',
+      overflow: 'hidden',
+      border: '1px solid #e5e7eb'
+    }}>
+      <MapContainer
+        bounds={padded}
+        scrollWheelZoom={false}
+        style={{ height: '100%', width: '100%' }}
+        attributionControl={false}
+      >
+        <TileLayer
+          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          subdomains="abcd"
+        />
+        <Polyline
+          positions={polyline}
+          pathOptions={{ color: '#F08230', weight: 5, opacity: 0.9 }}
+        />
+        {markers.map((m, i) => (
+          <Marker
+            key={i}
+            position={m.pos}
+            icon={L.divIcon({
+              html: `<div style="
+                width: 22px; height: 22px; border-radius: 50%;
+                background: ${i === 0 ? '#16a34a' : '#D32F2F'};
+                border: 3px solid white;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+                font-size: 11px; font-weight: 700;
+                color: white; text-align: center; line-height: 16px;
+              ">${i === 0 ? 'A' : 'B'}</div>`,
+              className: '',
+              iconSize: [22, 22],
+              iconAnchor: [11, 11]
+            })}
+          >
+            <Tooltip direction="top" offset={[0, -8]}>{m.label}</Tooltip>
+          </Marker>
+        ))}
+      </MapContainer>
     </div>
   );
 }
