@@ -68,7 +68,6 @@ const FundingOpportunities = lazy(() => import('./components/FundingOpportunitie
 const NASCOCorridorRegulationsView = lazy(() => import('./components/NASCOCorridorRegulationsView'));
 const DigitalStandardsCrosswalk = lazy(() => import('./components/DigitalStandardsCrosswalk'));
 const CorridorDelayDashboard = lazy(() => import('./components/CorridorDelayDashboard'));
-const DMSSignPlayground = lazy(() => import('./components/DMSSignPlayground'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -1034,19 +1033,6 @@ function App() {
               selectedEvent={selectedEvent}
               onClose={() => setView('map')}
             />
-          </div>
-        ) : view === 'dmsPreview' ? (
-          <div style={{
-            flex: 1,
-            overflowY: 'auto',
-            overflowX: 'hidden',
-            minHeight: 0,
-            WebkitOverflowScrolling: 'touch',
-            position: 'relative'
-          }}>
-            <Suspense fallback={<LoadingFallback />}>
-              <DMSSignPlayground />
-            </Suspense>
           </div>
         ) : view === 'diversionRoutes' ? (
           <div style={{

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { config } from '../config';
+import DMSSignPlayground, { DMSSign } from './DMSSignPlayground';
 
 export default function DMSMessagingPanel({ selectedEvent, onClose }) {
   const [activeTab, setActiveTab] = useState('templates');
@@ -266,6 +267,22 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
             Message Templates ({templates.length})
           </button>
           <button
+            onClick={() => setActiveTab('compose')}
+            style={{
+              padding: '12px 24px',
+              fontWeight: '500',
+              transition: 'color 0.2s',
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              ...(activeTab === 'compose'
+                ? { borderBottom: '2px solid #F08230', color: '#F08230', backgroundColor: 'white' }
+                : { color: '#4b5563' })
+            }}
+          >
+            Compose & Preview
+          </button>
+          <button
             onClick={() => setActiveTab('history')}
             style={{
               padding: '12px 24px',
@@ -508,21 +525,10 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
                       }}>
                         Message Preview
                       </label>
-                      <div style={{
-                        backgroundColor: '#111827',
-                        color: '#facc15',
-                        fontFamily: 'monospace',
-                        textAlign: 'center',
-                        padding: '24px',
-                        borderRadius: '4px',
-                        border: '4px solid #374151'
-                      }}>
-                        <div style={{ fontSize: '20px', fontWeight: 'bold', lineHeight: '1.25' }}>
-                          {previewMessage.split('/').map((line, i) => (
-                            <div key={i}>{line.trim()}</div>
-                          ))}
-                        </div>
-                      </div>
+                      {/* DMSSign renders the resolved template message with
+                          authentic LED-dot lettering on a black panel.
+                          DMS templates use '/' as the line separator. */}
+                      <DMSSign message={previewMessage.split('/').map(l => l.trim()).join('\n')} />
                       <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
                         Character limit: {selectedTemplate.char_limit} lines
                       </p>
@@ -572,6 +578,10 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
                 )}
               </div>
             </div>
+          )}
+
+          {activeTab === 'compose' && (
+            <DMSSignPlayground />
           )}
 
           {activeTab === 'history' && (
