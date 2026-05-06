@@ -35,18 +35,22 @@ const deploymentStyles = {
 
 // Create custom marker icon for V2X deployments
 const createV2XIcon = (deployment) => {
-  // Determine deployment status
-  let style;
-  const status = deployment.properties?.Status || deployment.properties?.status || '';
-  const type = deployment.properties?.Type || deployment.properties?.type || '';
+  // USDOT's republished schema uses lowercase truncated field names
+  // (loc_status, v2x_type, etc.). Fall back to the older capitalized
+  // names so the layer keeps working if USDOT swaps formats again.
+  const p = deployment.properties || {};
+  const status = (p.loc_status || p.Status || p.status || '').toString();
+  const type = (p.v2x_type || p.co_v2x_typ || p.Type || p.type || '').toString();
+  const cohort = (p.cohort_mem || '').toString();
 
+  let style;
   if (status.toLowerCase().includes('operational') || status.toLowerCase().includes('active')) {
     style = deploymentStyles.operational;
   } else if (status.toLowerCase().includes('planned') || status.toLowerCase().includes('future')) {
     style = deploymentStyles.planned;
   } else if (type.toLowerCase().includes('rsu') || type.toLowerCase().includes('roadside')) {
     style = deploymentStyles.rsu;
-  } else if (type.toLowerCase().includes('corridor')) {
+  } else if (cohort.toUpperCase() === 'Y' || type.toLowerCase().includes('corridor')) {
     style = deploymentStyles.corridor;
   } else {
     style = deploymentStyles.default;
@@ -284,83 +288,7 @@ export default function V2XDeploymentsLayer({ visible = true, stateKey = null })
               icon={createV2XIcon(deployment)}
             >
               <Popup>
-                <div style={{ minWidth: '220px' }}>
-                  <div style={{
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    marginBottom: '8px',
-                    color: '#111827',
-                    borderBottom: '2px solid #e5e7eb',
-                    paddingBottom: '8px'
-                  }}>
-                    🇺🇸 USDOT V2X Deployment
-                  </div>
-
-                  {props.Name && (
-                    <div style={{ marginBottom: '6px' }}>
-                      <strong>Name:</strong> {props.Name}
-                    </div>
-                  )}
-
-                  {props.Location && (
-                    <div style={{ marginBottom: '6px' }}>
-                      <strong>Location:</strong> {props.Location}
-                    </div>
-                  )}
-
-                  {props.City && (
-                    <div style={{ marginBottom: '6px' }}>
-                      <strong>City:</strong> {props.City}
-                    </div>
-                  )}
-
-                  {props.State && (
-                    <div style={{ marginBottom: '6px' }}>
-                      <strong>State:</strong> {props.State}
-                    </div>
-                  )}
-
-                  {props.Status && (
-                    <div style={{ marginBottom: '6px' }}>
-                      <strong>Status:</strong> {props.Status}
-                    </div>
-                  )}
-
-                  {props.Type && (
-                    <div style={{ marginBottom: '6px' }}>
-                      <strong>Type:</strong> {props.Type}
-                    </div>
-                  )}
-
-                  {props.Technology && (
-                    <div style={{ marginBottom: '6px' }}>
-                      <strong>Technology:</strong> {props.Technology}
-                    </div>
-                  )}
-
-                  {props.Description && (
-                    <div style={{
-                      marginTop: '10px',
-                      paddingTop: '10px',
-                      borderTop: '1px solid #e5e7eb',
-                      fontSize: '12px',
-                      color: '#6b7280'
-                    }}>
-                      {props.Description}
-                    </div>
-                  )}
-
-                  <div style={{
-                    marginTop: '10px',
-                    paddingTop: '10px',
-                    borderTop: '1px solid #e5e7eb',
-                    fontSize: '11px',
-                    color: '#6b7280'
-                  }}>
-                    <strong>Source:</strong> U.S. Department of Transportation<br/>
-                    <strong>Program:</strong> Federal V2X Deployment Initiative
-                  </div>
-                </div>
+                <V2XPopupBody props={props} />
               </Popup>
             </Marker>
           );
@@ -368,4 +296,128 @@ export default function V2XDeploymentsLayer({ visible = true, stateKey = null })
       </MarkerClusterGroup>
     </>
   );
+}
+
+/**
+ * Renders the popup contents for a USDOT V2X deployment feature.
+ *
+ * The dataset's field names changed when USDOT republished (capitalized
+ * Name/Location/Status etc. → lowercase truncated location/loc_status/...
+ * + cohort_mem/federal_gr/etc.). The popup walks both shapes so it keeps
+ * working across re-publishes, and falls back to "show every non-empty
+ * property with a humanized label" so even unanticipated schemas aren't
+ * silently empty.
+ */
+function V2XPopupBody({ props }) {
+  // Pick from the new schema first, fall back to the older capitalized one.
+  const get = (...keys) => {
+    for (const k of keys) {
+      const v = props?.[k];
+      if (v !== null && v !== undefined && String(v).trim() !== '') return String(v).trim();
+    }
+    return null;
+  };
+
+  const headlineLocation = get('location', 'Location') || get('agency_hq_') || get('City');
+  const state            = get('state', 'State');
+  const v2xType          = get('v2x_type', 'co_v2x_typ', 'Type', 'Technology');
+  const status           = get('loc_status', 'Status');
+  const leadAgency       = get('lead_agenc', 'Agency') || get('co_agency_');
+  const federalGrant     = get('federal_gr');
+  const fundingYear      = get('federal__1');
+  const cohortName       = get('co_name');
+  const cohortMember     = get('cohort_mem');
+  const network          = get('network_v2');
+  const itswcName        = get('itswc_name');
+  const itswcLocation    = get('itswc_loca');
+  const description      = get('co_descrip', 'Description', 'description');
+  const otherName        = get('other_name');
+  const sourceLink       = get('rel_links');
+
+  // Build the "rendered as headline rows" set — pairs we'll render explicitly.
+  const headlineRows = [
+    ['Location',        headlineLocation && state && !headlineLocation.endsWith(state) ? `${headlineLocation}, ${state}` : (headlineLocation || state)],
+    ['V2X Type',        v2xType],
+    ['Status',          status],
+    ['Lead Agency',     leadAgency],
+    ['Federal Grant',   federalGrant && fundingYear ? `${federalGrant} (FY${fundingYear})` : (federalGrant || (fundingYear ? `FY${fundingYear}` : null))],
+    ['Cohort Program',  cohortName && cohortMember ? `${cohortName}${cohortMember.toUpperCase() === 'Y' ? ' (member)' : ''}` : cohortName],
+    ['Network',         network],
+    ['ITS World Cong.', itswcName || itswcLocation],
+    ['Other Name',      otherName]
+  ].filter(([, v]) => v);
+
+  // Final safety net — if for any reason none of the above matched (a future
+  // schema change), drop into a generic "every non-empty property" view so
+  // the popup never reads as empty again.
+  const fallbackRows = headlineRows.length === 0
+    ? Object.entries(props || {})
+        .filter(([k, v]) => v !== null && v !== undefined && String(v).trim() !== '' && !['fid', 'objectid', 'latitude', 'longitude'].includes(k.toLowerCase()))
+        .slice(0, 12)
+        .map(([k, v]) => [humanizeKey(k), String(v)])
+    : [];
+
+  return (
+    <div style={{ minWidth: '240px', maxWidth: '320px' }}>
+      <div style={{
+        fontSize: '15px',
+        fontWeight: 700,
+        marginBottom: '8px',
+        color: '#0E0E10',
+        borderBottom: '2px solid #F08230',
+        paddingBottom: '6px',
+        fontFamily: 'var(--font-display)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.02em'
+      }}>
+        USDOT V2X Deployment
+      </div>
+
+      {(headlineRows.length > 0 ? headlineRows : fallbackRows).map(([label, value]) => (
+        <div key={label} style={{ marginBottom: '5px', fontSize: '12.5px', lineHeight: 1.45 }}>
+          <strong style={{ color: '#1d1d1f' }}>{label}:</strong>{' '}
+          <span style={{ color: '#374151' }}>{value}</span>
+        </div>
+      ))}
+
+      {description && (
+        <div style={{
+          marginTop: '10px',
+          paddingTop: '8px',
+          borderTop: '1px solid #e5e7eb',
+          fontSize: '12px',
+          color: '#374151',
+          lineHeight: 1.5
+        }}>
+          {description}
+        </div>
+      )}
+
+      {sourceLink && (
+        <div style={{ marginTop: '8px', fontSize: '11px' }}>
+          <a href={sourceLink} target="_blank" rel="noopener noreferrer" style={{ color: '#C66A1F' }}>
+            More info ↗
+          </a>
+        </div>
+      )}
+
+      <div style={{
+        marginTop: '10px',
+        paddingTop: '8px',
+        borderTop: '1px solid #e5e7eb',
+        fontSize: '10px',
+        color: '#6b7280'
+      }}>
+        Source: U.S. Department of Transportation
+      </div>
+    </div>
+  );
+}
+
+function humanizeKey(k) {
+  return String(k)
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, c => c.toUpperCase());
 }
