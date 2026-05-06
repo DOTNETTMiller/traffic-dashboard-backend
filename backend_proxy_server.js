@@ -2033,6 +2033,46 @@ async function snapToRoadImmediate(lat1, lng1, lat2, lng2, direction = null) {
   return [[lng1, lat1], [lng2, lat2]];
 }
 
+/**
+ * GET /api/osrm/route — public road-snap helper.
+ *
+ * Wraps snapToRoadImmediate so the frontend can request OSRM-routed
+ * geometry between two arbitrary points. Used by DiversionRoutePanel's
+ * inline map preview to replace the straight-line A→B with the actual
+ * road-following polyline (the same geometry quality the events get
+ * during normalization).
+ *
+ * Returns { coordinates: [[lng,lat], ...] } in GeoJSON order. Falls
+ * back to a straight-line two-point response if OSRM is unreachable
+ * or rate-limited (matching the events pipeline's behavior).
+ */
+app.get('/api/osrm/route', async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=86400');  // 24h, snap is stable
+  const sLat = parseFloat(req.query.startLat);
+  const sLon = parseFloat(req.query.startLon);
+  const eLat = parseFloat(req.query.endLat);
+  const eLon = parseFloat(req.query.endLon);
+
+  if (![sLat, sLon, eLat, eLon].every(Number.isFinite)) {
+    return res.status(400).json({
+      success: false,
+      error: 'startLat, startLon, endLat, endLon are all required and must be numeric'
+    });
+  }
+
+  try {
+    const coordinates = await snapToRoadImmediate(sLat, sLon, eLat, eLon);
+    res.json({ success: true, coordinates, source: 'osrm' });
+  } catch (err) {
+    console.warn('osrm/route fell back to straight line:', err.message);
+    res.json({
+      success: true,
+      coordinates: [[sLon, sLat], [eLon, eLat]],
+      source: 'straight_line'
+    });
+  }
+});
+
 // Check if event is near any low-clearance bridge and create warnings
 async function checkBridgeClearanceProximity(event, stateKey) {
   try {

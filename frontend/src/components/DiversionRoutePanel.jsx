@@ -632,6 +632,11 @@ const SEED_ROUTE_FALLBACKS = {
 };
 
 function DiversionRouteMap({ route }) {
+  // OSRM-routed polyline replaces the straight line once it loads.
+  // Keyed by route.id so switching routes resets the state cleanly.
+  const [snapped, setSnapped] = useState(null);
+  const [snapping, setSnapping] = useState(false);
+
   const { polyline, markers, bounds, hasGeometry, approximate } = useMemo(() => {
     if (!route) return { polyline: null, markers: [], bounds: null, hasGeometry: false, approximate: false };
 
@@ -688,6 +693,34 @@ function DiversionRouteMap({ route }) {
     return { polyline: null, markers: [], bounds: null, hasGeometry: false, approximate: false };
   }, [route]);
 
+  // When we have start/end coords (real OR fallback), ask the server for the
+  // OSRM road-snapped polyline between them. Same machinery the event
+  // normalization pipeline uses — just exposed as /api/osrm/route. Cached
+  // server-side via osrm_geometry_cache so repeated selections are free.
+  useEffect(() => {
+    setSnapped(null);
+    if (!hasGeometry || !polyline || polyline.length !== 2) return;
+    const [[sLat, sLon], [eLat, eLon]] = polyline;
+    let cancelled = false;
+    setSnapping(true);
+    fetch(`${config.apiUrl}/api/osrm/route?startLat=${sLat}&startLon=${sLon}&endLat=${eLat}&endLon=${eLon}`)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return;
+        if (data?.success && Array.isArray(data.coordinates) && data.coordinates.length >= 2) {
+          // OSRM returns [lng, lat] pairs; convert to [lat, lng] for Leaflet.
+          setSnapped(data.coordinates.map(c => [c[1], c[0]]));
+        }
+      })
+      .catch(() => { /* keep the straight-line fallback silently */ })
+      .finally(() => { if (!cancelled) setSnapping(false); });
+    return () => { cancelled = true; };
+  }, [route?.id, hasGeometry, polyline]);
+
+  // If a road-snapped polyline arrived, use it; otherwise the straight line.
+  const renderedPolyline = snapped || polyline;
+  const renderedBounds = snapped ? L.latLngBounds(snapped) : bounds;
+
   // Mode 3: nothing to render → placeholder
   if (!hasGeometry) {
     return (
@@ -714,7 +747,7 @@ function DiversionRouteMap({ route }) {
   }
 
   // Pad bounds slightly so markers aren't right at the edges
-  const padded = bounds.pad(0.18);
+  const padded = renderedBounds.pad(0.18);
 
   return (
     <div style={{
@@ -744,6 +777,28 @@ function DiversionRouteMap({ route }) {
           Approximate
         </div>
       )}
+      {(snapping || snapped) && (
+        <div style={{
+          position: 'absolute',
+          top: '8px',
+          right: '8px',
+          zIndex: 500,
+          background: 'rgba(255, 255, 255, 0.92)',
+          border: `1px solid ${snapped ? 'rgba(22, 163, 74, 0.32)' : 'rgba(0, 0, 0, 0.10)'}`,
+          color: snapped ? '#15803d' : '#6b7280',
+          fontSize: '10px',
+          fontWeight: 600,
+          letterSpacing: '0.04em',
+          textTransform: 'uppercase',
+          padding: '4px 8px',
+          borderRadius: '999px'
+        }}
+        title={snapped
+          ? 'Polyline snapped to actual roads via OSRM (same routing the events pipeline uses).'
+          : 'Asking OSRM to snap to roads…'}>
+          {snapped ? 'Road-snapped' : 'Snapping…'}
+        </div>
+      )}
       <MapContainer
         bounds={padded}
         scrollWheelZoom={false}
@@ -755,7 +810,7 @@ function DiversionRouteMap({ route }) {
           subdomains="abcd"
         />
         <Polyline
-          positions={polyline}
+          positions={renderedPolyline}
           pathOptions={{ color: '#F08230', weight: 5, opacity: 0.9 }}
         />
         {markers.map((m, i) => (
