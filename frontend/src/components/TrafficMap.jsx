@@ -544,10 +544,11 @@ export default function TrafficMap({
           maxZoom={20}
         />
 
-        {/* Only show traffic events when truck parking is NOT active and
-            the Events map-layer toggle is on. Events default to on so
-            existing behavior is preserved. */}
-        {!showParking && showEvents && (
+        {/* Events render whenever the Events map-layer toggle is on. The
+            old "hide events when parking is on" exclusivity is gone now
+            that Events is its own first-class toggle — users can stack
+            layers however they want. */}
+        {showEvents && (
           <MarkerClusterGroup
             chunkedLoading
             maxClusterRadius={50}
