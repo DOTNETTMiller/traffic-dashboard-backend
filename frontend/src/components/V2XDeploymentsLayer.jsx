@@ -141,8 +141,8 @@ export default function V2XDeploymentsLayer({ visible = true, stateKey = null })
     return (
       <div style={{
         position: 'absolute',
-        top: '80px',
-        right: '10px',
+        bottom: '24px',
+        right: '20px',
         zIndex: 1000,
         backgroundColor: error ? '#fee2e2' : '#e3f2fd',
         border: `2px solid ${error ? '#ef4444' : '#1976d2'}`,
@@ -172,8 +172,8 @@ export default function V2XDeploymentsLayer({ visible = true, stateKey = null })
     return (
       <div style={{
         position: 'absolute',
-        top: '80px',
-        right: '10px',
+        bottom: '24px',
+        right: '20px',
         zIndex: 1000,
         backgroundColor: '#fef3c7',
         border: '2px solid #f59e0b',
@@ -202,8 +202,8 @@ export default function V2XDeploymentsLayer({ visible = true, stateKey = null })
       {/* Info Panel */}
       <div style={{
         position: 'absolute',
-        top: '80px',
-        right: '10px',
+        bottom: '24px',
+        right: '20px',
         zIndex: 1000,
         backgroundColor: '#dbeafe',
         border: '2px solid #1976d2',

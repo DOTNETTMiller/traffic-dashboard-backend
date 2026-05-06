@@ -517,18 +517,21 @@ export default function StateOSWRegulationsLayer({ nascoOnly = false }) {
         );
       })}
 
-      {/* Legend */}
+      {/* Legend — anchored bottom-right above the V2X legend so the
+          two never collide. Bottom-left is reserved for the Bounding
+          Box / HeatMap controls. */}
       <div
         style={{
           position: 'absolute',
-          bottom: '20px',
-          left: '20px',
+          bottom: '210px',
+          right: '20px',
           zIndex: 1000,
           background: 'rgba(255, 255, 255, 0.95)',
           padding: '12px',
           borderRadius: '8px',
           boxShadow: theme.shadows.md,
-          fontSize: '11px'
+          fontSize: '11px',
+          maxWidth: '260px'
         }}
       >
         <div style={{ fontWeight: '700', marginBottom: '8px' }}>
