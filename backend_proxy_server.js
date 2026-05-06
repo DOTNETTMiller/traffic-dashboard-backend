@@ -12648,7 +12648,14 @@ app.get('/api/diversion-routes', async (req, res) => {
 });
 
 // GET specific diversion route with segments and approvals
-app.get('/api/diversion-routes/:id', async (req, res) => {
+app.get('/api/diversion-routes/:id', async (req, res, next) => {
+  // Express matches the first route, so literal sub-paths registered
+  // *after* this handler (activations, auto-check) get shadowed: a request
+  // for /api/diversion-routes/activations would land here with
+  // id="activations" and 500 with "Failed to fetch diversion route".
+  // Fall through to the next handler when id isn't a numeric route ID.
+  if (!/^\d+$/.test(req.params.id)) return next();
+
   if (!pgPool) {
     return res.status(503).json({
       success: false,
