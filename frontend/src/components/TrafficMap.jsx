@@ -411,6 +411,7 @@ export default function TrafficMap({
   itsEquipmentType = null,
   showCADDElements = false,
   showV2XDeployments = false,
+  showEvents = true,
   interstateOnly = true,
   heatMapActive = false,
   heatMapMode = 'density',
@@ -543,8 +544,10 @@ export default function TrafficMap({
           maxZoom={20}
         />
 
-        {/* Only show traffic events when truck parking is NOT active */}
-        {!showParking && (
+        {/* Only show traffic events when truck parking is NOT active and
+            the Events map-layer toggle is on. Events default to on so
+            existing behavior is preserved. */}
+        {!showParking && showEvents && (
           <MarkerClusterGroup
             chunkedLoading
             maxClusterRadius={50}

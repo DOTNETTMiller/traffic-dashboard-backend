@@ -104,6 +104,7 @@ function App() {
   const [itsEquipmentType, setItsEquipmentType] = useState(''); // Equipment type filter (camera, dms, sensor, rsu)
   const [showCADDElements, setShowCADDElements] = useState(false);
   const [showV2XDeployments, setShowV2XDeployments] = useState(false);
+  const [showEvents, setShowEvents] = useState(true);
   const [availableRoutes, setAvailableRoutes] = useState([]);
   const [showInterchanges, setShowInterchanges] = useState(false); // Hidden by default - toggle to show
   const [showBridgeClearances, setShowBridgeClearances] = useState(false); // Hidden by default - toggle to show
@@ -789,6 +790,7 @@ function App() {
         chatOpen={chatOpen}
         messagesOpen={desktopMessagesOpen}
         mapLayerStates={{
+          showEvents,
           showParking,
           showITSEquipment,
           showV2XDeployments,
@@ -813,6 +815,7 @@ function App() {
           // Map Layers toggles — flipping any of these layer-visibility
           // booleans navigates to the map view first so the user actually
           // sees what they just turned on.
+          'toggle-events':             () => { setView('map'); setShowEvents(p => !p); },
           'toggle-parking':            () => { setView('map'); setShowParking(p => !p); },
           'toggle-its-equipment':      () => { setView('map'); setShowITSEquipment(p => !p); },
           'toggle-v2x':                () => { setView('map'); setShowV2XDeployments(p => !p); },
@@ -1157,6 +1160,7 @@ function App() {
                   itsEquipmentType={itsEquipmentType}
                   showCADDElements={showCADDElements}
                   showV2XDeployments={showV2XDeployments}
+                  showEvents={showEvents}
                   interstateOnly={interstateOnly}
                   heatMapActive={heatMapActive}
                   heatMapMode={heatMapMode}
