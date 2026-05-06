@@ -61,7 +61,10 @@ export default function InterchangeLayer({ showInterchanges = false }) {
         const response = await api.get('/api/interchanges');
 
         if (response.data && response.data.success) {
-          setInterchanges(response.data.interchanges);
+          // Defensive: API has occasionally returned success without an
+          // interchanges array, which would break the .map() in the
+          // render path below.
+          setInterchanges(Array.isArray(response.data.interchanges) ? response.data.interchanges : []);
         } else {
           setError('Failed to load interchanges');
         }

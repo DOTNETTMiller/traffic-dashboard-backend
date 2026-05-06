@@ -47,11 +47,12 @@
       href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&family=Open+Sans+Condensed:wght@300;700&family=JetBrains+Mono:wght@400;500&family=VT323&display=swap"
     />
 
-    <!-- Preload /api/events so the fetch starts in parallel with the JS bundle
-         download, instead of waiting until React mounts and useTrafficData
-         fires. Cuts time-to-first-paint of populated map by ~200-500ms.
-         Endpoint is unauthenticated and same-origin so no crossorigin needed. -->
-    <link rel="preload" href="/api/events" as="fetch" />
+    <!-- Removed the /api/events preload: the actual axios fetch fires with
+         different request mode (Authorization header, axios defaults), so
+         the browser couldn't reuse the preloaded response and Safari logged
+         a "preloaded but not used within a few seconds" warning every load.
+         The backend cache warmer keeps the endpoint hot regardless, so the
+         marginal benefit isn't worth the noise. -->
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />

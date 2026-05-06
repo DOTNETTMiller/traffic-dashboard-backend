@@ -35,7 +35,9 @@ export default function StateOSWRegulationsLayer({ nascoOnly = false }) {
       });
 
       if (response.data.success) {
-        setRegulations(response.data.regulations);
+        // Defensive: backend sometimes returns success with regulations
+        // missing/null when the upstream pg table doesn't exist.
+        setRegulations(Array.isArray(response.data.regulations) ? response.data.regulations : []);
       }
     } catch (error) {
       console.error('Error fetching state OS/OW regulations:', error);

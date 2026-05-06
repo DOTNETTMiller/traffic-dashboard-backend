@@ -14979,22 +14979,38 @@ app.get('/api/plugins/events', async (req, res) => {
 
 // GET /api/plugins/providers - Get all active providers
 app.get('/api/plugins/providers', async (req, res) => {
+  // db.allAsync was the legacy helper; the unified adapter exposes
+  // db.db.query (pg) / db.db.prepare(...).all() (sqlite). Code here
+  // matches the other endpoints in this file.
+  const sql = `SELECT provider_id, provider_name, display_name, website_url, logo_url,
+                      description, data_types, coverage_states, status
+               FROM plugin_providers
+               WHERE status IN ('active', 'trial')
+               ORDER BY display_name`;
   try {
-    const providers = await db.allAsync(
-      `SELECT provider_id, provider_name, display_name, website_url, logo_url,
-              description, data_types, coverage_states, status
-       FROM plugin_providers
-       WHERE status IN ('active', 'trial')
-       ORDER BY display_name`
-    );
+    let providers = [];
+    try {
+      if (db.isPostgres) {
+        const result = await db.db.query(sql);
+        providers = result.rows || [];
+      } else {
+        providers = db.db.prepare(sql).all();
+      }
+    } catch (queryErr) {
+      // plugin_providers table is optional — some deploys never seed it.
+      // Treat missing table as "no providers" rather than 500ing the
+      // VendorPortal page open.
+      console.warn('plugins/providers: returning empty list —', queryErr.message);
+      providers = [];
+    }
 
     res.json({
       success: true,
       count: providers.length,
       providers: providers.map(p => ({
         ...p,
-        data_types: JSON.parse(p.data_types || '[]'),
-        coverage_states: JSON.parse(p.coverage_states || '[]')
+        data_types: typeof p.data_types === 'string' ? JSON.parse(p.data_types || '[]') : (p.data_types || []),
+        coverage_states: typeof p.coverage_states === 'string' ? JSON.parse(p.coverage_states || '[]') : (p.coverage_states || [])
       }))
     });
   } catch (error) {
@@ -23466,35 +23482,45 @@ app.get('/api/funding-opportunities', async (req, res) => {
 // GET /api/funding-opportunities/evidence - Generate grant evidence from platform stats
 app.get('/api/funding-opportunities/evidence', async (req, res) => {
   try {
-    // Gather platform statistics
+    // Gather platform statistics. Each count is wrapped in its own try
+    // because schemas drift between dev (SQLite) and prod (Postgres):
+    // a single missing table or column on Postgres used to throw out of
+    // the function and 500 the whole endpoint. Now any individual query
+    // failure logs and falls back to the existing default constant.
     const stats = {};
 
-    // Count total states from states table
-    if (db.isPostgres) {
-      const stateCount = await db.db.query('SELECT COUNT(*) as count FROM states WHERE enabled = true');
-      stats.totalStates = stateCount.rows[0]?.count || 46;
-    } else {
-      const stateCount = db.db.prepare('SELECT COUNT(*) as count FROM states WHERE enabled = 1').get();
-      stats.totalStates = stateCount?.count || 46;
-    }
+    const safeCount = async (label, pgSql, sqliteSql, fallback) => {
+      try {
+        if (db.isPostgres) {
+          const result = await db.db.query(pgSql);
+          return Number(result.rows?.[0]?.count) || fallback;
+        }
+        const result = db.db.prepare(sqliteSql).get();
+        return Number(result?.count) || fallback;
+      } catch (err) {
+        console.warn(`evidence: ${label} fell back to ${fallback} — ${err.message}`);
+        return fallback;
+      }
+    };
 
-    // Count total events from cached_events table
-    if (db.isPostgres) {
-      const eventCount = await db.db.query('SELECT COUNT(*) as count FROM cached_events WHERE end_time > NOW()');
-      stats.totalEvents = eventCount.rows[0]?.count || 10000;
-    } else {
-      const eventCount = db.db.prepare("SELECT COUNT(*) as count FROM cached_events WHERE end_time > datetime('now')").get();
-      stats.totalEvents = eventCount?.count || 10000;
-    }
-
-    // Count ITS assets
-    if (db.isPostgres) {
-      const itsCount = await db.db.query('SELECT COUNT(*) as count FROM its_equipment');
-      stats.itsAssets = itsCount.rows[0]?.count || 2197;
-    } else {
-      const itsCount = db.db.prepare('SELECT COUNT(*) as count FROM its_equipment').get();
-      stats.itsAssets = itsCount?.count || 2197;
-    }
+    stats.totalStates = await safeCount(
+      'totalStates',
+      'SELECT COUNT(*) as count FROM states WHERE enabled = true',
+      'SELECT COUNT(*) as count FROM states WHERE enabled = 1',
+      46
+    );
+    stats.totalEvents = await safeCount(
+      'totalEvents',
+      "SELECT COUNT(*) as count FROM cached_events WHERE end_time > NOW()",
+      "SELECT COUNT(*) as count FROM cached_events WHERE end_time > datetime('now')",
+      10000
+    );
+    stats.itsAssets = await safeCount(
+      'itsAssets',
+      'SELECT COUNT(*) as count FROM its_equipment',
+      'SELECT COUNT(*) as count FROM its_equipment',
+      2197
+    );
 
     // Add corridor data
     stats.corridors = [
@@ -25350,12 +25376,21 @@ app.get('/api/its-equipment/routes', async (req, res) => {
 
     query += ' ORDER BY route';
 
-    let routes;
-    if (db.isPostgres) {
-      const result = await db.db.query(query, params);
-      routes = result.rows || [];
-    } else {
-      routes = db.db.prepare(query).all(...params);
+    let routes = [];
+    try {
+      if (db.isPostgres) {
+        const result = await db.db.query(query, params);
+        routes = result.rows || [];
+      } else {
+        routes = db.db.prepare(query).all(...params);
+      }
+    } catch (queryErr) {
+      // Tolerate schema drift: if pg's its_equipment table predates the
+      // 'route' column being added, the SELECT throws "column 'route'
+      // does not exist". Surface an empty list rather than 500ing the
+      // filter-options panel for the rest of the dashboard.
+      console.warn('its-equipment/routes: schema drift, returning empty list —', queryErr.message);
+      routes = [];
     }
 
     res.json({
