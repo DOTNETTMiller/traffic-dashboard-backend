@@ -665,63 +665,22 @@ export default function AdminUsers({ user, authToken }) {
                   </td>
                   <td style={{ padding: '12px', fontSize: '12px' }}>{formatDateTime(userRecord.lastLogin)}</td>
                   <td style={{ padding: '12px' }}>
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                      <button
-                        onClick={() => handleResetPassword(userRecord)}
-                        style={{
-                          padding: '6px 10px',
-                          backgroundColor: '#F08230',
-                          color: '#111827',
-                          border: 'none',
-                          borderRadius: '3px',
-                          cursor: 'pointer',
-                          fontSize: '12px'
-                        }}
-                      >
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <TableActionButton tone="brand" onClick={() => handleResetPassword(userRecord)}>
                         Reset Password
-                      </button>
-                      <button
+                      </TableActionButton>
+                      <TableActionButton
+                        tone={userRecord.active ? 'warn' : 'good'}
                         onClick={() => handleToggleActive(userRecord)}
-                        style={{
-                          padding: '6px 10px',
-                          backgroundColor: userRecord.active ? '#D32F2F' : '#16a34a',
-                          color: '#111827',
-                          border: 'none',
-                          borderRadius: '3px',
-                          cursor: 'pointer',
-                          fontSize: '12px'
-                        }}
                       >
                         {userRecord.active ? 'Deactivate' : 'Activate'}
-                      </button>
-                      <button
-                        onClick={() => handleEditClick(userRecord)}
-                        style={{
-                          padding: '6px 10px',
-                          backgroundColor: '#6b7280',
-                          color: '#222',
-                          border: 'none',
-                          borderRadius: '3px',
-                          cursor: 'pointer',
-                          fontSize: '12px'
-                        }}
-                      >
+                      </TableActionButton>
+                      <TableActionButton tone="neutral" onClick={() => handleEditClick(userRecord)}>
                         Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(userRecord)}
-                        style={{
-                          padding: '6px 10px',
-                          backgroundColor: '#D32F2F',
-                          color: '#111827',
-                          border: 'none',
-                          borderRadius: '3px',
-                          cursor: 'pointer',
-                          fontSize: '12px'
-                        }}
-                      >
+                      </TableActionButton>
+                      <TableActionButton tone="destructive" onClick={() => handleDeleteUser(userRecord)}>
                         Delete
-                      </button>
+                      </TableActionButton>
                     </div>
                   </td>
                 </tr>
@@ -743,5 +702,63 @@ export default function AdminUsers({ user, authToken }) {
         <p style={{ marginTop: '10px', color: '#6b7280', fontSize: '12px' }}>Updating state list…</p>
       )}
     </div>
+  );
+}
+
+/**
+ * Compact table-row action button — Apple-style tonal pill.
+ *
+ * The previous buttons were chunky filled rectangles in saturated brand
+ * colors (orange / green / gray / red) that competed visually with the
+ * rest of the chrome. This is the Apple pattern instead: a faint tinted
+ * background carries the semantic, the text is ink-colored and uppercase
+ * tracked, the pill shape matches the chrome's other primary buttons,
+ * and hover lifts the tint subtly. Reads as "subtle but tappable" rather
+ * than "alarming."
+ *
+ * Tones:
+ *   brand        — accent orange, for utility actions (Reset Password)
+ *   good         — green, for positive state changes (Activate)
+ *   warn         — amber, for cautious state changes (Deactivate)
+ *   neutral      — gray, for non-destructive utilities (Edit)
+ *   destructive  — red, for irreversible actions (Delete)
+ */
+function TableActionButton({ tone = 'neutral', onClick, children }) {
+  const palettes = {
+    brand:       { fg: '#a55e10', bg: 'rgba(240, 130, 48, 0.10)', border: 'rgba(240, 130, 48, 0.28)', hoverBg: 'rgba(240, 130, 48, 0.18)' },
+    good:        { fg: '#15803d', bg: 'rgba(22, 163, 74, 0.10)',  border: 'rgba(22, 163, 74, 0.28)',  hoverBg: 'rgba(22, 163, 74, 0.18)' },
+    warn:        { fg: '#a55e10', bg: 'rgba(245, 200, 66, 0.18)', border: 'rgba(217, 177, 42, 0.40)', hoverBg: 'rgba(245, 200, 66, 0.28)' },
+    neutral:     { fg: '#374151', bg: 'rgba(0, 0, 0, 0.04)',      border: 'rgba(0, 0, 0, 0.10)',      hoverBg: 'rgba(0, 0, 0, 0.07)' },
+    destructive: { fg: '#9a1c1c', bg: 'rgba(211, 47, 47, 0.08)',  border: 'rgba(211, 47, 47, 0.28)',  hoverBg: 'rgba(211, 47, 47, 0.14)' }
+  };
+  const p = palettes[tone] || palettes.neutral;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        height: '26px',
+        padding: '0 12px',
+        background: p.bg,
+        color: p.fg,
+        border: `1px solid ${p.border}`,
+        borderRadius: '999px',
+        cursor: 'pointer',
+        fontFamily: 'var(--font-sans)',
+        fontSize: '11px',
+        fontWeight: 600,
+        letterSpacing: '0.04em',
+        textTransform: 'uppercase',
+        whiteSpace: 'nowrap',
+        transition: 'background-color 160ms cubic-bezier(0.32, 0.72, 0, 1), transform 160ms cubic-bezier(0.32, 0.72, 0, 1)'
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = p.hoverBg; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = p.bg; }}
+      onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.96)'; }}
+      onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+    >
+      {children}
+    </button>
   );
 }
