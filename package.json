@@ -16,6 +16,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1044.0",
     "@google/earthengine": "^1.7.16",
     "@mapbox/polyline": "^1.2.1",
     "@sendgrid/mail": "^8.1.6",
@@ -32,6 +33,7 @@
     "dxf-parser": "^1.1.2",
     "express": "^4.18.2",
     "gdal3.js": "^2.8.1",
+    "geotiff": "^3.0.5",
     "jsonwebtoken": "^9.0.2",
     "jszip": "^3.10.1",
     "multer": "^2.0.2",
@@ -41,6 +43,7 @@
     "pg": "^8.16.3",
     "proj4": "^2.20.4",
     "shapefile": "^0.6.6",
+    "sharp": "^0.34.5",
     "xlsx": "^0.18.5",
     "xml2js": "^0.6.2"
   },

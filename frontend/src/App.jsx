@@ -68,6 +68,7 @@ const FundingOpportunities = lazy(() => import('./components/FundingOpportunitie
 const NASCOCorridorRegulationsView = lazy(() => import('./components/NASCOCorridorRegulationsView'));
 const DigitalStandardsCrosswalk = lazy(() => import('./components/DigitalStandardsCrosswalk'));
 const CorridorDelayDashboard = lazy(() => import('./components/CorridorDelayDashboard'));
+const AerialOverlaysPanel = lazy(() => import('./components/AerialOverlaysPanel'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -105,6 +106,7 @@ function App() {
   const [showV2XDeployments, setShowV2XDeployments] = useState(false);
   const [showEvents, setShowEvents] = useState(true);
   const [showDiversionRoutes, setShowDiversionRoutes] = useState(false);
+  const [showAerialOverlays, setShowAerialOverlays] = useState(false);
   const [availableRoutes, setAvailableRoutes] = useState([]);
   const [showInterchanges, setShowInterchanges] = useState(false); // Hidden by default - toggle to show
   const [showBridgeClearances, setShowBridgeClearances] = useState(false); // Hidden by default - toggle to show
@@ -799,6 +801,7 @@ function App() {
           showBridgeClearances,
           showCorridorRegulations,
           showDiversionRoutes,
+          showAerialOverlays,
           interstateOnly
         }}
         actions={{
@@ -825,6 +828,8 @@ function App() {
           'toggle-bridge-clearance':   () => { setView('map'); setShowBridgeClearances(p => !p); },
           'toggle-corridor-regs':      () => { setView('map'); setShowCorridorRegulations(p => !p); },
           'toggle-diversion-routes':   () => { setView('map'); setShowDiversionRoutes(p => !p); },
+          'toggle-aerial-overlays':    () => { setView('map'); setShowAerialOverlays(p => !p); },
+          'open-aerial-overlays':      () => setView('aerialOverlays'),
           // Toggling either footer item closes the other so only one
           // secondary panel shows at a time (single-pane sidebar UX).
           'toggle-ai':       () => { setChatOpen(o => !o); setDesktopMessagesOpen(false); },
@@ -1037,6 +1042,19 @@ function App() {
               onClose={() => setView('map')}
             />
           </div>
+        ) : view === 'aerialOverlays' ? (
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            minHeight: 0,
+            WebkitOverflowScrolling: 'touch',
+            position: 'relative'
+          }}>
+            <Suspense fallback={<LoadingFallback />}>
+              <AerialOverlaysPanel />
+            </Suspense>
+          </div>
         ) : view === 'diversionRoutes' ? (
           <div style={{
             flex: 1,
@@ -1151,6 +1169,7 @@ function App() {
                   showV2XDeployments={showV2XDeployments}
                   showEvents={showEvents}
                   showDiversionRoutes={showDiversionRoutes}
+                  showAerialOverlays={showAerialOverlays}
                   interstateOnly={interstateOnly}
                   heatMapActive={heatMapActive}
                   heatMapMode={heatMapMode}

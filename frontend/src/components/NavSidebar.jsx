@@ -53,7 +53,8 @@ const NAV = [
       { actionKey: 'toggle-interchanges',     toggleProp: 'showInterchanges',        icon: '🔀', label: 'Interchanges' },
       { actionKey: 'toggle-bridge-clearance', toggleProp: 'showBridgeClearances',    icon: '🌉', label: 'Bridge Clearances' },
       { actionKey: 'toggle-corridor-regs',    toggleProp: 'showCorridorRegulations', icon: '🚛', label: 'OS/OW Permit Rules' },
-      { actionKey: 'toggle-diversion-routes', toggleProp: 'showDiversionRoutes',     icon: '🛣️', label: 'Diversion Routes' }
+      { actionKey: 'toggle-diversion-routes', toggleProp: 'showDiversionRoutes',     icon: '🛣️', label: 'Diversion Routes' },
+      { actionKey: 'toggle-aerial-overlays',  toggleProp: 'showAerialOverlays',      icon: '🛩️', label: 'Aerial Overlays' }
     ]
   },
 
@@ -137,9 +138,10 @@ const NAV = [
     label: 'Admin',
     adminOnly: true,
     items: [
-      { view: 'admin',       icon: '⚙️', label: 'Admin Panel' },
-      { view: 'adminUsers',  icon: '👥', label: 'Users' },
-      { view: 'adminFeeds',  icon: '📡', label: 'Feed Submissions' }
+      { view: 'admin',           icon: '⚙️', label: 'Admin Panel' },
+      { view: 'adminUsers',      icon: '👥', label: 'Users' },
+      { view: 'adminFeeds',      icon: '📡', label: 'Feed Submissions' },
+      { view: 'aerialOverlays',  icon: '🛩️', label: 'Aerial Overlays' }
     ]
   }
 ];

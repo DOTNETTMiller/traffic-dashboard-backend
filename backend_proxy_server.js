@@ -30047,6 +30047,160 @@ app.get('/api/wzdx/upgraded/states', async (req, res) => {
 });
 
 // ========================================
+// AERIAL OVERLAYS — drone GeoTIFFs and PDF site plans displayed on the map
+// ========================================
+
+const aerialOverlays = require('./services/aerial-overlays');
+
+// Initialize the aerial_overlays table at startup (idempotent).
+aerialOverlays.initSchema(db).catch(err => {
+  console.warn('aerial_overlays schema init failed:', err.message);
+});
+
+// Memory-storage multer for upload endpoints. 200MB cap is generous —
+// drone GeoTIFFs run that large; we downsample on the server before
+// storing so on-disk size is small even when input is huge.
+const uploadAerial = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 200 * 1024 * 1024 }
+});
+
+// GET /api/aerial-overlays — list all overlays
+app.get('/api/aerial-overlays', async (req, res) => {
+  if (!db.isPostgres) {
+    return res.json({ success: true, overlays: [] });
+  }
+  try {
+    const result = await db.db.query(
+      `SELECT id, name, file_url, file_type, bounds, width_px, height_px,
+              uploaded_by, created_at
+       FROM aerial_overlays
+       ORDER BY created_at DESC`
+    );
+    res.json({ success: true, overlays: result.rows || [] });
+  } catch (err) {
+    console.warn('aerial_overlays list:', err.message);
+    res.json({ success: true, overlays: [] });
+  }
+});
+
+// POST /api/aerial-overlays/upload-tif — process a TIF/GeoTIFF
+//   multipart field: file
+//   form fields:     name (optional), uploaded_by (optional)
+app.post('/api/aerial-overlays/upload-tif', requireUser, uploadAerial.single('file'), async (req, res) => {
+  if (!aerialOverlays.isEnabled()) return res.status(503).json(aerialOverlays.setupHint());
+  if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
+  if (!db.isPostgres) return res.status(503).json({ success: false, error: 'Postgres required for aerial overlays' });
+
+  try {
+    const { jpeg, bounds, width, height } = await aerialOverlays.processTif(req.file.buffer);
+    const idHint = `tif-${Date.now()}`;
+    const { key, url } = await aerialOverlays.uploadJpeg(jpeg, idHint);
+
+    const name = (req.body.name || req.file.originalname || 'Aerial overlay').slice(0, 200);
+    const uploadedBy = req.user?.username || req.body.uploaded_by || 'unknown';
+
+    const insert = await db.db.query(
+      `INSERT INTO aerial_overlays (name, file_url, file_key, file_type, bounds, width_px, height_px, uploaded_by)
+       VALUES ($1, $2, $3, 'tif', $4, $5, $6, $7)
+       RETURNING id, name, file_url, file_type, bounds, width_px, height_px, uploaded_by, created_at`,
+      [name, url, key, bounds ? JSON.stringify(bounds) : null, width, height, uploadedBy]
+    );
+    res.json({ success: true, overlay: insert.rows[0] });
+  } catch (err) {
+    console.error('upload-tif failed:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/aerial-overlays/upload-image — accept a pre-rasterized JPEG
+// (used for PDFs after the client renders page 1 to canvas via pdfjs-dist;
+//  also used for any other arbitrary raster the user wants on the map).
+//
+//   multipart field: file (image/jpeg or image/png)
+//   form fields:     name, file_type ('pdf' | 'image'), uploaded_by, bounds (optional JSON)
+app.post('/api/aerial-overlays/upload-image', requireUser, uploadAerial.single('file'), async (req, res) => {
+  if (!aerialOverlays.isEnabled()) return res.status(503).json(aerialOverlays.setupHint());
+  if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
+  if (!db.isPostgres) return res.status(503).json({ success: false, error: 'Postgres required for aerial overlays' });
+
+  try {
+    // Even client-supplied images get a sharp pass for size sanity (cap
+    // at 2048px) and JPEG re-encoding for consistent storage.
+    const out = await sharp(req.file.buffer, { failOn: 'none' })
+      .resize({ width: 2048, height: 2048, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 80, mozjpeg: true })
+      .toBuffer({ resolveWithObject: true });
+
+    const fileType = req.body.file_type === 'pdf' ? 'pdf' : 'image';
+    const idHint = `${fileType}-${Date.now()}`;
+    const { key, url } = await aerialOverlays.uploadJpeg(out.data, idHint);
+
+    let bounds = null;
+    if (req.body.bounds) {
+      try { bounds = JSON.parse(req.body.bounds); } catch { /* invalid bounds → null */ }
+    }
+
+    const name = (req.body.name || req.file.originalname || 'Aerial overlay').slice(0, 200);
+    const uploadedBy = req.user?.username || 'unknown';
+
+    const insert = await db.db.query(
+      `INSERT INTO aerial_overlays (name, file_url, file_key, file_type, bounds, width_px, height_px, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, name, file_url, file_type, bounds, width_px, height_px, uploaded_by, created_at`,
+      [name, url, key, fileType, bounds ? JSON.stringify(bounds) : null,
+       out.info.width, out.info.height, uploadedBy]
+    );
+    res.json({ success: true, overlay: insert.rows[0] });
+  } catch (err) {
+    console.error('upload-image failed:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PATCH /api/aerial-overlays/:id — update bounds (used after the user
+// drags the corner handles to position a PDF on the map). Body: { bounds }
+app.patch('/api/aerial-overlays/:id', requireUser, async (req, res) => {
+  if (!db.isPostgres) return res.status(503).json({ success: false, error: 'Postgres required' });
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) return res.status(400).json({ success: false, error: 'Invalid id' });
+  const bounds = req.body?.bounds;
+  if (bounds && (!Number.isFinite(bounds.south) || !Number.isFinite(bounds.west)
+      || !Number.isFinite(bounds.north) || !Number.isFinite(bounds.east))) {
+    return res.status(400).json({ success: false, error: 'bounds must be { south, west, north, east } numbers' });
+  }
+  try {
+    const result = await db.db.query(
+      `UPDATE aerial_overlays SET bounds = $1 WHERE id = $2
+       RETURNING id, name, file_url, file_type, bounds, width_px, height_px, uploaded_by, created_at`,
+      [bounds ? JSON.stringify(bounds) : null, id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, overlay: result.rows[0] });
+  } catch (err) {
+    console.error('aerial overlay PATCH failed:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/aerial-overlays/:id — remove DB row + best-effort delete from S3
+app.delete('/api/aerial-overlays/:id', requireUser, async (req, res) => {
+  if (!db.isPostgres) return res.status(503).json({ success: false, error: 'Postgres required' });
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) return res.status(400).json({ success: false, error: 'Invalid id' });
+  try {
+    const row = await db.db.query('SELECT file_key FROM aerial_overlays WHERE id = $1', [id]);
+    if (row.rows.length === 0) return res.status(404).json({ success: false, error: 'Not found' });
+    await db.db.query('DELETE FROM aerial_overlays WHERE id = $1', [id]);
+    aerialOverlays.deleteObject(row.rows[0].file_key).catch(() => {});
+    res.json({ success: true });
+  } catch (err) {
+    console.error('aerial overlay DELETE failed:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ========================================
 // USDOT V2X DEPLOYMENTS DATA
 // ========================================
 
