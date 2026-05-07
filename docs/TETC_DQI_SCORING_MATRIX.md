@@ -1,8 +1,24 @@
-# TETC Data Quality Index (DQI) Scoring Matrix
-## Official Reference for Corridor Communicator TDM Evaluations
+# TETC Data Quality Index (DQI) Scoring Matrix — v1.0 (DEPRECATED)
 
-**Version:** 1.0
-**Last Updated:** November 2024
+> ⚠️ **This document is deprecated.** It captures the v1.0 DQI weights
+> from November 2024 and is preserved for historical context only.
+>
+> The current methodology is in **[`TETC_MDODE_Grading_SOP.md`](./TETC_MDODE_Grading_SOP.md)**
+> (v1.0 SOP, November 2025). The SOP revised the component weights:
+>
+> | Component  | v1.0 (this doc) | Current SOP |
+> |------------|-----------------|-------------|
+> | Accuracy   | 25%             | **40%**     |
+> | Coverage   | 20%             | **25%**     |
+> | Timeliness | 20%             | 20%         |
+> | Standards  | 20%             | **10%**     |
+> | Governance | 15%             | **5%**      |
+>
+> Use the SOP for any new evaluations. The scores listed below were
+> computed with v1.0 weights and would change under the new formula.
+
+**Version:** 1.0 (deprecated)
+**Last Updated:** November 2024 — superseded 2026-05-07
 **Authority:** Eastern Transportation Coalition TDM Validation Program
 
 ---

@@ -1,8 +1,18 @@
 # TETC DQI Validation Evidence Repository
 
-**Purpose:** This document contains the detailed evidence, findings, and citations supporting the official DQI scores in the TETC Scoring Matrix.
+**Purpose:** Detailed evidence, findings, and citations supporting the
+DQI scores reported below.
 
-**Last Updated:** November 2024
+> ℹ️ **Note on weights**: The composite scores in this document were
+> computed under the **v1.0 DQI formula** (Accuracy 25 / Coverage 20 /
+> Timeliness 20 / Standards 20 / Governance 15). The current SOP
+> ([`TETC_MDODE_Grading_SOP.md`](./TETC_MDODE_Grading_SOP.md), v1.0
+> Nov 2025) uses revised weights (40 / 25 / 20 / 10 / 5). Re-running
+> the same component scores under the new weights would shift the
+> composites; the per-component scores below are still valid evidence,
+> the composite line should be re-derived if you need today's number.
+
+**Last Updated:** November 2024 — reviewed 2026-05-07, weights note added
 
 ---
 

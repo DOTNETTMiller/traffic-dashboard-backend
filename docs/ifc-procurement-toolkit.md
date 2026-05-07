@@ -703,7 +703,7 @@ Include performance incentives (up to +2%) to encourage quality delivery
 ---
 
 **Document Version**: 1.0
-**Last Updated**: December 2024
+**Last Updated:** December 2024 — content reviewed 2026-05-07, no changes
 **Related Documentation**:
 - [IFC Quick Start Guide](/docs/ifc-quick-start-guide.md)
 - [Digital Standards Crosswalk](/docs/digital-standards-crosswalk.md)
