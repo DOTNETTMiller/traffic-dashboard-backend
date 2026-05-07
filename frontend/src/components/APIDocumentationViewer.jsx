@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import api from '../services/api';
 import jsPDF from 'jspdf';
 
@@ -482,37 +482,11 @@ const APIDocumentationViewer = () => {
 
           {/* All Documentation Files - Organized by Category */}
           <div>
-            <div style={{ fontSize: '12px', fontWeight: '600', color: '#6b7280', marginBottom: '8px', textTransform: 'uppercase' }}>
-              GUIDES & RESOURCES ({documentList.length})
-            </div>
-            {documentList.map(doc => (
-              <button
-                key={doc.path}
-                onClick={() => setCurrentDoc(doc.path)}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  textAlign: 'left',
-                  padding: '8px 12px',
-                  background: currentDoc === doc.path ? '#FF8F35' : 'white',
-                  color: currentDoc === doc.path ? '#ffffff' : '#374151',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  marginBottom: '4px',
-                  fontSize: '12px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.3px',
-                  fontWeight: '500'
-                }}
-                title={doc.title.toUpperCase()}
-              >
-                {doc.title.toUpperCase()}
-              </button>
-            ))}
+            <DocsSidebarBrowser
+              documentList={documentList}
+              currentDoc={currentDoc}
+              onSelect={setCurrentDoc}
+            />
           </div>
         </div>
       )}
@@ -672,5 +646,160 @@ const APIDocumentationViewer = () => {
     </div>
   );
 };
+
+/**
+ * Sidebar list browser for the Docs view.
+ *
+ * The doc list endpoint returns ~58 markdown files (after the backend
+ * filters out internal/dev docs) tagged with a category derived from
+ * filename patterns. The sidebar groups them by category, supports
+ * collapse/expand per group, and offers a filename-substring filter at
+ * the top so users can type "wzdx" or "ipaws" and narrow the list to
+ * what they actually want.
+ *
+ * Group containing the active doc is auto-expanded so navigation feels
+ * stateful — hopping between docs inside the same group keeps that group
+ * open without the user having to click around.
+ */
+function DocsSidebarBrowser({ documentList, currentDoc, onSelect }) {
+  const [filter, setFilter] = useState('');
+
+  // Group docs by category. categories array is ordered by the order
+  // categories first appear in documentList (which comes from the
+  // backend already alphabetically sorted by title within each).
+  const groups = useMemo(() => {
+    const f = filter.trim().toLowerCase();
+    const filtered = !f
+      ? documentList
+      : documentList.filter(d =>
+          (d.title || '').toLowerCase().includes(f) ||
+          (d.filename || '').toLowerCase().includes(f) ||
+          (d.path || '').toLowerCase().includes(f)
+        );
+    const map = new Map();
+    for (const doc of filtered) {
+      const cat = doc.category || 'General';
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat).push(doc);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [documentList, filter]);
+
+  // Track which groups are open. Default: open the group containing
+  // the active doc, plus auto-open everything if a filter is active
+  // (so the user can see all matches at once).
+  const [openGroups, setOpenGroups] = useState({});
+  const filterActive = filter.trim().length > 0;
+  const activeCategory = documentList.find(d => d.path === currentDoc)?.category;
+
+  const isOpen = (cat) => {
+    if (filterActive) return true;
+    if (openGroups[cat] !== undefined) return openGroups[cat];
+    return cat === activeCategory;
+  };
+  const toggleGroup = (cat) =>
+    setOpenGroups(g => ({ ...g, [cat]: !isOpen(cat) }));
+
+  return (
+    <div>
+      <div style={{
+        fontSize: '12px', fontWeight: 600, color: '#6b7280',
+        marginBottom: '8px', textTransform: 'uppercase'
+      }}>
+        Guides & Resources ({documentList.length})
+      </div>
+
+      <input
+        type="text"
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        placeholder="Filter by name…"
+        style={{
+          width: '100%',
+          padding: '6px 10px',
+          fontSize: '12px',
+          fontFamily: 'var(--font-sans)',
+          border: '1px solid var(--border-strong)',
+          borderRadius: '6px',
+          marginBottom: '10px',
+          outline: 'none'
+        }}
+      />
+
+      {groups.length === 0 && (
+        <div style={{ fontSize: '11px', color: '#6b7280', padding: '8px 4px' }}>
+          No docs match "{filter}".
+        </div>
+      )}
+
+      {groups.map(([cat, docs]) => {
+        const open = isOpen(cat);
+        return (
+          <div key={cat} style={{ marginBottom: '8px' }}>
+            <button
+              type="button"
+              onClick={() => toggleGroup(cat)}
+              style={{
+                width: '100%',
+                padding: '6px 8px',
+                background: 'transparent',
+                color: '#374151',
+                border: 'none',
+                textAlign: 'left',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-sans)',
+                fontSize: '11px',
+                fontWeight: 700,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+            >
+              <span>{cat}</span>
+              <span style={{
+                fontSize: '10px', color: '#9ca3af',
+                fontVariantNumeric: 'tabular-nums', fontWeight: 600
+              }}>
+                {open ? '▾' : '▸'} {docs.length}
+              </span>
+            </button>
+            {open && docs.map(doc => {
+              const active = currentDoc === doc.path;
+              return (
+                <button
+                  key={doc.path}
+                  onClick={() => onSelect(doc.path)}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '6px 10px 6px 16px',
+                    background: active ? '#FF8F35' : 'transparent',
+                    color: active ? '#ffffff' : '#374151',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    marginBottom: '2px',
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: '12px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    fontWeight: active ? 600 : 400
+                  }}
+                  title={doc.title}
+                >
+                  {doc.title}
+                </button>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default APIDocumentationViewer;

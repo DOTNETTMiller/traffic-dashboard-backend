@@ -5319,6 +5319,53 @@ app.get('/api/documentation', (req, res) => {
   }
 });
 
+// Patterns for dev/internal docs that aren't useful to operators in the
+// Docs viewer. These files stay on disk (engineers may still want them);
+// the API just hides them from the listing endpoint.
+const INTERNAL_DOC_PATTERNS = [
+  /_CHECKLIST(\.|_)/i,
+  /_STATUS\.md$/i,
+  /_FIX\.md$/i,
+  /^IMPLEMENTATION_/i,
+  /^DEPLOYMENT_/i,
+  /^SESSION_/i,
+  /_IMPLEMENTATION_(COMPLETE|PLAN|SUMMARY)/i,
+  /_FEATURES_COMPLETE/i,
+  /^DQI_IMPLEMENTATION/i
+];
+
+function isInternalDoc(filename) {
+  return INTERNAL_DOC_PATTERNS.some(p => p.test(filename));
+}
+
+// Categorize a doc by filename heuristics. Order matters — a filename that
+// matches several rules picks up the first category it hits.
+const DOC_CATEGORY_RULES = [
+  ['WZDx',                /WZDX/i],
+  ['IPAWS',               /^IPAWS/i],
+  ['CCAI',                /^CCAI/i],
+  ['JSTAN',               /JSTAN|AASHTO/i],
+  ['TETC',                /^TETC/i],
+  ['CIFS',                /CIFS|cifs/],
+  ['NASCO & Pooled Fund', /NASCO|pooled-fund|member-state|NAPCORE/i],
+  ['State Integrations',  /^(CALTRANS|OHIO|IOWA|TEXAS|PENNSYLVANIA|STATE_GEOMETRY)/i],
+  ['Corridor Operations', /^CORRIDOR|CENTER_TO_CENTER|TMC_511/i],
+  ['Architecture',        /arc-its|plugin-system|digital-infrastructure|digital-standards|^ifc-|using-digital/i],
+  ['Data Sources',        /^DATA_|^ADAPTIVE|^ADDING_NEW|AVAILABLE_DATA|data-quality|^CDE_/i],
+  ['Grants & Funding',    /GRANT|^FEDERAL_/i],
+  ['Business & Policy',   /business-plan|one-pager|roi-analysis|^TDI_/i],
+  ['Asset Health',        /ASSET_HEALTH/i],
+  ['Parking',             /PARKING/i],
+  ['Setup & Config',      /SETUP|API_SETUP|LANDSCAN/i]
+];
+
+function categorizeDoc(filename) {
+  for (const [name, pattern] of DOC_CATEGORY_RULES) {
+    if (pattern.test(filename)) return name;
+  }
+  return 'General';
+}
+
 // Get list of all documentation files
 app.get('/api/documentation/list', (req, res) => {
   const fs = require('fs');
@@ -5328,17 +5375,20 @@ app.get('/api/documentation/list', (req, res) => {
     const docsDir = path.join(__dirname, 'docs');
     const files = fs.readdirSync(docsDir)
       .filter(file => file.endsWith('.md'))
+      .filter(file => !isInternalDoc(file))           // hide dev/status docs from operators
       .map(file => ({
         filename: file,
         title: file.replace('.md', '').replace(/_/g, ' ').replace(/-/g, ' '),
-        path: file.replace('.md', '')
+        path: file.replace('.md', ''),
+        category: categorizeDoc(file)
       }))
       .sort((a, b) => a.title.localeCompare(b.title));
 
     res.json({
       success: true,
       documents: files,
-      count: files.length
+      count: files.length,
+      categories: [...new Set(files.map(f => f.category))].sort()
     });
   } catch (error) {
     console.error('Error listing documentation:', error);
