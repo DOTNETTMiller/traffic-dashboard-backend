@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Polyline, Marker, Popup, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import api from '../services/api';
@@ -158,7 +158,11 @@ export default function DiversionRoutesLayer({ visible = false }) {
         const end = positions[positions.length - 1];
 
         return (
-          <div key={route.id}>
+          // Fragment, not <div> — react-leaflet's MapContainer expects
+          // Leaflet layer components as children. Wrapping in a DOM <div>
+          // sneaks a non-layer node into the tree and trips the reconciler
+          // ("r.map is not a function" surfaces from the children walk).
+          <Fragment key={route.id}>
             <Polyline
               positions={positions}
               pathOptions={{
@@ -203,7 +207,7 @@ export default function DiversionRoutesLayer({ visible = false }) {
             <Marker position={end} icon={endIcon}>
               <Tooltip direction="top" offset={[0, -8]}>{route.end_location || 'End'}</Tooltip>
             </Marker>
-          </div>
+          </Fragment>
         );
       })}
     </>
