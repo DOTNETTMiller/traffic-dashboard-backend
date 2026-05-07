@@ -326,93 +326,166 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
         </div>
       )}
 
-      {/* Parking Alerts Banner */}
+      {/* Parking Alerts Banner — brand-aligned: clean white card with the
+          orange seam under the header that the rest of the chrome uses;
+          per-alert rows are subtle warning/critical tones (not loud
+          yellow/cream blocks) so a stack of 4 doesn't merge into one bar. */}
       {parkingAlerts.length > 0 && !error && (
         <div style={{
           position: 'fixed',
-          top: '80px',
+          top: '100px',
           right: '20px',
           zIndex: 1000,
-          width: '350px',
-          maxHeight: 'calc(100vh - 100px)',
-          backgroundColor: 'white',
-          borderRadius: '8px',
-          boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-          border: '2px solid #f59e0b',
+          width: '340px',
+          maxHeight: 'calc(100vh - 130px)',
+          backgroundColor: '#ffffff',
+          borderRadius: '12px',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 12px 32px rgba(0,0,0,0.10)',
+          border: '1px solid var(--border)',
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          fontFamily: 'var(--font-sans)'
         }}>
+          {/* Header — display font wordmark in brand orange, with thin
+              orange seam under it (matches the chrome's header treatment). */}
           <div style={{
-            padding: '12px 16px',
-            backgroundColor: '#ffffff',
-            borderBottom: '1px solid #f59e0b',
-            borderRadius: '6px 6px 0 0',
-            fontWeight: 'bold',
-            color: '#92400e',
+            padding: '14px 16px 10px',
+            position: 'relative',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             flexShrink: 0
           }}>
-            <span>⚠️ Parking Alerts ({parkingAlerts.length})</span>
+            <span style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '15px',
+              fontWeight: 700,
+              letterSpacing: '0.02em',
+              textTransform: 'uppercase',
+              color: 'var(--accent)'
+            }}>
+              ⚠ Parking Alerts
+              <span style={{
+                marginLeft: 8,
+                fontFamily: 'var(--font-sans)',
+                fontSize: '11px',
+                fontWeight: 600,
+                color: 'var(--fg-muted)',
+                fontVariantNumeric: 'tabular-nums',
+                textTransform: 'none',
+                letterSpacing: 0
+              }}>
+                {parkingAlerts.length}
+              </span>
+            </span>
             <button
               onClick={() => setParkingAlerts([])}
+              aria-label="Close parking alerts"
               style={{
-                background: 'none',
-                border: 'none',
-                color: '#92400e',
+                width: 24, height: 24, borderRadius: '50%',
+                background: 'rgba(0, 0, 0, 0.06)',
+                border: '1px solid rgba(0, 0, 0, 0.08)',
+                color: 'rgba(0, 0, 0, 0.55)',
                 cursor: 'pointer',
-                fontSize: '18px',
-                padding: '0 4px'
+                fontSize: 14, lineHeight: 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: 0
               }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0, 0, 0, 0.10)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0, 0, 0, 0.06)'; }}
             >
               ×
             </button>
+            {/* Orange brand seam */}
+            <div style={{
+              position: 'absolute',
+              left: 16, right: 16, bottom: 0,
+              height: 2, borderRadius: 1,
+              background: 'linear-gradient(90deg, var(--accent) 0%, var(--accent) 60%, rgba(240, 130, 48, 0) 100%)'
+            }} />
           </div>
+
           <div
             className="parking-alerts-scroll"
             style={{
-              padding: '8px',
-              overflowY: 'scroll',
+              padding: '10px 12px 12px',
+              overflowY: 'auto',
               overflowX: 'hidden',
               flex: '1 1 auto',
               minHeight: 0,
-              WebkitOverflowScrolling: 'touch'
+              WebkitOverflowScrolling: 'touch',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8
             }}
           >
-            {parkingAlerts.map((alert, idx) => (
-              <div
-                key={idx}
-                onClick={() => handleAlertClick(alert)}
-                style={{
-                  padding: '10px',
-                  marginBottom: '8px',
-                  backgroundColor: alert.severity === 'critical' ? '#fee2e2' : '#fef3c7',
-                  borderLeft: `4px solid ${alert.severity === 'critical' ? '#dc2626' : '#f59e0b'}`,
-                  borderRadius: '4px',
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateX(4px)';
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateX(0)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              >
-                <div style={{ fontWeight: '600', marginBottom: '4px', color: '#1f2937', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  {alert.message}
-                  <span style={{ fontSize: '10px', color: '#6b7280', fontWeight: '400' }}>📍 Click to view</span>
-                </div>
-                <div style={{ fontSize: '11px', color: '#6b7280' }}>
-                  {alert.state} • {new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
-              </div>
-            ))}
+            {parkingAlerts.map((alert, idx) => {
+              const critical = alert.severity === 'critical';
+              const tone = critical
+                ? { bg: 'rgba(211, 47, 47, 0.05)', border: 'rgba(211, 47, 47, 0.20)', accent: '#D32F2F', label: 'Critical', labelFg: '#9a1c1c', labelBg: 'rgba(211, 47, 47, 0.10)' }
+                : { bg: '#ffffff',                  border: 'var(--border-strong)',     accent: '#F08230', label: 'Limited', labelFg: '#a55e10', labelBg: 'rgba(240, 130, 48, 0.10)' };
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleAlertClick(alert)}
+                  style={{
+                    textAlign: 'left',
+                    padding: '10px 12px',
+                    background: tone.bg,
+                    border: `1px solid ${tone.border}`,
+                    borderLeft: `3px solid ${tone.accent}`,
+                    borderRadius: 8,
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    transition: 'background-color 160ms cubic-bezier(0.32, 0.72, 0, 1), transform 160ms cubic-bezier(0.32, 0.72, 0, 1)',
+                    width: '100%'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateX(2px)';
+                    e.currentTarget.style.background = critical
+                      ? 'rgba(211, 47, 47, 0.08)'
+                      : '#fafaf9';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateX(0)';
+                    e.currentTarget.style.background = tone.bg;
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '2px 8px',
+                      borderRadius: 999,
+                      background: tone.labelBg,
+                      border: `1px solid ${tone.border}`,
+                      color: tone.labelFg,
+                      fontSize: 9,
+                      fontWeight: 700,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                      lineHeight: 1.4,
+                      flexShrink: 0
+                    }}>
+                      {tone.label}
+                    </span>
+                    <span style={{
+                      fontSize: 10,
+                      color: 'var(--fg-muted)',
+                      fontVariantNumeric: 'tabular-nums',
+                      flexShrink: 0
+                    }}>
+                      {alert.state} · {new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div style={{ color: 'var(--fg)', lineHeight: 1.45, fontWeight: 500 }}>
+                    {alert.message}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
