@@ -33893,6 +33893,28 @@ app.get('/api/parking/facilities', async (req, res) => {
   }
 });
 
+// Closure → parking surge impact: which parking facilities are likely
+// to fill ahead of schedule because trucks are pulling off due to a
+// nearby active closure or major incident. See
+// services/closure-parking-impact.js for the full mechanic.
+const closureParkingImpact = require('./services/closure-parking-impact');
+
+app.get('/api/parking/closure-impact', async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=60'); // refreshes naturally with the events cache
+  try {
+    if (!eventsCache.data && startupCachePromise) await startupCachePromise;
+    const events = eventsCache.data?.events || [];
+    const facilities = await db.getParkingFacilities(req.query.state || null);
+    const impact = closureParkingImpact.computeImpact(events, facilities, {
+      radiusMiles: parseFloat(req.query.radius) || 50
+    });
+    res.json({ success: true, count: impact.length, impact });
+  } catch (err) {
+    console.error('closure-impact failed:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Get latest parking availability for all facilities
 app.get('/api/parking/availability', async (req, res) => {
   try {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Marker, Popup, Tooltip, useMap } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
@@ -44,6 +44,39 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
   const [error, setError] = useState(null);
   const [observations, setObservations] = useState({}); // { facilityId: { availableSpaces: number, submitting: boolean } }
   const [hourlyPredictions, setHourlyPredictions] = useState({}); // { facilityId: [ {hour, occupancyRate, ...}, ... ] }
+  // Closure-driven surge: which facilities are likely to fill ahead of
+  // schedule because of an active closure within ~50mi. Keyed by facilityId
+  // so the marker renderer can look up surge state in O(1).
+  const [closureImpact, setClosureImpact] = useState({});  // { facilityId: { surge_risk, eta_minutes, surging_events } }
+
+  // Synthesize "Surge expected" alert rows from closureImpact and merge
+  // them ahead of the upstream-supplied parkingAlerts. High-risk surges
+  // float to the top of the list; ordinary "PARKING LIMITED" rows still
+  // render below.
+  const mergedAlerts = useMemo(() => {
+    const RANK = { high: 3, medium: 2, low: 1 };
+    const surgeRows = Object.values(closureImpact).map(row => {
+      const facilityName = parkingData.find(p => p.facilityId === row.facility_id)?.facilityName
+        || row.site_id
+        || row.facility_id;
+      const top = row.surging_events?.[0];
+      const message = `Surge expected: ${row.surge_risk.toUpperCase()} risk · ${facilityName}`
+        + (top ? ` · ${top.event_type || 'incident'} ${top.distance_miles}mi away` : '');
+      return {
+        kind: 'surge',
+        severity: row.surge_risk === 'high' ? 'critical' : 'warning',
+        message,
+        state: row.state,
+        timestamp: new Date().toISOString(),
+        latitude: row.latitude,
+        longitude: row.longitude,
+        eta_minutes: row.eta_minutes,
+        surge_risk: row.surge_risk,
+        triggering_event: top
+      };
+    }).sort((a, b) => RANK[b.surge_risk] - RANK[a.surge_risk]);
+    return [...surgeRows, ...parkingAlerts.map(a => ({ ...a, kind: 'limited' }))];
+  }, [parkingAlerts, closureImpact, parkingData]);
   const [selectedCameras, setSelectedCameras] = useState([]); // [{ facilityName, view, url }, ...]
   const [isCameraViewerOpen, setIsCameraViewerOpen] = useState(false);
 
@@ -131,7 +164,9 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
 
           setParkingData(transformedData);
 
-          // Store parking alerts for display
+          // Store parking alerts for display. Closure-driven surge rows
+          // get prepended in the render path so the panel reflects both
+          // limited-capacity and surge-incoming signals in one stack.
           if (response.data.alerts && response.data.alerts.length > 0) {
             setParkingAlerts(response.data.alerts);
           } else {
@@ -165,6 +200,32 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
 
     return () => clearInterval(interval);
   }, [showParking, predictionHoursAhead]);
+
+  // Fetch closure→parking surge data alongside the parking layer.
+  // Keyed by facilityId so we can render a surge ring on each affected
+  // marker without per-marker async work, and so the alerts panel can
+  // append "Surge expected" rows for the same facilities.
+  useEffect(() => {
+    if (!showParking) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await api.get('/api/parking/closure-impact');
+        if (cancelled) return;
+        const map = {};
+        for (const row of res?.data?.impact || []) {
+          map[row.facility_id] = row;
+        }
+        setClosureImpact(map);
+      } catch (err) {
+        // Surge data is enrichment, not load-bearing. Quiet on failure.
+        if (!cancelled) setClosureImpact({});
+      }
+    };
+    load();
+    const id = setInterval(load, 90 * 1000);  // refresh every 90s
+    return () => { cancelled = true; clearInterval(id); };
+  }, [showParking]);
 
   // Fetch 24-hour predictions for a facility when popup is opened
   const fetchHourlyPredictions = async (facilityId) => {
@@ -330,7 +391,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
           orange seam under the header that the rest of the chrome uses;
           per-alert rows are subtle warning/critical tones (not loud
           yellow/cream blocks) so a stack of 4 doesn't merge into one bar. */}
-      {parkingAlerts.length > 0 && !error && (
+      {mergedAlerts.length > 0 && !error && (
         <div style={{
           position: 'fixed',
           top: '100px',
@@ -376,11 +437,11 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                 textTransform: 'none',
                 letterSpacing: 0
               }}>
-                {parkingAlerts.length}
+                {mergedAlerts.length}
               </span>
             </span>
             <button
-              onClick={() => setParkingAlerts([])}
+              onClick={() => { setParkingAlerts([]); setClosureImpact({}); }}
               aria-label="Close parking alerts"
               style={{
                 width: 24, height: 24, borderRadius: '50%',
@@ -420,11 +481,18 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
               gap: 8
             }}
           >
-            {parkingAlerts.map((alert, idx) => {
+            {mergedAlerts.map((alert, idx) => {
               const critical = alert.severity === 'critical';
-              const tone = critical
-                ? { bg: 'rgba(211, 47, 47, 0.05)', border: 'rgba(211, 47, 47, 0.20)', accent: '#D32F2F', label: 'Critical', labelFg: '#9a1c1c', labelBg: 'rgba(211, 47, 47, 0.10)' }
-                : { bg: '#ffffff',                  border: 'var(--border-strong)',     accent: '#F08230', label: 'Limited', labelFg: '#a55e10', labelBg: 'rgba(240, 130, 48, 0.10)' };
+              const isSurge = alert.kind === 'surge';
+              // Three styles: surge-high (red), surge-medium/low + critical
+              // limited (orange variants), and ordinary limited (white).
+              const tone = isSurge
+                ? (alert.surge_risk === 'high'
+                    ? { bg: 'rgba(211, 47, 47, 0.05)', border: 'rgba(211, 47, 47, 0.20)', accent: '#D32F2F', label: 'Surge · High',   labelFg: '#9a1c1c', labelBg: 'rgba(211, 47, 47, 0.10)' }
+                    : { bg: 'rgba(240, 130, 48, 0.05)', border: 'rgba(240, 130, 48, 0.24)', accent: '#F08230', label: alert.surge_risk === 'medium' ? 'Surge · Med' : 'Surge · Low', labelFg: '#a55e10', labelBg: 'rgba(240, 130, 48, 0.10)' })
+                : critical
+                  ? { bg: 'rgba(211, 47, 47, 0.05)', border: 'rgba(211, 47, 47, 0.20)', accent: '#D32F2F', label: 'Critical', labelFg: '#9a1c1c', labelBg: 'rgba(211, 47, 47, 0.10)' }
+                  : { bg: '#ffffff',                 border: 'var(--border-strong)',     accent: '#F08230', label: 'Limited',  labelFg: '#a55e10', labelBg: 'rgba(240, 130, 48, 0.10)' };
               return (
                 <button
                   key={idx}
@@ -477,7 +545,9 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
                       fontVariantNumeric: 'tabular-nums',
                       flexShrink: 0
                     }}>
-                      {alert.state} · {new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {alert.state} · {isSurge && alert.eta_minutes
+                        ? `~${alert.eta_minutes} min`
+                        : new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                   <div style={{ color: 'var(--fg)', lineHeight: 1.45, fontWeight: 500 }}>
