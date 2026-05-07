@@ -617,18 +617,19 @@ export default function DiversionRoutePanel({ selectedEvent, onClose }) {
  * The production rows currently fall into mode 3 (no coords yet); the component is
  * built so the same panel just lights up once geometry is added without further work.
  */
-// Approximate coordinates for the seed routes shipped in production whose
-// DB rows still have null start_lat/lon (no admin UI yet to enter them).
-// Keyed by route_name so DB-supplied coords always take precedence — the
-// fallback only kicks in when the row's own fields are missing. Real
-// coordinates can replace these as soon as someone runs an UPDATE.
+// Each entry is [exitOnMainRoute, viaOnAlternateRoute, reentryOnMainRoute].
+// A real diversion is shaped like exit-corridor → travel-alternate →
+// rejoin-corridor-downstream. Sending the via point to OSRM forces the
+// snap to actually route through the alternate road instead of returning
+// the shortest A→B path (which is often the main corridor itself).
+// Keyed by route_name; DB-supplied coords always take precedence.
 const SEED_ROUTE_FALLBACKS = {
-  'I-35 to I-80 East (Iowa)':                   [[41.6005, -93.6092], [41.7297, -93.6065]],
-  'I-35 to US-69 (Iowa-Missouri Border)':       [[40.6500, -93.6200], [40.4000, -93.7500]],
-  'I-35 to US-75 (Minnesota)':                  [[46.3000, -94.3000], [46.5500, -94.4500]],
-  'I-70 to US-40 (Kansas-Colorado)':            [[39.0000, -101.9000], [39.0500, -101.7500]],
-  'I-80 to I-35 South (Iowa)':                  [[41.6005, -93.6092], [41.4200, -93.6300]],
-  'I-80 to US-30 (Nebraska)':                   [[41.0000, -98.0000], [41.1500, -98.2000]]
+  'I-35 to I-80 East (Iowa)':              [[41.5500, -93.6100], [41.6011, -93.5500], [41.7297, -93.6065]],
+  'I-35 to US-69 (Iowa-Missouri Border)':  [[40.6195, -93.6189], [40.7400, -93.7400], [40.4000, -93.9500]],
+  'I-35 to US-75 (Minnesota)':             [[44.3000, -93.2700], [44.2300, -95.6200], [44.0800, -93.2300]],
+  'I-70 to US-40 (Kansas-Colorado)':       [[39.3500, -101.7100], [39.4400, -101.9000], [39.3000, -102.2700]],
+  'I-80 to I-35 South (Iowa)':             [[41.6000, -93.7900], [41.6005, -93.6100], [41.3600, -93.5600]],
+  'I-80 to US-30 (Nebraska)':              [[40.9200, -98.3400], [41.4300, -97.3700], [40.8700, -97.5900]]
 };
 
 function DiversionRouteMap({ route }) {
@@ -637,22 +638,21 @@ function DiversionRouteMap({ route }) {
   const [snapped, setSnapped] = useState(null);
   const [snapping, setSnapping] = useState(false);
 
-  const { polyline, markers, bounds, hasGeometry, approximate } = useMemo(() => {
-    if (!route) return { polyline: null, markers: [], bounds: null, hasGeometry: false, approximate: false };
+  const { polyline, via, markers, bounds, hasGeometry, approximate } = useMemo(() => {
+    if (!route) return { polyline: null, via: null, markers: [], bounds: null, hasGeometry: false, approximate: false };
 
-    // Mode 1: GeoJSON polyline
+    // Mode 1: GeoJSON polyline (already a real polyline — no via needed)
     const geom = route.geometry_geojson;
     if (geom && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
-      const coords = geom.coordinates.map(c => [c[1], c[0]]); // [lng,lat] → [lat,lng]
+      const coords = geom.coordinates.map(c => [c[1], c[0]]);
       return {
-        polyline: coords,
+        polyline: coords, via: null,
         markers: [
           { pos: coords[0], label: route.start_location || 'Start' },
           { pos: coords[coords.length - 1], label: route.end_location || 'End' }
         ],
         bounds: L.latLngBounds(coords),
-        hasGeometry: true,
-        approximate: false
+        hasGeometry: true, approximate: false
       };
     }
 
@@ -664,33 +664,34 @@ function DiversionRouteMap({ route }) {
     if ([sLat, sLon, eLat, eLon].every(Number.isFinite)) {
       const coords = [[sLat, sLon], [eLat, eLon]];
       return {
-        polyline: coords,
+        polyline: coords, via: null,
         markers: [
           { pos: coords[0], label: route.start_location || 'Start' },
           { pos: coords[1], label: route.end_location || 'End' }
         ],
         bounds: L.latLngBounds(coords),
-        hasGeometry: true,
-        approximate: false
+        hasGeometry: true, approximate: false
       };
     }
 
-    // Mode 2b: fallback to approximate coords for seed routes
-    const fallback = SEED_ROUTE_FALLBACKS[route.route_name];
-    if (fallback) {
+    // Mode 2b: 3-point seed fallback (exit, via, reentry).
+    // Markers stay at A and B (the exit/reentry points), via is sent to
+    // OSRM separately to force routing through the alternate corridor.
+    const fb = SEED_ROUTE_FALLBACKS[route.route_name];
+    if (fb) {
+      const [exit, viaPoint, reentry] = fb;
       return {
-        polyline: fallback,
+        polyline: [exit, reentry], via: viaPoint,
         markers: [
-          { pos: fallback[0], label: route.start_location || 'Start' },
-          { pos: fallback[1], label: route.end_location || 'End' }
+          { pos: exit, label: route.start_location || 'Start' },
+          { pos: reentry, label: route.end_location || 'End' }
         ],
-        bounds: L.latLngBounds(fallback),
-        hasGeometry: true,
-        approximate: true
+        bounds: L.latLngBounds([exit, viaPoint, reentry]),
+        hasGeometry: true, approximate: true
       };
     }
 
-    return { polyline: null, markers: [], bounds: null, hasGeometry: false, approximate: false };
+    return { polyline: null, via: null, markers: [], bounds: null, hasGeometry: false, approximate: false };
   }, [route]);
 
   // When we have start/end coords (real OR fallback), ask the server for the
@@ -703,7 +704,8 @@ function DiversionRouteMap({ route }) {
     const [[sLat, sLon], [eLat, eLon]] = polyline;
     let cancelled = false;
     setSnapping(true);
-    fetch(`${config.apiUrl}/api/osrm/route?startLat=${sLat}&startLon=${sLon}&endLat=${eLat}&endLon=${eLon}`)
+    const viaParam = via ? `&viaLat=${via[0]}&viaLon=${via[1]}` : '';
+    fetch(`${config.apiUrl}/api/osrm/route?startLat=${sLat}&startLon=${sLon}&endLat=${eLat}&endLon=${eLon}${viaParam}`)
       .then(r => r.json())
       .then(data => {
         if (cancelled) return;
@@ -715,7 +717,7 @@ function DiversionRouteMap({ route }) {
       .catch(() => { /* keep the straight-line fallback silently */ })
       .finally(() => { if (!cancelled) setSnapping(false); });
     return () => { cancelled = true; };
-  }, [route?.id, hasGeometry, polyline]);
+  }, [route?.id, hasGeometry, polyline, via]);
 
   // If a road-snapped polyline arrived, use it; otherwise the straight line.
   const renderedPolyline = snapped || polyline;

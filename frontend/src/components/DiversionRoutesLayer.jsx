@@ -18,13 +18,24 @@ import { config } from '../config';
  * DB rows lack coordinates.
  */
 
+// Each entry is [exitOnMainRoute, viaOnAlternateRoute, reentryOnMainRoute].
+// A real diversion is shaped that way: traffic exits the main corridor at
+// A, travels the alternate via the midpoint, and rejoins the main corridor
+// downstream at B. With 3 points OSRM will route through the alternate
+// instead of just snapping A→B back to the main corridor.
 const SEED_ROUTE_FALLBACKS = {
-  'I-35 to I-80 East (Iowa)':                   [[41.6005, -93.6092], [41.7297, -93.6065]],
-  'I-35 to US-69 (Iowa-Missouri Border)':       [[40.6500, -93.6200], [40.4000, -93.7500]],
-  'I-35 to US-75 (Minnesota)':                  [[46.3000, -94.3000], [46.5500, -94.4500]],
-  'I-70 to US-40 (Kansas-Colorado)':            [[39.0000, -101.9000], [39.0500, -101.7500]],
-  'I-80 to I-35 South (Iowa)':                  [[41.6005, -93.6092], [41.4200, -93.6300]],
-  'I-80 to US-30 (Nebraska)':                   [[41.0000, -98.0000], [41.1500, -98.2000]]
+  // Exit I-35 at S Des Moines, divert east via I-80 East, re-enter I-35 N at Ankeny
+  'I-35 to I-80 East (Iowa)':              [[41.5500, -93.6100], [41.6011, -93.5500], [41.7297, -93.6065]],
+  // Exit I-35 at Lamoni IA, divert east via US-69, re-enter I-35 in Bethany MO
+  'I-35 to US-69 (Iowa-Missouri Border)':  [[40.6195, -93.6189], [40.7400, -93.7400], [40.4000, -93.9500]],
+  // Exit I-35 at Faribault MN, divert west via US-75, re-enter I-35 at Owatonna
+  'I-35 to US-75 (Minnesota)':             [[44.3000, -93.2700], [44.2300, -95.6200], [44.0800, -93.2300]],
+  // Exit I-70 at Goodland KS, divert north via US-40, re-enter I-70 at Burlington CO
+  'I-70 to US-40 (Kansas-Colorado)':       [[39.3500, -101.7100], [39.4400, -101.9000], [39.3000, -102.2700]],
+  // Exit I-80 west of Des Moines, divert south via I-35, end at Indianola
+  'I-80 to I-35 South (Iowa)':             [[41.6000, -93.7900], [41.6005, -93.6100], [41.3600, -93.5600]],
+  // Exit I-80 at Grand Island NE, divert north via US-30 through Columbus, re-enter I-80 at York
+  'I-80 to US-30 (Nebraska)':              [[40.9200, -98.3400], [41.4300, -97.3700], [40.8700, -97.5900]]
 };
 
 function resolveEndpoints(route) {
@@ -32,7 +43,7 @@ function resolveEndpoints(route) {
   const g = route.geometry_geojson;
   if (g && Array.isArray(g.coordinates) && g.coordinates.length >= 2) {
     const coords = g.coordinates.map(c => [c[1], c[0]]);
-    return { polyline: coords, isFromGeoJSON: true, approximate: false };
+    return { polyline: coords, via: null, isFromGeoJSON: true, approximate: false };
   }
   // 2. Real start/end coords
   const sLat = parseFloat(route.start_lat);
@@ -40,11 +51,18 @@ function resolveEndpoints(route) {
   const eLat = parseFloat(route.end_lat);
   const eLon = parseFloat(route.end_lon);
   if ([sLat, sLon, eLat, eLon].every(Number.isFinite)) {
-    return { polyline: [[sLat, sLon], [eLat, eLon]], isFromGeoJSON: false, approximate: false };
+    return { polyline: [[sLat, sLon], [eLat, eLon]], via: null, isFromGeoJSON: false, approximate: false };
   }
-  // 3. Seed fallback by route name
+  // 3. Seed fallback by route name — 3-point shape (exit, via, reentry)
   const fb = SEED_ROUTE_FALLBACKS[route.route_name];
-  if (fb) return { polyline: fb, isFromGeoJSON: false, approximate: true };
+  if (fb) {
+    return {
+      polyline: [fb[0], fb[2]],   // visible markers stay at A and B (exit/reentry)
+      via: fb[1],                  // forces OSRM through the alternate
+      isFromGeoJSON: false,
+      approximate: true
+    };
+  }
   return null;
 }
 
@@ -110,7 +128,10 @@ export default function DiversionRoutesLayer({ visible = false }) {
       if (item.isFromGeoJSON) continue;             // already a real polyline
       if (snapped[item.route.id]) continue;         // already snapped
       const [[sLat, sLon], [eLat, eLon]] = item.polyline;
-      fetch(`${config.apiUrl}/api/osrm/route?startLat=${sLat}&startLon=${sLon}&endLat=${eLat}&endLon=${eLon}`)
+      const viaParam = item.via
+        ? `&viaLat=${item.via[0]}&viaLon=${item.via[1]}`
+        : '';
+      fetch(`${config.apiUrl}/api/osrm/route?startLat=${sLat}&startLon=${sLon}&endLat=${eLat}&endLon=${eLon}${viaParam}`)
         .then(r => r.json())
         .then(data => {
           if (cancelled) return;

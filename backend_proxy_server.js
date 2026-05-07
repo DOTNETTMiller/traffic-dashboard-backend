@@ -2052,6 +2052,9 @@ app.get('/api/osrm/route', async (req, res) => {
   const sLon = parseFloat(req.query.startLon);
   const eLat = parseFloat(req.query.endLat);
   const eLon = parseFloat(req.query.endLon);
+  const vLat = parseFloat(req.query.viaLat);
+  const vLon = parseFloat(req.query.viaLon);
+  const hasVia = Number.isFinite(vLat) && Number.isFinite(vLon);
 
   if (![sLat, sLon, eLat, eLon].every(Number.isFinite)) {
     return res.status(400).json({
@@ -2061,13 +2064,29 @@ app.get('/api/osrm/route', async (req, res) => {
   }
 
   try {
-    const coordinates = await snapToRoadImmediate(sLat, sLon, eLat, eLon);
+    let coordinates;
+    if (hasVia) {
+      // Multi-point routing: A → via → B forces OSRM through the alternate
+      // road instead of returning the shortest A→B path (which is often the
+      // main corridor itself for a parallel diversion route).
+      const url = `https://router.project-osrm.org/route/v1/driving/${sLon},${sLat};${vLon},${vLat};${eLon},${eLat}?overview=full&geometries=geojson`;
+      const response = await axios.get(url, { timeout: 12000 });
+      if (response.data?.code === 'Ok' && response.data.routes?.[0]?.geometry?.coordinates) {
+        coordinates = response.data.routes[0].geometry.coordinates;
+      } else {
+        coordinates = [[sLon, sLat], [vLon, vLat], [eLon, eLat]];
+      }
+    } else {
+      coordinates = await snapToRoadImmediate(sLat, sLon, eLat, eLon);
+    }
     res.json({ success: true, coordinates, source: 'osrm' });
   } catch (err) {
-    console.warn('osrm/route fell back to straight line:', err.message);
+    console.warn('osrm/route fell back:', err.message);
     res.json({
       success: true,
-      coordinates: [[sLon, sLat], [eLon, eLat]],
+      coordinates: hasVia
+        ? [[sLon, sLat], [vLon, vLat], [eLon, eLat]]
+        : [[sLon, sLat], [eLon, eLat]],
       source: 'straight_line'
     });
   }
