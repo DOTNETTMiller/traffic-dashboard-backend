@@ -40,6 +40,10 @@ const NAV = [
     // matching map overlay's visibility instead of navigating. Each sub-item
     // declares an actionKey (the toggle handler in App.jsx) and a toggleProp
     // (the boolean field in mapLayerStates that decides the active style).
+    //
+    // Order is by usage frequency: events first (always-relevant), then the
+    // operations toggles (parking, diversion routes, aerial overlays), then
+    // infrastructure reference layers, then permit-rule layers.
     type: 'group',
     key: 'map-layers',
     icon: '🗺️',
@@ -47,18 +51,22 @@ const NAV = [
     items: [
       { actionKey: 'toggle-events',           toggleProp: 'showEvents',              icon: '⚠️', label: 'Traffic Events' },
       { actionKey: 'toggle-parking',          toggleProp: 'showParking',             icon: '🅿️', label: 'Truck Parking' },
+      { actionKey: 'toggle-diversion-routes', toggleProp: 'showDiversionRoutes',     icon: '🛣️', label: 'Diversion Routes' },
+      { actionKey: 'toggle-aerial-overlays',  toggleProp: 'showAerialOverlays',      icon: '🛩️', label: 'Aerial Overlays' },
       { actionKey: 'toggle-its-equipment',    toggleProp: 'showITSEquipment',        icon: '📡', label: 'ITS Equipment' },
       { actionKey: 'toggle-v2x',              toggleProp: 'showV2XDeployments',      icon: '📶', label: 'V2X Deployments' },
       { actionKey: 'toggle-cadd',             toggleProp: 'showCADDElements',        icon: '📐', label: 'CADD Elements' },
       { actionKey: 'toggle-interchanges',     toggleProp: 'showInterchanges',        icon: '🔀', label: 'Interchanges' },
       { actionKey: 'toggle-bridge-clearance', toggleProp: 'showBridgeClearances',    icon: '🌉', label: 'Bridge Clearances' },
-      { actionKey: 'toggle-corridor-regs',    toggleProp: 'showCorridorRegulations', icon: '🚛', label: 'OS/OW Permit Rules' },
-      { actionKey: 'toggle-diversion-routes', toggleProp: 'showDiversionRoutes',     icon: '🛣️', label: 'Diversion Routes' },
-      { actionKey: 'toggle-aerial-overlays',  toggleProp: 'showAerialOverlays',      icon: '🛩️', label: 'Aerial Overlays' }
+      { actionKey: 'toggle-corridor-regs',    toggleProp: 'showCorridorRegulations', icon: '🚛', label: 'OS/OW Permit Rules' }
     ]
   },
 
   {
+    // Data Quality is now focused on measurement + comparison only —
+    // operational/forward-looking views (Predictive Analytics, Asset
+    // Health, Procurement) moved to the new Operations group below so
+    // this section reads as one coherent "how good is the data" topic.
     type: 'group',
     key: 'data-quality',
     icon: '📈',
@@ -72,25 +80,41 @@ const NAV = [
       { view: 'gapAnalysis',           icon: '📊', label: 'Vendor Gap Analysis' },
       { view: 'coverageGaps',          icon: '🗺️', label: 'Coverage Gap Analysis' },
       { view: 'alignment',             icon: '🔗', label: 'Feed Alignment' },
-      { view: 'eventConfidence',       icon: '✓',  label: 'Event Confidence' },
-      { view: 'procurement',           icon: '💰', label: 'Procurement' },
-      { view: 'predictiveAnalytics',   icon: '🔮', label: 'Predictive Analytics' },
-      { view: 'assetHealth',           icon: '🔧', label: 'Asset Health' }
+      { view: 'eventConfidence',       icon: '✓',  label: 'Event Confidence' }
     ]
   },
   {
+    // Operations — workflow + decision-support tools. Pulled out of
+    // Communications (which is now strictly messaging) and Data Quality
+    // (which is now strictly measurement). DMS Messaging, Closure
+    // Approval, Diversion Route Library, Corridor Delays do live ops;
+    // Predictive Analytics, Asset Health, Procurement are forward-
+    // looking decision support that shapes those ops.
+    type: 'group',
+    key: 'operations',
+    icon: '🛠️',
+    label: 'Operations',
+    items: [
+      { view: 'dmsMessaging',          icon: '🚧', label: 'DMS Messaging' },
+      { view: 'closureApproval',       icon: '✅', label: 'Closure Approval' },
+      { view: 'diversionRoutes',       icon: '🛣️', label: 'Diversion Route Library' },
+      { view: 'corridorDelays',        icon: '⏰', label: 'Corridor Delays' },
+      { view: 'predictiveAnalytics',   icon: '🔮', label: 'Predictive Analytics' },
+      { view: 'assetHealth',           icon: '🔧', label: 'Asset Health' },
+      { view: 'procurement',           icon: '💰', label: 'Procurement' }
+    ]
+  },
+  {
+    // Communications — strictly messaging + alerts now (the operational
+    // workflows moved to the Operations group).
     type: 'group',
     key: 'communications',
     icon: '💬',
     label: 'Communications',
     items: [
-      { view: 'messages',                  icon: '✉️', label: 'Messages' },
+      { view: 'messages',                    icon: '✉️', label: 'Messages' },
       { actionKey: 'open-corridor-briefing', icon: '📋', label: 'Corridor Briefing' },
-      { actionKey: 'open-alerts',          icon: '🔔', label: 'Alerts' },
-      { view: 'dmsMessaging',              icon: '🚧', label: 'DMS Messaging' },
-      { view: 'closureApproval',           icon: '✅', label: 'Closure Approval' },
-      { view: 'diversionRoutes',           icon: '🛣️', label: 'Diversion Routes' },
-      { view: 'corridorDelays',            icon: '⏰', label: 'Corridor Delays' }
+      { actionKey: 'open-alerts',            icon: '🔔', label: 'Alerts' }
     ]
   },
   {
@@ -141,7 +165,7 @@ const NAV = [
       { view: 'admin',           icon: '⚙️', label: 'Admin Panel' },
       { view: 'adminUsers',      icon: '👥', label: 'Users' },
       { view: 'adminFeeds',      icon: '📡', label: 'Feed Submissions' },
-      { view: 'aerialOverlays',  icon: '🛩️', label: 'Aerial Overlays' }
+      { view: 'aerialOverlays',  icon: '🛩️', label: 'Aerial Overlay Library' }
     ]
   }
 ];
