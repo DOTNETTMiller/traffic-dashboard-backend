@@ -30084,29 +30084,85 @@ app.get('/api/aerial-overlays', async (req, res) => {
   }
 });
 
+/**
+ * Persist a processed JPEG either to S3 (if env vars configured) or as
+ * Postgres bytea (default fallback). Returns the row to send back to the
+ * client. file_url is always a usable URL: S3 public URL when remote
+ * storage is set up, /api/aerial-overlays/:id/image when stored in-DB.
+ */
+async function persistAerialOverlay({ jpeg, bounds, width, height, fileType, name, uploadedBy }) {
+  const useS3 = aerialOverlays.isEnabled();
+
+  if (useS3) {
+    const idHint = `${fileType}-${Date.now()}`;
+    const { key, url } = await aerialOverlays.uploadJpeg(jpeg, idHint);
+    const insert = await db.db.query(
+      `INSERT INTO aerial_overlays (name, file_url, file_key, file_type, bounds, width_px, height_px, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, name, file_url, file_type, bounds, width_px, height_px, uploaded_by, created_at`,
+      [name, url, key, fileType, bounds ? JSON.stringify(bounds) : null, width, height, uploadedBy]
+    );
+    return insert.rows[0];
+  }
+
+  // In-DB path: insert with the bytea, then update file_url to the
+  // streaming endpoint that knows how to read it back. The two-statement
+  // approach is the simplest way to get the row id into the URL.
+  const insert = await db.db.query(
+    `INSERT INTO aerial_overlays (name, file_url, file_key, file_type, file_data, bounds, width_px, height_px, uploaded_by)
+     VALUES ($1, '', NULL, $2, $3, $4, $5, $6, $7)
+     RETURNING id`,
+    [name, fileType, jpeg, bounds ? JSON.stringify(bounds) : null, width, height, uploadedBy]
+  );
+  const id = insert.rows[0].id;
+  const url = `/api/aerial-overlays/${id}/image`;
+  const updated = await db.db.query(
+    `UPDATE aerial_overlays SET file_url = $1 WHERE id = $2
+     RETURNING id, name, file_url, file_type, bounds, width_px, height_px, uploaded_by, created_at`,
+    [url, id]
+  );
+  return updated.rows[0];
+}
+
+// GET /api/aerial-overlays/:id/image — serves the in-DB JPEG bytes.
+// Only relevant when the deploy doesn't have S3 configured; rows backed
+// by S3 use their direct public URL and never hit this endpoint.
+app.get('/api/aerial-overlays/:id/image', async (req, res) => {
+  if (!db.isPostgres) return res.status(503).end();
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) return res.status(400).end();
+  try {
+    const result = await db.db.query(
+      'SELECT file_data FROM aerial_overlays WHERE id = $1',
+      [id]
+    );
+    const data = result.rows[0]?.file_data;
+    if (!data) return res.status(404).end();
+    res.set('Content-Type', 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(data);
+  } catch (err) {
+    console.error('aerial overlay image GET failed:', err);
+    res.status(500).end();
+  }
+});
+
 // POST /api/aerial-overlays/upload-tif — process a TIF/GeoTIFF
 //   multipart field: file
 //   form fields:     name (optional), uploaded_by (optional)
 app.post('/api/aerial-overlays/upload-tif', requireUser, uploadAerial.single('file'), async (req, res) => {
-  if (!aerialOverlays.isEnabled()) return res.status(503).json(aerialOverlays.setupHint());
   if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
   if (!db.isPostgres) return res.status(503).json({ success: false, error: 'Postgres required for aerial overlays' });
 
   try {
     const { jpeg, bounds, width, height } = await aerialOverlays.processTif(req.file.buffer);
-    const idHint = `tif-${Date.now()}`;
-    const { key, url } = await aerialOverlays.uploadJpeg(jpeg, idHint);
-
-    const name = (req.body.name || req.file.originalname || 'Aerial overlay').slice(0, 200);
-    const uploadedBy = req.user?.username || req.body.uploaded_by || 'unknown';
-
-    const insert = await db.db.query(
-      `INSERT INTO aerial_overlays (name, file_url, file_key, file_type, bounds, width_px, height_px, uploaded_by)
-       VALUES ($1, $2, $3, 'tif', $4, $5, $6, $7)
-       RETURNING id, name, file_url, file_type, bounds, width_px, height_px, uploaded_by, created_at`,
-      [name, url, key, bounds ? JSON.stringify(bounds) : null, width, height, uploadedBy]
-    );
-    res.json({ success: true, overlay: insert.rows[0] });
+    const overlay = await persistAerialOverlay({
+      jpeg, bounds, width, height,
+      fileType: 'tif',
+      name: (req.body.name || req.file.originalname || 'Aerial overlay').slice(0, 200),
+      uploadedBy: req.user?.username || req.body.uploaded_by || 'unknown'
+    });
+    res.json({ success: true, overlay });
   } catch (err) {
     console.error('upload-tif failed:', err);
     res.status(500).json({ success: false, error: err.message });
@@ -30120,7 +30176,6 @@ app.post('/api/aerial-overlays/upload-tif', requireUser, uploadAerial.single('fi
 //   multipart field: file (image/jpeg or image/png)
 //   form fields:     name, file_type ('pdf' | 'image'), uploaded_by, bounds (optional JSON)
 app.post('/api/aerial-overlays/upload-image', requireUser, uploadAerial.single('file'), async (req, res) => {
-  if (!aerialOverlays.isEnabled()) return res.status(503).json(aerialOverlays.setupHint());
   if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
   if (!db.isPostgres) return res.status(503).json({ success: false, error: 'Postgres required for aerial overlays' });
 
@@ -30132,26 +30187,21 @@ app.post('/api/aerial-overlays/upload-image', requireUser, uploadAerial.single('
       .jpeg({ quality: 80, mozjpeg: true })
       .toBuffer({ resolveWithObject: true });
 
-    const fileType = req.body.file_type === 'pdf' ? 'pdf' : 'image';
-    const idHint = `${fileType}-${Date.now()}`;
-    const { key, url } = await aerialOverlays.uploadJpeg(out.data, idHint);
-
     let bounds = null;
     if (req.body.bounds) {
       try { bounds = JSON.parse(req.body.bounds); } catch { /* invalid bounds → null */ }
     }
 
-    const name = (req.body.name || req.file.originalname || 'Aerial overlay').slice(0, 200);
-    const uploadedBy = req.user?.username || 'unknown';
-
-    const insert = await db.db.query(
-      `INSERT INTO aerial_overlays (name, file_url, file_key, file_type, bounds, width_px, height_px, uploaded_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, name, file_url, file_type, bounds, width_px, height_px, uploaded_by, created_at`,
-      [name, url, key, fileType, bounds ? JSON.stringify(bounds) : null,
-       out.info.width, out.info.height, uploadedBy]
-    );
-    res.json({ success: true, overlay: insert.rows[0] });
+    const overlay = await persistAerialOverlay({
+      jpeg: out.data,
+      bounds,
+      width: out.info.width,
+      height: out.info.height,
+      fileType: req.body.file_type === 'pdf' ? 'pdf' : 'image',
+      name: (req.body.name || req.file.originalname || 'Aerial overlay').slice(0, 200),
+      uploadedBy: req.user?.username || 'unknown'
+    });
+    res.json({ success: true, overlay });
   } catch (err) {
     console.error('upload-image failed:', err);
     res.status(500).json({ success: false, error: err.message });

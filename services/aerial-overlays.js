@@ -74,8 +74,9 @@ async function initSchema(db) {
       id          SERIAL PRIMARY KEY,
       name        TEXT NOT NULL,
       file_url    TEXT NOT NULL,
-      file_key    TEXT NOT NULL,
+      file_key    TEXT,
       file_type   TEXT NOT NULL,
+      file_data   BYTEA,
       bounds      JSONB,
       width_px    INTEGER,
       height_px   INTEGER,
@@ -83,6 +84,9 @@ async function initSchema(db) {
       created_at  TIMESTAMPTZ DEFAULT NOW()
     );
   `);
+  // Idempotent migration for existing deploys that pre-date the columns.
+  await db.db.query(`ALTER TABLE aerial_overlays ADD COLUMN IF NOT EXISTS file_data BYTEA;`);
+  await db.db.query(`ALTER TABLE aerial_overlays ALTER COLUMN file_key DROP NOT NULL;`);
   await db.db.query(`CREATE INDEX IF NOT EXISTS idx_aerial_overlays_created ON aerial_overlays(created_at DESC);`);
 }
 
