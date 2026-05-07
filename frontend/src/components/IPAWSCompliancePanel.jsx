@@ -59,12 +59,19 @@ export default function IPAWSCompliancePanel() {
     }
   };
 
+  // Defensive: every list endpoint here installs the response field
+  // directly into state. If the API returns success without the expected
+  // array (or with null), the render's .map() crashes with
+  // "r.map is not a function" — which is what surfaces when the user
+  // opens IPAWS Active Alerts. Always coerce to a real array.
+  const asArray = (v) => (Array.isArray(v) ? v : []);
+
   const loadUsers = async () => {
     try {
       const response = await fetch(`${config.apiUrl}/api/ipaws/users`);
       const data = await response.json();
       if (data.success) {
-        setUsers(data.users);
+        setUsers(asArray(data.users));
       }
     } catch (error) {
       console.error('Error loading users:', error);
@@ -76,7 +83,7 @@ export default function IPAWSCompliancePanel() {
       const response = await fetch(`${config.apiUrl}/api/ipaws/users/refresher-due`);
       const data = await response.json();
       if (data.success) {
-        setRefresherDue(data.users);
+        setRefresherDue(asArray(data.users));
       }
     } catch (error) {
       console.error('Error loading refresher due:', error);
@@ -88,7 +95,7 @@ export default function IPAWSCompliancePanel() {
       const response = await fetch(`${config.apiUrl}/api/ipaws/certifications/expiring`);
       const data = await response.json();
       if (data.success) {
-        setCertsExpiring(data.certifications);
+        setCertsExpiring(asArray(data.certifications));
       }
     } catch (error) {
       console.error('Error loading expiring certs:', error);
@@ -100,7 +107,7 @@ export default function IPAWSCompliancePanel() {
       const response = await fetch(`${config.apiUrl}/api/ipaws/after-action-reviews/outstanding`);
       const data = await response.json();
       if (data.success) {
-        setAarsOutstanding(data.outstanding);
+        setAarsOutstanding(asArray(data.outstanding));
       }
     } catch (error) {
       console.error('Error loading outstanding AARs:', error);
@@ -112,7 +119,9 @@ export default function IPAWSCompliancePanel() {
       const response = await fetch(`${config.apiUrl}/api/ipaws/after-action-reviews`);
       const data = await response.json();
       if (data.success) {
-        setRecentAARs(data.reviews.slice(0, 10)); // Show most recent 10
+        // .slice() on undefined would throw before we even render — guard
+        // against a missing reviews field by coercing first.
+        setRecentAARs(asArray(data.reviews).slice(0, 10));
       }
     } catch (error) {
       console.error('Error loading recent AARs:', error);
@@ -124,7 +133,7 @@ export default function IPAWSCompliancePanel() {
       const response = await fetch(`${config.apiUrl}/api/ipaws/violations`);
       const data = await response.json();
       if (data.success) {
-        setViolations(data.violations);
+        setViolations(asArray(data.violations));
       }
     } catch (error) {
       console.error('Error loading violations:', error);
