@@ -17517,21 +17517,26 @@ app.get('/api/state-osow-regulations', async (req, res) => {
   try {
     const { nascoOnly } = req.query;
 
+    // Note: pg uses boolean true, sqlite stores 1 — branch on adapter.
+    const isNascoFilter = db.isPostgres ? 'is_nasco_state = true' : 'is_nasco_state = 1';
     let query = 'SELECT * FROM state_osow_regulations';
-    const params = [];
-
-    if (nascoOnly === 'true') {
-      query += ' WHERE is_nasco_state = 1';
-    }
-
+    if (nascoOnly === 'true') query += ` WHERE ${isNascoFilter}`;
     query += ' ORDER BY state_name';
 
-    let regulations;
-    if (db.isPostgres) {
-      const result = await db.db.query(query, params);
-      regulations = result.rows || [];
-    } else {
-      regulations = db.db.prepare(query).all(...params);
+    let regulations = [];
+    try {
+      if (db.isPostgres) {
+        const result = await db.db.query(query);
+        regulations = result.rows || [];
+      } else {
+        regulations = db.db.prepare(query).all();
+      }
+    } catch (queryErr) {
+      // pg deploy may not have the state_osow_regulations table — used to
+      // 500 the layer toggle. Return an empty list so the layer renders
+      // empty and the legend just shows the categories with no markers.
+      console.warn('state-osow-regulations: empty list (schema drift) —', queryErr.message);
+      regulations = [];
     }
 
     // Parse JSON fields

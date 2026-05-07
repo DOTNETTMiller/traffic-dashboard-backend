@@ -52,7 +52,7 @@ const NAV = [
       { actionKey: 'toggle-cadd',             toggleProp: 'showCADDElements',        icon: '📐', label: 'CADD Elements' },
       { actionKey: 'toggle-interchanges',     toggleProp: 'showInterchanges',        icon: '🔀', label: 'Interchanges' },
       { actionKey: 'toggle-bridge-clearance', toggleProp: 'showBridgeClearances',    icon: '🌉', label: 'Bridge Clearances' },
-      { actionKey: 'toggle-corridor-regs',    toggleProp: 'showCorridorRegulations', icon: '📜', label: 'Corridor Regulations' },
+      { actionKey: 'toggle-corridor-regs',    toggleProp: 'showCorridorRegulations', icon: '🚛', label: 'OS/OW Permit Rules' },
       { actionKey: 'toggle-diversion-routes', toggleProp: 'showDiversionRoutes',     icon: '🛣️', label: 'Diversion Routes' }
     ]
   },
