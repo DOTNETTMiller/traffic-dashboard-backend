@@ -238,6 +238,18 @@ export default function NavSidebar({
     } catch { return {}; }
   });
 
+  // Per-item group reassignment. Shape: { [itemId]: groupKey }.
+  // Lets the user drag a sub-item out of its default group into a
+  // different one (e.g. move "Predictive Analytics" from Operations
+  // into State Tools). When unset for an item, the default group from
+  // the NAV array applies.
+  const [subAssign, setSubAssign] = useState(() => {
+    try {
+      const raw = localStorage.getItem('nav.subAssign');
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
+
   // Drag state. Top-level and sub-item drags are tracked separately so
   // a sub-item drag doesn't accidentally land on a top-level slot or
   // vice versa.
@@ -361,27 +373,63 @@ export default function NavSidebar({
   const resetOrder = () => {
     setNavOrder(null);
     setSubOrders({});
+    setSubAssign({});
     try {
       localStorage.removeItem('nav.order');
       localStorage.removeItem('nav.subOrder');
+      localStorage.removeItem('nav.subAssign');
     } catch {}
   };
 
-  const hasCustomTopOrder = Array.isArray(navOrder) && navOrder.length > 0;
-  const hasCustomSubOrder = subOrders && Object.keys(subOrders).length > 0;
-  const isCustomOrder = hasCustomTopOrder || hasCustomSubOrder;
+  const hasCustomTopOrder  = Array.isArray(navOrder) && navOrder.length > 0;
+  const hasCustomSubOrder  = subOrders && Object.keys(subOrders).length > 0;
+  const hasCustomSubAssign = subAssign && Object.keys(subAssign).length > 0;
+  const isCustomOrder = hasCustomTopOrder || hasCustomSubOrder || hasCustomSubAssign;
 
   // Sub-item helpers ------------------------------------------------------
 
   const subItemId = (item) => item.view || item.actionKey;
 
-  // Apply a saved per-group order on top of the group's default items.
-  // New sub-items added after a save are appended at the end so updates
-  // don't silently lose them.
-  const orderedSubItems = (group) => {
+  // Default group key for each known sub-item, derived from NAV. Used to
+  // resolve "where does this item live by default?" when the user has
+  // not reassigned it. Stable per render since NAV is module-level.
+  const defaultSubGroup = (() => {
+    const m = new Map();
+    for (const node of NAV) {
+      if (node.type === 'group' && Array.isArray(node.items)) {
+        for (const it of node.items) m.set(subItemId(it), node.key);
+      }
+    }
+    return m;
+  })();
+
+  // Map of every sub-item definition keyed by id, regardless of which
+  // group it currently belongs to. Cross-group moves still need the
+  // original definition (icon, label, action wiring).
+  const subItemRegistry = (() => {
+    const m = new Map();
+    for (const node of NAV) {
+      if (node.type === 'group' && Array.isArray(node.items)) {
+        for (const it of node.items) m.set(subItemId(it), it);
+      }
+    }
+    return m;
+  })();
+
+  const effectiveGroupOf = (itemId) => subAssign[itemId] || defaultSubGroup.get(itemId);
+
+  // The items that should render under this group, after both
+  // reassignment (subAssign) and ordering (subOrders) are applied.
+  // Ignores the group's own .items list at runtime — it's only used to
+  // seed the default-group map above.
+  const groupItems = (group) => {
+    const collected = [];
+    for (const [id, item] of subItemRegistry.entries()) {
+      if (effectiveGroupOf(id) === group.key) collected.push(item);
+    }
     const saved = subOrders[group.key];
-    if (!Array.isArray(saved) || saved.length === 0) return group.items;
-    const byId = new Map(group.items.map(it => [subItemId(it), it]));
+    if (!Array.isArray(saved) || saved.length === 0) return collected;
+    const byId = new Map(collected.map(it => [subItemId(it), it]));
     const seen = new Set();
     const out = [];
     for (const id of saved) {
@@ -390,35 +438,52 @@ export default function NavSidebar({
         seen.add(id);
       }
     }
-    for (const it of group.items) {
-      if (!seen.has(subItemId(it))) out.push(it);
-    }
+    for (const it of collected) if (!seen.has(subItemId(it))) out.push(it);
     return out;
   };
 
-  const persistSubOrder = (groupKey, ids) => {
-    const next = { ...subOrders, [groupKey]: ids };
-    setSubOrders(next);
-    try { localStorage.setItem('nav.subOrder', JSON.stringify(next)); } catch {}
+  // One write that updates orders + assignment together. Used by every
+  // drop handler to keep the three pieces of state in sync.
+  const persistSub = ({ subOrders: nextOrders, subAssign: nextAssign }) => {
+    if (nextOrders) {
+      setSubOrders(nextOrders);
+      try { localStorage.setItem('nav.subOrder', JSON.stringify(nextOrders)); } catch {}
+    }
+    if (nextAssign) {
+      setSubAssign(nextAssign);
+      try { localStorage.setItem('nav.subAssign', JSON.stringify(nextAssign)); } catch {}
+    }
   };
 
   const handleSubDragStart = (groupKey, id) => (e) => {
-    // Stop the event from also being interpreted as a top-level drag start
-    // on the wrapping group container.
     e.stopPropagation();
     setSubDraggingId(`${groupKey}::${id}`);
     e.dataTransfer.effectAllowed = 'move';
     try { e.dataTransfer.setData('text/plain', id); } catch {}
   };
 
+  // Hover-over a sub-item in any group while dragging. Same-group drops
+  // reorder; cross-group drops insert at the hovered item's position.
   const handleSubDragOver = (groupKey, id) => (e) => {
     if (!subDraggingId) return;
-    const [draggingGroup] = subDraggingId.split('::');
-    if (draggingGroup !== groupKey) return; // cross-group drops are not supported
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
     const next = `${groupKey}::${id}`;
+    if (subDragOverId !== next) setSubDragOverId(next);
+  };
+
+  // Hover-over a different group's *header* while dragging. Triggers
+  // an "append to end of this group" drop indicator. Same-group hovers
+  // on the header are a no-op (you'd just be re-hovering yourself).
+  const handleSubDragOverGroupHeader = (groupKey) => (e) => {
+    if (!subDraggingId) return;
+    const [sourceGroupKey] = subDraggingId.split('::');
+    if (sourceGroupKey === groupKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    const next = `${groupKey}::__header__`;
     if (subDragOverId !== next) setSubDragOverId(next);
   };
 
@@ -427,26 +492,74 @@ export default function NavSidebar({
     setSubDragOverId(null);
   };
 
+  // Drop on a sub-item — same-group reorder OR cross-group move.
   const handleSubDrop = (groupKey, targetId) => (e) => {
     e.preventDefault();
     e.stopPropagation();
     if (!subDraggingId) { handleSubDragEnd(); return; }
-    const [draggingGroup, draggingItemId] = subDraggingId.split('::');
-    if (draggingGroup !== groupKey || draggingItemId === targetId) {
+    const [sourceGroupKey, draggingItemId] = subDraggingId.split('::');
+    if (sourceGroupKey === groupKey && draggingItemId === targetId) {
       handleSubDragEnd();
       return;
     }
-    // Walk the group's current order and splice.
-    const group = NAV.find(n => n.key === groupKey);
-    if (!group) { handleSubDragEnd(); return; }
-    const currentIds = orderedSubItems(group).map(subItemId);
-    const fromIdx = currentIds.indexOf(draggingItemId);
-    const toIdx   = currentIds.indexOf(targetId);
-    if (fromIdx < 0 || toIdx < 0) { handleSubDragEnd(); return; }
-    const next = [...currentIds];
-    next.splice(fromIdx, 1);
-    next.splice(toIdx, 0, draggingItemId);
-    persistSubOrder(groupKey, next);
+    const sourceGroup = NAV.find(n => n.key === sourceGroupKey);
+    const targetGroup = NAV.find(n => n.key === groupKey);
+    if (!sourceGroup || !targetGroup) { handleSubDragEnd(); return; }
+
+    const nextOrders = { ...subOrders };
+    const nextAssign = { ...subAssign };
+
+    if (sourceGroupKey === groupKey) {
+      // Same-group reorder
+      const currentIds = groupItems(targetGroup).map(subItemId);
+      const fromIdx = currentIds.indexOf(draggingItemId);
+      const toIdx   = currentIds.indexOf(targetId);
+      if (fromIdx < 0 || toIdx < 0) { handleSubDragEnd(); return; }
+      const next = [...currentIds];
+      next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, draggingItemId);
+      nextOrders[groupKey] = next;
+    } else {
+      // Cross-group move: drop the item at the position the user pointed at.
+      const sourceIds = groupItems(sourceGroup).map(subItemId).filter(id => id !== draggingItemId);
+      const targetIds = groupItems(targetGroup).map(subItemId);
+      const toIdx     = targetIds.indexOf(targetId);
+      const newTarget = [...targetIds];
+      newTarget.splice(toIdx >= 0 ? toIdx : newTarget.length, 0, draggingItemId);
+      nextOrders[sourceGroupKey] = sourceIds;
+      nextOrders[groupKey]       = newTarget;
+      // Default group? Drop the explicit assignment to keep state minimal.
+      if (defaultSubGroup.get(draggingItemId) === groupKey) delete nextAssign[draggingItemId];
+      else nextAssign[draggingItemId] = groupKey;
+    }
+    persistSub({ subOrders: nextOrders, subAssign: nextAssign });
+    handleSubDragEnd();
+  };
+
+  // Drop on a different group's header — append to end of that group.
+  const handleSubDropOnGroupHeader = (groupKey) => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!subDraggingId) { handleSubDragEnd(); return; }
+    const [sourceGroupKey, draggingItemId] = subDraggingId.split('::');
+    if (sourceGroupKey === groupKey) { handleSubDragEnd(); return; }
+
+    const sourceGroup = NAV.find(n => n.key === sourceGroupKey);
+    const targetGroup = NAV.find(n => n.key === groupKey);
+    if (!sourceGroup || !targetGroup) { handleSubDragEnd(); return; }
+
+    const nextOrders = { ...subOrders };
+    const nextAssign = { ...subAssign };
+
+    const sourceIds = groupItems(sourceGroup).map(subItemId).filter(id => id !== draggingItemId);
+    const targetIds = groupItems(targetGroup).map(subItemId);
+    nextOrders[sourceGroupKey] = sourceIds;
+    nextOrders[groupKey]       = [...targetIds, draggingItemId];
+
+    if (defaultSubGroup.get(draggingItemId) === groupKey) delete nextAssign[draggingItemId];
+    else nextAssign[draggingItemId] = groupKey;
+
+    persistSub({ subOrders: nextOrders, subAssign: nextAssign });
     handleSubDragEnd();
   };
 
@@ -531,9 +644,37 @@ export default function NavSidebar({
 
               const groupActive = isGroupActive(node);
               const open = openGroups[node.key] || (expanded && groupActive);
+              // Cross-group drop indicator: when a sub-item from a
+              // different group is hovering this group's header.
+              const isHeaderDropTarget = subDragOverId === `${node.key}::__header__`;
+              // Combined drag handlers: top-level drag uses the existing
+              // wrapper handlers; sub-item drag intercepts onDragOver /
+              // onDrop so a sub-item drop on a *different* group's
+              // header appends to that group instead of reordering at
+              // the top level.
+              const groupDragHandlers = expanded ? {
+                draggable: true,
+                onDragStart: handleDragStart(id),
+                onDragOver: (e) => {
+                  if (subDraggingId) handleSubDragOverGroupHeader(node.key)(e);
+                  else handleDragOver(id)(e);
+                },
+                onDrop: (e) => {
+                  if (subDraggingId) handleSubDropOnGroupHeader(node.key)(e);
+                  else handleDrop(id)(e);
+                },
+                onDragEnd: () => {
+                  handleDragEnd();
+                  handleSubDragEnd();
+                }
+              } : {};
+              const groupWrapClass = `nav-group nav-reorder-wrap`
+                + (draggingId === id ? ' is-dragging' : '')
+                + (dragOverId === id ? ' is-drag-over' : '')
+                + (isHeaderDropTarget ? ' is-drag-over' : '');
 
               return (
-                <div key={node.key} className={`nav-group ${wrapClass}`} {...dragProps}>
+                <div key={node.key} className={groupWrapClass} {...groupDragHandlers}>
                   <NavLink
                     icon={node.icon}
                     label={node.label}
@@ -552,7 +693,7 @@ export default function NavSidebar({
                   />
                   {open && expanded && (
                     <div className="nav-subitems">
-                      {orderedSubItems(node).map(item => {
+                      {groupItems(node).map(item => {
                         // Toggle sub-items (Map Layers): active when the
                         // bound state is on. View sub-items: active when
                         // current view matches.
