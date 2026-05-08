@@ -109,6 +109,7 @@ function App() {
   const [showAerialOverlays, setShowAerialOverlays] = useState(false);
   const [showWeatherAlerts, setShowWeatherAlerts] = useState(false);
   const [showBorderWaitTimes, setShowBorderWaitTimes] = useState(false);
+  const [showMaastoParking, setShowMaastoParking] = useState(false);
   const [availableRoutes, setAvailableRoutes] = useState([]);
   const [showInterchanges, setShowInterchanges] = useState(false); // Hidden by default - toggle to show
   const [showBridgeClearances, setShowBridgeClearances] = useState(false); // Hidden by default - toggle to show
@@ -806,6 +807,7 @@ function App() {
           showAerialOverlays,
           showWeatherAlerts,
           showBorderWaitTimes,
+          showMaastoParking,
           interstateOnly
         }}
         actions={{
@@ -835,6 +837,7 @@ function App() {
           'toggle-aerial-overlays':    () => { setView('map'); setShowAerialOverlays(p => !p); },
           'toggle-weather-alerts':     () => { setView('map'); setShowWeatherAlerts(p => !p); },
           'toggle-border-wait-times':  () => { setView('map'); setShowBorderWaitTimes(p => !p); },
+          'toggle-maasto-parking':     () => { setView('map'); setShowMaastoParking(p => !p); },
           'open-aerial-overlays':      () => setView('aerialOverlays'),
           // Toggling either footer item closes the other so only one
           // secondary panel shows at a time (single-pane sidebar UX).
@@ -1178,6 +1181,7 @@ function App() {
                   showAerialOverlays={showAerialOverlays}
                   showWeatherAlerts={showWeatherAlerts}
                   showBorderWaitTimes={showBorderWaitTimes}
+                  showMaastoParking={showMaastoParking}
                   interstateOnly={interstateOnly}
                   heatMapActive={heatMapActive}
                   heatMapMode={heatMapMode}

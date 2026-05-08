@@ -34019,6 +34019,46 @@ app.get('/api/border-wait-times', async (req, res) => {
   }
 });
 
+// ========================================
+// MAASTO TPIMS — multi-state real-time truck parking (IL/KY/MN/WI public feeds)
+// ========================================
+
+const maastoTpims = require('./services/maasto-tpims');
+
+// 90s cache: TPIMS dynamic feeds refresh every 1-5 minutes per spec, so
+// 90s gives near-realtime UI without hammering 4 separate state APIs.
+let tpimsCache = { data: null, fetchedAt: 0, inFlight: null };
+const TPIMS_TTL_MS = 90 * 1000;
+
+async function getTpimsSites() {
+  const now = Date.now();
+  if (tpimsCache.data && now - tpimsCache.fetchedAt < TPIMS_TTL_MS) return tpimsCache.data;
+  if (tpimsCache.inFlight) return tpimsCache.inFlight;
+  tpimsCache.inFlight = (async () => {
+    const data = await maastoTpims.fetchAllSites();
+    tpimsCache.data = data;
+    tpimsCache.fetchedAt = Date.now();
+    tpimsCache.inFlight = null;
+    return data;
+  })();
+  return tpimsCache.inFlight;
+}
+
+app.get('/api/maasto-tpims', async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=60');
+  try {
+    let sites = await getTpimsSites();
+    if (req.query.state) {
+      const wanted = String(req.query.state).toUpperCase().split(',').map(s => s.trim()).filter(Boolean);
+      sites = sites.filter(s => wanted.includes(s.state));
+    }
+    res.json({ success: true, count: sites.length, sites });
+  } catch (err) {
+    console.error('maasto-tpims failed:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Get latest parking availability for all facilities
 app.get('/api/parking/availability', async (req, res) => {
   try {

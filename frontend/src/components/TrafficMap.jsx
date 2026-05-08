@@ -55,6 +55,7 @@ import DiversionRoutesLayer from './DiversionRoutesLayer';
 import AerialOverlaysLayer from './AerialOverlaysLayer';
 import WeatherAlertsLayer from './WeatherAlertsLayer';
 import BorderWaitTimesLayer from './BorderWaitTimesLayer';
+import MaastoParkingLayer from './MaastoParkingLayer';
 import EventFormatPopup from './EventFormatPopup';
 import BoundingBoxSelector from './BoundingBoxSelector';
 import HeatMapControl from './HeatMapControl';
@@ -420,6 +421,7 @@ export default function TrafficMap({
   showAerialOverlays = false,
   showWeatherAlerts = false,
   showBorderWaitTimes = false,
+  showMaastoParking = false,
   interstateOnly = true,
   heatMapActive = false,
   heatMapMode = 'density',
@@ -1213,6 +1215,9 @@ export default function TrafficMap({
 
         {/* CBP Border Wait Times — port-of-entry markers with truck-lane delay */}
         <BorderWaitTimesLayer visible={showBorderWaitTimes} />
+
+        {/* MAASTO TPIMS — real-time truck parking across IL/KY/MN public feeds */}
+        <MaastoParkingLayer visible={showMaastoParking} />
 
         {/* Heat Map Visualization */}
         <HeatMapLayer

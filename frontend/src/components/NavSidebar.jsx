@@ -53,6 +53,7 @@ const NAV = [
       { actionKey: 'toggle-weather-alerts',   toggleProp: 'showWeatherAlerts',       icon: '🌩️', label: 'Weather Alerts' },
       { actionKey: 'toggle-border-wait-times', toggleProp: 'showBorderWaitTimes',    icon: '🛂', label: 'Border Wait Times' },
       { actionKey: 'toggle-parking',          toggleProp: 'showParking',             icon: '🅿️', label: 'Truck Parking' },
+      { actionKey: 'toggle-maasto-parking',   toggleProp: 'showMaastoParking',       icon: '🚛', label: 'MAASTO Parking (live)' },
       { actionKey: 'toggle-diversion-routes', toggleProp: 'showDiversionRoutes',     icon: '🛣️', label: 'Diversion Routes' },
       { actionKey: 'toggle-aerial-overlays',  toggleProp: 'showAerialOverlays',      icon: '🛩️', label: 'Aerial Overlays' },
       { actionKey: 'toggle-its-equipment',    toggleProp: 'showITSEquipment',        icon: '📡', label: 'ITS Equipment' },
