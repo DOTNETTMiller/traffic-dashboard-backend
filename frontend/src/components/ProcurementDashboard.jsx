@@ -14,23 +14,40 @@ const ProcurementDashboard = () => {
   }, []);
 
   const fetchProcurementData = async () => {
-    try {
-      setLoading(true);
-      const [contractsResp, alertsResp, costResp] = await Promise.all([
-        api.get('/api/procurement/contracts'),
-        api.get('/api/procurement/expiration-alerts'),
-        api.get('/api/procurement/cost-analysis')
-      ]);
+    setLoading(true);
+    // Use allSettled so one failing endpoint (e.g. cost-analysis 500)
+    // doesn't blank the whole dashboard — the user still sees whatever
+    // the other endpoints returned.
+    const [contractsRes, alertsRes, costRes] = await Promise.allSettled([
+      api.get('/api/procurement/contracts'),
+      api.get('/api/procurement/expiration-alerts'),
+      api.get('/api/procurement/cost-analysis')
+    ]);
 
-      if (contractsResp.data.success) setContracts(contractsResp.data.contracts);
-      if (alertsResp.data.success) setAlerts(alertsResp.data.alerts);
-      if (costResp.data.success) setCostAnalysis(costResp.data.analysis);
-    } catch (err) {
-      console.error('Error fetching procurement data:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    const failures = [];
+    if (contractsRes.status === 'fulfilled' && contractsRes.value.data.success) {
+      setContracts(contractsRes.value.data.contracts);
+    } else if (contractsRes.status === 'rejected') {
+      failures.push(`contracts: ${contractsRes.reason?.message || 'unknown'}`);
     }
+    if (alertsRes.status === 'fulfilled' && alertsRes.value.data.success) {
+      setAlerts(alertsRes.value.data.alerts);
+    } else if (alertsRes.status === 'rejected') {
+      failures.push(`alerts: ${alertsRes.reason?.message || 'unknown'}`);
+    }
+    if (costRes.status === 'fulfilled' && costRes.value.data.success) {
+      setCostAnalysis(costRes.value.data.analysis);
+    } else if (costRes.status === 'rejected') {
+      failures.push(`cost: ${costRes.reason?.message || 'unknown'}`);
+    }
+
+    if (failures.length > 0) {
+      console.warn('Procurement: partial data load —', failures.join('; '));
+      // Only surface a user-visible error if EVERY endpoint failed —
+      // otherwise just render what we have.
+      if (failures.length === 3) setError(failures.join('; '));
+    }
+    setLoading(false);
   };
 
   const getAlertColor = (level) => {
@@ -232,6 +249,21 @@ const ProcurementDashboard = () => {
         <h2 style={{ margin: '0 0 16px 0', fontSize: '24px', fontWeight: 'bold', color: '#111827' }}>
           Active Vendor Contracts ({contracts.length})
         </h2>
+        {contracts.length === 0 && (
+          <div style={{
+            padding: '32px',
+            background: '#f9fafb',
+            border: '1px dashed #d1d5db',
+            borderRadius: '8px',
+            textAlign: 'center',
+            color: '#6b7280',
+            fontSize: '14px'
+          }}>
+            No vendor contracts on file yet. Contracts entered in the Admin
+            section will appear here with cost-per-event analysis, SLA
+            metrics, and expiration alerts.
+          </div>
+        )}
         <div style={{ display: 'grid', gap: '16px' }}>
           {contracts.map((contract, idx) => (
             <div

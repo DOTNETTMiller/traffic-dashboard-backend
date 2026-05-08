@@ -22261,12 +22261,17 @@ app.get('/api/procurement/cost-analysis', async (req, res) => {
 
     let rows;
     if (db.isPostgres) {
-      const where = stateKey ? `WHERE state_key = $1` : '';
+      // Always need a WHERE for the status filter — when no stateKey is
+      // passed (frontend default), the previous "${where} AND status = ACTIVE"
+      // composition produced invalid SQL because ${where} was empty.
+      const where = stateKey
+        ? `WHERE state_key = $1 AND status = 'ACTIVE'`
+        : `WHERE status = 'ACTIVE'`;
       const params = stateKey ? [stateKey] : [];
       const r = await db.db.query(
         `SELECT state_key, SUM(contract_value_annual) AS total_annual,
                 COUNT(*) AS contract_count
-         FROM procurement_contracts ${where} AND status = 'ACTIVE'
+         FROM procurement_contracts ${where}
          GROUP BY state_key`,
         params
       );
