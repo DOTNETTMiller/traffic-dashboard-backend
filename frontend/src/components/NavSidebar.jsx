@@ -32,12 +32,14 @@ const NAV = [
     label: 'Map Layers',
     items: [
       { actionKey: 'toggle-events',           toggleProp: 'showEvents',              icon: '⚠️', label: 'Traffic Events' },
+      { actionKey: 'toggle-interstate-only',  toggleProp: 'interstateOnly',          icon: '🛣️', label: 'Interstate Only' },
       { actionKey: 'toggle-weather-alerts',   toggleProp: 'showWeatherAlerts',       icon: '🌩️', label: 'Weather Alerts' },
       { actionKey: 'toggle-border-wait-times', toggleProp: 'showBorderWaitTimes',    icon: '🛂', label: 'Border Wait Times' },
       { actionKey: 'toggle-parking',          toggleProp: 'showParking',             icon: '🅿️', label: 'Truck Parking' },
       { actionKey: 'toggle-maasto-parking',   toggleProp: 'showMaastoParking',       icon: '🚛', label: 'MAASTO Parking (live)' },
       { actionKey: 'toggle-diversion-routes', toggleProp: 'showDiversionRoutes',     icon: '🛣️', label: 'Diversion Routes' },
       { actionKey: 'toggle-aerial-overlays',  toggleProp: 'showAerialOverlays',      icon: '🛩️', label: 'Aerial Overlays' },
+      { view: 'aerialOverlays',                                                      icon: '🛩️', label: 'Aerial Overlay Library' },
       { actionKey: 'toggle-its-equipment',    toggleProp: 'showITSEquipment',        icon: '📡', label: 'ITS Equipment' },
       { actionKey: 'toggle-v2x',              toggleProp: 'showV2XDeployments',      icon: '📶', label: 'V2X Deployments' },
       { actionKey: 'toggle-cadd',             toggleProp: 'showCADDElements',        icon: '📐', label: 'CADD Elements' },
@@ -64,8 +66,7 @@ const NAV = [
       { actionKey: 'open-command-palette', icon: '⌘', label: 'Command Palette' },
       { actionKey: 'refresh-data',         icon: '🔄', label: 'Refresh Data' },
       { actionKey: 'clear-filters',        icon: '🧹', label: 'Clear Filters' },
-      { actionKey: 'export-data',          icon: '📥', label: 'Export Data' },
-      { actionKey: 'toggle-interstate-only', toggleProp: 'interstateOnly', icon: '🛣️', label: 'Interstate Only' }
+      { actionKey: 'export-data',          icon: '📥', label: 'Export Data' }
     ]
   },
 
@@ -87,7 +88,8 @@ const NAV = [
       { view: 'gapAnalysis',           icon: '📊', label: 'Vendor Gap Analysis' },
       { view: 'coverageGaps',          icon: '🗺️', label: 'Coverage Gap Analysis' },
       { view: 'alignment',             icon: '🔗', label: 'Feed Alignment' },
-      { view: 'eventConfidence',       icon: '✓',  label: 'Event Confidence' }
+      { view: 'eventConfidence',       icon: '✓',  label: 'Event Confidence' },
+      { view: 'vendorPortal',          icon: '🏢', label: 'Vendor Portal' }
     ]
   },
   {
@@ -108,7 +110,7 @@ const NAV = [
       { view: 'corridorDelays',        icon: '⏰', label: 'Corridor Delays' },
       { view: 'predictiveAnalytics',   icon: '🔮', label: 'Predictive Analytics' },
       { view: 'assetHealth',           icon: '🔧', label: 'Asset Health' },
-      { view: 'procurement',           icon: '💰', label: 'Procurement' }
+      { view: 'feedSubmission',        icon: '📤', label: 'Feed Submission' }
     ]
   },
   {
@@ -142,10 +144,10 @@ const NAV = [
     label: 'State Tools',
     items: [
       { view: 'standardsCrosswalk',    icon: '🔀', label: 'Standards Crosswalk' },
-      { view: 'nasco-regulations',     icon: '📜', label: 'NASCO Regulations' },
       { view: 'caddModels',            icon: '📐', label: 'CADD Models' },
       { view: 'digitalInfrastructure', icon: '🌉', label: 'Digital Infrastructure' },
-      { view: 'groundTruth',           icon: '🎯', label: 'Ground Truth' }
+      { view: 'procurement',           icon: '💰', label: 'Procurement' },
+      { view: 'grants',                icon: '💵', label: 'Funding Opportunities' }
     ]
   },
   {
@@ -154,9 +156,8 @@ const NAV = [
     icon: '🚚',
     label: 'Commercial Freight',
     items: [
-      { view: 'vendorPortal',    icon: '🏢', label: 'Vendor Portal' },
-      { view: 'feedSubmission',  icon: '📤', label: 'Feed Submission' },
-      { view: 'grants',          icon: '💵', label: 'Funding Opportunities' }
+      { view: 'nasco-regulations', icon: '📜', label: 'NASCO Regulations' },
+      { view: 'groundTruth',       icon: '🎯', label: 'Ground Truth' }
     ]
   },
 
@@ -171,8 +172,7 @@ const NAV = [
     items: [
       { view: 'admin',           icon: '⚙️', label: 'Admin Panel' },
       { view: 'adminUsers',      icon: '👥', label: 'Users' },
-      { view: 'adminFeeds',      icon: '📡', label: 'Feed Submissions' },
-      { view: 'aerialOverlays',  icon: '🛩️', label: 'Aerial Overlay Library' }
+      { view: 'adminFeeds',      icon: '📡', label: 'Feed Submissions' }
     ]
   }
 ];
