@@ -226,10 +226,25 @@ export default function NavSidebar({
       return raw ? JSON.parse(raw) : null;
     } catch { return null; }
   });
-  // Drag state lives in component scope (not React state) so dragOver
-  // doesn't trigger re-renders for every pixel of mouse movement.
+
+  // Per-group sub-item ordering. Shape: { [groupKey]: [itemId, ...] }.
+  // Item IDs are item.view || item.actionKey. Same append-on-update
+  // behavior as top-level — newly-added sub-items appear at the end of
+  // any group the user has customized.
+  const [subOrders, setSubOrders] = useState(() => {
+    try {
+      const raw = localStorage.getItem('nav.subOrder');
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
+
+  // Drag state. Top-level and sub-item drags are tracked separately so
+  // a sub-item drag doesn't accidentally land on a top-level slot or
+  // vice versa.
   const [draggingId, setDraggingId] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
+  const [subDraggingId, setSubDraggingId] = useState(null);  // 'groupKey::itemId'
+  const [subDragOverId, setSubDragOverId] = useState(null);
 
   useEffect(() => {
     try { localStorage.setItem('nav.expanded', JSON.stringify(expanded)); } catch {}
@@ -345,10 +360,95 @@ export default function NavSidebar({
 
   const resetOrder = () => {
     setNavOrder(null);
-    try { localStorage.removeItem('nav.order'); } catch {}
+    setSubOrders({});
+    try {
+      localStorage.removeItem('nav.order');
+      localStorage.removeItem('nav.subOrder');
+    } catch {}
   };
 
-  const isCustomOrder = Array.isArray(navOrder) && navOrder.length > 0;
+  const hasCustomTopOrder = Array.isArray(navOrder) && navOrder.length > 0;
+  const hasCustomSubOrder = subOrders && Object.keys(subOrders).length > 0;
+  const isCustomOrder = hasCustomTopOrder || hasCustomSubOrder;
+
+  // Sub-item helpers ------------------------------------------------------
+
+  const subItemId = (item) => item.view || item.actionKey;
+
+  // Apply a saved per-group order on top of the group's default items.
+  // New sub-items added after a save are appended at the end so updates
+  // don't silently lose them.
+  const orderedSubItems = (group) => {
+    const saved = subOrders[group.key];
+    if (!Array.isArray(saved) || saved.length === 0) return group.items;
+    const byId = new Map(group.items.map(it => [subItemId(it), it]));
+    const seen = new Set();
+    const out = [];
+    for (const id of saved) {
+      if (byId.has(id) && !seen.has(id)) {
+        out.push(byId.get(id));
+        seen.add(id);
+      }
+    }
+    for (const it of group.items) {
+      if (!seen.has(subItemId(it))) out.push(it);
+    }
+    return out;
+  };
+
+  const persistSubOrder = (groupKey, ids) => {
+    const next = { ...subOrders, [groupKey]: ids };
+    setSubOrders(next);
+    try { localStorage.setItem('nav.subOrder', JSON.stringify(next)); } catch {}
+  };
+
+  const handleSubDragStart = (groupKey, id) => (e) => {
+    // Stop the event from also being interpreted as a top-level drag start
+    // on the wrapping group container.
+    e.stopPropagation();
+    setSubDraggingId(`${groupKey}::${id}`);
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', id); } catch {}
+  };
+
+  const handleSubDragOver = (groupKey, id) => (e) => {
+    if (!subDraggingId) return;
+    const [draggingGroup] = subDraggingId.split('::');
+    if (draggingGroup !== groupKey) return; // cross-group drops are not supported
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    const next = `${groupKey}::${id}`;
+    if (subDragOverId !== next) setSubDragOverId(next);
+  };
+
+  const handleSubDragEnd = () => {
+    setSubDraggingId(null);
+    setSubDragOverId(null);
+  };
+
+  const handleSubDrop = (groupKey, targetId) => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!subDraggingId) { handleSubDragEnd(); return; }
+    const [draggingGroup, draggingItemId] = subDraggingId.split('::');
+    if (draggingGroup !== groupKey || draggingItemId === targetId) {
+      handleSubDragEnd();
+      return;
+    }
+    // Walk the group's current order and splice.
+    const group = NAV.find(n => n.key === groupKey);
+    if (!group) { handleSubDragEnd(); return; }
+    const currentIds = orderedSubItems(group).map(subItemId);
+    const fromIdx = currentIds.indexOf(draggingItemId);
+    const toIdx   = currentIds.indexOf(targetId);
+    if (fromIdx < 0 || toIdx < 0) { handleSubDragEnd(); return; }
+    const next = [...currentIds];
+    next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, draggingItemId);
+    persistSubOrder(groupKey, next);
+    handleSubDragEnd();
+  };
 
   const railWidth = expanded ? EXPANDED_W : COLLAPSED_W;
 
@@ -452,7 +552,7 @@ export default function NavSidebar({
                   />
                   {open && expanded && (
                     <div className="nav-subitems">
-                      {node.items.map(item => {
+                      {orderedSubItems(node).map(item => {
                         // Toggle sub-items (Map Layers): active when the
                         // bound state is on. View sub-items: active when
                         // current view matches.
@@ -460,36 +560,52 @@ export default function NavSidebar({
                         const isActive = isToggle
                           ? !!mapLayerStates[item.toggleProp]
                           : (item.view && view === item.view);
+                        const itemId   = subItemId(item);
+                        const subKey   = `${node.key}::${itemId}`;
+                        const isSubDrag = subDraggingId === subKey;
+                        const isSubOver = subDragOverId === subKey;
+                        const subWrapClass = `nav-reorder-wrap nav-subitem-wrap`
+                          + (isSubDrag ? ' is-dragging' : '')
+                          + (isSubOver ? ' is-drag-over' : '');
                         return (
-                          <button
-                            key={item.view || item.actionKey}
-                            type="button"
-                            className={`nav-subitem ${isActive ? 'is-active' : ''}`}
-                            onClick={() => handleSubItem(item)}
-                            title={item.preview ? `${item.label} — preview (data wiring incomplete)` : undefined}
+                          <div
+                            key={itemId}
+                            className={subWrapClass}
+                            draggable
+                            onDragStart={handleSubDragStart(node.key, itemId)}
+                            onDragOver={handleSubDragOver(node.key, itemId)}
+                            onDrop={handleSubDrop(node.key, itemId)}
+                            onDragEnd={handleSubDragEnd}
                           >
-                            <span className="nav-subitem-icon" aria-hidden>{item.icon}</span>
-                            <span className="nav-subitem-label">{item.label}</span>
-                            {isToggle && (
-                              <span
-                                aria-hidden
-                                style={{
-                                  marginLeft: 'auto',
-                                  fontSize: 9,
-                                  fontWeight: 700,
-                                  letterSpacing: '0.06em',
-                                  textTransform: 'uppercase',
-                                  color: isActive ? 'var(--accent)' : 'var(--fg-muted)',
-                                  opacity: isActive ? 1 : 0.5
-                                }}
-                              >
-                                {isActive ? 'On' : 'Off'}
-                              </span>
-                            )}
-                            {item.preview && (
-                              <span className="nav-subitem-badge" aria-label="Preview">Preview</span>
-                            )}
-                          </button>
+                            <button
+                              type="button"
+                              className={`nav-subitem ${isActive ? 'is-active' : ''}`}
+                              onClick={() => handleSubItem(item)}
+                              title={item.preview ? `${item.label} — preview (data wiring incomplete)` : undefined}
+                            >
+                              <span className="nav-subitem-icon" aria-hidden>{item.icon}</span>
+                              <span className="nav-subitem-label">{item.label}</span>
+                              {isToggle && (
+                                <span
+                                  aria-hidden
+                                  style={{
+                                    marginLeft: 'auto',
+                                    fontSize: 9,
+                                    fontWeight: 700,
+                                    letterSpacing: '0.06em',
+                                    textTransform: 'uppercase',
+                                    color: isActive ? 'var(--accent)' : 'var(--fg-muted)',
+                                    opacity: isActive ? 1 : 0.5
+                                  }}
+                                >
+                                  {isActive ? 'On' : 'Off'}
+                                </span>
+                              )}
+                              {item.preview && (
+                                <span className="nav-subitem-badge" aria-label="Preview">Preview</span>
+                              )}
+                            </button>
+                          </div>
                         );
                       })}
                     </div>
