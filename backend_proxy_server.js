@@ -33915,6 +33915,91 @@ app.get('/api/parking/closure-impact', async (req, res) => {
   }
 });
 
+// ========================================
+// NWS WEATHER ALERTS — fills the road-impacting weather gap for ALL states
+// ========================================
+
+const nwsAlerts = require('./services/nws-alerts');
+
+// 90s in-memory cache: alerts change minute-to-minute during severe events
+// but stay stable in quiet weather. 90s is the right balance between
+// timeliness and rate-pressure on api.weather.gov.
+let nwsCache = { data: null, fetchedAt: 0, inFlight: null };
+const NWS_TTL_MS = 90 * 1000;
+
+async function getNWSAlerts() {
+  const now = Date.now();
+  if (nwsCache.data && now - nwsCache.fetchedAt < NWS_TTL_MS) return nwsCache.data;
+  if (nwsCache.inFlight) return nwsCache.inFlight;
+  nwsCache.inFlight = (async () => {
+    const data = await nwsAlerts.fetchActiveAlerts();
+    nwsCache.data = data;
+    nwsCache.fetchedAt = Date.now();
+    nwsCache.inFlight = null;
+    return data;
+  })();
+  return nwsCache.inFlight;
+}
+
+app.get('/api/weather-alerts', async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=60');
+  try {
+    let alerts = await getNWSAlerts();
+    // Optional state filter via ?state=IA or ?state=IA,MN
+    if (req.query.state) {
+      const wanted = String(req.query.state).toUpperCase().split(',').map(s => s.trim()).filter(Boolean);
+      alerts = alerts.filter(a => a.states.some(s => wanted.includes(s)));
+    }
+    res.json({ success: true, count: alerts.length, alerts });
+  } catch (err) {
+    console.error('weather-alerts failed:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ========================================
+// CBP BORDER WAIT TIMES — public XML/JSON, no auth, freight-corridor signal
+// ========================================
+
+const borderWaitTimes = require('./services/border-wait-times');
+
+// 5-minute cache: CBP updates wait times on a 30-60 min cadence per port,
+// so 5min is plenty of freshness without hammering bwt.cbp.gov.
+let bwtCache = { data: null, fetchedAt: 0, inFlight: null };
+const BWT_TTL_MS = 5 * 60 * 1000;
+
+async function getBorderWaitTimes() {
+  const now = Date.now();
+  if (bwtCache.data && now - bwtCache.fetchedAt < BWT_TTL_MS) return bwtCache.data;
+  if (bwtCache.inFlight) return bwtCache.inFlight;
+  bwtCache.inFlight = (async () => {
+    const data = await borderWaitTimes.fetchWaitTimes();
+    bwtCache.data = data;
+    bwtCache.fetchedAt = Date.now();
+    bwtCache.inFlight = null;
+    return data;
+  })();
+  return bwtCache.inFlight;
+}
+
+app.get('/api/border-wait-times', async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=300');
+  try {
+    let ports = await getBorderWaitTimes();
+    if (req.query.border) {
+      const wanted = String(req.query.border).toLowerCase();
+      ports = ports.filter(p =>
+        (wanted === 'canadian' && /canadian/i.test(p.border)) ||
+        (wanted === 'mexican' && /mexican/i.test(p.border))
+      );
+    }
+    res.json({ success: true, count: ports.length, ports });
+  } catch (err) {
+    console.error('border-wait-times failed:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Get latest parking availability for all facilities
 app.get('/api/parking/availability', async (req, res) => {
   try {

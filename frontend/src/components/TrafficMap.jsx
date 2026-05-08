@@ -53,6 +53,8 @@ import CADDElementsLayer from './CADDElementsLayer';
 import V2XDeploymentsLayer from './V2XDeploymentsLayer';
 import DiversionRoutesLayer from './DiversionRoutesLayer';
 import AerialOverlaysLayer from './AerialOverlaysLayer';
+import WeatherAlertsLayer from './WeatherAlertsLayer';
+import BorderWaitTimesLayer from './BorderWaitTimesLayer';
 import EventFormatPopup from './EventFormatPopup';
 import BoundingBoxSelector from './BoundingBoxSelector';
 import HeatMapControl from './HeatMapControl';
@@ -416,6 +418,8 @@ export default function TrafficMap({
   showEvents = true,
   showDiversionRoutes = false,
   showAerialOverlays = false,
+  showWeatherAlerts = false,
+  showBorderWaitTimes = false,
   interstateOnly = true,
   heatMapActive = false,
   heatMapMode = 'density',
@@ -1203,6 +1207,12 @@ export default function TrafficMap({
 
         {/* Aerial Overlays Layer — user-uploaded GeoTIFFs and PDFs rendered as ImageOverlay */}
         <AerialOverlaysLayer visible={showAerialOverlays} mapRef={mapRef} />
+
+        {/* NWS Weather Alerts — road-impacting CAP alerts as polygons */}
+        <WeatherAlertsLayer visible={showWeatherAlerts} />
+
+        {/* CBP Border Wait Times — port-of-entry markers with truck-lane delay */}
+        <BorderWaitTimesLayer visible={showBorderWaitTimes} />
 
         {/* Heat Map Visualization */}
         <HeatMapLayer

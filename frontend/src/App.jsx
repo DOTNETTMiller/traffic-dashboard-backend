@@ -107,6 +107,8 @@ function App() {
   const [showEvents, setShowEvents] = useState(true);
   const [showDiversionRoutes, setShowDiversionRoutes] = useState(false);
   const [showAerialOverlays, setShowAerialOverlays] = useState(false);
+  const [showWeatherAlerts, setShowWeatherAlerts] = useState(false);
+  const [showBorderWaitTimes, setShowBorderWaitTimes] = useState(false);
   const [availableRoutes, setAvailableRoutes] = useState([]);
   const [showInterchanges, setShowInterchanges] = useState(false); // Hidden by default - toggle to show
   const [showBridgeClearances, setShowBridgeClearances] = useState(false); // Hidden by default - toggle to show
@@ -802,6 +804,8 @@ function App() {
           showCorridorRegulations,
           showDiversionRoutes,
           showAerialOverlays,
+          showWeatherAlerts,
+          showBorderWaitTimes,
           interstateOnly
         }}
         actions={{
@@ -829,6 +833,8 @@ function App() {
           'toggle-corridor-regs':      () => { setView('map'); setShowCorridorRegulations(p => !p); },
           'toggle-diversion-routes':   () => { setView('map'); setShowDiversionRoutes(p => !p); },
           'toggle-aerial-overlays':    () => { setView('map'); setShowAerialOverlays(p => !p); },
+          'toggle-weather-alerts':     () => { setView('map'); setShowWeatherAlerts(p => !p); },
+          'toggle-border-wait-times':  () => { setView('map'); setShowBorderWaitTimes(p => !p); },
           'open-aerial-overlays':      () => setView('aerialOverlays'),
           // Toggling either footer item closes the other so only one
           // secondary panel shows at a time (single-pane sidebar UX).
@@ -1170,6 +1176,8 @@ function App() {
                   showEvents={showEvents}
                   showDiversionRoutes={showDiversionRoutes}
                   showAerialOverlays={showAerialOverlays}
+                  showWeatherAlerts={showWeatherAlerts}
+                  showBorderWaitTimes={showBorderWaitTimes}
                   interstateOnly={interstateOnly}
                   heatMapActive={heatMapActive}
                   heatMapMode={heatMapMode}
