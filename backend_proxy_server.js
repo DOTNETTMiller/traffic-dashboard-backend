@@ -816,6 +816,25 @@ const API_CONFIG = {
     corridor: 'I-5,I-90,I-82',
     apiType: 'WZDx'
   },
+  // Sub-state / regional WZDx feeds from the USDOT Feed Registry —
+  // valuable for filling in coverage gaps where a state DOT doesn't publish
+  // urban-arterial work zones, and for cross-border consistency (Quebec).
+  // St. Charles County, MO is in the registry at scc.ridsi-dash.com:5000
+  // but its TLS certificate is currently expired — re-enable when fixed.
+  austin_tx_wzdx: {
+    name: 'City of Austin, TX',
+    wzdxUrl: 'https://data.austintexas.gov/download/d9mm-cjw9',
+    format: 'geojson',
+    corridor: 'I-35',
+    apiType: 'WZDx'
+  },
+  quebec_city_wzdx: {
+    name: 'Quebec City',
+    wzdxUrl: 'https://quebec.gewi.com/wzdx/pull',
+    format: 'geojson',
+    corridor: 'A-20,A-40,A-73',
+    apiType: 'WZDx'
+  },
   // WZDx feeds requiring API keys — only enabled if env vars are set
   ...(process.env.CALIFORNIA_API_KEY && {
     california: {
