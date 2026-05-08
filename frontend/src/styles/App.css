@@ -897,6 +897,51 @@ body {
   border-top: 1px solid var(--border);
 }
 
+/* Drag-and-drop reorder. Wrapper around each top-level nav entry so the
+   user can grab anywhere on the row, not just a dedicated handle. The
+   grab cursor only appears in expanded mode (collapsed mode hides
+   labels and hiding affordances behind a 56px icon column would be
+   confusing). */
+.nav-sidebar.is-expanded .nav-reorder-wrap {
+  cursor: grab;
+}
+.nav-reorder-wrap.is-dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+/* Highlight the drop target with a 2px accent bar at the top of the
+   landing position so the user can see exactly where the dragged item
+   will land. */
+.nav-reorder-wrap.is-drag-over {
+  box-shadow: 0 -2px 0 0 var(--accent);
+}
+
+/* Disable drag affordances on touch devices — touch-drag for nav is
+   awkward on mobile and we already have a hamburger drawer. */
+@media (max-width: 768px) {
+  .nav-reorder-wrap { cursor: default; }
+}
+
+.nav-reset-order {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-align: left;
+  padding: 6px 8px;
+  margin-top: 4px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.nav-reset-order:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--fg);
+}
+
 .nav-link {
   display: flex;
   align-items: center;

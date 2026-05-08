@@ -13,6 +13,40 @@ import { useEffect, useState } from 'react';
 //   { actionKey: 'open-x' } -> calls actions['open-x']() — for modals
 const NAV = [
   { type: 'item', view: 'map',       icon: '🗺️', label: 'Map' },
+
+  {
+    // Sub-items here are toggles, not view-changers — clicking flips the
+    // matching map overlay's visibility instead of navigating. Each sub-item
+    // declares an actionKey (the toggle handler in App.jsx) and a toggleProp
+    // (the boolean field in mapLayerStates that decides the active style).
+    //
+    // Order is by usage frequency: events first (always-relevant), then the
+    // operations toggles (parking, diversion routes, aerial overlays), then
+    // infrastructure reference layers, then permit-rule layers.
+    //
+    // Sits directly under "Map" so the layer toggles are co-located with
+    // the view they affect — users found them easier to discover that way.
+    type: 'group',
+    key: 'map-layers',
+    icon: '🗺️',
+    label: 'Map Layers',
+    items: [
+      { actionKey: 'toggle-events',           toggleProp: 'showEvents',              icon: '⚠️', label: 'Traffic Events' },
+      { actionKey: 'toggle-weather-alerts',   toggleProp: 'showWeatherAlerts',       icon: '🌩️', label: 'Weather Alerts' },
+      { actionKey: 'toggle-border-wait-times', toggleProp: 'showBorderWaitTimes',    icon: '🛂', label: 'Border Wait Times' },
+      { actionKey: 'toggle-parking',          toggleProp: 'showParking',             icon: '🅿️', label: 'Truck Parking' },
+      { actionKey: 'toggle-maasto-parking',   toggleProp: 'showMaastoParking',       icon: '🚛', label: 'MAASTO Parking (live)' },
+      { actionKey: 'toggle-diversion-routes', toggleProp: 'showDiversionRoutes',     icon: '🛣️', label: 'Diversion Routes' },
+      { actionKey: 'toggle-aerial-overlays',  toggleProp: 'showAerialOverlays',      icon: '🛩️', label: 'Aerial Overlays' },
+      { actionKey: 'toggle-its-equipment',    toggleProp: 'showITSEquipment',        icon: '📡', label: 'ITS Equipment' },
+      { actionKey: 'toggle-v2x',              toggleProp: 'showV2XDeployments',      icon: '📶', label: 'V2X Deployments' },
+      { actionKey: 'toggle-cadd',             toggleProp: 'showCADDElements',        icon: '📐', label: 'CADD Elements' },
+      { actionKey: 'toggle-interchanges',     toggleProp: 'showInterchanges',        icon: '🔀', label: 'Interchanges' },
+      { actionKey: 'toggle-bridge-clearance', toggleProp: 'showBridgeClearances',    icon: '🌉', label: 'Bridge Clearances' },
+      { actionKey: 'toggle-corridor-regs',    toggleProp: 'showCorridorRegulations', icon: '🚛', label: 'OS/OW Permit Rules' }
+    ]
+  },
+
   { type: 'item', view: 'table',     icon: '📋', label: 'Table' },
   { type: 'item', view: 'timeline',  icon: '⏱️', label: 'Timeline' },
   { type: 'item', view: 'dashboard', icon: '📊', label: 'Dashboard' },
@@ -32,36 +66,6 @@ const NAV = [
       { actionKey: 'clear-filters',        icon: '🧹', label: 'Clear Filters' },
       { actionKey: 'export-data',          icon: '📥', label: 'Export Data' },
       { actionKey: 'toggle-interstate-only', toggleProp: 'interstateOnly', icon: '🛣️', label: 'Interstate Only' }
-    ]
-  },
-
-  {
-    // Sub-items here are toggles, not view-changers — clicking flips the
-    // matching map overlay's visibility instead of navigating. Each sub-item
-    // declares an actionKey (the toggle handler in App.jsx) and a toggleProp
-    // (the boolean field in mapLayerStates that decides the active style).
-    //
-    // Order is by usage frequency: events first (always-relevant), then the
-    // operations toggles (parking, diversion routes, aerial overlays), then
-    // infrastructure reference layers, then permit-rule layers.
-    type: 'group',
-    key: 'map-layers',
-    icon: '🗺️',
-    label: 'Map Layers',
-    items: [
-      { actionKey: 'toggle-events',           toggleProp: 'showEvents',              icon: '⚠️', label: 'Traffic Events' },
-      { actionKey: 'toggle-weather-alerts',   toggleProp: 'showWeatherAlerts',       icon: '🌩️', label: 'Weather Alerts' },
-      { actionKey: 'toggle-border-wait-times', toggleProp: 'showBorderWaitTimes',    icon: '🛂', label: 'Border Wait Times' },
-      { actionKey: 'toggle-parking',          toggleProp: 'showParking',             icon: '🅿️', label: 'Truck Parking' },
-      { actionKey: 'toggle-maasto-parking',   toggleProp: 'showMaastoParking',       icon: '🚛', label: 'MAASTO Parking (live)' },
-      { actionKey: 'toggle-diversion-routes', toggleProp: 'showDiversionRoutes',     icon: '🛣️', label: 'Diversion Routes' },
-      { actionKey: 'toggle-aerial-overlays',  toggleProp: 'showAerialOverlays',      icon: '🛩️', label: 'Aerial Overlays' },
-      { actionKey: 'toggle-its-equipment',    toggleProp: 'showITSEquipment',        icon: '📡', label: 'ITS Equipment' },
-      { actionKey: 'toggle-v2x',              toggleProp: 'showV2XDeployments',      icon: '📶', label: 'V2X Deployments' },
-      { actionKey: 'toggle-cadd',             toggleProp: 'showCADDElements',        icon: '📐', label: 'CADD Elements' },
-      { actionKey: 'toggle-interchanges',     toggleProp: 'showInterchanges',        icon: '🔀', label: 'Interchanges' },
-      { actionKey: 'toggle-bridge-clearance', toggleProp: 'showBridgeClearances',    icon: '🌉', label: 'Bridge Clearances' },
-      { actionKey: 'toggle-corridor-regs',    toggleProp: 'showCorridorRegulations', icon: '🚛', label: 'OS/OW Permit Rules' }
     ]
   },
 
@@ -212,6 +216,21 @@ export default function NavSidebar({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [hoveredView, setHoveredView] = useState(null);
 
+  // User-controlled top-level ordering. Persisted as an array of node ids
+  // (item.view or group.key). New nodes added to NAV after the last save
+  // are appended in their default position so updates don't lose the
+  // user's customizations. `null` means "use NAV order as-is".
+  const [navOrder, setNavOrder] = useState(() => {
+    try {
+      const raw = localStorage.getItem('nav.order');
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  });
+  // Drag state lives in component scope (not React state) so dragOver
+  // doesn't trigger re-renders for every pixel of mouse movement.
+  const [draggingId, setDraggingId] = useState(null);
+  const [dragOverId, setDragOverId] = useState(null);
+
   useEffect(() => {
     try { localStorage.setItem('nav.expanded', JSON.stringify(expanded)); } catch {}
     // --nav-w  = rail width only (icon strip)
@@ -252,11 +271,84 @@ export default function NavSidebar({
     }
   };
 
-  const filteredNav = NAV.filter(node => {
+  const nodeId = (node) => node.view || node.key;
+
+  // Apply user-saved ordering on top of the default NAV array. Any nodes
+  // not present in the saved order (newly-added entries since last save)
+  // get appended at the end so they're discoverable.
+  const orderedNav = (() => {
+    if (!Array.isArray(navOrder) || navOrder.length === 0) return NAV;
+    const byId = new Map(NAV.map(n => [nodeId(n), n]));
+    const seen = new Set();
+    const ordered = [];
+    for (const id of navOrder) {
+      if (byId.has(id) && !seen.has(id)) {
+        ordered.push(byId.get(id));
+        seen.add(id);
+      }
+    }
+    for (const n of NAV) {
+      if (!seen.has(nodeId(n))) ordered.push(n);
+    }
+    return ordered;
+  })();
+
+  const filteredNav = orderedNav.filter(node => {
     if (node.adminOnly && !isAdmin) return false;
     if (node.type === 'item' && node.view === 'admin' && !isAdmin) return false;
     return true;
   });
+
+  // Persist a reorder. Captures the order from the *full* NAV (post-drag,
+  // pre-filter) so admin items remain in the saved order even when the
+  // current user can't see them.
+  const persistOrder = (newOrderIds) => {
+    setNavOrder(newOrderIds);
+    try { localStorage.setItem('nav.order', JSON.stringify(newOrderIds)); } catch {}
+  };
+
+  const handleDragStart = (id) => (e) => {
+    setDraggingId(id);
+    e.dataTransfer.effectAllowed = 'move';
+    // Some browsers ignore drag without dataTransfer payload.
+    try { e.dataTransfer.setData('text/plain', id); } catch {}
+  };
+
+  const handleDragOver = (id) => (e) => {
+    if (!draggingId || draggingId === id) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverId !== id) setDragOverId(id);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingId(null);
+    setDragOverId(null);
+  };
+
+  const handleDrop = (targetId) => (e) => {
+    e.preventDefault();
+    if (!draggingId || draggingId === targetId) {
+      handleDragEnd();
+      return;
+    }
+    const currentIds = orderedNav.map(nodeId);
+    const fromIdx = currentIds.indexOf(draggingId);
+    const toIdx   = currentIds.indexOf(targetId);
+    if (fromIdx < 0 || toIdx < 0) { handleDragEnd(); return; }
+    const next = [...currentIds];
+    next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, draggingId);
+    persistOrder(next);
+    handleDragEnd();
+  };
+
+  const resetOrder = () => {
+    setNavOrder(null);
+    try { localStorage.removeItem('nav.order'); } catch {}
+  };
+
+  const isCustomOrder = Array.isArray(navOrder) && navOrder.length > 0;
 
   const railWidth = expanded ? EXPANDED_W : COLLAPSED_W;
 
@@ -308,17 +400,32 @@ export default function NavSidebar({
 
           <nav className="nav-list">
             {filteredNav.map((node, i) => {
+              const id = nodeId(node);
+              // Drag is only meaningful when the user can see the labels —
+              // collapsed mode hides reorder affordances entirely.
+              const dragProps = expanded ? {
+                draggable: true,
+                onDragStart: handleDragStart(id),
+                onDragOver:  handleDragOver(id),
+                onDrop:      handleDrop(id),
+                onDragEnd:   handleDragEnd
+              } : {};
+              const wrapClass = `nav-reorder-wrap`
+                + (draggingId === id ? ' is-dragging' : '')
+                + (dragOverId === id ? ' is-drag-over' : '');
+
               if (node.type === 'item') {
                 const active = view === node.view;
                 return (
-                  <NavLink
-                    key={node.view}
-                    icon={node.icon}
-                    label={node.label}
-                    active={active}
-                    expanded={expanded}
-                    onClick={() => handleSelect(node.view)}
-                  />
+                  <div key={node.view} className={wrapClass} {...dragProps}>
+                    <NavLink
+                      icon={node.icon}
+                      label={node.label}
+                      active={active}
+                      expanded={expanded}
+                      onClick={() => handleSelect(node.view)}
+                    />
+                  </div>
                 );
               }
 
@@ -326,7 +433,7 @@ export default function NavSidebar({
               const open = openGroups[node.key] || (expanded && groupActive);
 
               return (
-                <div key={node.key} className="nav-group">
+                <div key={node.key} className={`nav-group ${wrapClass}`} {...dragProps}>
                   <NavLink
                     icon={node.icon}
                     label={node.label}
@@ -391,6 +498,20 @@ export default function NavSidebar({
               );
             })}
           </nav>
+
+          {/* Reset-order helper — only surfaced when the user has actually
+              reordered something. Subtle text link so it doesn't compete
+              with primary nav. */}
+          {expanded && isCustomOrder && (
+            <button
+              type="button"
+              onClick={resetOrder}
+              className="nav-reset-order"
+              title="Reset menu order to default"
+            >
+              ↻ Reset menu order
+            </button>
+          )}
 
           {/* Footer rail — pinned to the bottom. Persistent shortcuts to
               the floating Inbox + AI Assistant panels. */}
