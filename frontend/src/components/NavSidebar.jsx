@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * Left-rail navigation. 5 core views as always-visible icons + 4 collapsible
@@ -258,6 +258,18 @@ export default function NavSidebar({
   const [subDraggingId, setSubDraggingId] = useState(null);  // 'groupKey::itemId'
   const [subDragOverId, setSubDragOverId] = useState(null);
 
+  // Auto-expand-on-hover timer for cross-group sub-item drags. When the
+  // user hovers a closed group's header for ~500ms during a drag, the
+  // group opens automatically so they can drop at a specific position.
+  // Stored in a ref to avoid re-renders for every dragover event.
+  const dragHoverTimer = useRef(null);
+  const cancelDragHoverTimer = () => {
+    if (dragHoverTimer.current) {
+      clearTimeout(dragHoverTimer.current.id);
+      dragHoverTimer.current = null;
+    }
+  };
+
   useEffect(() => {
     try { localStorage.setItem('nav.expanded', JSON.stringify(expanded)); } catch {}
     // --nav-w  = rail width only (icon strip)
@@ -474,8 +486,9 @@ export default function NavSidebar({
   };
 
   // Hover-over a different group's *header* while dragging. Triggers
-  // an "append to end of this group" drop indicator. Same-group hovers
-  // on the header are a no-op (you'd just be re-hovering yourself).
+  // an "append to end of this group" drop indicator AND, if the group
+  // is closed, schedules an auto-expand after a short delay so the
+  // user can drop at a specific position inside.
   const handleSubDragOverGroupHeader = (groupKey) => (e) => {
     if (!subDraggingId) return;
     const [sourceGroupKey] = subDraggingId.split('::');
@@ -485,11 +498,59 @@ export default function NavSidebar({
     e.dataTransfer.dropEffect = 'move';
     const next = `${groupKey}::__header__`;
     if (subDragOverId !== next) setSubDragOverId(next);
+
+    // Schedule auto-expand if this group is closed and we aren't
+    // already counting down for it.
+    const alreadyOpen = openGroups[groupKey] || (expanded && isGroupActive(NAV.find(n => n.key === groupKey) || {}));
+    if (!alreadyOpen && dragHoverTimer.current?.groupKey !== groupKey) {
+      cancelDragHoverTimer();
+      const id = setTimeout(() => {
+        setOpenGroups(g => ({ ...g, [groupKey]: true }));
+        dragHoverTimer.current = null;
+      }, 500);
+      dragHoverTimer.current = { id, groupKey };
+    }
   };
 
   const handleSubDragEnd = () => {
+    cancelDragHoverTimer();
     setSubDraggingId(null);
     setSubDragOverId(null);
+  };
+
+  // End-of-list drop zone — lets the user append a sub-item to a group
+  // even when the group has no other sub-items they want to land on.
+  const handleSubDragOverEnd = (groupKey) => (e) => {
+    if (!subDraggingId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    const next = `${groupKey}::__end__`;
+    if (subDragOverId !== next) setSubDragOverId(next);
+  };
+
+  const handleSubDropAtEnd = (groupKey) => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!subDraggingId) { handleSubDragEnd(); return; }
+    const [sourceGroupKey, draggingItemId] = subDraggingId.split('::');
+    const sourceGroup = NAV.find(n => n.key === sourceGroupKey);
+    const targetGroup = NAV.find(n => n.key === groupKey);
+    if (!sourceGroup || !targetGroup) { handleSubDragEnd(); return; }
+
+    const nextOrders = { ...subOrders };
+    const nextAssign = { ...subAssign };
+    const targetIds  = groupItems(targetGroup).map(subItemId).filter(id => id !== draggingItemId);
+    nextOrders[groupKey] = [...targetIds, draggingItemId];
+
+    if (sourceGroupKey !== groupKey) {
+      const sourceIds = groupItems(sourceGroup).map(subItemId).filter(id => id !== draggingItemId);
+      nextOrders[sourceGroupKey] = sourceIds;
+      if (defaultSubGroup.get(draggingItemId) === groupKey) delete nextAssign[draggingItemId];
+      else nextAssign[draggingItemId] = groupKey;
+    }
+    persistSub({ subOrders: nextOrders, subAssign: nextAssign });
+    handleSubDragEnd();
   };
 
   // Drop on a sub-item — same-group reorder OR cross-group move.
@@ -749,6 +810,26 @@ export default function NavSidebar({
                           </div>
                         );
                       })}
+                      {/* End-of-list drop zone — visible only mid-drag. Lets
+                          the user land a sub-item at the bottom of this
+                          group without needing an existing target. Hidden
+                          when the dragged item is already last in this
+                          group (no-op drop). */}
+                      {subDraggingId && (() => {
+                        const [src, dragId] = subDraggingId.split('::');
+                        const items  = groupItems(node);
+                        const lastId = items.length ? subItemId(items[items.length - 1]) : null;
+                        if (src === node.key && dragId === lastId) return null;
+                        const endKey = `${node.key}::__end__`;
+                        const overEnd = subDragOverId === endKey;
+                        return (
+                          <div
+                            className={`nav-subitem-end-zone ${overEnd ? 'is-drag-over' : ''}`}
+                            onDragOver={handleSubDragOverEnd(node.key)}
+                            onDrop={handleSubDropAtEnd(node.key)}
+                          />
+                        );
+                      })()}
                     </div>
                   )}
                 </div>

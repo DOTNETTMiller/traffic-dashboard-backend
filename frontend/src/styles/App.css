@@ -922,6 +922,20 @@ body {
   .nav-reorder-wrap { cursor: default; }
 }
 
+/* End-of-list drop zone for cross-group sub-item drags. Renders only
+   while a sub-item is being dragged, occupies a thin slot beneath the
+   group's last sub-item, and grows / colors when targeted. */
+.nav-subitem-end-zone {
+  height: 8px;
+  margin: 2px 0 0;
+  border-radius: 4px;
+  transition: background 0.12s ease, height 0.12s ease;
+}
+.nav-subitem-end-zone.is-drag-over {
+  background: var(--accent);
+  height: 4px;
+}
+
 .nav-reset-order {
   appearance: none;
   background: transparent;
