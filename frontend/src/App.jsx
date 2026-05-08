@@ -679,7 +679,7 @@ function App() {
   }
 
   return (
-    <div className={`app ${view === 'groundTruth' ? 'ground-truth-view' : ''}`}>
+    <div className={`app ${view === 'groundTruth' ? 'ground-truth-view' : ''} ${view === 'map' ? 'view-map' : ''}`}>
       {/* Intro splash — plays once per session, then unmounts */}
       <IntroSplash targetSelector=".title-logo" />
       {/* Header */}

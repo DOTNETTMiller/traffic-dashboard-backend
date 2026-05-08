@@ -1128,6 +1128,16 @@ body.has-nav-sidebar .main-content {
   min-height: 0;
 }
 
+/* Map view fills the screen edge-to-edge on wide displays. The 1400px
+   readability cap + centered margins make sense for forms and
+   dashboards but waste real estate when the map is the whole point.
+   Padding is left intact so the filter bar above the map keeps its
+   normal spacing and the mobile PWA install-prompt offset still works. */
+.app.view-map .main-content {
+  max-width: none;
+  margin: 0;
+}
+
 /* Allow scrolling for ground truth dashboard */
 .main-content:has(> div > div:first-child:contains("Ground-Truth")) {
   overflow-y: auto;
