@@ -13,76 +13,89 @@
 
 I am grateful for the invitation to participate in the Research and Technology Coordinating Committee. In advance of my first meeting, I am submitting this memorandum to share empirical observations drawn from several years of independent, non-commercial integration work with the public digital infrastructure feeds published by state and federal transportation agencies. The intent is to contribute concrete inputs to the federal research agenda — specifically in operationalizing the digital infrastructure direction articulated in the Committee's September 2025 Letter Report.[^1]
 
-I want to state the scope clearly at the outset. **This memorandum is offered strictly as research and policy input. It does not present, propose, recommend, or seek consideration of any specific system, product, or service.** Where I refer to integration work I have performed, I do so only as the empirical source of the observations that follow. Every recommendation here is a recommendation that **federal research be funded and conducted** — by FHWA Office of Research, Development & Technology, by Turner-Fairbank Highway Research Center, by NCHRP, or by appropriate partners — not that any agency procure, adopt, or evaluate any external work.
+I want to state the scope clearly at the outset. **This memorandum is offered strictly as research and policy input. It does not present, propose, recommend, or seek consideration of any specific system, product, or service.** Where I refer to integration work I have performed, I do so only as the empirical source of the observations that follow. Every recommendation below is a recommendation that **federal research be funded and conducted** — by FHWA Office of Research, Development & Technology, by Turner-Fairbank Highway Research Center, by NCHRP, or by appropriate partners — not that any agency procure, adopt, or evaluate any external work.
 
-## 2. Source of Empirical Observations
+## 2. Source and Breadth of Empirical Observations
 
-The observations below are drawn from end-to-end integration of the following public digital infrastructure feeds, conducted as independent research:
+The observations below are drawn from end-to-end integration covering the following surfaces:
 
-- Work Zone Data Exchange (WZDx) at versions 3.0 through 4.2, across approximately 39 state DOT and sub-state producers
-- Connected Work Zones (CWZ 1.0) feeds from CDOT, MassDOT, IDOT, and others
-- Common Incident Format Specification (CIFS) via Eastern Transportation Coalition
-- TMDD-derived state ATIS Application Programming Interfaces in the Iteris/iBi family
-- MAASTO Truck Parking Information Management System (TPIMS) v2.2
-- Federal feeds including the National Weather Service Alerts API, CBP Border Wait Times, and NPS Road Events
-- Sub-state and international producers including the City of Austin, St. Charles County Missouri, Maricopa County, and Quebec City
+**Federal and state real-time public feed ingestion.** Work Zone Data Exchange at versions 3.0 through 4.2 across approximately 39 state and sub-state producers; Connected Work Zones (CWZ 1.0); Common Incident Format Specification via the Eastern Transportation Coalition; TMDD-derived state ATIS APIs in the Iteris/iBi family; MAASTO Truck Parking Information Management System v2.2; National Weather Service Alerts; CBP Border Wait Times; NPS Road Events; and sub-state and international producers including the City of Austin, St. Charles County Missouri, Maricopa County, and Quebec City.
 
-End-to-end means: source identification, fetch, schema parsing, conformance checking, normalization to a common event model, cross-feed joining, and operational use over time. This is the level of engagement at which interoperability problems become observable that are not visible from specification documents or from the federal feed registries alone.
+**Data quality measurement and grading.** A composite Data Quality Index applied across producers (accuracy, conformance, completeness, timeliness, governance, lifecycle hygiene); per-state and per-vendor leaderboards; per-event confidence scoring; coverage gap and feed-alignment analysis; cross-state event correlation; anomaly detection.
+
+**Standards translation and provenance.** Crosswalks between WZDx, TMDD, CIFS, CWZ 1.0, SAE J2735, and Common Alerting Protocol; WZDx version upgrade tooling; per-event provenance and lineage tracking; geometry validation.
+
+**Operations workflows.** Dynamic message sign authoring with template management and approval; multi-state closure approval with state-DOT review and audit log; pre-staged diversion routes with road-snapping; corridor situational-awareness briefings; corridor delay estimation; route optimization across active events.
+
+**Compliance, regulatory, and permit tools.** IPAWS integration for road-impacting public alerts (active alerts, rules configuration, after-action review, compliance assessment); NASCO corridor regulations; state and corridor-level oversize/overweight permit-rule representation; bridge-clearance warnings.
+
+**Predictive analytics and validation.** Event probability forecasting; truck-parking occupancy forecasting with calibration; corridor risk forecasting; equipment-failure forecasting; ground-truth dashboards comparing reported and observed conditions.
+
+**Decision support and digital project delivery.** Asset and equipment health monitoring; ITS equipment inventory and proximity lookup; CADD model libraries; IFC/BIM model viewing in-context; digital infrastructure readiness assessment per state.
+
+**Communications and coordination.** Operator-to-operator and state-to-state messaging; per-event annotation; calendar-based scheduling; activity timelines.
+
+**Vendor transparency.** Vendor leaderboards, DQI head-to-head comparisons, per-vendor gap analysis, procurement contract and SLA tracking, cost-per-event analysis.
+
+**Cross-cutting engineering patterns.** OSRM road-snapping for routing; polyline-encoded geometry transport; caching with TTLs aligned to upstream update cadence; in-flight request dedupe; schema-drift tolerance.
+
+End-to-end means: source identification, fetch, schema parsing, conformance checking, normalization to a common event model, cross-feed joining, operational presentation, and observation over time. This depth of engagement surfaces interoperability problems that are not visible from specification documents or from federal feed registries alone.
+
+A companion inventory document enumerates the surfaces in greater detail and is available on request.
 
 ## 3. Findings and Federal Research Recommendations
 
-### Finding 1: Interoperability cannot be assumed at the present state of practice; it must be measured.
+The eighteen research-investment recommendations below are organized into six clusters. They are inputs intended for the Committee's consideration; they do not require any specific action by any agency.
 
-The Committee's Recommendation 5 calls for the Federal Highway Administration to elevate Turner-Fairbank's role in advancing digital infrastructure and data systems. The benefit case for that elevation is contingent on the feeds themselves being observably interoperable, and that condition is not currently met.
+### 3.A Feeds, Standards, and Interoperability Measurement
 
-Empirical observations:
+**(1) Measurement-of-Interoperability Research.** Approximately twenty-one states publish no public Work Zone Data Exchange feed of any kind, verified against the USDOT WZDx Feed Registry.[^2] Among states that do publish, conformance and quality variance is significant — invalid GeoJSON, expired TLS certificates, inconsistent field population, divergent lifecycle conventions. No federal research program publicly characterizes this variance. **Recommendation:** FHWA RD&T fund a sustained measurement-of-interoperability research program covering major public digital infrastructure feeds, with open methodology and public per-producer results.
 
-- As of May 2026, approximately twenty-one state DOTs publish no public Work Zone Data Exchange feed of any kind, verified against the USDOT WZDx Feed Registry.[^2] For those jurisdictions, statewide real-time work-zone data is not available to downstream consumers through any public channel.
-- Among the states that do publish, conformance and quality variance is significant. Independent integration encounters feeds that ship invalid GeoJSON, feeds with expired TLS certificates, fields populated inconsistently from one state to the next, and lifecycle conventions that diverge from the published specification.
-- No federal research program presently characterizes this variance publicly. The WZDx Feed Registry is a directory of feed locations, not a measurement of feed conformance, quality, or interoperability.
+**(2) Authoritative Cross-Specification Crosswalk Research.** The dominant integration cost across the practitioner community is translation among WZDx, TMDD, CIFS, CWZ 1.0, SAE J2735, and Common Alerting Protocol. Every consumer reinvents these mappings and they diverge silently. **Recommendation:** FHWA RD&T, in coordination with relevant standards bodies, fund research producing authoritative reference crosswalks and at least one open-source reference normalization implementation.
 
-**Recommended federal research investment:** That FHWA RD&T fund and conduct a sustained measurement-of-interoperability research program covering the major public digital infrastructure feeds — WZDx, CWZ, CIFS, TMDD-derived state APIs, and federal partner feeds. The program's methodology should be open and its results public, with the goal of giving states, practitioners, and the federal program itself an empirical view of whether interoperability investments are paying off. This is the cross-cutting, national-scope research role that decentralized partners cannot fill for themselves, consistent with the Letter Report's Conclusion 3.
+**(3) Sub-State and Regional Digital Infrastructure Layer Research.** Sub-state and regional public-sector producers contribute materially to national coverage (City of Austin, St. Charles County, Maricopa County, Quebec City), and in some jurisdictions overlap incompatibly with state-level feeds (PennDOT vs. PA Turnpike; IDOT vs. Illinois Tollway vs. City of Chicago). **Recommendation:** FHWA RD&T jointly with NCHRP fund research characterizing prevalence, conformance, overlap, and harmonization levers in this layer.
 
-### Finding 2: The dominant integration cost is translation among standards, not the standards themselves.
+**(4) Non-WZDx Federal-Partner Feed Integration Patterns Research.** NWS Alerts, CBP Border Wait Times, NPS Road Events, and IPAWS exist independently with no canonical guidance on fusion with state work-zone and incident data. **Recommendation:** FHWA RD&T, in coordination with FEMA, NWS, and CBP, fund research producing a reference architecture for federal-partner feed integration.
 
-The interoperability friction encountered most frequently in practice is not deficiency within any single specification. It is the absence of authoritative crosswalks between the specifications consumers must integrate together. Every operations dashboard, every traveler information consumer, and every multi-state research project performs substantially the same translation work independently.
+**(5) Provenance and Lineage Standards Research.** Cross-feed and cross-vendor data fusion is currently not auditable because no provenance standard exists for which feed contributed which attribute. **Recommendation:** TRB Cooperative Research Program fund research producing a provenance schema and reference implementation.
 
-Examples of friction points repeatedly observed:
+### 3.B Data Quality, Measurement, and Validation
 
-- Event-type vocabularies in Work Zone Data Exchange, TMDD, CIFS, and SAE J2735 each define overlapping but non-identical event taxonomies
-- Severity scales differ across specifications — Work Zone Data Exchange has no severity dimension at all, CIFS uses four levels, TMDD has its own scheme, and the National Weather Service uses Common Alerting Protocol
-- Lifecycle conventions diverge, such that an event marked "closed" in one specification may be "completed" in another and "archived" in a third
+**(6) Standardized Data Quality Index Methodology Research.** Every quality-grading initiative currently invents its own dimensions, weights, and scales. **Recommendation:** FHWA RD&T fund methodology research producing a standard, open Data Quality Index applicable across transportation feed types, with versioning.
 
-The cost of this fragmentation is borne silently by every multi-state integrator and degrades the comparability of multi-state analyses in ways that are difficult to detect after the fact.
+**(7) Ground Truth and Predictive Model Validation Research.** Predictive analytics are deployed broadly in transportation operations without standard validation protocols. **Recommendation:** FHWA RD&T and NCHRP fund research producing ground-truth protocols and reference validation datasets for incident, parking, delay, and equipment-health prediction.
 
-**Recommended federal research investment:** That FHWA RD&T, in coordination with the appropriate standards bodies, fund research producing (a) authoritative reference crosswalks between WZDx, TMDD, CIFS, CWZ 1.0, SAE J2735, and Common Alerting Protocol, and (b) at least one open-source reference normalization implementation that the practitioner community can converge upon. The output is research output — a specification and a reference — and does not require any agency to procure any product.
+**(8) Coverage Gap and Cross-State Correlation Research.** No federally-curated view of where the national event picture is incomplete currently exists. **Recommendation:** FHWA RD&T fund research producing methodology and ongoing public coverage assessment.
 
-### Finding 3: The sub-state and regional layer of digital infrastructure is materially significant and currently un-researched.
+### 3.C Operations Workflows and Coordination
 
-A consistent observation from feed cataloging is that sub-state and regional public-sector producers contribute materially to national coverage in ways the WZDx Feed Registry does not fully reflect:
+**(9) Multi-State Closure Approval and Diversion Coordination Research.** Multi-state closures and diversions today coordinate ad hoc despite the demonstrably national nature of freight corridor closures. **Recommendation:** FHWA RD&T, with AASHTO, fund research producing a reference coordination protocol and supporting data-exchange specification.
 
-- The City of Austin publishes a Work Zone Data Exchange feed at v4.2 covering urban arterials the Texas Department of Transportation statewide feed does not include
-- St. Charles County, Missouri publishes a regional Work Zone Data Exchange feed covering the Interstate 70 corridor west of St. Louis
-- Maricopa County DOT is the only Work Zone Data Exchange producer for the entire state of Arizona at present
-- Quebec City publishes Work Zone Data Exchange v3.1, providing international consistency for Northeast freight planning
-- In some jurisdictions, sub-state feeds overlap incompatibly with state-level feeds — observed cases include Pennsylvania (PennDOT versus PA Turnpike), Illinois (IDOT versus Illinois Tollway versus the City of Chicago), and the Minneapolis-St. Paul metropolitan area
-- The Indiana Department of Transportation publishes a public truck parking feed that does not conform to the MAASTO TPIMS v2.2 schema — there is no current research mechanism for diagnosing or addressing the divergence
+**(10) DMS Messaging Conformance and Effectiveness Research.** Cross-state DMS message inconsistency for the same incident type is well-known anecdotally but not systematically characterized. **Recommendation:** FHWA RD&T fund effectiveness research and produce a recommended message-pattern library.
 
-**Recommended federal research investment:** That FHWA RD&T fund research into the sub-state and regional layer of digital infrastructure — characterizing its prevalence, conformance with major specifications, overlap with state-level feeds, and the policy levers available to harmonize it. No academic or state-led research program is presently filling this gap, and it fits the national-scope coordination research role the Committee has endorsed in Recommendation 3.
+**(11) Truck-Parking Sensor Data Quality Research.** Protocol-level coordination through MAASTO is mature; the limiting factor on impact is sensor-level data quality, with a substantial portion of Illinois sites currently self-flagging as untrusted. **Recommendation:** FHWA RD&T and TFHRC fund sensor reliability research and produce a calibration methodology.
 
-## 4. Supporting Observations
+### 3.D Compliance, Regulatory, and Permit Interoperability
 
-The following are offered briefly in support of the Letter Report's existing recommendations, drawn from the same source of empirical observation.
+**(12) IPAWS Road-Impact Authoring Conformance Research.** IPAWS is a federal capability state DOTs use unevenly; no research characterizes the variance or operator-side friction. **Recommendation:** FHWA RD&T, with FEMA IPAWS Program Office, fund conformance methodology and per-state assessment.
 
-### 4.1 Recommendation 2 (TFHRC external engagement) has measurable downstream costs.
+**(13) OS/OW Permit-Rule Interoperability Research.** State-by-state permit-rule encoding remains inconsistent in structure, vocabulary, and exchange format. **Recommendation:** FHWA RD&T, with NASCO and AASHTO, fund research producing a permit-rule data model and exchange specification.
 
-The Letter Report frames the constraints on TFHRC researchers' external engagement primarily as an internal-process concern. From the perspective of downstream practitioners, the constraint also has a measurable research-productivity cost. Reductions in the public availability of TFHRC resources, including the Highway Safety Information System, remove reference datasets practitioners had been using. Less detailed publication of methodology forces independent reverse-engineering from samples, producing drift between what practitioners build and what FHWA originally intended. The Annual Modal Research Plan and the TFHRC Long-Range Plan are how practitioners orient to which federal research lines are active; reductions in the detail of those publications correspondingly reduce downstream research efficiency. These costs are real and worth surfacing alongside the internal-process concerns the Letter Report already identifies.
+**(14) Bridge-Clearance and Restriction Data Interoperability Research.** Bridge clearance data is heterogeneous across states; over-height-vehicle routing fails because of it. **Recommendation:** FHWA RD&T, with AASHTO Bridges, fund research producing a standard exchange format.
 
-### 4.2 Independent comparative evaluation of commercial transportation data products is an underfunded research area.
+### 3.E Decision Support and Asset Management
 
-A consistent observation from conversations with state transportation agencies is that procurement of commercial transportation data products — probe data, incident detection, work-zone monitoring — occurs largely without comparable, methodologically-transparent independent evaluation. Each state replicates similar request-for-proposal work, and no published, federally-curated, head-to-head methodology exists for these product categories. This appears to be a candidate joint research topic for FHWA RD&T and the National Cooperative Highway Research Program. The output would be open methodology and empirical findings — not procurement recommendations or product endorsements — that states could draw upon to inform their own independent evaluations.
+**(15) Asset Health and ITS Equipment Status Interoperability Research.** Asset health data exists per-state with no exchange standard. **Recommendation:** FHWA RD&T and TFHRC operations lab fund research producing an equipment status schema and reference implementation.
 
-## 5. Closing
+**(16) Digital Project Delivery / IFC-BIM Transportation Profile Research.** IFC was designed for vertical construction; transportation digital project delivery uses it inconsistently. The Letter Report's reference to "accelerating delivery of highway projects" depends on this profile existing. **Recommendation:** TFHRC infrastructure RD&T fund research producing a transportation IFC profile and reference exchange tooling.
+
+### 3.F Vendor Transparency and Practitioner Costs
+
+**(17) Independent Comparative Evaluation Methodology for Commercial Data Products.** State DOTs replicate similar vendor-comparison work in isolation each procurement cycle. **Recommendation:** FHWA RD&T and NCHRP fund open methodology and empirical findings — explicitly not procurement recommendations or product endorsements.
+
+**(18) Downstream-Cost Research on TFHRC External-Engagement Constraints.** The Letter Report's Recommendation 2 frames TFHRC engagement constraints as an internal-process concern; they also have measurable, distributed, practitioner-side costs. **Recommendation:** TRB Cooperative Research Program fund empirical characterization of the downstream cost to inform process change inside FHWA.
+
+## 4. Closing
 
 I would welcome the opportunity to elaborate on any of the findings above at the Committee's discretion, including by sharing measurements, conformance summaries, and gap inventories drawn from the integration work referenced in Section 2. I defer entirely to the Committee's process on whether and how to incorporate any of these inputs into its advice to FHWA leadership.
 
