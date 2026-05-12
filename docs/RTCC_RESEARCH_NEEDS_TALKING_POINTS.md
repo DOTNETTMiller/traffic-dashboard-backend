@@ -1,159 +1,143 @@
 # Federal Research Needs — Digital Infrastructure Interoperability
 
 **Talking Points · RTCC Meeting · May 2026**
-**Matt Miller**
+**Matt Miller — state-side perspective on a national problem**
 
-**Framing:** every item below is a recommendation for **federal research investment** to operationalize the September 2025 RTCC Letter Report. Nothing here proposes any product, system, or service for adoption.
-
-Each research need is anchored in an empirical observation from independent integration work covering ~10 federal and state public feed families across 39+ producers, plus the surrounding operations, quality, and decision-support surfaces (see *Sandbox Capability Inventory* for full scope).
+**Framing:** state DOTs are individually responsible for safe, efficient, multi-jurisdictional corridors. The digital infrastructure connecting them is decentralized and unevenly conformant; states cannot harmonize it from where they sit. The recommendations below are research investments shaped to a 2–3 year federal RD&T cycle, additive to existing FHWA / ITS-JPO / TFHRC / NCHRP / NPMRDS / AASHTO standards work. None propose any product, system, or service for adoption.
 
 ---
 
 ## A. Feeds, Standards, and Interoperability Measurement
 
 ### 1. Measurement-of-Interoperability Research
-
-- **Need:** Sustained, public federal research that empirically measures conformance, quality, and interoperability of public digital infrastructure feeds.
-- **Why now:** ~21 states publish no public WZDx feed at all. Among those that do, the variance in conformance and quality is wide and silent. No federal research program measures this publicly.
-- **Owner:** FHWA RD&T / TFHRC, NCHRP support
-- **Output:** Open methodology, public per-producer measurements, refreshed continuously
+- **State lens:** A state TMC consuming neighbor feeds has no federally-curated baseline against which to judge what it's receiving.
+- **Horizon:** Phase 1 methodology + baseline (6mo) → Phase 2 continuous measurement (24mo) → Phase 3 longitudinal trends (36mo).
+- **Owner:** FHWA RD&T / TFHRC, NCHRP support.
+- **Output:** Open methodology, public per-producer measurements.
 
 ### 2. Authoritative Cross-Specification Crosswalk Research
+- **State lens:** Every state reinvents WZDx↔TMDD↔CIFS translation; the translations diverge silently.
+- **Horizon:** Crosswalk authoring (9mo) → reference implementation + pilot (24mo) → standards submission (30mo).
+- **Owner:** FHWA RD&T with SAE, ITE, AASHTO.
+- **Output:** Reference crosswalks + open-source normalization implementation.
 
-- **Need:** Reference crosswalks between WZDx ↔ TMDD ↔ CIFS ↔ CWZ 1.0 ↔ SAE J2735 ↔ Common Alerting Protocol, plus an open-source reference normalization implementation.
-- **Why now:** Translation among specs is the single largest integration cost. Every multi-state consumer reinvents the mappings independently and they diverge silently.
-- **Owner:** FHWA RD&T with relevant standards bodies (SAE, ITE, AASHTO)
-- **Output:** Spec + reference implementation as research output. Not a product.
+### 3. Sub-State and Regional Layer Research
+- **State lens:** Cities, counties, toll authorities, tribal agencies publish feeds that overlap incompatibly with the state's. The state cannot harmonize these alone.
+- **Horizon:** Inventory (6mo) → conformance/overlap analysis (18mo) → harmonization policy options (30mo).
+- **Owner:** FHWA RD&T + NCHRP.
+- **Output:** Inventory, conformance assessment, policy-lever analysis.
 
-### 3. Sub-State and Regional Digital Infrastructure Layer Research
-
-- **Need:** Characterize the sub-state and regional public-feed layer — prevalence, conformance, overlap with state-level feeds, and harmonization levers.
-- **Why now:** Sub-state producers (City of Austin, St. Charles County, Maricopa County, Quebec City) fill real coverage gaps; they also overlap incompatibly with state feeds in some jurisdictions (PennDOT vs. PA Turnpike; IDOT vs. Illinois Tollway vs. City of Chicago). No academic or state program is filling this research gap.
-- **Owner:** FHWA RD&T + NCHRP joint
-- **Output:** Inventory, conformance assessment, policy-lever analysis
-
-### 4. Non-WZDx Feed Integration Patterns Research
-
-- **Need:** Research into how non-WZDx federal and federal-partner feeds (NWS Alerts, CBP Border Wait Times, NPS Road Events, IPAWS) should integrate with state work-zone and incident data in operator-facing systems.
-- **Why now:** These feeds exist independently with no canonical guidance on fusion. Operators correlating weather, border delays, and work zones currently do this ad hoc.
-- **Owner:** FHWA RD&T with FEMA, NWS, CBP coordination
-- **Output:** Reference architecture and fusion patterns
+### 4. Non-WZDx Federal-Partner Feed Integration Research
+- **State lens:** State TMCs use NWS Alerts, CBP Wait Times, NPS Road Events, IPAWS ad hoc with no canonical fusion guidance.
+- **Horizon:** Feed inventory (9mo) → reference architecture (24mo) → state pilot (36mo).
+- **Owner:** FHWA RD&T with FEMA, NWS, CBP.
+- **Output:** Reference architecture and fusion patterns.
 
 ### 5. Provenance and Lineage Standards Research
-
-- **Need:** Research into per-field provenance standards for multi-source event records — how downstream consumers track which feed contributed which attribute when feeds overlap.
-- **Why now:** Cross-state and cross-vendor data fusion is not auditable without provenance. Today every integrator implements ad hoc lineage if any at all.
-- **Owner:** FHWA RD&T + TRB Cooperative Research Program
-- **Output:** Provenance schema specification, reference implementation
+- **State lens:** Cross-feed event fusion is not auditable today; no provenance schema exists for which feed contributed which field.
+- **Horizon:** Schema (9mo) → reference implementation (24mo) → integration with WZDx and adjacent specs (36mo).
+- **Owner:** TRB Cooperative Research Program.
+- **Output:** Provenance schema + reference implementation.
 
 ## B. Data Quality, Measurement, and Validation
 
 ### 6. Standardized Data Quality Index Methodology Research
-
-- **Need:** Federally-funded methodology research producing a standard, open Data Quality Index applicable across feed types (work zones, incidents, parking, weather, V2X).
-- **Why now:** Every quality-grading initiative currently invents its own dimensions, weights, and scales. Without a methodological baseline, "quality" claims aren't comparable across feeds or producers.
-- **Owner:** FHWA RD&T, with NCHRP and the practitioner community
-- **Output:** Open methodology with versioning; published reference scores
+- **State lens:** Each state and each vendor uses its own "quality" definition; cross-comparison is therefore not possible.
+- **Horizon:** Methodology (9mo) → pilot scoring at scale (24mo) → publication + governance (30mo).
+- **Owner:** FHWA RD&T + NCHRP.
+- **Output:** Open, versioned DQI methodology with reference scores.
 
 ### 7. Ground Truth and Predictive Model Validation Research
-
-- **Need:** Systematic research into ground-truth methodologies for transportation predictive models — incidents, parking occupancy, corridor delay, equipment health.
-- **Why now:** Predictive analytics in transportation operations are deployed broadly without standard validation protocols. Each implementation defines its own "good enough."
-- **Owner:** FHWA RD&T, TFHRC, NCHRP
-- **Output:** Ground-truth protocols and validation reference datasets
+- **State lens:** States deploy predictive analytics with each implementation defining its own "good enough." No shared validation framework.
+- **Horizon:** Protocol design (9mo) → dataset collection (24mo) → publication (36mo).
+- **Owner:** FHWA RD&T, TFHRC, NCHRP.
+- **Output:** Ground-truth protocols + reference validation datasets.
 
 ### 8. Coverage Gap and Cross-State Correlation Research
-
-- **Need:** Research into how to systematically identify and quantify national coverage gaps in transportation event data, and how cross-state event correlation can be reliably performed.
-- **Why now:** Today coverage gaps and cross-state correlations are surfaced only by integrators with full pipelines built. There's no federally-curated, methodologically-transparent view of where the national event picture is incomplete.
-- **Owner:** FHWA RD&T
-- **Output:** Methodology + ongoing public coverage assessment
+- **State lens:** A state planning multi-state strategy has no federally-curated view of where the national event picture is incomplete.
+- **Horizon:** Methodology + initial assessment (12mo) → continuous updating (30mo) → reporting interface (36mo).
+- **Owner:** FHWA RD&T.
+- **Output:** Methodology + ongoing public coverage assessment.
 
 ## C. Operations Workflows and Coordination
 
-### 9. Multi-State Closure Approval and Diversion Coordination Research
-
-- **Need:** Research into federally-defined coordination protocols for multi-state planned closures and diversion routes.
-- **Why now:** Multi-state closures and diversions today coordinate ad hoc, by phone or email between state TMCs. No federal protocol or data-exchange pattern exists despite the demonstrably national nature of freight corridor closures.
-- **Owner:** FHWA RD&T with AASHTO
-- **Output:** Reference coordination protocol and supporting data-exchange spec
+### 9. Multi-State Closure & Diversion Coordination Research
+- **State lens:** Multi-state freight-corridor closures coordinate by phone and email between TMCs. No protocol or data-exchange standard exists for operational tempo.
+- **Horizon:** Process/gap analysis (9mo) → protocol design (24mo) → multi-corridor pilot (36mo).
+- **Owner:** FHWA RD&T with AASHTO.
+- **Output:** Reference coordination protocol + data-exchange spec.
 
 ### 10. DMS Messaging Conformance and Effectiveness Research
-
-- **Need:** Research into dynamic message sign content patterns — what message structures actually change driver behavior, what cross-state variance in messaging looks like for the same incident type, and how DMS authoring tools should be governed.
-- **Why now:** DMS messaging is one of the most direct operator levers; cross-state inconsistency is well known anecdotally but not systematically characterized.
-- **Owner:** FHWA RD&T + state DOT participation
-- **Output:** Empirical effectiveness findings, recommended message-pattern library
+- **State lens:** Same incident, signed differently in each state the driver passes through. Effectiveness cost is uncharacterized.
+- **Horizon:** Cross-state audit (9mo) → effectiveness study (24mo) → pattern library (36mo).
+- **Owner:** FHWA RD&T with state DOTs.
+- **Output:** Empirical effectiveness findings + recommended cross-state pattern library.
 
 ### 11. Truck-Parking Sensor Data Quality Research
-
-- **Need:** Sensor-quality research for the MAASTO TPIMS coalition and parallel state systems.
-- **Why now:** Of three keyless public MAASTO feeds, a substantial portion of Illinois sites currently flag their own sensor data as untrusted. Protocol-level coordination (MAASTO) is mature; the limiting factor on impact is sensor-level data quality, which is a research-program question.
-- **Owner:** FHWA RD&T + TFHRC sensors lab
-- **Output:** Sensor reliability research, calibration methodology
+- **State lens:** MAASTO shows federal coordination works at the protocol level; sensor data quality is the limiting factor (Illinois sites self-flagging as untrusted).
+- **Horizon:** Failure-mode characterization (9mo) → calibration methodology (24mo) → reference deployment guidance (36mo).
+- **Owner:** FHWA RD&T + TFHRC sensors lab.
+- **Output:** Sensor reliability research + calibration methodology.
 
 ## D. Compliance, Regulatory, and Permit Interoperability
 
 ### 12. IPAWS Road-Impact Authoring Conformance Research
-
-- **Need:** Research into how road-impacting CAP alert authoring in IPAWS maps to state TMC operator workflows in practice, and how IPAWS conformance varies state to state.
-- **Why now:** IPAWS is a federal capability state DOTs use unevenly. There is no federally-funded research characterizing the variance or the operator-side friction.
-- **Owner:** FHWA RD&T with FEMA IPAWS Program Office
-- **Output:** Conformance methodology + per-state assessment
+- **State lens:** State DOT on-ramp from operational events to CAP-compliant authoring is unclear and inconsistent.
+- **Horizon:** State survey (9mo) → methodology + assessment (24mo) → integration patterns (30mo).
+- **Owner:** FHWA RD&T with FEMA IPAWS Program Office.
+- **Output:** Conformance methodology + per-state assessment.
 
 ### 13. OS/OW Permit-Rule Interoperability Research
-
-- **Need:** Research into how state oversize/overweight permit rules are encoded and exchanged, with attention to multi-state corridor consistency.
-- **Why now:** NASCO has corridor-level guidance; state-by-state permit-rule encoding remains inconsistent in structure, vocabulary, and exchange format. Cross-state freight planning bears the cost.
-- **Owner:** FHWA RD&T with NASCO and AASHTO
-- **Output:** Permit-rule data model and exchange specification
+- **State lens:** State permit-rule digitization is progressing individually; cross-state corridor consistency in structure and vocabulary remains poor. Carriers and routing engines absorb the cost.
+- **Horizon:** Encoding survey (9mo) → data model (24mo) → NASCO corridor pilot (36mo).
+- **Owner:** FHWA RD&T with NASCO and AASHTO.
+- **Output:** Permit-rule data model + exchange specification.
 
 ### 14. Bridge-Clearance and Restriction Data Interoperability Research
-
-- **Need:** Research into a standard exchange format for low-clearance, weight-restricted, and hazardous-cargo-restricted infrastructure inventory.
-- **Why now:** Bridge clearance data is heterogeneous across states (units, datum reference, posted vs. measured); over-height-vehicle routing currently fails because of this heterogeneity.
-- **Owner:** FHWA RD&T + AASHTO Bridges committee
-- **Output:** Data model and reference exchange spec
+- **State lens:** Bridge clearance data is heterogeneous across states (units, datum, posted vs. measured); over-height routing fails at state lines.
+- **Horizon:** Inventory survey (9mo) → data model (24mo) → pilot exchange (36mo).
+- **Owner:** FHWA RD&T with AASHTO Bridges Committee.
+- **Output:** Standard exchange format.
 
 ## E. Decision Support and Asset Management
 
-### 15. Asset Health and ITS Equipment Status Interoperability Research
+### 15. Asset Health & ITS Equipment Status Interoperability Research
+- **State lens:** Cameras, DMS, RWIS, V2X RSU health data exists per-state with no exchange standard. Cross-state coordination and federal asset-management RD&T both suffer.
+- **Horizon:** Requirements (9mo) → schema + reference implementation (24mo) → three-state pilot (36mo).
+- **Owner:** FHWA RD&T + TFHRC operations lab.
+- **Output:** Equipment status schema + reference implementation.
 
-- **Need:** Research into a standard exchange format for ITS equipment health (cameras, DMS, RWIS, weather stations, V2X RSUs).
-- **Why now:** Asset health data exists per-state with no exchange standard. Cross-state operations and federal asset-management RD&T both suffer from the absence.
-- **Owner:** FHWA RD&T + TFHRC operations lab
-- **Output:** Equipment status schema and reference implementation
-
-### 16. Digital Project Delivery / IFC-BIM Transportation Profile Research
-
-- **Need:** Research into a transportation-specific IFC/BIM profile and metadata standards for digital project delivery exchange.
-- **Why now:** IFC was designed for vertical construction. Transportation digital project delivery uses IFC inconsistently. The benefits the Letter Report cites — "accelerating delivery of highway projects" — depend on this profile existing.
-- **Owner:** TFHRC infrastructure RD&T
-- **Output:** Transportation IFC profile, reference exchange tooling
+### 16. Transportation IFC/BIM Profile Research
+- **State lens:** States are being asked to deliver digitally. IFC was designed for vertical construction; transportation use is inconsistent. The Letter Report's "accelerating project delivery" promise depends on this profile existing.
+- **Horizon:** Requirements + profile draft (12mo) → pilot exchange (24mo) → standards submission (36mo).
+- **Owner:** TFHRC infrastructure RD&T.
+- **Output:** Transportation IFC profile + reference exchange tooling.
 
 ## F. Vendor Transparency and Practitioner Costs
 
 ### 17. Independent Comparative Evaluation Methodology for Commercial Data Products
-
-- **Need:** Open methodology for head-to-head, methodologically-transparent evaluation of commercial probe, incident, and work-zone data products.
-- **Why now:** State DOTs replicate similar RFP and vendor-comparison work in isolation each procurement cycle. No federally-curated, published methodology exists.
-- **Owner:** FHWA RD&T + NCHRP joint
-- **Output:** Open methodology and empirical findings. **Explicitly not** a procurement recommendation or product endorsement.
+- **State lens:** Each procurement cycle replicates substantially the same RFP and vendor-comparison work. No federally-curated methodology exists; cost to states is direct and recurring.
+- **Horizon:** Methodology (9mo) → empirical evaluation cycle (24mo) → publication (30mo).
+- **Owner:** FHWA RD&T + NCHRP joint topic.
+- **Output:** Open methodology + empirical findings. **Not** procurement recommendations or product endorsements.
 
 ### 18. Downstream-Cost Research on TFHRC External-Engagement Constraints
-
-- **Need:** Quantify the practitioner-side and state-DOT-side cost of constraints on TFHRC researchers' external engagement (Letter Report Recommendation 2).
-- **Why now:** HSIS partial dark-out; reduced detail in AMRP/TFHRC Long-Range Plan publications; reduced conference engagement. These costs are real, distributed, and largely invisible to FHWA today.
-- **Owner:** TRB Cooperative Research Program
-- **Output:** Empirical characterization of the downstream cost
+- **State lens:** As state-side consumers of federal research, the constraints flagged in Letter Report Recommendation 2 (HSIS dark-out, reduced AMRP detail, reduced conference engagement) are not abstract; they each have measurable downstream cost.
+- **Horizon:** Practitioner survey (6mo) → empirical assessment (18mo) → synthesis report (24mo).
+- **Owner:** TRB Cooperative Research Program.
+- **Output:** Empirical characterization to inform internal FHWA process change.
 
 ---
 
-## What I am NOT asking for
+## Voting Strategy Notes (For Matt — Not For Distribution)
 
-- No specific system, product, or service for the committee to evaluate, fund, or adopt
-- No procurement guidance
-- No federal scoring of states as a regulatory function
-- No endorsement of any methodology beyond those produced as research output
+If the Committee proceeds to vote-by-item rather than collective deliberation, prioritize defense of these as the highest-leverage / lowest-cost:
+- **A.1** (measurement of interoperability) — operationalizes Rec. 5 directly, hardest to argue against on principle.
+- **A.2** (crosswalks) — small research investment, large national leverage, no political risk.
+- **A.5** (provenance) — short timeline, small scope, enables auditability.
+- **C.1** (multi-state closure/diversion) — most politically alignable across the state DOT seats on the committee.
 
-All eighteen items above are recommendations for **federal research investment** to advance interoperability in support of the digital infrastructure direction the Committee has already endorsed.
+Politically delicate (be prepared to negotiate or trade):
+- **F.1** (vendor evaluation) — commercial members (IIHS, ATRI, AAA Foundation) may resist; offer trade for F.2 if needed.
+- **F.2** (TFHRC engagement downstream cost) — asks TRB to study FHWA's own constraints; will need careful framing.
+- **B.2 / B.3** (ground-truth, coverage gap) — may overlap with existing NPMRDS-adjacent work; be ready to differentiate.
