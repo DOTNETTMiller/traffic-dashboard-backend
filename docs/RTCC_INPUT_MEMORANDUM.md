@@ -11,7 +11,7 @@
 
 ## Affiliation and Conflicts
 
-I work on transportation data integration from a state-DOT-adjacent vantage point. I operate a private, non-commercial experimentation environment to ingest and study public federal and state digital infrastructure feeds. No product, system, or service from that work is offered for the Committee's consideration. Every recommendation below is a recommendation that **federal research be funded and conducted** — not that any agency procure, adopt, or evaluate any external work.[^1]
+I work on transportation data integration from a state-DOT-adjacent vantage point. The empirical observations in this memorandum are drawn from a private, non-commercial experimentation environment I operate for the purpose of studying public federal and state digital infrastructure feeds end-to-end. I also have commercial software interests in adjacent transportation-practitioner domains; none of those products are offered for the Committee's consideration, and I will recuse from any deliberation in which a Committee recommendation would specifically touch a product domain in which I have commercial involvement.[^1] Every recommendation below is a recommendation that **federal research be funded and conducted** — not that any agency procure, adopt, or evaluate any external work.
 
 ## Purpose
 
@@ -38,7 +38,7 @@ End-to-end means source identification, fetch, schema parsing, conformance check
 
 ## Recommendations
 
-Each item below names the state-side problem driving the recommendation, the research scope appropriate to a 2-to-3-year federal RD&T cycle, and a recommended owner.
+Twenty-two research-investment recommendations are organized into six clusters. Each item below names the state-side problem driving the recommendation, the research scope appropriate to a 2-to-3-year federal RD&T cycle, and a recommended owner. The recommendations are inputs to the Committee's deliberation; they are offered with the expectation that some will be advanced, some refined, and some set aside in the Committee's collective judgment.
 
 ### A. Feeds, Standards, and Interoperability Measurement
 
@@ -66,6 +66,11 @@ Each item below names the state-side problem driving the recommendation, the res
 *State lens:* When two feeds report the same event with different fields, the consuming state cannot audit which source contributed which attribute. Cross-feed fusion is therefore not defensible to leadership when the data is questioned after an incident.
 *Research scope:* Provenance schema specification and reference implementation suitable for multi-source transportation event records. Phase 1: requirements + schema (months 1–9). Phase 2: reference implementation (months 9–24). Phase 3: integration with WZDx and related specs (months 24–36).
 *Owner:* TRB Cooperative Research Program.
+
+**A.6 Field-Capture Provenance for Transportation Data.**
+*State lens:* Mobile-app and field-tablet capture of temporary traffic control deployments, asset inspections, and as-built records is increasingly common in practitioner workflows, but there is no standard for linking a field-captured record back to the source authority, the certifying credential, the capture device, and the moment of capture. Downstream consumers — state asset systems, statewide WZDx feeds, project as-built archives — cannot trust the chain of custody for field-captured data.
+*Research scope:* Field-capture provenance specification covering temporary traffic control deployments, as-built captures (including AR- and LiDAR-assisted workflows), and asset inspections, with a reference implementation practitioner tools can adopt. Phase 1: practitioner workflow survey (months 1–6). Phase 2: specification authoring (months 6–24). Phase 3: reference implementation + pilot (months 24–36).
+*Owner:* FHWA RD&T with TFHRC.
 
 ### B. Data Quality, Measurement, and Validation
 
@@ -101,6 +106,16 @@ Each item below names the state-side problem driving the recommendation, the res
 *Research scope:* Sensor reliability research, calibration methodology, and reference deployment guidance for truck parking sensing. Phase 1: failure-mode characterization (months 1–9). Phase 2: calibration methodology (months 9–24). Phase 3: reference deployment guidance (months 24–36).
 *Owner:* FHWA RD&T and TFHRC sensors lab.
 
+**C.4 Work Zone Reality vs. Reported Data Reconciliation Research.**
+*State lens:* Statewide WZDx feeds publish what permit and planning data say a work zone looks like. The actual temporary traffic control deployed on the ground often differs — lane configuration, sign positioning, hours of activity, deployed devices. The two are rarely reconciled, and downstream operations decisions made on the published data are systematically biased. Field-app deployment data captured by certified crews represents an under-utilized authoritative source for closing the loop.
+*Research scope:* Methodology and reference exchange pattern for reconciling field-captured TTC deployment data with statewide WZDx and incident feeds. Phase 1: practitioner workflow survey + gap analysis (months 1–9). Phase 2: reconciliation methodology + reference exchange spec (months 9–24). Phase 3: pilot with state DOTs whose contractors capture deployment data digitally (months 24–36).
+*Owner:* FHWA RD&T with AASHTO Work Zone Subcommittee and ATSSA.
+
+**C.5 Certified Traffic Control Supervisor Credential Interoperability Research.**
+*State lens:* Certified TCS credentials are state-specific. Multi-state contractors maintain duplicate certifications, and state operations leadership has no federally-recognized way to verify a TCS credential issued elsewhere when reviewing a non-local crew's deployment. Credential portability is an operational and equity issue both.
+*Research scope:* Inventory of state TCS certification programs; cross-recognition data model; reference reciprocity pilot. Phase 1: program inventory (months 1–6). Phase 2: data model + reciprocity framework (months 6–24). Phase 3: multi-state pilot (months 24–36).
+*Owner:* FHWA RD&T with AASHTO and ATSSA.
+
 ### D. Compliance, Regulatory, and Permit Interoperability
 
 **D.1 IPAWS Road-Impact Authoring Conformance Research.**
@@ -126,9 +141,14 @@ Each item below names the state-side problem driving the recommendation, the res
 *Owner:* FHWA RD&T and TFHRC operations lab.
 
 **E.2 Digital Project Delivery — Transportation IFC/BIM Profile Research.**
-*State lens:* States are being asked to deliver digitally; IFC was designed for vertical construction and transportation use is inconsistent. The Letter Report's promise of "accelerating delivery of highway projects" depends on this profile existing.
-*Research scope:* Transportation IFC profile, metadata standards, and reference exchange tooling. Phase 1: requirements + profile draft (months 1–12). Phase 2: pilot exchange (months 12–24). Phase 3: standards-body submission (months 24–36).
+*State lens:* States are being asked to deliver digitally; IFC was designed for vertical construction and transportation use is inconsistent. The Letter Report's promise of "accelerating delivery of highway projects" depends on this profile existing — and on as-built data captured in the field (utility lines, drainage structures, ITS conduit, surface assets) being able to flow into it without translation loss.
+*Research scope:* Transportation IFC profile, metadata standards, and reference exchange tooling, with explicit attention to as-built capture workflows including emerging AR- and LiDAR-assisted field methods. Phase 1: requirements + profile draft (months 1–12). Phase 2: pilot exchange (months 12–24). Phase 3: standards-body submission (months 24–36).
 *Owner:* TFHRC infrastructure RD&T.
+
+**E.3 Subsurface Utility Engineering and Right-of-Way Utility Data Interoperability Research.**
+*State lens:* ROW utility data is captured per-project, per-utility, per-state, with no unified schema. Subsurface Utility Engineering Quality Level data flows are ad hoc. Cross-project and cross-jurisdictional reuse of utility location data is therefore not possible at scale, and the same utilities are re-located in the field on every adjacent project at compounding cost. AR- and LiDAR-assisted field capture is emerging as a practitioner-side response without exchange standards to support it.
+*Research scope:* Reference data model for ROW utility records spanning SUE Quality Levels A–D, as-built capture methods, and downstream BIM/IFC integration; reference exchange specification. Phase 1: practitioner-tool and state-program inventory (months 1–9). Phase 2: data model + exchange spec (months 9–24). Phase 3: pilot with a multi-utility, multi-state corridor (months 24–36).
+*Owner:* FHWA RD&T with AASHTO Subsurface Utility Engineering Committee and the Common Ground Alliance.
 
 ### F. Vendor Transparency and Practitioner Costs
 
