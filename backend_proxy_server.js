@@ -585,13 +585,15 @@ const API_CONFIG = {
   newjersey: {
     name: 'New Jersey',
     eventsUrl: 'https://smartworkzones.njit.edu/nj/wzdx',
-    format: 'wzdx',
+    format: 'geojson',
+    apiType: 'WZDx',
     corridor: 'I-80'
   },
   oklahoma: {
     name: 'Oklahoma',
     eventsUrl: 'https://oktraffic.org/api/Geojsons/workzones?&access_token=feOPynfHRJ5sdx8tf3IN5yOsGz89TAUuzHsN3V0jo1Fg41LcpoLhIRltaTPmDngD',
-    format: 'wzdx',
+    format: 'geojson',
+    apiType: 'WZDx',
     corridor: 'I-35'
   },
   iowa: {
@@ -3368,11 +3370,15 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
 
           // Debug: Log first few Texas road names to understand format
           if (stateName.includes('Texas') && normalized.length < 5) {
-            console.log(`Texas sample road_names:`, roadNames, `locationText:`, locationText, `isInterstate:`, isInterstateRoute(locationText));
+            console.log(`Texas sample road_names:`, roadNames, `locationText:`, locationText, `isInterstate:`, isInterstateRouteFromRoadNames(roadNames, locationText, stateName));
           }
 
-          // Only include events on interstate highways
-          if (isInterstateRoute(locationText)) {
+          // Only include events on interstate highways. Pass road_names and
+          // stateName so the check (a) evaluates each entry separately —
+          // cross-street mentions like "South of NJ 38" no longer poison
+          // interstate-primary events — and (b) recognizes bare numeric
+          // route IDs ('005' = I-5) for states in data/state_interstate_numbers.json.
+          if (isInterstateRouteFromRoadNames(roadNames, locationText, stateName)) {
             const eventId = coreDetails.road_event_id || props.road_event_id || feature.id || Math.random().toString(36).substr(2, 9);
             const corridor = extractCorridor(locationText);
             const startRaw = props.start_date || coreDetails.start_date || null;
@@ -4402,16 +4408,84 @@ const extractDirection = (description, title, corridor = '', latitude = 0, longi
 };
 
 // Check if a route is an interstate highway (I-XX format)
+// 'IS' prefix added for MoDOT-style interstate emit ("IS 44" = I-44). 'IS\s*-?\s*\d'
+// is unambiguous across all state feeds we've seen — no false positive on words
+// like ISLAND because we require a digit after the optional separator.
+//
+// Trailing `(?!\d)` instead of `\b` so we still match when a directional suffix
+// is glued to the route number with no separator — DelDOT emits "I-95NB",
+// "I-95SB". `\b` only fires between a word char and a non-word char, and
+// "95N" has no boundary, so the old `\b` silently dropped those.
+const INTERSTATE_PATTERN = /\b(I-?\d{1,3}|IS\s*-?\s*\d{1,3}|IH\d{4}|Interstate\s+\d{1,3})(?!\d)/i;
+const STATE_ROUTE_PATTERN = /\b(US|SR|KS|NE|IA|IN|MN|UT|NV|OH|NJ|SH|FM|RM|BU|BI|SL|SS)\s*[-\s]?\d+\b/i;
+// Cross-street / landmark prefixes that mean the entry is a reference point,
+// not the road the event is actually on. WZDx feeds (e.g., NJ) put these in
+// road_names[1+] alongside the primary road in road_names[0].
+const LANDMARK_PREFIX = /^\s*(north|south|east|west|near|just|past|before|after|exit|nb|sb|eb|wb)\b|^\s*(north|south|east|west)\s+of\b/i;
+
+// Lazy-loaded per-state lookup of bare interstate route numbers. Loaded from
+// data/state_interstate_numbers.json the first time it's needed and cached.
+// See the JSON file's _when_to_add note before adding states.
+let _stateInterstateNumbers = null;
+const getStateInterstateNumbers = () => {
+  if (_stateInterstateNumbers !== null) return _stateInterstateNumbers;
+  try {
+    const raw = require('fs').readFileSync(require('path').join(__dirname, 'data', 'state_interstate_numbers.json'), 'utf8');
+    const parsed = JSON.parse(raw);
+    _stateInterstateNumbers = {};
+    for (const [stateName, cfg] of Object.entries(parsed.states || {})) {
+      if (Array.isArray(cfg?.interstateNumbers)) {
+        _stateInterstateNumbers[stateName] = new Set(cfg.interstateNumbers);
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️  state_interstate_numbers.json not loaded:', err.message);
+    _stateInterstateNumbers = {};
+  }
+  return _stateInterstateNumbers;
+};
+
+// For a state with bare-numeric road_names (WSDOT '005', MoDOT '44'), strip
+// padding/whitespace and check membership in that state's interstate set.
+// Returns false when the name doesn't reduce to a clean number or the state
+// has no entry — caller then falls through to the regex path.
+const isBareNumericInterstate = (name, stateName) => {
+  if (!stateName) return false;
+  const lookup = getStateInterstateNumbers();
+  const set = lookup[stateName];
+  if (!set) return false;
+  const trimmed = String(name || '').trim();
+  if (!/^\d{1,4}$/.test(trimmed)) return false;
+  const num = parseInt(trimmed, 10);
+  return set.has(num);
+};
+
 const isInterstateRoute = (locationText) => {
   if (!locationText) return false;
+  return INTERSTATE_PATTERN.test(locationText) && !STATE_ROUTE_PATTERN.test(locationText);
+};
 
-  // Match patterns like "I-80", "I 80", "Interstate 80", "IH0010" (Texas format), etc.
-  // Avoid state routes like "KS 156", "US 30", "MN 55"
-  const interstatePattern = /\b(I-?\d{1,3}|IH\d{4}|Interstate\s+\d{1,3})\b/i;
-  const stateRoutePattern = /\b(US|SR|KS|NE|IA|IN|MN|UT|NV|OH|NJ|SH|FM|RM|BU|BI|SL|SS)\s*[-\s]?\d+\b/i;
-
-  // Must match interstate pattern and NOT match state route pattern
-  return interstatePattern.test(locationText) && !stateRoutePattern.test(locationText);
+// WZDx-aware variant — walks each road_names entry individually so cross-street
+// mentions ("South of NJ 38") don't poison an interstate-primary event. Falls
+// back to the joined locationText when road_names is empty or unstructured.
+// stateName lets us recognize bare numeric road IDs ('005' → I-5) for the
+// states listed in data/state_interstate_numbers.json.
+const isInterstateRouteFromRoadNames = (roadNames, locationText, stateName = null) => {
+  if (Array.isArray(roadNames) && roadNames.length) {
+    for (const name of roadNames) {
+      if (typeof name !== 'string' || !name) continue;
+      if (LANDMARK_PREFIX.test(name)) continue; // skip "North of I-295" landmarks
+      if (INTERSTATE_PATTERN.test(name) && !STATE_ROUTE_PATTERN.test(name)) {
+        return true;
+      }
+      if (isBareNumericInterstate(name, stateName)) {
+        return true;
+      }
+    }
+    // No primary road_names entry resolves to an interstate.
+    return false;
+  }
+  return isInterstateRoute(locationText);
 };
 
 // Detect if an event requires cross-jurisdictional collaboration

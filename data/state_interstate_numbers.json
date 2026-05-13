@@ -1,0 +1,14 @@
+{
+  "_about": "Per-state lookup of bare interstate route numbers. Used by isInterstateRouteFromRoadNames as a fallback when a state's WZDx feed publishes road_names without an 'I-' prefix (e.g., MoDOT emits '44' for I-44; WSDOT emits '005' for I-5). Keyed by stateName as it appears in API_CONFIG.",
+  "_when_to_add": "Add a state here ONLY if its feed emits bare or zero-padded numeric route IDs in road_names. Most states publish 'I-XX' strings and don't need an entry. Confirm by sampling the feed's road_names before adding — false positives will misclassify state routes as interstates.",
+  "states": {
+    "Missouri": {
+      "interstateNumbers": [29, 35, 44, 49, 55, 57, 64, 70, 72, 170, 229, 270, 435, 470, 555],
+      "notes": "MoDOT WZDx publishes bare numeric road_names ('44') and an 'IS' prefix variant ('IS 44'). The 'IS' form is handled globally by INTERSTATE_PATTERN; this list catches the bare-number form."
+    },
+    "Washington": {
+      "interstateNumbers": [5, 82, 90, 182, 205, 405, 705],
+      "notes": "WSDOT WZDx publishes zero-padded numeric road_names ('005' = I-5, '090' = I-90). Strip leading zeros before checking."
+    }
+  }
+}
