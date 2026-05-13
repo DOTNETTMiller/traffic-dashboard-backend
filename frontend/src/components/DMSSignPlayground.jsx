@@ -169,16 +169,23 @@ export default function DMSSignPlayground() {
    Sign component — pure presentational, takes a message string.
    ============================================================ */
 
-export function DMSSign({ message }) {
+export function DMSSign({ message, compact = false }) {
   const lines = message.split('\n');
+  // Compact mode renders an inline "thumbnail" of the sign for use in template
+  // cards and dense list views — same visual treatment, smaller everything.
+  const fontSize = compact ? '18px' : '52px';
+  const outerPad = compact ? '6px' : '14px';
+  const innerPad = compact ? '10px 12px' : '20px 24px';
+  const minHeight = compact ? '70px' : '220px';
+  const maskSize = compact ? '2px 2px' : '3px 3px';
 
   return (
     <div style={{
       // Outer "gantry" — the hooded sign frame an operator sees on a real
       // overhead truss. Subtle bevel + drop shadow so it sits on the page.
-      padding: '14px',
+      padding: outerPad,
       background: 'linear-gradient(#2b2b2f, #1a1a1d)',
-      borderRadius: '10px',
+      borderRadius: compact ? '6px' : '10px',
       boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 8px 24px rgba(0, 0, 0, 0.18)',
       border: '1px solid #0a0a0a'
     }}>
@@ -187,8 +194,8 @@ export function DMSSign({ message }) {
         // simulates the recessed sign cavity and stray ambient bounce.
         background: 'radial-gradient(ellipse at center, #0c0c0c 0%, #050505 80%, #000000 100%)',
         borderRadius: '4px',
-        padding: '20px 24px',
-        minHeight: '220px',
+        padding: innerPad,
+        minHeight,
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
@@ -211,7 +218,7 @@ export function DMSSign({ message }) {
             key={i}
             style={{
               fontFamily: "'VT323', ui-monospace, monospace",
-              fontSize: '52px',
+              fontSize,
               lineHeight: 1.1,
               letterSpacing: '0.06em',
               color: '#FFB000',
@@ -226,8 +233,8 @@ export function DMSSign({ message }) {
               // amber LED panel viewed from a few feet away.
               WebkitMaskImage: 'radial-gradient(circle at center, #000 40%, transparent 60%)',
               maskImage: 'radial-gradient(circle at center, #000 40%, transparent 60%)',
-              WebkitMaskSize: '3px 3px',
-              maskSize: '3px 3px',
+              WebkitMaskSize: maskSize,
+              maskSize: maskSize,
               WebkitMaskRepeat: 'repeat',
               maskRepeat: 'repeat',
               whiteSpace: 'pre',

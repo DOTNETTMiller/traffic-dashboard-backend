@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { config } from '../config';
-import DMSSignPlayground, { DMSSign } from './DMSSignPlayground';
+import { DMSSign } from './DMSSignPlayground';
 
 export default function DMSMessagingPanel({ selectedEvent, onClose }) {
-  const [activeTab, setActiveTab] = useState('templates');
+  const [activeTab, setActiveTab] = useState('compose');
   const [templates, setTemplates] = useState([]);
   const [activations, setActivations] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -14,6 +14,14 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
   const [error, setError] = useState(null);
   const [filterCategory, setFilterCategory] = useState('all');
   const [previewMessage, setPreviewMessage] = useState('');
+  // editedMessage is the live, line-broken (\n) working copy the operator
+  // sees on the board and can tweak in the textarea before activating.
+  // isMessageDirty flips true once the operator types — that gates whether
+  // variable-resolution overwrites their edits.
+  const [editedMessage, setEditedMessage] = useState('');
+  const [isMessageDirty, setIsMessageDirty] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState('');
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
   const categories = [
     'all',
@@ -37,18 +45,25 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
     }
   }, [selectedEvent]);
 
-  // Update preview when template or variables change
+  // Update preview when template or variables change. Templates store lines
+  // separated by '/' — convert to '\n' for the board and the textarea.
   useEffect(() => {
+    let resolved = '';
     if (selectedTemplate && templateVariables.length > 0) {
       let message = selectedTemplate.message_text;
       Object.entries(variableValues).forEach(([varName, varValue]) => {
         message = message.replace(`{{${varName}}}`, varValue || `{{${varName}}}`);
       });
-      setPreviewMessage(message);
+      resolved = message;
     } else if (selectedTemplate) {
-      setPreviewMessage(selectedTemplate.message_text);
+      resolved = selectedTemplate.message_text;
     }
-  }, [selectedTemplate, variableValues, templateVariables]);
+    setPreviewMessage(resolved);
+    // Don't clobber the operator's manual edits when variables change.
+    if (!isMessageDirty) {
+      setEditedMessage(resolved.split('/').map(l => l.trim()).join('\n'));
+    }
+  }, [selectedTemplate, variableValues, templateVariables, isMessageDirty]);
 
   const fetchTemplates = async () => {
     setLoading(true);
@@ -98,6 +113,8 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
   const selectTemplate = async (template) => {
     setSelectedTemplate(template);
     setVariableValues({});
+    setIsMessageDirty(false);
+    setNewTemplateName('');
 
     // Fetch template variables
     try {
@@ -119,6 +136,56 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
     }
   };
 
+  // Persist the operator's edited message as a new draft template. Uses
+  // the currently-selected template's category as a sensible default, or
+  // 'incident' when starting from scratch. Saves message_text in the
+  // '/' line-separator format the backend expects.
+  const saveAsNewTemplate = async () => {
+    const name = newTemplateName.trim();
+    if (!name) {
+      setError('Give the new template a name first');
+      return;
+    }
+    const messageText = editedMessage
+      .split('\n')
+      .map(l => l.trim())
+      .filter(Boolean)
+      .join(' / ');
+    if (!messageText) {
+      setError('Message is empty');
+      return;
+    }
+    setSavingTemplate(true);
+    setError(null);
+    try {
+      const response = await fetch(`${config.apiUrl}/api/dms/templates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          template_name: name,
+          template_category: selectedTemplate?.template_category || (filterCategory !== 'all' ? filterCategory : 'incident'),
+          message_text: messageText,
+          char_limit: selectedTemplate?.char_limit || 3,
+          mutcd_compliant: true
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert(`Saved as draft template "${name}". It will appear in the list once approved.`);
+        setNewTemplateName('');
+        setIsMessageDirty(false);
+        fetchTemplates();
+      } else {
+        setError(data.error || 'Failed to save template');
+      }
+    } catch (err) {
+      setError('Failed to save template');
+      console.error(err);
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
   const activateMessage = async () => {
     if (!selectedTemplate) return;
 
@@ -126,6 +193,12 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
     setError(null);
 
     try {
+      // If the operator edited the message text, send it as custom_message so
+      // the backend skips variable substitution and uses their version verbatim.
+      const customMessage = isMessageDirty
+        ? editedMessage.split('\n').map(l => l.trim()).filter(Boolean).join(' / ')
+        : undefined;
+
       const response = await fetch(`${config.apiUrl}/api/dms/activate`, {
         method: 'POST',
         headers: {
@@ -135,6 +208,7 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
           template_id: selectedTemplate.id,
           event_id: selectedEvent?.id,
           variable_values: variableValues,
+          custom_message: customMessage,
           states_to_notify: selectedEvent?.nearbyStates || []
         })
       });
@@ -145,6 +219,8 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
         alert(`DMS message activated:\n\n${data.final_message}`);
         setSelectedTemplate(null);
         setVariableValues({});
+        setIsMessageDirty(false);
+        setEditedMessage('');
         setActiveTab('history');
         fetchActivations();
       } else {
@@ -251,22 +327,6 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
         {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', backgroundColor: '#f9fafb' }}>
           <button
-            onClick={() => setActiveTab('templates')}
-            style={{
-              padding: '12px 24px',
-              fontWeight: '500',
-              transition: 'color 0.2s',
-              border: 'none',
-              background: 'none',
-              cursor: 'pointer',
-              ...(activeTab === 'templates'
-                ? { borderBottom: '2px solid #F08230', color: '#F08230', backgroundColor: 'white' }
-                : { color: '#4b5563' })
-            }}
-          >
-            Message Templates ({templates.length})
-          </button>
-          <button
             onClick={() => setActiveTab('compose')}
             style={{
               padding: '12px 24px',
@@ -280,7 +340,7 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
                 : { color: '#4b5563' })
             }}
           >
-            Compose & Preview
+            Compose & Preview ({templates.length})
           </button>
           <button
             onClick={() => setActiveTab('history')}
@@ -315,7 +375,7 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
             </div>
           )}
 
-          {activeTab === 'templates' && (
+          {activeTab === 'compose' && (
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(2, 1fr)',
@@ -323,42 +383,16 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
             }}>
               {/* Template List */}
               <div>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{
-                    display: 'block',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    color: '#374151',
-                    marginBottom: '8px'
-                  }}>
-                    Filter by Category
-                  </label>
-                  <select
-                    value={filterCategory}
-                    onChange={(e) => {
-                      setFilterCategory(e.target.value);
-                      setTimeout(() => fetchTemplates(), 0);
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: '6px',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                      fontSize: '14px',
-                      color: '#111827',
-                      backgroundColor: 'white'
-                    }}
-                  >
-                    {categories.map(cat => (
-                      <option key={cat} value={cat}>
-                        {cat === 'all' ? 'All Categories' : cat.replace(/_/g, ' ').toUpperCase()}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ maxHeight: '500px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#374151',
+                  marginBottom: '8px'
+                }}>
+                  Templates {filterCategory !== 'all' && `(${filterCategory.replace(/_/g, ' ').toUpperCase()})`}
+                </label>
+                <div style={{ maxHeight: '560px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {loading && (
                     <div style={{ textAlign: 'center', padding: '16px', color: '#6b7280' }}>
                       Loading templates...
@@ -371,85 +405,164 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
                     </div>
                   )}
 
-                  {templates.map(template => (
-                    <button
-                      key={template.id}
-                      onClick={() => selectTemplate(template)}
-                      style={{
-                        width: '100%',
-                        textAlign: 'left',
-                        padding: '16px',
-                        borderRadius: '8px',
-                        border: selectedTemplate?.id === template.id
-                          ? '1px solid #FF8F35'
-                          : '1px solid #e5e7eb',
-                        backgroundColor: selectedTemplate?.id === template.id ? '#eff6ff' : 'white',
-                        boxShadow: selectedTemplate?.id === template.id
-                          ? '0 4px 6px -1px rgba(0,0,0,0.1)'
-                          : 'none',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                            <span
-                              style={{
-                                padding: '4px 8px',
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                fontWeight: '500',
-                                color: 'white',
-                                backgroundColor: getCategoryColor(template.template_category)
-                              }}
-                            >
-                              {template.template_category.toUpperCase()}
+                  {templates.map(template => {
+                    // Show the template's message rendered on a mini DMS board
+                    // so the operator can recognize it visually, not just by
+                    // name. Variables like {{delay}} stay as placeholders here
+                    // — the right-side composer is where they get filled in.
+                    const boardText = (template.message_text || '')
+                      .split('/')
+                      .map(l => l.trim())
+                      .join('\n');
+                    return (
+                      <button
+                        key={template.id}
+                        onClick={() => selectTemplate(template)}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '12px',
+                          borderRadius: '8px',
+                          border: selectedTemplate?.id === template.id
+                            ? '1px solid #FF8F35'
+                            : '1px solid #e5e7eb',
+                          backgroundColor: selectedTemplate?.id === template.id ? '#eff6ff' : 'white',
+                          boxShadow: selectedTemplate?.id === template.id
+                            ? '0 4px 6px -1px rgba(0,0,0,0.1)'
+                            : 'none',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          <span
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              fontWeight: '500',
+                              color: 'white',
+                              backgroundColor: getCategoryColor(template.template_category)
+                            }}
+                          >
+                            {template.template_category.toUpperCase()}
+                          </span>
+                          {template.mutcd_compliant && (
+                            <span style={{
+                              padding: '4px 8px',
+                              backgroundColor: '#dcfce7',
+                              color: '#166534',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              fontWeight: '500'
+                            }}>
+                              MUTCD
                             </span>
-                            {template.mutcd_compliant && (
-                              <span style={{
-                                padding: '4px 8px',
-                                backgroundColor: '#dcfce7',
-                                color: '#166534',
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                fontWeight: '500'
-                              }}>
-                                MUTCD
-                              </span>
-                            )}
-                          </div>
-                          <h4 style={{ fontWeight: '600', color: '#111827', marginBottom: '4px', margin: '0 0 4px 0' }}>
+                          )}
+                          <h4 style={{ fontWeight: '600', color: '#111827', margin: 0, fontSize: '14px' }}>
                             {template.template_name}
                           </h4>
-                          <p style={{ fontSize: '14px', color: '#4b5563', fontFamily: 'monospace', margin: 0 }}>
-                            {template.message_text}
-                          </p>
-                          <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
-                            {template.usage_count > 0 && (
-                              <span>Used {template.usage_count} times</span>
-                            )}
-                          </div>
                         </div>
-                      </div>
-                    </button>
-                  ))}
+                        <DMSSign message={boardText} compact />
+                        {template.usage_count > 0 && (
+                          <div style={{ marginTop: '6px', fontSize: '11px', color: '#6b7280' }}>
+                            Used {template.usage_count} times
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
               {/* Template Preview & Activation */}
               <div>
-                {selectedTemplate ? (
-                  <div style={{
-                    backgroundColor: '#f9fafb',
-                    borderRadius: '8px',
-                    padding: '24px',
-                    border: '1px solid #e5e7eb'
-                  }}>
-                    <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#111827', marginBottom: '16px', marginTop: 0 }}>
-                      Message Composer
-                    </h3>
+                <div style={{
+                  backgroundColor: '#f9fafb',
+                  borderRadius: '8px',
+                  padding: '24px',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#111827', marginBottom: '16px', marginTop: 0 }}>
+                    Message Composer
+                  </h3>
 
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: '#374151',
+                      marginBottom: '8px'
+                    }}>
+                      Filter by Category
+                    </label>
+                    <select
+                      value={filterCategory}
+                      onChange={(e) => {
+                        setFilterCategory(e.target.value);
+                        setTimeout(() => fetchTemplates(), 0);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                        fontSize: '14px',
+                        color: '#111827',
+                        backgroundColor: 'white'
+                      }}
+                    >
+                      {categories.map(cat => (
+                        <option key={cat} value={cat}>
+                          {cat === 'all' ? 'All Categories' : cat.replace(/_/g, ' ').toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: '#374151',
+                      marginBottom: '8px'
+                    }}>
+                      Template
+                    </label>
+                    <select
+                      value={selectedTemplate?.id || ''}
+                      onChange={(e) => {
+                        const tpl = templates.find(t => String(t.id) === e.target.value);
+                        if (tpl) selectTemplate(tpl);
+                      }}
+                      disabled={templates.length === 0}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                        fontSize: '14px',
+                        color: '#111827',
+                        backgroundColor: 'white'
+                      }}
+                    >
+                      <option value="" disabled>
+                        {templates.length === 0 ? 'No templates available' : 'Select a template…'}
+                      </option>
+                      {templates.map(tpl => (
+                        <option key={tpl.id} value={tpl.id}>
+                          {tpl.template_category.toUpperCase()} — {tpl.template_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {selectedTemplate ? (
+                    <>
                     <div style={{ marginBottom: '16px' }}>
                       <label style={{
                         display: 'block',
@@ -458,7 +571,7 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
                         color: '#374151',
                         marginBottom: '8px'
                       }}>
-                        Template
+                        Selected
                       </label>
                       <div style={{
                         backgroundColor: 'white',
@@ -523,16 +636,120 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
                         color: '#374151',
                         marginBottom: '8px'
                       }}>
-                        Message Preview
+                        Message Preview {isMessageDirty && <span style={{ fontSize: '11px', color: '#a55e10', marginLeft: '6px' }}>(edited)</span>}
                       </label>
-                      {/* DMSSign renders the resolved template message with
-                          authentic LED-dot lettering on a black panel.
-                          DMS templates use '/' as the line separator. */}
-                      <DMSSign message={previewMessage.split('/').map(l => l.trim()).join('\n')} />
-                      <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
-                        Character limit: {selectedTemplate.char_limit} lines
-                      </p>
+                      {/* Live board — renders whatever's currently in the
+                          textarea so the operator sees their edits land on
+                          the sign in real time. */}
+                      <DMSSign message={editedMessage} />
+                      <textarea
+                        value={editedMessage}
+                        onChange={(e) => {
+                          setEditedMessage(e.target.value.toUpperCase());
+                          setIsMessageDirty(true);
+                        }}
+                        spellCheck={false}
+                        rows={4}
+                        style={{
+                          width: '100%',
+                          marginTop: '8px',
+                          padding: '10px 12px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '6px',
+                          fontFamily: 'JetBrains Mono, ui-monospace, monospace',
+                          fontSize: '13px',
+                          lineHeight: 1.5,
+                          letterSpacing: '0.02em',
+                          resize: 'vertical',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                        <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>
+                          Character limit: {selectedTemplate.char_limit} lines · one line per row
+                        </p>
+                        {isMessageDirty && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsMessageDirty(false);
+                              setEditedMessage(previewMessage.split('/').map(l => l.trim()).join('\n'));
+                            }}
+                            style={{
+                              fontSize: '12px',
+                              color: '#4b5563',
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: 0,
+                              textDecoration: 'underline'
+                            }}
+                          >
+                            Reset to template
+                          </button>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Save-as-new-template — lets the operator persist their
+                        edited version as a draft for later approval/reuse. */}
+                    {isMessageDirty && (
+                      <div style={{
+                        marginBottom: '16px',
+                        padding: '12px',
+                        backgroundColor: '#fff7ed',
+                        border: '1px solid #fed7aa',
+                        borderRadius: '6px'
+                      }}>
+                        <label style={{
+                          display: 'block',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          color: '#9a3412',
+                          marginBottom: '6px'
+                        }}>
+                          Save this version as a new template
+                        </label>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <input
+                            type="text"
+                            value={newTemplateName}
+                            onChange={(e) => setNewTemplateName(e.target.value)}
+                            placeholder="Template name"
+                            style={{
+                              flex: 1,
+                              padding: '8px 10px',
+                              border: '1px solid #fed7aa',
+                              borderRadius: '4px',
+                              fontSize: '13px',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={saveAsNewTemplate}
+                            disabled={savingTemplate || !newTemplateName.trim()}
+                            style={{
+                              padding: '8px 12px',
+                              backgroundColor: '#F08230',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              fontSize: '13px',
+                              fontWeight: '500',
+                              cursor: (savingTemplate || !newTemplateName.trim()) ? 'not-allowed' : 'pointer',
+                              opacity: (savingTemplate || !newTemplateName.trim()) ? 0.5 : 1,
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {savingTemplate ? 'Saving…' : 'Save draft'}
+                          </button>
+                        </div>
+                        <p style={{ fontSize: '11px', color: '#9a3412', margin: '6px 0 0' }}>
+                          New templates are saved as drafts and appear after approval.
+                        </p>
+                      </div>
+                    )}
 
                     <button
                       onClick={activateMessage}
@@ -559,29 +776,26 @@ export default function DMSMessagingPanel({ selectedEvent, onClose }) {
                     <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '12px' }}>
                       This will send the message to the selected DMS devices and notify adjacent states.
                     </p>
-                  </div>
-                ) : (
-                  <div style={{
-                    backgroundColor: '#f9fafb',
-                    borderRadius: '8px',
-                    padding: '48px',
-                    textAlign: 'center',
-                    border: '2px dashed #d1d5db'
-                  }}>
-                    <svg style={{ width: '64px', height: '64px', margin: '0 auto 16px', color: '#9ca3af', display: 'block' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-                    </svg>
-                    <p style={{ color: '#4b5563' }}>
-                      Select a template to preview and activate
-                    </p>
-                  </div>
-                )}
+                    </>
+                  ) : (
+                    <div style={{
+                      borderRadius: '8px',
+                      padding: '32px',
+                      textAlign: 'center',
+                      border: '2px dashed #d1d5db',
+                      backgroundColor: 'white'
+                    }}>
+                      <svg style={{ width: '48px', height: '48px', margin: '0 auto 12px', color: '#9ca3af', display: 'block' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                      </svg>
+                      <p style={{ color: '#4b5563', margin: 0 }}>
+                        Pick a category and template above to see it on the board
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          )}
-
-          {activeTab === 'compose' && (
-            <DMSSignPlayground />
           )}
 
           {activeTab === 'history' && (
