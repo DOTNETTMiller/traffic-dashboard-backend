@@ -1,14 +1,93 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 
+// Inline camera preview. Most state DOT cameras serve either JPEG snapshots or
+// MJPEG streams that render in an <img>; some serve HLS (.m3u8) or auth-walled
+// pages, which a plain <img> can't show. We try the <img> first, refresh it on
+// a timer so JPEG snapshots stay live, and fall back to a "Open stream" link
+// when the load fails (CORS, HLS, 403, mixed-content, etc.).
+function CameraPreview({ streamUrl, label }) {
+  const [failed, setFailed] = useState(false);
+  const [bust, setBust] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (failed) return;
+    // Refresh every 10s — fine for JPEG snapshots, harmless for MJPEG (the
+    // server keeps streaming; we just reconnect once).
+    const id = setInterval(() => setBust(Date.now()), 10000);
+    return () => clearInterval(id);
+  }, [failed]);
+
+  if (failed) {
+    return (
+      <a
+        href={streamUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          display: 'block',
+          width: '100%',
+          padding: '14px 8px',
+          marginTop: '4px',
+          backgroundColor: '#111827',
+          color: '#fbbf24',
+          fontSize: '10px',
+          textAlign: 'center',
+          borderRadius: '4px',
+          textDecoration: 'none',
+          border: '1px dashed #374151'
+        }}
+        title={`Camera at ${label} couldn't embed — open in new tab`}
+      >
+        🔗 Open stream (can't embed inline)
+      </a>
+    );
+  }
+
+  // ?_t cache-busts the snapshot URL so the browser refetches instead of
+  // reusing the cached frame. Some feeds ignore the param, which is fine —
+  // they keep streaming.
+  const sep = streamUrl.includes('?') ? '&' : '?';
+  return (
+    <a
+      href={streamUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{ display: 'block', marginTop: '4px' }}
+      title={`Click to open ${label} full-size`}
+    >
+      <img
+        src={`${streamUrl}${sep}_t=${bust}`}
+        alt={`Live camera at ${label}`}
+        onError={() => setFailed(true)}
+        loading="lazy"
+        style={{
+          width: '100%',
+          aspectRatio: '16 / 9',
+          objectFit: 'cover',
+          backgroundColor: '#111827',
+          borderRadius: '4px',
+          border: '1px solid #1f2937',
+          display: 'block'
+        }}
+      />
+    </a>
+  );
+}
+
 // Component to show nearby ITS equipment for an event with actionable recommendations
 export default function NearbyITSEquipment({ event }) {
   const [equipment, setEquipment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
 
+  // Track which lookup we used so the header can say "along corridor" vs
+  // "within 5 miles" honestly. Defaults to point-radius for events without
+  // a usable geometry.
+  const [mode, setMode] = useState('radius');
+
   useEffect(() => {
-    if (event && event.latitude && event.longitude) {
+    if (event && (event.id || (event.latitude && event.longitude))) {
       fetchNearbyEquipment();
     }
   }, [event]);
@@ -16,17 +95,49 @@ export default function NearbyITSEquipment({ event }) {
   const fetchNearbyEquipment = async () => {
     try {
       setLoading(true);
+      // Prefer the corridor-aware lookup whenever the event has any kind of
+      // geometry — backend will resolve LineStrings from cache via event.id,
+      // or accept a Point shape directly. Falls back to the flat radius
+      // endpoint when neither is available.
+      const hasGeometry = event.geometry && (event.geometry.coordinates || event.geometry.encodedPolyline || event.geometry.encodedPolylines);
+      if (event.id || hasGeometry) {
+        try {
+          const body = {
+            event_id: event.id,
+            radius: 2,
+            stateKey: event.stateKey || event.state,
+            corridor: event.corridor
+          };
+          // Only send explicit geometry when it's already plain coords —
+          // backend can decode the cached version when given event_id.
+          if (event.geometry?.coordinates) body.geometry = event.geometry;
+          else if (!event.id && event.latitude && event.longitude) {
+            body.geometry = { type: 'Point', coordinates: [event.longitude, event.latitude] };
+          }
+          const response = await api.post('/api/its-equipment/along-corridor', body);
+          if (response.data.success) {
+            setEquipment(response.data);
+            setMode('corridor');
+            return;
+          }
+        } catch (corridorErr) {
+          // Fall through to the radius endpoint — the corridor endpoint may
+          // not be deployed on older backends, and we'd rather show something.
+          console.warn('corridor lookup unavailable, falling back to radius:', corridorErr?.message);
+        }
+      }
+
       const response = await api.get('/api/its-equipment/nearby', {
         params: {
           latitude: event.latitude,
           longitude: event.longitude,
-          radius: 5, // 5 mile radius
+          radius: 5,
           stateKey: event.stateKey || event.state
         }
       });
-
       if (response.data.success) {
         setEquipment(response.data);
+        setMode('radius');
       }
     } catch (error) {
       console.error('Error fetching nearby ITS equipment:', error);
@@ -82,7 +193,9 @@ export default function NearbyITSEquipment({ event }) {
               {total} ITS Asset{total !== 1 ? 's' : ''} Nearby
             </div>
             <div style={{ fontSize: '10px', color: '#16a34a' }}>
-              Within 5 miles • Click for recommendations
+              {mode === 'corridor'
+                ? `Along corridor • within ${equipment.radius || 2} mi`
+                : `Within ${equipment.radius || 5} miles`} • Click for recommendations
             </div>
           </div>
         </div>
@@ -170,44 +283,49 @@ export default function NearbyITSEquipment({ event }) {
                 <div style={{ fontSize: '10px', fontWeight: '600', color: '#FF8F35', marginBottom: '4px' }}>
                   📹 View Cameras ({grouped.cameras.length})
                 </div>
-                {grouped.cameras.slice(0, 3).map((cam, idx) => (
-                  <div key={cam.id} style={{
-                    fontSize: '10px',
-                    padding: '4px 6px',
-                    backgroundColor: '#eff6ff',
-                    borderRadius: '3px',
-                    marginBottom: '3px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    color: '#C66A1F'
-                  }}>
-                    <div>
-                      <span style={{ fontWeight: '600' }}>{cam.route || 'Camera'}</span>
-                      {cam.milepost && <span style={{ color: '#FF8F35' }}> MP {cam.milepost}</span>}
-                      <span style={{ color: '#6b7280', marginLeft: '4px' }}>
-                        ({cam.distance_miles?.toFixed(1)} mi)
-                      </span>
+                {grouped.cameras.slice(0, 3).map((cam, idx) => {
+                  const label = `${cam.route || 'Camera'}${cam.milepost ? ` MP ${cam.milepost}` : ''}`;
+                  return (
+                    <div key={cam.id} style={{
+                      fontSize: '10px',
+                      padding: '6px',
+                      backgroundColor: '#eff6ff',
+                      borderRadius: '4px',
+                      marginBottom: '6px',
+                      color: '#C66A1F'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <span style={{ fontWeight: '600' }}>{cam.route || 'Camera'}</span>
+                          {cam.milepost && <span style={{ color: '#FF8F35' }}> MP {cam.milepost}</span>}
+                          <span style={{ color: '#6b7280', marginLeft: '4px' }}>
+                            ({cam.distance_miles?.toFixed(1)} mi)
+                          </span>
+                        </div>
+                        {cam.stream_url && (
+                          <a
+                            href={cam.stream_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              fontSize: '9px',
+                              padding: '2px 6px',
+                              backgroundColor: '#FF8F35',
+                              color: 'white',
+                              borderRadius: '3px',
+                              textDecoration: 'none'
+                            }}
+                          >
+                            Open
+                          </a>
+                        )}
+                      </div>
+                      {cam.stream_url && (
+                        <CameraPreview streamUrl={cam.stream_url} label={label} />
+                      )}
                     </div>
-                    {cam.stream_url && (
-                      <a
-                        href={cam.stream_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          fontSize: '9px',
-                          padding: '2px 6px',
-                          backgroundColor: '#FF8F35',
-                          color: 'white',
-                          borderRadius: '3px',
-                          textDecoration: 'none'
-                        }}
-                      >
-                        View
-                      </a>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
                 {grouped.cameras.length > 3 && (
                   <div style={{ fontSize: '9px', color: '#6b7280', marginTop: '2px' }}>
                     +{grouped.cameras.length - 3} more cameras nearby

@@ -24407,6 +24407,184 @@ app.get('/api/its-equipment/nearby', async (req, res) => {
   }
 });
 
+// Corridor-aware variant of /nearby — instead of a flat radius around a single
+// point, finds equipment within `radius` miles of any point along an event's
+// LineString geometry. For point events the result is identical to /nearby.
+//
+// Body shape: { event_id?, geometry?, radius?, stateKey?, corridor? }
+//   event_id  — preferred; backend looks up the un-slimmed geometry from cache
+//   geometry  — GeoJSON LineString or Point; lets callers pass explicit shape
+//   radius    — miles of perpendicular distance from the corridor (default 2)
+//   corridor  — optional route filter ("I-80") — keeps cameras on the same
+//               highway and drops cross-street equipment that happens to be
+//               within radius
+app.post('/api/its-equipment/along-corridor', async (req, res) => {
+  try {
+    const { event_id, geometry: geometryArg, radius = 2, stateKey, corridor } = req.body || {};
+    const radiusMiles = parseFloat(radius);
+    if (!Number.isFinite(radiusMiles) || radiusMiles <= 0) {
+      return res.status(400).json({ success: false, error: 'Invalid radius' });
+    }
+
+    // Resolve geometry: explicit body wins; otherwise look up the event in cache.
+    let geometry = geometryArg;
+    if (!geometry && event_id && eventsCache.data?.events) {
+      const found = eventsCache.data.events.find(e => e.id === event_id);
+      if (found?.geometry?.coordinates) geometry = found.geometry;
+    }
+    if (!geometry || !geometry.coordinates) {
+      return res.status(400).json({
+        success: false,
+        error: 'event_id (with cached geometry) or explicit geometry is required'
+      });
+    }
+
+    // Normalize coordinates to [[lng, lat], ...]. Point becomes a 1-vertex
+    // line so the distance code has a single uniform path.
+    let path;
+    if (geometry.type === 'Point') {
+      path = [geometry.coordinates];
+    } else if (geometry.type === 'LineString') {
+      path = geometry.coordinates;
+    } else if (geometry.type === 'MultiLineString') {
+      path = geometry.coordinates.flat();
+    } else {
+      return res.status(400).json({ success: false, error: `Unsupported geometry.type: ${geometry.type}` });
+    }
+    if (!path.length) {
+      return res.status(400).json({ success: false, error: 'Empty geometry' });
+    }
+
+    // Bounding box around the whole path, padded by radius. Uses the same
+    // 1° ≈ 69 mi shortcut as the point endpoint — close enough for filtering.
+    let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+    for (const [lon, lat] of path) {
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lon < minLon) minLon = lon;
+      if (lon > maxLon) maxLon = lon;
+    }
+    const midLat = (minLat + maxLat) / 2;
+    const latPad = radiusMiles / 69;
+    const lonPad = radiusMiles / (69 * Math.cos(midLat * Math.PI / 180));
+
+    let query = `
+      SELECT *
+      FROM its_equipment
+      WHERE latitude BETWEEN ? AND ?
+        AND longitude BETWEEN ? AND ?
+        AND (status = 'active' OR status = 'OK')
+    `;
+    const params = [minLat - latPad, maxLat + latPad, minLon - lonPad, maxLon + lonPad];
+    if (stateKey) {
+      query += ' AND LOWER(state_key) = LOWER(?)';
+      params.push(stateKey);
+    }
+    query += ' LIMIT 500';
+
+    let candidates;
+    if (db.isPostgres) {
+      let pgQuery = query;
+      let i = 1;
+      pgQuery = pgQuery.replace(/\?/g, () => `$${i++}`);
+      const result = await db.db.query(pgQuery, params);
+      candidates = result.rows || [];
+    } else {
+      candidates = db.db.prepare(query).all(...params);
+    }
+
+    // Min distance from each candidate to any segment of the corridor path.
+    // Approximation: project to a local equirectangular plane (1° lat = 69 mi,
+    // 1° lon = cos(lat) * 69 mi at midLat). Good to ~0.1% over 50 mi spans —
+    // plenty for "is this camera within 2 miles of the work zone."
+    const milesPerLat = 69;
+    const milesPerLon = 69 * Math.cos(midLat * Math.PI / 180);
+    const projected = path.map(([lon, lat]) => [(lon - minLon) * milesPerLon, (lat - minLat) * milesPerLat]);
+    const segDist = (px, py, ax, ay, bx, by) => {
+      const dx = bx - ax, dy = by - ay;
+      const len2 = dx * dx + dy * dy;
+      if (len2 === 0) {
+        const ex = px - ax, ey = py - ay;
+        return Math.sqrt(ex * ex + ey * ey);
+      }
+      let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+      t = Math.max(0, Math.min(1, t));
+      const cx = ax + t * dx, cy = ay + t * dy;
+      const ex = px - cx, ey = py - cy;
+      return Math.sqrt(ex * ex + ey * ey);
+    };
+
+    const corridorTag = corridor ? String(corridor).toLowerCase().replace(/\s+/g, '') : null;
+    const equipment = candidates
+      .map(e => {
+        const px = (e.longitude - minLon) * milesPerLon;
+        const py = (e.latitude - minLat) * milesPerLat;
+        let min = Infinity;
+        if (projected.length === 1) {
+          const ex = px - projected[0][0], ey = py - projected[0][1];
+          min = Math.sqrt(ex * ex + ey * ey);
+        } else {
+          for (let i = 0; i < projected.length - 1; i++) {
+            const [ax, ay] = projected[i], [bx, by] = projected[i + 1];
+            const d = segDist(px, py, ax, ay, bx, by);
+            if (d < min) min = d;
+          }
+        }
+        return { ...e, distance_miles: min };
+      })
+      .filter(e => e.distance_miles <= radiusMiles)
+      .filter(e => {
+        // Optional corridor tag filter — keep equipment whose route field
+        // matches the corridor (e.g., "I-80" / "i80"). Skip the check when
+        // the inventory record has no route metadata, otherwise a misconfigured
+        // state would silently drop everything.
+        if (!corridorTag) return true;
+        if (!e.route) return true;
+        return String(e.route).toLowerCase().replace(/\s+/g, '').includes(corridorTag);
+      })
+      .sort((a, b) => a.distance_miles - b.distance_miles)
+      .slice(0, 50);
+
+    const grouped = {
+      cameras: equipment.filter(e => e.equipment_type === 'camera'),
+      dms: equipment.filter(e => e.equipment_type === 'dms'),
+      sensors: equipment.filter(e => e.equipment_type === 'sensor'),
+      rsu: equipment.filter(e => e.equipment_type === 'rsu')
+    };
+
+    res.json({
+      success: true,
+      mode: 'corridor',
+      geometryType: geometry.type,
+      pathPoints: path.length,
+      radius: radiusMiles,
+      equipment,
+      total: equipment.length,
+      byType: {
+        cameras: grouped.cameras.length,
+        dms: grouped.dms.length,
+        sensors: grouped.sensors.length,
+        rsu: grouped.rsu.length
+      },
+      grouped
+    });
+  } catch (error) {
+    console.error('❌ Error fetching corridor equipment:', error);
+    if (error.message && error.message.includes('does not exist')) {
+      return res.json({
+        success: true,
+        mode: 'corridor',
+        equipment: [],
+        total: 0,
+        byType: { cameras: 0, dms: 0, sensors: 0, rsu: 0 },
+        grouped: { cameras: [], dms: [], sensors: [], rsu: [] },
+        note: 'ITS equipment inventory table not yet initialized'
+      });
+    }
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Export ARC-ITS compliant inventory
 app.get('/api/its-equipment/export', async (req, res) => {
   try {
