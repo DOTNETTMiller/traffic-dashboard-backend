@@ -13531,11 +13531,13 @@ app.get('/api/ipaws/alerts', async (req, res) => {
 // GET /api/ipaws/alerts/active - Get currently active alerts (using lightweight logger)
 app.get('/api/ipaws/alerts/active', async (req, res) => {
   try {
-    const alerts = IPAWSAuditLogger.getActiveAlerts();
+    // getActiveAlerts is async — without await, `alerts` is the Promise itself,
+    // which serializes to `{}` and crashes any frontend that calls .map on it.
+    const alerts = await IPAWSAuditLogger.getActiveAlerts();
 
     res.json({
       success: true,
-      alerts: alerts || []
+      alerts: Array.isArray(alerts) ? alerts : []
     });
   } catch (error) {
     console.error('Error fetching active IPAWS alerts:', error);

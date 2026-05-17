@@ -38,7 +38,10 @@ export default function IPAWSActiveAlertsManager({ onClose, compact = false }) {
       const data = await response.json();
 
       if (data.success) {
-        setAlerts(data.alerts || []);
+        // Guard against a backend that returns a non-array (e.g., a Promise
+        // serialized as {}, an object, null). The .map() call further down
+        // would crash the whole screen otherwise.
+        setAlerts(Array.isArray(data.alerts) ? data.alerts : []);
       } else {
         setError(data.error || 'Failed to fetch active alerts');
       }
