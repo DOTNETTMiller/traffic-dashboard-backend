@@ -79,14 +79,14 @@ const CorridorDelayDashboard = () => {
     }
   }, [selectedCorridor]);
 
-  // Initial fetch and auto-refresh every 60 seconds
+  // Initial fetch and auto-refresh every 3 minutes
   useEffect(() => {
     setLoading(true);
     setExpandedSegment(null);
     setTravelResult(null);
     fetchDelayData();
 
-    intervalRef.current = setInterval(fetchDelayData, 60000);
+    intervalRef.current = setInterval(fetchDelayData, 180000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };

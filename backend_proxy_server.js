@@ -5028,6 +5028,18 @@ app.get('/api/events', async (req, res) => {
     await startupCachePromise;
   }
 
+  // ETag short-circuit: when the server-side cache hasn't refreshed and the
+  // client already has that version, return 304 with no body. Skips the
+  // filtering + slimEvent + JSON serialization for repeat polls and cuts the
+  // outbound payload to ~0. Key includes query params that change the shape.
+  if (eventsCache.timestamp) {
+    const etag = `W/"events-${eventsCache.timestamp}-${req.query.state || 'all'}-${req.query.limit || 0}-${req.query.offset || 0}-${req.query.slim !== 'false' ? 's' : 'f'}"`;
+    res.set('ETag', etag);
+    if (req.headers['if-none-match'] === etag) {
+      return res.status(304).end();
+    }
+  }
+
   const now = Date.now();
   const cacheAge = eventsCache.timestamp ? now - eventsCache.timestamp : Infinity;
 
