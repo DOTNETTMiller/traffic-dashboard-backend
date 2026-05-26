@@ -69,12 +69,6 @@ export default function StateMessaging({ user, authToken }) {
 
     loadInbox();
     loadSent();
-
-    const interval = setInterval(() => {
-      loadInbox();
-    }, 30000);
-
-    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, authToken, userStateKey]);
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 
-export function useTrafficData(refreshInterval = 300000) { // Changed from 60s to 5min (300s) to reduce API calls
+export function useTrafficData() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -22,21 +22,10 @@ export function useTrafficData(refreshInterval = 300000) { // Changed from 60s t
     }
   }, []);
 
-  // Initial fetch
+  // Single load on mount — no background polling. Callers trigger refresh via refetch().
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
-
-  // Auto-refresh
-  useEffect(() => {
-    if (!refreshInterval) return;
-
-    const interval = setInterval(() => {
-      fetchEvents();
-    }, refreshInterval);
-
-    return () => clearInterval(interval);
-  }, [refreshInterval, fetchEvents]);
 
   return {
     events,

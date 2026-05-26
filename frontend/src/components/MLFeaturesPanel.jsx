@@ -25,9 +25,6 @@ function MLFeaturesPanel({ events, authToken, onClose }) {
 
   useEffect(() => {
     checkMLHealth();
-    // OPTIMIZED: Reduced polling from 60s to 5 minutes to reduce load
-    const interval = setInterval(checkMLHealth, 300000); // Check every 5 minutes
-    return () => clearInterval(interval);
   }, []);
 
   // OPTIMIZED: Removed auto-show tutorial to improve initial render performance

@@ -88,9 +88,7 @@ export default function BorderWaitTimesLayer({ visible = false }) {
       }
     };
     load();
-    // 5-min refresh — matches server-side cache TTL.
-    const id = setInterval(load, 5 * 60 * 1000);
-    return () => { cancelled = true; clearInterval(id); };
+    return () => { cancelled = true; };
   }, [visible]);
 
   if (!visible) return null;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { config } from '../config';
 
@@ -59,7 +59,6 @@ const CorridorDelayDashboard = () => {
   const [travelResult, setTravelResult] = useState(null);
   const [travelLoading, setTravelLoading] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(null);
-  const intervalRef = useRef(null);
 
   const fetchDelayData = useCallback(async () => {
     try {
@@ -79,17 +78,12 @@ const CorridorDelayDashboard = () => {
     }
   }, [selectedCorridor]);
 
-  // Initial fetch and auto-refresh every 3 minutes
+  // Initial fetch on mount / corridor change
   useEffect(() => {
     setLoading(true);
     setExpandedSegment(null);
     setTravelResult(null);
     fetchDelayData();
-
-    intervalRef.current = setInterval(fetchDelayData, 180000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
   }, [fetchDelayData]);
 
   const fetchTravelTime = useCallback(async () => {

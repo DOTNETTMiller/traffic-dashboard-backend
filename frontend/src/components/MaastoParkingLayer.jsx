@@ -83,8 +83,7 @@ export default function MaastoParkingLayer({ visible = false }) {
       }
     };
     load();
-    const id = setInterval(load, 90 * 1000);
-    return () => { cancelled = true; clearInterval(id); };
+    return () => { cancelled = true; };
   }, [visible]);
 
   if (!visible) return null;

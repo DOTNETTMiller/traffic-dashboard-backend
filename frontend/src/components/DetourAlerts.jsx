@@ -11,9 +11,6 @@ export default function DetourAlerts({ authToken, onViewOnMap, isDarkMode }) {
   useEffect(() => {
     if (authToken) {
       fetchAlerts();
-      // Refresh alerts every 2 minutes (changed from 30s to reduce API calls)
-      const interval = setInterval(fetchAlerts, 120000);
-      return () => clearInterval(interval);
     } else {
       setAlerts([]);
     }

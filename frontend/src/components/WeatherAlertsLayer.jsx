@@ -103,10 +103,7 @@ export default function WeatherAlertsLayer({ visible = false }) {
       }
     };
     load();
-    // 2-minute refresh — just below the server's 90s cache TTL so we always
-    // hit the cached response and don't pile rate pressure on api.weather.gov.
-    const id = setInterval(load, 2 * 60 * 1000);
-    return () => { cancelled = true; clearInterval(id); };
+    return () => { cancelled = true; };
   }, [visible]);
 
   if (!visible) return null;

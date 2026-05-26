@@ -25,11 +25,8 @@ export default function IPAWSActiveAlertsManager({ onClose, compact = false }) {
   const [cancelReason, setCancelReason] = useState('');
   const [showCancelModal, setShowCancelModal] = useState(false);
 
-  // Auto-refresh alerts every 30 seconds
   useEffect(() => {
     fetchActiveAlerts();
-    const interval = setInterval(fetchActiveAlerts, 120000); // 2 minutes
-    return () => clearInterval(interval);
   }, []);
 
   const fetchActiveAlerts = async () => {

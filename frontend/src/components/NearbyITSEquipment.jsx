@@ -10,13 +10,7 @@ function CameraPreview({ streamUrl, label }) {
   const [failed, setFailed] = useState(false);
   const [bust, setBust] = useState(() => Date.now());
 
-  useEffect(() => {
-    if (failed) return;
-    // Refresh every 10s — fine for JPEG snapshots, harmless for MJPEG (the
-    // server keeps streaming; we just reconnect once).
-    const id = setInterval(() => setBust(Date.now()), 10000);
-    return () => clearInterval(id);
-  }, [failed]);
+  // No periodic refresh — single load on mount. User can reload page for fresh frames.
 
   if (failed) {
     return (

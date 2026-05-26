@@ -36,11 +36,6 @@ export default function ClosureApprovalDashboard({ userState, onClose }) {
   useEffect(() => {
     fetchClosures();
     fetchPendingApprovals();
-    const interval = setInterval(() => {
-      fetchClosures();
-      fetchPendingApprovals();
-    }, 60000); // Refresh every minute
-    return () => clearInterval(interval);
   }, []);
 
   const showNotification = (message, type = 'success') => {

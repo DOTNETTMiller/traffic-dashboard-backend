@@ -367,12 +367,6 @@ export default function GroundTruthDashboard({ authToken, currentUser }) {
 
   useEffect(() => {
     fetchGroundTruthData();
-
-    // Auto-refresh every 5 minutes if enabled
-    if (autoRefresh) {
-      const interval = setInterval(fetchGroundTruthData, 5 * 60 * 1000);
-      return () => clearInterval(interval);
-    }
   }, [autoRefresh]);
 
   const getOccupancyColor = (rate) => {

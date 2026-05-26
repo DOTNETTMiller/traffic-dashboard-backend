@@ -15,9 +15,6 @@ export default function ParkingAccuracyMetrics({ authToken, currentUser }) {
 
   useEffect(() => {
     loadAccuracyMetrics();
-    // Refresh every 30 seconds
-    const interval = setInterval(loadAccuracyMetrics, 300000);
-    return () => clearInterval(interval);
   }, []);
 
   const loadAccuracyMetrics = async () => {

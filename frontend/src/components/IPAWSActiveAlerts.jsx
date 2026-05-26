@@ -21,9 +21,6 @@ export default function IPAWSActiveAlerts() {
 
   useEffect(() => {
     loadActiveAlerts();
-    // Refresh every 30 seconds
-    const interval = setInterval(loadActiveAlerts, 120000);
-    return () => clearInterval(interval);
   }, []);
 
   const loadActiveAlerts = async () => {

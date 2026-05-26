@@ -291,18 +291,11 @@ function App() {
   }, [authToken]);
 
   useEffect(() => {
-    let intervalId;
-
     if (authToken) {
       loadDetourAlerts();
-      intervalId = setInterval(loadDetourAlerts, 120000); // Changed from 60s to 2min to reduce API calls
     } else {
       setDetourAlerts([]);
     }
-
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
   }, [authToken, loadDetourAlerts]);
 
   // Fetch available routes for ITS equipment filtering

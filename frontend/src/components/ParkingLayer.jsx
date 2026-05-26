@@ -194,11 +194,6 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
     };
 
     fetchParkingData();
-
-    // Refresh parking data every 5 minutes
-    const interval = setInterval(fetchParkingData, 5 * 60 * 1000);
-
-    return () => clearInterval(interval);
   }, [showParking, predictionHoursAhead]);
 
   // Fetch closure→parking surge data alongside the parking layer.
@@ -223,8 +218,7 @@ export default function ParkingLayer({ showParking = false, predictionHoursAhead
       }
     };
     load();
-    const id = setInterval(load, 90 * 1000);  // refresh every 90s
-    return () => { cancelled = true; clearInterval(id); };
+    return () => { cancelled = true; };
   }, [showParking]);
 
   // Fetch 24-hour predictions for a facility when popup is opened
