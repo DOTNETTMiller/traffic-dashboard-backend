@@ -1,14 +1,8 @@
 # Railway ignore file - exclude large/unnecessary files from deployment
 
-# Frontend source files (exclude source, keep dist for serving)
+# Frontend build artifacts and deps — Railway rebuilds frontend/dist during deploy
 frontend/node_modules/
-frontend/src/
-frontend/public/
-frontend/index.html
-frontend/vite.config.js
-frontend/package.json
-frontend/package-lock.json
-frontend/.gitignore
+frontend/dist/
 
 # Database files (use PostgreSQL in production, 24MB)
 states.db
@@ -53,8 +47,8 @@ docs/
 node_modules/
 **/node_modules/
 
-# Large data files (3MB)
-data/
+# data/ is needed at runtime (truck parking predictions, state interstate map, etc.)
+# Local SQLite files inside it are already excluded by *.db above
 
 # Test/debug scripts (not needed in production)
 scripts/test_*.js
