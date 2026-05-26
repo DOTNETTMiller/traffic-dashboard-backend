@@ -387,42 +387,54 @@ class EventLifecycleManager extends EventEmitter {
         return;
       }
 
-      // Use batch upsert for performance
-      const values = [];
-      const params = [];
-      let paramIndex = 1;
+      // Normalize each entry to JSON-safe shape (timestamps as ISO strings,
+      // booleans/ints as-is, nulls preserved). Skips entries missing an id.
+      const toIso = (v) => {
+        if (v == null) return null;
+        if (v instanceof Date) return v.toISOString();
+        const d = new Date(v);
+        return Number.isNaN(d.getTime()) ? null : d.toISOString();
+      };
 
-      for (const tracking of entries) {
-        values.push(`(
-          $${paramIndex++},
-          $${paramIndex++},
-          $${paramIndex++},
-          $${paramIndex++},
-          $${paramIndex++},
-          $${paramIndex++},
-          $${paramIndex++},
-          $${paramIndex++},
-          $${paramIndex++}
-        )`);
-
-        params.push(
-          tracking.id,
-          tracking.source,
-          tracking.firstSeen,
-          tracking.lastSeen,
-          tracking.seenCount,
-          tracking.originalEndTime,
-          tracking.currentEndTime,
-          tracking.extensionCount,
-          tracking.hasNativeEndTime
-        );
+      const payload = [];
+      for (const t of entries) {
+        if (!t.id) continue;
+        payload.push({
+          event_id: String(t.id),
+          source: t.source ?? null,
+          first_seen: toIso(t.firstSeen),
+          last_seen: toIso(t.lastSeen),
+          seen_count: Number.isFinite(t.seenCount) ? t.seenCount : 1,
+          original_end_time: toIso(t.originalEndTime),
+          current_end_time: toIso(t.currentEndTime),
+          extension_count: Number.isFinite(t.extensionCount) ? t.extensionCount : 0,
+          has_native_end_time: !!t.hasNativeEndTime
+        });
       }
 
+      if (payload.length === 0) {
+        this.savePending = false;
+        return;
+      }
+
+      // Single-param upsert using jsonb_to_recordset — server unpacks the
+      // array. Replaces the previous 9-placeholder-per-row bulk insert that
+      // produced ~14k placeholders on big batches and tripped the bind
+      // protocol with mismatched format/value counts.
       const query = `
         INSERT INTO event_lifecycle (
           event_id, source, first_seen, last_seen, seen_count,
           original_end_time, current_end_time, extension_count, has_native_end_time
-        ) VALUES ${values.join(', ')}
+        )
+        SELECT
+          event_id, source, first_seen, last_seen, seen_count,
+          original_end_time, current_end_time, extension_count, has_native_end_time
+        FROM jsonb_to_recordset($1::jsonb) AS x(
+          event_id text, source text,
+          first_seen timestamptz, last_seen timestamptz, seen_count int,
+          original_end_time timestamptz, current_end_time timestamptz,
+          extension_count int, has_native_end_time boolean
+        )
         ON CONFLICT (event_id) DO UPDATE SET
           last_seen = EXCLUDED.last_seen,
           seen_count = EXCLUDED.seen_count,
@@ -430,8 +442,8 @@ class EventLifecycleManager extends EventEmitter {
           extension_count = EXCLUDED.extension_count
       `;
 
-      await this.pgPool.query(query, params);
-      console.log(`💾 Saved ${entries.length} event lifecycle records to database`);
+      await this.pgPool.query(query, [JSON.stringify(payload)]);
+      console.log(`💾 Saved ${payload.length} event lifecycle records to database`);
     } catch (error) {
       console.error('❌ Error saving lifecycle data to database:', error.message);
     } finally {
