@@ -23803,6 +23803,53 @@ const ARCITSConverter = require('./utils/arc-its-converter');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
+// Soft quota for the uploads volume. Per-file caps already exist via multer
+// (50 MB GIS, 100 MB IFC); this prevents the volume from filling up over time
+// across many uploads. Cached so we don't traverse the tree on every request.
+const UPLOAD_QUOTA_BYTES = parseInt(process.env.UPLOAD_QUOTA_BYTES, 10) || 5 * 1024 * 1024 * 1024;
+const UPLOADS_ROOT = path.join(__dirname, 'uploads');
+let _uploadQuotaCache = { bytes: 0, ts: 0 };
+
+async function measureUploadsDir() {
+  let total = 0;
+  async function walk(dir) {
+    let entries;
+    try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); }
+    catch { return; }
+    for (const e of entries) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) await walk(p);
+      else if (e.isFile()) {
+        try { total += (await fs.promises.stat(p)).size; } catch {}
+      }
+    }
+  }
+  await walk(UPLOADS_ROOT);
+  return total;
+}
+
+async function uploadQuotaGuard(req, res, next) {
+  try {
+    const now = Date.now();
+    if (now - _uploadQuotaCache.ts > 60_000) {
+      _uploadQuotaCache = { bytes: await measureUploadsDir(), ts: now };
+    }
+    if (_uploadQuotaCache.bytes >= UPLOAD_QUOTA_BYTES) {
+      return res.status(507).json({
+        error: 'Insufficient storage',
+        message: `Uploads at ${(_uploadQuotaCache.bytes / 1e9).toFixed(2)} GB of ${(UPLOAD_QUOTA_BYTES / 1e9).toFixed(0)} GB cap.`,
+        used_bytes: _uploadQuotaCache.bytes,
+        cap_bytes: UPLOAD_QUOTA_BYTES
+      });
+    }
+    next();
+  } catch (err) {
+    // Fail open — don't reject legitimate uploads if measurement fails
+    console.warn('Upload quota guard error (failing open):', err.message);
+    next();
+  }
+}
+
 // Configure multer for GIS file uploads (multer required at top of file)
 const upload = multer({
   dest: path.join(__dirname, 'uploads/gis'),
@@ -23834,7 +23881,7 @@ const uploadIFC = multer({
 });
 
 // Upload GIS file with ITS equipment inventory
-app.post('/api/its-equipment/upload', upload.single('gisFile'), async (req, res) => {
+app.post('/api/its-equipment/upload', uploadQuotaGuard, upload.single('gisFile'), async (req, res) => {
   try {
     console.log('📤 ITS Equipment upload request received');
     console.log('   File:', req.file ? `${req.file.originalname} (${req.file.size} bytes)` : 'NO FILE');
@@ -29286,7 +29333,7 @@ app.get('/api/cadd/map-elements', async (req, res) => {
 });
 
 // Upload and process CADD/DXF file
-app.post('/api/cadd/upload', uploadIFC.single('file'), async (req, res) => {
+app.post('/api/cadd/upload', uploadQuotaGuard, uploadIFC.single('file'), async (req, res) => {
   try {
     const file = req.file;
     const { corridor, state, county, coordinateSystem } = req.body;
@@ -31352,7 +31399,7 @@ app.delete('/api/grants/applications/:id', async (req, res) => {
 /**
  * Upload proposal document for grant application
  */
-app.post('/api/grants/applications/:id/proposal', upload.single('proposal'), async (req, res) => {
+app.post('/api/grants/applications/:id/proposal', uploadQuotaGuard, upload.single('proposal'), async (req, res) => {
   try {
     const { id } = req.params;
 
