@@ -5031,7 +5031,42 @@ let startupCachePromise = fetchAndCacheEvents().then(() => {
 // which also drove a flood of OSRM cache writes per refresh.
 
 // Main endpoint to fetch all events
+// In-memory /api/events traffic counter, bucketed by UTC date. Lets us see
+// real request volume and the 304-hit ratio so we can predict egress instead
+// of guessing. Resets on dyno restart; last 30 days retained.
+const eventsStats = {};
+function recordEventStat(kind, bytesOut = 0) {
+  const day = new Date().toISOString().slice(0, 10);
+  let bucket = eventsStats[day];
+  if (!bucket) {
+    bucket = eventsStats[day] = { total: 0, hit304: 0, full: 0, bytesOut: 0 };
+    const days = Object.keys(eventsStats).sort();
+    while (days.length > 30) delete eventsStats[days.shift()];
+  }
+  bucket.total++;
+  if (kind === '304') bucket.hit304++;
+  else { bucket.full++; bucket.bytesOut += bytesOut; }
+}
+
 app.get('/api/events', async (req, res) => {
+  // Track this request's actual bytes-on-the-wire (post-compression) by
+  // wrapping res.write / res.end. Negligible overhead per call.
+  let bytesOut = 0;
+  const origWrite = res.write.bind(res);
+  const origEnd = res.end.bind(res);
+  res.write = (chunk, ...args) => {
+    if (chunk) bytesOut += Buffer.byteLength(chunk);
+    return origWrite(chunk, ...args);
+  };
+  res.end = (chunk, ...args) => {
+    if (chunk) bytesOut += Buffer.byteLength(chunk);
+    return origEnd(chunk, ...args);
+  };
+  res.on('finish', () => {
+    if (res.statusCode === 304) recordEventStat('304');
+    else if (res.statusCode === 200) recordEventStat('full', bytesOut);
+  });
+
   // Browser/CDN cache for 4 minutes, matching the server-side refreshAfter
   // window — reloads within that window skip the network entirely, no egress.
   // stale-while-revalidate=300 keeps UX instant up to 9 min while revalidating.
@@ -5168,6 +5203,28 @@ app.get('/api/events', async (req, res) => {
     ...data,
     events: validatedEvents,
     totalEvents: validatedEvents.length
+  });
+});
+
+// Lightweight traffic/egress counter for /api/events. Read-only, no auth —
+// returns total requests, ETag-hit (304) ratio, and bytes-out per day, plus
+// today's totals. Multiplied by 30 to project a monthly egress estimate.
+app.get('/api/events/stats', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const today = new Date().toISOString().slice(0, 10);
+  const days = Object.keys(eventsStats).sort();
+  const summarize = (b) => ({
+    ...b,
+    bytesOutMB: +(b.bytesOut / (1024 * 1024)).toFixed(2),
+    hit304Ratio: b.total ? +(b.hit304 / b.total).toFixed(3) : 0,
+    avgFullBodyKB: b.full ? +((b.bytesOut / b.full) / 1024).toFixed(1) : 0,
+  });
+  const byDay = {};
+  for (const d of days) byDay[d] = summarize(eventsStats[d]);
+  res.json({
+    today: byDay[today] || null,
+    byDay,
+    note: 'In-memory; resets on dyno restart. bytesOut = post-compression.',
   });
 });
 
