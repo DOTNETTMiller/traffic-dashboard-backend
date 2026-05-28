@@ -5032,9 +5032,10 @@ let startupCachePromise = fetchAndCacheEvents().then(() => {
 
 // Main endpoint to fetch all events
 app.get('/api/events', async (req, res) => {
-  // Allow clients/CDN to cache for 60 seconds to reduce egress
-  // Stale-while-revalidate lets browsers serve stale data while fetching fresh
-  res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+  // Browser/CDN cache for 4 minutes, matching the server-side refreshAfter
+  // window — reloads within that window skip the network entirely, no egress.
+  // stale-while-revalidate=300 keeps UX instant up to 9 min while revalidating.
+  res.set('Cache-Control', 'public, max-age=240, stale-while-revalidate=300');
 
   // If startup cache is still warming, wait for it instead of returning empty
   if (!eventsCache.data && startupCachePromise) {
