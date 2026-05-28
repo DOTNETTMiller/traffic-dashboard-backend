@@ -77,6 +77,25 @@ function validateAndFixGeometry(event) {
       };
     }
 
+    // Drop long, essentially-straight LineStrings — these are not real road
+    // geometries (e.g. a weather polygon collapsed into a chord, or fallback
+    // interpolation that wasn't tagged with geometrySource: 'straight_line').
+    // Threshold: start-to-end > 50 mi AND path length within 5% of the chord
+    // (i.e. <5% curvature) → drop. Real road closures of that length follow
+    // road bends and easily exceed the 5% curvature ratio.
+    const start = geom.coordinates[0];
+    const end = geom.coordinates[geom.coordinates.length - 1];
+    const chordMiles = calculateDistance(start, end);
+    if (chordMiles > 50) {
+      let pathMiles = 0;
+      for (let i = 1; i < geom.coordinates.length; i++) {
+        pathMiles += calculateDistance(geom.coordinates[i - 1], geom.coordinates[i]);
+      }
+      if (pathMiles / chordMiles < 1.05) {
+        return null;
+      }
+    }
+
     // Valid LineString with 3+ points
     return event;
   }

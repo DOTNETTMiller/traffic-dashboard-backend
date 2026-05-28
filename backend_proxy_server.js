@@ -1154,13 +1154,13 @@ function offsetCoordinates(coordinates, direction, corridor = '') {
 }
 
 // Initialize OSRM geometry cache table
-function initOSRMCache() {
+async function initOSRMCache() {
   try {
     const timestampDefault = process.env.DATABASE_URL
       ? 'EXTRACT(EPOCH FROM NOW())::INTEGER'  // PostgreSQL
       : "(strftime('%s', 'now'))";             // SQLite
 
-    db.db.prepare(`
+    await db.db.prepare(`
       CREATE TABLE IF NOT EXISTS osrm_geometry_cache (
         cache_key TEXT PRIMARY KEY,
         geometry TEXT NOT NULL,
@@ -1168,6 +1168,31 @@ function initOSRMCache() {
       )
     `).run();
     console.log('✅ OSRM geometry cache table initialized');
+
+    // Remediation for prod: an earlier deploy created osrm_geometry_cache
+    // without a PK, which makes every ON CONFLICT (cache_key) write fail and
+    // floods logs. CREATE TABLE IF NOT EXISTS above is a no-op once the table
+    // exists, so we explicitly dedupe + add the PK here when missing.
+    if (pgPool) {
+      try {
+        const { rows } = await pgPool.query(`
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE table_name = 'osrm_geometry_cache' AND constraint_type = 'PRIMARY KEY'
+        `);
+        if (rows.length === 0) {
+          console.log('🔧 osrm_geometry_cache missing PK — deduping and adding constraint');
+          await pgPool.query(`
+            DELETE FROM osrm_geometry_cache a
+            USING osrm_geometry_cache b
+            WHERE a.ctid < b.ctid AND a.cache_key = b.cache_key
+          `);
+          await pgPool.query('ALTER TABLE osrm_geometry_cache ADD PRIMARY KEY (cache_key)');
+          console.log('✅ osrm_geometry_cache PK added');
+        }
+      } catch (err) {
+        console.error('❌ osrm_geometry_cache PK remediation failed:', err.message);
+      }
+    }
   } catch (error) {
     console.error('❌ Failed to initialize cache tables:', error.message);
   }
@@ -5000,21 +5025,10 @@ let startupCachePromise = fetchAndCacheEvents().then(() => {
   startupCachePromise = null;
 });
 
-// Periodic cache warmer — keeps eventsCache fresh on a fixed cadence so the
-// cold-cache path (synchronous fetch from 50+ state APIs) never trips for a
-// real visitor. Cadence is below refreshAfter (4min) so the cache is always
-// well within its TTL when someone hits /api/events.
-//
-// Runs as long as the dyno is alive. On Railway, dynos may sleep on
-// inactivity; when they wake, this interval re-arms after the next request
-// imports this module, so behavior is self-healing.
-const CACHE_WARMER_INTERVAL_MS = 3 * 60 * 1000;  // 3 min
-setInterval(() => {
-  if (eventsCache.isRefreshing) return;
-  fetchAndCacheEvents().catch(err => {
-    console.error('🔥 Periodic warmer failed:', err.message);
-  });
-}, CACHE_WARMER_INTERVAL_MS).unref();  // .unref() so the timer doesn't block process exit
+// No periodic warmer: /api/events triggers a background refresh when the
+// cache is past refreshAfter (see the cache-age check below), so refreshes
+// happen on real demand. The previous 3-min warmer ran 24/7 with no users,
+// which also drove a flood of OSRM cache writes per refresh.
 
 // Main endpoint to fetch all events
 app.get('/api/events', async (req, res) => {
