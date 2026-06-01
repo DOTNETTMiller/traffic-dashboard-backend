@@ -37,6 +37,7 @@ const NAV = [
       { actionKey: 'toggle-border-wait-times', toggleProp: 'showBorderWaitTimes',    icon: '🛂', label: 'Border Wait Times' },
       { actionKey: 'toggle-parking',          toggleProp: 'showParking',             icon: '🅿️', label: 'Truck Parking' },
       { actionKey: 'toggle-maasto-parking',   toggleProp: 'showMaastoParking',       icon: '🚛', label: 'MAASTO Parking (live)' },
+      { actionKey: 'toggle-historical-crashes', toggleProp: 'showHistoricalCrashes', icon: '💥', label: 'Historical Crashes (FARS)' },
       { actionKey: 'toggle-diversion-routes', toggleProp: 'showDiversionRoutes',     icon: '🛣️', label: 'Diversion Routes' },
       { actionKey: 'toggle-aerial-overlays',  toggleProp: 'showAerialOverlays',      icon: '🛩️', label: 'Aerial Overlays' },
       { view: 'aerialOverlays',                                                      icon: '🛩️', label: 'Aerial Overlay Library' },
@@ -108,6 +109,7 @@ const NAV = [
       { view: 'closureApproval',       icon: '✅', label: 'Closure Approval' },
       { view: 'diversionRoutes',       icon: '🛣️', label: 'Diversion Route Library' },
       { view: 'corridorDelays',        icon: '⏰', label: 'Corridor Delays' },
+      { view: 'crashAnalytics',        icon: '🚧', label: 'Crash Analytics' },
       { view: 'predictiveAnalytics',   icon: '🔮', label: 'Predictive Analytics' },
       { view: 'assetHealth',           icon: '🔧', label: 'Asset Health' },
       { view: 'feedSubmission',        icon: '📤', label: 'Feed Submission' }

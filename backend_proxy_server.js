@@ -21,6 +21,7 @@ const multer = require('multer');
 const { Pool } = require('pg');
 const { filterValidGeometries, getGeometryStats } = require('./services/geometry-validator');
 const lifecycleManager = require('./services/event-lifecycle-manager');
+const crashDataService = require('./services/crash-data-service');
 
 // Lazy-loaded heavy dependencies — loaded on first use to reduce startup memory and cold start time
 let _ComplianceAnalyzer, _OpenAI, _openai, _IFCParser;
@@ -4849,6 +4850,31 @@ let eventsCache = {
 // Structure: { 'i-80-eb': [...coords], 'i-80-wb': [...coords], 'i-35-nb': [...coords], 'i-35-sb': [...coords] }
 let interstatePolylinesCache = {};
 
+// Corridor geometry provider for the crash-data service: returns the direction
+// lines ([[ [lon,lat], ... ], ...]) for a corridor from the startup cache.
+// Returns [] when geometry isn't loaded (e.g. no Postgres) — the service then
+// falls back to a TWAY_ID text match.
+function getCorridorLine(corridor) {
+  const map = {
+    'I-80': ['i-80-eb', 'i-80-wb'],
+    'I-35': ['i-35-nb', 'i-35-sb']
+  };
+  return (map[corridor] || [])
+    .map(id => interstatePolylinesCache[id])
+    .filter(line => Array.isArray(line) && line.length >= 2);
+}
+
+// Bound refresh fn handed to the scheduler and the manual-trigger endpoint.
+let crashRefreshInFlight = null;
+function runCrashRefresh(opts = {}) {
+  // Coalesce concurrent triggers — a refresh is heavy and idempotent.
+  if (crashRefreshInFlight) return crashRefreshInFlight;
+  crashRefreshInFlight = crashDataService
+    .refreshCrashData({ db: db.db, getCorridorLine, ...opts })
+    .finally(() => { crashRefreshInFlight = null; });
+  return crashRefreshInFlight;
+}
+
 // Function to fetch and cache events (used by endpoint and background refresh)
 async function fetchAndCacheEvents() {
   if (eventsCache.isRefreshing) {
@@ -5226,6 +5252,272 @@ app.get('/api/events/stats', (req, res) => {
     byDay,
     note: 'In-memory; resets on dyno restart. bytesOut = post-compression.',
   });
+});
+
+// ---------------------------------------------------------------------------
+// Live crash incidents on the I-80 / I-35 corridors.
+//
+// Reuses the in-memory /api/events cache — NO new upstream fetching, so this
+// adds essentially zero egress and respects the load-once / no-polling design.
+// Normalized events tag crash-type items as eventType === 'Incident' (see
+// determineEventType). We narrow to the two corridors and flag the subset that
+// reads as an actual crash (vs. a stall/disabled vehicle) via isCrash.
+//
+// Query params:
+//   ?corridor=I-80 | I-35   (optional; default both)
+//   ?crashOnly=true         (optional; only items that read as a crash)
+// ---------------------------------------------------------------------------
+const CRASH_TEXT_RE = /\b(crash|accident|collision|rollover|overturn|jackknif|pile[- ]?up)\b/i;
+const CMV_TEXT_RE = /\b(semi|tractor[- ]?trailer|truck|18[- ]?wheeler|commercial vehicle|cmv|big rig)\b/i;
+
+app.get('/api/crashes/live', async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=240, stale-while-revalidate=300');
+
+  if (!eventsCache.data && startupCachePromise) {
+    await startupCachePromise;
+  }
+  if (!eventsCache.data) {
+    await fetchAndCacheEvents();
+  }
+
+  const corridorFilter = req.query.corridor ? String(req.query.corridor).toUpperCase() : null;
+  const crashOnly = req.query.crashOnly === 'true';
+
+  const all = filterValidGeometries(eventsCache.data?.events || []);
+
+  const crashes = all
+    .filter(e => e.eventType === 'Incident')
+    .filter(e => {
+      const c = (e.corridor || '').toUpperCase();
+      return c === 'I-80' || c === 'I-35';
+    })
+    .filter(e => !corridorFilter || (e.corridor || '').toUpperCase() === corridorFilter)
+    .map(e => {
+      const text = `${e.headline || e.title || ''} ${e.description || ''}`;
+      return {
+        ...slimEvent(e),
+        isCrash: CRASH_TEXT_RE.test(text),
+        involvesCommercialVehicle: CMV_TEXT_RE.test(text)
+      };
+    })
+    .filter(e => !crashOnly || e.isCrash);
+
+  const summary = {
+    total: crashes.length,
+    crashes: crashes.filter(e => e.isCrash).length,
+    commercialVehicle: crashes.filter(e => e.involvesCommercialVehicle).length,
+    byCorridor: {
+      'I-80': crashes.filter(e => (e.corridor || '').toUpperCase() === 'I-80').length,
+      'I-35': crashes.filter(e => (e.corridor || '').toUpperCase() === 'I-35').length
+    }
+  };
+
+  res.json({
+    success: true,
+    timestamp: eventsCache.data?.timestamp || null,
+    summary,
+    events: crashes,
+    note: 'Live incidents from state DOT feeds; CMV/crash flags are text-inferred and approximate. For verified commercial-vehicle and work-zone crash counts, use /api/crashes/stats (FARS historical).'
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Historical corridor crash analytics (NHTSA FARS), served from crash_records.
+// Populated by the monthly scheduler job / POST /api/crashes/refresh.
+// ---------------------------------------------------------------------------
+
+// Build a WHERE clause + params from shared query filters.
+function crashFilters(req) {
+  const where = [];
+  const params = [];
+  if (req.query.corridor) { where.push('corridor = ?'); params.push(String(req.query.corridor).toUpperCase()); }
+  if (req.query.state) { where.push('state = ?'); params.push(String(req.query.state).toUpperCase()); }
+  if (req.query.fromYear) { where.push('year >= ?'); params.push(parseInt(req.query.fromYear, 10)); }
+  if (req.query.toYear) { where.push('year <= ?'); params.push(parseInt(req.query.toYear, 10)); }
+  return { clause: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
+}
+
+async function crashTableExists() {
+  try {
+    await db.db.prepare('SELECT 1 FROM crash_records LIMIT 1').get();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Aggregated counts for the corridor crash panel.
+//
+// COST NOTE: this returns the FULL per-(corridor × year) breakdown in one tiny
+// payload (~a dozen rows) regardless of query params, so the client loads it
+// ONCE and does all year/interstate filtering locally — no repeat calls. The
+// optional query filters still scope the top-level `summary` block for direct
+// API/CSV consumers, but the panel ignores them and sums the breakdown itself.
+app.get('/api/crashes/stats', async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=3600'); // changes monthly at most
+  if (!(await crashTableExists())) {
+    return res.status(404).json({ success: false, error: 'Crash data not yet loaded. Trigger POST /api/crashes/refresh or wait for the monthly job.' });
+  }
+  try {
+    const { clause, params } = crashFilters(req);
+    // Shared metric expressions: total / CMV / work-zone / CMV-in-work-zone / fatalities.
+    const METRICS = `
+      COUNT(*) AS crashes,
+      COALESCE(SUM(commercial_vehicle), 0) AS cmv_crashes,
+      COALESCE(SUM(CASE WHEN work_zone >= 1 THEN 1 ELSE 0 END), 0) AS work_zone_crashes,
+      COALESCE(SUM(CASE WHEN commercial_vehicle = 1 AND work_zone >= 1 THEN 1 ELSE 0 END), 0) AS cmv_work_zone_crashes,
+      COALESCE(SUM(fatals), 0) AS fatalities`;
+
+    const summaryRow = await db.db.prepare(`
+      SELECT ${METRICS}, MIN(year) AS min_year, MAX(year) AS max_year
+      FROM crash_records ${clause}
+    `).get(...params);
+
+    // Full breakdown (no filter) — the panel filters this client-side.
+    const breakdown = await db.db.prepare(`
+      SELECT corridor, year, ${METRICS}
+      FROM crash_records
+      GROUP BY corridor, year ORDER BY corridor, year
+    `).all();
+
+    const byState = await db.db.prepare(`
+      SELECT state, corridor, ${METRICS}
+      FROM crash_records
+      GROUP BY state, corridor ORDER BY crashes DESC
+    `).all();
+
+    const n = (v) => Number(v) || 0;
+    const mapRow = (r) => ({
+      crashes: n(r.crashes),
+      commercialVehicleCrashes: n(r.cmv_crashes),
+      workZoneCrashes: n(r.work_zone_crashes),
+      cmvWorkZoneCrashes: n(r.cmv_work_zone_crashes),
+      fatalities: n(r.fatalities)
+    });
+
+    res.json({
+      success: true,
+      source: 'NHTSA FARS (fatal crashes)',
+      summary: {
+        ...mapRow(summaryRow),
+        yearRange: summaryRow.min_year ? `${summaryRow.min_year}–${summaryRow.max_year}` : null
+      },
+      // [{ corridor, year, crashes, commercialVehicleCrashes, workZoneCrashes, cmvWorkZoneCrashes, fatalities }]
+      breakdown: breakdown.map(r => ({ corridor: r.corridor, year: n(r.year), ...mapRow(r) })),
+      byState: byState.map(r => ({ state: r.state, corridor: r.corridor, ...mapRow(r) }))
+    });
+  } catch (err) {
+    console.error('crash stats error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Individual crash records for the map (capped to keep payloads small).
+app.get('/api/crashes/historical', async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=3600');
+  if (!(await crashTableExists())) {
+    return res.status(404).json({ success: false, error: 'Crash data not yet loaded.' });
+  }
+  try {
+    const { clause, params } = crashFilters(req);
+    const limit = Math.min(parseInt(req.query.limit, 10) || 2000, 5000);
+    const rows = await db.db.prepare(`
+      SELECT id, year, state, county, corridor, latitude, longitude,
+             work_zone, work_zone_name, fatals, commercial_vehicle, tway_id
+      FROM crash_records ${clause}
+      ORDER BY year DESC, fatals DESC
+      LIMIT ?
+    `).all(...params, limit);
+    res.json({ success: true, count: rows.length, limit, crashes: rows });
+  } catch (err) {
+    console.error('crash historical error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Manual refresh trigger (admin). Heavy + idempotent; coalesced server-side.
+// Optional body: { years: [..], bufferMiles: n }
+app.post('/api/crashes/refresh', requireAdmin, async (req, res) => {
+  try {
+    const opts = {};
+    if (Array.isArray(req.body?.years)) opts.years = req.body.years.map(Number).filter(Boolean);
+    if (req.body?.bufferMiles) opts.bufferMiles = parseFloat(req.body.bufferMiles);
+    const result = await runCrashRefresh(opts);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('crash refresh error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// AI-drafted corridor crash report (OpenAI). Recomputes the selected stats
+// server-side (don't trust client numbers), then asks the model to write a
+// concise DOT safety brief. gpt-4o-mini keeps the per-report cost ~a fraction
+// of a cent. Body: { corridor?: 'I-80'|'I-35'|'Both', year?: 'all'|<number> }
+app.post('/api/crashes/report', async (req, res) => {
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(503).json({ success: false, error: 'AI reports are not configured (no OPENAI_API_KEY).' });
+  }
+  if (!(await crashTableExists())) {
+    return res.status(404).json({ success: false, error: 'Crash data not yet loaded.' });
+  }
+  try {
+    const corridor = ['I-80', 'I-35'].includes(String(req.body?.corridor).toUpperCase())
+      ? String(req.body.corridor).toUpperCase() : 'Both';
+    const yearRaw = req.body?.year;
+    const year = (yearRaw && yearRaw !== 'all' && Number.isFinite(Number(yearRaw))) ? Number(yearRaw) : null;
+
+    const where = [];
+    const params = [];
+    if (corridor !== 'Both') { where.push('corridor = ?'); params.push(corridor); }
+    if (year) { where.push('year = ?'); params.push(year); }
+    const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const METRICS = `
+      COUNT(*) AS crashes,
+      COALESCE(SUM(commercial_vehicle), 0) AS cmv,
+      COALESCE(SUM(CASE WHEN work_zone >= 1 THEN 1 ELSE 0 END), 0) AS wz,
+      COALESCE(SUM(CASE WHEN commercial_vehicle = 1 AND work_zone >= 1 THEN 1 ELSE 0 END), 0) AS cmv_wz,
+      COALESCE(SUM(fatals), 0) AS fatalities`;
+
+    const total = await db.db.prepare(`SELECT ${METRICS}, MIN(year) min_y, MAX(year) max_y FROM crash_records ${clause}`).get(...params);
+    const byYear = await db.db.prepare(`SELECT year, ${METRICS} FROM crash_records ${clause} GROUP BY year ORDER BY year`).all(...params);
+    const byState = await db.db.prepare(`SELECT state, ${METRICS} FROM crash_records ${clause} GROUP BY state ORDER BY crashes DESC`).all(...params);
+
+    const n = (v) => Number(v) || 0;
+    if (n(total.crashes) === 0) {
+      return res.json({ success: true, report: `No FARS fatal crashes are recorded for ${corridor}${year ? ` in ${year}` : ''} on the loaded data.`, stats: { crashes: 0 } });
+    }
+
+    const stats = {
+      scope: { corridor, year: year || 'all', yearRange: total.min_y ? `${total.min_y}–${total.max_y}` : null },
+      totals: { crashes: n(total.crashes), commercialVehicle: n(total.cmv), workZone: n(total.wz), cmvInWorkZone: n(total.cmv_wz), fatalities: n(total.fatalities) },
+      byYear: byYear.map(r => ({ year: n(r.year), crashes: n(r.crashes), cmv: n(r.cmv), workZone: n(r.wz), cmvInWorkZone: n(r.cmv_wz), fatalities: n(r.fatalities) })),
+      byState: byState.map(r => ({ state: r.state, crashes: n(r.crashes), cmv: n(r.cmv), workZone: n(r.wz), cmvInWorkZone: n(r.cmv_wz) }))
+    };
+
+    const SYSTEM_PROMPT = `You are a transportation safety analyst writing a concise corridor crash brief for a state DOT audience. Use ONLY the numbers provided — never invent figures. Data is NHTSA FARS, which covers FATAL crashes only and lags ~1-2 years; state that caveat once. Write in Markdown with these sections: a one-paragraph Overview, "Commercial Vehicles", "Work Zones" (call out the commercial-vehicle-in-work-zone subset explicitly), "Year-over-year" (only if multiple years), and "Notable states" (only if scope covers multiple states). Keep it tight and factual — under ~350 words. Compute percentages from the given counts where useful.`;
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: `Draft the brief for this selection.\n\nData (JSON):\n${JSON.stringify(stats, null, 2)}` }
+      ],
+      temperature: 0.4,
+      max_tokens: 700
+    });
+
+    res.json({
+      success: true,
+      report: completion.choices[0].message.content,
+      stats,
+      model: 'gpt-4o-mini',
+      usage: completion.usage ? { totalTokens: completion.usage.total_tokens } : undefined
+    });
+  } catch (err) {
+    console.error('crash report error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Endpoint to fetch from a specific state
@@ -15763,7 +16055,7 @@ let schedulerService = null;
 // Initialize scheduler (after report card and CIFS services are ready)
 function initScheduler() {
   if (reportCardService && cifsService && !schedulerService) {
-    schedulerService = new SchedulerService(reportCardService, cifsService);
+    schedulerService = new SchedulerService(reportCardService, cifsService, { crashRefreshFn: runCrashRefresh });
     schedulerService.start();
   }
 }

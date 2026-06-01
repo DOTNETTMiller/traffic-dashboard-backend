@@ -68,6 +68,7 @@ const FundingOpportunities = lazy(() => import('./components/FundingOpportunitie
 const NASCOCorridorRegulationsView = lazy(() => import('./components/NASCOCorridorRegulationsView'));
 const DigitalStandardsCrosswalk = lazy(() => import('./components/DigitalStandardsCrosswalk'));
 const CorridorDelayDashboard = lazy(() => import('./components/CorridorDelayDashboard'));
+const CrashCorridorPanel = lazy(() => import('./components/CrashCorridorPanel'));
 const AerialOverlaysPanel = lazy(() => import('./components/AerialOverlaysPanel'));
 
 // Loading fallback component
@@ -110,6 +111,7 @@ function App() {
   const [showWeatherAlerts, setShowWeatherAlerts] = useState(false);
   const [showBorderWaitTimes, setShowBorderWaitTimes] = useState(false);
   const [showMaastoParking, setShowMaastoParking] = useState(false);
+  const [showHistoricalCrashes, setShowHistoricalCrashes] = useState(false);
   const [availableRoutes, setAvailableRoutes] = useState([]);
   const [showInterchanges, setShowInterchanges] = useState(false); // Hidden by default - toggle to show
   const [showBridgeClearances, setShowBridgeClearances] = useState(false); // Hidden by default - toggle to show
@@ -801,6 +803,7 @@ function App() {
           showWeatherAlerts,
           showBorderWaitTimes,
           showMaastoParking,
+          showHistoricalCrashes,
           interstateOnly
         }}
         actions={{
@@ -831,6 +834,7 @@ function App() {
           'toggle-weather-alerts':     () => { setView('map'); setShowWeatherAlerts(p => !p); },
           'toggle-border-wait-times':  () => { setView('map'); setShowBorderWaitTimes(p => !p); },
           'toggle-maasto-parking':     () => { setView('map'); setShowMaastoParking(p => !p); },
+          'toggle-historical-crashes': () => { setView('map'); setShowHistoricalCrashes(p => !p); },
           'open-aerial-overlays':      () => setView('aerialOverlays'),
           // Toggling either footer item closes the other so only one
           // secondary panel shows at a time (single-pane sidebar UX).
@@ -1175,6 +1179,7 @@ function App() {
                   showWeatherAlerts={showWeatherAlerts}
                   showBorderWaitTimes={showBorderWaitTimes}
                   showMaastoParking={showMaastoParking}
+                  showHistoricalCrashes={showHistoricalCrashes}
                   interstateOnly={interstateOnly}
                   heatMapActive={heatMapActive}
                   heatMapMode={heatMapMode}
@@ -1268,6 +1273,10 @@ function App() {
             ) : view === 'corridorDelays' ? (
               <Suspense fallback={<LoadingFallback />}>
                 <CorridorDelayDashboard />
+              </Suspense>
+            ) : view === 'crashAnalytics' ? (
+              <Suspense fallback={<LoadingFallback />}>
+                <CrashCorridorPanel />
               </Suspense>
             ) : null}
           </div>

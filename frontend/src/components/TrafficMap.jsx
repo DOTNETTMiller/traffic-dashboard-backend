@@ -56,6 +56,7 @@ import AerialOverlaysLayer from './AerialOverlaysLayer';
 import WeatherAlertsLayer from './WeatherAlertsLayer';
 import BorderWaitTimesLayer from './BorderWaitTimesLayer';
 import MaastoParkingLayer from './MaastoParkingLayer';
+import HistoricalCrashesLayer from './HistoricalCrashesLayer';
 import EventFormatPopup from './EventFormatPopup';
 import BoundingBoxSelector from './BoundingBoxSelector';
 import HeatMapControl from './HeatMapControl';
@@ -422,6 +423,7 @@ export default function TrafficMap({
   showWeatherAlerts = false,
   showBorderWaitTimes = false,
   showMaastoParking = false,
+  showHistoricalCrashes = false,
   interstateOnly = true,
   heatMapActive = false,
   heatMapMode = 'density',
@@ -435,6 +437,11 @@ export default function TrafficMap({
   const mapRef = useRef(null);
   const [bimBridges, setBimBridges] = useState([]);
   const [savedGeofences, setSavedGeofences] = useState([]);
+
+  // On-map filter state for the historical crash layer (client-side only).
+  const [crashCorridor, setCrashCorridor] = useState('Both');
+  const [crashYear, setCrashYear] = useState('all');
+  const [crashYears, setCrashYears] = useState([]);
 
   // Hover-state for tooltip compliance was removed — see comment in tooltipContent.
 
@@ -1219,6 +1226,14 @@ export default function TrafficMap({
         {/* MAASTO TPIMS — real-time truck parking across IL/KY/MN public feeds */}
         <MaastoParkingLayer visible={showMaastoParking} />
 
+        {/* Historical crashes (NHTSA FARS) — clustered fatal-crash points on I-80/I-35 */}
+        <HistoricalCrashesLayer
+          visible={showHistoricalCrashes}
+          corridor={crashCorridor}
+          year={crashYear}
+          onYearsLoaded={setCrashYears}
+        />
+
         {/* Heat Map Visualization */}
         <HeatMapLayer
           events={validEvents}
@@ -1229,6 +1244,30 @@ export default function TrafficMap({
         {/* Bounding Box Selector for exporting filtered TIM/CV-TIM data */}
         <BoundingBoxSelector isDarkMode={isDarkMode} />
       </MapContainer>
+
+      {/* Historical-crash layer filter (corridor + year), client-side only */}
+      {showHistoricalCrashes && (
+        <div style={{
+          position: 'absolute', top: '16px', right: '16px', zIndex: 1000,
+          background: 'rgba(255,255,255,0.96)', border: '2px solid #e5e7eb', borderRadius: '10px',
+          padding: '10px 12px', boxShadow: '0 4px 14px rgba(0,0,0,0.12)', fontSize: '13px'
+        }}>
+          <div style={{ fontWeight: 600, color: '#374151', marginBottom: '8px' }}>💥 Historical crashes (FARS)</div>
+          <div style={{ display: 'flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid #e5e7eb', marginBottom: '8px' }}>
+            {['I-80', 'I-35', 'Both'].map(c => (
+              <button key={c} onClick={() => setCrashCorridor(c)} style={{
+                flex: 1, padding: '5px 10px', border: 'none', cursor: 'pointer', fontSize: '12px',
+                background: crashCorridor === c ? '#FF8F35' : 'white',
+                color: crashCorridor === c ? 'white' : '#374151', fontWeight: crashCorridor === c ? 600 : 400
+              }}>{c}</button>
+            ))}
+          </div>
+          <select value={crashYear} onChange={e => setCrashYear(e.target.value)} style={{ width: '100%', padding: '5px 8px', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '12px', background: 'white', cursor: 'pointer' }}>
+            <option value="all">All years</option>
+            {crashYears.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+      )}
 
       {/* Heat Map Control Panel */}
       <HeatMapControl

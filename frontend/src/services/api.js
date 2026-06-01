@@ -74,6 +74,44 @@ class TrafficAPI {
     }
   }
 
+  // Live crash incidents on the I-80 / I-35 corridors (reuses /api/events cache)
+  async getLiveCrashes({ corridor, crashOnly } = {}) {
+    const params = {};
+    if (corridor) params.corridor = corridor;
+    if (crashOnly) params.crashOnly = 'true';
+    const response = await this.client.get('/api/crashes/live', { params });
+    return response.data;
+  }
+
+  // Aggregated historical crash stats (FARS) — counts by CMV, work zone, severity, year
+  async getCrashStats({ corridor, state, fromYear, toYear } = {}) {
+    const params = {};
+    if (corridor) params.corridor = corridor;
+    if (state) params.state = state;
+    if (fromYear) params.fromYear = fromYear;
+    if (toYear) params.toYear = toYear;
+    const response = await this.client.get('/api/crashes/stats', { params });
+    return response.data;
+  }
+
+  // Individual historical crash records (FARS) for the map, capped server-side
+  async getHistoricalCrashes({ corridor, state, fromYear, toYear, limit } = {}) {
+    const params = {};
+    if (corridor) params.corridor = corridor;
+    if (state) params.state = state;
+    if (fromYear) params.fromYear = fromYear;
+    if (toYear) params.toYear = toYear;
+    if (limit) params.limit = limit;
+    const response = await this.client.get('/api/crashes/historical', { params });
+    return response.data;
+  }
+
+  // AI-drafted crash report for the current selection (OpenAI, server-side)
+  async generateCrashReport({ corridor, year } = {}) {
+    const response = await this.client.post('/api/crashes/report', { corridor, year });
+    return response.data;
+  }
+
   // Health check
   async healthCheck() {
     try {

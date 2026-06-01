@@ -2,9 +2,12 @@
 // Handles automated tasks like monthly report card generation
 
 class SchedulerService {
-  constructor(reportCardService, cifsService) {
+  constructor(reportCardService, cifsService, options = {}) {
     this.reportCardService = reportCardService;
     this.cifsService = cifsService;
+    // Optional async fn that refreshes corridor crash data (FARS). Injected by
+    // the server so the scheduler stays decoupled from the db/geometry.
+    this.crashRefreshFn = options.crashRefreshFn || null;
     this.jobs = new Map();
     this.intervals = new Map();
   }
@@ -23,6 +26,11 @@ class SchedulerService {
 
     // CIFS Feed Polling - Run every hour
     this.scheduleCIFSPolling();
+
+    // Corridor crash data (FARS) - Run on the 2nd of each month at 4:00 AM
+    if (this.crashRefreshFn) {
+      this.scheduleCrashDataRefresh();
+    }
 
     console.log('✅ Scheduler service started');
   }
@@ -170,6 +178,37 @@ class SchedulerService {
   }
 
   /**
+   * Schedule corridor crash-data refresh (NHTSA FARS).
+   * Runs on the 2nd of each month at 4:00 AM — offset from the report-card and
+   * cleanup jobs, and monthly is plenty since FARS publishes annually. Each run
+   * re-downloads the (small) year window and upserts, so it self-heals and
+   * automatically picks up newly published FARS years.
+   */
+  scheduleCrashDataRefresh() {
+    const jobName = 'crash-refresh';
+
+    const runJob = async () => {
+      const now = new Date();
+      if (now.getDate() === 2 && now.getHours() === 4 && now.getMinutes() < 30) {
+        console.log('🚗 Running monthly corridor crash-data refresh...');
+        try {
+          const result = await this.crashRefreshFn();
+          console.log(`✅ Crash refresh: ${result?.total ?? 0} records`);
+        } catch (error) {
+          console.error('❌ Error in crash-refresh job:', error.message);
+        }
+      }
+    };
+
+    // Check every 30 minutes (monthly job doesn't need finer precision)
+    const interval = setInterval(runJob, 30 * 60 * 1000);
+    this.intervals.set(jobName, interval);
+    this.jobs.set(jobName, { interval: '30 minutes', description: 'Corridor crash data (FARS) refresh' });
+
+    console.log(`  ✓ Scheduled ${jobName} (checks every 30 minutes, runs on 2nd at 4:00 AM)`);
+  }
+
+  /**
    * Get status of all scheduled jobs
    */
   getStatus() {
@@ -205,6 +244,12 @@ class SchedulerService {
         console.log('🧹 Manually triggering CIFS cleanup...');
         const cleanupResult = await this.cifsService.cleanupExpiredTIMMessages();
         return { success: true, ...cleanupResult };
+
+      case 'crash-refresh':
+        console.log('🚗 Manually triggering crash-data refresh...');
+        if (!this.crashRefreshFn) throw new Error('crash refresh not configured');
+        const crashResult = await this.crashRefreshFn();
+        return { success: true, ...crashResult };
 
       case 'cifs-polling':
         console.log('🔄 Manually triggering CIFS polling...');
