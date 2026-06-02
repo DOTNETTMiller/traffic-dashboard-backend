@@ -74,10 +74,20 @@ const isBadCoord = (lat, lon) =>
 const farsZipUrl = (year) =>
   `https://static.nhtsa.gov/nhtsa/downloads/FARS/${year}/National/FARS${year}NationalCSV.zip`;
 
+// Spatial grid resolution. The DB polylines carry 50k+ points each, so a
+// pointToLineDistance scan per crash is O(50k) and takes ~34ms/crash — minutes
+// per refresh and a hang risk for the monthly job. Instead we bucket the line's
+// vertices into ~1.1 km cells ONCE; each crash is then an O(ring²) Set lookup of
+// its cell + neighbors. No per-crash distance math.
+const CELL_DEG = 0.01;                 // ~1.1 km latitude
+const cellKey = (latIdx, lonIdx) => `${latIdx}:${lonIdx}`;
+const cellIdx = (deg) => Math.round(deg / CELL_DEG);
+
 /**
- * Build per-corridor turf helpers from the cached interstate polylines.
- * getCorridorLine(corridor) should return an array of [lon,lat] coordinate
- * arrays (one per direction), or null/empty if geometry is unavailable.
+ * Build a per-corridor spatial index from the interstate polylines.
+ * getCorridorLine(corridor) returns an array of [lon,lat] coordinate arrays
+ * (one per direction), or null/empty if geometry is unavailable (→ text fallback).
+ * Returns { [corridor]: Set<cellKey> | null }.
  */
 function buildCorridorClips(getCorridorLine) {
   const clips = {};
@@ -85,65 +95,55 @@ function buildCorridorClips(getCorridorLine) {
     const lines = (getCorridorLine && getCorridorLine(corridor)) || [];
     const valid = lines.filter(c => Array.isArray(c) && c.length >= 2);
     if (valid.length === 0) { clips[corridor] = null; continue; }
-    // Simplify each direction line before distance math. The DB polylines can
-    // carry tens of thousands of points; pointToLineDistance is O(segments) per
-    // crash, so the raw line makes a refresh take 40+ minutes (and would hang
-    // the monthly scheduler on Railway). A ~330 m tolerance is far finer than
-    // the 1-mile corridor buffer, so membership accuracy is unaffected.
-    const features = valid.map(coords => {
-      const line = turf.lineString(coords);
-      if (coords.length <= 1000) return line;
-      try {
-        const simplified = turf.simplify(line, { tolerance: 0.003, highQuality: false, mutate: false });
-        return (simplified.geometry.coordinates.length >= 2) ? simplified : line;
-      } catch {
-        return line;
+    const cells = new Set();
+    for (const coords of valid) {
+      for (const pt of coords) {
+        // pt is [lon, lat]; guard against malformed entries.
+        const lon = pt[0], lat = pt[1];
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+        cells.add(cellKey(cellIdx(lat), cellIdx(lon)));
       }
-    });
-    // Bounding box (with padding) for a cheap pre-filter before distance math.
-    const bbox = turf.bbox(turf.featureCollection(features)); // [minX,minY,maxX,maxY]
-    const pad = 0.05; // ~3.5 mi of latitude; comfortably covers the buffer
-    clips[corridor] = {
-      features,
-      bbox: [bbox[0] - pad, bbox[1] - pad, bbox[2] + pad, bbox[3] + pad]
-    };
+    }
+    clips[corridor] = cells.size ? cells : null;
   }
   return clips;
 }
 
-const inBbox = (lon, lat, bbox) =>
-  lon >= bbox[0] && lon <= bbox[2] && lat >= bbox[1] && lat <= bbox[3];
-
 /**
  * Decide which corridor (if any) a crash point belongs to.
- * Returns 'I-80' | 'I-35' | null. When clips are unavailable, falls back to a
- * TWAY_ID text match scoped to that corridor's states.
+ * Returns 'I-80' | 'I-35' | null. With a spatial index, a crash matches a
+ * corridor if its cell (or a neighbor within `ring` cells, derived from
+ * bufferMiles) contains a line vertex; the closest ring wins ties. With no
+ * geometry (Set null), falls back to a TWAY_ID interstate-number text match.
  */
 function matchCorridor({ lat, lon, twayId, stateFips }, clips, bufferMiles) {
-  const candidates = [];
+  // ring of cells to scan ≈ buffer distance / cell width (~1.1 km/cell)
+  const ring = Math.max(1, Math.round((bufferMiles * 1.60934) / 1.1));
+  const latI = cellIdx(lat), lonI = cellIdx(lon);
+  let best = null, bestRing = Infinity;
   for (const corridor of Object.keys(CORRIDOR_STATE_FIPS)) {
     if (!CORRIDOR_STATE_FIPS[corridor][stateFips]) continue; // wrong state for this corridor
-    const clip = clips[corridor];
-    if (clip) {
-      if (!inBbox(lon, lat, clip.bbox)) continue;
-      const pt = turf.point([lon, lat]);
-      let minDist = Infinity;
-      for (const line of clip.features) {
-        const d = turf.pointToLineDistance(pt, line, { units: 'miles' });
-        if (d < minDist) minDist = d;
-        if (minDist <= bufferMiles) break;
+    const cells = clips[corridor];
+    if (cells) {
+      // Find the smallest neighbor-ring at which this corridor has a vertex.
+      let hitRing = Infinity;
+      for (let d = 0; d <= ring && hitRing === Infinity; d++) {
+        for (let dLat = -d; dLat <= d && hitRing === Infinity; dLat++) {
+          for (let dLon = -d; dLon <= d; dLon++) {
+            if (Math.max(Math.abs(dLat), Math.abs(dLon)) !== d) continue; // only this ring's border
+            if (cells.has(cellKey(latI + dLat, lonI + dLon))) { hitRing = d; break; }
+          }
+        }
       }
-      if (minDist <= bufferMiles) candidates.push({ corridor, dist: minDist });
+      if (hitRing < bestRing) { bestRing = hitRing; best = corridor; }
     } else {
       // Geometry fallback: match interstate number in the trafficway id.
       const num = corridor.replace('I-', '');
       const re = new RegExp(`\\bI[-\\s]?${num}\\b`, 'i');
-      if (twayId && re.test(twayId)) candidates.push({ corridor, dist: 0 });
+      if (twayId && re.test(twayId) && bestRing === Infinity) best = best || corridor;
     }
   }
-  if (candidates.length === 0) return null;
-  candidates.sort((a, b) => a.dist - b.dist);
-  return candidates[0].corridor;
+  return best;
 }
 
 /** Download one FARS year zip into a Buffer. Returns null on 404 (year not yet published). */
