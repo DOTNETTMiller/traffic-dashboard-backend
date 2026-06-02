@@ -85,7 +85,21 @@ function buildCorridorClips(getCorridorLine) {
     const lines = (getCorridorLine && getCorridorLine(corridor)) || [];
     const valid = lines.filter(c => Array.isArray(c) && c.length >= 2);
     if (valid.length === 0) { clips[corridor] = null; continue; }
-    const features = valid.map(coords => turf.lineString(coords));
+    // Simplify each direction line before distance math. The DB polylines can
+    // carry tens of thousands of points; pointToLineDistance is O(segments) per
+    // crash, so the raw line makes a refresh take 40+ minutes (and would hang
+    // the monthly scheduler on Railway). A ~330 m tolerance is far finer than
+    // the 1-mile corridor buffer, so membership accuracy is unaffected.
+    const features = valid.map(coords => {
+      const line = turf.lineString(coords);
+      if (coords.length <= 1000) return line;
+      try {
+        const simplified = turf.simplify(line, { tolerance: 0.003, highQuality: false, mutate: false });
+        return (simplified.geometry.coordinates.length >= 2) ? simplified : line;
+      } catch {
+        return line;
+      }
+    });
     // Bounding box (with padding) for a cheap pre-filter before distance math.
     const bbox = turf.bbox(turf.featureCollection(features)); // [minX,minY,maxX,maxY]
     const pad = 0.05; // ~3.5 mi of latitude; comfortably covers the buffer
