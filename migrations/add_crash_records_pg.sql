@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS crash_records (
   work_zone INTEGER DEFAULT 0,               -- 0 none, 1 construction, 2 maintenance, 3 utility, 4 unknown
   work_zone_name TEXT,
   fatals INTEGER DEFAULT 0,
+  total_vehicles INTEGER DEFAULT 0,          -- FARS VE_TOTAL: motor vehicles involved in the crash
   commercial_vehicle INTEGER DEFAULT 0,      -- 1 if a large truck (BODY_TYP 60-79) or motor carrier was involved
   tway_id TEXT,
   source TEXT DEFAULT 'FARS',

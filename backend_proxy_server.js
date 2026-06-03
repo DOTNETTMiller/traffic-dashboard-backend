@@ -5269,6 +5269,8 @@ app.get('/api/events/stats', (req, res) => {
 // ---------------------------------------------------------------------------
 const CRASH_TEXT_RE = /\b(crash|accident|collision|rollover|overturn|jackknif|pile[- ]?up)\b/i;
 const CMV_TEXT_RE = /\b(semi|tractor[- ]?trailer|truck|18[- ]?wheeler|commercial vehicle|cmv|big rig)\b/i;
+const WORKZONE_TEXT_RE = /\b(work[- ]?zone|construction|road ?work|maintenance|workzone)\b/i;
+const FATAL_TEXT_RE = /\b(fatal|fatality|deaths?|killed|deceased)\b/i;
 
 app.get('/api/crashes/live', async (req, res) => {
   res.set('Cache-Control', 'public, max-age=240, stale-while-revalidate=300');
@@ -5297,7 +5299,9 @@ app.get('/api/crashes/live', async (req, res) => {
       return {
         ...slimEvent(e),
         isCrash: CRASH_TEXT_RE.test(text),
-        involvesCommercialVehicle: CMV_TEXT_RE.test(text)
+        involvesCommercialVehicle: CMV_TEXT_RE.test(text),
+        inWorkZone: WORKZONE_TEXT_RE.test(text),
+        isFatal: FATAL_TEXT_RE.test(text)
       };
     })
     .filter(e => !crashOnly || e.isCrash);
@@ -5306,6 +5310,8 @@ app.get('/api/crashes/live', async (req, res) => {
     total: crashes.length,
     crashes: crashes.filter(e => e.isCrash).length,
     commercialVehicle: crashes.filter(e => e.involvesCommercialVehicle).length,
+    workZone: crashes.filter(e => e.inWorkZone).length,
+    fatal: crashes.filter(e => e.isFatal).length,
     byCorridor: {
       'I-80': crashes.filter(e => (e.corridor || '').toUpperCase() === 'I-80').length,
       'I-35': crashes.filter(e => (e.corridor || '').toUpperCase() === 'I-35').length
@@ -5366,7 +5372,8 @@ app.get('/api/crashes/stats', async (req, res) => {
       COALESCE(SUM(commercial_vehicle), 0) AS cmv_crashes,
       COALESCE(SUM(CASE WHEN work_zone >= 1 THEN 1 ELSE 0 END), 0) AS work_zone_crashes,
       COALESCE(SUM(CASE WHEN commercial_vehicle = 1 AND work_zone >= 1 THEN 1 ELSE 0 END), 0) AS cmv_work_zone_crashes,
-      COALESCE(SUM(fatals), 0) AS fatalities`;
+      COALESCE(SUM(fatals), 0) AS fatalities,
+      COALESCE(SUM(total_vehicles), 0) AS total_vehicles`;
 
     const summaryRow = await db.db.prepare(`
       SELECT ${METRICS}, MIN(year) AS min_year, MAX(year) AS max_year
@@ -5392,7 +5399,8 @@ app.get('/api/crashes/stats', async (req, res) => {
       commercialVehicleCrashes: n(r.cmv_crashes),
       workZoneCrashes: n(r.work_zone_crashes),
       cmvWorkZoneCrashes: n(r.cmv_work_zone_crashes),
-      fatalities: n(r.fatalities)
+      fatalities: n(r.fatalities),
+      totalVehicles: n(r.total_vehicles)
     });
 
     res.json({
@@ -5423,7 +5431,7 @@ app.get('/api/crashes/historical', async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit, 10) || 2000, 5000);
     const rows = await db.db.prepare(`
       SELECT id, year, state, county, corridor, latitude, longitude,
-             work_zone, work_zone_name, fatals, commercial_vehicle, tway_id
+             work_zone, work_zone_name, fatals, total_vehicles, commercial_vehicle, tway_id
       FROM crash_records ${clause}
       ORDER BY year DESC, fatals DESC
       LIMIT ?
@@ -5477,7 +5485,8 @@ app.post('/api/crashes/report', async (req, res) => {
       COALESCE(SUM(commercial_vehicle), 0) AS cmv,
       COALESCE(SUM(CASE WHEN work_zone >= 1 THEN 1 ELSE 0 END), 0) AS wz,
       COALESCE(SUM(CASE WHEN commercial_vehicle = 1 AND work_zone >= 1 THEN 1 ELSE 0 END), 0) AS cmv_wz,
-      COALESCE(SUM(fatals), 0) AS fatalities`;
+      COALESCE(SUM(fatals), 0) AS fatalities,
+      COALESCE(SUM(total_vehicles), 0) AS total_vehicles`;
 
     const total = await db.db.prepare(`SELECT ${METRICS}, MIN(year) min_y, MAX(year) max_y FROM crash_records ${clause}`).get(...params);
     const byYear = await db.db.prepare(`SELECT year, ${METRICS} FROM crash_records ${clause} GROUP BY year ORDER BY year`).all(...params);
@@ -5490,7 +5499,7 @@ app.post('/api/crashes/report', async (req, res) => {
 
     const stats = {
       scope: { corridor, year: year || 'all', yearRange: total.min_y ? `${total.min_y}–${total.max_y}` : null },
-      totals: { crashes: n(total.crashes), commercialVehicle: n(total.cmv), workZone: n(total.wz), cmvInWorkZone: n(total.cmv_wz), fatalities: n(total.fatalities) },
+      totals: { crashes: n(total.crashes), commercialVehicle: n(total.cmv), workZone: n(total.wz), cmvInWorkZone: n(total.cmv_wz), fatalities: n(total.fatalities), totalVehicles: n(total.total_vehicles) },
       byYear: byYear.map(r => ({ year: n(r.year), crashes: n(r.crashes), cmv: n(r.cmv), workZone: n(r.wz), cmvInWorkZone: n(r.cmv_wz), fatalities: n(r.fatalities) })),
       byState: byState.map(r => ({ state: r.state, crashes: n(r.crashes), cmv: n(r.cmv), workZone: n(r.wz), cmvInWorkZone: n(r.cmv_wz) }))
     };

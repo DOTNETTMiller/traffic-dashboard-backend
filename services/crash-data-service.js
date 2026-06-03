@@ -221,6 +221,7 @@ async function parseFarsYear({ year, zipBuffer, clips, bufferMiles, log }) {
       work_zone: wrkZone,
       work_zone_name: row.WRK_ZONENAME || null,
       fatals: parseInt(row.FATALS, 10) || 0,
+      total_vehicles: parseInt(row.VE_TOTAL, 10) || 0, // FARS accident-file: total motor vehicles in the crash
       tway_id: twayId || null,
       commercial_vehicle: 0
     });
@@ -256,6 +257,7 @@ CREATE TABLE IF NOT EXISTS crash_records (
   work_zone INTEGER DEFAULT 0,
   work_zone_name TEXT,
   fatals INTEGER DEFAULT 0,
+  total_vehicles INTEGER DEFAULT 0,
   commercial_vehicle INTEGER DEFAULT 0,
   tway_id TEXT,
   source TEXT DEFAULT 'FARS',
@@ -270,21 +272,31 @@ async function ensureTable(rawDb) {
   // exec() is fire-and-forget on the PG adapter; await pending ops if present.
   rawDb.exec(TABLE_DDL);
   if (typeof rawDb.waitForPendingOps === 'function') await rawDb.waitForPendingOps();
+  // Backfill total_vehicles on a table that predates the column (no-op on fresh
+  // tables). PG adapter has .query (supports ADD COLUMN IF NOT EXISTS); sqlite
+  // throws if the column exists, which we swallow.
+  try {
+    if (typeof rawDb.query === 'function') {
+      await rawDb.query('ALTER TABLE crash_records ADD COLUMN IF NOT EXISTS total_vehicles INTEGER DEFAULT 0');
+    } else {
+      rawDb.exec('ALTER TABLE crash_records ADD COLUMN total_vehicles INTEGER DEFAULT 0');
+    }
+  } catch { /* column already present */ }
 }
 
 async function upsertRecords(rawDb, records) {
   const stmt = rawDb.prepare(`
     INSERT OR REPLACE INTO crash_records
       (id, st_case, year, state_fips, state, county, corridor, latitude, longitude,
-       work_zone, work_zone_name, fatals, commercial_vehicle, tway_id, source, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       work_zone, work_zone_name, fatals, total_vehicles, commercial_vehicle, tway_id, source, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const now = new Date().toISOString();
   for (const r of records) {
     await stmt.run(
       r.id, r.st_case, r.year, r.state_fips, r.state, r.county, r.corridor,
       r.latitude, r.longitude, r.work_zone, r.work_zone_name, r.fatals,
-      r.commercial_vehicle, r.tway_id, 'FARS', now
+      r.total_vehicles || 0, r.commercial_vehicle, r.tway_id, 'FARS', now
     );
   }
 }

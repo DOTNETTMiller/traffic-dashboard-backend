@@ -120,6 +120,7 @@ const CrashCorridorPanel = () => {
       workZoneCrashes: sum('workZoneCrashes'),
       cmvWorkZoneCrashes: sum('cmvWorkZoneCrashes'),
       fatalities: sum('fatalities'),
+      totalVehicles: sum('totalVehicles'),
       rows
     };
   }, [stats, corridor, year]);
@@ -129,9 +130,10 @@ const CrashCorridorPanel = () => {
     const m = {};
     for (const r of (stats?.breakdown || [])) {
       if (!corridorMatch(r.corridor)) continue;
-      const y = (m[r.year] = m[r.year] || { year: r.year, crashes: 0, commercialVehicleCrashes: 0, workZoneCrashes: 0, cmvWorkZoneCrashes: 0 });
+      const y = (m[r.year] = m[r.year] || { year: r.year, crashes: 0, commercialVehicleCrashes: 0, workZoneCrashes: 0, cmvWorkZoneCrashes: 0, totalVehicles: 0 });
       y.crashes += r.crashes; y.commercialVehicleCrashes += r.commercialVehicleCrashes;
       y.workZoneCrashes += r.workZoneCrashes; y.cmvWorkZoneCrashes += r.cmvWorkZoneCrashes;
+      y.totalVehicles += (r.totalVehicles || 0);
     }
     return Object.values(m).sort((a, b) => b.year - a.year);
   }, [stats, corridor]);
@@ -144,7 +146,9 @@ const CrashCorridorPanel = () => {
   const liveSummary = {
     total: liveFiltered.length,
     crashes: liveFiltered.filter(e => e.isCrash).length,
-    commercialVehicle: liveFiltered.filter(e => e.involvesCommercialVehicle).length
+    commercialVehicle: liveFiltered.filter(e => e.involvesCommercialVehicle).length,
+    workZone: liveFiltered.filter(e => e.inWorkZone).length,
+    fatal: liveFiltered.filter(e => e.isFatal).length
   };
 
   const pct = (part, whole) => whole ? `${Math.round(100 * part / whole)}% of total` : null;
@@ -228,75 +232,30 @@ const CrashCorridorPanel = () => {
         </div>
       )}
 
-      {/* ---- HISTORICAL (FARS) ---- */}
+      {/* ---- LIVE COUNTER (real-time, prominent) ---- */}
       <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#374151', margin: '0 0 12px 0' }}>
-        📊 Historical crashes <span style={{ fontWeight: 400, color: '#9ca3af', fontSize: '13px' }}>(NHTSA FARS — fatal crashes)</span>
-      </h2>
-
-      {statsStatus === 'unavailable' ? (
-        <div style={{ ...card, color: '#6b7280', marginBottom: '24px' }}>
-          Historical FARS data hasn’t been loaded yet. It populates on the monthly refresh, or run <code>POST /api/crashes/refresh</code> once.
-        </div>
-      ) : statsStatus === 'error' ? (
-        <div style={{ ...card, color: '#ef4444', marginBottom: '24px' }}>Error loading historical crash stats.</div>
-      ) : (
-        <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px', marginBottom: '16px' }}>
-            <StatCard label="Fatal crashes" value={statsStatus === 'loading' ? '…' : filtered.totalCrashes} />
-            <StatCard label="Commercial vehicle" value={statsStatus === 'loading' ? '…' : filtered.commercialVehicleCrashes} color="#b45309" sub={pct(filtered.commercialVehicleCrashes, filtered.totalCrashes)} />
-            <StatCard label="Work-zone crashes" value={statsStatus === 'loading' ? '…' : filtered.workZoneCrashes} color="#d97706" sub={pct(filtered.workZoneCrashes, filtered.totalCrashes)} />
-            <StatCard label="CMV in work zones" value={statsStatus === 'loading' ? '…' : filtered.cmvWorkZoneCrashes} color="#9a3412" sub={filtered.workZoneCrashes ? `${Math.round(100 * filtered.cmvWorkZoneCrashes / filtered.workZoneCrashes)}% of work-zone` : null} />
-            <StatCard label="Total fatalities" value={statsStatus === 'loading' ? '…' : filtered.fatalities} color="#dc2626" />
-          </div>
-
-          {byYear.length > 0 && (
-            <div style={{ ...card, textAlign: 'left', marginBottom: '24px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '10px' }}>
-                By year{corridor !== 'Both' ? ` · ${corridor}` : ''}
-              </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <thead>
-                  <tr style={{ color: '#6b7280', textAlign: 'left' }}>
-                    <th style={{ padding: '4px 8px' }}>Year</th>
-                    <th style={{ padding: '4px 8px' }}>Crashes</th>
-                    <th style={{ padding: '4px 8px' }}>CMV</th>
-                    <th style={{ padding: '4px 8px' }}>Work zone</th>
-                    <th style={{ padding: '4px 8px' }}>CMV in WZ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {byYear.map(y => (
-                    <tr key={y.year} style={{ borderTop: '1px solid #f3f4f6', background: year !== 'all' && Number(year) === y.year ? '#fff7ed' : 'transparent' }}>
-                      <td style={{ padding: '4px 8px', fontWeight: 500 }}>{y.year}</td>
-                      <td style={{ padding: '4px 8px' }}>{y.crashes}</td>
-                      <td style={{ padding: '4px 8px', color: '#b45309' }}>{y.commercialVehicleCrashes}</td>
-                      <td style={{ padding: '4px 8px', color: '#d97706' }}>{y.workZoneCrashes}</td>
-                      <td style={{ padding: '4px 8px', color: '#9a3412' }}>{y.cmvWorkZoneCrashes}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ---- LIVE ---- */}
-      <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#374151', margin: '0 0 12px 0' }}>
-        🔴 Live incidents <span style={{ fontWeight: 400, color: '#9ca3af', fontSize: '13px' }}>(state DOT feeds, approximate flags)</span>
+        🔴 Crashes right now <span style={{ fontWeight: 400, color: '#9ca3af', fontSize: '13px' }}>(live state DOT feeds — {corridor === 'Both' ? 'I-80 & I-35' : corridor})</span>
       </h2>
 
       {liveError ? (
         <div style={{ ...card, color: '#ef4444', marginBottom: '24px' }}>Error loading live crashes: {liveError}</div>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '16px' }}>
-            <StatCard label="Active incidents" value={liveSummary.total} />
-            <StatCard label="Read as crashes" value={liveSummary.crashes} color="#ef4444" />
-            <StatCard label="Commercial vehicle" value={liveSummary.commercialVehicle} color="#b45309" sub="text-inferred" />
+          {/* Hero number + filter sub-stats */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) 3fr', gap: '12px', marginBottom: '16px', alignItems: 'stretch' }}>
+            <div style={{ ...card, background: '#111827', border: 'none', color: 'white', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ ...statLabel, color: '#9ca3af' }}>Active incidents</div>
+              <div style={{ fontSize: '48px', fontWeight: 'bold', lineHeight: 1 }}>{liveSummary.total}</div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px' }}>
+              <StatCard label="Read as crashes" value={liveSummary.crashes} color="#ef4444" />
+              <StatCard label="Work zone" value={liveSummary.workZone} color="#d97706" sub="inferred" />
+              <StatCard label="Large CMV" value={liveSummary.commercialVehicle} color="#b45309" sub="inferred" />
+              <StatCard label="Fatal" value={liveSummary.fatal} color="#dc2626" sub="if stated" />
+            </div>
           </div>
 
-          <div style={{ ...card, textAlign: 'left', marginBottom: '8px', padding: 0, overflow: 'hidden' }}>
+          <div style={{ ...card, textAlign: 'left', marginBottom: '24px', padding: 0, overflow: 'hidden' }}>
             {liveFiltered.length === 0 ? (
               <div style={{ padding: '20px', color: '#6b7280', textAlign: 'center' }}>
                 No active crash-type incidents on {corridor === 'Both' ? 'I-80 / I-35' : corridor} right now.
@@ -322,8 +281,64 @@ const CrashCorridorPanel = () => {
         </>
       )}
 
+      {/* ---- VERIFIED HISTORICAL (FARS) ---- */}
+      <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#374151', margin: '0 0 12px 0' }}>
+        📊 Verified history <span style={{ fontWeight: 400, color: '#9ca3af', fontSize: '13px' }}>(NHTSA FARS — fatal crashes{year !== 'all' ? ` · ${year}` : ''})</span>
+      </h2>
+
+      {statsStatus === 'unavailable' ? (
+        <div style={{ ...card, color: '#6b7280', marginBottom: '24px' }}>
+          Historical FARS data hasn’t been loaded yet. It populates on the monthly refresh, or run <code>POST /api/crashes/refresh</code> once.
+        </div>
+      ) : statsStatus === 'error' ? (
+        <div style={{ ...card, color: '#ef4444', marginBottom: '24px' }}>Error loading historical crash stats.</div>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+            <StatCard label="Fatal crashes" value={statsStatus === 'loading' ? '…' : filtered.totalCrashes} />
+            <StatCard label="Commercial vehicle" value={statsStatus === 'loading' ? '…' : filtered.commercialVehicleCrashes} color="#b45309" sub={pct(filtered.commercialVehicleCrashes, filtered.totalCrashes)} />
+            <StatCard label="Work-zone crashes" value={statsStatus === 'loading' ? '…' : filtered.workZoneCrashes} color="#d97706" sub={pct(filtered.workZoneCrashes, filtered.totalCrashes)} />
+            <StatCard label="CMV in work zones" value={statsStatus === 'loading' ? '…' : filtered.cmvWorkZoneCrashes} color="#9a3412" sub={filtered.workZoneCrashes ? `${Math.round(100 * filtered.cmvWorkZoneCrashes / filtered.workZoneCrashes)}% of WZ` : null} />
+            <StatCard label="Total vehicles" value={statsStatus === 'loading' ? '…' : filtered.totalVehicles} color="#374151" sub={filtered.totalCrashes ? `${(filtered.totalVehicles / filtered.totalCrashes).toFixed(1)}/crash` : null} />
+            <StatCard label="Total fatalities" value={statsStatus === 'loading' ? '…' : filtered.fatalities} color="#dc2626" />
+          </div>
+
+          {byYear.length > 0 && (
+            <div style={{ ...card, textAlign: 'left', marginBottom: '24px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '10px' }}>
+                By year{corridor !== 'Both' ? ` · ${corridor}` : ''}
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <thead>
+                  <tr style={{ color: '#6b7280', textAlign: 'left' }}>
+                    <th style={{ padding: '4px 8px' }}>Year</th>
+                    <th style={{ padding: '4px 8px' }}>Crashes</th>
+                    <th style={{ padding: '4px 8px' }}>CMV</th>
+                    <th style={{ padding: '4px 8px' }}>Work zone</th>
+                    <th style={{ padding: '4px 8px' }}>CMV in WZ</th>
+                    <th style={{ padding: '4px 8px' }}>Vehicles</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {byYear.map(y => (
+                    <tr key={y.year} style={{ borderTop: '1px solid #f3f4f6', background: year !== 'all' && Number(year) === y.year ? '#fff7ed' : 'transparent' }}>
+                      <td style={{ padding: '4px 8px', fontWeight: 500 }}>{y.year}</td>
+                      <td style={{ padding: '4px 8px' }}>{y.crashes}</td>
+                      <td style={{ padding: '4px 8px', color: '#b45309' }}>{y.commercialVehicleCrashes}</td>
+                      <td style={{ padding: '4px 8px', color: '#d97706' }}>{y.workZoneCrashes}</td>
+                      <td style={{ padding: '4px 8px', color: '#9a3412' }}>{y.cmvWorkZoneCrashes}</td>
+                      <td style={{ padding: '4px 8px', color: '#374151' }}>{y.totalVehicles}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
       <p style={{ fontSize: '11px', color: '#9ca3af', marginTop: '12px' }}>
-        Filters apply client-side — switching corridor or year makes no new network call. FARS is fatal crashes only and lags ~1–2 years; live flags are text-inferred.
+        Filters apply client-side — switching corridor or year makes no new network call. The live counter reflects the latest dashboard data (no polling); FARS is fatal crashes only and lags ~1–2 years; live work-zone/CMV/fatal flags are text-inferred.
       </p>
     </div>
   );
