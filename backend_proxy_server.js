@@ -5360,10 +5360,13 @@ async function crashTableExists() {
 // optional query filters still scope the top-level `summary` block for direct
 // API/CSV consumers, but the panel ignores them and sums the breakdown itself.
 app.get('/api/crashes/stats', async (req, res) => {
-  res.set('Cache-Control', 'public, max-age=3600'); // changes monthly at most
   if (!(await crashTableExists())) {
+    // Never cache the "not loaded" state: once a refresh populates the table a
+    // cached 404 would keep clients showing "no data" for up to an hour.
+    res.set('Cache-Control', 'no-store');
     return res.status(404).json({ success: false, error: 'Crash data not yet loaded. Trigger POST /api/crashes/refresh or wait for the monthly job.' });
   }
+  res.set('Cache-Control', 'public, max-age=3600'); // changes monthly at most
   try {
     const { clause, params } = crashFilters(req);
     // Shared metric expressions: total / CMV / work-zone / CMV-in-work-zone / fatalities.
@@ -5422,10 +5425,11 @@ app.get('/api/crashes/stats', async (req, res) => {
 
 // Individual crash records for the map (capped to keep payloads small).
 app.get('/api/crashes/historical', async (req, res) => {
-  res.set('Cache-Control', 'public, max-age=3600');
   if (!(await crashTableExists())) {
+    res.set('Cache-Control', 'no-store'); // don't cache "not loaded" — see /stats
     return res.status(404).json({ success: false, error: 'Crash data not yet loaded.' });
   }
+  res.set('Cache-Control', 'public, max-age=3600');
   try {
     const { clause, params } = crashFilters(req);
     const limit = Math.min(parseInt(req.query.limit, 10) || 2000, 5000);
@@ -38208,6 +38212,34 @@ function startServer() {
 
   // Load Interstate polylines (I-80, I-35) into memory cache
   await loadInterstatePolylines();
+
+  // Bootstrap corridor crash data (FARS) so the Crash Analytics panel has data
+  // on a fresh deploy without waiting for the monthly job (2nd @ 4 AM) or a
+  // manual trigger. Opt-in via CRASH_BOOTSTRAP=1 (the cold-deploy FARS download
+  // is ingress + CPU heavy, so it's off by default). Runs only when the table
+  // is empty/missing, in the background so startup isn't blocked, and AFTER the
+  // polylines load so crashes are clipped by geometry, not the TWAY_ID fallback.
+  if (/^(1|true|yes)$/i.test(process.env.CRASH_BOOTSTRAP || '')) {
+    try {
+      let needsLoad = true;
+      try {
+        const row = await db.db.prepare('SELECT COUNT(*) AS n FROM crash_records').get();
+        needsLoad = !row || Number(row.n) === 0;
+      } catch {
+        needsLoad = true; // table doesn't exist yet
+      }
+      if (needsLoad) {
+        console.log('🚗 Crash data empty — bootstrapping FARS refresh in background (CRASH_BOOTSTRAP set)...');
+        runCrashRefresh()
+          .then(r => console.log(`✅ Crash bootstrap: ${r?.total ?? 0} records across ${Object.keys(r?.perYear || {}).length} year(s)`))
+          .catch(err => console.error('⚠️  Crash bootstrap failed (non-fatal):', err.message));
+      } else {
+        console.log('🚗 Crash data present — skipping bootstrap');
+      }
+    } catch (err) {
+      console.error('⚠️  Crash bootstrap check failed (non-fatal):', err.message);
+    }
+  }
 
   // Schedule cleanup of expired Iowa geometries (runs every hour)
   const iowaGeometryService = require('./services/iowa-geometry-service');
