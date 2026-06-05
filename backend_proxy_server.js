@@ -4864,13 +4864,22 @@ function getCorridorLine(corridor) {
     .filter(line => Array.isArray(line) && line.length >= 2);
 }
 
+// Crash records live in the persistent PostGIS Postgres (alongside the corridor
+// geometry the clip reads), NOT the main `db.db` store. On the production
+// deployment `db.db` resolves to a separate, non-persistent handle that the
+// crash table never lands in — so reads/writes through it 404 even after a
+// successful refresh. Bind crash storage to a dedicated Postgres adapter when
+// DATABASE_URL is set; fall back to db.db for local SQLite dev.
+const CrashPgAdapter = require('./database-pg-adapter');
+const crashDb = process.env.DATABASE_URL ? new CrashPgAdapter(process.env.DATABASE_URL) : db.db;
+
 // Bound refresh fn handed to the scheduler and the manual-trigger endpoint.
 let crashRefreshInFlight = null;
 function runCrashRefresh(opts = {}) {
   // Coalesce concurrent triggers — a refresh is heavy and idempotent.
   if (crashRefreshInFlight) return crashRefreshInFlight;
   crashRefreshInFlight = crashDataService
-    .refreshCrashData({ db: db.db, getCorridorLine, ...opts })
+    .refreshCrashData({ db: crashDb, getCorridorLine, ...opts })
     .finally(() => { crashRefreshInFlight = null; });
   return crashRefreshInFlight;
 }
@@ -5345,7 +5354,7 @@ function crashFilters(req) {
 
 async function crashTableExists() {
   try {
-    await db.db.prepare('SELECT 1 FROM crash_records LIMIT 1').get();
+    await crashDb.prepare('SELECT 1 FROM crash_records LIMIT 1').get();
     return true;
   } catch {
     return false;
@@ -5378,19 +5387,19 @@ app.get('/api/crashes/stats', async (req, res) => {
       COALESCE(SUM(fatals), 0) AS fatalities,
       COALESCE(SUM(total_vehicles), 0) AS total_vehicles`;
 
-    const summaryRow = await db.db.prepare(`
+    const summaryRow = await crashDb.prepare(`
       SELECT ${METRICS}, MIN(year) AS min_year, MAX(year) AS max_year
       FROM crash_records ${clause}
     `).get(...params);
 
     // Full breakdown (no filter) — the panel filters this client-side.
-    const breakdown = await db.db.prepare(`
+    const breakdown = await crashDb.prepare(`
       SELECT corridor, year, ${METRICS}
       FROM crash_records
       GROUP BY corridor, year ORDER BY corridor, year
     `).all();
 
-    const byState = await db.db.prepare(`
+    const byState = await crashDb.prepare(`
       SELECT state, corridor, ${METRICS}
       FROM crash_records
       GROUP BY state, corridor ORDER BY crashes DESC
@@ -5433,7 +5442,7 @@ app.get('/api/crashes/historical', async (req, res) => {
   try {
     const { clause, params } = crashFilters(req);
     const limit = Math.min(parseInt(req.query.limit, 10) || 2000, 5000);
-    const rows = await db.db.prepare(`
+    const rows = await crashDb.prepare(`
       SELECT id, year, state, county, corridor, latitude, longitude,
              work_zone, work_zone_name, fatals, total_vehicles, commercial_vehicle, tway_id
       FROM crash_records ${clause}
@@ -5492,9 +5501,9 @@ app.post('/api/crashes/report', async (req, res) => {
       COALESCE(SUM(fatals), 0) AS fatalities,
       COALESCE(SUM(total_vehicles), 0) AS total_vehicles`;
 
-    const total = await db.db.prepare(`SELECT ${METRICS}, MIN(year) min_y, MAX(year) max_y FROM crash_records ${clause}`).get(...params);
-    const byYear = await db.db.prepare(`SELECT year, ${METRICS} FROM crash_records ${clause} GROUP BY year ORDER BY year`).all(...params);
-    const byState = await db.db.prepare(`SELECT state, ${METRICS} FROM crash_records ${clause} GROUP BY state ORDER BY crashes DESC`).all(...params);
+    const total = await crashDb.prepare(`SELECT ${METRICS}, MIN(year) min_y, MAX(year) max_y FROM crash_records ${clause}`).get(...params);
+    const byYear = await crashDb.prepare(`SELECT year, ${METRICS} FROM crash_records ${clause} GROUP BY year ORDER BY year`).all(...params);
+    const byState = await crashDb.prepare(`SELECT state, ${METRICS} FROM crash_records ${clause} GROUP BY state ORDER BY crashes DESC`).all(...params);
 
     const n = (v) => Number(v) || 0;
     if (n(total.crashes) === 0) {
@@ -38214,27 +38223,29 @@ function startServer() {
   await loadInterstatePolylines();
 
   // Bootstrap corridor crash data (FARS) so the Crash Analytics panel has data
-  // on a fresh deploy without waiting for the monthly job (2nd @ 4 AM) or a
-  // manual trigger. Opt-in via CRASH_BOOTSTRAP=1 (the cold-deploy FARS download
-  // is ingress + CPU heavy, so it's off by default). Runs only when the table
-  // is empty/missing, in the background so startup isn't blocked, and AFTER the
-  // polylines load so crashes are clipped by geometry, not the TWAY_ID fallback.
-  if (/^(1|true|yes)$/i.test(process.env.CRASH_BOOTSTRAP || '')) {
+  // without waiting for the monthly job (2nd @ 4 AM) or a manual trigger.
+  // Storage is the persistent PostGIS Postgres (crashDb), so this is cheap on
+  // every boot: it only downloads when the table is empty/missing and otherwise
+  // just runs a COUNT and skips. Background so startup isn't blocked, and AFTER
+  // the polylines load so crashes are clipped by geometry, not TWAY_ID text.
+  // On by default; set CRASH_BOOTSTRAP=off to disable.
+  if (!/^(0|false|off|no)$/i.test(process.env.CRASH_BOOTSTRAP || '')) {
     try {
+      if (typeof crashDb.init === 'function') await crashDb.init();
       let needsLoad = true;
       try {
-        const row = await db.db.prepare('SELECT COUNT(*) AS n FROM crash_records').get();
+        const row = await crashDb.prepare('SELECT COUNT(*) AS n FROM crash_records').get();
         needsLoad = !row || Number(row.n) === 0;
       } catch {
         needsLoad = true; // table doesn't exist yet
       }
       if (needsLoad) {
-        console.log('🚗 Crash data empty — bootstrapping FARS refresh in background (CRASH_BOOTSTRAP set)...');
+        console.log('🚗 Crash data empty — bootstrapping FARS refresh in background...');
         runCrashRefresh()
           .then(r => console.log(`✅ Crash bootstrap: ${r?.total ?? 0} records across ${Object.keys(r?.perYear || {}).length} year(s)`))
           .catch(err => console.error('⚠️  Crash bootstrap failed (non-fatal):', err.message));
       } else {
-        console.log('🚗 Crash data present — skipping bootstrap');
+        console.log('🚗 Crash data present in Postgres — skipping bootstrap');
       }
     } catch (err) {
       console.error('⚠️  Crash bootstrap check failed (non-fatal):', err.message);
