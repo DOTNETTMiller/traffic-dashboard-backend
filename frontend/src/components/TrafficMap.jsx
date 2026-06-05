@@ -57,6 +57,7 @@ import WeatherAlertsLayer from './WeatherAlertsLayer';
 import BorderWaitTimesLayer from './BorderWaitTimesLayer';
 import MaastoParkingLayer from './MaastoParkingLayer';
 import HistoricalCrashesLayer from './HistoricalCrashesLayer';
+import MajorEventsLayer from './MajorEventsLayer';
 import EventFormatPopup from './EventFormatPopup';
 import BoundingBoxSelector from './BoundingBoxSelector';
 import HeatMapControl from './HeatMapControl';
@@ -424,6 +425,7 @@ export default function TrafficMap({
   showBorderWaitTimes = false,
   showMaastoParking = false,
   showHistoricalCrashes = false,
+  showMajorEvents = true,
   interstateOnly = true,
   heatMapActive = false,
   heatMapMode = 'density',
@@ -1233,6 +1235,9 @@ export default function TrafficMap({
           year={crashYear}
           onYearsLoaded={setCrashYears}
         />
+
+        {/* Major upcoming events (Ticketmaster) — demand-surge alerts on I-80/I-35 */}
+        <MajorEventsLayer visible={showMajorEvents} corridor={crashCorridor} />
 
         {/* Heat Map Visualization */}
         <HeatMapLayer
