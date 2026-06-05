@@ -30,23 +30,47 @@ const DISCOVERY_URL = 'https://app.ticketmaster.com/discovery/v2/events.json';
 const WORLD_CUP_ATTRACTION_ID = '4067734'; // 2026 FIFA World Cup (Ticketmaster catalog)
 
 // Curated large venues in the I-80 / I-35 corridor metros, with capacities.
-// `corridor` is the trusted tag for these (vetted as corridor-relevant metros);
-// events at other venues are corridor-tagged by geometry instead.
+// `corridor` is the trusted tag for these (vetted as corridor-relevant metros).
+// An event only inherits a capacity when its venue NAME matches one of these
+// (within the same metro) — proximity alone is NOT enough, or a club next to a
+// stadium would wrongly inherit the stadium's capacity. `alias` lists alternate
+// names Ticketmaster may use for the same venue.
 const MAJOR_VENUES = [
   // --- I-80 ---
   { name: 'MetLife Stadium',        city: 'East Rutherford', state: 'NJ', lat: 40.8128, lon: -74.0742, capacity: 82500, corridor: 'I-80' },
-  { name: 'Memorial Stadium',       city: 'Lincoln',         state: 'NE', lat: 40.8206, lon: -96.7056, capacity: 85000, corridor: 'I-80' },
-  { name: "Levi's Stadium",         city: 'Santa Clara',     state: 'CA', lat: 37.4030, lon: -121.9697, capacity: 68500, corridor: 'I-80' },
+  { name: 'Yankee Stadium',         city: 'Bronx',           state: 'NY', lat: 40.8296, lon: -73.9262, capacity: 47309, corridor: 'I-80' },
+  { name: 'Citi Field',             city: 'Queens',          state: 'NY', lat: 40.7571, lon: -73.8458, capacity: 41922, corridor: 'I-80' },
+  { name: 'Madison Square Garden',  city: 'New York',        state: 'NY', lat: 40.7505, lon: -73.9934, capacity: 20000, corridor: 'I-80' },
+  { name: 'Prudential Center',      city: 'Newark',          state: 'NJ', lat: 40.7336, lon: -74.1711, capacity: 16500, corridor: 'I-80' },
+  { name: 'Memorial Stadium',       city: 'Lincoln',         state: 'NE', lat: 40.8206, lon: -96.7056, capacity: 85000, corridor: 'I-80', alias: ['Stadium at Memorial'] },
   { name: 'Ohio Stadium',           city: 'Columbus',        state: 'OH', lat: 40.0017, lon: -83.0197, capacity: 102780, corridor: 'I-80' },
+  { name: "Levi's Stadium",         city: 'Santa Clara',     state: 'CA', lat: 37.4030, lon: -121.9697, capacity: 68500, corridor: 'I-80' },
+  { name: 'Oracle Park',            city: 'San Francisco',   state: 'CA', lat: 37.7786, lon: -122.3893, capacity: 41915, corridor: 'I-80' },
+  { name: 'Chase Center',           city: 'San Francisco',   state: 'CA', lat: 37.7680, lon: -122.3877, capacity: 18064, corridor: 'I-80' },
+  { name: 'Rice-Eccles Stadium',    city: 'Salt Lake City',  state: 'UT', lat: 40.7600, lon: -111.8485, capacity: 51444, corridor: 'I-80' },
+  { name: 'Delta Center',           city: 'Salt Lake City',  state: 'UT', lat: 40.7683, lon: -111.9011, capacity: 18306, corridor: 'I-80' },
   // --- I-35 ---
-  { name: 'Arrowhead Stadium',      city: 'Kansas City',     state: 'MO', lat: 39.0489, lon: -94.4839, capacity: 76416, corridor: 'I-35' },
   { name: 'AT&T Stadium',           city: 'Arlington',       state: 'TX', lat: 32.7473, lon: -97.0945, capacity: 80000, corridor: 'I-35' },
   { name: 'Globe Life Field',       city: 'Arlington',       state: 'TX', lat: 32.7473, lon: -97.0825, capacity: 40300, corridor: 'I-35' },
-  { name: 'DKR-Texas Memorial Stadium', city: 'Austin',      state: 'TX', lat: 30.2837, lon: -97.7325, capacity: 100119, corridor: 'I-35' },
-  { name: 'U.S. Bank Stadium',      city: 'Minneapolis',     state: 'MN', lat: 44.9736, lon: -93.2575, capacity: 66655, corridor: 'I-35' },
+  { name: 'Cotton Bowl',            city: 'Dallas',          state: 'TX', lat: 32.7790, lon: -96.7593, capacity: 92100, corridor: 'I-35' },
+  { name: 'American Airlines Center', city: 'Dallas',        state: 'TX', lat: 32.7905, lon: -96.8103, capacity: 20000, corridor: 'I-35' },
+  { name: 'DKR-Texas Memorial Stadium', city: 'Austin',      state: 'TX', lat: 30.2837, lon: -97.7325, capacity: 100119, corridor: 'I-35', alias: ['Darrell K Royal', 'Texas Memorial Stadium'] },
+  { name: 'Moody Center',           city: 'Austin',          state: 'TX', lat: 30.2826, lon: -97.7320, capacity: 15000, corridor: 'I-35' },
+  { name: 'Q2 Stadium',             city: 'Austin',          state: 'TX', lat: 30.3880, lon: -97.7196, capacity: 20738, corridor: 'I-35' },
+  { name: 'Alamodome',              city: 'San Antonio',     state: 'TX', lat: 29.4169, lon: -98.4791, capacity: 64000, corridor: 'I-35' },
+  { name: 'Frost Bank Center',      city: 'San Antonio',     state: 'TX', lat: 29.4269, lon: -98.4375, capacity: 18418, corridor: 'I-35' },
+  { name: 'Arrowhead Stadium',      city: 'Kansas City',     state: 'MO', lat: 39.0489, lon: -94.4839, capacity: 76416, corridor: 'I-35', alias: ['GEHA Field'] },
+  { name: 'Kauffman Stadium',       city: 'Kansas City',     state: 'MO', lat: 39.0517, lon: -94.4803, capacity: 37903, corridor: 'I-35' },
   { name: 'T-Mobile Center',        city: 'Kansas City',     state: 'MO', lat: 39.0944, lon: -94.5814, capacity: 19000, corridor: 'I-35' },
-  { name: 'American Airlines Center', city: 'Dallas',        state: 'TX', lat: 32.7905, lon: -96.8103, capacity: 20000, corridor: 'I-35' }
+  { name: 'U.S. Bank Stadium',      city: 'Minneapolis',     state: 'MN', lat: 44.9736, lon: -93.2575, capacity: 66655, corridor: 'I-35' },
+  { name: 'Target Field',           city: 'Minneapolis',     state: 'MN', lat: 44.9817, lon: -93.2776, capacity: 38544, corridor: 'I-35' },
+  { name: 'Target Center',          city: 'Minneapolis',     state: 'MN', lat: 44.9795, lon: -93.2761, capacity: 19356, corridor: 'I-35' },
+  { name: 'Huntington Bank Stadium', city: 'Minneapolis',    state: 'MN', lat: 44.9764, lon: -93.2249, capacity: 50805, corridor: 'I-35' },
+  { name: 'Paycom Center',          city: 'Oklahoma City',   state: 'OK', lat: 35.4634, lon: -97.5151, capacity: 18203, corridor: 'I-35' }
 ];
+
+// Ticket-package / non-event noise to drop (not actual gatherings).
+const NOISE_RE = /\b(parking|season ticket|ticket package|hospitality|premium seat|suite|pass\b|vip package|meet ?& ?greet)\b/i;
 
 // Minimum inferred crowd to count as a corridor "major event" alert.
 const DEFAULT_MIN_ATTENDANCE = 12000;
@@ -84,25 +108,18 @@ const haversineMiles = (lat1, lon1, lat2, lon2) => {
 };
 
 // Match an event's venue to a curated major venue (→ capacity + trusted
-// corridor). Must be the SAME venue, not merely nearby: a small club a couple
-// miles from a stadium must NOT inherit the stadium's capacity. So: very tight
-// proximity (coord drift for the same venue), OR a name match that is still in
-// the same metro (avoids "Memorial Stadium" NE vs IL collisions).
+// corridor). NAME-based: the event's venue name must match a curated venue (or
+// an alias), AND be in the same metro (≤30 mi) to avoid same-name-different-city
+// collisions (e.g. "Memorial Stadium" NE vs IL). Proximity alone is NOT used —
+// a club next to a stadium must never inherit the stadium's capacity.
 function matchVenue(lat, lon, name = '') {
-  let best = null, bestD = Infinity;
-  for (const v of MAJOR_VENUES) {
-    const d = haversineMiles(lat, lon, v.lat, v.lon);
-    if (d < bestD) { bestD = d; best = v; }
-  }
-  if (best && bestD <= 0.6) return best; // same venue (coord drift)
   const n = (name || '').toLowerCase().trim();
-  if (n) {
-    const byName = MAJOR_VENUES.find(v => {
-      const vn = v.name.toLowerCase();
-      if (!(n.includes(vn) || vn.includes(n))) return false;
-      return haversineMiles(lat, lon, v.lat, v.lon) <= 30; // same metro only
-    });
-    if (byName) return byName;
+  if (!n) return null;
+  for (const v of MAJOR_VENUES) {
+    const names = [v.name, ...(v.alias || [])].map(s => s.toLowerCase());
+    const nameHit = names.some(vn => n.includes(vn) || vn.includes(n));
+    if (!nameHit) continue;
+    if (haversineMiles(lat, lon, v.lat, v.lon) <= 30) return v; // same metro
   }
   return null;
 }
@@ -180,28 +197,32 @@ function enrichAndClip(events, getCorridorLine, { bufferMiles = 25, minAttendanc
   };
 
   const seen = new Set();
-  const result = [];
+  const bySlot = new Map(); // dedupe key (venue|date) → kept record
   for (const ev of events) {
     if (seen.has(ev.id)) continue;
     seen.add(ev.id);
 
+    // Drop ticket-package / parking / hospitality non-events.
+    if (NOISE_RE.test(ev.name || '')) continue;
+
+    const isWorldCup = /world cup/i.test(ev.name || '') || ev._worldCup;
     const curated = matchVenue(ev.lat, ev.lon, ev.venueName || '');
+
+    // "Large" = a known major venue (real capacity) OR a World Cup match.
+    // We deliberately DON'T include every Sports event at unknown venues — that
+    // swept in minor-league/theater/club noise and guessed a fake 20k crowd.
+    if (!curated && !isWorldCup) continue;
+
     const corridor = corridorForPoint(ev.lat, ev.lon, curated);
     if (!corridor) continue; // not near a corridor
 
-    // Expected attendance: pluggable provider → curated capacity → null.
+    // Expected attendance: pluggable provider → curated capacity → WC default.
     let expectedAttendance = attendanceProvider ? attendanceProvider(ev) : null;
     let attendanceBasis = expectedAttendance != null ? 'provider' : null;
     if (expectedAttendance == null && curated) { expectedAttendance = curated.capacity; attendanceBasis = 'venue-capacity'; }
+    if (expectedAttendance == null) { expectedAttendance = 65000; attendanceBasis = 'world-cup-default'; }
 
-    // Keep only events we can call "large": known big venue, or Sports/World Cup.
-    const isWorldCup = /world cup/i.test(ev.name) || ev._worldCup;
-    const big = (expectedAttendance != null && expectedAttendance >= minAttendance) ||
-                (curated != null) || isWorldCup || (ev.segment === 'Sports');
-    if (!big) continue;
-
-    const att = expectedAttendance != null ? expectedAttendance : (isWorldCup ? 60000 : 20000);
-    result.push({
+    const rec = {
       id: ev.id,
       name: ev.name,
       corridor,
@@ -214,18 +235,23 @@ function enrichAndClip(events, getCorridorLine, { bufferMiles = 25, minAttendanc
       localDate: ev.localDate,
       category: isWorldCup ? 'World Cup' : (ev.segment || 'Event'),
       genre: ev.genre,
-      expectedAttendance: att,
-      attendanceBasis: attendanceBasis || (isWorldCup ? 'world-cup-default' : 'segment-default'),
-      impact: impactFor(att),
+      expectedAttendance,
+      attendanceBasis,
+      impact: impactFor(expectedAttendance),
       capacity: curated?.capacity || null,
       statusCode: ev.statusCode,
       url: ev.url,
       source: 'ticketmaster'
-    });
+    };
+
+    // Collapse ticket-type variants of the same event (same venue + day).
+    const slot = `${(ev.venueName || '').toLowerCase()}|${ev.localDate || ev.date}`;
+    const prior = bySlot.get(slot);
+    if (!prior || (rec.name || '').length < (prior.name || '').length) bySlot.set(slot, rec);
   }
+
   // Soonest first.
-  result.sort((a, b) => String(a.date).localeCompare(String(b.date)));
-  return result;
+  return Array.from(bySlot.values()).sort((a, b) => String(a.date).localeCompare(String(b.date)));
 }
 
 /** Build the Discovery query params shared by all calls. */
