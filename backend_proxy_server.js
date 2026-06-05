@@ -23,6 +23,7 @@ const { filterValidGeometries, getGeometryStats } = require('./services/geometry
 const lifecycleManager = require('./services/event-lifecycle-manager');
 const crashDataService = require('./services/crash-data-service');
 const ticketmasterService = require('./services/ticketmaster-service');
+const predicthqService = require('./services/predicthq-service');
 
 // Lazy-loaded heavy dependencies — loaded on first use to reduce startup memory and cold start time
 let _ComplianceAnalyzer, _OpenAI, _openai, _IFCParser;
@@ -5625,11 +5626,30 @@ async function getMajorEvents() {
   if (fresh) return { enabled: true, events: majorEventsCache.data };
   if (majorEventsCache.inFlight) return majorEventsCache.inFlight;
 
-  majorEventsCache.inFlight = ticketmasterService
-    .fetchMajorEvents({ apiKey: key, getCorridorLine, withinDays: 120, bufferMiles: 25 })
+  majorEventsCache.inFlight = (async () => {
+    // Upgrade attendance from venue-capacity to PredictHQ Predicted Attendance
+    // when a key is set; otherwise clear any prior provider (capacity fallback).
+    const phqKey = process.env.PREDICTHQ_API_KEY;
+    if (phqKey) {
+      try {
+        const index = await predicthqService.fetchAttendanceIndex({
+          apiKey: phqKey, venues: ticketmasterService.MAJOR_VENUES, withinDays: 120
+        });
+        ticketmasterService.setAttendanceProvider(predicthqService.makeMatcher(index));
+        console.log(`📊 PredictHQ attendance index: ${index.size} event-day(s)`);
+      } catch (e) {
+        console.error('PredictHQ enrich failed (capacity fallback):', e.message);
+        ticketmasterService.setAttendanceProvider(null);
+      }
+    } else {
+      ticketmasterService.setAttendanceProvider(null);
+    }
+    return ticketmasterService.fetchMajorEvents({ apiKey: key, getCorridorLine, withinDays: 120, bufferMiles: 25 });
+  })()
     .then(events => {
       majorEventsCache = { data: events, fetchedAt: Date.now(), inFlight: null };
-      console.log(`🎟️  Major events refreshed: ${events.length} on-corridor`);
+      const predicted = events.filter(e => e.attendanceBasis === 'provider').length;
+      console.log(`🎟️  Major events refreshed: ${events.length} on-corridor${predicted ? ` (${predicted} PredictHQ-predicted)` : ''}`);
       return { enabled: true, events };
     })
     .catch(err => {
@@ -5650,18 +5670,22 @@ app.get('/api/major-events', async (req, res) => {
     if (corridorFilter) events = events.filter(e => (e.corridor || '').toUpperCase() === corridorFilter);
     const byCorridor = { 'I-80': 0, 'I-35': 0 };
     const byImpact = { high: 0, medium: 0, low: 0 };
+    let predicted = 0;
     for (const e of events) {
       if (byCorridor[e.corridor] != null) byCorridor[e.corridor]++;
       if (byImpact[e.impact] != null) byImpact[e.impact]++;
+      if (e.attendanceBasis === 'provider') predicted++;
     }
+    const phqOn = !!process.env.PREDICTHQ_API_KEY;
     res.json({
       success: true,
       enabled: result.enabled !== false,
       source: 'Ticketmaster Discovery API',
+      attendanceSource: phqOn ? 'PredictHQ Predicted Attendance (venue capacity where unmatched)' : 'venue capacity',
       note: result.enabled === false
-        ? 'Set TICKETMASTER_API_KEY to enable. Expected attendance is venue-capacity based; swap in PredictHQ Predicted Attendance for true fill estimates.'
-        : 'Large upcoming events within ~25 mi of I-80/I-35. Expected attendance is venue-capacity based (PredictHQ-ready).',
-      summary: { total: events.length, byCorridor, byImpact },
+        ? 'Set TICKETMASTER_API_KEY to enable. Attendance is venue-capacity based; set PREDICTHQ_API_KEY for true predicted-attendance fill estimates.'
+        : `Large upcoming events within ~25 mi of I-80/I-35. ${phqOn ? 'Attendance from PredictHQ predicted attendance.' : 'Attendance is venue-capacity based (set PREDICTHQ_API_KEY to upgrade).'}`,
+      summary: { total: events.length, byCorridor, byImpact, predictedAttendanceCount: predicted },
       events
     });
   } catch (err) {
