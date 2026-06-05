@@ -5444,7 +5444,7 @@ app.get('/api/crashes/stats', async (req, res) => {
       COALESCE(SUM(total_vehicles), 0) AS total_vehicles`;
 
     const summaryRow = await crashDb.prepare(`
-      SELECT ${METRICS}, MIN(year) AS min_year, MAX(year) AS max_year
+      SELECT ${METRICS}, MIN(year) AS min_year, MAX(year) AS max_year, MAX(updated_at) AS updated_at
       FROM crash_records ${clause}
     `).get(...params);
 
@@ -5474,9 +5474,11 @@ app.get('/api/crashes/stats', async (req, res) => {
     res.json({
       success: true,
       source: 'NHTSA FARS (fatal crashes)',
+      sourceUrl: 'https://www.nhtsa.gov/file-downloads?p=nhtsa/downloads/FARS/',
       summary: {
         ...mapRow(summaryRow),
-        yearRange: summaryRow.min_year ? `${summaryRow.min_year}–${summaryRow.max_year}` : null
+        yearRange: summaryRow.min_year ? `${summaryRow.min_year}–${summaryRow.max_year}` : null,
+        updatedAt: summaryRow.updated_at || null
       },
       // [{ corridor, year, crashes, commercialVehicleCrashes, workZoneCrashes, cmvWorkZoneCrashes, fatalities }]
       breakdown: breakdown.map(r => ({ corridor: r.corridor, year: n(r.year), ...mapRow(r) })),
