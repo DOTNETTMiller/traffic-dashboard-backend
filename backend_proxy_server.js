@@ -5296,24 +5296,74 @@ app.get('/api/crashes/live', async (req, res) => {
 
   const all = filterValidGeometries(eventsCache.data?.events || []);
 
-  const crashes = all
+  // Every live event on I-80 / I-35 (all types: Incident, Construction,
+  // Closure, work-zone, Weather), corridor-filtered. Most corridor DOT feeds
+  // publish only work zones, so the all-activity view reflects what each state
+  // actually feeds — the incident subset below is the live-crash signal.
+  const onCorridor = all.filter(e => {
+    const c = (e.corridor || '').toUpperCase();
+    if (c !== 'I-80' && c !== 'I-35') return false;
+    return !corridorFilter || c === corridorFilter;
+  });
+
+  const flags = (e) => {
+    const text = `${e.headline || e.title || ''} ${e.description || ''}`;
+    return {
+      isCrash: e.eventType === 'Incident' && CRASH_TEXT_RE.test(text),
+      involvesCommercialVehicle: CMV_TEXT_RE.test(text),
+      inWorkZone: WORKZONE_TEXT_RE.test(text),
+      isFatal: FATAL_TEXT_RE.test(text)
+    };
+  };
+
+  // Incident subset (potential crashes) — returned in full as before, drives
+  // the crash counters and list.
+  const crashes = onCorridor
     .filter(e => e.eventType === 'Incident')
-    .filter(e => {
-      const c = (e.corridor || '').toUpperCase();
-      return c === 'I-80' || c === 'I-35';
-    })
-    .filter(e => !corridorFilter || (e.corridor || '').toUpperCase() === corridorFilter)
-    .map(e => {
-      const text = `${e.headline || e.title || ''} ${e.description || ''}`;
-      return {
-        ...slimEvent(e),
-        isCrash: CRASH_TEXT_RE.test(text),
-        involvesCommercialVehicle: CMV_TEXT_RE.test(text),
-        inWorkZone: WORKZONE_TEXT_RE.test(text),
-        isFatal: FATAL_TEXT_RE.test(text)
-      };
-    })
+    .map(e => ({ ...slimEvent(e), ...flags(e) }))
     .filter(e => !crashOnly || e.isCrash);
+
+  // Notable live activity (incidents/closures/weather) for the activity list —
+  // slim, no geometry, capped. The hundreds of routine work zones are summarized
+  // in the per-state breakdown rather than listed, to keep egress small.
+  const NOTABLE = new Set(['Incident', 'Closure', 'Weather']);
+  const activity = onCorridor
+    .filter(e => NOTABLE.has(e.eventType))
+    .slice(0, 400)
+    .map(e => {
+      const f = flags(e);
+      return {
+        id: e.id,
+        state: e.state || null,
+        corridor: (e.corridor || '').toUpperCase(),
+        eventType: e.eventType || 'Unknown',
+        headline: (e.headline || e.title || e.description || '').slice(0, 200),
+        county: e.county || null,
+        severity: e.severity || null,
+        direction: e.direction || null,
+        startTime: e.startTime || null,
+        isCrash: f.isCrash,
+        involvesCommercialVehicle: f.involvesCommercialVehicle,
+        isFatal: f.isFatal
+      };
+    });
+
+  // Per-(state × corridor × type) long-form counts over ALL corridor activity —
+  // tiny (~dozens of rows); the client filters/groups it for the by-state view.
+  const counts = {};
+  const byType = {};
+  for (const e of onCorridor) {
+    const st = e.state || 'Unknown';
+    const c = (e.corridor || '').toUpperCase();
+    const ty = e.eventType || 'Unknown';
+    byType[ty] = (byType[ty] || 0) + 1;
+    const key = `${st}|${c}|${ty}`;
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  const breakdown = Object.entries(counts).map(([k, count]) => {
+    const [state, corridor, eventType] = k.split('|');
+    return { state, corridor, eventType, count };
+  });
 
   const summary = {
     total: crashes.length,
@@ -5324,6 +5374,11 @@ app.get('/api/crashes/live', async (req, res) => {
     byCorridor: {
       'I-80': crashes.filter(e => (e.corridor || '').toUpperCase() === 'I-80').length,
       'I-35': crashes.filter(e => (e.corridor || '').toUpperCase() === 'I-35').length
+    },
+    activity: {
+      total: onCorridor.length,
+      byType,
+      breakdown
     }
   };
 
@@ -5332,7 +5387,8 @@ app.get('/api/crashes/live', async (req, res) => {
     timestamp: eventsCache.data?.timestamp || null,
     summary,
     events: crashes,
-    note: 'Live incidents from state DOT feeds; CMV/crash flags are text-inferred and approximate. For verified commercial-vehicle and work-zone crash counts, use /api/crashes/stats (FARS historical).'
+    activity,
+    note: 'Live incidents + work zones/closures from state DOT feeds; CMV/crash flags are text-inferred and approximate. Verified historical crash counts come from /api/crashes/stats (FARS). Many corridor states publish only work-zone (WZDx) data, so live crashes appear only where a state DOT publishes incidents.'
   });
 });
 
@@ -5517,7 +5573,16 @@ app.post('/api/crashes/report', async (req, res) => {
       byState: byState.map(r => ({ state: r.state, crashes: n(r.crashes), cmv: n(r.cmv), workZone: n(r.wz), cmvInWorkZone: n(r.cmv_wz) }))
     };
 
-    const SYSTEM_PROMPT = `You are a transportation safety analyst writing a concise corridor crash brief for a state DOT audience. Use ONLY the numbers provided — never invent figures. Data is NHTSA FARS, which covers FATAL crashes only and lags ~1-2 years; state that caveat once. Write in Markdown with these sections: a one-paragraph Overview, "Commercial Vehicles", "Work Zones" (call out the commercial-vehicle-in-work-zone subset explicitly), "Year-over-year" (only if multiple years), and "Notable states" (only if scope covers multiple states). Keep it tight and factual — under ~350 words. Compute percentages from the given counts where useful.`;
+    const SYSTEM_PROMPT = `You are a transportation safety analyst writing a concise corridor crash brief for a state DOT audience. Use ONLY the numbers provided — never invent figures. Data is NHTSA FARS, which covers FATAL crashes only and lags ~1-2 years; state that caveat once.
+
+CRITICAL — crashes vs. fatalities are DIFFERENT units, never conflate them:
+- "crashes" = the number of fatal crash EVENTS (e.g. ${n(total.crashes)}).
+- "fatalities" = the number of PEOPLE KILLED in those crashes (e.g. ${n(total.fatalities)}).
+- A single fatal crash can kill more than one person, so fatalities is ALWAYS ≥ crashes — this is expected, never describe it as odd or inconsistent.
+- In the Overview, briefly explain this (e.g. "X fatal crashes killed Y people, ~Z deaths per crash").
+- "commercialVehicle", "workZone", and "cmvInWorkZone" are COUNTS OF CRASHES. Compute their percentages against crash counts (e.g. cmvInWorkZone ÷ workZone), NEVER against fatalities. Do not call a crash count a share of fatalities or vice-versa.
+
+Write in Markdown with these sections: a one-paragraph Overview, "Commercial Vehicles", "Work Zones" (call out the commercial-vehicle-in-work-zone subset explicitly, as a share of work-zone CRASHES), "Year-over-year" (only if multiple years), and "Notable states" (only if scope covers multiple states). Keep it tight and factual — under ~350 words. Compute percentages from the given counts where useful, and label each percentage's denominator.`;
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',

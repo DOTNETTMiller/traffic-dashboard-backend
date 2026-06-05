@@ -36,8 +36,11 @@ const CrashCorridorPanel = () => {
   const [stats, setStats] = useState(null);
   const [statsStatus, setStatsStatus] = useState('loading'); // loading | ready | unavailable | error
   const [liveEvents, setLiveEvents] = useState([]);
+  const [liveActivity, setLiveActivity] = useState([]);       // notable live events (incidents/closures/weather)
+  const [liveBreakdown, setLiveBreakdown] = useState([]);     // [{ state, corridor, eventType, count }]
   const [liveError, setLiveError] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [liveView, setLiveView] = useState('crashes');        // 'crashes' | 'activity'
 
   // AI report state.
   const [report, setReport] = useState(null);    // markdown string
@@ -57,11 +60,17 @@ const CrashCorridorPanel = () => {
       });
 
     const liveP = api.getLiveCrashes() // both corridors → filtered locally
-      .then(data => { setLiveEvents(data?.events || []); })
+      .then(data => {
+        setLiveEvents(data?.events || []);
+        setLiveActivity(data?.activity || []);
+        setLiveBreakdown(data?.summary?.activity?.breakdown || []);
+      })
       .catch(err => {
         console.error('Live crash fetch failed:', err);
         setLiveError(err.response?.data?.error || err.message || 'Failed to load live crashes');
         setLiveEvents([]);
+        setLiveActivity([]);
+        setLiveBreakdown([]);
       });
 
     await Promise.allSettled([statsP, liveP]);
@@ -151,7 +160,27 @@ const CrashCorridorPanel = () => {
     fatal: liveFiltered.filter(e => e.isFatal).length
   };
 
+  // All-activity view (client-side, corridor-filtered): notable live events + per-state breakdown.
+  const activityFiltered = useMemo(
+    () => liveActivity.filter(e => corridorMatch((e.corridor || '').toUpperCase())),
+    [liveActivity, corridor]
+  );
+  const ACTIVITY_TYPES = ['Incident', 'Construction', 'work-zone', 'Closure', 'Weather'];
+  const stateBreakdown = useMemo(() => {
+    const byState = {};
+    for (const r of liveBreakdown) {
+      if (!corridorMatch((r.corridor || '').toUpperCase())) continue;
+      const s = (byState[r.state] = byState[r.state] || { state: r.state, total: 0 });
+      s.total += r.count;
+      s[r.eventType] = (s[r.eventType] || 0) + r.count;
+    }
+    return Object.values(byState).sort((a, b) => b.total - a.total);
+  }, [liveBreakdown, corridor]);
+  const activityTotal = useMemo(() => stateBreakdown.reduce((a, s) => a + s.total, 0), [stateBreakdown]);
+
   const pct = (part, whole) => whole ? `${Math.round(100 * part / whole)}% of total` : null;
+
+  const TYPE_COLORS = { Incident: '#dc2626', Construction: '#d97706', 'work-zone': '#d97706', Closure: '#7c3aed', Weather: '#0891b2', Unknown: '#6b7280' };
 
   return (
     <div style={{ padding: '20px', maxWidth: '1600px', margin: '0 auto' }}>
@@ -232,14 +261,27 @@ const CrashCorridorPanel = () => {
         </div>
       )}
 
-      {/* ---- LIVE COUNTER (real-time, prominent) ---- */}
-      <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#374151', margin: '0 0 12px 0' }}>
-        🔴 Crashes right now <span style={{ fontWeight: 400, color: '#9ca3af', fontSize: '13px' }}>(live state DOT feeds — {corridor === 'Both' ? 'I-80 & I-35' : corridor})</span>
-      </h2>
+      {/* ---- LIVE SECTION (real-time) ---- */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', margin: '0 0 12px 0' }}>
+        <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#374151', margin: 0 }}>
+          {liveView === 'crashes' ? '🔴 Crashes right now' : '🟠 Live corridor activity'}
+          <span style={{ fontWeight: 400, color: '#9ca3af', fontSize: '13px', marginLeft: '8px' }}>(live state DOT feeds — {corridor === 'Both' ? 'I-80 & I-35' : corridor})</span>
+        </h2>
+        <div style={{ display: 'flex', borderRadius: '8px', overflow: 'hidden', border: '2px solid #e5e7eb' }}>
+          {[['crashes', 'Crashes'], ['activity', 'All activity']].map(([v, label]) => (
+            <button key={v} onClick={() => setLiveView(v)} style={{
+              padding: '6px 14px', border: 'none',
+              background: liveView === v ? '#111827' : 'white',
+              color: liveView === v ? 'white' : '#374151',
+              fontSize: '13px', fontWeight: liveView === v ? 600 : 400, cursor: 'pointer'
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
 
       {liveError ? (
         <div style={{ ...card, color: '#ef4444', marginBottom: '24px' }}>Error loading live crashes: {liveError}</div>
-      ) : (
+      ) : liveView === 'crashes' ? (
         <>
           {/* Hero number + filter sub-stats */}
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) 3fr', gap: '12px', marginBottom: '16px', alignItems: 'stretch' }}>
@@ -278,6 +320,65 @@ const CrashCorridorPanel = () => {
               </div>
             )}
           </div>
+        </>
+      ) : (
+        /* ---- ALL LIVE ACTIVITY (per state) ---- */
+        <>
+          <div style={{ ...card, textAlign: 'left', marginBottom: '16px', padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 14px', fontSize: '13px', color: '#6b7280', borderBottom: '1px solid #f3f4f6' }}>
+              {activityTotal} live event{activityTotal === 1 ? '' : 's'} on {corridor === 'Both' ? 'I-80 / I-35' : corridor} across {stateBreakdown.length} state{stateBreakdown.length === 1 ? '' : 's'} — every DOT feed type (most states publish work zones; crashes show only where a state feeds incidents).
+            </div>
+            {stateBreakdown.length === 0 ? (
+              <div style={{ padding: '20px', color: '#6b7280', textAlign: 'center' }}>No live corridor activity right now.</div>
+            ) : (
+              <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ color: '#6b7280' }}>
+                      <th style={{ padding: '8px 14px', textAlign: 'left', position: 'sticky', top: 0, background: 'white' }}>State</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'right', position: 'sticky', top: 0, background: 'white' }}>Total</th>
+                      {ACTIVITY_TYPES.map(t => (
+                        <th key={t} style={{ padding: '8px 10px', textAlign: 'right', color: TYPE_COLORS[t], position: 'sticky', top: 0, background: 'white' }}>{t === 'work-zone' ? 'Work zone' : t}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stateBreakdown.map((s) => (
+                      <tr key={s.state} style={{ borderTop: '1px solid #f3f4f6' }}>
+                        <td style={{ padding: '8px 14px', fontWeight: 500, color: '#111827' }}>{s.state}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{s.total}</td>
+                        {ACTIVITY_TYPES.map(t => (
+                          <td key={t} style={{ padding: '8px 10px', textAlign: 'right', color: s[t] ? (t === 'Incident' ? '#dc2626' : '#374151') : '#d1d5db', fontWeight: (t === 'Incident' && s[t]) ? 700 : 400 }}>{s[t] || '·'}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {activityFiltered.length > 0 && (
+            <div style={{ ...card, textAlign: 'left', marginBottom: '24px', padding: 0, overflow: 'hidden' }}>
+              <div style={{ padding: '10px 14px', fontSize: '12px', color: '#6b7280', borderBottom: '1px solid #f3f4f6' }}>Notable live events (incidents · closures · weather)</div>
+              <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+                {activityFiltered.map((e, i) => (
+                  <div key={e.id || i} style={{ display: 'flex', gap: '10px', padding: '10px 14px', borderBottom: i < activityFiltered.length - 1 ? '1px solid #f3f4f6' : 'none', alignItems: 'flex-start' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', marginTop: '6px', flexShrink: 0, background: TYPE_COLORS[e.eventType] || '#9ca3af' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', color: '#111827', fontWeight: 500 }}>{e.headline || e.eventType}</div>
+                      <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
+                        {e.state || ''}{e.corridor ? ` · ${e.corridor}` : ''}
+                        <span style={{ color: TYPE_COLORS[e.eventType] || '#6b7280', marginLeft: '8px' }}>{e.eventType}</span>
+                        {e.involvesCommercialVehicle && <span style={{ color: '#b45309', marginLeft: '8px' }}>🚛 CMV</span>}
+                        {e.isCrash && <span style={{ color: '#ef4444', marginLeft: '8px' }}>crash</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
 
