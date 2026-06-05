@@ -204,6 +204,9 @@ function enrichAndClip(events, getCorridorLine, { bufferMiles = 25, minAttendanc
 
     // Drop ticket-package / parking / hospitality non-events.
     if (NOISE_RE.test(ev.name || '')) continue;
+    // Drop guided venue tours (TM lists them under a "... Stadium Tours" venue);
+    // they're small walk-throughs, not full-stadium crowds.
+    if (/\btours?\b/i.test(ev.venueName || '')) continue;
 
     const isWorldCup = /world cup/i.test(ev.name || '') || ev._worldCup;
     const curated = matchVenue(ev.lat, ev.lon, ev.venueName || '');
