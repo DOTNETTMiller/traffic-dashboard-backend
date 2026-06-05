@@ -147,6 +147,19 @@ const CrashCorridorPanel = () => {
     return Object.values(m).sort((a, b) => b.year - a.year);
   }, [stats, corridor]);
 
+  // Per-state historical breakdown (all years; respects the corridor filter).
+  const stateRows = useMemo(() => {
+    const m = {};
+    for (const r of (stats?.byState || [])) {
+      if (!corridorMatch(r.corridor)) continue;
+      const s = (m[r.state] = m[r.state] || { state: r.state, crashes: 0, commercialVehicleCrashes: 0, workZoneCrashes: 0, cmvWorkZoneCrashes: 0, fatalities: 0 });
+      s.crashes += r.crashes; s.commercialVehicleCrashes += r.commercialVehicleCrashes;
+      s.workZoneCrashes += r.workZoneCrashes; s.cmvWorkZoneCrashes += r.cmvWorkZoneCrashes;
+      s.fatalities += (r.fatalities || 0);
+    }
+    return Object.values(m).sort((a, b) => b.crashes - a.crashes);
+  }, [stats, corridor]);
+
   // Live events filtered by corridor (client-side).
   const liveFiltered = useMemo(
     () => liveEvents.filter(e => corridorMatch((e.corridor || '').toUpperCase())),
@@ -212,9 +225,17 @@ const CrashCorridorPanel = () => {
             }}>{c}</button>
           ))}
         </div>
-        <label style={{ fontSize: '13px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          Year
-          <select value={year} onChange={e => setYear(e.target.value)} style={{ padding: '7px 10px', borderRadius: '8px', border: '2px solid #e5e7eb', fontSize: '14px', background: 'white', cursor: 'pointer' }}>
+        <label style={{
+          display: 'flex', alignItems: 'center', gap: '10px',
+          padding: '5px 8px 5px 14px', borderRadius: '10px',
+          border: `2px solid ${year !== 'all' ? '#FF8F35' : '#e5e7eb'}`,
+          background: year !== 'all' ? '#fff7ed' : 'white'
+        }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: year !== 'all' ? '#b45309' : '#6b7280', textTransform: 'uppercase', letterSpacing: '0.6px' }}>📅 Year</span>
+          <select value={year} onChange={e => setYear(e.target.value)} style={{
+            padding: '8px 12px', borderRadius: '8px', border: '2px solid #e5e7eb',
+            fontSize: '15px', fontWeight: 600, color: '#111827', background: 'white', cursor: 'pointer'
+          }}>
             <option value="all">All years{stats?.summary?.yearRange ? ` (${stats.summary.yearRange})` : ''}</option>
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
@@ -401,7 +422,18 @@ const CrashCorridorPanel = () => {
             <StatCard label="Work-zone crashes" value={statsStatus === 'loading' ? '…' : filtered.workZoneCrashes} color="#d97706" sub={pct(filtered.workZoneCrashes, filtered.totalCrashes)} />
             <StatCard label="CMV in work zones" value={statsStatus === 'loading' ? '…' : filtered.cmvWorkZoneCrashes} color="#9a3412" sub={filtered.workZoneCrashes ? `${Math.round(100 * filtered.cmvWorkZoneCrashes / filtered.workZoneCrashes)}% of WZ` : null} />
             <StatCard label="Total vehicles" value={statsStatus === 'loading' ? '…' : filtered.totalVehicles} color="#374151" sub={filtered.totalCrashes ? `${(filtered.totalVehicles / filtered.totalCrashes).toFixed(1)}/crash` : null} />
-            <StatCard label="Total fatalities" value={statsStatus === 'loading' ? '…' : filtered.fatalities} color="#dc2626" />
+            <StatCard label="Total fatalities" value={statsStatus === 'loading' ? '…' : filtered.fatalities} color="#dc2626" sub={filtered.totalCrashes ? `${(filtered.fatalities / filtered.totalCrashes).toFixed(2)}/crash` : null} />
+          </div>
+
+          {/* Source citation */}
+          <div style={{ fontSize: '12px', color: '#6b7280', background: '#f9fafb', border: '1px solid #f3f4f6', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', lineHeight: 1.5 }}>
+            <strong style={{ color: '#374151' }}>Source:</strong>{' '}
+            <a href={stats?.sourceUrl || 'https://www.nhtsa.gov/file-downloads?p=nhtsa/downloads/FARS/'} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb' }}>
+              NHTSA FARS National CSV
+            </a>
+            {stats?.summary?.yearRange ? `, ${stats.summary.yearRange}` : ''}
+            {stats?.summary?.updatedAt ? ` · retrieved ${new Date(stats.summary.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}` : ''}
+            . Fatal crashes only; FARS lags ~1–2 years. On-corridor = within ~1 mi of the I-80/I-35 centerline on an Interstate route. A fatal crash can involve multiple fatalities, so fatalities ≥ crashes.
           </div>
 
           {byYear.length > 0 && (
@@ -429,6 +461,38 @@ const CrashCorridorPanel = () => {
                       <td style={{ padding: '4px 8px', color: '#d97706' }}>{y.workZoneCrashes}</td>
                       <td style={{ padding: '4px 8px', color: '#9a3412' }}>{y.cmvWorkZoneCrashes}</td>
                       <td style={{ padding: '4px 8px', color: '#374151' }}>{y.totalVehicles}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {stateRows.length > 0 && (
+            <div style={{ ...card, textAlign: 'left', marginBottom: '24px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '10px' }}>
+                By state{corridor !== 'Both' ? ` · ${corridor}` : ''} <span style={{ fontWeight: 400, color: '#9ca3af' }}>(all years)</span>
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <thead>
+                  <tr style={{ color: '#6b7280', textAlign: 'left' }}>
+                    <th style={{ padding: '4px 8px' }}>State</th>
+                    <th style={{ padding: '4px 8px', textAlign: 'right' }}>Crashes</th>
+                    <th style={{ padding: '4px 8px', textAlign: 'right' }}>CMV</th>
+                    <th style={{ padding: '4px 8px', textAlign: 'right' }}>Work zone</th>
+                    <th style={{ padding: '4px 8px', textAlign: 'right' }}>CMV in WZ</th>
+                    <th style={{ padding: '4px 8px', textAlign: 'right' }}>Fatalities</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stateRows.map(s => (
+                    <tr key={s.state} style={{ borderTop: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '4px 8px', fontWeight: 500 }}>{s.state}</td>
+                      <td style={{ padding: '4px 8px', textAlign: 'right' }}>{s.crashes}</td>
+                      <td style={{ padding: '4px 8px', textAlign: 'right', color: '#b45309' }}>{s.commercialVehicleCrashes}</td>
+                      <td style={{ padding: '4px 8px', textAlign: 'right', color: '#d97706' }}>{s.workZoneCrashes}</td>
+                      <td style={{ padding: '4px 8px', textAlign: 'right', color: '#9a3412' }}>{s.cmvWorkZoneCrashes}</td>
+                      <td style={{ padding: '4px 8px', textAlign: 'right', color: '#dc2626' }}>{s.fatalities}</td>
                     </tr>
                   ))}
                 </tbody>
