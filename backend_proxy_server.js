@@ -22,6 +22,7 @@ const { Pool } = require('pg');
 const { filterValidGeometries, getGeometryStats } = require('./services/geometry-validator');
 const lifecycleManager = require('./services/event-lifecycle-manager');
 const crashDataService = require('./services/crash-data-service');
+const ticketmasterService = require('./services/ticketmaster-service');
 
 // Lazy-loaded heavy dependencies — loaded on first use to reduce startup memory and cold start time
 let _ComplianceAnalyzer, _OpenAI, _openai, _IFCParser;
@@ -5605,6 +5606,66 @@ Write in Markdown with these sections: a one-paragraph Overview, "Commercial Veh
     });
   } catch (err) {
     console.error('crash report error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Major upcoming events near I-80 / I-35 (Ticketmaster) → map demand alerts.
+// Gated on TICKETMASTER_API_KEY (free key); disabled-but-graceful without it.
+// Cached for hours — this data changes slowly, so it's a few API calls/refresh.
+// ---------------------------------------------------------------------------
+let majorEventsCache = { data: null, fetchedAt: 0, inFlight: null };
+const MAJOR_EVENTS_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+async function getMajorEvents() {
+  const key = process.env.TICKETMASTER_API_KEY;
+  if (!key) return { enabled: false, events: [] };
+  const fresh = majorEventsCache.data && (Date.now() - majorEventsCache.fetchedAt) < MAJOR_EVENTS_TTL_MS;
+  if (fresh) return { enabled: true, events: majorEventsCache.data };
+  if (majorEventsCache.inFlight) return majorEventsCache.inFlight;
+
+  majorEventsCache.inFlight = ticketmasterService
+    .fetchMajorEvents({ apiKey: key, getCorridorLine, withinDays: 120, bufferMiles: 25 })
+    .then(events => {
+      majorEventsCache = { data: events, fetchedAt: Date.now(), inFlight: null };
+      console.log(`🎟️  Major events refreshed: ${events.length} on-corridor`);
+      return { enabled: true, events };
+    })
+    .catch(err => {
+      majorEventsCache.inFlight = null;
+      console.error('major-events fetch failed:', err.message);
+      // serve stale data if we have it, else empty
+      return { enabled: true, events: majorEventsCache.data || [], error: err.message };
+    });
+  return majorEventsCache.inFlight;
+}
+
+app.get('/api/major-events', async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=1800'); // 30 min at the edge
+  try {
+    const corridorFilter = req.query.corridor ? String(req.query.corridor).toUpperCase() : null;
+    const result = await getMajorEvents();
+    let events = result.events || [];
+    if (corridorFilter) events = events.filter(e => (e.corridor || '').toUpperCase() === corridorFilter);
+    const byCorridor = { 'I-80': 0, 'I-35': 0 };
+    const byImpact = { high: 0, medium: 0, low: 0 };
+    for (const e of events) {
+      if (byCorridor[e.corridor] != null) byCorridor[e.corridor]++;
+      if (byImpact[e.impact] != null) byImpact[e.impact]++;
+    }
+    res.json({
+      success: true,
+      enabled: result.enabled !== false,
+      source: 'Ticketmaster Discovery API',
+      note: result.enabled === false
+        ? 'Set TICKETMASTER_API_KEY to enable. Expected attendance is venue-capacity based; swap in PredictHQ Predicted Attendance for true fill estimates.'
+        : 'Large upcoming events within ~25 mi of I-80/I-35. Expected attendance is venue-capacity based (PredictHQ-ready).',
+      summary: { total: events.length, byCorridor, byImpact },
+      events
+    });
+  } catch (err) {
+    console.error('major-events error:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });

@@ -83,6 +83,14 @@ class TrafficAPI {
     return response.data;
   }
 
+  // Major upcoming events near I-80/I-35 (Ticketmaster) for map demand alerts.
+  async getMajorEvents({ corridor } = {}) {
+    const params = {};
+    if (corridor) params.corridor = corridor;
+    const response = await this.client.get('/api/major-events', { params });
+    return response.data;
+  }
+
   // Aggregated historical crash stats (FARS) — counts by CMV, work zone, severity, year
   async getCrashStats({ corridor, state, fromYear, toYear } = {}) {
     const params = {};
