@@ -72,7 +72,11 @@ export default function MajorEventsLayer({ visible = true, corridor = 'Both' }) 
                   ~{fmtNum(e.expectedAttendance)} expected · {e.impact} impact
                 </span>
                 <span style={{ color: '#9ca3af', fontSize: '11px' }}>
-                  {' '}({e.attendanceBasis === 'provider' ? 'predicted' : 'venue capacity'})
+                  {' '}({e.attendanceBasis === 'provider'
+                    ? 'predicted'
+                    : e.capacity
+                      ? `est. ${Math.round(100 * e.expectedAttendance / e.capacity)}% of ${fmtNum(e.capacity)} seats`
+                      : 'estimated'})
                 </span><br />
                 {e.url ? <a href={e.url} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', fontSize: '12px' }}>Event details ↗</a> : null}
                 <div style={{ color: '#9ca3af', fontSize: '11px', marginTop: '4px' }}>Source: Ticketmaster</div>

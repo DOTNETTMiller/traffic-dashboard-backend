@@ -130,6 +130,39 @@ function impactFor(attendance) {
   return 'low';
 }
 
+// Average load factor (fraction of capacity that actually shows up), by league/
+// type — a free stand-in for real predicted attendance. Raw capacity overstates
+// regular-season baseball especially; these tweakable factors make the crowd
+// estimate (and impact color) far more realistic at zero cost. A PredictHQ
+// provider value, when present, overrides all of this.
+const FILL_RATES = {
+  football: 0.95,    // NFL / college fill large stadiums
+  baseball: 0.60,    // MLB regular season averages well below capacity
+  basketball: 0.90,
+  hockey: 0.90,
+  soccer: 0.78,
+  music: 0.85,       // major-venue concerts
+  theatre: 0.70,
+  worldCup: 0.98,    // World Cup matches effectively sell out
+  sports: 0.80,      // unspecified sport
+  default: 0.75
+};
+
+function fillRateFor(ev, isWorldCup) {
+  if (isWorldCup) return FILL_RATES.worldCup;
+  const g = (ev.genre || '').toLowerCase();
+  const seg = (ev.segment || '').toLowerCase();
+  if (/football/.test(g)) return FILL_RATES.football;
+  if (/baseball/.test(g)) return FILL_RATES.baseball;
+  if (/basketball/.test(g)) return FILL_RATES.basketball;
+  if (/hockey/.test(g)) return FILL_RATES.hockey;
+  if (/soccer/.test(g)) return FILL_RATES.soccer;
+  if (seg === 'music') return FILL_RATES.music;
+  if (/arts? *& *theat/.test(seg)) return FILL_RATES.theatre;
+  if (seg === 'sports') return FILL_RATES.sports;
+  return FILL_RATES.default;
+}
+
 /**
  * Parse a Discovery API events.json payload → normalized event records.
  * Pure (no network) so it's unit-testable with mock JSON.
@@ -219,10 +252,16 @@ function enrichAndClip(events, getCorridorLine, { bufferMiles = 25, minAttendanc
     const corridor = corridorForPoint(ev.lat, ev.lon, curated);
     if (!corridor) continue; // not near a corridor
 
-    // Expected attendance: pluggable provider → curated capacity → WC default.
+    // Expected attendance: PredictHQ provider (real prediction) → curated
+    // capacity × league fill-rate (free estimate) → World Cup default.
     let expectedAttendance = attendanceProvider ? attendanceProvider(ev) : null;
     let attendanceBasis = expectedAttendance != null ? 'provider' : null;
-    if (expectedAttendance == null && curated) { expectedAttendance = curated.capacity; attendanceBasis = 'venue-capacity'; }
+    let fillRate = null;
+    if (expectedAttendance == null && curated) {
+      fillRate = fillRateFor(ev, isWorldCup);
+      expectedAttendance = Math.round(curated.capacity * fillRate);
+      attendanceBasis = 'estimated';
+    }
     if (expectedAttendance == null) { expectedAttendance = 65000; attendanceBasis = 'world-cup-default'; }
 
     const rec = {
@@ -240,6 +279,7 @@ function enrichAndClip(events, getCorridorLine, { bufferMiles = 25, minAttendanc
       genre: ev.genre,
       expectedAttendance,
       attendanceBasis,
+      fillRate,
       impact: impactFor(expectedAttendance),
       capacity: curated?.capacity || null,
       statusCode: ev.statusCode,
