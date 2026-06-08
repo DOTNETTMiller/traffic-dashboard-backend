@@ -5618,6 +5618,7 @@ Write in Markdown with these sections: a one-paragraph Overview, "Commercial Veh
 // ---------------------------------------------------------------------------
 let majorEventsCache = { data: null, fetchedAt: 0, inFlight: null };
 const MAJOR_EVENTS_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const MAJOR_EVENTS_WINDOW_DAYS = 14; // only surface events in the next 2 weeks
 
 async function getMajorEvents() {
   const key = process.env.TICKETMASTER_API_KEY;
@@ -5633,7 +5634,7 @@ async function getMajorEvents() {
     if (phqKey) {
       try {
         const index = await predicthqService.fetchAttendanceIndex({
-          apiKey: phqKey, venues: ticketmasterService.MAJOR_VENUES, withinDays: 120
+          apiKey: phqKey, venues: ticketmasterService.MAJOR_VENUES, withinDays: MAJOR_EVENTS_WINDOW_DAYS
         });
         ticketmasterService.setAttendanceProvider(predicthqService.makeMatcher(index));
         console.log(`📊 PredictHQ attendance index: ${index.size} event-day(s)`);
@@ -5644,7 +5645,7 @@ async function getMajorEvents() {
     } else {
       ticketmasterService.setAttendanceProvider(null);
     }
-    return ticketmasterService.fetchMajorEvents({ apiKey: key, getCorridorLine, withinDays: 120, bufferMiles: 25 });
+    return ticketmasterService.fetchMajorEvents({ apiKey: key, getCorridorLine, withinDays: MAJOR_EVENTS_WINDOW_DAYS, bufferMiles: 25 });
   })()
     .then(events => {
       majorEventsCache = { data: events, fetchedAt: Date.now(), inFlight: null };
@@ -5684,7 +5685,7 @@ app.get('/api/major-events', async (req, res) => {
       attendanceSource: phqOn ? 'PredictHQ Predicted Attendance (venue capacity where unmatched)' : 'venue capacity',
       note: result.enabled === false
         ? 'Set TICKETMASTER_API_KEY to enable. Attendance is venue-capacity based; set PREDICTHQ_API_KEY for true predicted-attendance fill estimates.'
-        : `Large upcoming events within ~25 mi of I-80/I-35. ${phqOn ? 'Attendance from PredictHQ predicted attendance.' : 'Attendance is venue-capacity based (set PREDICTHQ_API_KEY to upgrade).'}`,
+        : `Large events in the next ${MAJOR_EVENTS_WINDOW_DAYS} days within ~25 mi of I-80/I-35. ${phqOn ? 'Attendance from PredictHQ predicted attendance.' : 'Attendance is venue-capacity based (set PREDICTHQ_API_KEY to upgrade).'}`,
       summary: { total: events.length, byCorridor, byImpact, predictedAttendanceCount: predicted },
       events
     });
