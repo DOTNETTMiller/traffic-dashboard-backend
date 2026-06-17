@@ -4839,6 +4839,11 @@ const slimEvent = (event) => {
   return slim;
 };
 
+// Events whose end time is more than this far in the past are treated as stale
+// source data and dropped from the cache (zombie work zones from feeds that
+// never remove ended events). 2 days respects genuinely recently-ended events.
+const STALE_EVENT_GRACE_MS = 2 * 24 * 60 * 60 * 1000;
+
 // Cache for /api/events endpoint with background refresh
 let eventsCache = {
   data: null,
@@ -4998,11 +5003,29 @@ async function fetchAndCacheEvents() {
     const enrichedEvents = lifecycleManager.enrichEvents(uniqueEvents);
 
     // Filter out events that haven't been seen recently
-    const activeEvents = lifecycleManager.filterActiveEvents(enrichedEvents);
+    let activeEvents = lifecycleManager.filterActiveEvents(enrichedEvents);
 
     const removedCount = enrichedEvents.length - activeEvents.length;
     if (removedCount > 0) {
       console.log(`🗑️  Removed ${removedCount} event(s) not seen in recent feeds`);
+    }
+
+    // Drop events whose end time is clearly in the past. Some state WZDx feeds
+    // (notably UDOT) keep publishing work zones years after they ended; the
+    // lifecycle manager only removes events that DISAPPEAR from a feed (and even
+    // extends past-end ones that linger), so these zombies need an explicit
+    // end-time cutoff. Events with no/unparseable end time are kept (ongoing).
+    const nowMs = Date.now();
+    const beforeStale = activeEvents.length;
+    activeEvents = activeEvents.filter(e => {
+      if (!e.endTime) return true;
+      const end = Date.parse(e.endTime);
+      if (!Number.isFinite(end)) return true;
+      return end >= nowMs - STALE_EVENT_GRACE_MS;
+    });
+    const staleRemoved = beforeStale - activeEvents.length;
+    if (staleRemoved > 0) {
+      console.log(`🧹 Removed ${staleRemoved} stale event(s) (end time > ${STALE_EVENT_GRACE_MS / 86400000}d in the past)`);
     }
 
     // Log lifecycle statistics
