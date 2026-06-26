@@ -315,6 +315,294 @@ export async function addHTMLElement(doc, element, yPosition, options = {}) {
 }
 
 /**
+ * Paginate a live DOM element into a multi-page PDF that looks exactly like the
+ * rendered page. This is the preferred export path: it captures the same HTML
+ * the user sees (images, links, headings, tables, unicode all preserved) rather
+ * than re-parsing markdown into hand-drawn text.
+ */
+export async function elementToPDF(element, filename, options = {}) {
+  const {
+    margin = 36,
+    scale = 2,
+    backgroundColor = '#ffffff',
+    save = true,
+    html2canvasOptions = {}
+  } = options;
+
+  const canvas = await html2canvas(element, {
+    scale,
+    useCORS: true,
+    allowTaint: true,
+    backgroundColor,
+    logging: false,
+    imageTimeout: 0,
+    windowWidth: element.scrollWidth,
+    ...html2canvasOptions
+  });
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const contentWidth = pageWidth - margin * 2;
+  const contentHeight = pageHeight - margin * 2;
+
+  // How many source pixels fill one page's printable area at our scale.
+  const pageSlicePx = Math.floor((canvas.width * contentHeight) / contentWidth);
+
+  let offsetPx = 0;
+  let pageIndex = 0;
+  while (offsetPx < canvas.height) {
+    const sliceHeightPx = Math.min(pageSlicePx, canvas.height - offsetPx);
+
+    // Copy this vertical slice onto its own canvas, then add as a page image.
+    const pageCanvas = document.createElement('canvas');
+    pageCanvas.width = canvas.width;
+    pageCanvas.height = sliceHeightPx;
+    const ctx = pageCanvas.getContext('2d');
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+    ctx.drawImage(
+      canvas,
+      0, offsetPx, canvas.width, sliceHeightPx,
+      0, 0, canvas.width, sliceHeightPx
+    );
+
+    const sliceImgHeight = (sliceHeightPx * contentWidth) / canvas.width;
+    if (pageIndex > 0) doc.addPage();
+    doc.addImage(
+      pageCanvas.toDataURL('image/png'),
+      'PNG',
+      margin,
+      margin,
+      contentWidth,
+      sliceImgHeight
+    );
+
+    offsetPx += sliceHeightPx;
+    pageIndex++;
+  }
+
+  if (save) {
+    const timestamp = new Date().toISOString().split('T')[0];
+    const clean = filename.endsWith('.pdf') ? filename.slice(0, -4) : filename;
+    doc.save(`${clean}-${timestamp}.pdf`);
+  }
+
+  return doc;
+}
+
+/**
+ * Convert a markdown string to styled HTML for PDF rendering.
+ * Covers headings (all levels), bold/italic, inline + fenced code, images,
+ * links, ordered/unordered lists, blockquotes, tables, and horizontal rules.
+ * Unicode (arrows, checkmarks, em-dashes) is preserved because the browser
+ * renders the text — not jsPDF's Latin-1 core fonts.
+ */
+export function markdownToStyledHTML(markdown, options = {}) {
+  const { imageBaseUrl = '' } = options;
+  if (!markdown) return '';
+
+  const escapeHtml = (s) => s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // Inline transforms applied to already-escaped text.
+  const inline = (text) => {
+    let out = text;
+    // Images first (share syntax with links).
+    out = out.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (m, alt, src) => {
+      const resolved = src.startsWith('./')
+        ? `${imageBaseUrl}/docs/${src.substring(2)}`
+        : src.startsWith('/')
+        ? `${imageBaseUrl}${src}`
+        : src;
+      return `<img src="${resolved}" alt="${alt}" style="max-width: 220px; height: auto; margin: 12px 0; display: block;" />`;
+    });
+    out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #C66A1F; text-decoration: underline;">$1</a>');
+    out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    out = out.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
+    out = out.replace(/`([^`]+)`/g, '<code style="background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-family: \'JetBrains Mono\', Consolas, monospace; font-size: 0.9em; color: #C66A1F;">$1</code>');
+    return out;
+  };
+
+  const lines = markdown.replace(/\r/g, '').split('\n');
+  const html = [];
+  let listType = null; // 'ul' | 'ol'
+  let inCode = false;
+  let codeBuffer = [];
+
+  const closeList = () => {
+    if (listType) {
+      html.push(listType === 'ul' ? '</ul>' : '</ol>');
+      listType = null;
+    }
+  };
+
+  // Pull out table blocks first by scanning line-by-line.
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+
+    // Fenced code blocks.
+    if (trimmed.startsWith('```')) {
+      if (inCode) {
+        html.push(`<pre style="background: #1f2937; color: #f9fafb; padding: 14px 16px; border-radius: 6px; overflow-x: auto; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 12px; line-height: 1.5; margin: 12px 0;">${codeBuffer.map(escapeHtml).join('\n')}</pre>`);
+        codeBuffer = [];
+        inCode = false;
+      } else {
+        closeList();
+        inCode = true;
+      }
+      continue;
+    }
+    if (inCode) { codeBuffer.push(raw); continue; }
+
+    // Tables: a run of lines starting and ending with '|'.
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      closeList();
+      const tableLines = [];
+      while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {
+        tableLines.push(lines[i].trim());
+        i++;
+      }
+      i--; // step back; outer loop will advance
+      const rows = tableLines.map(l => l.slice(1, -1).split('|').map(c => c.trim()));
+      const isSep = (cells) => cells.every(c => /^:?-+:?$/.test(c));
+      let headerCells = null;
+      let bodyStart = 0;
+      if (rows.length >= 2 && isSep(rows[1])) {
+        headerCells = rows[0];
+        bodyStart = 2;
+      }
+      let table = '<table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px;">';
+      if (headerCells) {
+        table += '<thead><tr>';
+        headerCells.forEach(c => {
+          table += `<th style="background: linear-gradient(to bottom, #C66A1F 0%, #0E0E10 100%); color: #fff; border: 1px solid #0E0E10; padding: 10px 12px; text-align: left; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;">${inline(escapeHtml(c))}</th>`;
+        });
+        table += '</tr></thead>';
+      }
+      table += '<tbody>';
+      for (let r = bodyStart; r < rows.length; r++) {
+        if (isSep(rows[r])) continue;
+        table += '<tr>';
+        rows[r].forEach((c, idx) => {
+          const base = 'border: 1px solid #e5e7eb; padding: 10px 12px; vertical-align: top; line-height: 1.5;';
+          const firstCol = idx === 0 ? ' font-weight: 600; color: #111827;' : ' color: #374151;';
+          table += `<td style="${base}${firstCol}">${inline(escapeHtml(c))}</td>`;
+        });
+        table += '</tr>';
+      }
+      table += '</tbody></table>';
+      html.push(table);
+      continue;
+    }
+
+    // Blank line.
+    if (trimmed === '') {
+      closeList();
+      continue;
+    }
+
+    // Horizontal rule.
+    if (/^---+$/.test(trimmed) || /^\*\*\*+$/.test(trimmed)) {
+      closeList();
+      html.push('<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />');
+      continue;
+    }
+
+    // Headings.
+    const headingMatch = trimmed.match(/^(#{1,6})\s+(.*)$/);
+    if (headingMatch) {
+      closeList();
+      const level = headingMatch[1].length;
+      const text = inline(escapeHtml(headingMatch[2]));
+      const sizes = { 1: 28, 2: 22, 3: 18, 4: 16, 5: 14, 6: 13 };
+      const border = level <= 2 ? ' border-bottom: 2px solid #C66A1F; padding-bottom: 6px;' : '';
+      html.push(`<h${level} style="font-size: ${sizes[level]}px; font-weight: 700; margin: ${level <= 2 ? 24 : 16}px 0 10px 0; color: #111827;${border}">${text}</h${level}>`);
+      continue;
+    }
+
+    // Blockquote.
+    if (trimmed.startsWith('>')) {
+      closeList();
+      html.push(`<blockquote style="border-left: 4px solid #C66A1F; margin: 12px 0; padding: 6px 16px; color: #4b5563; background: #f9fafb;">${inline(escapeHtml(trimmed.replace(/^>+\s?/, '')))}</blockquote>`);
+      continue;
+    }
+
+    // Ordered list item.
+    const olMatch = trimmed.match(/^\d+\.\s+(.*)$/);
+    if (olMatch) {
+      if (listType !== 'ol') { closeList(); html.push('<ol style="margin: 8px 0 8px 24px; padding: 0;">'); listType = 'ol'; }
+      html.push(`<li style="margin: 4px 0; line-height: 1.6;">${inline(escapeHtml(olMatch[1]))}</li>`);
+      continue;
+    }
+
+    // Unordered list item.
+    const ulMatch = trimmed.match(/^[-*]\s+(.*)$/);
+    if (ulMatch) {
+      if (listType !== 'ul') { closeList(); html.push('<ul style="margin: 8px 0 8px 24px; padding: 0;">'); listType = 'ul'; }
+      html.push(`<li style="margin: 4px 0; line-height: 1.6;">${inline(escapeHtml(ulMatch[1]))}</li>`);
+      continue;
+    }
+
+    // Paragraph.
+    closeList();
+    html.push(`<p style="margin: 8px 0; line-height: 1.65; color: #374151;">${inline(escapeHtml(trimmed))}</p>`);
+  }
+
+  closeList();
+  if (inCode && codeBuffer.length) {
+    html.push(`<pre style="background: #1f2937; color: #f9fafb; padding: 14px 16px; border-radius: 6px; overflow-x: auto; font-family: monospace; font-size: 12px; margin: 12px 0;">${codeBuffer.map(escapeHtml).join('\n')}</pre>`);
+  }
+
+  return html.join('\n');
+}
+
+/**
+ * Render a markdown string to a multi-page PDF that matches the in-app viewers.
+ * Builds an offscreen styled element, waits for images, then paginates it.
+ */
+export async function markdownToPDF(markdown, filename, options = {}) {
+  const { imageBaseUrl = '', title = null, subtitle = null, ...pdfOptions } = options;
+
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = '-10000px';
+  container.style.top = '0';
+  container.style.width = '720px';
+  container.style.padding = '36px';
+  container.style.boxSizing = 'border-box';
+  container.style.background = '#ffffff';
+  container.style.color = '#374151';
+  container.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
+  container.style.fontSize = '14px';
+
+  const titleHtml = title
+    ? `<h1 style="font-size: 28px; font-weight: 700; margin: 0 0 4px 0; color: #C66A1F;">${title}</h1>`
+    : '';
+  const subtitleHtml = subtitle
+    ? `<div style="font-size: 13px; color: #6b7280; margin: 0 0 20px 0;">${subtitle}</div>`
+    : '';
+
+  container.innerHTML = titleHtml + subtitleHtml + markdownToStyledHTML(markdown, { imageBaseUrl });
+  document.body.appendChild(container);
+
+  try {
+    // Wait for any images to finish loading so they appear in the canvas.
+    const imgs = Array.from(container.querySelectorAll('img'));
+    await Promise.all(imgs.map(img => img.complete
+      ? Promise.resolve()
+      : new Promise(resolve => { img.onload = img.onerror = () => resolve(); })));
+
+    return await elementToPDF(container, filename, pdfOptions);
+  } finally {
+    document.body.removeChild(container);
+  }
+}
+
+/**
  * Process markdown text for PDF (simplified)
  */
 export function processMarkdownForPDF(doc, markdown, yPosition, options = {}) {
@@ -439,6 +727,9 @@ export default {
   addParagraph,
   addTable,
   addHTMLElement,
+  elementToPDF,
+  markdownToStyledHTML,
+  markdownToPDF,
   processMarkdownForPDF,
   addBadge,
   addStatsCard,

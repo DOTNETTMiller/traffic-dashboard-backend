@@ -215,39 +215,55 @@ function DocumentationViewer() {
 
     setGeneratingPdf(true);
     try {
-      let pdfUrl;
-      let docTitle;
+      const isUrl = urlOrTitle && (urlOrTitle.startsWith('http') || urlOrTitle.startsWith('/'));
 
-      // Check if first parameter is a URL (pdfUrl from card) or title (from preview)
-      if (urlOrTitle && (urlOrTitle.startsWith('http') || urlOrTitle.startsWith('/'))) {
-        pdfUrl = urlOrTitle;
+      // Pre-generated static PDFs are already polished — download them directly.
+      if (isUrl && !urlOrTitle.includes('format=pdf')) {
+        const response = await fetch(urlOrTitle);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${(titleOverride || 'document').replace(/[^a-z0-9]/gi, '-').toLowerCase()}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        return;
+      }
+
+      // Otherwise render the markdown client-side so the PDF matches the page
+      // (headings, tables, lists, images, links and unicode all preserved).
+      let markdown;
+      let docTitle;
+      if (isUrl) {
+        // Dynamic "?format=pdf" card → fetch the raw markdown source.
+        const mdUrl = urlOrTitle.replace(/\?format=pdf.*$/, '');
+        const response = await fetch(mdUrl);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        markdown = await response.text();
         docTitle = titleOverride || 'document';
       } else {
-        // It's a title from the preview view, need to find the doc
+        // Preview button → use the markdown already loaded in state.
         const doc = docs.find(d => d.key === activeDoc);
         if (!doc) {
           throw new Error('Document not found');
         }
-        // Use backend PDF generation endpoint
-        pdfUrl = `${config.apiUrl}${doc.url}?format=pdf`;
+        markdown = content;
         docTitle = doc.title;
       }
 
-      // Download the PDF
-      const response = await fetch(pdfUrl);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${docTitle.replace(/[^a-z0-9]/gi, '-').toLowerCase()}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      const pdfUtils = await import('../utils/pdfExport');
+      await pdfUtils.markdownToPDF(
+        markdown,
+        docTitle.replace(/[^a-z0-9]/gi, '-').toLowerCase(),
+        { imageBaseUrl: config.apiUrl, title: docTitle }
+      );
     } catch (error) {
       console.error('Error downloading PDF:', error);
       alert('Failed to download PDF. Please try again.');
