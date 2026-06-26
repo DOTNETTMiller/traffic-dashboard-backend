@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import api from '../services/api';
 
 const APIDocumentationViewer = () => {
@@ -9,10 +9,6 @@ const APIDocumentationViewer = () => {
   const [currentDoc, setCurrentDoc] = useState('api'); // 'api', 'roadmap', or doc filename
   const [documentList, setDocumentList] = useState([]);
   const [showSidebar, setShowSidebar] = useState(true);
-
-  // Ref to the rendered documentation DOM so the PDF can be captured from the
-  // exact same HTML the user sees (instead of re-parsing the markdown).
-  const contentRef = useRef(null);
 
   useEffect(() => {
     fetchDocumentList();
@@ -66,8 +62,7 @@ const APIDocumentationViewer = () => {
   };
 
   const downloadAsPDF = async () => {
-    const element = contentRef.current;
-    if (!element) {
+    if (!documentation) {
       alert('Documentation is still loading. Please try again in a moment.');
       return;
     }
@@ -79,10 +74,12 @@ const APIDocumentationViewer = () => {
         ? 'Strategic Roadmap'
         : currentDoc.replace(/_/g, ' ').replace(/-/g, ' ');
 
-      // Capture the exact on-screen HTML so the PDF matches the page
-      // (images, links, headings, tables, unicode all preserved).
+      // Render the markdown to a clean, selectable PDF that matches the page
+      // (proper headings, lists, tables, links, images and unicode).
       const pdfUtils = await import('../utils/pdfExport');
-      await pdfUtils.elementToPDF(element, docTitle.replace(/\s+/g, '_'));
+      await pdfUtils.markdownToPDF(documentation, docTitle.replace(/\s+/g, '_'), {
+        imageBaseUrl: window.location.origin
+      });
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Failed to generate PDF. Please try again.');
@@ -488,7 +485,6 @@ const APIDocumentationViewer = () => {
 
       {/* Documentation Content */}
       <div
-        ref={contentRef}
         style={{
           background: 'white',
           borderRadius: '12px',

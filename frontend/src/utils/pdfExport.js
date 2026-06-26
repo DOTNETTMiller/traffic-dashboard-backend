@@ -315,291 +315,303 @@ export async function addHTMLElement(doc, element, yPosition, options = {}) {
 }
 
 /**
- * Paginate a live DOM element into a multi-page PDF that looks exactly like the
- * rendered page. This is the preferred export path: it captures the same HTML
- * the user sees (images, links, headings, tables, unicode all preserved) rather
- * than re-parsing markdown into hand-drawn text.
+ * Replace non-Latin1 symbols that jsPDF's core fonts can't render (arrows,
+ * checkmarks, emoji) with safe ASCII equivalents. CP1252 punctuation that
+ * jsPDF *can* render (bullets, dashes, curly quotes, ellipsis) is left intact.
  */
-export async function elementToPDF(element, filename, options = {}) {
-  const {
-    margin = 36,
-    scale = 2,
-    backgroundColor = '#ffffff',
-    save = true,
-    html2canvasOptions = {}
-  } = options;
-
-  const canvas = await html2canvas(element, {
-    scale,
-    useCORS: true,
-    allowTaint: true,
-    backgroundColor,
-    logging: false,
-    imageTimeout: 0,
-    windowWidth: element.scrollWidth,
-    ...html2canvasOptions
-  });
-
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const contentWidth = pageWidth - margin * 2;
-  const contentHeight = pageHeight - margin * 2;
-
-  // How many source pixels fill one page's printable area at our scale.
-  const pageSlicePx = Math.floor((canvas.width * contentHeight) / contentWidth);
-
-  let offsetPx = 0;
-  let pageIndex = 0;
-  while (offsetPx < canvas.height) {
-    const sliceHeightPx = Math.min(pageSlicePx, canvas.height - offsetPx);
-
-    // Copy this vertical slice onto its own canvas, then add as a page image.
-    const pageCanvas = document.createElement('canvas');
-    pageCanvas.width = canvas.width;
-    pageCanvas.height = sliceHeightPx;
-    const ctx = pageCanvas.getContext('2d');
-    ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-    ctx.drawImage(
-      canvas,
-      0, offsetPx, canvas.width, sliceHeightPx,
-      0, 0, canvas.width, sliceHeightPx
-    );
-
-    const sliceImgHeight = (sliceHeightPx * contentWidth) / canvas.width;
-    if (pageIndex > 0) doc.addPage();
-    doc.addImage(
-      pageCanvas.toDataURL('image/png'),
-      'PNG',
-      margin,
-      margin,
-      contentWidth,
-      sliceImgHeight
-    );
-
-    offsetPx += sliceHeightPx;
-    pageIndex++;
-  }
-
-  if (save) {
-    const timestamp = new Date().toISOString().split('T')[0];
-    const clean = filename.endsWith('.pdf') ? filename.slice(0, -4) : filename;
-    doc.save(`${clean}-${timestamp}.pdf`);
-  }
-
-  return doc;
+export function sanitizeForPDF(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/[→⇒➔➜➡▶▸▹►]/g, '->')
+    .replace(/[←⇐]/g, '<-')
+    .replace(/[↔⇄⇌⇔]/g, '<->')
+    .replace(/↑/g, '^')
+    .replace(/↓/g, 'v')
+    .replace(/[✅✔✓☑]/g, '[x]')
+    .replace(/[❌✗✘☒]/g, '[ ]')
+    .replace(/⚠[️]?/g, '!')
+    .replace(/[⭐★☆]/g, '*')
+    .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '') // surrogate-pair emoji
+    .replace(/[☀-➿⬀-⯿]/g, '')   // misc symbols & dingbats
+    .replace(/[︀-️‍]/g, '');         // variation selectors / ZWJ
 }
 
 /**
- * Convert a markdown string to styled HTML for PDF rendering.
- * Covers headings (all levels), bold/italic, inline + fenced code, images,
- * links, ordered/unordered lists, blockquotes, tables, and horizontal rules.
- * Unicode (arrows, checkmarks, em-dashes) is preserved because the browser
- * renders the text — not jsPDF's Latin-1 core fonts.
+ * Strip inline markdown to plain text: keep link text (drop the URL), unwrap
+ * bold/italic/code, and remove inline images (handled separately).
  */
-export function markdownToStyledHTML(markdown, options = {}) {
-  const { imageBaseUrl = '' } = options;
-  if (!markdown) return '';
+export function stripInlineMarkdown(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/(^|[^*])\*([^*]+)\*/g, '$1$2')
+    .replace(/~~([^~]+)~~/g, '$1');
+}
 
-  const escapeHtml = (s) => s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+function resolveDocImageUrl(src, base) {
+  if (/^https?:/i.test(src)) return src;
+  if (src.startsWith('./')) return `${base}/docs/${src.substring(2)}`;
+  if (src.startsWith('/')) return `${base}${src}`;
+  return `${base}/docs/${src}`;
+}
 
-  // Inline transforms applied to already-escaped text.
-  const inline = (text) => {
-    let out = text;
-    // Images first (share syntax with links).
-    out = out.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (m, alt, src) => {
-      const resolved = src.startsWith('./')
-        ? `${imageBaseUrl}/docs/${src.substring(2)}`
-        : src.startsWith('/')
-        ? `${imageBaseUrl}${src}`
-        : src;
-      return `<img src="${resolved}" alt="${alt}" style="max-width: 220px; height: auto; margin: 12px 0; display: block;" />`;
+async function fetchImageForPDF(url) {
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    const dataUrl = await new Promise(res => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result);
+      fr.onerror = () => res(null);
+      fr.readAsDataURL(blob);
     });
-    out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #C66A1F; text-decoration: underline;">$1</a>');
-    out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    out = out.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
-    out = out.replace(/`([^`]+)`/g, '<code style="background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-family: \'JetBrains Mono\', Consolas, monospace; font-size: 0.9em; color: #C66A1F;">$1</code>');
-    return out;
+    if (!dataUrl) return null;
+    const dims = await new Promise(res => {
+      const img = new Image();
+      img.onload = () => res({ w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = () => res({ w: 0, h: 0 });
+      img.src = dataUrl;
+    });
+    const fmt = /png/i.test(blob.type) ? 'PNG'
+      : /jpe?g/i.test(blob.type) ? 'JPEG'
+      : 'PNG';
+    return { dataUrl, fmt, ...dims };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Render a markdown string into an existing jsPDF document as selectable text,
+ * with full support for headings, lists, tables, code blocks, blockquotes,
+ * horizontal rules, embedded images, and links. Returns the new y position.
+ */
+export function renderMarkdownDocument(doc, markdown, yPosition, options = {}) {
+  const { margin = DEFAULT_MARGINS, imageMap = {} } = options;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const maxWidth = pageWidth - margin.left - margin.right;
+  const PX_TO_MM = 0.2645833;
+  let y = yPosition;
+
+  const newPageIfNeeded = (need) => {
+    if (y + need > pageHeight - margin.bottom) { doc.addPage(); y = margin.top; }
   };
 
-  const lines = markdown.replace(/\r/g, '').split('\n');
-  const html = [];
-  let listType = null; // 'ul' | 'ol'
-  let inCode = false;
-  let codeBuffer = [];
+  const lines = String(markdown || '').replace(/\r/g, '').split('\n');
+  let i = 0;
 
-  const closeList = () => {
-    if (listType) {
-      html.push(listType === 'ul' ? '</ul>' : '</ol>');
-      listType = null;
-    }
-  };
+  while (i < lines.length) {
+    const line = lines[i].trim();
 
-  // Pull out table blocks first by scanning line-by-line.
-  for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
-    const trimmed = raw.trim();
-
-    // Fenced code blocks.
-    if (trimmed.startsWith('```')) {
-      if (inCode) {
-        html.push(`<pre style="background: #1f2937; color: #f9fafb; padding: 14px 16px; border-radius: 6px; overflow-x: auto; font-family: 'JetBrains Mono', Consolas, monospace; font-size: 12px; line-height: 1.5; margin: 12px 0;">${codeBuffer.map(escapeHtml).join('\n')}</pre>`);
-        codeBuffer = [];
-        inCode = false;
-      } else {
-        closeList();
-        inCode = true;
+    // Fenced code block.
+    if (line.startsWith('```')) {
+      i++;
+      const code = [];
+      while (i < lines.length && !lines[i].trim().startsWith('```')) { code.push(lines[i]); i++; }
+      i++; // closing fence
+      doc.setFont('courier', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...COLORS.darkGray);
+      for (const cl of code) {
+        const wrapped = doc.splitTextToSize(sanitizeForPDF(cl) || ' ', maxWidth - 4);
+        for (const w of wrapped) {
+          newPageIfNeeded(5);
+          doc.setFillColor(...COLORS.lightGray);
+          doc.rect(margin.left, y - 3.5, maxWidth, 5, 'F');
+          doc.text(w, margin.left + 2, y);
+          y += 5;
+        }
       }
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...COLORS.black);
+      y += 3;
       continue;
     }
-    if (inCode) { codeBuffer.push(raw); continue; }
 
-    // Tables: a run of lines starting and ending with '|'.
-    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
-      closeList();
-      const tableLines = [];
+    // Table block.
+    if (line.startsWith('|') && line.endsWith('|')) {
+      const block = [];
       while (i < lines.length && lines[i].trim().startsWith('|') && lines[i].trim().endsWith('|')) {
-        tableLines.push(lines[i].trim());
+        block.push(lines[i].trim());
         i++;
       }
-      i--; // step back; outer loop will advance
-      const rows = tableLines.map(l => l.slice(1, -1).split('|').map(c => c.trim()));
-      const isSep = (cells) => cells.every(c => /^:?-+:?$/.test(c));
-      let headerCells = null;
-      let bodyStart = 0;
+      const parse = (l) => l.slice(1, -1).split('|').map(c => c.trim());
+      const isSep = (cells) => cells.length > 0 && cells.every(c => /^:?-{1,}:?$/.test(c));
+      const rows = block.map(parse);
+      let headers, body;
       if (rows.length >= 2 && isSep(rows[1])) {
-        headerCells = rows[0];
-        bodyStart = 2;
+        headers = rows[0].map(c => sanitizeForPDF(stripInlineMarkdown(c)));
+        body = rows.slice(2);
+      } else {
+        headers = rows[0].map(c => sanitizeForPDF(stripInlineMarkdown(c)));
+        body = rows.slice(1);
       }
-      let table = '<table style="width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px;">';
-      if (headerCells) {
-        table += '<thead><tr>';
-        headerCells.forEach(c => {
-          table += `<th style="background: linear-gradient(to bottom, #C66A1F 0%, #0E0E10 100%); color: #fff; border: 1px solid #0E0E10; padding: 10px 12px; text-align: left; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;">${inline(escapeHtml(c))}</th>`;
-        });
-        table += '</tr></thead>';
-      }
-      table += '<tbody>';
-      for (let r = bodyStart; r < rows.length; r++) {
-        if (isSep(rows[r])) continue;
-        table += '<tr>';
-        rows[r].forEach((c, idx) => {
-          const base = 'border: 1px solid #e5e7eb; padding: 10px 12px; vertical-align: top; line-height: 1.5;';
-          const firstCol = idx === 0 ? ' font-weight: 600; color: #111827;' : ' color: #374151;';
-          table += `<td style="${base}${firstCol}">${inline(escapeHtml(c))}</td>`;
-        });
-        table += '</tr>';
-      }
-      table += '</tbody></table>';
-      html.push(table);
+      body = body.filter(r => !isSep(r)).map(r => r.map(c => sanitizeForPDF(stripInlineMarkdown(c))));
+      newPageIfNeeded(20);
+      y = addTable(doc, headers, body, y, { margin });
       continue;
     }
 
     // Blank line.
-    if (trimmed === '') {
-      closeList();
-      continue;
-    }
+    if (line === '') { y += 2; i++; continue; }
 
     // Horizontal rule.
-    if (/^---+$/.test(trimmed) || /^\*\*\*+$/.test(trimmed)) {
-      closeList();
-      html.push('<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;" />');
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) {
+      newPageIfNeeded(6);
+      doc.setDrawColor(...COLORS.lightGray);
+      doc.setLineWidth(0.4);
+      doc.line(margin.left, y, pageWidth - margin.right, y);
+      y += 5;
+      i++;
       continue;
     }
 
-    // Headings.
-    const headingMatch = trimmed.match(/^(#{1,6})\s+(.*)$/);
-    if (headingMatch) {
-      closeList();
-      const level = headingMatch[1].length;
-      const text = inline(escapeHtml(headingMatch[2]));
-      const sizes = { 1: 28, 2: 22, 3: 18, 4: 16, 5: 14, 6: 13 };
-      const border = level <= 2 ? ' border-bottom: 2px solid #C66A1F; padding-bottom: 6px;' : '';
-      html.push(`<h${level} style="font-size: ${sizes[level]}px; font-weight: 700; margin: ${level <= 2 ? 24 : 16}px 0 10px 0; color: #111827;${border}">${text}</h${level}>`);
+    // Standalone image.
+    const imgMatch = line.match(/^!\[[^\]]*\]\(([^)]+)\)\s*$/);
+    if (imgMatch) {
+      const im = imageMap[imgMatch[1]];
+      if (im && im.w && im.h) {
+        let w = Math.min(maxWidth, im.w * PX_TO_MM);
+        if (w < 8) w = Math.min(maxWidth, 40);
+        const h = (im.h * w) / im.w;
+        newPageIfNeeded(h + 4);
+        try {
+          doc.addImage(im.dataUrl, im.fmt, margin.left, y, w, h);
+          y += h + 4;
+        } catch (e) { y += 2; }
+      }
+      i++;
+      continue;
+    }
+
+    // Heading.
+    const hMatch = line.match(/^(#{1,6})\s+(.*)$/);
+    if (hMatch) {
+      const level = hMatch[1].length;
+      const text = sanitizeForPDF(stripInlineMarkdown(hMatch[2]));
+      y = addSectionHeading(doc, text, y, level <= 3 ? level : 3, { margin });
+      i++;
       continue;
     }
 
     // Blockquote.
-    if (trimmed.startsWith('>')) {
-      closeList();
-      html.push(`<blockquote style="border-left: 4px solid #C66A1F; margin: 12px 0; padding: 6px 16px; color: #4b5563; background: #f9fafb;">${inline(escapeHtml(trimmed.replace(/^>+\s?/, '')))}</blockquote>`);
+    if (line.startsWith('>')) {
+      const text = sanitizeForPDF(stripInlineMarkdown(line.replace(/^>+\s?/, ''))) || ' ';
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(DEFAULT_FONTS.body.size);
+      doc.setTextColor(...COLORS.gray);
+      const wrapped = doc.splitTextToSize(text, maxWidth - 6);
+      for (const w of wrapped) {
+        newPageIfNeeded(5.5);
+        doc.setDrawColor(...COLORS.primary);
+        doc.setLineWidth(1);
+        doc.line(margin.left, y - 3.5, margin.left, y + 1);
+        doc.text(w, margin.left + 4, y);
+        y += 5.5;
+      }
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...COLORS.black);
+      y += 2;
+      i++;
       continue;
     }
 
-    // Ordered list item.
-    const olMatch = trimmed.match(/^\d+\.\s+(.*)$/);
-    if (olMatch) {
-      if (listType !== 'ol') { closeList(); html.push('<ol style="margin: 8px 0 8px 24px; padding: 0;">'); listType = 'ol'; }
-      html.push(`<li style="margin: 4px 0; line-height: 1.6;">${inline(escapeHtml(olMatch[1]))}</li>`);
-      continue;
-    }
-
-    // Unordered list item.
-    const ulMatch = trimmed.match(/^[-*]\s+(.*)$/);
-    if (ulMatch) {
-      if (listType !== 'ul') { closeList(); html.push('<ul style="margin: 8px 0 8px 24px; padding: 0;">'); listType = 'ul'; }
-      html.push(`<li style="margin: 4px 0; line-height: 1.6;">${inline(escapeHtml(ulMatch[1]))}</li>`);
+    // List item (ordered or unordered).
+    const ol = line.match(/^(\d+)[.)]\s+(.*)$/);
+    const ul = line.match(/^[-*+]\s+(.*)$/);
+    if (ol || ul) {
+      const bullet = ol ? `${ol[1]}.` : '•';
+      const text = sanitizeForPDF(stripInlineMarkdown(ol ? ol[2] : ul[1]));
+      const indent = 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(DEFAULT_FONTS.body.size);
+      doc.setTextColor(...COLORS.black);
+      const wrapped = doc.splitTextToSize(text, maxWidth - indent);
+      wrapped.forEach((w, idx) => {
+        newPageIfNeeded(5.5);
+        if (idx === 0) doc.text(bullet, margin.left, y);
+        doc.text(w, margin.left + indent, y);
+        y += 5.5;
+      });
+      y += 1;
+      i++;
       continue;
     }
 
     // Paragraph.
-    closeList();
-    html.push(`<p style="margin: 8px 0; line-height: 1.65; color: #374151;">${inline(escapeHtml(trimmed))}</p>`);
+    const text = sanitizeForPDF(stripInlineMarkdown(line));
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(DEFAULT_FONTS.body.size);
+    doc.setTextColor(...COLORS.black);
+    const wrapped = doc.splitTextToSize(text, maxWidth);
+    for (const w of wrapped) {
+      newPageIfNeeded(5.5);
+      doc.text(w, margin.left, y);
+      y += 5.5;
+    }
+    y += 2;
+    i++;
   }
 
-  closeList();
-  if (inCode && codeBuffer.length) {
-    html.push(`<pre style="background: #1f2937; color: #f9fafb; padding: 14px 16px; border-radius: 6px; overflow-x: auto; font-family: monospace; font-size: 12px; margin: 12px 0;">${codeBuffer.map(escapeHtml).join('\n')}</pre>`);
-  }
-
-  return html.join('\n');
+  return y;
 }
 
 /**
- * Render a markdown string to a multi-page PDF that matches the in-app viewers.
- * Builds an offscreen styled element, waits for images, then paginates it.
+ * Render a markdown string to a clean, selectable, multi-page PDF that renders
+ * all markdown correctly (no raw "![]()", "[](url)", "####", or mangled
+ * symbols). Images referenced in the markdown are fetched and embedded.
  */
 export async function markdownToPDF(markdown, filename, options = {}) {
-  const { imageBaseUrl = '', title = null, subtitle = null, ...pdfOptions } = options;
+  const { imageBaseUrl = '', subtitle = null, margin = DEFAULT_MARGINS } = options;
+  const doc = createPDF();
+  let y = margin.top;
 
-  const container = document.createElement('div');
-  container.style.position = 'fixed';
-  container.style.left = '-10000px';
-  container.style.top = '0';
-  container.style.width = '720px';
-  container.style.padding = '36px';
-  container.style.boxSizing = 'border-box';
-  container.style.background = '#ffffff';
-  container.style.color = '#374151';
-  container.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
-  container.style.fontSize = '14px';
-
-  const titleHtml = title
-    ? `<h1 style="font-size: 28px; font-weight: 700; margin: 0 0 4px 0; color: #C66A1F;">${title}</h1>`
-    : '';
-  const subtitleHtml = subtitle
-    ? `<div style="font-size: 13px; color: #6b7280; margin: 0 0 20px 0;">${subtitle}</div>`
-    : '';
-
-  container.innerHTML = titleHtml + subtitleHtml + markdownToStyledHTML(markdown, { imageBaseUrl });
-  document.body.appendChild(container);
-
-  try {
-    // Wait for any images to finish loading so they appear in the canvas.
-    const imgs = Array.from(container.querySelectorAll('img'));
-    await Promise.all(imgs.map(img => img.complete
-      ? Promise.resolve()
-      : new Promise(resolve => { img.onload = img.onerror = () => resolve(); })));
-
-    return await elementToPDF(container, filename, pdfOptions);
-  } finally {
-    document.body.removeChild(container);
+  // Optional metadata subtitle (e.g. "IFC Model Analysis: foo.ifc").
+  if (subtitle) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(DEFAULT_FONTS.small.size);
+    doc.setTextColor(...COLORS.gray);
+    doc.text(sanitizeForPDF(subtitle), margin.left, y);
+    doc.setTextColor(...COLORS.black);
+    y += 6;
   }
+
+  // Pre-fetch every referenced image so embedding can be synchronous.
+  const imageMap = {};
+  const srcs = new Set();
+  const re = /!\[[^\]]*\]\(([^)]+)\)/g;
+  let m;
+  while ((m = re.exec(markdown)) !== null) srcs.add(m[1]);
+  await Promise.all([...srcs].map(async (src) => {
+    const data = await fetchImageForPDF(resolveDocImageUrl(src, imageBaseUrl));
+    if (data) imageMap[src] = data;
+  }));
+
+  renderMarkdownDocument(doc, markdown, y, { margin, imageMap });
+
+  // Page numbers in the footer.
+  const totalPages = doc.internal.getNumberOfPages();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(DEFAULT_FONTS.small.size);
+    doc.setTextColor(...COLORS.gray);
+    doc.text(`Page ${p} of ${totalPages}`, pageWidth - margin.right, pageHeight - 8, { align: 'right' });
+  }
+  doc.setTextColor(...COLORS.black);
+
+  const timestamp = new Date().toISOString().split('T')[0];
+  const clean = filename.endsWith('.pdf') ? filename.slice(0, -4) : filename;
+  doc.save(`${clean}-${timestamp}.pdf`);
+  return doc;
 }
 
 /**
@@ -727,8 +739,9 @@ export default {
   addParagraph,
   addTable,
   addHTMLElement,
-  elementToPDF,
-  markdownToStyledHTML,
+  sanitizeForPDF,
+  stripInlineMarkdown,
+  renderMarkdownDocument,
   markdownToPDF,
   processMarkdownForPDF,
   addBadge,
