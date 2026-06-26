@@ -331,6 +331,11 @@ export function sanitizeForPDF(text) {
     .replace(/[❌✗✘☒]/g, '[ ]')
     .replace(/⚠[️]?/g, '!')
     .replace(/[⭐★☆]/g, '*')
+    // ASCII-art box drawing (├ └ ─ │ ┌ ┐ …) that fonts can't render -> ASCII.
+    .replace(/[─━═╌╍┄┅┈┉]/g, '-')          // horizontals
+    .replace(/[│┃║╎╏┆┇┊┋]/g, '|')          // verticals
+    .replace(/[─-╿]/g, '+')        // corners / tees / crosses
+    .replace(/[▀-▟]/g, '#')        // block elements / shading
     .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '') // surrogate-pair emoji
     .replace(/[☀-➿⬀-⯿]/g, '')   // misc symbols & dingbats
     .replace(/[︀-️‍]/g, '');         // variation selectors / ZWJ
@@ -472,14 +477,18 @@ export function renderMarkdownDocument(doc, markdown, yPosition, options = {}) {
       continue;
     }
 
-    // Standalone image.
+    // Standalone image. Scale to natural size, then cap both dimensions so a
+    // large/square logo doesn't dominate the page.
     const imgMatch = line.match(/^!\[[^\]]*\]\(([^)]+)\)\s*$/);
     if (imgMatch) {
       const im = imageMap[imgMatch[1]];
       if (im && im.w && im.h) {
-        let w = Math.min(maxWidth, im.w * PX_TO_MM);
-        if (w < 8) w = Math.min(maxWidth, 40);
-        const h = (im.h * w) / im.w;
+        const MAX_W = Math.min(maxWidth, 45);
+        const MAX_H = 45;
+        let w = im.w * PX_TO_MM;
+        let h = im.h * PX_TO_MM;
+        if (w > MAX_W) { h = h * (MAX_W / w); w = MAX_W; }
+        if (h > MAX_H) { w = w * (MAX_H / h); h = MAX_H; }
         newPageIfNeeded(h + 4);
         try {
           doc.addImage(im.dataUrl, im.fmt, margin.left, y, w, h);
