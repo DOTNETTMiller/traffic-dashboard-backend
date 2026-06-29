@@ -17742,9 +17742,72 @@ app.get('/api/bridge-warnings/active', async (req, res) => {
   res.json({ success: true, warnings });
 });
 
+// Flag bridges whose recorded clearance may be outdated because active
+// construction/work is happening within the bridge's watch radius (e.g. an
+// overlay or repaving under an overpass can reduce vertical clearance).
+//
+// Computed ON DEMAND against the in-memory events cache — no DB writes and no
+// extra polling. (The old per-feed-refresh checker that wrote a warning row for
+// every event×bridge pair was disabled for performance; this replaces it.)
+function annotateBridgesWithConstruction(bridges) {
+  // eventsCache.data is the /api/events payload object; the array is under .events
+  const events = Array.isArray(eventsCache.data?.events) ? eventsCache.data.events : [];
+
+  // Pull a [lat, lon] from an event whether it exposes scalar fields or only a
+  // GeoJSON-style coordinates pair ([lon, lat]).
+  const eventLatLon = (e) => {
+    let lat = Number(e.latitude);
+    let lon = Number(e.longitude);
+    if ((!Number.isFinite(lat) || !Number.isFinite(lon)) && Array.isArray(e.coordinates) && e.coordinates.length >= 2) {
+      lon = Number(e.coordinates[0]);
+      lat = Number(e.coordinates[1]);
+    }
+    return Number.isFinite(lat) && Number.isFinite(lon) ? [lat, lon] : null;
+  };
+
+  const constructionEvents = events
+    .filter(e => e && e.eventType === 'Construction')
+    .map(e => ({ e, ll: eventLatLon(e) }))
+    .filter(x => x.ll);
+
+  return bridges.map(bridge => {
+    const lat = Number(bridge.latitude);
+    const lon = Number(bridge.longitude);
+    const radius = Number(bridge.watch_radius_km) || 10;
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || constructionEvents.length === 0) {
+      return { ...bridge, construction_nearby: false, needs_update: false, nearby_construction: [], nearby_construction_count: 0 };
+    }
+
+    const nearby = [];
+    for (const { e, ll } of constructionEvents) {
+      const distanceKm = calculateDistance(lat, lon, ll[0], ll[1]);
+      if (distanceKm <= radius) {
+        nearby.push({
+          event_id: e.id,
+          state: e.state,
+          description: e.description || e.location || 'Construction activity',
+          distance_km: Math.round(distanceKm * 10) / 10,
+          start_time: e.startTime || null,
+          end_time: e.endTime || null
+        });
+      }
+    }
+    nearby.sort((a, b) => a.distance_km - b.distance_km);
+
+    return {
+      ...bridge,
+      construction_nearby: nearby.length > 0,
+      needs_update: nearby.length > 0,
+      nearby_construction: nearby.slice(0, 5),
+      nearby_construction_count: nearby.length
+    };
+  });
+}
+
 app.get('/api/bridges/all', async (req, res) => {
   const bridges = await db.getAllBridgeClearances();
-  res.json({ success: true, bridges });
+  res.json({ success: true, bridges: annotateBridgesWithConstruction(bridges) });
 });
 
 // ============ PROJECTS & BIWEEKLY REPORTS API ============

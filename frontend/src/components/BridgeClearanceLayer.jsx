@@ -3,8 +3,10 @@ import { Marker, Popup, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import api from '../services/api';
 
-// Create custom bridge icon
-const createBridgeIcon = (clearanceFeet) => {
+// Create custom bridge icon. When `flagged` (active construction within the
+// watch radius), add an orange ring + 🚧 badge so the bridge stands out as
+// "clearance may be outdated".
+const createBridgeIcon = (clearanceFeet, flagged = false) => {
   const getClearanceColor = (feet) => {
     if (feet < 13.67) return '#dc2626'; // Critical (under 13'8")
     if (feet < 14.0) return '#f59e0b';   // Warning (under 14'0")
@@ -16,19 +18,29 @@ const createBridgeIcon = (clearanceFeet) => {
   const feet = Math.floor(clearanceFeet);
   const inches = Math.round((clearanceFeet - feet) * 12);
 
+  const flagRing = flagged
+    ? `<circle cx="16" cy="16" r="15" fill="none" stroke="#ea580c" stroke-width="2" stroke-dasharray="3 2"/>`
+    : '';
+  const flagBadge = flagged
+    ? `<circle cx="26" cy="6" r="6" fill="#ea580c" stroke="white" stroke-width="1.5"/>
+       <text x="26" y="9" text-anchor="middle" font-size="8" font-weight="bold" fill="white">!</text>`
+    : '';
+
   const svg = `
-    <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+    <svg width="34" height="34" viewBox="0 0 34 34" xmlns="http://www.w3.org/2000/svg">
+      ${flagRing}
       <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
       <text x="16" y="12" text-anchor="middle" font-size="8" font-weight="bold" fill="white">${feet}'</text>
       <text x="16" y="20" text-anchor="middle" font-size="7" font-weight="bold" fill="white">${inches}"</text>
       <path d="M 8 24 L 12 20 L 20 20 L 24 24" stroke="white" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      ${flagBadge}
     </svg>
   `;
 
   return L.divIcon({
     html: svg,
     className: 'bridge-clearance-icon',
-    iconSize: [32, 32],
+    iconSize: [34, 34],
     iconAnchor: [16, 16],
     popupAnchor: [0, -16]
   });
@@ -87,7 +99,7 @@ export default function BridgeClearanceLayer({ onBridgeClick }) {
           <Marker
             key={bridge.id}
             position={position}
-            icon={createBridgeIcon(bridge.clearance_feet)}
+            icon={createBridgeIcon(bridge.clearance_feet, bridge.construction_nearby)}
             eventHandlers={{
               click: () => {
                 if (onBridgeClick) {
@@ -209,6 +221,33 @@ export default function BridgeClearanceLayer({ onBridgeClick }) {
                   </div>
                 )}
 
+                {bridge.construction_nearby && (
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '10px',
+                    backgroundColor: '#fff7ed',
+                    border: '1.5px solid #ea580c',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    lineHeight: '1.5',
+                    color: '#9a3412'
+                  }}>
+                    <div style={{ fontWeight: 700, marginBottom: '4px' }}>
+                      🚧 Construction nearby — clearance may be outdated
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#7c2d12' }}>
+                      {bridge.nearby_construction_count} active work zone{bridge.nearby_construction_count === 1 ? '' : 's'} within {bridge.watch_radius_km} km. Verify clearance before routing oversize/tall loads.
+                    </div>
+                    {bridge.nearby_construction?.[0] && (
+                      <div style={{ fontSize: '11px', marginTop: '6px', color: '#7c2d12' }}>
+                        Nearest: {bridge.nearby_construction[0].description}
+                        {' '}({bridge.nearby_construction[0].distance_km} km
+                        {bridge.nearby_construction[0].state ? `, ${bridge.nearby_construction[0].state}` : ''})
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div style={{
                   marginTop: '12px',
                   paddingTop: '8px',
@@ -220,7 +259,9 @@ export default function BridgeClearanceLayer({ onBridgeClick }) {
                 }}>
                   <span>Watch Radius: {bridge.watch_radius_km} km</span>
                   {bridge.last_verified && (
-                    <span>Verified: {new Date(bridge.last_verified).toLocaleDateString()}</span>
+                    <span style={{ color: bridge.construction_nearby ? '#ea580c' : '#9ca3af', fontWeight: bridge.construction_nearby ? 600 : 400 }}>
+                      Clearance date: {new Date(bridge.last_verified).toLocaleDateString()}
+                    </span>
                   )}
                 </div>
               </div>
