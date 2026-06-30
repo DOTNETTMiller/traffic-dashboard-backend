@@ -125,12 +125,16 @@ export default function BridgeClearanceLayer({ onBridgeClick, events = [] }) {
   const loadBridges = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/bridges/all');
+      // Default to the Railway API. If VITE_BRIDGES_URL is set at build time
+      // (e.g. a Cloudflare Pages/R2 URL), fetch the static file from there
+      // instead — zero Railway egress. axios ignores baseURL for absolute URLs.
+      const url = import.meta.env.VITE_BRIDGES_URL || '/api/bridges/all';
+      const response = await api.get(url);
 
-      if (response.data.success) {
-        setBridges(response.data.bridges || []);
-        console.log('🌉 Loaded', response.data.bridges?.length || 0, 'bridge clearances');
-      }
+      const data = response.data;
+      const list = Array.isArray(data) ? data : (data.bridges || []);
+      setBridges(list);
+      console.log('🌉 Loaded', list.length, 'bridge clearances from', import.meta.env.VITE_BRIDGES_URL ? 'static host' : 'API');
     } catch (error) {
       console.error('Error loading bridge clearances:', error);
     } finally {
