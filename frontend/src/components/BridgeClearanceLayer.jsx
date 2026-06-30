@@ -1,7 +1,67 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Marker, Popup, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import api from '../services/api';
+
+// Haversine distance in km.
+const distanceKm = (lat1, lon1, lat2, lon2) => {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+// Pull [lat, lon] from an event whether it exposes scalar fields or only a
+// GeoJSON-style coordinates pair ([lon, lat]).
+const eventLatLon = (e) => {
+  let lat = Number(e.latitude);
+  let lon = Number(e.longitude);
+  if ((!Number.isFinite(lat) || !Number.isFinite(lon)) && Array.isArray(e.coordinates) && e.coordinates.length >= 2) {
+    lon = Number(e.coordinates[0]);
+    lat = Number(e.coordinates[1]);
+  }
+  return Number.isFinite(lat) && Number.isFinite(lon) ? [lat, lon] : null;
+};
+
+// Flag bridges whose recorded clearance may be outdated because active
+// construction is within the watch radius. Done client-side against events the
+// map already loaded — no extra server calls or egress.
+const annotateWithConstruction = (bridges, events) => {
+  const construction = (events || [])
+    .filter(e => e && e.eventType === 'Construction')
+    .map(e => ({ e, ll: eventLatLon(e) }))
+    .filter(x => x.ll);
+
+  return bridges.map(bridge => {
+    const lat = Number(bridge.latitude);
+    const lon = Number(bridge.longitude);
+    const radius = Number(bridge.watch_radius_km) || 10;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || construction.length === 0) {
+      return { ...bridge, construction_nearby: false, nearby_construction: [], nearby_construction_count: 0 };
+    }
+    const nearby = [];
+    for (const { e, ll } of construction) {
+      const d = distanceKm(lat, lon, ll[0], ll[1]);
+      if (d <= radius) {
+        nearby.push({
+          event_id: e.id,
+          state: e.state,
+          description: e.description || e.location || 'Construction activity',
+          distance_km: Math.round(d * 10) / 10
+        });
+      }
+    }
+    nearby.sort((a, b) => a.distance_km - b.distance_km);
+    return {
+      ...bridge,
+      construction_nearby: nearby.length > 0,
+      nearby_construction: nearby.slice(0, 5),
+      nearby_construction_count: nearby.length
+    };
+  });
+};
 
 // Create custom bridge icon. When `flagged` (active construction within the
 // watch radius), add an orange ring + 🚧 badge so the bridge stands out as
@@ -46,9 +106,17 @@ const createBridgeIcon = (clearanceFeet, flagged = false) => {
   });
 };
 
-export default function BridgeClearanceLayer({ onBridgeClick }) {
+export default function BridgeClearanceLayer({ onBridgeClick, events = [] }) {
   const [bridges, setBridges] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Correlate bridges with live construction events on the client (recomputes
+  // only when bridges or events change) — keeps the bridges API response static
+  // and cacheable, and adds no server egress.
+  const annotatedBridges = useMemo(
+    () => annotateWithConstruction(bridges, events),
+    [bridges, events]
+  );
 
   useEffect(() => {
     loadBridges();
@@ -89,7 +157,7 @@ export default function BridgeClearanceLayer({ onBridgeClick }) {
 
   return (
     <>
-      {bridges.map((bridge) => {
+      {annotatedBridges.map((bridge) => {
         if (!bridge.latitude || !bridge.longitude) return null;
 
         const position = [bridge.latitude, bridge.longitude];

@@ -1181,6 +1181,7 @@ export default function TrafficMap({
         {/* Bridge Clearance Layer */}
         {showBridgeClearances && (
           <BridgeClearanceLayer
+            events={events}
             onBridgeClick={(bridge) => {
               // You can add custom bridge click handler if needed
               console.log('Bridge clicked:', bridge);
