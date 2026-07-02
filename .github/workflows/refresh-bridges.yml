@@ -1,0 +1,69 @@
+name: Refresh bridge clearances (NBI -> Cloudflare)
+
+# Self-updating bridge clearance data:
+#  - Downloads the FHWA National Bridge Inventory national delimited file
+#    (all states, authoritative; updates ~yearly).
+#  - Extracts low roadway underclearances (Item 54) for ALL states/routes.
+#  - Publishes the static bridges.json to Cloudflare Pages (free egress).
+#
+# Runs monthly (no-ops until FHWA posts a new year) and on manual dispatch.
+#
+# Requires two repo secrets (Settings -> Secrets and variables -> Actions):
+#   CLOUDFLARE_API_TOKEN   (token with "Cloudflare Pages: Edit" permission)
+#   CLOUDFLARE_ACCOUNT_ID  (15ecaba79ca09b6fb7c1a6acf9cdcdf4)
+
+on:
+  schedule:
+    - cron: '17 6 1 * *'   # 06:17 UTC on the 1st of each month
+  workflow_dispatch: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install script deps
+        run: npm install better-sqlite3 pg --no-save || true
+
+      - name: Download FHWA NBI national delimited file
+        run: |
+          set -e
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
+          YEARS="$(date -u +%Y) $(( $(date -u +%Y) - 1 )) $(( $(date -u +%Y) - 2 ))"
+          ok=0
+          for Y in $YEARS; do
+            URL="https://highways.dot.gov/bridge/nbi/disclaim.cfm?nbiYear=${Y}hwybronefiledel&nbiZip=zip"
+            echo "Trying $URL"
+            code=$(curl -sL -A "$UA" -e "https://www.fhwa.dot.gov/bridge/nbi/ascii${Y}.cfm" \
+              -o nbi.zip -w "%{http_code}" "$URL" || true)
+            if [ "$code" = "200" ] && unzip -tq nbi.zip >/dev/null 2>&1; then
+              echo "Got NBI $Y"; ok=1; break
+            fi
+            echo "  year $Y failed (http $code)"
+          done
+          if [ "$ok" != "1" ]; then
+            echo "::error::Could not download the FHWA NBI national file (WAF block or URL change). See https://www.fhwa.dot.gov/bridge/nbi/ascii.cfm"
+            exit 1
+          fi
+          mkdir -p nbidata && unzip -o nbi.zip -d nbidata >/dev/null
+          FILE=$(ls -S nbidata/*.txt nbidata/*.csv 2>/dev/null | head -1)
+          echo "NBI_FILE=$FILE" >> "$GITHUB_ENV"
+          echo "Using $FILE ($(wc -l < "$FILE") lines)"
+
+      - name: Build bridges.json (all states, low underclearances)
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: |
+          node scripts/ingest_nbi_bridges.js --csv "$NBI_FILE" --all-routes --out cloudflare-static/bridges.json
+          node -e "const d=require('./cloudflare-static/bridges.json');if(!d.count)process.exit(1);console.log('bridges:',d.count)"
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4 pages deploy cloudflare-static --project-name=corridor-bridges --branch=main --commit-dirty=true

@@ -50,22 +50,23 @@ const MAX_METERS = 7.5;
 
 // --- CLI ----------------------------------------------------------------------
 function parseArgs(argv) {
-  const args = { dryRun: false, mode: 'arcgis', csv: null, replace: true, routes: DEFAULT_ROUTES, service: null };
+  const args = { dryRun: false, mode: 'arcgis', csv: null, replace: true, routes: DEFAULT_ROUTES, service: null, allRoutes: false, out: null };
   for (const a of argv) {
     if (a === '--dry-run') args.dryRun = true;
     else if (a === '--append') args.replace = false;
     else if (a === '--replace') args.replace = true;
+    else if (a === '--all-routes') args.allRoutes = true;
     else if (a.startsWith('--csv=')) { args.mode = 'csv'; args.csv = a.slice(6); }
     else if (a === '--csv') { args.mode = 'csv'; } // next token handled below
+    else if (a.startsWith('--out=')) args.out = a.slice(6);
     else if (a.startsWith('--routes=')) args.routes = a.slice(9).split(',').map(s => s.trim()).filter(Boolean);
     else if (a.startsWith('--service=')) args.service = a.slice(10);
   }
-  // support "--csv path" (space separated)
+  // support "--csv path" and "--out path" (space separated)
   const csvIdx = argv.indexOf('--csv');
-  if (csvIdx !== -1 && argv[csvIdx + 1] && !argv[csvIdx + 1].startsWith('--')) {
-    args.mode = 'csv';
-    args.csv = argv[csvIdx + 1];
-  }
+  if (csvIdx !== -1 && argv[csvIdx + 1] && !argv[csvIdx + 1].startsWith('--')) { args.mode = 'csv'; args.csv = argv[csvIdx + 1]; }
+  const outIdx = argv.indexOf('--out');
+  if (outIdx !== -1 && argv[outIdx + 1] && !argv[outIdx + 1].startsWith('--')) args.out = argv[outIdx + 1];
   return args;
 }
 
@@ -81,10 +82,10 @@ function pickField(names, patterns) {
 
 function discoverMapping(names) {
   return {
-    underRef:   pickField(names, [/REF_VERT_CLR_UNDER/i, /054A/i, /under.*ref/i]),
-    underMeters: pickField(names, [/VERT_CLR_UNDER_054B/i, /MIN_VERT_CLR_UNDER/i, /VERT_CLR_UNDER_054\b/i, /VERT_CLR_UNDER/i, /underclear/i]),
-    lat:        pickField(names, [/^LAT$/i, /LATITUDE/i, /LAT_016/i, /LAT_/i, /\bLAT\b/i]),
-    lon:        pickField(names, [/^LON[G]?$/i, /LONGITUDE/i, /LONG_017/i, /LONG_/i, /\bLON/i]),
+    underRef:   pickField(names, [/054A/i, /VERT_CLR_UND.*REF/i, /REF.*VERT_CLR_UND/i, /under.*ref/i]),
+    underMeters: pickField(names, [/VERT_CLR_UND_054B/i, /054B/i, /MIN_VERT_CLR_UND/i, /VERT_CLR_UND/i, /underclear/i]),
+    lat:        pickField(names, [/^LATDD$/i, /LATDD/i, /^LAT$/i, /LATITUDE/i, /LAT_016/i, /\bLAT\b/i]),
+    lon:        pickField(names, [/^LONGDD$/i, /LONGDD/i, /^LON[G]?$/i, /LONGITUDE/i, /LONG_017/i, /\bLON/i]),
     state:      pickField(names, [/STATE_CODE_001/i, /STATE_CODE/i, /STATE_NAME/i, /\bSTATE\b/i]),
     routeNum:   pickField(names, [/ROUTE_NUMBER_005D/i, /ROUTE_NUMBER/i, /ROUTE_NO/i, /\bROUTE\b/i]),
     routePrefix: pickField(names, [/ROUTE_PREFIX_005B/i, /ROUTE_PREFIX/i]),
@@ -125,8 +126,17 @@ function toDecimalDeg(raw, isLon) {
   return (isLon ? -1 : 1) * dec;
 }
 
-function routeLabel(rec, map, wantedRoutes) {
+// NBI Item 5B route prefix codes -> friendly label prefix.
+const ROUTE_PREFIX = { '1': 'I-', '2': 'US-', '3': 'SR-', '4': 'CR-' };
+
+function routeLabel(rec, map, wantedRoutes, allRoutes) {
   const num = String(rec[map.routeNum] ?? '').replace(/\D/g, '');
+  if (allRoutes) {
+    const n = Number(num);
+    if (!n) return 'Local road';
+    const pfx = ROUTE_PREFIX[String(rec[map.routePrefix] ?? '').trim()] ?? 'Rt ';
+    return `${pfx}${n}`;
+  }
   for (const want of wantedRoutes) {
     const wantNum = want.replace(/\D/g, '');
     if (wantNum && num === wantNum) return want;
@@ -139,9 +149,17 @@ function inspDateISO(rec, map) {
   const d = map.inspDate ? rec[map.inspDate] : null;
   if (d) {
     const s = String(d).trim();
-    // NBI date is often MMYYYY or MM/YYYY.
-    const m = s.match(/^(\d{1,2})\D?(\d{4})$/);
+    // MMYYYY or MM/YYYY
+    let m = s.match(/^(\d{1,2})\D?(\d{4})$/);
     if (m) return `${m[2]}-${String(m[1]).padStart(2, '0')}-01`;
+    // MMYY / MYY (NBI Item 90 in the delimited file), e.g. "0624" or "624"
+    m = s.match(/^(\d{1,2})(\d{2})$/);
+    if (m) {
+      const mm = String(m[1]).padStart(2, '0');
+      const yy = Number(m[2]);
+      const yr = yy <= 60 ? 2000 + yy : 1900 + yy;
+      return `${yr}-${mm}-01`;
+    }
     const parsed = new Date(s);
     if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
   }
@@ -151,14 +169,14 @@ function inspDateISO(rec, map) {
 }
 
 // Transform a raw NBI record into a bridge_clearances row, or null to skip.
-function transform(rec, map, wantedRoutes) {
+function transform(rec, map, wantedRoutes, allRoutes = false) {
   const ref = map.underRef ? String(rec[map.underRef] ?? '').trim() : 'H';
   if (map.underRef && !UNDERCLEARANCE_REF_KEEP.has(ref)) return null; // not a roadway underpass
 
   const meters = toMeters(rec[map.underMeters]);
   if (meters == null || meters < MIN_METERS || meters > MAX_METERS) return null;
 
-  const route = routeLabel(rec, map, wantedRoutes);
+  const route = routeLabel(rec, map, wantedRoutes, allRoutes);
   if (!route) return null;
 
   const lat = toDecimalDeg(rec[map.lat], false);
@@ -197,17 +215,21 @@ function parseDelimited(text) {
   const firstLine = text.slice(0, text.indexOf('\n'));
   const delim = firstLine.includes('|') ? '|' : firstLine.includes('\t') ? '\t' : ',';
   const rows = [];
-  // Minimal CSV: handles quoted fields with the chosen delimiter.
   const lines = text.split(/\r?\n/).filter(l => l.length);
+  // Delimiter-aware split. Handles a text qualifier of either " or ' (FHWA NBI
+  // delimited files use a single-quote qualifier); a doubled qualifier is an
+  // escaped literal. A qualifier only applies when it opens a field.
   const splitLine = (line) => {
-    if (delim !== ',') return line.split(delim).map(c => c.trim());
-    const out = []; let cur = ''; let q = false;
+    const out = []; let cur = ''; let q = null; let atFieldStart = true;
     for (let i = 0; i < line.length; i++) {
       const c = line[i];
-      if (q) { if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; } else if (c === '"') q = false; else cur += c; }
-      else if (c === '"') q = true;
-      else if (c === ',') { out.push(cur.trim()); cur = ''; }
-      else cur += c;
+      if (q) {
+        if (c === q && line[i + 1] === q) { cur += q; i++; }
+        else if (c === q) { q = null; }
+        else cur += c;
+      } else if (atFieldStart && (c === '"' || c === "'")) { q = c; atFieldStart = false; }
+      else if (c === delim) { out.push(cur.trim()); cur = ''; atFieldStart = true; }
+      else { cur += c; atFieldStart = false; }
     }
     out.push(cur.trim());
     return out;
@@ -222,7 +244,7 @@ function parseDelimited(text) {
   return { header, rows };
 }
 
-async function fetchFromArcGIS(serviceUrl, wantedRoutes) {
+async function fetchFromArcGIS(serviceUrl, wantedRoutes, allRoutes = false) {
   const base = serviceUrl || 'https://geo.dot.gov/server/rest/services/Hosted/National_Bridge_Inventory_DS/FeatureServer/0';
 
   const meta = await fetchJSON(`${base}?f=json`);
@@ -238,9 +260,13 @@ async function fetchFromArcGIS(serviceUrl, wantedRoutes) {
 
   const pageSize = Math.min(meta.maxRecordCount || 1000, 2000);
   const routeNums = wantedRoutes.map(r => r.replace(/\D/g, '')).filter(Boolean);
-  const where = routeNums.length
-    ? routeNums.map(n => `${map.routeNum} = ${n}`).join(' OR ')
-    : '1=1';
+  // Filter to low roadway underclearances server-side so we page ~hundreds, not 600k.
+  const clauses = [];
+  if (map.underRef) clauses.push(`${map.underRef} = 'H'`);
+  if (map.underMeters) clauses.push(`${map.underMeters} > ${MIN_METERS} AND ${map.underMeters} < ${MAX_METERS}`);
+  if (!allRoutes && routeNums.length) clauses.push('(' + routeNums.map(n => `${map.routeNum} = ${n}`).join(' OR ') + ')');
+  const where = clauses.length ? clauses.join(' AND ') : '1=1';
+  console.log('   where:', where);
 
   const records = [];
   let offset = 0;
@@ -331,7 +357,7 @@ function summarize(rows) {
 // --- main ---------------------------------------------------------------------
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  console.log(`🌉 NBI ingest — mode=${args.mode} routes=${args.routes.join(',')} ${args.dryRun ? '(dry-run)' : ''}`);
+  console.log(`🌉 NBI ingest — mode=${args.mode} ${args.allRoutes ? 'ALL routes/states' : 'routes=' + args.routes.join(',')} ${args.dryRun ? '(dry-run)' : ''}`);
 
   let records, map;
   if (args.mode === 'csv') {
@@ -341,16 +367,28 @@ async function main() {
     console.log('🔎 Discovered field mapping:', map);
     records = parsed.rows;
   } else {
-    ({ records, map } = await fetchFromArcGIS(args.service, args.routes));
+    ({ records, map } = await fetchFromArcGIS(args.service, args.routes, args.allRoutes));
   }
 
-  const rows = records.map(r => transform(r, map, args.routes)).filter(Boolean);
+  let rows = records.map(r => transform(r, map, args.routes, args.allRoutes)).filter(Boolean);
+  // Give each a stable id for the frontend.
+  rows = rows.map((r, i) => ({ id: i + 1, ...r }));
   summarize(rows);
 
   if (args.dryRun) { console.log('\n(dry-run) nothing written.'); return; }
   if (!rows.length) { console.log('\nNo rows to write.'); return; }
-  await writeRows(rows, { replace: args.replace });
-  console.log(`\n✅ Wrote ${rows.length} NBI bridge underclearances.`);
+
+  // --out writes a static {success,bridges} JSON (for Cloudflare hosting);
+  // otherwise write to the DB.
+  if (args.out) {
+    const payload = { success: true, count: rows.length, bridges: rows };
+    fs.mkdirSync(path.dirname(args.out), { recursive: true });
+    fs.writeFileSync(args.out, JSON.stringify(payload));
+    console.log(`\n✅ Wrote ${rows.length} bridges to ${args.out}`);
+  } else {
+    await writeRows(rows, { replace: args.replace });
+    console.log(`\n✅ Wrote ${rows.length} NBI bridge underclearances to DB.`);
+  }
 }
 
 if (require.main === module) {
