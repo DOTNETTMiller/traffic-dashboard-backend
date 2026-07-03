@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Marker, Popup, Tooltip } from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import api from '../services/api';
 
@@ -160,7 +161,12 @@ export default function BridgeClearanceLayer({ onBridgeClick, events = [] }) {
   }
 
   return (
-    <>
+    <MarkerClusterGroup
+      chunkedLoading
+      maxClusterRadius={50}
+      showCoverageOnHover={false}
+      zoomToBoundsOnClick={true}
+    >
       {annotatedBridges.map((bridge) => {
         if (!bridge.latitude || !bridge.longitude) return null;
 
@@ -341,6 +347,6 @@ export default function BridgeClearanceLayer({ onBridgeClick, events = [] }) {
           </Marker>
         );
       })}
-    </>
+    </MarkerClusterGroup>
   );
 }
