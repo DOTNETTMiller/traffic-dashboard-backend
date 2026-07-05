@@ -42,15 +42,21 @@ const DEFAULT_ROUTES = ['I-80', 'I-35'];
 // Only "H" (a roadway passes under the structure) is a truck-clearance concern.
 const UNDERCLEARANCE_REF_KEEP = new Set(['H', '1', 'h']);
 
-// Keep only realistic low underclearances. Above ~7.5 m (~24.6 ft) is not a
-// truck concern; NBI codes "no/unknown underclearance" as 99.99 m. Below 2.5 m
-// is almost certainly a data error for an interstate overpass.
+// Keep only genuinely low underclearances. 4.57 m ≈ 15 ft (a bit above the
+// 14'6" "safe" line, for buffer); above that is not a truck concern and NBI
+// codes "no/unknown underclearance" as 99.99 m. Below 2.5 m is almost
+// certainly a data error.
 const MIN_METERS = 2.5;
-const MAX_METERS = 7.5;
+const MAX_METERS = 4.57;
+
+// NBI Item 5B route prefix codes (1=Interstate, 2=US, 3=State, 4=County).
+// Default national pull keeps Interstate + US routes — the roads that matter
+// for oversize/tall-load routing.
+const DEFAULT_PREFIXES = ['1', '2'];
 
 // --- CLI ----------------------------------------------------------------------
 function parseArgs(argv) {
-  const args = { dryRun: false, mode: 'arcgis', csv: null, replace: true, routes: DEFAULT_ROUTES, service: null, allRoutes: false, out: null };
+  const args = { dryRun: false, mode: 'arcgis', csv: null, replace: true, routes: DEFAULT_ROUTES, service: null, allRoutes: false, out: null, prefixes: null };
   for (const a of argv) {
     if (a === '--dry-run') args.dryRun = true;
     else if (a === '--append') args.replace = false;
@@ -59,6 +65,7 @@ function parseArgs(argv) {
     else if (a.startsWith('--csv=')) { args.mode = 'csv'; args.csv = a.slice(6); }
     else if (a === '--csv') { args.mode = 'csv'; } // next token handled below
     else if (a.startsWith('--out=')) args.out = a.slice(6);
+    else if (a.startsWith('--prefixes=')) args.prefixes = a.slice(11).split(',').map(s => s.trim()).filter(Boolean);
     else if (a.startsWith('--routes=')) args.routes = a.slice(9).split(',').map(s => s.trim()).filter(Boolean);
     else if (a.startsWith('--service=')) args.service = a.slice(10);
   }
@@ -135,6 +142,9 @@ function routeLabel(rec, map, wantedRoutes, allRoutes) {
     const n = Number(num);
     if (!n) return 'Local road';
     const pfx = ROUTE_PREFIX[String(rec[map.routePrefix] ?? '').trim()] ?? 'Rt ';
+    // Signed I-/US route numbers are 1–999 (incl. 3-digit auxiliaries like
+    // I-794). Larger values are mis-coded local routes — label generically.
+    if ((pfx === 'I-' || pfx === 'US-') && n > 999) return `Rt ${n}`;
     return `${pfx}${n}`;
   }
   for (const want of wantedRoutes) {
@@ -169,9 +179,13 @@ function inspDateISO(rec, map) {
 }
 
 // Transform a raw NBI record into a bridge_clearances row, or null to skip.
-function transform(rec, map, wantedRoutes, allRoutes = false) {
+function transform(rec, map, wantedRoutes, allRoutes = false, prefixes = null) {
   const ref = map.underRef ? String(rec[map.underRef] ?? '').trim() : 'H';
   if (map.underRef && !UNDERCLEARANCE_REF_KEEP.has(ref)) return null; // not a roadway underpass
+
+  if (prefixes && prefixes.length && map.routePrefix) {
+    if (!prefixes.includes(String(rec[map.routePrefix] ?? '').trim())) return null;
+  }
 
   const meters = toMeters(rec[map.underMeters]);
   if (meters == null || meters < MIN_METERS || meters > MAX_METERS) return null;
@@ -244,8 +258,10 @@ function parseDelimited(text) {
   return { header, rows };
 }
 
-async function fetchFromArcGIS(serviceUrl, wantedRoutes, allRoutes = false) {
-  const base = serviceUrl || 'https://geo.dot.gov/server/rest/services/Hosted/National_Bridge_Inventory_DS/FeatureServer/0';
+async function fetchFromArcGIS(serviceUrl, wantedRoutes, allRoutes = false, prefixes = null) {
+  // USDOT NBI on ArcGIS Online (national, all states, queryable from cloud IPs —
+  // unlike the WAF-blocked FHWA bulk download and the token-gated geo.dot.gov).
+  const base = serviceUrl || 'https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/NTAD_National_Bridge_Inventory/FeatureServer/0';
 
   const meta = await fetchJSON(`${base}?f=json`);
   if (!meta || !Array.isArray(meta.fields)) {
@@ -264,7 +280,10 @@ async function fetchFromArcGIS(serviceUrl, wantedRoutes, allRoutes = false) {
   const clauses = [];
   if (map.underRef) clauses.push(`${map.underRef} = 'H'`);
   if (map.underMeters) clauses.push(`${map.underMeters} > ${MIN_METERS} AND ${map.underMeters} < ${MAX_METERS}`);
-  if (!allRoutes && routeNums.length) clauses.push('(' + routeNums.map(n => `${map.routeNum} = ${n}`).join(' OR ') + ')');
+  if (prefixes && prefixes.length && map.routePrefix) {
+    clauses.push(`${map.routePrefix} IN (${prefixes.map(p => `'${p}'`).join(',')})`);
+  }
+  if (!allRoutes && routeNums.length) clauses.push('(' + routeNums.map(n => `${map.routeNum} = '${n}'`).join(' OR ') + ')');
   const where = clauses.length ? clauses.join(' AND ') : '1=1';
   console.log('   where:', where);
 
@@ -367,10 +386,10 @@ async function main() {
     console.log('🔎 Discovered field mapping:', map);
     records = parsed.rows;
   } else {
-    ({ records, map } = await fetchFromArcGIS(args.service, args.routes, args.allRoutes));
+    ({ records, map } = await fetchFromArcGIS(args.service, args.routes, args.allRoutes, args.prefixes));
   }
 
-  let rows = records.map(r => transform(r, map, args.routes, args.allRoutes)).filter(Boolean);
+  let rows = records.map(r => transform(r, map, args.routes, args.allRoutes, args.prefixes)).filter(Boolean);
   // Give each a stable id for the frontend.
   rows = rows.map((r, i) => ({ id: i + 1, ...r }));
   summarize(rows);

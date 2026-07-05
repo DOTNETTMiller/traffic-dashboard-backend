@@ -126,16 +126,25 @@ export default function BridgeClearanceLayer({ onBridgeClick, events = [] }) {
   const loadBridges = async () => {
     try {
       setLoading(true);
-      // Default to the Railway API. If VITE_BRIDGES_URL is set at build time
-      // (e.g. a Cloudflare Pages/R2 URL), fetch the static file from there
-      // instead — zero Railway egress. axios ignores baseURL for absolute URLs.
-      const url = import.meta.env.VITE_BRIDGES_URL || '/api/bridges/all';
-      const response = await api.get(url);
+      // Bridge data (full national NBI set) is served free from Cloudflare Pages
+      // — zero Railway egress. Override with VITE_BRIDGES_URL, or '/api/bridges/all'
+      // for the DB-backed set. Absolute URLs use plain fetch (no axios
+      // interceptors/custom headers) so the cross-origin GET stays preflight-free.
+      const url = import.meta.env.VITE_BRIDGES_URL || 'https://corridor-bridges.pages.dev/bridges.json';
 
-      const data = response.data;
+      let data;
+      if (/^https?:/i.test(url)) {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        data = await resp.json();
+      } else {
+        const response = await api.get(url);
+        data = response.data;
+      }
+
       const list = Array.isArray(data) ? data : (data.bridges || []);
       setBridges(list);
-      console.log('🌉 Loaded', list.length, 'bridge clearances from', import.meta.env.VITE_BRIDGES_URL ? 'static host' : 'API');
+      console.log('🌉 Loaded', list.length, 'bridge clearances from', /^https?:/i.test(url) ? 'static host' : 'API');
     } catch (error) {
       console.error('Error loading bridge clearances:', error);
     } finally {
