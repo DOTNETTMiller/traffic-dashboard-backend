@@ -72,15 +72,19 @@ function regCircle(inner) {
 
 /* ---------- per-sign symbol payloads ---------- */
 
-// W21-1 — Workers symbol: hard hat + body + leg + shovel arm
+// W21-1 — Workers: MUTCD digging-worker silhouette (hard hat, bent torso,
+// stance legs, arm on a shovel driven into a dirt mound).
 const W21_1_SYMBOL = `
-  <path d="M 12.5 11.5 L 19.5 11.5 L 19 10 L 13 10 Z" fill="${COLORS.black}"/>
-  <path d="M 13.4 10 L 18.6 10 Q 18.4 7.5 16 7.5 Q 13.6 7.5 13.4 10 Z" fill="${COLORS.black}"/>
-  <circle cx="16" cy="13" r="1.4" fill="${COLORS.black}"/>
-  <path d="M 12 15.5 L 20 15.5 L 19 21 L 13 21 Z" fill="${COLORS.black}"/>
-  <rect x="13.2" y="20.6" width="2"   height="4.5" fill="${COLORS.black}"/>
-  <rect x="16.8" y="20.6" width="2"   height="4.5" fill="${COLORS.black}"/>
-  <line x1="19.5" y1="17" x2="22" y2="22" stroke="${COLORS.black}" stroke-width="1.1" stroke-linecap="round"/>
+  <path d="M10.6 9.4 Q13 5.9 15.4 9.4 Z" fill="${COLORS.black}"/>
+  <rect x="9.9" y="9.1" width="6.2" height="1.25" rx="0.6" fill="${COLORS.black}"/>
+  <circle cx="13" cy="11.6" r="1.5" fill="${COLORS.black}"/>
+  <path d="M11.6 12.8 Q10.6 16.5 12 18.8 L15 18 Q14 14.4 14 12.8 Z" fill="${COLORS.black}"/>
+  <path d="M12 18.4 L11 24.6 L12.7 24.6 L13.7 18.9 Z" fill="${COLORS.black}"/>
+  <path d="M14.2 18.2 L17.6 23.4 L19 22.6 L16 17.7 Z" fill="${COLORS.black}"/>
+  <path d="M12.6 13.4 Q16.5 14.2 19.4 17.3 L18.4 18.5 Q15.6 15.8 12 15.4 Z" fill="${COLORS.black}"/>
+  <line x1="19.2" y1="16.8" x2="23.2" y2="22.4" stroke="${COLORS.black}" stroke-width="1.1" stroke-linecap="round"/>
+  <path d="M21.8 21.6 L25.2 22.8 L23.6 24.8 Z" fill="${COLORS.black}"/>
+  <path d="M18.4 25 Q21.5 22.8 25.6 25 Z" fill="${COLORS.black}"/>
 `;
 
 // W20-3 — ROAD CLOSED AHEAD: stylized horizontal road with an X over it
@@ -106,14 +110,16 @@ function w20_5R_SYMBOL() {
   `;
 }
 
-// W20-7 — Flagger: silhouette holding vertical paddle
+// W20-7 — Flagger: MUTCD silhouette of a person holding a flag out to the side.
 const W20_7_SYMBOL = `
-  <circle cx="14" cy="9.5" r="1.6" fill="${COLORS.black}"/>
-  <path d="M 11 12 L 17 12 L 16 18 L 12 18 Z" fill="${COLORS.black}"/>
-  <rect x="11.5" y="17.5" width="1.7" height="6" fill="${COLORS.black}"/>
-  <rect x="14.8" y="17.5" width="1.7" height="6" fill="${COLORS.black}"/>
-  <line x1="17" y1="14" x2="22" y2="11" stroke="${COLORS.black}" stroke-width="1.1" stroke-linecap="round"/>
-  <rect x="20.5" y="6" width="3.5" height="5" fill="${COLORS.black}"/>
+  <path d="M11.4 8.9 Q13.5 5.6 15.6 8.9 Z" fill="${COLORS.black}"/>
+  <rect x="10.7" y="8.6" width="5.6" height="1.2" rx="0.6" fill="${COLORS.black}"/>
+  <circle cx="13.5" cy="11" r="1.5" fill="${COLORS.black}"/>
+  <path d="M12 12.2 Q11.3 16 12.4 19 L15.4 18.4 Q14.6 15 14.5 12.2 Z" fill="${COLORS.black}"/>
+  <path d="M12.6 18.6 L12 24.6 L13.6 24.6 L14 19 Z" fill="${COLORS.black}"/>
+  <path d="M14.4 18.6 L16.4 23.8 L17.8 23.2 L15.6 18.2 Z" fill="${COLORS.black}"/>
+  <path d="M14.3 12.8 L20.8 9.6 L21.4 10.9 L14.9 14.1 Z" fill="${COLORS.black}"/>
+  <rect x="20" y="6.4" width="5" height="3.6" fill="${COLORS.black}"/>
 `;
 
 // W23-1 — Stopped/slow traffic: stacked vehicle outlines (queue)
