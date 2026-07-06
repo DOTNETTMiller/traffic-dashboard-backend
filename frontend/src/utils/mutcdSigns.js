@@ -46,7 +46,7 @@ const COLORS = {
 // severity tint; `inner` is whatever the symbol/text payload renders inside.
 function diamond(fill, inner) {
   return `
-<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">
+<svg width="40" height="40" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">
   <polygon points="16,2 30,16 16,30 2,16" fill="${fill}" stroke="${COLORS.black}" stroke-width="0.9" stroke-linejoin="round"/>
   ${inner}
 </svg>`.trim();
@@ -55,7 +55,7 @@ function diamond(fill, inner) {
 // MUTCD M-series guide rectangle (orange, landscape).
 function rect(fill, inner) {
   return `
-<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">
+<svg width="40" height="40" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">
   <rect x="2" y="6" width="28" height="20" rx="1" fill="${fill}" stroke="${COLORS.black}" stroke-width="0.9"/>
   ${inner}
 </svg>`.trim();
@@ -64,7 +64,7 @@ function rect(fill, inner) {
 // Regulatory red circle (R-series prohibitive signs like Do Not Enter).
 function regCircle(inner) {
   return `
-<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">
+<svg width="40" height="40" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">
   <circle cx="16" cy="16" r="14" fill="${COLORS.red}" stroke="${COLORS.black}" stroke-width="0.9"/>
   ${inner}
 </svg>`.trim();
@@ -75,16 +75,15 @@ function regCircle(inner) {
 // W21-1 — Workers: MUTCD digging-worker silhouette (hard hat, bent torso,
 // stance legs, arm on a shovel driven into a dirt mound).
 const W21_1_SYMBOL = `
-  <path d="M10.6 9.4 Q13 5.9 15.4 9.4 Z" fill="${COLORS.black}"/>
-  <rect x="9.9" y="9.1" width="6.2" height="1.25" rx="0.6" fill="${COLORS.black}"/>
-  <circle cx="13" cy="11.6" r="1.5" fill="${COLORS.black}"/>
-  <path d="M11.6 12.8 Q10.6 16.5 12 18.8 L15 18 Q14 14.4 14 12.8 Z" fill="${COLORS.black}"/>
-  <path d="M12 18.4 L11 24.6 L12.7 24.6 L13.7 18.9 Z" fill="${COLORS.black}"/>
-  <path d="M14.2 18.2 L17.6 23.4 L19 22.6 L16 17.7 Z" fill="${COLORS.black}"/>
-  <path d="M12.6 13.4 Q16.5 14.2 19.4 17.3 L18.4 18.5 Q15.6 15.8 12 15.4 Z" fill="${COLORS.black}"/>
-  <line x1="19.2" y1="16.8" x2="23.2" y2="22.4" stroke="${COLORS.black}" stroke-width="1.1" stroke-linecap="round"/>
-  <path d="M21.8 21.6 L25.2 22.8 L23.6 24.8 Z" fill="${COLORS.black}"/>
-  <path d="M18.4 25 Q21.5 22.8 25.6 25 Z" fill="${COLORS.black}"/>
+  <path d="M10.3 9.7 Q14 5 17.7 9.7 Z" fill="${COLORS.black}"/>
+  <rect x="9.4" y="9.4" width="9.2" height="1.7" rx="0.8" fill="${COLORS.black}"/>
+  <circle cx="14" cy="12" r="1.8" fill="${COLORS.black}"/>
+  <path d="M11.5 13.8 Q10.7 17.2 12 20 L15.4 19.2 Q14.3 15.4 14.2 13.8 Z" fill="${COLORS.black}"/>
+  <path d="M11.9 19.6 L11 25.4 L13 25.4 L13.9 20.1 Z" fill="${COLORS.black}"/>
+  <path d="M14.3 19.4 L17.6 24.4 L19.3 23.4 L16.2 18.6 Z" fill="${COLORS.black}"/>
+  <path d="M13 14.4 Q17 15.2 20 18.4 L18.7 19.8 Q15.8 16.9 12.3 16.4 Z" fill="${COLORS.black}"/>
+  <line x1="19.8" y1="17.6" x2="23.6" y2="22.6" stroke="${COLORS.black}" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M22 21.4 L25.6 22.8 L23.8 25 Z" fill="${COLORS.black}"/>
 `;
 
 // W20-3 — ROAD CLOSED AHEAD: stylized horizontal road with an X over it

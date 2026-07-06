@@ -319,7 +319,7 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
           }
         }
       </style>
-      <div style="position: relative; width: 32px; height: 32px; ${hasMessages ? 'z-index: 1000;' : 'z-index: 1;'}">
+      <div style="position: relative; width: 40px; height: 40px; ${hasMessages ? 'z-index: 1000;' : 'z-index: 1;'}">
         ${isNearStateBorder ? `
           <!-- Pulsing border indicator for events near state borders -->
           <div style="
@@ -395,8 +395,8 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
         ` : ''}
       </div>
     `,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16]
+    iconSize: [40, 40],
+    iconAnchor: [20, 20]
   });
 };
 
