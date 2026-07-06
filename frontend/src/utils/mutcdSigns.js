@@ -94,19 +94,21 @@ const W20_3_SYMBOL = `
   <line x1="23" y1="11" x2="9"  y2="22" stroke="${COLORS.black}" stroke-width="1.6" stroke-linecap="round"/>
 `;
 
-// W20-5L — Left lane closed (merge right): tapering lanes converging right
+// W20-5L — Left lane closed (merge right): plan-view road, left lane tapers
+// closed, dashed centerline (MUTCD lane-ends style).
 function w20_5L_SYMBOL() {
   return `
-    <path d="M 9 22 L 9 14 L 23 18 L 23 22 Z" fill="${COLORS.black}"/>
-    <path d="M 9 14 L 23 18" stroke="${COLORS.white}" stroke-width="0.9"/>
+    <path d="M11 25 L21 25 L21 6.5 L17 6.5 L17 12.5 L11 18 Z" fill="${COLORS.black}"/>
+    <line x1="16" y1="24" x2="16" y2="13.5" stroke="${COLORS.white}" stroke-width="1" stroke-dasharray="2 1.7" stroke-linecap="round"/>
   `;
 }
 
-// W20-5R — Right lane closed (merge left): tapering lanes converging left
+// W20-5R — Right lane closed (merge left): plan-view road, right lane tapers
+// closed, dashed centerline.
 function w20_5R_SYMBOL() {
   return `
-    <path d="M 23 22 L 23 14 L 9 18 L 9 22 Z" fill="${COLORS.black}"/>
-    <path d="M 23 14 L 9 18" stroke="${COLORS.white}" stroke-width="0.9"/>
+    <path d="M11 25 L21 25 L21 18 L15 12.5 L15 6.5 L11 6.5 Z" fill="${COLORS.black}"/>
+    <line x1="16" y1="24" x2="16" y2="13.5" stroke="${COLORS.white}" stroke-width="1" stroke-dasharray="2 1.7" stroke-linecap="round"/>
   `;
 }
 
