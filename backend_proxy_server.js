@@ -4902,18 +4902,23 @@ async function refreshTomTomIncidents() {
   try {
     const tiles = tomtomIncidents.corridorTiles(lines);
     const result = await tomtomIncidents.fetchIncidents({ apiKey, tiles });
+    // Keep only incidents ON an Interstate — the corridor/DOT-comparison scope.
+    // (Drops the flood of city-street closures the bbox also returns.)
+    const INTERSTATE_RE = /^I[- ]?\d/i;
+    const incidents = result.incidents.filter(i => (i.roadNumbers || []).some(r => INTERSTATE_RE.test(r)));
     tomtomCache.data = {
       success: true,
       timestamp: new Date().toISOString(),
-      count: result.incidents.length,
-      incidents: result.incidents,
+      count: incidents.length,
+      incidents,
+      rawCount: result.incidents.length,
       tiles: tiles.length,
       requests: result.requests,
       budgetLeft: result.budgetLeft,
       stopped: result.stopped
     };
     tomtomCache.timestamp = Date.now();
-    console.log(`🚗 TomTom: ${result.incidents.length} incidents / ${tiles.length} tiles (${result.requests} reqs, ${result.budgetLeft} budget left${result.stopped ? ', BUDGET STOP' : ''})`);
+    console.log(`🚗 TomTom: ${incidents.length} interstate incidents (${result.incidents.length} raw) / ${tiles.length} tiles (${result.requests} reqs, ${result.budgetLeft} budget left${result.stopped ? ', BUDGET STOP' : ''})`);
   } catch (err) {
     console.error('🚗 TomTom refresh error:', err.message);
   } finally {
