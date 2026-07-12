@@ -4879,6 +4879,10 @@ function getCorridorLine(corridor) {
 const tomtomIncidents = require('./services/tomtom-incidents');
 let tomtomCache = { data: null, timestamp: null, ttl: 45 * 60 * 1000, isRefreshing: false };
 
+// TomTom keys are 32 alphanumeric chars; strip any stray paste artifacts
+// (whitespace, zero-width/non-breaking chars) that would cause a 401.
+const tomtomApiKey = () => (process.env.TOMTOM_API_KEY || '').replace(/[^A-Za-z0-9]/g, '');
+
 // One direction per corridor is enough (both directions cover the same ground);
 // halves the tile/request count.
 function corridorTileLines() {
@@ -4887,7 +4891,7 @@ function corridorTileLines() {
 
 async function refreshTomTomIncidents() {
   if (tomtomCache.isRefreshing) return tomtomCache.data;
-  const apiKey = (process.env.TOMTOM_API_KEY || '').trim(); // guard against pasted whitespace/newline
+  const apiKey = tomtomApiKey();
   if (!apiKey) return null;
   const lines = corridorTileLines();
   if (!lines.length) {
@@ -4928,8 +4932,8 @@ app.get('/api/tomtom/incidents', async (req, res) => {
   if (req.query.debug) {
     const lines = corridorTileLines();
     const tiles = tomtomIncidents.corridorTiles(lines);
-    const sample = await tomtomIncidents.debugTile({ apiKey: (process.env.TOMTOM_API_KEY || '').trim(), bbox: tiles[0] });
-    return res.json({ tilesTotal: tiles.length, firstTile: tiles[0], keyLen: (process.env.TOMTOM_API_KEY || '').trim().length, sample });
+    const sample = await tomtomIncidents.debugTile({ apiKey: tomtomApiKey(), bbox: tiles[0] });
+    return res.json({ tilesTotal: tiles.length, firstTile: tiles[0], keyLen: tomtomApiKey().length, sample });
   }
 
   if (req.query.refresh) { await refreshTomTomIncidents(); return res.json(tomtomCache.data || {}); }
