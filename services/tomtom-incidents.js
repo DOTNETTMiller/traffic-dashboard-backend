@@ -131,7 +131,7 @@ function bboxAreaKm2([minLon, minLat, maxLon, maxLat]) {
 
 // Emit "minLon,minLat,maxLon,maxLat" tiles covering the corridor, each under
 // maxAreaKm2 (kept below TomTom's 10,000 hard limit) with a padKm buffer.
-function corridorTiles(lines, { maxAreaKm2 = 8000, padKm = 10, maxTiles = 120 } = {}) {
+function corridorTiles(lines, { maxAreaKm2 = 9500, padKm = 10, maxTiles = 90 } = {}) {
   const tiles = [];
   for (const line of lines || []) {
     if (!Array.isArray(line)) continue;
@@ -148,7 +148,32 @@ function corridorTiles(lines, { maxAreaKm2 = 8000, padKm = 10, maxTiles = 120 } 
     }
     if (cur.length) tiles.push(bboxOf(cur, padKm));
   }
-  return tiles.slice(0, maxTiles).map(b => b.map(n => n.toFixed(5)).join(','));
+  // Dedupe near-identical tiles (overlapping directions/corridors) on a coarse
+  // ~0.25° grid so we don't waste requests on the same ground twice.
+  const seen = new Set();
+  const out = [];
+  for (const b of tiles) {
+    const key = b.map(n => Math.round(n * 4) / 4).join(',');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(b.map(n => n.toFixed(5)).join(','));
+  }
+  return out.slice(0, maxTiles);
+}
+
+// One-tile diagnostic: returns the raw HTTP status + a short body snippet so a
+// ?debug=1 request can reveal why tiles return empty (key/quota/format issues).
+async function debugTile({ apiKey, bbox }) {
+  if (!apiKey) return { error: 'no api key' };
+  try {
+    const resp = await fetch(incidentUrl(apiKey, bbox));
+    const text = await resp.text();
+    let count = null;
+    try { count = (JSON.parse(text).incidents || []).length; } catch { /* not json */ }
+    return { httpStatus: resp.status, ok: resp.ok, incidentCount: count, bodySnippet: text.slice(0, 300), bbox };
+  } catch (e) {
+    return { error: e.message, bbox };
+  }
 }
 
 // ---- fetch ------------------------------------------------------------------
@@ -210,6 +235,7 @@ module.exports = {
   fetchIncidents,
   normalizeIncident,
   corridorTiles,
+  debugTile,
   bboxAreaKm2,
   budgetRemaining,
   CATEGORY,

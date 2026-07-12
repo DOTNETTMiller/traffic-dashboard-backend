@@ -4877,13 +4877,19 @@ function getCorridorLine(corridor) {
 // (no per-user cost, no Railway egress hit); free tier + hard budget in the
 // service module means it cannot bill.
 const tomtomIncidents = require('./services/tomtom-incidents');
-let tomtomCache = { data: null, timestamp: null, ttl: 30 * 60 * 1000, isRefreshing: false };
+let tomtomCache = { data: null, timestamp: null, ttl: 45 * 60 * 1000, isRefreshing: false };
+
+// One direction per corridor is enough (both directions cover the same ground);
+// halves the tile/request count.
+function corridorTileLines() {
+  return ['I-80', 'I-35'].map(c => getCorridorLine(c)[0]).filter(Boolean);
+}
 
 async function refreshTomTomIncidents() {
   if (tomtomCache.isRefreshing) return tomtomCache.data;
   const apiKey = process.env.TOMTOM_API_KEY;
   if (!apiKey) return null;
-  const lines = [...getCorridorLine('I-80'), ...getCorridorLine('I-35')];
+  const lines = corridorTileLines();
   if (!lines.length) {
     console.warn('🚗 TomTom: corridor geometry not loaded yet — skipping');
     return tomtomCache.data;
@@ -4916,6 +4922,18 @@ app.get('/api/tomtom/incidents', async (req, res) => {
   if (!process.env.TOMTOM_API_KEY) {
     return res.status(503).json({ success: false, error: 'TomTom not configured', incidents: [] });
   }
+
+  // ?debug=1 — fetch a single corridor tile and report the raw HTTP status so we
+  // can see why tiles return empty (key/quota/format). No secrets in output.
+  if (req.query.debug) {
+    const lines = corridorTileLines();
+    const tiles = tomtomIncidents.corridorTiles(lines);
+    const sample = await tomtomIncidents.debugTile({ apiKey: process.env.TOMTOM_API_KEY, bbox: tiles[0] });
+    return res.json({ tilesTotal: tiles.length, firstTile: tiles[0], sample });
+  }
+
+  if (req.query.refresh) { await refreshTomTomIncidents(); return res.json(tomtomCache.data || {}); }
+
   const age = tomtomCache.timestamp ? Date.now() - tomtomCache.timestamp : Infinity;
   if (!tomtomCache.data) {
     await refreshTomTomIncidents();                 // first load: block once
