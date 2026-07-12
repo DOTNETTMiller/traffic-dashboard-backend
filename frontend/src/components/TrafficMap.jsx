@@ -44,6 +44,7 @@ import ParkingLayer from './ParkingLayer';
 import { config } from '../config';
 import InterchangeLayer from './InterchangeLayer';
 import BridgeClearanceLayer from './BridgeClearanceLayer';
+import TomTomIncidentsLayer from './TomTomIncidentsLayer';
 import OSWRegulationsLayer from './OSWRegulationsLayer';
 import StateOSWRegulationsLayer from './StateOSWRegulationsLayer';
 import ITSEquipmentLayer from './ITSEquipmentLayer';
@@ -410,6 +411,7 @@ export default function TrafficMap({
   parkingPredictionHours = 0,
   showInterchanges = false,
   showBridgeClearances = false,
+  showTomTomIncidents = false,
   showCorridorRegulations = false,
   ipawsGeofence = null,
   onGeofenceUpdate,
@@ -1188,6 +1190,9 @@ export default function TrafficMap({
             }}
           />
         )}
+
+        {/* TomTom live incidents (consumer-nav source, for DOT-vs-nav overlay) */}
+        {showTomTomIncidents && <TomTomIncidentsLayer />}
 
         {/* State OS/OW Regulations Layer */}
         {showCorridorRegulations && (

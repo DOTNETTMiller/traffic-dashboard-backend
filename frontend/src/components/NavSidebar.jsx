@@ -46,6 +46,7 @@ const NAV = [
       { actionKey: 'toggle-cadd',             toggleProp: 'showCADDElements',        icon: '📐', label: 'CADD Elements' },
       { actionKey: 'toggle-interchanges',     toggleProp: 'showInterchanges',        icon: '🔀', label: 'Interchanges' },
       { actionKey: 'toggle-bridge-clearance', toggleProp: 'showBridgeClearances',    icon: '🌉', label: 'Bridge Clearances' },
+      { actionKey: 'toggle-tomtom-incidents', toggleProp: 'showTomTomIncidents',     icon: '🚗', label: 'TomTom Incidents (nav)' },
       { actionKey: 'toggle-corridor-regs',    toggleProp: 'showCorridorRegulations', icon: '🚛', label: 'OS/OW Permit Rules' }
     ]
   },

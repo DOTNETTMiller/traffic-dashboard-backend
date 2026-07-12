@@ -106,6 +106,51 @@ function normalizeIncident(feature) {
   };
 }
 
+// ---- corridor tiling --------------------------------------------------------
+// TomTom caps a bbox at 10,000 km², so a corridor is covered by a chain of
+// tiles walked along the route polyline. Input `lines` is an array of polylines,
+// each an array of [lon, lat] pairs (the shape getCorridorLine() returns).
+function bboxOf(pts, padKm) {
+  let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
+  for (const [lon, lat] of pts) {
+    if (lon < minLon) minLon = lon; if (lon > maxLon) maxLon = lon;
+    if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+  }
+  const midLat = (minLat + maxLat) / 2;
+  const dLat = padKm / 110.574;
+  const dLon = padKm / (111.320 * Math.cos(midLat * Math.PI / 180) || 1);
+  return [minLon - dLon, minLat - dLat, maxLon + dLon, maxLat + dLat];
+}
+
+function bboxAreaKm2([minLon, minLat, maxLon, maxLat]) {
+  const midLat = (minLat + maxLat) / 2;
+  const w = (maxLon - minLon) * 111.320 * Math.cos(midLat * Math.PI / 180);
+  const h = (maxLat - minLat) * 110.574;
+  return Math.abs(w * h);
+}
+
+// Emit "minLon,minLat,maxLon,maxLat" tiles covering the corridor, each under
+// maxAreaKm2 (kept below TomTom's 10,000 hard limit) with a padKm buffer.
+function corridorTiles(lines, { maxAreaKm2 = 8000, padKm = 10, maxTiles = 120 } = {}) {
+  const tiles = [];
+  for (const line of lines || []) {
+    if (!Array.isArray(line)) continue;
+    let cur = [];
+    for (const pt of line) {
+      if (!Array.isArray(pt) || pt.length < 2) continue;
+      const test = [...cur, pt];
+      if (cur.length >= 2 && bboxAreaKm2(bboxOf(test, padKm)) > maxAreaKm2) {
+        tiles.push(bboxOf(cur, padKm));
+        cur = [pt];
+      } else {
+        cur.push(pt);
+      }
+    }
+    if (cur.length) tiles.push(bboxOf(cur, padKm));
+  }
+  return tiles.slice(0, maxTiles).map(b => b.map(n => n.toFixed(5)).join(','));
+}
+
 // ---- fetch ------------------------------------------------------------------
 // bbox string is "minLon,minLat,maxLon,maxLat".
 function incidentUrl(apiKey, bbox) {
@@ -164,6 +209,8 @@ async function fetchIncidents({ apiKey, tiles }) {
 module.exports = {
   fetchIncidents,
   normalizeIncident,
+  corridorTiles,
+  bboxAreaKm2,
   budgetRemaining,
   CATEGORY,
   EVENT_TYPE,

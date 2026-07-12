@@ -115,6 +115,7 @@ function App() {
   const [availableRoutes, setAvailableRoutes] = useState([]);
   const [showInterchanges, setShowInterchanges] = useState(false); // Hidden by default - toggle to show
   const [showBridgeClearances, setShowBridgeClearances] = useState(false); // Hidden by default - toggle to show
+  const [showTomTomIncidents, setShowTomTomIncidents] = useState(false); // TomTom (consumer-nav) incidents overlay
   const [showCorridorRegulations, setShowCorridorRegulations] = useState(false); // Hidden by default - toggle to show
   const [interstateOnly, setInterstateOnly] = useState(true); // Show only interstate events by default
   const [loadingMessages, setLoadingMessages] = useState(true);
@@ -797,6 +798,7 @@ function App() {
           showCADDElements,
           showInterchanges,
           showBridgeClearances,
+          showTomTomIncidents,
           showCorridorRegulations,
           showDiversionRoutes,
           showAerialOverlays,
@@ -828,6 +830,7 @@ function App() {
           'toggle-cadd':               () => { setView('map'); setShowCADDElements(p => !p); },
           'toggle-interchanges':       () => { setView('map'); setShowInterchanges(p => !p); },
           'toggle-bridge-clearance':   () => { setView('map'); setShowBridgeClearances(p => !p); },
+          'toggle-tomtom-incidents':   () => { setView('map'); setShowTomTomIncidents(p => !p); },
           'toggle-corridor-regs':      () => { setView('map'); setShowCorridorRegulations(p => !p); },
           'toggle-diversion-routes':   () => { setView('map'); setShowDiversionRoutes(p => !p); },
           'toggle-aerial-overlays':    () => { setView('map'); setShowAerialOverlays(p => !p); },
@@ -1165,6 +1168,7 @@ function App() {
                   parkingPredictionHours={parkingPredictionHours}
                   showInterchanges={showInterchanges}
                   showBridgeClearances={showBridgeClearances}
+                  showTomTomIncidents={showTomTomIncidents}
                   showCorridorRegulations={showCorridorRegulations}
                   ipawsGeofence={ipawsGeofence}
                   onGeofenceUpdate={setIpawsGeofence}

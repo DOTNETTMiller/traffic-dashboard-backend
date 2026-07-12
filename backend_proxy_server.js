@@ -4871,6 +4871,61 @@ function getCorridorLine(corridor) {
     .filter(line => Array.isArray(line) && line.length >= 2);
 }
 
+// ---- TomTom live incidents (the "consumer-nav" side of the deviation view) ---
+// Lazily polls TomTom only when the layer is actually requested, so it never
+// spends API budget when nobody's looking. Server-side poll -> cache -> serve
+// (no per-user cost, no Railway egress hit); free tier + hard budget in the
+// service module means it cannot bill.
+const tomtomIncidents = require('./services/tomtom-incidents');
+let tomtomCache = { data: null, timestamp: null, ttl: 30 * 60 * 1000, isRefreshing: false };
+
+async function refreshTomTomIncidents() {
+  if (tomtomCache.isRefreshing) return tomtomCache.data;
+  const apiKey = process.env.TOMTOM_API_KEY;
+  if (!apiKey) return null;
+  const lines = [...getCorridorLine('I-80'), ...getCorridorLine('I-35')];
+  if (!lines.length) {
+    console.warn('🚗 TomTom: corridor geometry not loaded yet — skipping');
+    return tomtomCache.data;
+  }
+  tomtomCache.isRefreshing = true;
+  try {
+    const tiles = tomtomIncidents.corridorTiles(lines);
+    const result = await tomtomIncidents.fetchIncidents({ apiKey, tiles });
+    tomtomCache.data = {
+      success: true,
+      timestamp: new Date().toISOString(),
+      count: result.incidents.length,
+      incidents: result.incidents,
+      tiles: tiles.length,
+      requests: result.requests,
+      budgetLeft: result.budgetLeft,
+      stopped: result.stopped
+    };
+    tomtomCache.timestamp = Date.now();
+    console.log(`🚗 TomTom: ${result.incidents.length} incidents / ${tiles.length} tiles (${result.requests} reqs, ${result.budgetLeft} budget left${result.stopped ? ', BUDGET STOP' : ''})`);
+  } catch (err) {
+    console.error('🚗 TomTom refresh error:', err.message);
+  } finally {
+    tomtomCache.isRefreshing = false;
+  }
+  return tomtomCache.data;
+}
+
+app.get('/api/tomtom/incidents', async (req, res) => {
+  if (!process.env.TOMTOM_API_KEY) {
+    return res.status(503).json({ success: false, error: 'TomTom not configured', incidents: [] });
+  }
+  const age = tomtomCache.timestamp ? Date.now() - tomtomCache.timestamp : Infinity;
+  if (!tomtomCache.data) {
+    await refreshTomTomIncidents();                 // first load: block once
+  } else if (age > tomtomCache.ttl && !tomtomCache.isRefreshing) {
+    refreshTomTomIncidents();                        // stale: refresh in background
+  }
+  res.set('Cache-Control', 'public, max-age=60');
+  res.json(tomtomCache.data || { success: true, count: 0, incidents: [] });
+});
+
 // Crash records live in the persistent PostGIS Postgres (alongside the corridor
 // geometry the clip reads), NOT the main `db.db` store. On the production
 // deployment `db.db` resolves to a separate, non-persistent handle that the
