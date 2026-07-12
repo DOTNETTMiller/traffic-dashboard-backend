@@ -4887,7 +4887,7 @@ function corridorTileLines() {
 
 async function refreshTomTomIncidents() {
   if (tomtomCache.isRefreshing) return tomtomCache.data;
-  const apiKey = process.env.TOMTOM_API_KEY;
+  const apiKey = (process.env.TOMTOM_API_KEY || '').trim(); // guard against pasted whitespace/newline
   if (!apiKey) return null;
   const lines = corridorTileLines();
   if (!lines.length) {
@@ -4928,8 +4928,8 @@ app.get('/api/tomtom/incidents', async (req, res) => {
   if (req.query.debug) {
     const lines = corridorTileLines();
     const tiles = tomtomIncidents.corridorTiles(lines);
-    const sample = await tomtomIncidents.debugTile({ apiKey: process.env.TOMTOM_API_KEY, bbox: tiles[0] });
-    return res.json({ tilesTotal: tiles.length, firstTile: tiles[0], sample });
+    const sample = await tomtomIncidents.debugTile({ apiKey: (process.env.TOMTOM_API_KEY || '').trim(), bbox: tiles[0] });
+    return res.json({ tilesTotal: tiles.length, firstTile: tiles[0], keyLen: (process.env.TOMTOM_API_KEY || '').trim().length, sample });
   }
 
   if (req.query.refresh) { await refreshTomTomIncidents(); return res.json(tomtomCache.data || {}); }
