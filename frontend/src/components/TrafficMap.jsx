@@ -302,7 +302,11 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
   const isFallback = geometrySource === 'straight_line' || geometrySource === 'straight';
 
   const sign = signFor(event);
-  const iconSvg = sign.svg;
+  // Prefer the official MUTCD sign artwork (DTCD library) at readable size;
+  // fall back to the inline symbol for codes not in the library.
+  const iconSvg = sign.url
+    ? `<img src="${sign.url}" width="50" height="50" style="display:block;" alt="${sign.label}" />`
+    : sign.svg;
 
 
   return L.divIcon({
@@ -320,7 +324,7 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
           }
         }
       </style>
-      <div style="position: relative; width: 40px; height: 40px; ${hasMessages ? 'z-index: 1000;' : 'z-index: 1;'}">
+      <div style="position: relative; width: 50px; height: 50px; ${hasMessages ? 'z-index: 1000;' : 'z-index: 1;'}">
         ${isNearStateBorder ? `
           <!-- Pulsing border indicator for events near state borders -->
           <div style="
@@ -396,8 +400,8 @@ const getMarkerIcon = (event, hasMessages, messageCount = 0) => {
         ` : ''}
       </div>
     `,
-    iconSize: [40, 40],
-    iconAnchor: [20, 20]
+    iconSize: [50, 50],
+    iconAnchor: [25, 25]
   });
 };
 

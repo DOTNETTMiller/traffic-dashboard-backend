@@ -46,7 +46,7 @@ const COLORS = {
 // severity tint; `inner` is whatever the symbol/text payload renders inside.
 function diamond(fill, inner) {
   return `
-<svg width="40" height="40" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">
+<svg width="50" height="50" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">
   <polygon points="16,2 30,16 16,30 2,16" fill="${fill}" stroke="${COLORS.black}" stroke-width="0.9" stroke-linejoin="round"/>
   ${inner}
 </svg>`.trim();
@@ -55,7 +55,7 @@ function diamond(fill, inner) {
 // MUTCD M-series guide rectangle (orange, landscape).
 function rect(fill, inner) {
   return `
-<svg width="40" height="40" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">
+<svg width="50" height="50" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">
   <rect x="2" y="6" width="28" height="20" rx="1" fill="${fill}" stroke="${COLORS.black}" stroke-width="0.9"/>
   ${inner}
 </svg>`.trim();
@@ -64,7 +64,7 @@ function rect(fill, inner) {
 // Regulatory red circle (R-series prohibitive signs like Do Not Enter).
 function regCircle(inner) {
   return `
-<svg width="40" height="40" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">
+<svg width="50" height="50" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">
   <circle cx="16" cy="16" r="14" fill="${COLORS.red}" stroke="${COLORS.black}" stroke-width="0.9"/>
   ${inner}
 </svg>`.trim();
@@ -256,8 +256,17 @@ function signFor(event) {
   return {
     code,
     label: labels[code] || code,
-    svg: factory(sev)
+    svg: factory(sev),
+    url: SIGN_LIBRARY_CODES.has(code) ? `${SIGN_LIBRARY}/${code}.svg` : null
   };
 }
+
+// Official MUTCD sign SVGs hosted on the DTCD sign library (Cloudflare, free/
+// cached). Where a code exists there, markers use the real sign artwork; the
+// rest fall back to the inline symbol above.
+const SIGN_LIBRARY = 'https://purposebuilt.systems/signs';
+const SIGN_LIBRARY_CODES = new Set([
+  'W21-1', 'W20-3', 'W20-5L', 'W20-5R', 'W20-7', 'W23-1', 'M4-9', 'R5-1'
+]);
 
 export { signFor, SIGNS };
