@@ -4775,6 +4775,18 @@ const fetchStateData = async (stateKey) => {
     }
   }
 
+  // State-centerline enrichment (the state's OWN DOT centerline), run BEFORE ARNOLD.
+  // Fixes states where ARNOLD's route_id schema doesn't match (e.g. California, Texas).
+  // No-op for states without a configured centerline; leaves good line geometries untouched.
+  if (results.events.length > 0) {
+    try {
+      const stateCenterlineService = require('./services/state-centerline-service');
+      results.events = await stateCenterlineService.enrichEvents(results.events, normalizedStateKey);
+    } catch (err) {
+      console.error('❌ State centerline enrichment error:', err.message);
+    }
+  }
+
   // Enrich events with ARNOLD (All Roads Network of Linear Referenced Data)
   // ARNOLD provides detailed Interstate geometries for I-35 and I-80 corridor states
   // Skip Iowa (has dedicated Iowa DOT WFS), Kansas/Indiana/Minnesota (FEU-G with own enrichment)

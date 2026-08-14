@@ -60,6 +60,11 @@ function mapClosureToEvent(item, district) {
   const longitude = parseFloat(location.begin.beginLongitude);
   const latitude = parseFloat(location.begin.beginLatitude);
 
+  // Get end coordinates if the closure provides an end location (enables precise extent)
+  const endLon = location.end ? parseFloat(location.end.endLongitude) : NaN;
+  const endLat = location.end ? parseFloat(location.end.endLatitude) : NaN;
+  const hasEnd = Number.isFinite(endLon) && Number.isFinite(endLat);
+
   // Build location description
   const route = location.begin.beginRoute;
   const locationName = location.begin.beginLocationName;
@@ -117,6 +122,11 @@ function mapClosureToEvent(item, district) {
     latitude: latitude,
     longitude: longitude,
     coordinates: [longitude, latitude],
+    ...(hasEnd ? { endCoordinates: [endLon, endLat] } : {}),
+    // Safety-net geometry so events are never null (renders as a marker even if line
+    // enrichment is unavailable); upgraded to a road-following LineString by the
+    // state-centerline enrichment pass below.
+    geometry: { type: 'Point', coordinates: [longitude, latitude] },
     startDate: `${closure.closureTimestamp.closureStartDate}T${closure.closureTimestamp.closureStartTime}`,
     endDate: closure.closureTimestamp.isClosureEndIndefinite === 'true' ? null :
       `${closure.closureTimestamp.closureEndDate}T${closure.closureTimestamp.closureEndTime}`,
@@ -231,6 +241,18 @@ async function fetchCaltransLCS() {
     .forEach(d => {
       console.log(`  ${d.name}: ${d.active} active (${d.total} total)`);
     });
+
+  // Upgrade begin-point geometry to road-following lines from Caltrans' own State
+  // Highway Network centerline (SHN Lines). Falls back silently to the point safety-net
+  // on any error, and is fully skippable with DISABLE_CA_CENTERLINE=true.
+  if (process.env.DISABLE_CA_CENTERLINE !== 'true') {
+    try {
+      const stateCenterline = require('../services/state-centerline-service');
+      return await stateCenterline.enrichEvents(allEvents, 'ca');
+    } catch (e) {
+      console.error('State centerline enrichment skipped:', e.message);
+    }
+  }
 
   return allEvents;
 }
