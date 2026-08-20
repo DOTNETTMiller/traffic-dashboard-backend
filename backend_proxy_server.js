@@ -5814,13 +5814,18 @@ app.get('/api/major-events', async (req, res) => {
 
 // Endpoint to fetch from a specific state
 app.get('/api/events/:state', async (req, res) => {
-  const stateKey = req.params.state.toLowerCase();
+  let stateKey = req.params.state.toLowerCase();
+  // California's WZDx config is keyed 'california' (and only present when CALIFORNIA_API_KEY
+  // is set), but the Caltrans LCS path and everything downstream use 'ca'. Normalize so
+  // /api/events/ca and /api/events/california both work and serve Caltrans LCS.
+  if (stateKey === 'california') stateKey = 'ca';
 
-  if (!API_CONFIG[stateKey] && stateKey !== 'pa') {
+  if (!API_CONFIG[stateKey] && stateKey !== 'pa' && stateKey !== 'ca') {
     return res.status(404).json({ error: 'State not found' });
   }
 
-  const stateName = API_CONFIG[stateKey]?.name || 'Pennsylvania';
+  const stateName = API_CONFIG[stateKey]?.name ||
+    (stateKey === 'pa' ? 'Pennsylvania' : stateKey === 'ca' ? 'California' : stateKey.toUpperCase());
   console.log(`Fetching events from ${stateName}...`);
 
   const result = await fetchStateData(stateKey);
