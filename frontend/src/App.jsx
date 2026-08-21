@@ -502,6 +502,11 @@ function App() {
   // Filter events based on active filters
   const filteredEvents = useMemo(() => {
     const filtered = events.filter(event => {
+      // Hide cancelled/completed closures from the active map/list. They stay in the
+      // feed (event_status: 'cancelled'|'completed') as a clear-signal for downstream
+      // consumers, but shouldn't render as live work zones.
+      if (event.event_status && event.event_status !== 'active') return false;
+
       // Interstate-only filter
       if (interstateOnly && !isInterstateEvent(event)) return false;
 

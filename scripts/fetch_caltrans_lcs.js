@@ -50,8 +50,9 @@ async function fetchJSON(url) {
   });
 }
 
-// Map Caltrans LCS closure to event format
-function mapClosureToEvent(item, district) {
+// Map Caltrans LCS closure to event format.
+// status: 'active' | 'cancelled' | 'completed' (WZDx-aligned event_status).
+function mapClosureToEvent(item, district, status = 'active') {
   const lcs = item.lcs;
   const closure = lcs.closure;
   const location = lcs.location;
@@ -113,6 +114,10 @@ function mapClosureToEvent(item, district) {
     state: 'CA',
     district: `District ${district}`,
     corridor: corridor,
+    // WZDx-aligned lifecycle status. Terminal states (cancelled/completed) are
+    // published for a short window so downstream consumers can clear a prior alert;
+    // the map hides anything that isn't 'active'.
+    event_status: status,
     location: `${route} ${direction} at ${locationName}`,
     direction: direction.charAt(0), // N, S, E, W
     facility: closure.facility,
@@ -173,6 +178,35 @@ function isClosureActive(closure) {
   return false;
 }
 
+// How long a terminal (cancelled/completed) closure stays in the feed after its
+// CHP code timestamp, so downstream consumers get a chance to clear a prior alert.
+const TERMINAL_WINDOW_SEC = 2 * 3600;
+
+// Classify a closure into a lifecycle state and decide whether it belongs in the feed.
+// Caltrans publishes cancellations/completions via CHP codes 10-22 (call cancelled) and
+// 10-98 (closure removed / lanes reopened); we pass those through as terminal event_status
+// for TERMINAL_WINDOW_SEC instead of dropping them outright.
+// Returns { include: bool, status: 'active' | 'cancelled' | 'completed' }.
+function classifyClosure(closure) {
+  const now = Math.floor(Date.now() / 1000);
+  const terminals = [];
+  if (closure.code1022 && closure.code1022.isCode1022 === 'true') {
+    terminals.push({ status: 'cancelled', epoch: parseInt(closure.code1022.code1022Timestamp?.code1022Epoch) });
+  }
+  if (closure.code1098 && closure.code1098.isCode1098 === 'true') {
+    terminals.push({ status: 'completed', epoch: parseInt(closure.code1098.code1098Timestamp?.code1098Epoch) });
+  }
+  if (terminals.length) {
+    // Use the most recent terminal code if both are present.
+    terminals.sort((a, b) => (b.epoch || 0) - (a.epoch || 0));
+    const t = terminals[0];
+    const age = Number.isFinite(t.epoch) ? now - t.epoch : Infinity;
+    // Include only within the retention window (allow slight clock skew).
+    return { include: age <= TERMINAL_WINDOW_SEC && age >= -3600, status: t.status };
+  }
+  return { include: isClosureActive(closure), status: 'active' };
+}
+
 async function fetchCaltransLCS() {
   console.log('🚦 Fetching Caltrans LCS closures from all 12 districts...\n');
 
@@ -188,22 +222,26 @@ async function fetchCaltransLCS() {
       const data = await fetchJSON(url);
 
       if (data.data && Array.isArray(data.data)) {
-        // Filter for active closures only
-        const activeClosures = data.data.filter(item =>
-          item.lcs && item.lcs.closure && isClosureActive(item.lcs.closure)
-        );
+        // Keep active closures, plus recently cancelled/completed ones (as terminal
+        // event_status) so downstream consumers can clear prior alerts.
+        let activeCount = 0;
+        let terminalCount = 0;
+        for (const item of data.data) {
+          if (!(item.lcs && item.lcs.closure)) continue;
+          const cls = classifyClosure(item.lcs.closure);
+          if (!cls.include) continue;
+          allEvents.push(mapClosureToEvent(item, districtInfo.district, cls.status));
+          if (cls.status === 'active') activeCount++; else terminalCount++;
+        }
 
-        console.log(`  ✅ Retrieved ${data.data.length} total closures, ${activeClosures.length} currently active`);
-
-        activeClosures.forEach(item => {
-          allEvents.push(mapClosureToEvent(item, districtInfo.district));
-        });
+        console.log(`  ✅ Retrieved ${data.data.length} total closures, ${activeCount} active + ${terminalCount} recently cancelled/completed`);
 
         districtStats.push({
           district: districtInfo.district,
           name: districtInfo.name,
           total: data.data.length,
-          active: activeClosures.length
+          active: activeCount,
+          terminal: terminalCount
         });
       }
     } catch (error) {
@@ -221,6 +259,9 @@ async function fetchCaltransLCS() {
   console.log(`\n📊 Total Caltrans LCS Events: ${allEvents.length}`);
   console.log(`  Full Closures: ${allEvents.filter(e => e.type === 'restriction').length}`);
   console.log(`  Lane Closures: ${allEvents.filter(e => e.type === 'work-zone').length}`);
+  console.log(`  Status → active: ${allEvents.filter(e => e.event_status === 'active').length}` +
+    `, cancelled: ${allEvents.filter(e => e.event_status === 'cancelled').length}` +
+    `, completed: ${allEvents.filter(e => e.event_status === 'completed').length}`);
 
   // Show severity breakdown
   const severityCounts = {
