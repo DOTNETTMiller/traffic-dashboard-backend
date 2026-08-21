@@ -5174,6 +5174,8 @@ async function fetchAndCacheEvents() {
         // Validation monitoring: cross-check each link (self-location, message-vs-zone,
         // temporal, distance/direction) + feed-health/coverage metrics + rolling trend.
         const validation = deviceValidation.validate(match, devices, iowaEvents);
+        // Persist the snapshot so the trend survives restarts.
+        require('./services/device-health-store').record(validation.summary);
         const prevTrend = devicesCache.trend || [];
         devicesCache = {
           devices, links: match.links, review: match.review,
@@ -5890,12 +5892,16 @@ app.get('/api/devices/health', async (req, res) => {
   if (!eventsCache.data && startupCachePromise) {
     try { await startupCachePromise; } catch (_) { /* serve whatever we have */ }
   }
+  // Trend comes from the DB (survives restarts); fall back to the in-memory copy.
+  let trend = [];
+  try { trend = require('./services/device-health-store').trend(288); } catch (_) { /* fall back */ }
+  if (!trend.length) trend = devicesCache.trend || [];
   res.json({
     success: true,
     summary: devicesCache.validation || null,
     anomalies: devicesCache.anomalies || [],
     matches: devicesCache.matchValidations || [],
-    trend: devicesCache.trend || []
+    trend
   });
 });
 

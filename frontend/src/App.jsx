@@ -5,6 +5,7 @@ import { config } from './config';
 import api from './services/api';
 import './styles/textVisibility.css';
 import TrafficMap from './components/TrafficMap';
+import DeviceValidationPanel from './components/DeviceValidationPanel';
 import EventTable from './components/EventTable';
 import EventFilters from './components/EventFilters';
 import CorridorWarnings from './components/CorridorWarnings';
@@ -117,6 +118,7 @@ function App() {
   const [showBridgeClearances, setShowBridgeClearances] = useState(false); // Hidden by default - toggle to show
   const [showTomTomIncidents, setShowTomTomIncidents] = useState(false); // TomTom (consumer-nav) incidents overlay
   const [showConnectedDevices, setShowConnectedDevices] = useState(false); // Arrow boards / portable DMS auto-linked to work zones
+  const [showDeviceHealth, setShowDeviceHealth] = useState(false); // Device↔work-zone validation monitoring panel
   const [showCorridorRegulations, setShowCorridorRegulations] = useState(false); // Hidden by default - toggle to show
   const [interstateOnly, setInterstateOnly] = useState(true); // Show only interstate events by default
   const [loadingMessages, setLoadingMessages] = useState(true);
@@ -817,6 +819,7 @@ function App() {
         }}
         actions={{
           'open-corridor-briefing': () => setShowCorridorBriefing(true),
+          'open-device-health':     () => setShowDeviceHealth(true),
           'open-alerts':            () => setShowAlertsModal(true),
           'open-ipaws-active':      () => setShowIPAWSActiveAlerts(true),
           'open-ipaws-rules':       () => setShowIPAWSRules(true),
@@ -1343,6 +1346,10 @@ function App() {
           detourAlerts={detourAlerts}
           onClose={() => setShowCorridorBriefing(false)}
         />
+      )}
+
+      {showDeviceHealth && (
+        <DeviceValidationPanel onClose={() => setShowDeviceHealth(false)} />
       )}
 
       {/* IPAWS Rules Configuration */}

@@ -128,10 +128,16 @@ Aggregate metrics in the summary:
 - **coverage** — work zones total vs. `zonesWithDevice` and `coverageRate` (how instrumented
   the network is — most zones have no connected device, which is itself worth tracking).
 
-A capped in-memory **trend** (last ~288 snapshots) records device count, match rate, avg
-confidence, warn/fail counts, and coverage over time, so a regression (feed drop, match-rate
-collapse, rising anomalies) is visible. The trend resets on restart; DB persistence is a small
-follow-up if longer history is needed.
+A **trend** records device count, match rate, avg confidence, warn/fail counts, and coverage
+over time, so a regression (feed drop, match-rate collapse, rising anomalies) is visible. It is
+**persisted to SQLite** (`services/device-health-store.js`, table `device_health_snapshots`,
+created lazily; last ~288 snapshots returned) so it survives restarts, with the in-memory copy
+as a fallback.
+
+**Frontend panel** — `DeviceValidationPanel.jsx`, opened from the NavSidebar "Device Validation
+Monitor" (🩺) item. It loads `/api/devices/health` once and shows the feed/matching/validation/
+coverage stat cards, trend sparklines (auto-linked, avg confidence, match rate), and the
+anomaly list with per-link flags.
 
 Live sample: 100 devices (0 stale, 98 displaying), 10 auto-linked, validation 4✓/6⚠/0✗ — the
 warnings being the far/rest-area/out-of-window links, exactly the ones worth a human glance.
