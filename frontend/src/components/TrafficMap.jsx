@@ -852,6 +852,28 @@ export default function TrafficMap({
           </MarkerClusterGroup>
         )}
 
+        {/* Connected Work Zone (CWZ 1.0) highlight: a green ring on any event that
+            has a confirmed connected field device present. Rendered outside the
+            cluster group so elevated zones stand out at a glance. */}
+        {showEvents && sortedEvents.filter(e => e.x_cwz_connected).map(e => {
+          const lat = parseFloat(e.latitude), lng = parseFloat(e.longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+          const n = e.x_connected_device_count || (e.x_connected_devices || []).length;
+          return (
+            <CircleMarker
+              key={`cwz-${e.id}`}
+              center={[lat, lng]}
+              radius={15}
+              pathOptions={{ color: '#16a34a', weight: 2.5, fill: false, dashArray: '3 4', opacity: 0.9 }}
+            >
+              <Tooltip direction="top" offset={[0, -8]} opacity={0.95}>
+                🔗 Connected Work Zone (CWZ 1.0) · {n} device{n === 1 ? '' : 's'}
+                {e.x_connected_confidence != null ? ` · ${e.x_connected_confidence}%` : ''}
+              </Tooltip>
+            </CircleMarker>
+          );
+        })}
+
         {/* Detour alerts only shown when truck parking is NOT active */}
         {!showParking && detourAlerts.map(alert => (
           <CircleMarker

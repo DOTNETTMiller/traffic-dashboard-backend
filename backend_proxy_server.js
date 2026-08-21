@@ -5905,6 +5905,22 @@ app.get('/api/devices/health', async (req, res) => {
   });
 });
 
+// CWZ 1.0 / WZDx RoadEvent Feed — the elevated (connected) work zones: events
+// that have a confirmed connected field device present.
+app.get('/api/cwz/events', async (req, res) => {
+  if (!eventsCache.data && startupCachePromise) {
+    try { await startupCachePromise; } catch (_) { /* serve whatever we have */ }
+  }
+  try {
+    const cwz = require('./services/cwz-roadevent-feed');
+    const connected = (eventsCache.data?.events || []).filter(e => e.x_cwz_connected);
+    res.set('Content-Type', 'application/json');
+    res.json(cwz.buildFeed(connected));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // CWZ 1.0 / WZDx Device Feed — the connected devices and their auto-associated
 // work zones (road_event_ids), served as a standards-native FeatureCollection.
 app.get('/api/cwz/devices', async (req, res) => {

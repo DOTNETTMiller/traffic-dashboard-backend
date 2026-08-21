@@ -101,6 +101,28 @@ Validated: 100 features (61 arrow-board + 39 DMS), 0 schema violations, `road_ev
 populated for every auto-linked device. Full connected-vehicle *broadcast* (SAE J2735 TIM over
 RSUs) is a separate hardware layer beyond this data feed; registration is with USDOT ITS DataHub.
 
+## Elevating connected work zones (CWZ)
+
+A work zone with a confirmed connected device present is a higher-confidence, *connected* work
+zone. `annotateEvents` therefore **elevates** each matched event in place — the fields flow
+through the normal `/api/events` feed (they survive `slimEvent`), so every consumer sees the
+promotion:
+
+- `x_cwz_connected: true`
+- `x_connected_device_count`, `x_connected_confidence` (strongest link), `x_connection_status`
+- `x_connected_devices` (the linked device list)
+
+Two ways it surfaces:
+
+- **`GET /api/cwz/events`** — a CWZ 1.0 / WZDx **RoadEvent** feed (`services/cwz-roadevent-feed.js`)
+  containing only the elevated work zones as `WorkZoneRoadEvent` features, tagged
+  `x_cwz_profile: "CWZ 1.0"`, with `is_start_position_verified: true` (the device confirms the
+  zone) and the device linkage. This is the RoadEvent half of CWZ 1.0 — the companion to the
+  Device feed at `/api/cwz/devices`.
+- **Web map** — connected work zones get a green dashed **ring** (`TrafficMap.jsx`, rendered
+  outside the marker cluster so they stand out at a glance) with a tooltip: "🔗 Connected Work
+  Zone (CWZ 1.0) · N devices · NN%". Visible whenever Events are shown — no toggle needed.
+
 ## Validation monitoring
 
 Because an auto-link can be plausible-but-wrong, `services/device-validation.js` runs

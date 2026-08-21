@@ -242,7 +242,17 @@ function annotateEvents(events, matchResult) {
   }
   for (const ev of events) {
     const id = ev.id || ev.road_event_id;
-    if (byEvent.has(id)) ev.x_connected_devices = byEvent.get(id);
+    if (byEvent.has(id)) {
+      const devs = byEvent.get(id);
+      ev.x_connected_devices = devs;
+      // Elevate: a work zone with a confirmed connected device present is a
+      // Connected Work Zone (CWZ 1.0). Tag it and surface the strongest link so
+      // consumers (the feed, the CWZ RoadEvent feed, the web map) can promote it.
+      ev.x_cwz_connected = true;
+      ev.x_connected_device_count = devs.length;
+      ev.x_connected_confidence = Math.max(...devs.map(d => d.confidence));
+      ev.x_connection_status = 'connected';
+    }
   }
   return events;
 }
