@@ -26,6 +26,8 @@ const DEFAULTS = {
   maxMatchM: 1600,        // furthest a device can be from the zone and still belong (~1 mi upstream)
   fullSpatialM: 150,      // at/under this the device is effectively on the zone → full spatial credit
   freshnessHours: 2,      // device must have reported within this window to count as "live"
+  farM: 800,              // beyond this a link is downgraded to review, never auto (too far to be sure)
+  requireOnForAuto: true, // a blank/off board can match but never auto-links (it isn't actively marking)
   autoThreshold: 75,      // >= this → auto-link
   reviewThreshold: 60     // [review, auto) → surface for human confirmation, don't silently link
 };
@@ -179,13 +181,21 @@ function scoreMatch(device, event, opts) {
   else reasons.push('device stale');
   if (fresh && inWindow) reasons.push('within event window');
 
-  // Deployment state: displaying arrow/chevron = actively part of the zone.
+  // Deployment state: is the board actually ON (displaying an arrow/chevron/caution)?
+  const on = !!(device.mode && device.mode.displaying);
   let deploy = 0;
-  if (device.mode && device.mode.displaying) { deploy = 5; reasons.push(`displaying: ${device.mode.pattern}`); }
+  if (on) { deploy = 5; reasons.push(`on: ${device.mode.pattern}`); }
+  else reasons.push('board off/blank');
+
+  const distanceM = Math.round(d.km * 1000);
+  const far = distanceM > cfg.farM;
+  if (far) reasons.push(`far (${distanceM}m)`);
 
   const confidence = Math.round(40 + dirScore + spatial + temporal + deploy);
   // ref = the point ON the zone the device was matched to (where the link lands).
-  return { event, confidence, distanceM: Math.round(d.km * 1000), alongside: d.alongside, fresh, reasons, ref: d.ref };
+  // `off`/`far` don't lower the score — they block AUTO-linking (→ review) so the
+  // confidence stays an honest measure while questionable links get a human look.
+  return { event, confidence, distanceM, alongside: d.alongside, fresh, reasons, ref: d.ref, on, off: !on, far };
 }
 
 // ---- public API ------------------------------------------------------------
@@ -214,6 +224,7 @@ function matchDevices(devices, events, opts) {
       distanceM: best.distanceM,
       corridor: normalizeRoute(best.event.corridor || best.event.route),
       reasons: best.reasons,
+      on: best.on, far: best.far, distanceM: best.distanceM,
       // WHERE the match was made: the device point, the point on the zone it links
       // to, and a 2-point connector line so the UI can draw exactly where.
       deviceCoord: device.coordinates,
@@ -221,7 +232,10 @@ function matchDevices(devices, events, opts) {
       connector: (device.coordinates && best.ref) ? [device.coordinates, best.ref] : null,
       event: best.event
     };
-    if (best.confidence >= cfg.autoThreshold) links.push(rec);
+    // Auto-link only a high-confidence link that is also ON (if required) and not far;
+    // off/far links still surface, but in the review queue for a human to confirm.
+    const blockedFromAuto = (cfg.requireOnForAuto && best.off) || best.far;
+    if (best.confidence >= cfg.autoThreshold && !blockedFromAuto) links.push(rec);
     else if (best.confidence >= cfg.reviewThreshold) review.push(rec);
     else unmatched.push({ device, reason: `best candidate only ${best.confidence}%`, best: rec });
   }
@@ -280,13 +294,26 @@ function selftest() {
       msgtext: 'Double Arrow, flashing', EditDate: now } },
     // EB board DOWNSTREAM (east) of the zone — traffic already passed the zone → rejected by upstream gate
     { properties: { DeviceName: '0xDD iCone - AB', Route: 'I 80', Direction: 'e', long_: '-93.845', lat_: '41.6025',
-      msgtext: 'Left Chevron, sequential', EditDate: now } }
+      msgtext: 'Left Chevron, sequential', EditDate: now } },
+    // EB, upstream, ON — but ~1.2 km away → matches, but too FAR to auto-link → review
+    { properties: { DeviceName: '0xEE iCone - AB', Route: 'I 80', Direction: 'e', long_: '-93.9150', lat_: '41.5998',
+      msgtext: 'Right Chevron, flashing', EditDate: now } },
+    // EB, upstream, close — but BLANK/off → matches, but not auto (board isn't on) → review
+    { properties: { DeviceName: '0xFF iCone - AB', Route: 'I 80', Direction: 'e', long_: '-93.9024', lat_: '41.5999',
+      msgtext: '', EditDate: now } }
   ].map(deviceFromFeature);
 
   const res = matchDevices(boards, [zone]);
   console.log('SELFTEST links:', res.links.map(l => `${l.device} -> ${l.road_event_id} @ ${l.confidence}% [${l.reasons.join(', ')}]`));
-  console.log('SELFTEST review:', res.review.length, '| unmatched:', res.unmatched.map(u => u.device.id));
-  const ok = res.links.length === 1 && res.links[0].device.includes('0xAA') && res.links[0].confidence >= DEFAULTS.autoThreshold;
+  console.log('SELFTEST review:', res.review.map(r => `${r.device} (${r.far ? 'far' : ''}${r.on ? '' : ' off'})`));
+  console.log('SELFTEST unmatched:', res.unmatched.map(u => u.device.id));
+  // Exactly one auto-link (0xAA: on, close, upstream). The far (0xEE) and off (0xFF)
+  // boards match but are held for review, not auto-linked.
+  const ok = res.links.length === 1
+    && res.links[0].device.includes('0xAA')
+    && res.links[0].confidence >= DEFAULTS.autoThreshold
+    && res.review.some(r => r.device.includes('0xEE') && r.far)
+    && res.review.some(r => r.device.includes('0xFF') && !r.on);
   console.log(ok ? '✅ selftest PASS' : '❌ selftest FAIL');
   return ok;
 }

@@ -37,8 +37,15 @@ candidate), then survivors are scored and the best is kept.
    the device is *alongside* the zone (inside the work area) or direction is unknown.
 5. **Temporal** *(score)* — the device must be reporting recently (`freshnessHours`, default
    2 h) and, ideally, within the event's active window.
-6. **Deployment state** *(score)* — a board actively displaying an arrow/chevron/caution
-   (from its `msgtext`) scores higher than a blank/staged one.
+6. **Deployment state (is it on?)** *(score + auto gate)* — the board's `msgtext` tells us
+   whether it's actively displaying an arrow/chevron/caution or blank/off. Each link carries an
+   `on` flag.
+
+**Auto-link is gated on on + close.** An off/blank board, or one farther than `farM` (800 m,
+~½ mi), still *matches* but is held in the **review queue** instead of auto-linking — a blank
+board isn't actively marking a zone, and a far one isn't certain. `off`/`far` don't lower the
+confidence score (it stays an honest measure); they just block auto so a human confirms (so a
+1,200 m board lands in review even at 81%). Toggle with `requireOnForAuto` / `farM`.
 
 **Confidence** = 40 (route) + up to 25 (direction) + up to 25 (proximity) + 5 (temporal) +
 5 (deployment). Outcomes:
@@ -218,5 +225,7 @@ state-agnostic.
 | `maxMatchM` | 1600 | furthest a device can be from a zone and still match (~1 mi) |
 | `fullSpatialM` | 150 | at/under this the board is treated as *on* the zone |
 | `freshnessHours` | 2 | device must have reported within this to count as live |
+| `farM` | 800 | beyond this a link is held for review, never auto-linked |
+| `requireOnForAuto` | true | a blank/off board can match but never auto-links |
 | `autoThreshold` | 75 | ≥ this → auto-link |
 | `reviewThreshold` | 60 | [review, auto) → surfaced for human confirmation |

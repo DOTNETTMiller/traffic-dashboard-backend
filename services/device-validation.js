@@ -75,6 +75,10 @@ function validateMatch(rec, device) {
   checks.messageConsistent = !mm;
   if (mm) flags.push(mm);
 
+  // 6. is the board actually on? a blank/off board isn't actively marking the zone
+  checks.deviceOn = !!(device.mode && device.mode.displaying);
+  if (!checks.deviceOn) flags.push('board off/blank (not actively marking)');
+
   // Overall: a route mismatch is a hard fail; other issues warn.
   let status = 'pass';
   if (checks.selfRouteAgrees === false) status = 'fail';

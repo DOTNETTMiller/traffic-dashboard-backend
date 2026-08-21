@@ -5858,6 +5858,7 @@ app.get('/api/devices', async (req, res) => {
   const slimLink = (l) => ({
     device: l.device, deviceType: l.deviceType, road_event_id: l.road_event_id,
     corridor: l.corridor, confidence: l.confidence, distanceM: l.distanceM,
+    on: l.on, far: l.far,
     reasons: l.reasons, deviceCoord: l.deviceCoord, zoneRef: l.zoneRef, connector: l.connector
   });
   const links = devicesCache.links || [];
