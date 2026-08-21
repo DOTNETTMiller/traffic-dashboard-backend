@@ -5166,15 +5166,24 @@ async function fetchAndCacheEvents() {
       try {
         const deviceIngest = require('./services/device-ingest');
         const deviceMatcher = require('./services/device-workzone-matcher');
+        const deviceValidation = require('./services/device-validation');
         const devices = await deviceIngest.fetchIowaDevices();
         const iowaEvents = activeEvents.filter(e => /iowa/i.test(String(e.state || '')));
         const match = deviceMatcher.matchDevices(devices, iowaEvents);
         deviceMatcher.annotateEvents(iowaEvents, match); // events are shared refs → annotates the cache
+        // Validation monitoring: cross-check each link (self-location, message-vs-zone,
+        // temporal, distance/direction) + feed-health/coverage metrics + rolling trend.
+        const validation = deviceValidation.validate(match, devices, iowaEvents);
+        const prevTrend = devicesCache.trend || [];
         devicesCache = {
           devices, links: match.links, review: match.review,
-          unmatchedCount: match.unmatched.length, timestamp: Date.now()
+          unmatchedCount: match.unmatched.length, timestamp: Date.now(),
+          validation: validation.summary, matchValidations: validation.matches,
+          anomalies: validation.anomalies,
+          trend: deviceValidation.appendTrend(prevTrend, validation.summary)
         };
-        console.log(`🔗 Device match: ${match.links.length} auto-linked, ${match.review.length} to review, ${match.unmatched.length} unmatched (${devices.length} devices)`);
+        const v = validation.summary.validation;
+        console.log(`🔗 Device match: ${match.links.length} auto-linked, ${match.review.length} to review, ${match.unmatched.length} unmatched (${devices.length} devices) | validation ${v.pass}✓/${v.warn}⚠/${v.fail}✗`);
       } catch (e) {
         console.error('🔗 Device match skipped:', e.message);
       }
@@ -5872,6 +5881,21 @@ app.get('/api/devices', async (req, res) => {
     links: links.map(slimLink),
     review: (devicesCache.review || []).map(slimLink),
     devices
+  });
+});
+
+// Validation monitoring for device↔work-zone associations: feed health, match
+// quality, per-link validation flags, coverage, and a rolling trend.
+app.get('/api/devices/health', async (req, res) => {
+  if (!eventsCache.data && startupCachePromise) {
+    try { await startupCachePromise; } catch (_) { /* serve whatever we have */ }
+  }
+  res.json({
+    success: true,
+    summary: devicesCache.validation || null,
+    anomalies: devicesCache.anomalies || [],
+    matches: devicesCache.matchValidations || [],
+    trend: devicesCache.trend || []
   });
 });
 

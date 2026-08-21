@@ -101,6 +101,41 @@ Validated: 100 features (61 arrow-board + 39 DMS), 0 schema violations, `road_ev
 populated for every auto-linked device. Full connected-vehicle *broadcast* (SAE J2735 TIM over
 RSUs) is a separate hardware layer beyond this data feed; registration is with USDOT ITS DataHub.
 
+## Validation monitoring
+
+Because an auto-link can be plausible-but-wrong, `services/device-validation.js` runs
+alongside the matcher (on each cache refresh — no separate loop) and validates every link
+against **independent** signals the matcher did not use, then rolls the results into health
+metrics. Served at **`GET /api/devices/health`**.
+
+Per-link checks → `pass` / `warn` / `fail`:
+
+- **self-location agreement** *(independent)* — many devices embed their own route/direction/
+  milepost in their name (`SS2426 - I-35 NB @ MM 71.6`). The matcher keyed off the feed's
+  Route/Direction fields, so the name is an independent check. A route mismatch is a **fail**.
+- **message vs zone type** — a board reading "REST AREA CLOSED" linked to a plain construction
+  zone is flagged (this catches the IPSIR-906 case).
+- **temporal** — device reported within the zone's active window.
+- **distance / direction sanity** — links beyond 800 m, or made without a known carriageway
+  ("dir both"), are downgraded to **warn**.
+
+Aggregate metrics in the summary:
+
+- **feed** — `ok` (DMS_View returning data), device count, `stale` share, how many displaying.
+  A `devices: 0` here is the "feed broke" signal, distinct from a healthy-but-quiet feed.
+- **matching** — auto-linked / review / unmatched, `matchRate`, `avgConfidence`.
+- **validation** — `pass` / `warn` / `fail` counts and `passRate`.
+- **coverage** — work zones total vs. `zonesWithDevice` and `coverageRate` (how instrumented
+  the network is — most zones have no connected device, which is itself worth tracking).
+
+A capped in-memory **trend** (last ~288 snapshots) records device count, match rate, avg
+confidence, warn/fail counts, and coverage over time, so a regression (feed drop, match-rate
+collapse, rising anomalies) is visible. The trend resets on restart; DB persistence is a small
+follow-up if longer history is needed.
+
+Live sample: 100 devices (0 stale, 98 displaying), 10 auto-linked, validation 4✓/6⚠/0✗ — the
+warnings being the far/rest-area/out-of-window links, exactly the ones worth a human glance.
+
 ## The live feed
 
 Iowa DOT publishes the devices on the **`DMS_View`** FeatureServer (no auth):
