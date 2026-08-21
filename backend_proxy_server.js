@@ -5169,7 +5169,14 @@ async function fetchAndCacheEvents() {
         const deviceValidation = require('./services/device-validation');
         const devices = await deviceIngest.fetchIowaDevices();
         const iowaEvents = activeEvents.filter(e => /iowa/i.test(String(e.state || '')));
-        const match = deviceMatcher.matchDevices(devices, iowaEvents);
+        let match = deviceMatcher.matchDevices(devices, iowaEvents);
+        // Refine distances with RAMS linear-referencing (true along-road chainage where
+        // device and zone share a ROUTEID); re-checks the far gate. Fail-safe: any RAMS
+        // outage leaves the straight-line result untouched.
+        if (process.env.DISABLE_RAMS_CHAINAGE !== 'true') {
+          try { match = await require('./services/rams-chainage').refine(match, { farM: 800 }); }
+          catch (e) { console.error('RAMS chainage refine skipped:', e.message); }
+        }
         deviceMatcher.annotateEvents(iowaEvents, match); // events are shared refs → annotates the cache
         // Validation monitoring: cross-check each link (self-location, message-vs-zone,
         // temporal, distance/direction) + feed-health/coverage metrics + rolling trend.
@@ -5858,7 +5865,7 @@ app.get('/api/devices', async (req, res) => {
   const slimLink = (l) => ({
     device: l.device, deviceType: l.deviceType, road_event_id: l.road_event_id,
     corridor: l.corridor, confidence: l.confidence, distanceM: l.distanceM,
-    on: l.on, far: l.far,
+    on: l.on, far: l.far, chainageM: l.chainageM, distance_basis: l.distance_basis, sameRouteId: l.sameRouteId,
     reasons: l.reasons, deviceCoord: l.deviceCoord, zoneRef: l.zoneRef, connector: l.connector
   });
   const links = devicesCache.links || [];

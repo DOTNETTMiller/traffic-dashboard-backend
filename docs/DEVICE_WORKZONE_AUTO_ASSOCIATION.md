@@ -205,14 +205,18 @@ The upstream-gating logic is adapted from **Field Escort** (`field-escort-connec
 advisories.js`), which selects retaskable devices upstream of moving equipment by route +
 direction + upstream sector.
 
-**Phase 2 — chainage precision.** Distance is currently straight-line / perpendicular. Field
-Escort's more precise approach snaps both the device and the zone onto the Iowa RAMS
-`Road_Network` centerline
-(`https://gis.iowadot.gov/agshost/rest/services/RAMS/Road_Network/FeatureServer/0`, point
-query, 150 m radius → `ROUTEID`, `FROMMEASURE`, `TOMEASURE`) and, when they resolve to the
-**same `ROUTEID`**, subtracts linear-reference measures for a true along-road upstream
-distance (falling back to straight-line otherwise, never mixing the two). This would tighten
-the longer matches (the ~950–1200 m ones).
+**RAMS chainage precision.** ✅ Done — `services/rams-chainage.js` snaps both the device and
+the zone onto the Iowa RAMS `Road_Network` centerline
+(`https://gis.iowadot.gov/agshost/rest/services/RAMS/Road_Network/FeatureServer/0`, M-aware
+polylines, measures in miles) and, when both resolve to the **same `ROUTEID`**, returns the
+true along-road distance by subtracting interpolated mileposts — falling back to straight-line
+otherwise, never mixing the two. It runs as a fail-safe **refinement pass** after matching
+(warms every point's measure in parallel — ~360 ms for a full pass, cached across refreshes),
+re-checks the `far` gate against real road distance (demoting a link to review if the road
+distance exceeds `farM`), and adds an independent **same-`ROUTEID`** confirmation. Each link
+carries `distance_basis` (`route-measure`/`straight-line`), `chainageM`, and `sameRouteId`;
+validation prefers the chainage distance when present. Any RAMS outage degrades silently to
+straight-line. Disable with `DISABLE_RAMS_CHAINAGE=true`.
 
 **WZDx / CWZ Device Feed.** ✅ Done — `GET /api/cwz/devices` emits it (see "CWZ 1.0 / WZDx
 Device Feed output" above). Each state supplies its own device feed; the matcher itself is

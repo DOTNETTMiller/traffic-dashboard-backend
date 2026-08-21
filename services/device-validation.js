@@ -54,9 +54,11 @@ function validateMatch(rec, device) {
   checks.directionKnown = !!(device.direction && device.direction !== 'BOTH');
   if (!checks.directionKnown) flags.push('no device direction (carriageway unverified)');
 
-  // 2. distance sanity
-  checks.distanceOk = Number.isFinite(rec.distanceM) && rec.distanceM <= FAR_M;
-  if (!checks.distanceOk) flags.push(`far from zone (${rec.distanceM}m > ${FAR_M}m)`);
+  // 2. distance sanity — prefer true along-road chainage when RAMS resolved it
+  const dist = Number.isFinite(rec.chainageM) ? rec.chainageM : rec.distanceM;
+  checks.distanceOk = Number.isFinite(dist) && dist <= FAR_M;
+  checks.routeConfirmedByRams = !!rec.sameRouteId; // independent RAMS same-ROUTEID confirmation
+  if (!checks.distanceOk) flags.push(`far from zone (${dist}m${rec.distance_basis === 'route-measure' ? ' along road' : ''} > ${FAR_M}m)`);
 
   // 3. temporal (matcher already tags this in reasons)
   checks.inWindow = Array.isArray(rec.reasons) && rec.reasons.includes('within event window');
