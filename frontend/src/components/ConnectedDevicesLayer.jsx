@@ -37,7 +37,7 @@ export default function ConnectedDevicesLayer({ visible = false }) {
     if (!visible) return;
     let cancelled = false;
     api.get('/api/devices')
-      .then((d) => { if (!cancelled) setData(d || {}); })
+      .then((res) => { if (!cancelled) setData((res && res.data) || {}); })
       .catch((err) => console.error('ConnectedDevicesLayer load failed:', err.message));
     return () => { cancelled = true; };
   }, [visible]);

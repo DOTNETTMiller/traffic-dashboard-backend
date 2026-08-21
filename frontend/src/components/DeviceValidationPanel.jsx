@@ -46,7 +46,7 @@ export default function DeviceValidationPanel({ onClose }) {
   useEffect(() => {
     let cancelled = false;
     api.get('/api/devices/health')
-      .then((d) => { if (!cancelled) setData(d); })
+      .then((res) => { if (!cancelled) setData(res && res.data); })
       .catch((e) => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
   }, []);
