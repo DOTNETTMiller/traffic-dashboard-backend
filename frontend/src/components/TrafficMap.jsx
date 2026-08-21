@@ -48,6 +48,7 @@ import TomTomIncidentsLayer from './TomTomIncidentsLayer';
 import OSWRegulationsLayer from './OSWRegulationsLayer';
 import StateOSWRegulationsLayer from './StateOSWRegulationsLayer';
 import ITSEquipmentLayer from './ITSEquipmentLayer';
+import ConnectedDevicesLayer from './ConnectedDevicesLayer';
 import NetworkTopologyLayer from './NetworkTopologyLayer';
 import TETCCorridorsLayer from './TETCCorridorsLayer';
 import CADDElementsLayer from './CADDElementsLayer';
@@ -422,6 +423,7 @@ export default function TrafficMap({
   showITSEquipment = false,
   itsEquipmentRoute = null,
   itsEquipmentType = null,
+  showConnectedDevices = false,
   showCADDElements = false,
   showV2XDeployments = false,
   showEvents = true,
@@ -1197,6 +1199,9 @@ export default function TrafficMap({
 
         {/* TomTom live incidents (consumer-nav source, for DOT-vs-nav overlay) */}
         {showTomTomIncidents && <TomTomIncidentsLayer />}
+
+        {/* Connected arrow boards / portable DMS auto-associated to work zones */}
+        <ConnectedDevicesLayer visible={showConnectedDevices} />
 
         {/* State OS/OW Regulations Layer */}
         {showCorridorRegulations && (

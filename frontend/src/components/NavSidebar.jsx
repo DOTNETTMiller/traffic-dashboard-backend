@@ -47,6 +47,7 @@ const NAV = [
       { actionKey: 'toggle-interchanges',     toggleProp: 'showInterchanges',        icon: '🔀', label: 'Interchanges' },
       { actionKey: 'toggle-bridge-clearance', toggleProp: 'showBridgeClearances',    icon: '🌉', label: 'Bridge Clearances' },
       { actionKey: 'toggle-tomtom-incidents', toggleProp: 'showTomTomIncidents',     icon: '🚗', label: 'TomTom Incidents (nav)' },
+      { actionKey: 'toggle-connected-devices', toggleProp: 'showConnectedDevices',   icon: '🔶', label: 'Connected Arrow Boards' },
       { actionKey: 'toggle-corridor-regs',    toggleProp: 'showCorridorRegulations', icon: '🚛', label: 'OS/OW Permit Rules' }
     ]
   },

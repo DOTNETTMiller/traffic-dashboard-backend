@@ -4865,6 +4865,10 @@ let eventsCache = {
   isRefreshing: false
 };
 
+// Connected-device ↔ work-zone auto-association, refreshed alongside the event cache.
+// Holds the live device roster plus the matcher's auto-links and review queue.
+let devicesCache = { devices: [], links: [], review: [], unmatchedCount: 0, timestamp: null };
+
 // Cache for Interstate polylines (I-80, I-35) loaded at startup
 // Structure: { 'i-80-eb': [...coords], 'i-80-wb': [...coords], 'i-35-nb': [...coords], 'i-35-sb': [...coords] }
 let interstatePolylinesCache = {};
@@ -5154,6 +5158,27 @@ async function fetchAndCacheEvents() {
     eventsCache.data = cacheData;
     eventsCache.timestamp = Date.now();
     console.log('✅ Cache updated successfully');
+
+    // Auto-associate connected field devices (arrow boards / portable DMS) with
+    // the work-zone events they belong to. Mutates the cached events in place to
+    // add event.x_connected_devices; never throws (skips on any failure).
+    if (process.env.DISABLE_DEVICE_MATCH !== 'true') {
+      try {
+        const deviceIngest = require('./services/device-ingest');
+        const deviceMatcher = require('./services/device-workzone-matcher');
+        const devices = await deviceIngest.fetchIowaDevices();
+        const iowaEvents = activeEvents.filter(e => /iowa/i.test(String(e.state || '')));
+        const match = deviceMatcher.matchDevices(devices, iowaEvents);
+        deviceMatcher.annotateEvents(iowaEvents, match); // events are shared refs → annotates the cache
+        devicesCache = {
+          devices, links: match.links, review: match.review,
+          unmatchedCount: match.unmatched.length, timestamp: Date.now()
+        };
+        console.log(`🔗 Device match: ${match.links.length} auto-linked, ${match.review.length} to review, ${match.unmatched.length} unmatched (${devices.length} devices)`);
+      } catch (e) {
+        console.error('🔗 Device match skipped:', e.message);
+      }
+    }
 
     return cacheData;
   } catch (error) {
@@ -5810,6 +5835,44 @@ app.get('/api/major-events', async (req, res) => {
     console.error('major-events error:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// Connected field devices (arrow boards / portable DMS) and their auto-association
+// to work-zone events. Populated during the event-cache refresh (fetchAndCacheEvents).
+app.get('/api/devices', async (req, res) => {
+  // Make sure the cache (and therefore devicesCache) has been populated at least once.
+  if (!eventsCache.data && startupCachePromise) {
+    try { await startupCachePromise; } catch (_) { /* serve whatever we have */ }
+  }
+  const slimLink = (l) => ({
+    device: l.device, deviceType: l.deviceType, road_event_id: l.road_event_id,
+    corridor: l.corridor, confidence: l.confidence, distanceM: l.distanceM,
+    reasons: l.reasons, deviceCoord: l.deviceCoord, zoneRef: l.zoneRef, connector: l.connector
+  });
+  const links = devicesCache.links || [];
+  const linkByDevice = new Map(links.map((l) => [l.device, l]));
+  const devices = (devicesCache.devices || []).map((d) => {
+    const l = linkByDevice.get(d.id);
+    return {
+      id: d.id, deviceType: d.deviceType, signType: d.signType || null,
+      route: d.route, direction: d.direction, coordinates: d.coordinates,
+      mode: d.mode, updated: d.updated,
+      matched: !!l, road_event_id: l ? l.road_event_id : null, confidence: l ? l.confidence : null
+    };
+  });
+  res.json({
+    success: true,
+    timestamp: devicesCache.timestamp ? new Date(devicesCache.timestamp).toISOString() : null,
+    counts: {
+      devices: devices.length,
+      autoLinked: links.length,
+      review: (devicesCache.review || []).length,
+      unmatched: devicesCache.unmatchedCount || 0
+    },
+    links: links.map(slimLink),
+    review: (devicesCache.review || []).map(slimLink),
+    devices
+  });
 });
 
 // Endpoint to fetch from a specific state

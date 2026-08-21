@@ -116,6 +116,7 @@ function App() {
   const [showInterchanges, setShowInterchanges] = useState(false); // Hidden by default - toggle to show
   const [showBridgeClearances, setShowBridgeClearances] = useState(false); // Hidden by default - toggle to show
   const [showTomTomIncidents, setShowTomTomIncidents] = useState(false); // TomTom (consumer-nav) incidents overlay
+  const [showConnectedDevices, setShowConnectedDevices] = useState(false); // Arrow boards / portable DMS auto-linked to work zones
   const [showCorridorRegulations, setShowCorridorRegulations] = useState(false); // Hidden by default - toggle to show
   const [interstateOnly, setInterstateOnly] = useState(true); // Show only interstate events by default
   const [loadingMessages, setLoadingMessages] = useState(true);
@@ -804,6 +805,7 @@ function App() {
           showInterchanges,
           showBridgeClearances,
           showTomTomIncidents,
+          showConnectedDevices,
           showCorridorRegulations,
           showDiversionRoutes,
           showAerialOverlays,
@@ -836,6 +838,7 @@ function App() {
           'toggle-interchanges':       () => { setView('map'); setShowInterchanges(p => !p); },
           'toggle-bridge-clearance':   () => { setView('map'); setShowBridgeClearances(p => !p); },
           'toggle-tomtom-incidents':   () => { setView('map'); setShowTomTomIncidents(p => !p); },
+          'toggle-connected-devices':  () => { setView('map'); setShowConnectedDevices(p => !p); },
           'toggle-corridor-regs':      () => { setView('map'); setShowCorridorRegulations(p => !p); },
           'toggle-diversion-routes':   () => { setView('map'); setShowDiversionRoutes(p => !p); },
           'toggle-aerial-overlays':    () => { setView('map'); setShowAerialOverlays(p => !p); },
@@ -1174,6 +1177,7 @@ function App() {
                   showInterchanges={showInterchanges}
                   showBridgeClearances={showBridgeClearances}
                   showTomTomIncidents={showTomTomIncidents}
+                  showConnectedDevices={showConnectedDevices}
                   showCorridorRegulations={showCorridorRegulations}
                   ipawsGeofence={ipawsGeofence}
                   onGeofenceUpdate={setIpawsGeofence}
