@@ -77,6 +77,29 @@ So you can see and audit the association, every link records the geometry of the
 - **Map layer** — "Connected Arrow Boards" toggle (NavSidebar). Green = auto-linked, amber =
   review, grey = unmatched; a dashed connector runs to the matched zone; the popup shows the
   board's live message and the full match basis.
+- **`GET /api/cwz/devices`** — a **CWZ 1.0 / WZDx v4.2 Device Feed** (see below).
+
+## CWZ 1.0 / WZDx Device Feed output
+
+CWZ 1.0 (ITE, 2024) is built on the WZDx v4.x Device Feed and maps device data concepts to
+NTCIP 1218/1203. The device→work-zone link this system computes is exactly the
+`road_event_ids` a CWZ Device Feed carries, so `GET /api/cwz/devices` emits a standards-native
+`FeatureCollection` (`services/cwz-device-feed.js`):
+
+- `feed_info` — `update_date`, `publisher`, `version` (WZDx base), `x_cwz_profile: "CWZ 1.0"`,
+  `update_frequency`, contact, and `data_sources`.
+- Each device is a **FieldDevice** feature with `core_details` (`device_type`, `data_source_id`,
+  `device_status` = ok/warning/unknown from freshness, `update_date`, `has_automatic_location`,
+  `road_names`, `road_direction`, and **`road_event_ids`** = the auto-linked zones).
+  - **arrow-board** → `pattern` (ArrowBoardPattern, mapped from the board's `msgtext`, e.g.
+    `left-chevron-sequential`) + `is_in_transport_position`.
+  - **dynamic-message-sign** → `message_multi_string` (the NTCIP 1203 MULTI string from the feed).
+- The match basis rides along as WZDx vendor extensions: `x_match_confidence`,
+  `x_match_distance_m`, `x_match_basis`.
+
+Validated: 100 features (61 arrow-board + 39 DMS), 0 schema violations, `road_event_ids`
+populated for every auto-linked device. Full connected-vehicle *broadcast* (SAE J2735 TIM over
+RSUs) is a separate hardware layer beyond this data feed; registration is with USDOT ITS DataHub.
 
 ## The live feed
 
@@ -121,9 +144,9 @@ query, 150 m radius → `ROUTEID`, `FROMMEASURE`, `TOMEASURE`) and, when they re
 distance (falling back to straight-line otherwise, never mixing the two). This would tighten
 the longer matches (the ~950–1200 m ones).
 
-**WZDx Device Feed.** Emitting each device as a WZDx field device with `road_event_id` set to
-its matched zone turns this into a standards-native, shareable kit for other states — each of
-which would supply its own device feed; the matcher itself is state-agnostic.
+**WZDx / CWZ Device Feed.** ✅ Done — `GET /api/cwz/devices` emits it (see "CWZ 1.0 / WZDx
+Device Feed output" above). Each state supplies its own device feed; the matcher itself is
+state-agnostic.
 
 ## Tuning knobs (`DEFAULTS` in the matcher)
 

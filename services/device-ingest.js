@@ -11,7 +11,7 @@ const https = require('https');
 const matcher = require('./device-workzone-matcher');
 
 const DMS_VIEW_URL = 'https://services.arcgis.com/8lRhdTsQyJpO52F1/ArcGIS/rest/services/DMS_View/FeatureServer/0/query'
-  + '?where=1%3D1&outFields=DeviceName,Route,Direction,SignType,msgtext,lat_,long_,EditDate'
+  + '?where=1%3D1&outFields=DeviceName,Route,Direction,SignType,msgtext,NTCIP,lat_,long_,EditDate'
   + '&returnGeometry=false&f=json&resultRecordCount=2000';
 
 function getJSON(url, timeoutMs = 15000) {
@@ -47,6 +47,7 @@ async function fetchIowaDevices(opts = {}) {
     const d = matcher.deviceFromFeature({ properties: a });
     if (!d.coordinates) continue;                 // no usable WGS84 position
     d.signType = a.SignType || null;
+    d.ntcip = a.NTCIP || null;                     // NTCIP 1203 MULTI string (for CWZ/WZDx DMS feed)
     devices.push(d);
   }
   return devices;

@@ -5875,6 +5875,21 @@ app.get('/api/devices', async (req, res) => {
   });
 });
 
+// CWZ 1.0 / WZDx Device Feed — the connected devices and their auto-associated
+// work zones (road_event_ids), served as a standards-native FeatureCollection.
+app.get('/api/cwz/devices', async (req, res) => {
+  if (!eventsCache.data && startupCachePromise) {
+    try { await startupCachePromise; } catch (_) { /* serve whatever we have */ }
+  }
+  try {
+    const cwz = require('./services/cwz-device-feed');
+    res.set('Content-Type', 'application/json');
+    res.json(cwz.buildFeed(devicesCache));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Endpoint to fetch from a specific state
 app.get('/api/events/:state', async (req, res) => {
   let stateKey = req.params.state.toLowerCase();
