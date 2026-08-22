@@ -133,7 +133,7 @@ Two ways it surfaces:
 ## Validation monitoring
 
 Because an auto-link can be plausible-but-wrong, `services/device-validation.js` runs
-alongside the matcher (on each cache refresh — no separate loop) and validates every link
+alongside the matcher (lazily, when a device endpoint is opened — no separate loop) and validates every link
 against **independent** signals the matcher did not use, then rolls the results into health
 metrics. Served at **`GET /api/devices/health`**.
 
@@ -194,9 +194,12 @@ arrow boards). We ingest the portable units for work-zone association.
 - `services/device-workzone-matcher.js` — the matching logic (route/direction/proximity/
   upstream/temporal/deployment scoring). Self-tests with `node services/device-workzone-matcher.js`.
 - `services/device-ingest.js` — pulls and normalizes `DMS_View`.
-- `backend_proxy_server.js` — during each event-cache refresh (`fetchAndCacheEvents`), it
-  ingests devices, matches against the Iowa events, annotates the cached events, and stores
-  the roster/links/review in `devicesCache`. Disable with `DISABLE_DEVICE_MATCH=true`.
+- `backend_proxy_server.js` — **EXPERIMENTAL, lazy:** `ensureDeviceMatch()` runs the whole
+  pipeline (ingest → match → RAMS → validate → annotate the cached events → store in
+  `devicesCache`) **only when a user opens a device endpoint** (`/api/devices`,
+  `/api/devices/health`, `/api/cwz/devices`, `/api/cwz/events`), cached for 3 min. It is
+  intentionally NOT run on the shared/automatic event refresh, so it costs nothing when nobody
+  is looking at it. Disable entirely with `DISABLE_DEVICE_MATCH=true`.
 - `frontend/src/components/ConnectedDevicesLayer.jsx` — the map layer.
 
 ## Lineage and next work

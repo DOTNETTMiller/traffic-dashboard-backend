@@ -5159,44 +5159,9 @@ async function fetchAndCacheEvents() {
     eventsCache.timestamp = Date.now();
     console.log('✅ Cache updated successfully');
 
-    // Auto-associate connected field devices (arrow boards / portable DMS) with
-    // the work-zone events they belong to. Mutates the cached events in place to
-    // add event.x_connected_devices; never throws (skips on any failure).
-    if (process.env.DISABLE_DEVICE_MATCH !== 'true') {
-      try {
-        const deviceIngest = require('./services/device-ingest');
-        const deviceMatcher = require('./services/device-workzone-matcher');
-        const deviceValidation = require('./services/device-validation');
-        const devices = await deviceIngest.fetchIowaDevices();
-        const iowaEvents = activeEvents.filter(e => /iowa/i.test(String(e.state || '')));
-        let match = deviceMatcher.matchDevices(devices, iowaEvents);
-        // Refine distances with RAMS linear-referencing (true along-road chainage where
-        // device and zone share a ROUTEID); re-checks the far gate. Fail-safe: any RAMS
-        // outage leaves the straight-line result untouched.
-        if (process.env.DISABLE_RAMS_CHAINAGE !== 'true') {
-          try { match = await require('./services/rams-chainage').refine(match, { farM: 800 }); }
-          catch (e) { console.error('RAMS chainage refine skipped:', e.message); }
-        }
-        deviceMatcher.annotateEvents(iowaEvents, match); // events are shared refs → annotates the cache
-        // Validation monitoring: cross-check each link (self-location, message-vs-zone,
-        // temporal, distance/direction) + feed-health/coverage metrics + rolling trend.
-        const validation = deviceValidation.validate(match, devices, iowaEvents);
-        // Persist the snapshot so the trend survives restarts.
-        require('./services/device-health-store').record(validation.summary);
-        const prevTrend = devicesCache.trend || [];
-        devicesCache = {
-          devices, links: match.links, review: match.review,
-          unmatchedCount: match.unmatched.length, timestamp: Date.now(),
-          validation: validation.summary, matchValidations: validation.matches,
-          anomalies: validation.anomalies,
-          trend: deviceValidation.appendTrend(prevTrend, validation.summary)
-        };
-        const v = validation.summary.validation;
-        console.log(`🔗 Device match: ${match.links.length} auto-linked, ${match.review.length} to review, ${match.unmatched.length} unmatched (${devices.length} devices) | validation ${v.pass}✓/${v.warn}⚠/${v.fail}✗`);
-      } catch (e) {
-        console.error('🔗 Device match skipped:', e.message);
-      }
-    }
+    // NOTE: the connected-device ↔ work-zone matching is EXPERIMENTAL and runs
+    // lazily (see ensureDeviceMatch), only when a user opens a device endpoint —
+    // it is intentionally NOT run here on the shared/automatic event refresh.
 
     return cacheData;
   } catch (error) {
@@ -5205,6 +5170,50 @@ async function fetchAndCacheEvents() {
     return eventsCache.data;
   } finally {
     eventsCache.isRefreshing = false;
+  }
+}
+
+// Lazy, on-demand connected-device ↔ work-zone matching. EXPERIMENTAL: runs only
+// when a user opens a device endpoint (/api/devices*, /api/cwz/*), never on the
+// shared/automatic event refresh — so it costs nothing when nobody is looking at it.
+// Cached for deviceMatch.ttl; guarded against concurrent runs.
+let deviceMatch = { running: false, ttl: 180000 }; // 3 min
+async function ensureDeviceMatch(force = false) {
+  if (process.env.DISABLE_DEVICE_MATCH === 'true') return;
+  if (deviceMatch.running) return;
+  const age = devicesCache.timestamp ? Date.now() - devicesCache.timestamp : Infinity;
+  if (!force && age < deviceMatch.ttl) return; // fresh enough — reuse
+  const events = (eventsCache.data && eventsCache.data.events) || [];
+  if (!events.length) return;
+  deviceMatch.running = true;
+  try {
+    const deviceIngest = require('./services/device-ingest');
+    const deviceMatcher = require('./services/device-workzone-matcher');
+    const deviceValidation = require('./services/device-validation');
+    const devices = await deviceIngest.fetchIowaDevices();
+    const iowaEvents = events.filter(e => /iowa/i.test(String(e.state || '')));
+    let match = deviceMatcher.matchDevices(devices, iowaEvents);
+    if (process.env.DISABLE_RAMS_CHAINAGE !== 'true') {
+      try { match = await require('./services/rams-chainage').refine(match, { farM: 800 }); }
+      catch (e) { console.error('RAMS chainage refine skipped:', e.message); }
+    }
+    deviceMatcher.annotateEvents(iowaEvents, match); // shared refs → elevates the cached events
+    const validation = deviceValidation.validate(match, devices, iowaEvents);
+    require('./services/device-health-store').record(validation.summary);
+    const prevTrend = devicesCache.trend || [];
+    devicesCache = {
+      devices, links: match.links, review: match.review,
+      unmatchedCount: match.unmatched.length, timestamp: Date.now(),
+      validation: validation.summary, matchValidations: validation.matches,
+      anomalies: validation.anomalies,
+      trend: deviceValidation.appendTrend(prevTrend, validation.summary)
+    };
+    const v = validation.summary.validation;
+    console.log(`🔗 Device match (on-demand): ${match.links.length} auto, ${match.review.length} review, ${match.unmatched.length} none (${devices.length} devices) | ${v.pass}✓/${v.warn}⚠/${v.fail}✗`);
+  } catch (e) {
+    console.error('🔗 Device match skipped:', e.message);
+  } finally {
+    deviceMatch.running = false;
   }
 }
 
@@ -5862,6 +5871,7 @@ app.get('/api/devices', async (req, res) => {
   if (!eventsCache.data && startupCachePromise) {
     try { await startupCachePromise; } catch (_) { /* serve whatever we have */ }
   }
+  await ensureDeviceMatch(); // experimental: match runs on open, not on the shared refresh
   const slimLink = (l) => ({
     device: l.device, deviceType: l.deviceType, road_event_id: l.road_event_id,
     corridor: l.corridor, confidence: l.confidence, distanceM: l.distanceM,
@@ -5900,6 +5910,7 @@ app.get('/api/devices/health', async (req, res) => {
   if (!eventsCache.data && startupCachePromise) {
     try { await startupCachePromise; } catch (_) { /* serve whatever we have */ }
   }
+  await ensureDeviceMatch(); // experimental: match runs on open, not on the shared refresh
   // Trend comes from the DB (survives restarts); fall back to the in-memory copy.
   let trend = [];
   try { trend = require('./services/device-health-store').trend(288); } catch (_) { /* fall back */ }
@@ -5919,6 +5930,7 @@ app.get('/api/cwz/events', async (req, res) => {
   if (!eventsCache.data && startupCachePromise) {
     try { await startupCachePromise; } catch (_) { /* serve whatever we have */ }
   }
+  await ensureDeviceMatch(); // experimental: elevate events on open, not on the shared refresh
   try {
     const cwz = require('./services/cwz-roadevent-feed');
     const connected = (eventsCache.data?.events || []).filter(e => e.x_cwz_connected);
@@ -5935,6 +5947,7 @@ app.get('/api/cwz/devices', async (req, res) => {
   if (!eventsCache.data && startupCachePromise) {
     try { await startupCachePromise; } catch (_) { /* serve whatever we have */ }
   }
+  await ensureDeviceMatch(); // experimental: match runs on open, not on the shared refresh
   try {
     const cwz = require('./services/cwz-device-feed');
     res.set('Content-Type', 'application/json');
