@@ -5241,15 +5241,25 @@ async function ensureDeviceMatch(force = false) {
     const deviceIngest = require('./services/device-ingest');
     const deviceMatcher = require('./services/device-workzone-matcher');
     const deviceValidation = require('./services/device-validation');
-    const devices = await deviceIngest.fetchIowaDevices();
-    const iowaEvents = events.filter(e => /iowa/i.test(String(e.state || '')));
-    let match = deviceMatcher.matchDevices(devices, iowaEvents);
+    const deviceAdapters = require('./services/device-adapters');
+    // Multi-state device roster: Iowa (DMS_View) + adapter states (NY has routes;
+    // WA/OK/PA/ME are route-less portable feeds → matched via proximity/direction/upstream).
+    // Each source is fail-safe (bad feed → []). No-key adapters return [] cleanly.
+    const STATE_KEYS = ['ny', 'wa', 'ok', 'pa', 'me'];
+    const lists = await Promise.all([
+      deviceIngest.fetchIowaDevices().catch(() => []),
+      ...STATE_KEYS.map(k => deviceAdapters.fetchState(k).then(r => Array.isArray(r) ? r : []).catch(() => []))
+    ]);
+    const devices = lists.flat();
+    // Match against ALL events — proximity (<=maxMatchM) guarantees geographic correctness,
+    // so no fragile per-state event-label filtering is needed.
+    let match = deviceMatcher.matchDevices(devices, events);
     if (process.env.DISABLE_RAMS_CHAINAGE !== 'true') {
       try { match = await require('./services/rams-chainage').refine(match, { farM: 800 }); }
       catch (e) { console.error('RAMS chainage refine skipped:', e.message); }
     }
-    deviceMatcher.annotateEvents(iowaEvents, match); // shared refs → elevates the cached events
-    const validation = deviceValidation.validate(match, devices, iowaEvents);
+    deviceMatcher.annotateEvents(events, match); // shared refs → elevates the cached events
+    const validation = deviceValidation.validate(match, devices, events);
     require('./services/device-health-store').record(validation.summary);
     const prevTrend = devicesCache.trend || [];
     devicesCache = {

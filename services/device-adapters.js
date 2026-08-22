@@ -117,9 +117,11 @@ async function wzdxDevice(cfg) {
 // CARS/OneStop 511 message-signs JSON. Requires a free key (cfg.keyEnv env var).
 async function cars511(cfg) {
   const key = process.env[cfg.keyEnv];
-  if (!key) return { skipped: `no key (set ${cfg.keyEnv})` };
+  if (!key && !cfg.keyless) return { skipped: `no key (set ${cfg.keyEnv})` };
   const path = cfg.path || 'api/v2/get/messagesigns';
-  const url = `${cfg.base}/${path}?key=${encodeURIComponent(key)}&format=json`;
+  const url = key
+    ? `${cfg.base}/${path}?key=${encodeURIComponent(key)}&format=json`
+    : `${cfg.base}/${path}?format=json`;   // keyless path (e.g. 511NY legacy)
   const j = await getJSON(url);
   const rows = Array.isArray(j) ? j : (j.MessageSigns || j.messagesigns || []);
   const out = [];
@@ -240,7 +242,7 @@ const ADAPTERS = {
   nj: { name: 'New Jersey', portable: false, key: true, run: () => cars511({ state: 'NJ', base: 'https://511nj.org', path: 'api/getmessagesigns', keyEnv: 'NJ_511_KEY' }) },
   wi: { name: 'Wisconsin', portable: false, key: true, run: () => cars511({ state: 'WI', base: 'https://511wi.gov', keyEnv: 'WI_511_KEY' }) },
   nv: { name: 'Nevada', portable: false, key: true, run: () => cars511({ state: 'NV', base: 'https://www.nvroads.com', keyEnv: 'NV_511_KEY' }) },
-  ny: { name: 'New York', portable: true, key: true, run: () => cars511({ state: 'NY', base: 'https://511ny.org', path: 'api/getmessagesigns', keyEnv: 'NY_511_KEY' }) },
+  ny: { name: 'New York', portable: true, key: false, run: () => cars511({ state: 'NY', base: 'https://511ny.org', path: 'api/getmessagesigns', keyEnv: 'NY_511_KEY', keyless: true }) },
   id: { name: 'Idaho', portable: false, key: true, run: () => cars511({ state: 'ID', base: 'https://511.idaho.gov', keyEnv: 'ID_511_KEY' }) }
 };
 

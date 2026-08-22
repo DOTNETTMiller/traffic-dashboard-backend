@@ -134,10 +134,20 @@ function scoreMatch(device, event, opts) {
   const cfg = { ...DEFAULTS, ...(opts || {}) };
   const reasons = [];
 
-  // Gate 1: route must match.
+  // Gate 1: route. If the device reports a route it must match the zone's. Portable
+  // feeds often report NO route (blank/coded), so a route-less device is allowed to
+  // proceed on proximity + direction + upstream, inferring its route from the matched
+  // zone (with a lower base score so those lean toward the review queue).
   const evRoute = normalizeRoute(event.corridor || event.route || event.location);
-  if (!device.route || !evRoute || device.route !== evRoute) return null;
-  reasons.push(`route ${device.route}`);
+  if (!evRoute) return null;
+  let routeKnown = false;
+  if (device.route) {
+    if (device.route !== evRoute) return null;
+    routeKnown = true;
+    reasons.push(`route ${device.route}`);
+  } else {
+    reasons.push(`route inferred ${evRoute}`);
+  }
 
   // Gate 2: carriageway direction (reject opposite side; BOTH/unknown pass).
   const evDir = normalizeDir(event.direction);
@@ -191,7 +201,9 @@ function scoreMatch(device, event, opts) {
   const far = distanceM > cfg.farM;
   if (far) reasons.push(`far (${distanceM}m)`);
 
-  const confidence = Math.round(40 + dirScore + spatial + temporal + deploy);
+  // Base credit is lower when the route was only inferred (route-less device), so those
+  // links sit lower and are more likely to land in the review queue.
+  const confidence = Math.round((routeKnown ? 40 : 30) + dirScore + spatial + temporal + deploy);
   // ref = the point ON the zone the device was matched to (where the link lands).
   // `off`/`far` don't lower the score — they block AUTO-linking (→ review) so the
   // confidence stays an honest measure while questionable links get a human look.
@@ -210,7 +222,16 @@ function matchDevices(devices, events, opts) {
   const links = [], review = [], unmatched = [];
   for (const device of devices) {
     let best = null;
+    const dc = device.coordinates;
     for (const event of events) {
+      // Cheap spatial prefilter: skip events obviously too far (~4 km box) before the
+      // expensive scoring, so matching all devices against all events stays fast.
+      if (dc) {
+        const el = event.latitude != null ? +event.latitude : (event.coordinates && event.coordinates[1]);
+        const eo = event.longitude != null ? +event.longitude : (event.coordinates && event.coordinates[0]);
+        if (Number.isFinite(el) && Number.isFinite(eo) &&
+            (Math.abs(el - dc[1]) > 0.03 || Math.abs(eo - dc[0]) > 0.05)) continue;
+      }
       const s = scoreMatch(device, event, cfg);
       if (s && (!best || s.confidence > best.confidence)) best = s;
     }
