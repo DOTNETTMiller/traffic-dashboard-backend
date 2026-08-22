@@ -5102,6 +5102,27 @@ async function fetchAndCacheEvents() {
       allErrors.push({ state: 'CA (LCS)', errors: [error.message] });
     }
 
+    // Add regular-event (non-work-zone) feeds — incidents / closures / conditions /
+    // special events from states beyond our WZDx coverage (NY, NC, WA, FL, CO).
+    // Interstate-filtered in the adapters; fail-safe (a bad feed never breaks refresh).
+    if (process.env.DISABLE_EVENT_ADAPTERS !== 'true') {
+      try {
+        const extra = await require('./services/event-adapters').fetchAll();
+        if (extra.events.length > 0) {
+          const lifecycleResult = lifecycleManager.processFeedRefresh(extra.events, 'EVENT-ADAPTERS');
+          lifecycleStats.bySource['EVENT-ADAPTERS'] = lifecycleResult;
+          lifecycleStats.totalNew += lifecycleResult.new;
+          lifecycleStats.totalUpdated += lifecycleResult.updated;
+          lifecycleStats.totalEndTimeExtended += lifecycleResult.endTimeExtended;
+          allEvents.push(...extra.events);
+          console.log(`➕ Regular-event adapters: +${extra.events.length} events ${JSON.stringify(extra.counts)}`);
+        }
+        extra.errors.forEach(e => allErrors.push({ state: 'event-adapter', errors: [e] }));
+      } catch (error) {
+        allErrors.push({ state: 'event-adapters', errors: [error.message] });
+      }
+    }
+
     // Deduplicate events
     const seenIds = new Set();
     const uniqueEvents = [];
