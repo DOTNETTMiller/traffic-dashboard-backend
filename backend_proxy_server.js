@@ -765,6 +765,36 @@ const API_CONFIG = {
     corridor: 'H-1,H-2,H-3',
     apiType: 'WZDx'
   },
+  // --- Feeds added 2026-08 from the WZDx registry (new coverage, no key) ---
+  mississippi: {
+    name: 'Mississippi',
+    wzdxUrl: 'https://api.mdottraffic.com/prod/v3/data/wzdx',
+    format: 'geojson',
+    corridor: 'I-10,I-20,I-22,I-55,I-59,I-110,I-220,I-269',
+    apiType: 'WZDx'
+  },
+  newengland: {
+    name: 'New England (NH/VT/ME)',
+    wzdxUrl: 'https://api.dx.ne-compass.com/wzdx-latest/',
+    format: 'geojson',
+    corridor: 'I-89,I-91,I-93,I-95,I-189,I-289,I-295,I-393,I-495',
+    apiType: 'WZDx'
+  },
+  arizona: {
+    name: 'Arizona (Maricopa)',
+    wzdxUrl: 'https://wzdxapi.aztech.org/construction',
+    format: 'geojson',
+    corridor: 'I-8,I-10,I-11,I-17,I-19',
+    apiType: 'WZDx'
+  },
+  // PurposeBuilt Systems Digital Traffic Control Diary — CWZ 1.0 (WZDx-based); the user's own feed
+  dtcdcwz: {
+    name: 'PurposeBuilt DTCD (CWZ 1.0)',
+    wzdxUrl: 'https://feeds.purposebuilt.systems/cwz',
+    format: 'geojson',
+    corridor: 'US-30,I-80,I-35',
+    apiType: 'WZDx'
+  },
   idaho: {
     name: 'Idaho',
     wzdxUrl: 'https://511.idaho.gov/api/wzdx',
