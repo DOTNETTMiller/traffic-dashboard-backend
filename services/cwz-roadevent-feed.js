@@ -76,15 +76,20 @@ function buildFeed(events, opts = {}) {
 
   return {
     feed_info: {
+      title: 'CCAI Connected Work Zone — RoadEvent Feed (premier, real-time)',
+      description: 'Work zones with a confirmed connected field device present (device-verified, '
+        + 'elevated). Multi-state. CWZ 1.0 / WZDx v4.2. Each event carries its connected '
+        + 'devices and match confidence.',
       update_date: updateDate,
-      publisher: 'Iowa DOT / CCAI',
+      publisher: 'CCAI (multi-state)',
       version: opts.version || '4.2',
       x_cwz_profile: 'CWZ 1.0',
+      x_dataset_tier: 'premier-realtime-connected',
       update_frequency: 300,
       contact_name: 'Matt Miller',
       contact_email: 'matthew.miller@iowadot.us',
       data_sources: [
-        { data_source_id: DATA_SOURCE_ID, organization_name: 'Iowa DOT / CCAI', update_date: updateDate }
+        { data_source_id: DATA_SOURCE_ID, organization_name: 'CCAI (multi-state)', update_date: updateDate }
       ]
     },
     type: 'FeatureCollection',

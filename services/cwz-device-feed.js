@@ -15,7 +15,11 @@
  *   `message_multi_string` (NTCIP 1203 MULTI).
  */
 
-const DATA_SOURCE_ID = 'iowadot-dms-view';
+// Per-state attribution (the feed is multi-state). device.state is set by the
+// adapters ('NY','WA','OK','PA','ME'); Iowa DMS_View devices have no state → 'IA'.
+const STATE_ORG = { IA: 'Iowa DOT', NY: 'NYSDOT', WA: 'WSDOT', OK: 'Oklahoma DOT', PA: 'PennDOT', ME: 'MaineDOT' };
+const stateOf = (d) => String(d.state || 'IA').toUpperCase();
+const dataSourceId = (d) => `${stateOf(d).toLowerCase()}-connected-devices`;
 
 // FieldDeviceType: arrow-board | dynamic-message-sign (the two we ingest).
 function mapDeviceType(d) {
@@ -69,7 +73,7 @@ function buildFeed(devicesCache, opts = {}) {
     const dir = mapDirection(d.direction);
     const core = {
       device_type: mapDeviceType(d),
-      data_source_id: DATA_SOURCE_ID,
+      data_source_id: dataSourceId(d),
       device_status: deviceStatus(d.updated, now),
       update_date: d.updated || updateDate,
       has_automatic_location: true,                 // portable units self-report GPS
@@ -100,22 +104,32 @@ function buildFeed(devicesCache, opts = {}) {
     return { id: d.id, type: 'Feature', properties, geometry: { type: 'Point', coordinates: d.coordinates } };
   });
 
+  // Build the multi-state data_sources list from the states actually present.
+  const states = [...new Set((devicesCache.devices || []).map(stateOf))];
+  const data_sources = (states.length ? states : ['IA']).map((st) => ({
+    data_source_id: `${st.toLowerCase()}-connected-devices`,
+    organization_name: STATE_ORG[st] || st,
+    update_date: updateDate
+  }));
+
   return {
     feed_info: {
+      title: 'CCAI Connected Work Zone — Device Feed (premier, real-time)',
+      description: 'Connected field devices (arrow boards / portable DMS) auto-associated to '
+        + 'the work zones they serve, across multiple states. CWZ 1.0 / WZDx v4.2.',
       update_date: updateDate,
-      publisher: 'Iowa DOT / CCAI',
+      publisher: 'CCAI (multi-state)',
       version: opts.version || '4.2',            // WZDx base version CWZ 1.0 builds on
       x_cwz_profile: 'CWZ 1.0',                  // Connected Work Zone profile tag
+      x_dataset_tier: 'premier-realtime-connected',
       update_frequency: 300,
       contact_name: 'Matt Miller',
       contact_email: 'matthew.miller@iowadot.us',
-      data_sources: [
-        { data_source_id: DATA_SOURCE_ID, organization_name: 'Iowa DOT', update_date: updateDate }
-      ]
+      data_sources
     },
     type: 'FeatureCollection',
     features
   };
 }
 
-module.exports = { buildFeed, mapArrowPattern, mapDeviceType, mapDirection, deviceStatus, DATA_SOURCE_ID };
+module.exports = { buildFeed, mapArrowPattern, mapDeviceType, mapDirection, deviceStatus };
