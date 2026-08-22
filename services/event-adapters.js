@@ -87,7 +87,7 @@ function ncMap(a, g) {
   const corridor = interstate(a.Road || a.RouteType);
   if (!corridor) return null;
   return {
-    id: `NC-${a.Id || a.OBJECTID}`, state: 'North Carolina', source: 'NCDOT TIMS', corridor,
+    id: `NC-EV-${a.Id || a.OBJECTID}`, state: 'North Carolina', source: 'NCDOT TIMS', corridor,
     eventType: /closure/i.test(a.EventType || '') ? 'Closure' : 'Incident',
     description: a.Location || a.Reason || a.EventSubType, location: a.Road,
     direction: a.DirectionOfTravel, closed: a.IsFullClosure === 'Yes' || a.IsFullClosure === true,
@@ -100,7 +100,7 @@ function waMap(a, g) {
   const corridor = interstate(a.Road);
   if (!corridor) return null;
   return {
-    id: `WA-${a.AlertID || a.OBJECTID}`, state: 'Washington', source: 'WSDOT', corridor,
+    id: `WA-EV-${a.AlertID || a.OBJECTID}`, state: 'Washington', source: 'WSDOT', corridor,
     eventType: a.RoadClosedFlag ? 'Closure' : (a.EventCategoryDescription || 'Incident'),
     description: a.HeadlineMessage || a.TypeDescription, location: a.Road, direction: a.RoadDirection,
     closed: !!a.RoadClosedFlag, lon: g.x, lat: g.y, start: a.StartTime, end: a.EndTime
@@ -112,7 +112,7 @@ function flMap(a, g) {
   const corridor = interstate(a.highway || a.roadwayName);
   if (!corridor) return null;
   return {
-    id: `FL-${a.id || a.OBJECTID}`, state: 'Florida', source: 'FDOT SunGuide', corridor,
+    id: `FL-EV-${a.id || a.OBJECTID}`, state: 'Florida', source: 'FDOT SunGuide', corridor,
     eventType: /closure|closed/i.test(a.type || '') ? 'Closure' : 'Incident',
     description: a.description, location: a.highway, direction: a.direction, severity: a.severity,
     lon: a.longitude ?? g.x, lat: a.latitude ?? g.y, start: a.starttime, end: a.endtime
@@ -127,12 +127,14 @@ async function colorado() {
   const out = [];
   for (const f of (j.features || [])) {
     const p = f.properties || {};
-    const corridor = interstate(p.routeName || p.name || (p.travelerInformationMessage || ''));
+    // COtrip field names vary; scan the common ones, then the whole property bag, for an interstate.
+    const corridor = interstate(p.routeName || p.name || p.route || p.location || p.travelerInformationMessage)
+      || interstate(JSON.stringify(p));
     if (!corridor) continue;
     const g = f.geometry || {};
     const c = g.type === 'Point' ? g.coordinates : (Array.isArray(g.coordinates) ? g.coordinates[0] : null);
     out.push(mkEvent({
-      id: `CO-${p.id || f.id}`, state: 'Colorado', source: 'COtrip', corridor,
+      id: `CO-EV-${p.id || f.id}`, state: 'Colorado', source: 'COtrip', corridor,
       eventType: /closure|closed/i.test(p.type || '') ? 'Closure' : 'Incident',
       description: p.travelerInformationMessage || p.type, location: p.routeName || corridor,
       direction: p.direction, lon: c && c[0], lat: c && c[1],
