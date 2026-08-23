@@ -5214,6 +5214,19 @@ async function fetchAndCacheEvents() {
     // lazily (see ensureDeviceMatch), only when a user opens a device endpoint —
     // it is intentionally NOT run here on the shared/automatic event refresh.
 
+    // Camera scan (OPT-IN via CAMERA_SCAN=true): for WZDx-active zones near their start
+    // (+ one ~30-min follow-up if nothing was seen), run a vision check — at most 2 per
+    // closure ever (camera-check-ledger). Elevates zones the camera sees. $0 unless enabled
+    // AND a vision key is set; cost is bounded by the ledger regardless of refresh frequency.
+    if (process.env.CAMERA_SCAN === 'true') {
+      try {
+        const r = await require('./services/camera-scan').scanActive(activeEvents, {
+          openaiClient: process.env.OPENAI_API_KEY ? getOpenAI() : undefined
+        });
+        if (r.checked) console.log(`📷 Camera scan: ${r.checked} checked, ${r.elevated} elevated (${r.due} due)`);
+      } catch (e) { console.error('📷 Camera scan skipped:', e.message); }
+    }
+
     return cacheData;
   } catch (error) {
     console.error('❌ Error fetching events:', error.message);
@@ -6084,6 +6097,23 @@ app.get('/api/cameras/validate-active', async (req, res) => {
       note: doDetect ? undefined : 'Add &detect=1 to run vision on active zones (needs ANTHROPIC_API_KEY).',
       results
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Manual/cron trigger for the camera scan (same policy as the opt-in refresh scan):
+// checks WZDx-active zones near start (+ one 30-min follow-up), <=2 per closure via ledger.
+// Safe to call as often as you like — the ledger makes cost independent of call frequency.
+app.get('/api/cameras/scan', async (req, res) => {
+  if (!eventsCache.data && startupCachePromise) {
+    try { await startupCachePromise; } catch (_) { /* serve whatever we have */ }
+  }
+  try {
+    const r = await require('./services/camera-scan').scanActive(eventsCache.data?.events || [], {
+      openaiClient: process.env.OPENAI_API_KEY ? getOpenAI() : undefined
+    });
+    res.json({ success: true, ...r });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
