@@ -6061,6 +6061,7 @@ app.get('/api/cameras/validate-active', async (req, res) => {
   try {
     const cv = require('./services/camera-validation');
     const limit = Math.min(parseInt(req.query.limit) || 10, 40);
+    const offset = Math.max(0, parseInt(req.query.offset, 10) || 0); // for chunked full sweeps
     const doDetect = String(req.query.detect) === '1';
     const cameras = await require('./services/camera-adapters').getCameras();
     const events = eventsCache.data?.events || [];
@@ -6071,11 +6072,12 @@ app.get('/api/cameras/validate-active', async (req, res) => {
       const m = cv.matchCamera(ev, cameras);
       if (m) candidates.push({ ev, match: m });
     }
+    const slice = doDetect ? candidates.slice(offset, offset + limit) : candidates;
     const results = [];
     let checked = 0, elevated = 0;
-    for (const { ev, match } of candidates) {
+    for (const { ev, match } of slice) {
       const row = { eventId: ev.id, corridor: ev.corridor, camera: match.camera.id, distanceM: match.distanceM, imageUrl: match.camera.imageUrl };
-      if (doDetect && checked < limit) {
+      if (doDetect) {
         const det = await cv.detect(match.camera, {
           openaiClient: process.env.OPENAI_API_KEY ? getOpenAI() : undefined,
           trainingContext: { eventId: ev.id, activeNow: true, deviceCorroborated: !!ev.x_cwz_connected, route: ev.corridor, distanceM: match.distanceM }
@@ -6086,6 +6088,8 @@ app.get('/api/cameras/validate-active', async (req, res) => {
           ev.x_camera_verified = true;
           ev.x_camera_detected = det.devices;
           ev.x_camera_checked_at = det.checkedAt;
+          ev.x_camera_url = match.camera.imageUrl;
+          ev.x_camera_id = match.camera.id;
           if (!ev.x_zone_activity || ev.x_zone_activity === 'suspect-inactive') ev.x_zone_activity = 'confirmed-active';
           row.elevated = true; elevated++;
         }
@@ -6095,8 +6099,9 @@ app.get('/api/cameras/validate-active', async (req, res) => {
     res.json({
       success: true,
       activeZonesWithCamera: candidates.length,
-      detectionRun: doDetect, checked, elevated, limit,
-      note: doDetect ? undefined : 'Add &detect=1 to run vision on active zones (needs ANTHROPIC_API_KEY).',
+      offset, limit, returned: slice.length,
+      detectionRun: doDetect, checked, elevated,
+      note: doDetect ? undefined : 'Add &detect=1 to run vision (chunk with &offset= for a full sweep).',
       results
     });
   } catch (err) {
