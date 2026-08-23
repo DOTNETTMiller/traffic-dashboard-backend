@@ -68,8 +68,98 @@ async function arcgisCameras(cfg) {
   return out;
 }
 
+// New York — 511NY getcameras (keyless GET); snapshot in the record's Url field.
+async function newyork() {
+  const j = await getJSON('https://511ny.org/api/getcameras?format=json', 15000);
+  const out = [];
+  for (const c of (Array.isArray(j) ? j : [])) {
+    if (c.Disabled || c.Blocked || !c.Url) continue;
+    const lon = +c.Longitude, lat = +c.Latitude;
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    out.push({ id: `NY-CAM-${c.ID}`, state: 'NY', route: c.RoadwayName, direction: c.DirectionOfTravel, coordinates: [lon, lat], imageUrl: c.Url, desc: c.Name });
+  }
+  return out;
+}
+
+// Minnesota — CARS cameras_v1 (keyless GET). routeId lives inside location; still image is a
+// STILL_IMAGE view, else the public.carsprogram.org snapshot for the camera name.
+async function minnesota() {
+  const j = await getJSON('https://mntg.carsprogram.org/cameras_v1/api/cameras', 15000);
+  const arr = Array.isArray(j) ? j : (j.cameras || j.data || []);
+  const out = [];
+  for (const c of arr) {
+    if (c.public === false) continue;
+    const loc = c.location || {};
+    const lon = +loc.longitude, lat = +loc.latitude;
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    const still = (c.views || []).find(v => /still|image/i.test(v.type || ''));
+    const img = still ? still.url : `https://public.carsprogram.org/cameras/MN/${c.name}`;
+    out.push({ id: `MN-CAM-${c.id || c.name}`, state: 'MN', route: loc.routeId, coordinates: [lon, lat], imageUrl: img, desc: c.name });
+  }
+  return out;
+}
+
+// IBI511 platform (511PA, DriveNC, …): DataTables POST + /map/Cctv/{id} snapshots. Paged.
+function postForm(url, body, timeoutMs = 20000) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(url, { method: 'POST', headers: {
+      'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest',
+      'Content-Length': Buffer.byteLength(body)
+    } }, (res) => { let d = ''; res.on('data', (c) => (d += c)); res.on('end', () => { try { resolve(JSON.parse(d)); } catch (e) { reject(new Error('parse')); } }); });
+    req.on('error', reject);
+    req.setTimeout(timeoutMs, function () { this.destroy(); reject(new Error('timeout')); });
+    req.write(body); req.end();
+  });
+}
+function wktLonLat(latLng) {
+  const w = latLng && latLng.geography && latLng.geography.wellKnownText;
+  const m = w && w.match(/POINT\s*\(([-\d.]+)\s+([-\d.]+)\)/i);
+  return m ? [parseFloat(m[1]), parseFloat(m[2])] : null;
+}
+async function ibi511Cameras(cfg) {
+  const out = []; let start = 0, total = Infinity;
+  while (start < total && start < 20000) {
+    const j = await postForm(`${cfg.base}/List/GetData/Cameras`, `draw=1&start=${start}&length=1000`).catch(() => ({ data: [] }));
+    const rows = j.data || [];
+    total = j.recordsTotal || (start + rows.length);
+    if (!rows.length) break;
+    for (const c of rows) {
+      const ll = wktLonLat(c.latLng);
+      const im = (c.images || []).map(i => i.imageUrl).find(Boolean);
+      if (!ll || !im) continue;
+      out.push({ id: `${cfg.state}-CAM-${c.id}`, state: cfg.state, route: c.roadway, direction: c.direction,
+        coordinates: ll, imageUrl: /^https?:/i.test(im) ? im : `${cfg.base}${im}`, desc: c.location || c.cameraName });
+    }
+    start += rows.length;
+  }
+  return out;
+}
+
+// Texas — City of Austin open data (Socrata, keyless). Snapshot at cctv.austinmobility.io.
+async function austin() {
+  const j = await getJSON('https://data.austintexas.gov/resource/b4k4-adkb.json?$limit=2000', 15000);
+  const out = [];
+  for (const c of (Array.isArray(j) ? j : [])) {
+    const coords = c.location && c.location.coordinates;
+    if (!coords || coords.length < 2) continue;
+    const lon = +coords[0], lat = +coords[1];
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    if (/turned off|down/i.test(c.camera_status || '')) continue;
+    out.push({ id: `TX-CAM-${c.camera_id}`, state: 'TX', route: c.primary_st,
+      coordinates: [lon, lat], imageUrl: `https://cctv.austinmobility.io/image/${c.camera_id}.jpg`, desc: c.location_name });
+  }
+  return out;
+}
+
 // Registry — keyless, verified public feeds (camera-feed survey 2026-08). Extend as more land.
 const ADAPTERS = {
+  ny: newyork,
+  mn: minnesota,
+  pa: () => ibi511Cameras({ state: 'PA', base: 'https://www.511pa.com' }),
+  nc: () => ibi511Cameras({ state: 'NC', base: 'https://www.drivenc.gov' }),
+  az: () => ibi511Cameras({ state: 'AZ', base: 'https://az511.com' }),
+  me: () => ibi511Cameras({ state: 'ME', base: 'https://newengland511.org' }),
+  tx: austin,
   ca: california,
   ia: () => arcgisCameras({ state: 'IA',
     url: 'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Traffic_Cameras_View/FeatureServer/0/query',
