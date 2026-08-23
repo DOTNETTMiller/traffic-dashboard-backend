@@ -159,6 +159,7 @@ const ADAPTERS = {
   nc: () => ibi511Cameras({ state: 'NC', base: 'https://www.drivenc.gov' }),
   az: () => ibi511Cameras({ state: 'AZ', base: 'https://az511.com' }),
   me: () => ibi511Cameras({ state: 'ME', base: 'https://newengland511.org' }),
+  ga: () => ibi511Cameras({ state: 'GA', base: 'https://511ga.org' }),
   tx: austin,
   ca: california,
   ia: () => arcgisCameras({ state: 'IA',
