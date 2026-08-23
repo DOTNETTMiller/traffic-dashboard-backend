@@ -6006,15 +6006,78 @@ app.get('/api/cameras/check', async (req, res) => {
     if (!ev) return res.status(404).json({ error: 'event not found' });
     const cameraValidation = require('./services/camera-validation');
     const cameras = await require('./services/camera-adapters').getCameras();
+    const activeNow = cameraValidation.isActiveNow(ev); // per WZDx start/end dates
     const match = cameraValidation.matchCamera(ev, cameras);
-    if (!match) return res.json({ success: true, eventId, cameraAvailable: false });
+    if (!match) return res.json({ success: true, eventId, activeNow, cameraAvailable: false });
     const out = {
-      success: true, eventId, cameraAvailable: true,
+      success: true, eventId, activeNow, cameraAvailable: true,
       camera: { id: match.camera.id, state: match.camera.state, route: match.camera.route, desc: match.camera.desc, imageUrl: match.camera.imageUrl, coordinates: match.camera.coordinates },
       distanceM: match.distanceM
     };
-    if (String(req.query.detect) === '1') out.detection = await cameraValidation.detect(match.camera);
+    if (String(req.query.detect) === '1') {
+      out.detection = await cameraValidation.detect(match.camera);
+      // Elevate only when the zone is scheduled active AND the camera actually sees a work zone
+      // (positive-only; a non-detection never demotes — the camera may be aimed elsewhere).
+      if (activeNow && out.detection.available && out.detection.work_zone) {
+        ev.x_camera_verified = true;
+        ev.x_camera_detected = out.detection.devices;
+        ev.x_camera_checked_at = out.detection.checkedAt;
+        if (!ev.x_zone_activity || ev.x_zone_activity === 'suspect-inactive') ev.x_zone_activity = 'confirmed-active';
+        out.elevated = true;
+      }
+    }
     res.json(out);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Bounded, on-demand camera validation of CURRENTLY-ACTIVE work zones (per WZDx dates).
+// For zones scheduled active now that have a nearby camera, run ONE cached vision check each
+// and elevate the ones the camera actually sees. Cost-capped by `limit` (default 10, max 40),
+// gated on a vision key ($0 without), cached per snapshot. Single request — no loop, no timer.
+app.get('/api/cameras/validate-active', async (req, res) => {
+  if (!eventsCache.data && startupCachePromise) {
+    try { await startupCachePromise; } catch (_) { /* serve whatever we have */ }
+  }
+  try {
+    const cv = require('./services/camera-validation');
+    const limit = Math.min(parseInt(req.query.limit) || 10, 40);
+    const doDetect = String(req.query.detect) === '1';
+    const cameras = await require('./services/camera-adapters').getCameras();
+    const events = eventsCache.data?.events || [];
+    // Candidates: scheduled active NOW + has a nearby camera. (matching is free)
+    const candidates = [];
+    for (const ev of events) {
+      if (cv.isActiveNow(ev) !== true) continue;
+      const m = cv.matchCamera(ev, cameras);
+      if (m) candidates.push({ ev, match: m });
+    }
+    const results = [];
+    let checked = 0, elevated = 0;
+    for (const { ev, match } of candidates) {
+      const row = { eventId: ev.id, corridor: ev.corridor, camera: match.camera.id, distanceM: match.distanceM, imageUrl: match.camera.imageUrl };
+      if (doDetect && checked < limit) {
+        const det = await cv.detect(match.camera);
+        checked++;
+        row.detection = det;
+        if (det.available && det.work_zone) {
+          ev.x_camera_verified = true;
+          ev.x_camera_detected = det.devices;
+          ev.x_camera_checked_at = det.checkedAt;
+          if (!ev.x_zone_activity || ev.x_zone_activity === 'suspect-inactive') ev.x_zone_activity = 'confirmed-active';
+          row.elevated = true; elevated++;
+        }
+      }
+      results.push(row);
+    }
+    res.json({
+      success: true,
+      activeZonesWithCamera: candidates.length,
+      detectionRun: doDetect, checked, elevated, limit,
+      note: doDetect ? undefined : 'Add &detect=1 to run vision on active zones (needs ANTHROPIC_API_KEY).',
+      results
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -6029,7 +6092,8 @@ app.get('/api/cwz/events', async (req, res) => {
   await ensureDeviceMatch(); // experimental: elevate events on open, not on the shared refresh
   try {
     const cwz = require('./services/cwz-roadevent-feed');
-    const connected = (eventsCache.data?.events || []).filter(e => e.x_cwz_connected);
+    // Elevated = device-verified (connected board) OR camera-verified (a camera saw the zone).
+    const connected = (eventsCache.data?.events || []).filter(e => e.x_cwz_connected || e.x_camera_verified);
     res.set('Content-Type', 'application/json');
     res.json(cwz.buildFeed(connected));
   } catch (err) {

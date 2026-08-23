@@ -24,6 +24,18 @@ function interstate(s) {
   return m ? `I-${parseInt(m[1], 10)}` : null;
 }
 
+// Is the WZDx event scheduled to be ACTIVE right now (per its start/end dates)?
+// true = within window, false = not yet started / already ended, null = no start date
+// (can't tell — don't spend a vision check on it).
+function isActiveNow(event, now = Date.now()) {
+  const s = Date.parse(event.startTime || event.startDate || event.start_date || '');
+  const e = Date.parse(event.endTime || event.endDate || event.end_date || '');
+  if (!Number.isFinite(s)) return null;
+  if (now < s) return false;
+  if (Number.isFinite(e) && now > e) return false;
+  return true;
+}
+
 // ---- 1) matching (free) -----------------------------------------------------
 
 /**
@@ -138,4 +150,4 @@ async function detect(camera, opts = {}) {
   }
 }
 
-module.exports = { matchCamera, detect, interstate, VISION_MODEL };
+module.exports = { matchCamera, detect, interstate, isActiveNow, VISION_MODEL };

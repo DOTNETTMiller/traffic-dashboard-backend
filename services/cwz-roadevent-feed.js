@@ -57,20 +57,29 @@ function buildFeed(events, opts = {}) {
     if (ev.description || ev.location) core.description = ev.description || ev.location;
     core.name = ev.id;
 
+    // Verification source: device telemetry, camera vision, or both.
+    const src = [];
+    if (ev.x_cwz_connected) src.push('device');
+    if (ev.x_camera_verified) src.push('camera');
     const props = {
       core_details: core,
       vehicle_impact: vehicleImpact(ev),
       start_date: ev.startTime || ev.startDate || updateDate,
       end_date: ev.endTime || ev.endDate || null,
-      // A connected device present confirms the zone's start position/activity.
+      // A connected device present and/or a camera that sees the zone verifies it.
       is_start_position_verified: true,
-      // CWZ connection — the elevation payload.
-      x_cwz_connected: true,
-      x_connection_status: ev.x_connection_status || 'connected',
+      x_cwz_connected: !!ev.x_cwz_connected,
+      x_verification: src,                       // ['device'], ['camera'], or ['device','camera']
+      x_connection_status: ev.x_connection_status || (src.length ? 'verified' : 'connected'),
       x_connected_device_count: ev.x_connected_device_count || (ev.x_connected_devices || []).length,
       x_connected_confidence: ev.x_connected_confidence,
       x_connected_devices: ev.x_connected_devices || []
     };
+    if (ev.x_camera_verified) {
+      props.x_camera_verified = true;
+      props.x_camera_detected = ev.x_camera_detected || [];
+      props.x_camera_checked_at = ev.x_camera_checked_at;
+    }
     features.push({ id: ev.id, type: 'Feature', properties: props, geometry: geom });
   }
 
