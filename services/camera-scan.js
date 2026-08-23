@@ -17,12 +17,23 @@ const ledger = require('./camera-check-ledger');
 
 const FOLLOWUP_MS = (parseInt(process.env.CAMERA_FOLLOWUP_MIN, 10) || 30) * 60000;
 const INITIAL_WINDOW_MS = (parseInt(process.env.CAMERA_INITIAL_WINDOW_MIN, 10) || 90) * 60000;
+const DAILY_MS = (parseInt(process.env.CAMERA_DAILY_MIN, 10) || 1440) * 60000; // 24h
+const MULTIDAY_MS = 24 * 3600e3;
+
+// A closure that spans more than a day (or has been active >1 day with no end date).
+function isMultiDay(ev, now) {
+  const s = Date.parse(ev.startTime || ev.startDate || '');
+  const e = Date.parse(ev.endTime || ev.endDate || '');
+  if (Number.isFinite(s) && Number.isFinite(e)) return (e - s) > MULTIDAY_MS;
+  if (Number.isFinite(s)) return (now - s) > MULTIDAY_MS;
+  return false;
+}
 
 async function scanActive(events, opts = {}) {
   const maxPerScan = opts.maxPerScan || parseInt(process.env.CAMERA_SCAN_MAX, 10) || 25;
   const now = Date.now();
   const cams = await cameraAdapters.getCameras();
-  let due = 0, checked = 0, elevated = 0;
+  let due = 0, checked = 0, elevated = 0, tcRemoved = 0;
   const actions = [];
 
   for (const ev of (events || [])) {
@@ -30,11 +41,15 @@ async function scanActive(events, opts = {}) {
     const id = ev.id || ev.road_event_id;
     if (!id) continue;
     const led = ledger.get(id);
-    if (led && (led.seen || led.checks >= 2)) continue;      // confirmed, or already used both checks
+    if (led && led.tc_removed) continue;                     // camera already saw TC removed — done
+    if (led && led.checks >= 2 && !led.seen) continue;       // gave up (never confirmed at start)
 
     // Decide which check (if any) is due.
     let phase = null;
-    if (!led || led.checks === 0) {
+    if (led && led.seen) {
+      // Confirmed real. Single-day → done. Multi-day → one check per day to catch TC removal.
+      if (isMultiDay(ev, now) && (now - Date.parse(led.last_check_at)) >= DAILY_MS) phase = 'daily';
+    } else if (!led || led.checks === 0) {
       const s = Date.parse(ev.startTime || ev.startDate || '');
       const nearStart = !Number.isFinite(s) || (now - s) <= INITIAL_WINDOW_MS; // only around start
       if (nearStart) phase = 'initial';
@@ -56,17 +71,27 @@ async function scanActive(events, opts = {}) {
     if (!det.available) continue;                            // vision off/unconfigured → don't burn a check
     checked++;
     const seen = !!det.work_zone;
-    ledger.record(id, { seen, elevated: seen });
+    ledger.record(id, { phase, seen });
     if (seen) {
       ev.x_camera_verified = true;
       ev.x_camera_detected = det.devices;
       ev.x_camera_checked_at = det.checkedAt;
       if (!ev.x_zone_activity || ev.x_zone_activity === 'suspect-inactive') ev.x_zone_activity = 'confirmed-active';
+      delete ev.x_tc_removed;
       elevated++;
+    } else if (phase === 'daily') {
+      // Was confirmed earlier; camera now sees NO traffic control → zone appears done/removed
+      // even though WZDx still lists it. Demote out of the elevated feed and flag it.
+      ev.x_tc_removed = true;
+      ev.x_zone_activity = 'suspect-inactive';
+      ev.x_camera_checked_at = det.checkedAt;
+      delete ev.x_camera_verified;
+      tcRemoved++;
     }
-    actions.push({ eventId: id, phase, camera: m.camera.id, distanceM: m.distanceM, seen, devices: det.devices });
+    actions.push({ eventId: id, phase, camera: m.camera.id, distanceM: m.distanceM, seen, devices: det.devices,
+      tcRemoved: (phase === 'daily' && !seen) || undefined });
   }
-  return { due, checked, elevated, actions };
+  return { due, checked, elevated, tcRemoved, actions };
 }
 
 module.exports = { scanActive };
