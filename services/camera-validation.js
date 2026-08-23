@@ -82,6 +82,16 @@ function fetchBuffer(url, timeoutMs = 12000) {
   });
 }
 
+const DETECT_PROMPT =
+  'This is a highway traffic camera still. Reply ONLY compact JSON: '
+  + '{"work_zone":true|false,"devices":[any of arrow-board,cones,barrels,drums,signs,workers,tma],"confidence":0..1}. '
+  + 'Detect only TEMPORARY traffic-control devices actually visible. If none, devices:[] and work_zone:false.';
+
+function parseJsonBlock(txt) {
+  const m = txt && txt.match(/\{[\s\S]*\}/);
+  return m ? JSON.parse(m[0]) : { work_zone: false, devices: [], confidence: 0 };
+}
+
 // --- provider: Anthropic (Claude vision) ---
 function callAnthropic(base64, apiKey, timeoutMs = 20000) {
   const body = JSON.stringify({
@@ -91,10 +101,7 @@ function callAnthropic(base64, apiKey, timeoutMs = 20000) {
       role: 'user',
       content: [
         { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
-        { type: 'text', text:
-          'This is a highway traffic camera still. Reply ONLY compact JSON: '
-          + '{"work_zone":true|false,"devices":[any of arrow-board,cones,barrels,drums,signs,workers,tma],"confidence":0..1}. '
-          + 'Detect only TEMPORARY traffic-control devices actually visible. If none, devices:[] and work_zone:false.' }
+        { type: 'text', text: DETECT_PROMPT }
       ]
     }]
   });
@@ -113,13 +120,45 @@ function callAnthropic(base64, apiKey, timeoutMs = 20000) {
         try {
           const j = JSON.parse(d);
           const txt = j.content && j.content[0] && j.content[0].text;
-          const m = txt && txt.match(/\{[\s\S]*\}/);
-          resolve(m ? JSON.parse(m[0]) : { work_zone: false, devices: [], confidence: 0 });
+          resolve(parseJsonBlock(txt));
         } catch (e) { reject(new Error('vision parse')); }
       });
     });
     req.on('error', reject);
     req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('vision timeout')); });
+    req.write(body); req.end();
+  });
+}
+
+// --- provider: OpenAI (GPT-4o-mini vision, detail:low = cheapest) ---
+function callOpenAI(base64, apiKey, timeoutMs = 20000) {
+  const body = JSON.stringify({
+    model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+    max_tokens: 200,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: DETECT_PROMPT },
+        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}`, detail: 'low' } }
+      ]
+    }]
+  });
+  return new Promise((resolve, reject) => {
+    const req = https.request('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) }
+    }, (res) => {
+      let d = ''; res.on('data', (c) => (d += c));
+      res.on('end', () => {
+        try {
+          const j = JSON.parse(d);
+          const txt = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+          resolve(parseJsonBlock(txt));
+        } catch (e) { reject(new Error('openai parse')); }
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('openai timeout')); });
     req.write(body); req.end();
   });
 }
@@ -155,21 +194,33 @@ function callYolo(buffer, url, timeoutMs = 20000) {
  * opts.trainingContext { eventId, activeNow, deviceCorroborated, route } → logs a weak-
  * labeled training record (only if VISION_TRAINING_LOG/IMAGES is set; otherwise no-op).
  */
+// Pick the provider: explicit override → VISION_PROVIDER env → whatever key/url is present.
+function resolveProvider(opts) {
+  if (opts.provider) return opts.provider.toLowerCase();
+  if (process.env.VISION_PROVIDER) return process.env.VISION_PROVIDER.toLowerCase();
+  if (process.env.OPENAI_API_KEY) return 'openai';
+  if (process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY) return 'anthropic';
+  if (process.env.VISION_YOLO_URL) return 'yolo';
+  return 'none';
+}
+
 async function detect(camera, opts = {}) {
-  const provider = opts.provider || VISION_PROVIDER;
+  const provider = resolveProvider(opts);
+  const openaiKey = opts.openaiKey || process.env.OPENAI_API_KEY;
   const apiKey = opts.apiKey || process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
   const yoloUrl = opts.yoloUrl || process.env.VISION_YOLO_URL;
+  if (provider === 'openai' && !openaiKey) return { available: false, reason: 'vision disabled (no OPENAI_API_KEY)' };
   if (provider === 'anthropic' && !apiKey) return { available: false, reason: 'vision disabled (no ANTHROPIC_API_KEY)' };
   if (provider === 'yolo' && !yoloUrl) return { available: false, reason: 'vision disabled (no VISION_YOLO_URL)' };
-  if (provider === 'none') return { available: false, reason: 'vision disabled' };
+  if (provider === 'none') return { available: false, reason: 'vision disabled (no provider key configured)' };
   const url = camera && camera.imageUrl;
   if (!url) return { available: false, reason: 'no snapshot url' };
   const hit = detectCache.get(url);
   if (hit && (Date.now() - hit.at) < DETECT_TTL) return { ...hit.result, cached: true };
   try {
     const buf = await fetchBuffer(url);
-    const out = provider === 'yolo'
-      ? await callYolo(buf, yoloUrl)
+    const out = provider === 'yolo' ? await callYolo(buf, yoloUrl)
+      : provider === 'openai' ? await callOpenAI(buf.toString('base64'), openaiKey)
       : await callAnthropic(buf.toString('base64'), apiKey);
     const devices = Array.isArray(out.devices) ? out.devices.filter((d) => TC_DEVICES.includes(d)) : [];
     const result = {
