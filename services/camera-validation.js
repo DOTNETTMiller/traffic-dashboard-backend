@@ -131,8 +131,16 @@ function callAnthropic(base64, apiKey, timeoutMs = 20000) {
 }
 
 // --- provider: OpenAI (GPT-4o-mini vision, detail:low = cheapest) ---
-function callOpenAI(base64, apiKey, timeoutMs = 20000) {
-  const body = JSON.stringify({
+// Uses the official `openai` SDK — the backend passes its shared getOpenAI() client via
+// opts.openaiClient; falls back to a lazily-built client from OPENAI_API_KEY otherwise.
+let _lazyOpenAI;
+function openaiClientFrom(apiKey) {
+  if (!apiKey) return null;
+  if (!_lazyOpenAI) { const { OpenAI } = require('openai'); _lazyOpenAI = new OpenAI({ apiKey }); }
+  return _lazyOpenAI;
+}
+async function callOpenAI(base64, client) {
+  const r = await client.chat.completions.create({
     model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
     max_tokens: 200,
     messages: [{
@@ -143,24 +151,8 @@ function callOpenAI(base64, apiKey, timeoutMs = 20000) {
       ]
     }]
   });
-  return new Promise((resolve, reject) => {
-    const req = https.request('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) }
-    }, (res) => {
-      let d = ''; res.on('data', (c) => (d += c));
-      res.on('end', () => {
-        try {
-          const j = JSON.parse(d);
-          const txt = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
-          resolve(parseJsonBlock(txt));
-        } catch (e) { reject(new Error('openai parse')); }
-      });
-    });
-    req.on('error', reject);
-    req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('openai timeout')); });
-    req.write(body); req.end();
-  });
+  const txt = r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content;
+  return parseJsonBlock(txt);
 }
 
 // --- provider: self-hosted YOLO (or any detector) endpoint ---
@@ -207,9 +199,10 @@ function resolveProvider(opts) {
 async function detect(camera, opts = {}) {
   const provider = resolveProvider(opts);
   const openaiKey = opts.openaiKey || process.env.OPENAI_API_KEY;
+  const oaClient = opts.openaiClient || openaiClientFrom(openaiKey);
   const apiKey = opts.apiKey || process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
   const yoloUrl = opts.yoloUrl || process.env.VISION_YOLO_URL;
-  if (provider === 'openai' && !openaiKey) return { available: false, reason: 'vision disabled (no OPENAI_API_KEY)' };
+  if (provider === 'openai' && !oaClient) return { available: false, reason: 'vision disabled (no OPENAI_API_KEY)' };
   if (provider === 'anthropic' && !apiKey) return { available: false, reason: 'vision disabled (no ANTHROPIC_API_KEY)' };
   if (provider === 'yolo' && !yoloUrl) return { available: false, reason: 'vision disabled (no VISION_YOLO_URL)' };
   if (provider === 'none') return { available: false, reason: 'vision disabled (no provider key configured)' };
@@ -220,7 +213,7 @@ async function detect(camera, opts = {}) {
   try {
     const buf = await fetchBuffer(url);
     const out = provider === 'yolo' ? await callYolo(buf, yoloUrl)
-      : provider === 'openai' ? await callOpenAI(buf.toString('base64'), openaiKey)
+      : provider === 'openai' ? await callOpenAI(buf.toString('base64'), oaClient)
       : await callAnthropic(buf.toString('base64'), apiKey);
     const devices = Array.isArray(out.devices) ? out.devices.filter((d) => TC_DEVICES.includes(d)) : [];
     const result = {

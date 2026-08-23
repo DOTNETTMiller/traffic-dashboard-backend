@@ -6016,6 +6016,7 @@ app.get('/api/cameras/check', async (req, res) => {
     };
     if (String(req.query.detect) === '1') {
       out.detection = await cameraValidation.detect(match.camera, {
+        openaiClient: process.env.OPENAI_API_KEY ? getOpenAI() : undefined,
         trainingContext: { eventId, activeNow, deviceCorroborated: !!ev.x_cwz_connected, route: ev.corridor, distanceM: match.distanceM }
       });
       // Elevate only when the zone is scheduled active AND the camera actually sees a work zone
@@ -6061,6 +6062,7 @@ app.get('/api/cameras/validate-active', async (req, res) => {
       const row = { eventId: ev.id, corridor: ev.corridor, camera: match.camera.id, distanceM: match.distanceM, imageUrl: match.camera.imageUrl };
       if (doDetect && checked < limit) {
         const det = await cv.detect(match.camera, {
+          openaiClient: process.env.OPENAI_API_KEY ? getOpenAI() : undefined,
           trainingContext: { eventId: ev.id, activeNow: true, deviceCorroborated: !!ev.x_cwz_connected, route: ev.corridor, distanceM: match.distanceM }
         });
         checked++;
