@@ -119,6 +119,16 @@ promotion:
 - `x_connected_device_count`, `x_connected_confidence` (strongest link), `x_connection_status`
 - `x_connected_devices` (the linked device list)
 
+**Two-way validation (device as ground truth).** A WZDx event is a *claim*; a live connected
+board is *physical* evidence. So the annotation validates in both directions:
+- **`x_zone_activity: 'confirmed-active'`** — an on + close device confirms the claimed zone is
+  actually deployed right now (the elevated/positive case).
+- **`x_zone_activity: 'suspect-inactive'`** — a device is present at the claimed zone but is
+  **off/blank** (not displaying) → the zone is likely stale/torn-down. Surfaced on the map
+  (amber dashed ring), in `/api/events` (`x_offline_devices`), and in `/api/devices/health`
+  (`suspectInactive`). Events with no nearby device are left unflagged (unconfirmed — we can't
+  say either way; positive matches confirm presence, they don't prove absence).
+
 Two ways it surfaces:
 
 - **`GET /api/cwz/events`** — a CWZ 1.0 / WZDx **RoadEvent** feed (`services/cwz-roadevent-feed.js`)

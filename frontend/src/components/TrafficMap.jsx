@@ -874,6 +874,25 @@ export default function TrafficMap({
           );
         })}
 
+        {/* Negative validation: a connected device is present at this claimed zone but is
+            OFF/blank → the zone may be stale. Amber dashed ring to flag it. */}
+        {showEvents && sortedEvents.filter(e => e.x_zone_activity === 'suspect-inactive').map(e => {
+          const lat = parseFloat(e.latitude), lng = parseFloat(e.longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+          return (
+            <CircleMarker
+              key={`stale-${e.id}`}
+              center={[lat, lng]}
+              radius={15}
+              pathOptions={{ color: '#d97706', weight: 2.5, fill: false, dashArray: '2 5', opacity: 0.9 }}
+            >
+              <Tooltip direction="top" offset={[0, -8]} opacity={0.95}>
+                ⚠ Device present but off — zone may be inactive
+              </Tooltip>
+            </CircleMarker>
+          );
+        })}
+
         {/* Detour alerts only shown when truck parking is NOT active */}
         {!showParking && detourAlerts.map(alert => (
           <CircleMarker

@@ -264,29 +264,43 @@ function matchDevices(devices, events, opts) {
 }
 
 /**
- * Attach match results back onto the events (WZDx-Device-Feed style):
- * event.x_connected_devices = [{ device_id, device_type, confidence }]
- * Only auto-links (>= autoThreshold) are attached; review items are returned separately.
+ * Attach match results back onto the events (WZDx-Device-Feed style). Two-way validation:
+ *  - POSITIVE: an auto-linked (on + close) device confirms the zone is active → elevate
+ *    (x_cwz_connected, x_zone_activity: 'confirmed-active').
+ *  - NEGATIVE: a device that is physically present at the claimed zone but OFF/blank (and
+ *    not far) suggests the zone is NOT actually deployed → x_zone_activity: 'suspect-inactive'.
+ * Events with no device nearby are left untouched (unconfirmed — we can't say either way).
  */
 function annotateEvents(events, matchResult) {
-  const byEvent = new Map();
-  for (const l of matchResult.links) {
+  const onByEvent = new Map();   // confirmed-active (on-device auto-links)
+  for (const l of (matchResult.links || [])) {
     if (!l.road_event_id) continue;
-    if (!byEvent.has(l.road_event_id)) byEvent.set(l.road_event_id, []);
-    byEvent.get(l.road_event_id).push({ device_id: l.device, device_type: l.deviceType, confidence: l.confidence });
+    if (!onByEvent.has(l.road_event_id)) onByEvent.set(l.road_event_id, []);
+    onByEvent.get(l.road_event_id).push({ device_id: l.device, device_type: l.deviceType, confidence: l.confidence });
+  }
+  // Present-but-off devices (in the review bucket: off, and close enough to count).
+  const offByEvent = new Map();
+  for (const r of (matchResult.review || [])) {
+    if (r.on === false && !r.far && r.road_event_id) {
+      if (!offByEvent.has(r.road_event_id)) offByEvent.set(r.road_event_id, []);
+      offByEvent.get(r.road_event_id).push({ device_id: r.device, distanceM: r.distanceM });
+    }
   }
   for (const ev of events) {
     const id = ev.id || ev.road_event_id;
-    if (byEvent.has(id)) {
-      const devs = byEvent.get(id);
+    if (onByEvent.has(id)) {
+      const devs = onByEvent.get(id);
       ev.x_connected_devices = devs;
-      // Elevate: a work zone with a confirmed connected device present is a
-      // Connected Work Zone (CWZ 1.0). Tag it and surface the strongest link so
-      // consumers (the feed, the CWZ RoadEvent feed, the web map) can promote it.
       ev.x_cwz_connected = true;
       ev.x_connected_device_count = devs.length;
       ev.x_connected_confidence = Math.max(...devs.map(d => d.confidence));
       ev.x_connection_status = 'connected';
+      ev.x_zone_activity = 'confirmed-active';   // device-verified real-time
+    } else if (offByEvent.has(id)) {
+      // A connected board is at this claimed zone but not displaying → likely stale.
+      ev.x_zone_activity = 'suspect-inactive';
+      ev.x_zone_activity_reason = 'connected device present but not displaying';
+      ev.x_offline_devices = offByEvent.get(id);
     }
   }
   return events;

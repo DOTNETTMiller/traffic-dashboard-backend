@@ -5258,7 +5258,11 @@ async function ensureDeviceMatch(force = false) {
       try { match = await require('./services/rams-chainage').refine(match, { farM: 800 }); }
       catch (e) { console.error('RAMS chainage refine skipped:', e.message); }
     }
-    deviceMatcher.annotateEvents(events, match); // shared refs → elevates the cached events
+    deviceMatcher.annotateEvents(events, match); // shared refs → elevates the cached events (two-way)
+    // Negative validation: claimed zones with a connected device present-but-off (likely stale).
+    const suspectInactive = events
+      .filter(e => e.x_zone_activity === 'suspect-inactive')
+      .map(e => ({ id: e.id || e.road_event_id, corridor: e.corridor, state: e.state, offline_devices: e.x_offline_devices || [] }));
     const validation = deviceValidation.validate(match, devices, events);
     require('./services/device-health-store').record(validation.summary);
     const prevTrend = devicesCache.trend || [];
@@ -5266,11 +5270,11 @@ async function ensureDeviceMatch(force = false) {
       devices, links: match.links, review: match.review,
       unmatchedCount: match.unmatched.length, timestamp: Date.now(),
       validation: validation.summary, matchValidations: validation.matches,
-      anomalies: validation.anomalies,
+      anomalies: validation.anomalies, suspectInactive,
       trend: deviceValidation.appendTrend(prevTrend, validation.summary)
     };
     const v = validation.summary.validation;
-    console.log(`🔗 Device match (on-demand): ${match.links.length} auto, ${match.review.length} review, ${match.unmatched.length} none (${devices.length} devices) | ${v.pass}✓/${v.warn}⚠/${v.fail}✗`);
+    console.log(`🔗 Device match (on-demand): ${match.links.length} auto, ${match.review.length} review, ${match.unmatched.length} none (${devices.length} devices) | ${v.pass}✓/${v.warn}⚠/${v.fail}✗ | suspect-inactive ${suspectInactive.length}`);
   } catch (e) {
     console.error('🔗 Device match skipped:', e.message);
   } finally {
@@ -5981,6 +5985,7 @@ app.get('/api/devices/health', async (req, res) => {
     summary: devicesCache.validation || null,
     anomalies: devicesCache.anomalies || [],
     matches: devicesCache.matchValidations || [],
+    suspectInactive: devicesCache.suspectInactive || [], // claimed zones a present device says look inactive
     trend
   });
 });
