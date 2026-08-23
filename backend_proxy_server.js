@@ -6038,6 +6038,8 @@ app.get('/api/cameras/check', async (req, res) => {
         ev.x_camera_verified = true;
         ev.x_camera_detected = out.detection.devices;
         ev.x_camera_checked_at = out.detection.checkedAt;
+        ev.x_camera_url = match.camera.imageUrl;
+        ev.x_camera_id = match.camera.id;
         if (!ev.x_zone_activity || ev.x_zone_activity === 'suspect-inactive') ev.x_zone_activity = 'confirmed-active';
         out.elevated = true;
       }

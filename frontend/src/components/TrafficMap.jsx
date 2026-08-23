@@ -49,6 +49,7 @@ import OSWRegulationsLayer from './OSWRegulationsLayer';
 import StateOSWRegulationsLayer from './StateOSWRegulationsLayer';
 import ITSEquipmentLayer from './ITSEquipmentLayer';
 import ConnectedDevicesLayer from './ConnectedDevicesLayer';
+import ValidatedClosuresLayer from './ValidatedClosuresLayer';
 import NetworkTopologyLayer from './NetworkTopologyLayer';
 import TETCCorridorsLayer from './TETCCorridorsLayer';
 import CADDElementsLayer from './CADDElementsLayer';
@@ -424,6 +425,7 @@ export default function TrafficMap({
   itsEquipmentRoute = null,
   itsEquipmentType = null,
   showConnectedDevices = false,
+  showValidatedClosures = false,
   showCADDElements = false,
   showV2XDeployments = false,
   showEvents = true,
@@ -1243,6 +1245,9 @@ export default function TrafficMap({
 
         {/* Connected arrow boards / portable DMS auto-associated to work zones */}
         <ConnectedDevicesLayer visible={showConnectedDevices} />
+
+        {/* Validated (device- or camera-verified) work zones, with evidence in the popup */}
+        <ValidatedClosuresLayer visible={showValidatedClosures} />
 
         {/* State OS/OW Regulations Layer */}
         {showCorridorRegulations && (

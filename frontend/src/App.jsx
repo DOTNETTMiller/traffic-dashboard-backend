@@ -118,6 +118,7 @@ function App() {
   const [showBridgeClearances, setShowBridgeClearances] = useState(false); // Hidden by default - toggle to show
   const [showTomTomIncidents, setShowTomTomIncidents] = useState(false); // TomTom (consumer-nav) incidents overlay
   const [showConnectedDevices, setShowConnectedDevices] = useState(false); // Arrow boards / portable DMS auto-linked to work zones
+  const [showValidatedClosures, setShowValidatedClosures] = useState(false); // Device/camera-verified work zones (CWZ) with evidence
   const [showDeviceHealth, setShowDeviceHealth] = useState(false); // Device↔work-zone validation monitoring panel
   const [showCorridorRegulations, setShowCorridorRegulations] = useState(false); // Hidden by default - toggle to show
   const [interstateOnly, setInterstateOnly] = useState(true); // Show only interstate events by default
@@ -808,6 +809,7 @@ function App() {
           showBridgeClearances,
           showTomTomIncidents,
           showConnectedDevices,
+          showValidatedClosures,
           showCorridorRegulations,
           showDiversionRoutes,
           showAerialOverlays,
@@ -842,6 +844,7 @@ function App() {
           'toggle-bridge-clearance':   () => { setView('map'); setShowBridgeClearances(p => !p); },
           'toggle-tomtom-incidents':   () => { setView('map'); setShowTomTomIncidents(p => !p); },
           'toggle-connected-devices':  () => { setView('map'); setShowConnectedDevices(p => !p); },
+          'toggle-validated-closures': () => { setView('map'); setShowValidatedClosures(p => !p); },
           'toggle-corridor-regs':      () => { setView('map'); setShowCorridorRegulations(p => !p); },
           'toggle-diversion-routes':   () => { setView('map'); setShowDiversionRoutes(p => !p); },
           'toggle-aerial-overlays':    () => { setView('map'); setShowAerialOverlays(p => !p); },
@@ -1181,6 +1184,7 @@ function App() {
                   showBridgeClearances={showBridgeClearances}
                   showTomTomIncidents={showTomTomIncidents}
                   showConnectedDevices={showConnectedDevices}
+                  showValidatedClosures={showValidatedClosures}
                   showCorridorRegulations={showCorridorRegulations}
                   ipawsGeofence={ipawsGeofence}
                   onGeofenceUpdate={setIpawsGeofence}

@@ -50,9 +50,12 @@ async function scanActive(events, opts = {}) {
       // Confirmed real. Single-day → done. Multi-day → one check per day to catch TC removal.
       if (isMultiDay(ev, now) && (now - Date.parse(led.last_check_at)) >= DAILY_MS) phase = 'daily';
     } else if (!led || led.checks === 0) {
+      // Initial "validate once": new zones around their start, PLUS any multi-day zone we
+      // haven't checked yet (so long-running closures get validated once and enter the daily
+      // monitoring). Single-day zones we missed the start of are skipped (they'll end soon).
       const s = Date.parse(ev.startTime || ev.startDate || '');
-      const nearStart = !Number.isFinite(s) || (now - s) <= INITIAL_WINDOW_MS; // only around start
-      if (nearStart) phase = 'initial';
+      const nearStart = !Number.isFinite(s) || (now - s) <= INITIAL_WINDOW_MS;
+      if (nearStart || isMultiDay(ev, now)) phase = 'initial';
     } else if (led.checks === 1 && !led.seen &&
                (now - Date.parse(led.first_check_at)) >= FOLLOWUP_MS) {
       phase = 'followup';
@@ -76,6 +79,8 @@ async function scanActive(events, opts = {}) {
       ev.x_camera_verified = true;
       ev.x_camera_detected = det.devices;
       ev.x_camera_checked_at = det.checkedAt;
+      ev.x_camera_url = m.camera.imageUrl;
+      ev.x_camera_id = m.camera.id;
       if (!ev.x_zone_activity || ev.x_zone_activity === 'suspect-inactive') ev.x_zone_activity = 'confirmed-active';
       delete ev.x_tc_removed;
       elevated++;

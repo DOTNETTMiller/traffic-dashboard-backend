@@ -79,6 +79,8 @@ function buildFeed(events, opts = {}) {
       props.x_camera_verified = true;
       props.x_camera_detected = ev.x_camera_detected || [];
       props.x_camera_checked_at = ev.x_camera_checked_at;
+      props.x_camera_url = ev.x_camera_url || null;   // live snapshot of the zone
+      props.x_camera_id = ev.x_camera_id || null;
     }
     features.push({ id: ev.id, type: 'Feature', properties: props, geometry: geom });
   }
