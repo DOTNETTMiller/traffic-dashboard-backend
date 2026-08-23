@@ -5990,6 +5990,36 @@ app.get('/api/devices/health', async (req, res) => {
   });
 });
 
+// Camera-based validation (visual third validator). On-demand ONLY, per event:
+//   /api/cameras/check?eventId=<id>        → nearest camera + snapshot URL (free, no vision)
+//   /api/cameras/check?eventId=<id>&detect=1 → also run ONE cached vision inference (needs
+//                                              ANTHROPIC_API_KEY; $0 and skipped without it)
+// No loop, no batch, never on the shared refresh — cost is bounded to a single request.
+app.get('/api/cameras/check', async (req, res) => {
+  if (!eventsCache.data && startupCachePromise) {
+    try { await startupCachePromise; } catch (_) { /* serve whatever we have */ }
+  }
+  try {
+    const eventId = req.query.eventId;
+    if (!eventId) return res.status(400).json({ error: 'eventId required' });
+    const ev = (eventsCache.data?.events || []).find(e => (e.id || e.road_event_id) === eventId);
+    if (!ev) return res.status(404).json({ error: 'event not found' });
+    const cameraValidation = require('./services/camera-validation');
+    const cameras = await require('./services/camera-adapters').getCameras();
+    const match = cameraValidation.matchCamera(ev, cameras);
+    if (!match) return res.json({ success: true, eventId, cameraAvailable: false });
+    const out = {
+      success: true, eventId, cameraAvailable: true,
+      camera: { id: match.camera.id, state: match.camera.state, route: match.camera.route, desc: match.camera.desc, imageUrl: match.camera.imageUrl, coordinates: match.camera.coordinates },
+      distanceM: match.distanceM
+    };
+    if (String(req.query.detect) === '1') out.detection = await cameraValidation.detect(match.camera);
+    res.json(out);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // CWZ 1.0 / WZDx RoadEvent Feed — the elevated (connected) work zones: events
 // that have a confirmed connected field device present.
 app.get('/api/cwz/events', async (req, res) => {
