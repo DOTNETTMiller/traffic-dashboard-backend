@@ -46,8 +46,38 @@ async function california() {
   return out;
 }
 
-// Registry — extend with survey-confirmed feeds (IA/FL/NY/WA/OH/…).
-const ADAPTERS = { ca: california };
+// Generic ArcGIS FeatureServer camera adapter (field-mapped).
+async function arcgisCameras(cfg) {
+  const sep = cfg.url.includes('?') ? '&' : '?';
+  const j = await getJSON(`${cfg.url}${sep}where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&f=json&resultRecordCount=${cfg.max || 4000}`);
+  const out = [];
+  for (const f of (j.features || [])) {
+    const a = f.attributes || {}, g = f.geometry || {};
+    const lon = a[cfg.lonField] != null ? +a[cfg.lonField] : g.x;
+    const lat = a[cfg.latField] != null ? +a[cfg.latField] : g.y;
+    const img = a[cfg.imageField];
+    if (!img || !/^https?:/i.test(String(img)) || !Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    if (cfg.blockedField && String(a[cfg.blockedField]).toLowerCase() === 'true') continue;
+    out.push({
+      id: `${cfg.state}-CAM-${a[cfg.idField]}`, state: cfg.state,
+      route: cfg.routeField ? a[cfg.routeField] : null,
+      direction: cfg.dirField ? a[cfg.dirField] : null,
+      coordinates: [lon, lat], imageUrl: img, desc: cfg.descField ? a[cfg.descField] : null
+    });
+  }
+  return out;
+}
+
+// Registry — keyless, verified public feeds (camera-feed survey 2026-08). Extend as more land.
+const ADAPTERS = {
+  ca: california,
+  ia: () => arcgisCameras({ state: 'IA',
+    url: 'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Traffic_Cameras_View/FeatureServer/0/query',
+    latField: 'latitude', lonField: 'longitude', imageField: 'ImageURL', routeField: 'Route', idField: 'COMMON_ID', descField: 'ImageName' }),
+  fl: () => arcgisCameras({ state: 'FL',
+    url: 'https://gis.fdot.gov/arcgis/rest/services/DIVAS_Cameras/FeatureServer/0/query',
+    latField: 'latitude', lonField: 'longitude', imageField: 'imagefilename', routeField: 'highway', dirField: 'direction', idField: 'id', descField: 'description', blockedField: 'blockedimage' })
+};
 
 // Cached combined inventory (locations static → cache long; lazy, no loop).
 let cache = { list: [], at: 0, ttl: 30 * 60 * 1000 };
