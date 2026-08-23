@@ -119,9 +119,17 @@ function wktLonLat(latLng) {
 async function ibi511Cameras(cfg) {
   const out = []; let start = 0, total = Infinity;
   while (start < total && start < 20000) {
-    const j = await postForm(`${cfg.base}/List/GetData/Cameras`, `draw=1&start=${start}&length=1000`).catch(() => ({ data: [] }));
+    // Retry each page with backoff: under concurrent load (all state adapters fire
+    // at once) these 511 hosts intermittently drop a request, and a single miss must
+    // not silently truncate the inventory (was capping GA at ~1500 of 4043).
+    let j = null;
+    for (let attempt = 0; attempt < 4 && !j; attempt++) {
+      if (attempt) await new Promise((r) => setTimeout(r, 400 * attempt));
+      j = await postForm(`${cfg.base}/List/GetData/Cameras`, `draw=1&start=${start}&length=1000`).catch(() => null);
+    }
+    if (!j) break;                                   // page unrecoverable after retries
     const rows = j.data || [];
-    total = j.recordsTotal || (start + rows.length);
+    if (j.recordsTotal) total = j.recordsTotal;
     if (!rows.length) break;
     for (const c of rows) {
       const ll = wktLonLat(c.latLng);

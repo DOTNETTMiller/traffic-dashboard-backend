@@ -20,6 +20,21 @@ function getJSON(url, timeoutMs = 15000) {
   });
 }
 
+function postForm(url, body, timeoutMs = 15000) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(new URL(url), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' }
+    }, (res) => {
+      let d = ''; res.on('data', (c) => (d += c));
+      res.on('end', () => { try { resolve(JSON.parse(d)); } catch (e) { reject(new Error('parse')); } });
+    });
+    req.on('error', reject);
+    req.setTimeout(timeoutMs, function () { this.destroy(); reject(new Error('timeout')); });
+    req.write(body); req.end();
+  });
+}
+
 // Interstate route from a road string, else null (non-interstate events are dropped).
 function interstate(s) {
   const m = String(s || '').toUpperCase().match(/\bI[-\s]?(\d{1,3})\b/);
@@ -144,7 +159,38 @@ async function colorado() {
   return out;
 }
 
-const ADAPTERS = { newyork, northcarolina, washington, florida, colorado };
+// Georgia: GDOT publishes no WZDx feed, so its work zones come from the 511ga.org
+// (one.network) construction feed. The DataTables metadata endpoint carries no
+// coordinates; the map-icon layer supplies them, joined on event id. This is the
+// one work-zone source in this file — every other state's work zones come via WZDx.
+async function georgia() {
+  const GA = 'https://511ga.org';
+  const [meta, geo] = await Promise.all([
+    postForm(`${GA}/List/GetData/Construction`, 'draw=1&start=0&length=1000'),
+    getJSON(`${GA}/map/mapIcons/Construction`)
+  ]);
+  const loc = {};
+  for (const g of (geo.item2 || [])) loc[String(g.itemId)] = g.location; // [lat, lon]
+  const out = [];
+  for (const r of (meta.data || [])) {
+    const corridor = interstate(r.roadwayName) || interstate(r.description);
+    if (!corridor) continue;
+    const ll = loc[String(r.id)];
+    if (!Array.isArray(ll)) continue;                         // no geometry → can't match cameras
+    const dir = { n: 'N', s: 'S', e: 'E', w: 'W' }[String(r.direction || '').toLowerCase()] || r.direction || null;
+    out.push(mkEvent({
+      id: `GA-EV-${r.id}`, state: 'Georgia', source: 'GDOT 511', corridor,
+      eventType: 'Work Zone',
+      description: r.description || r.locationDescription, location: r.roadwayName,
+      direction: dir, severity: r.severity,
+      closed: r.isFullClosure === true || r.isFullClosure === 'true',
+      lon: ll[1], lat: ll[0], start: r.startDate, end: r.endDate
+    }));
+  }
+  return out;
+}
+
+const ADAPTERS = { newyork, northcarolina, washington, florida, colorado, georgia };
 
 // Run all adapters concurrently; never throws. Returns { events, errors, counts }.
 async function fetchAll() {
