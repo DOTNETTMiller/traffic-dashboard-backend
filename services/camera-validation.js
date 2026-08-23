@@ -17,6 +17,7 @@
 
 const https = require('https');
 const turf = require('@turf/turf');
+const visionTrainingLog = require('./vision-training-log');
 
 // route normalization (interstates)
 function interstate(s) {
@@ -60,7 +61,10 @@ function matchCamera(event, cameras, opts = {}) {
 
 // ---- 2) vision detection (gated, cached, on-demand only) --------------------
 
-const VISION_MODEL = 'claude-haiku-4-5-20251001'; // cheapest vision-capable model
+// Provider is swappable with zero code change: 'anthropic' (default, Claude vision) or
+// 'yolo' (self-hosted detector endpoint). Set VISION_PROVIDER / VISION_MODEL / VISION_YOLO_URL.
+const VISION_PROVIDER = (process.env.VISION_PROVIDER || 'anthropic').toLowerCase();
+const VISION_MODEL = process.env.VISION_MODEL || 'claude-haiku-4-5-20251001'; // cheapest vision-capable model
 const detectCache = new Map();                     // imageUrl -> { at, result }
 const DETECT_TTL = 10 * 60 * 1000;                 // 10 min — never re-bill the same snapshot
 const TC_DEVICES = ['arrow-board', 'cones', 'barrels', 'drums', 'signs', 'workers', 'tma'];
@@ -78,7 +82,8 @@ function fetchBuffer(url, timeoutMs = 12000) {
   });
 }
 
-function callVision(base64, apiKey, timeoutMs = 20000) {
+// --- provider: Anthropic (Claude vision) ---
+function callAnthropic(base64, apiKey, timeoutMs = 20000) {
   const body = JSON.stringify({
     model: VISION_MODEL,
     max_tokens: 200,
@@ -119,24 +124,56 @@ function callVision(base64, apiKey, timeoutMs = 20000) {
   });
 }
 
+// --- provider: self-hosted YOLO (or any detector) endpoint ---
+// POSTs the JPEG bytes; expects JSON {work_zone?, devices:[...], confidence} or
+// {detections:[{label,score}]}. Written to spec — swap in later with no other changes.
+function callYolo(buffer, url, timeoutMs = 20000) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(url, { method: 'POST', headers: { 'content-type': 'image/jpeg', 'content-length': buffer.length } }, (res) => {
+      let d = ''; res.on('data', (c) => (d += c));
+      res.on('end', () => {
+        try {
+          const j = JSON.parse(d);
+          if (Array.isArray(j.detections)) {
+            const devices = j.detections.map((x) => x.label).filter(Boolean);
+            resolve({ work_zone: devices.length > 0, devices, confidence: j.detections[0] && j.detections[0].score });
+          } else resolve(j);
+        } catch (e) { reject(new Error('yolo parse')); }
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('yolo timeout')); });
+    req.write(buffer); req.end();
+  });
+}
+
 /**
- * Run (or reuse cached) vision detection on a camera snapshot. GATED + CACHED + ON-DEMAND.
- * Returns { available, work_zone, devices, confidence, cached, checkedAt } — or
- * { available:false, reason } when disabled/failed (never throws, always $0 without a key).
+ * Run (or reuse cached) vision detection on a camera snapshot. Provider-swappable
+ * (VISION_PROVIDER), GATED + CACHED + ON-DEMAND. Returns
+ * { available, work_zone, devices, confidence, provider, cached, checkedAt } — or
+ * { available:false, reason } when disabled/failed (never throws, always $0 when off).
+ * opts.trainingContext { eventId, activeNow, deviceCorroborated, route } → logs a weak-
+ * labeled training record (only if VISION_TRAINING_LOG/IMAGES is set; otherwise no-op).
  */
 async function detect(camera, opts = {}) {
+  const provider = opts.provider || VISION_PROVIDER;
   const apiKey = opts.apiKey || process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
-  if (!apiKey) return { available: false, reason: 'vision disabled (no ANTHROPIC_API_KEY)' };
+  const yoloUrl = opts.yoloUrl || process.env.VISION_YOLO_URL;
+  if (provider === 'anthropic' && !apiKey) return { available: false, reason: 'vision disabled (no ANTHROPIC_API_KEY)' };
+  if (provider === 'yolo' && !yoloUrl) return { available: false, reason: 'vision disabled (no VISION_YOLO_URL)' };
+  if (provider === 'none') return { available: false, reason: 'vision disabled' };
   const url = camera && camera.imageUrl;
   if (!url) return { available: false, reason: 'no snapshot url' };
   const hit = detectCache.get(url);
   if (hit && (Date.now() - hit.at) < DETECT_TTL) return { ...hit.result, cached: true };
   try {
     const buf = await fetchBuffer(url);
-    const out = await callVision(buf.toString('base64'), apiKey);
+    const out = provider === 'yolo'
+      ? await callYolo(buf, yoloUrl)
+      : await callAnthropic(buf.toString('base64'), apiKey);
     const devices = Array.isArray(out.devices) ? out.devices.filter((d) => TC_DEVICES.includes(d)) : [];
     const result = {
-      available: true,
+      available: true, provider,
       work_zone: !!out.work_zone,
       devices,
       confidence: typeof out.confidence === 'number' ? out.confidence : null,
@@ -144,10 +181,17 @@ async function detect(camera, opts = {}) {
     };
     detectCache.set(url, { at: Date.now(), result });
     if (detectCache.size > 500) detectCache.delete(detectCache.keys().next().value); // cap
+    // Free training-data capture (opt-in via env): weak label + ground-truth context + pixels.
+    if (opts.trainingContext && visionTrainingLog.enabled()) {
+      visionTrainingLog.record(
+        { ...opts.trainingContext, cameraId: camera.id, state: camera.state, route: opts.trainingContext.route || camera.route, imageUrl: url },
+        result, buf
+      );
+    }
     return { ...result, cached: false };
   } catch (e) {
     return { available: false, reason: e.message };
   }
 }
 
-module.exports = { matchCamera, detect, interstate, isActiveNow, VISION_MODEL };
+module.exports = { matchCamera, detect, interstate, isActiveNow, VISION_MODEL, VISION_PROVIDER };

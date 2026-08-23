@@ -6015,7 +6015,9 @@ app.get('/api/cameras/check', async (req, res) => {
       distanceM: match.distanceM
     };
     if (String(req.query.detect) === '1') {
-      out.detection = await cameraValidation.detect(match.camera);
+      out.detection = await cameraValidation.detect(match.camera, {
+        trainingContext: { eventId, activeNow, deviceCorroborated: !!ev.x_cwz_connected, route: ev.corridor, distanceM: match.distanceM }
+      });
       // Elevate only when the zone is scheduled active AND the camera actually sees a work zone
       // (positive-only; a non-detection never demotes — the camera may be aimed elsewhere).
       if (activeNow && out.detection.available && out.detection.work_zone) {
@@ -6058,7 +6060,9 @@ app.get('/api/cameras/validate-active', async (req, res) => {
     for (const { ev, match } of candidates) {
       const row = { eventId: ev.id, corridor: ev.corridor, camera: match.camera.id, distanceM: match.distanceM, imageUrl: match.camera.imageUrl };
       if (doDetect && checked < limit) {
-        const det = await cv.detect(match.camera);
+        const det = await cv.detect(match.camera, {
+          trainingContext: { eventId: ev.id, activeNow: true, deviceCorroborated: !!ev.x_cwz_connected, route: ev.corridor, distanceM: match.distanceM }
+        });
         checked++;
         row.detection = det;
         if (det.available && det.work_zone) {
