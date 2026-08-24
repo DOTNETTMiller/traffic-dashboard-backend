@@ -196,7 +196,7 @@
   <div style="background:#fff;max-width:470px;border-radius:10px;padding:18px" onclick="event.stopPropagation()">
     <div style="font-weight:700;color:var(--brand-navy);font-size:15px;margin-bottom:6px">📋 Fill the 511 form — copy &amp; paste</div>
     <div style="font-size:12px;color:#334155;margin-bottom:8px">
-      <a href="https://iowadot.seamlessdocs.com/f/Cars511RequestForm" target="_blank" rel="noopener" style="font-weight:700;color:var(--accent)">🔗 Open the 511 form</a>, then click <b>Copy</b> on each row and paste it into the matching field. Yes/No &amp; dropdown rows tell you what to select.
+      <a href="#" onclick="openForm511();return false" style="font-weight:700;color:var(--accent)">🔗 Open the 511 form (side window)</a>, then click <b>Copy</b> on each row and paste it into the matching field. Yes/No &amp; dropdown rows tell you what to select.
     </div>
     <div id="sdFields" style="max-height:46vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px 8px;margin-bottom:8px"></div>
     <div style="display:flex;gap:8px">
@@ -648,12 +648,16 @@ function seamlessFill(){
   window.__bm = bm; el('sdBm').href = bm;
   el('sdModal').style.display='flex';
 }
+// Open the SeamlessDocs 511 form in a right-half popup WINDOW so the copy panel stays
+// visible beside it (easier copy/paste). Pass hash=true to carry data for the bookmarklet.
+function openForm511(hash){
+  const sw=screen.availWidth||1280, sh=screen.availHeight||800, w=Math.round(sw*0.52), left=sw-w;
+  const url='https://iowadot.seamlessdocs.com/f/Cars511RequestForm'+(hash&&window.__sdData?('#CARS511='+encodeURIComponent(window.__sdData)):'');
+  window.open(url,'cars511form','width='+w+',height='+sh+',left='+left+',top=0');
+}
 function copyAndOpen(){ if(!window.__sdData){ toast('Fill some fields first'); return; }
-  // Carry the data in the opened URL's hash (bookmarklet reads its own location.hash — no
-  // clipboard permission needed); also copy to clipboard as a fallback.
-  const url='https://iowadot.seamlessdocs.com/f/Cars511RequestForm#CARS511='+encodeURIComponent(window.__sdData);
-  try{ navigator.clipboard.writeText(window.__sdData); }catch(e){}
-  window.open(url,'_blank');
+  try{ navigator.clipboard.writeText(window.__sdData); }catch(e){}   // clipboard fallback
+  openForm511(true);
   toast('Form opened — now click your 📌 Fill 511 form bookmark');
 }
 function copyBm(){ if(window.__bm) navigator.clipboard.writeText(window.__bm).then(()=>toast('Bookmark code copied — make a new bookmark, paste as the URL')); }
