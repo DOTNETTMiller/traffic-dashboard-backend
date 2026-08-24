@@ -159,15 +159,16 @@ async function colorado() {
   return out;
 }
 
-// Georgia: GDOT publishes no WZDx feed, so its work zones come from the 511ga.org
-// (one.network) construction feed. The DataTables metadata endpoint carries no
-// coordinates; the map-icon layer supplies them, joined on event id. This is the
-// one work-zone source in this file — every other state's work zones come via WZDx.
-async function georgia() {
-  const GA = 'https://511ga.org';
+// Generic one.network (511) work-zone adapter. These states publish no WZDx feed,
+// so work zones come from the platform's construction layer: /List/GetData/Construction
+// carries the metadata (roadway, dates, direction) but NO coordinates, while
+// /map/mapIcons/Construction supplies the map-pin coords — joined on event id.
+// Interstate-filtered like the rest of this file. Every other (non-one.network)
+// state's work zones still come via WZDx in API_CONFIG.
+async function oneNetworkWorkZones({ base, st, stateName, source }) {
   const [meta, geo] = await Promise.all([
-    postForm(`${GA}/List/GetData/Construction`, 'draw=1&start=0&length=1000'),
-    getJSON(`${GA}/map/mapIcons/Construction`)
+    postForm(`${base}/List/GetData/Construction`, 'draw=1&start=0&length=2000'),
+    getJSON(`${base}/map/mapIcons/Construction`)
   ]);
   const loc = {};
   for (const g of (geo.item2 || [])) loc[String(g.itemId)] = g.location; // [lat, lon]
@@ -179,7 +180,7 @@ async function georgia() {
     if (!Array.isArray(ll)) continue;                         // no geometry → can't match cameras
     const dir = { n: 'N', s: 'S', e: 'E', w: 'W' }[String(r.direction || '').toLowerCase()] || r.direction || null;
     out.push(mkEvent({
-      id: `GA-EV-${r.id}`, state: 'Georgia', source: 'GDOT 511', corridor,
+      id: `${st}-EV-${r.id}`, state: stateName, source, corridor,
       eventType: 'Work Zone',
       description: r.description || r.locationDescription, location: r.roadwayName,
       direction: dir, severity: r.severity,
@@ -189,8 +190,13 @@ async function georgia() {
   }
   return out;
 }
+const georgia   = () => oneNetworkWorkZones({ base: 'https://511ga.org',                st: 'GA', stateName: 'Georgia',   source: 'GDOT 511' });
+const utah      = () => oneNetworkWorkZones({ base: 'https://www.udottraffic.utah.gov', st: 'UT', stateName: 'Utah',      source: 'UDOT 511' });
+const nevada    = () => oneNetworkWorkZones({ base: 'https://www.nvroads.com',          st: 'NV', stateName: 'Nevada',    source: 'NDOT 511' });
+const idaho     = () => oneNetworkWorkZones({ base: 'https://511.idaho.gov',            st: 'ID', stateName: 'Idaho',     source: 'ITD 511' });
+const louisiana = () => oneNetworkWorkZones({ base: 'https://www.511la.org',            st: 'LA', stateName: 'Louisiana', source: 'LADOTD 511' });
 
-const ADAPTERS = { newyork, northcarolina, washington, florida, colorado, georgia };
+const ADAPTERS = { newyork, northcarolina, washington, florida, colorado, georgia, utah, nevada, idaho, louisiana };
 
 // Run all adapters concurrently; never throws. Returns { events, errors, counts }.
 async function fetchAll() {
