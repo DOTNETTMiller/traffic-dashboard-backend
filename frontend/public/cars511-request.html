@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <style>
   :root { --ink:#0f172a; --sub:#64748b; --line:#e2e8f0; --bg:#f1f5f9; --panel:#fff;
     --accent:#1d4ed8; --accent-soft:#eff6ff; --good:#15803d; }
@@ -159,8 +160,9 @@
     </fieldset>
 
     <div class="actions">
-      <button class="primary" onclick="genPDF()">📄 Generate PDF</button>
+      <button class="primary" onclick="fillOfficial()">📝 Fill official 511 PDF</button>
       <button class="primary" onclick="emailRCE()">✉️ Email to RCE</button>
+      <button class="ghost" onclick="genPDF()">📄 Summary PDF</button>
       <button class="ghost" onclick="copySummary()">📋 Copy</button>
       <button class="ghost" onclick="resetAll()">🗑 New</button>
     </div>
@@ -313,6 +315,47 @@ function resetAll(){ if(!confirm('Clear the form and pins? (Saved projects are k
   [beginMk,endMk,line].forEach(x=>x&&x.remove()); beginPt=endPt=beginMk=endMk=line=null; schedule=[];
   el('schedList').style.display='none'; el('selinfo').textContent='No segment selected yet — click the map to place the begin point.';
   onRouteChange(); setMode('begin'); saveState(); }
+
+// ---- fill the OFFICIAL Iowa CARS 511 PDF (coordinate overlay, verified) ----
+const PDF_MAP = {
+  requestor:{p:0,x:44,top:370}, email:{p:0,x:310,top:370}, iwzYes:{p:0,x:57,top:414}, iwzNo:{p:0,x:98,top:414},
+  rce:{p:0,x:46,top:468}, routeDir:{p:0,x:44,top:519}, project:{p:0,x:44,top:577}, description:{p:0,x:44,top:635},
+  beginLoc:{p:0,x:44,top:681}, endLoc:{p:0,x:44,top:725},
+  counties:{p:1,x:44,top:67}, contactName:{p:1,x:178,top:108}, phone:{p:1,x:178,top:148}, impact:{p:1,x:46,top:200},
+  beginDT:{p:1,x:246,top:365}, endDT:{p:1,x:236,top:404}, cont:{p:1,x:31,top:499}, wkdy:{p:1,x:105,top:499},
+  nights:{p:1,x:261,top:499}, closureTimes:{p:1,x:330,top:532}, restrYes:{p:1,x:57,top:676}, restrNo:{p:1,x:95,top:676},
+  detourYes:{p:2,x:57,top:58}, detourNo:{p:2,x:87,top:58}, dmsYes:{p:2,x:57,top:179}, dmsNo:{p:2,x:87,top:179}
+};
+const b64ToBytes = b64 => { const bin=atob(b64), a=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i); return a; };
+async function officialBytes(){ if(window.__CARS511_PDF_B64) return b64ToBytes(window.__CARS511_PDF_B64);
+  const r=await fetch('cars511-official.pdf'); if(!r.ok) throw new Error('official PDF not found'); return new Uint8Array(await r.arrayBuffer()); }
+const p2=n=>String(n).padStart(2,'0');
+const fmtMDY=s=>{ const t=Date.parse(s); if(!Number.isFinite(t))return ''; const d=new Date(t); return `${p2(d.getMonth()+1)}/${p2(d.getDate())}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+async function fillOfficial(){
+  try{
+    if(!window.PDFLib){ toast('PDF library not loaded (need internet once)'); return; }
+    const {PDFDocument,StandardFonts,rgb}=window.PDFLib;
+    const doc=await PDFDocument.load(await officialBytes());
+    const font=await doc.embedFont(StandardFonts.Helvetica); const pages=doc.getPages(); const H=pages[0].getHeight();
+    const put=(k,t,size=9)=>{ const m=PDF_MAP[k]; if(!m||t==null||t==='')return; pages[m.p].drawText(String(t),{x:m.x,y:H-m.top,size:m.size||size,font,color:rgb(0,0,0.6)}); };
+    const X=k=>put(k,'X',11);
+    put('requestor',v('requestor')); put('email',v('email'));
+    (v('iwz')==='Yes')?X('iwzYes'):X('iwzNo');
+    put('rce',v('rce')); put('routeDir',(routeVal()+' '+v('direction')).trim()); put('project',v('project'));
+    put('description',v('description')); put('beginLoc',v('beginLoc')); put('endLoc',v('endLoc')); put('counties',v('counties'));
+    const c=v('contact24'); if(c){ const parts=c.split('/'); put('contactName',parts[0].trim()); if(parts[1])put('phone',parts[1].trim()); }
+    put('impact',v('impact')); put('beginDT',fmtMDY(v('beginDT'))); put('endDT',fmtMDY(v('endDT')));
+    const tp=v('schedPattern'); if(tp==='Continuous')X('cont'); if(tp==='Weekdays')X('wkdy'); if(tp==='Nights')X('nights');
+    if(v('schedFrom')&&v('schedTo')) put('closureTimes',`${v('schedFrom')} - ${v('schedTo')}`);
+    (['rWidth','rHeight','rWeight','rLength'].some(id=>v(id)))?X('restrYes'):X('restrNo');
+    (v('detour')==='Yes')?X('detourYes'):X('detourNo');
+    (v('dms'))?X('dmsYes'):X('dmsNo');
+    const blob=new Blob([await doc.save()],{type:'application/pdf'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download=`CARS511_official_${(routeVal()||'route').replace(/\W+/g,'')}_${(v('project')||'wz')}.pdf`; a.click();
+    toast('Official 511 PDF filled — review before submitting');
+  }catch(e){ toast('Fill failed — use “Summary PDF”, or the app-served version'); console.error(e); }
+}
 
 // ---- init ----
 el('route').addEventListener('change', ()=>{ onRouteChange(); saveState(); });
