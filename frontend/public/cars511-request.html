@@ -8,37 +8,39 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
-  :root {
-    --ink:#0f172a; --sub:#64748b; --line:#e2e8f0; --bg:#f1f5f9; --panel:#fff;
-    --accent:#1d4ed8; --accent-soft:#eff6ff; --good:#15803d;
-  }
+  :root { --ink:#0f172a; --sub:#64748b; --line:#e2e8f0; --bg:#f1f5f9; --panel:#fff;
+    --accent:#1d4ed8; --accent-soft:#eff6ff; --good:#15803d; }
   * { box-sizing:border-box; }
   body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     color:var(--ink); background:var(--bg); height:100vh; display:flex; flex-direction:column; }
-  header { background:var(--panel); border-bottom:1px solid var(--line); padding:10px 18px; display:flex; align-items:baseline; gap:12px; }
+  header { background:var(--panel); border-bottom:1px solid var(--line); padding:10px 18px; display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
   header h1 { font-size:16px; margin:0; }
   header .sub { color:var(--sub); font-size:12px; }
   .wrap { flex:1; display:flex; min-height:0; }
-  .form { width:440px; max-width:46vw; overflow-y:auto; background:var(--panel); border-right:1px solid var(--line); padding:14px 16px; }
+  .form { width:460px; max-width:48vw; overflow-y:auto; background:var(--panel); border-right:1px solid var(--line); padding:14px 16px; }
   #map { flex:1; }
   fieldset { border:1px solid var(--line); border-radius:8px; margin:0 0 12px; padding:10px 12px; }
   legend { font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.4px; color:var(--accent); padding:0 4px; }
   label { display:block; font-size:12px; color:var(--sub); margin:8px 0 2px; }
   input, select, textarea { width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-size:13px; font-family:inherit; background:#fff; }
-  textarea { resize:vertical; min-height:44px; }
-  .row { display:flex; gap:8px; }
-  .row > div { flex:1; }
+  textarea { resize:vertical; min-height:40px; }
+  .row { display:flex; gap:8px; } .row > div { flex:1; }
   .hint { font-size:11px; color:var(--sub); margin-top:3px; }
+  .chk { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink); margin-top:6px; }
+  .chk input { width:auto; }
   .mapbtns { display:flex; gap:6px; margin-bottom:8px; }
   .mapbtns button { flex:1; padding:8px; border:1px solid var(--line); background:#fff; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; }
   .mapbtns button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .bar { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+  .bar button, .bar select { padding:6px 8px; border:1px solid var(--line); background:#fff; border-radius:6px; cursor:pointer; font-size:12px; }
   .selinfo { background:var(--accent-soft); border-radius:6px; padding:6px 8px; font-size:12px; margin-bottom:8px; }
+  .schedList { background:#f8fafc; border:1px solid var(--line); border-radius:6px; padding:6px 8px; font-size:12px; margin-top:8px; max-height:150px; overflow:auto; color:#334155; }
   .actions { position:sticky; bottom:0; background:var(--panel); border-top:1px solid var(--line); padding:10px 0 2px; display:flex; gap:8px; flex-wrap:wrap; }
-  .actions button { flex:1; min-width:120px; padding:9px; border-radius:7px; border:none; cursor:pointer; font-weight:700; font-size:13px; }
+  .actions button { flex:1; min-width:110px; padding:9px; border-radius:7px; border:none; cursor:pointer; font-weight:700; font-size:13px; }
   .primary { background:var(--accent); color:#fff; }
   .ghost { background:#f1f5f9; color:var(--ink); border:1px solid var(--line)!important; }
   .maphint { position:absolute; z-index:500; top:10px; left:50px; background:rgba(255,255,255,.94); border:1px solid var(--line);
-    border-radius:8px; padding:6px 10px; font-size:12px; box-shadow:0 2px 8px rgba(0,0,0,.12); pointer-events:none; }
+    border-radius:8px; padding:6px 10px; font-size:12px; box-shadow:0 2px 8px rgba(0,0,0,.12); }
   .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--good); color:#fff;
     padding:9px 16px; border-radius:8px; font-size:13px; opacity:0; transition:opacity .2s; z-index:1000; }
   .toast.show { opacity:1; }
@@ -47,15 +49,25 @@
 <body>
 <header>
   <h1>🚧 CARS 511 Work-Zone Request Builder</h1>
-  <span class="sub">Click the road to mark the work zone, fill the details, then generate the Iowa DOT CARS 511 request. Review before sending.</span>
+  <span class="sub">Click the road to mark the zone → it auto-fills road/county → set the schedule → Generate PDF / Email. Entries are remembered; save projects to reuse.</span>
 </header>
 <div class="wrap">
   <div class="form" id="form">
+
+    <div class="bar">
+      <button onclick="loadFromFeed()">📥 Load from live feed</button>
+      <button onclick="document.getElementById('jsonFile').click()">📂 Load .json</button>
+      <input type="file" id="jsonFile" accept=".json,application/json" style="display:none" onchange="loadJsonFile(event)" />
+      <button onclick="saveProject()">💾 Save project</button>
+      <select id="projPicker" onchange="if(this.value)loadProject(this.value)"><option value="">↺ Saved projects…</option></select>
+    </div>
+
     <div class="mapbtns">
       <button id="btnBegin" class="active" onclick="setMode('begin')">① Set BEGIN on map</button>
       <button id="btnEnd" onclick="setMode('end')">② Set END on map</button>
     </div>
     <div class="selinfo" id="selinfo">No segment selected yet — click the map to place the begin point.</div>
+    <label class="chk"><input type="checkbox" id="autofill" checked /> Auto-fill road & county from the map (uses internet)</label>
 
     <fieldset>
       <legend>General</legend>
@@ -73,8 +85,7 @@
       <input id="routeOther" placeholder="e.g. US-30, IA-1" style="margin-top:6px;display:none" />
       <div class="row">
         <div><label>DOT project #</label><input id="project" /></div>
-        <div><label>Intelligent Work Zone?</label>
-          <select id="iwz"><option>No</option><option>Yes</option></select></div>
+        <div><label>Intelligent Work Zone?</label><select id="iwz"><option>No</option><option>Yes</option></select></div>
       </div>
       <label>Project description</label>
       <textarea id="description" placeholder="e.g. Bridge deck overlay, right lane closed"></textarea>
@@ -89,22 +100,25 @@
       </div>
       <label>24-hour contact (name / phone)</label><input id="contact24" />
       <label>Traffic impact</label>
-      <select id="impact">
-        <option>Lane restriction(s)</option><option>Full closure</option>
-        <option>Shoulder closure</option><option>Ramp closure</option><option>Rolling slowdown</option>
-      </select>
+      <select id="impact"><option>Lane restriction(s)</option><option>Full closure</option>
+        <option>Shoulder closure</option><option>Ramp closure</option><option>Rolling slowdown</option></select>
     </fieldset>
 
     <fieldset>
-      <legend>Timeline</legend>
+      <legend>Schedule — build out weeks</legend>
       <div class="row">
-        <div><label>Begin date/time</label><input id="beginDT" type="datetime-local" /></div>
-        <div><label>End date/time</label><input id="endDT" type="datetime-local" /></div>
+        <div><label>Pattern</label><select id="schedPattern">
+          <option>Continuous</option><option>Weekdays</option><option>Nights</option><option>Weekends</option></select></div>
+        <div><label># of weeks</label><input id="schedWeeks" type="number" min="1" max="52" placeholder="e.g. 3" /></div>
       </div>
-      <label>Closure timing</label>
-      <select id="timing">
-        <option>Continuous</option><option>Daytime (weekdays)</option><option>Nights</option><option>Weekends</option>
-      </select>
+      <div class="row">
+        <div><label>Start date</label><input id="schedStart" type="date" /></div>
+        <div><label>Daily from</label><input id="schedFrom" type="time" /></div>
+        <div><label>Daily to</label><input id="schedTo" type="time" /></div>
+      </div>
+      <button class="ghost" style="width:100%;margin-top:8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="buildWeeks()">📅 Build weeks → occurrences</button>
+      <div class="schedList" id="schedList" style="display:none"></div>
+      <div class="hint">Fills Begin/End date-time to span the schedule and lists each work night/day for the request.</div>
     </fieldset>
 
     <fieldset>
@@ -125,7 +139,7 @@
       <legend>Detour & DMS</legend>
       <div class="row">
         <div><label>Marked detour?</label><select id="detour"><option>No</option><option>Yes</option></select></div>
-        <div><label>Oversize loads allowed?</label><select id="oversize"><option>N/A</option><option>Yes</option><option>No</option></select></div>
+        <div><label>Oversize allowed?</label><select id="oversize"><option>N/A</option><option>Yes</option><option>No</option></select></div>
       </div>
       <label>Detour restrictions / notes</label><textarea id="detourNotes"></textarea>
       <label>Traffic technician contact</label><input id="techContact" />
@@ -136,19 +150,19 @@
       <legend>Send to</legend>
       <label>RCE / District office</label>
       <select id="rce">
-        <option>District 1 (Ames)</option><option>District 2 (Mason City)</option>
-        <option>District 3 (Sioux City)</option><option>District 4 (Atlantic)</option>
-        <option>District 5 (Fairfield)</option><option>District 6 (Cedar Rapids)</option>
+        <option>District 1 (Ames)</option><option>District 2 (Mason City)</option><option>District 3 (Sioux City)</option>
+        <option>District 4 (Atlantic)</option><option>District 5 (Fairfield)</option><option>District 6 (Cedar Rapids)</option>
       </select>
-      <label>RCE email (set your office's address)</label>
+      <label>RCE email (remembered)</label>
       <input id="rceEmail" placeholder="rce.office@iowadot.us" />
+      <div class="hint">Official form: <a href="https://iowadot.seamlessdocs.com/f/Cars511RequestForm" target="_blank" rel="noopener">SeamlessDocs CARS 511</a> · <a href="/dotnet/construct/docs/511RCE.pdf" target="_blank" rel="noopener">help doc</a></div>
     </fieldset>
 
     <div class="actions">
       <button class="primary" onclick="genPDF()">📄 Generate PDF</button>
       <button class="primary" onclick="emailRCE()">✉️ Email to RCE</button>
       <button class="ghost" onclick="copySummary()">📋 Copy</button>
-      <button class="ghost" onclick="resetSeg()">↺ Reset pins</button>
+      <button class="ghost" onclick="resetAll()">🗑 New</button>
     </div>
   </div>
   <div style="flex:1;position:relative">
@@ -159,147 +173,151 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const map = L.map('map').setView([41.85, -93.5], 7); // Iowa
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19, attribution: '© OpenStreetMap'
-}).addTo(map);
+const map = L.map('map').setView([41.85, -93.5], 7);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap' }).addTo(map);
 
-let mode = 'begin';
-let beginPt = null, endPt = null, beginMk = null, endMk = null, line = null;
+let mode='begin', beginPt=null, endPt=null, beginMk=null, endMk=null, line=null, schedule=[];
 
-function setMode(m) {
-  mode = m;
-  document.getElementById('btnBegin').classList.toggle('active', m === 'begin');
-  document.getElementById('btnEnd').classList.toggle('active', m === 'end');
-  document.getElementById('maphint').innerHTML = `Click the road to set the <b>${m}</b> point`;
-}
+const FIELD_IDS = ['route','routeOther','direction','project','iwz','description','beginLoc','endLoc','counties',
+  'requestor','email','contact24','impact','beginDT','endDT','timing','rWidth','rHeight','rWeight','rLength','rTiming',
+  'detour','oversize','detourNotes','techContact','dms','rce','rceEmail','schedPattern','schedWeeks','schedStart','schedFrom','schedTo'];
+const el = id => document.getElementById(id);
+const v = id => (el(id) && el(id).value || '').trim();
+const toast = m => { const t=el('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); };
 
-function mk(latlng, label, color) {
-  return L.marker(latlng, { icon: L.divIcon({ className:'', html:
-    `<div style="background:${color};color:#fff;border:2px solid #fff;border-radius:50%;width:24px;height:24px;
-     display:flex;align-items:center;justify-content:center;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.4)">${label}</div>`,
-     iconSize:[24,24], iconAnchor:[12,12] }) }).addTo(map);
-}
+// ---- persistence (remembers fields + saved projects) ----
+function saveState(){ const s={pts:{beginPt,endPt}}; FIELD_IDS.forEach(id=>{ if(el(id)) s[id]=el(id).value; }); localStorage.setItem('cars511_state', JSON.stringify(s)); }
+function loadState(){ try{ const s=JSON.parse(localStorage.getItem('cars511_state')||'{}');
+  FIELD_IDS.forEach(id=>{ if(el(id)&&s[id]!=null) el(id).value=s[id]; });
+  if(s.pts&&s.pts.beginPt){ beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng); if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng); redraw(); }
+}catch(e){} }
+function projects(){ try{ return JSON.parse(localStorage.getItem('cars511_projects')||'[]'); }catch(e){ return []; } }
+function renderProjects(){ const sel=el('projPicker'); sel.innerHTML='<option value="">↺ Saved projects…</option>'+
+  projects().map(p=>`<option value="${p.name.replace(/"/g,'&quot;')}">${p.name}</option>`).join(''); }
+function saveProject(){ const name=prompt('Save this project as:'); if(!name) return; const list=projects().filter(p=>p.name!==name);
+  const data={}; FIELD_IDS.forEach(id=>{ if(el(id)) data[id]=el(id).value; });
+  list.push({name, when:new Date().toISOString(), data, beginPt, endPt}); localStorage.setItem('cars511_projects',JSON.stringify(list));
+  renderProjects(); toast('Saved "'+name+'"'); }
+function loadProject(name){ const p=projects().find(x=>x.name===name); if(!p) return;
+  FIELD_IDS.forEach(id=>{ if(el(id)&&p.data[id]!=null) el(id).value=p.data[id]; });
+  beginPt = p.beginPt?L.latLng(p.beginPt.lat,p.beginPt.lng):null; endPt = p.endPt?L.latLng(p.endPt.lat,p.endPt.lng):null;
+  redraw(); onRouteChange(); saveState(); toast('Loaded "'+name+'"'); }
 
-function bearing(a, b) {
-  const toR = d => d*Math.PI/180, toD = r => r*180/Math.PI;
-  const y = Math.sin(toR(b.lng-a.lng))*Math.cos(toR(b.lat));
-  const x = Math.cos(toR(a.lat))*Math.sin(toR(b.lat)) - Math.sin(toR(a.lat))*Math.cos(toR(b.lat))*Math.cos(toR(b.lng-a.lng));
-  return (toD(Math.atan2(y,x))+360)%360;
-}
-function dirLabel(brg) {
-  if (brg>=315||brg<45) return 'Northbound';
-  if (brg<135) return 'Eastbound';
-  if (brg<225) return 'Southbound';
-  return 'Westbound';
-}
-function miles(a, b) {
-  const R=3958.8, toR=d=>d*Math.PI/180;
-  const dLat=toR(b.lat-a.lat), dLng=toR(b.lng-a.lng);
-  const h=Math.sin(dLat/2)**2 + Math.cos(toR(a.lat))*Math.cos(toR(b.lat))*Math.sin(dLng/2)**2;
-  return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));
-}
+// ---- map selection ----
+function setMode(m){ mode=m; el('btnBegin').classList.toggle('active',m==='begin'); el('btnEnd').classList.toggle('active',m==='end');
+  el('maphint').innerHTML=`Click the road to set the <b>${m}</b> point`; }
+function mk(latlng,label,color){ return L.marker(latlng,{icon:L.divIcon({className:'',html:
+  `<div style="background:${color};color:#fff;border:2px solid #fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.4)">${label}</div>`,
+  iconSize:[24,24],iconAnchor:[12,12]})}).addTo(map); }
+function bearing(a,b){ const toR=d=>d*Math.PI/180,toD=r=>r*180/Math.PI;
+  const y=Math.sin(toR(b.lng-a.lng))*Math.cos(toR(b.lat));
+  const x=Math.cos(toR(a.lat))*Math.sin(toR(b.lat))-Math.sin(toR(a.lat))*Math.cos(toR(b.lat))*Math.cos(toR(b.lng-a.lng));
+  return (toD(Math.atan2(y,x))+360)%360; }
+function dirLabel(b){ if(b>=315||b<45)return 'Northbound'; if(b<135)return 'Eastbound'; if(b<225)return 'Southbound'; return 'Westbound'; }
+function miles(a,b){ const R=3958.8,toR=d=>d*Math.PI/180; const dLat=toR(b.lat-a.lat),dLng=toR(b.lng-a.lng);
+  const h=Math.sin(dLat/2)**2+Math.cos(toR(a.lat))*Math.cos(toR(b.lat))*Math.sin(dLng/2)**2; return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h)); }
+function redraw(){ [beginMk,endMk,line].forEach(x=>x&&x.remove()); beginMk=endMk=line=null;
+  if(beginPt) beginMk=mk(beginPt,'A','#1d4ed8'); if(endPt) endMk=mk(endPt,'B','#dc2626');
+  if(beginPt&&endPt){ line=L.polyline([beginPt,endPt],{color:'#dc2626',weight:6,opacity:.8}).addTo(map);
+    try{ map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13}); }catch(e){} }
+  refresh(); }
+function refresh(){ const info=el('selinfo');
+  if(beginPt&&endPt){ const dir=dirLabel(bearing(beginPt,endPt)); el('direction').value=dir;
+    info.innerHTML=`<b>Segment:</b> ${dir}, ~${miles(beginPt,endPt).toFixed(1)} mi<br>begin ${beginPt.lat.toFixed(4)}, ${beginPt.lng.toFixed(4)} → end ${endPt.lat.toFixed(4)}, ${endPt.lng.toFixed(4)}`; }
+  else if(beginPt){ info.innerHTML=`Begin set. Now click <b>END</b>.`; setMode('end'); }
+  saveState(); }
 
-function refresh() {
-  const info = document.getElementById('selinfo');
-  if (beginPt && endPt) {
-    if (line) line.remove();
-    line = L.polyline([beginPt, endPt], { color:'#dc2626', weight:6, opacity:.8 }).addTo(map);
-    const brg = bearing(beginPt, endPt);
-    const dir = dirLabel(brg);
-    document.getElementById('direction').value = dir;
-    const len = miles(beginPt, endPt).toFixed(1);
-    info.innerHTML = `<b>Segment:</b> ${dir}, ~${len} mi<br>` +
-      `begin ${beginPt.lat.toFixed(4)}, ${beginPt.lng.toFixed(4)} → end ${endPt.lat.toFixed(4)}, ${endPt.lng.toFixed(4)}`;
-  } else if (beginPt) {
-    info.innerHTML = `Begin set (${beginPt.lat.toFixed(4)}, ${beginPt.lng.toFixed(4)}). Now click <b>END</b>.`;
-    setMode('end');
-  }
-}
+map.on('click', e=>{ if(mode==='begin'){ beginPt=e.latlng; if(beginMk)beginMk.remove(); beginMk=mk(e.latlng,'A','#1d4ed8'); }
+  else { endPt=e.latlng; if(endMk)endMk.remove(); endMk=mk(e.latlng,'B','#dc2626'); }
+  if(beginPt&&endPt){ if(line)line.remove(); line=L.polyline([beginPt,endPt],{color:'#dc2626',weight:6,opacity:.8}).addTo(map); }
+  refresh(); reverseFill(e.latlng, mode==='begin'?'begin':'end'); });
 
-map.on('click', e => {
-  if (mode === 'begin') { beginPt = e.latlng; if (beginMk) beginMk.remove(); beginMk = mk(e.latlng,'A','#1d4ed8'); }
-  else { endPt = e.latlng; if (endMk) endMk.remove(); endMk = mk(e.latlng,'B','#dc2626'); }
-  refresh();
-});
+// ---- snap / auto-fill road + county via reverse geocode ----
+async function reverseFill(latlng, which){ if(!el('autofill').checked) return;
+  try{ const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16&lat=${latlng.lat}&lon=${latlng.lng}`);
+    const j=await r.json(); const a=j.address||{}; const road=a.road||a.motorway||a.trunk||'';
+    const locId = which==='begin'?'beginLoc':'endLoc'; if(road && !v(locId)) el(locId).value=road;
+    if(a.county && !v('counties')) el('counties').value=a.county;
+    const m=(road.match(/\bI[- ]?\d+/i)||[])[0]; if(m && !v('route')){ const norm='I-'+m.replace(/\D/g,''); const opt=[...el('route').options].find(o=>o.value===norm); if(opt) el('route').value=norm; }
+    onRouteChange(); saveState();
+  }catch(e){ /* offline / blocked — silently skip */ } }
 
-document.getElementById('route').addEventListener('change', e => {
-  document.getElementById('routeOther').style.display = e.target.value === '__other' ? 'block' : 'none';
-});
+// ---- auto-populate from an existing work zone ----
+function fillFromEvent(f){ const p=f.properties||f||{}; const c=p.core_details||{};
+  const road=(c.road_names&&c.road_names[0])||p.corridor||''; if(road){ const opt=[...el('route').options].find(o=>o.value===road); el('route').value=opt?road:'__other'; if(!opt)el('routeOther').value=road; }
+  el('direction').value = c.direction||p.direction||''; el('description').value = c.description||p.description||'';
+  if(p.start_date||p.startTime) el('beginDT').value = toLocalDT(p.start_date||p.startTime);
+  if(p.end_date||p.endTime) el('endDT').value = toLocalDT(p.end_date||p.endTime);
+  if(p.x_height_restriction||p.height) el('rHeight').value = p.x_height_restriction||p.height;
+  // geometry → pins
+  const g=f.geometry; if(g&&Array.isArray(g.coordinates)){
+    if(g.type==='LineString'&&g.coordinates.length>=2){ beginPt=L.latLng(g.coordinates[0][1],g.coordinates[0][0]); const last=g.coordinates[g.coordinates.length-1]; endPt=L.latLng(last[1],last[0]); }
+    else if(g.type==='Point'){ beginPt=L.latLng(g.coordinates[1],g.coordinates[0]); endPt=null; } }
+  redraw(); onRouteChange(); saveState(); toast('Loaded work zone'); }
+function toLocalDT(d){ const t=Date.parse(d); if(!Number.isFinite(t))return ''; const dt=new Date(t-new Date().getTimezoneOffset()*60000); return dt.toISOString().slice(0,16); }
 
-function routeVal() {
-  const r = document.getElementById('route').value;
-  return r === '__other' ? (document.getElementById('routeOther').value || 'route') : r;
-}
-const v = id => (document.getElementById(id).value || '').trim();
+async function loadFromFeed(){ try{ toast('Loading feed…'); const r=await fetch('/api/cwz/events'); const j=await r.json();
+  const feats=j.features||[]; if(!feats.length){ toast('No validated zones in feed'); return; }
+  const pick=prompt('Type a number 1–'+Math.min(feats.length,40)+' to load:\n\n'+
+    feats.slice(0,40).map((f,i)=>`${i+1}. ${((f.properties&&f.properties.core_details&&f.properties.core_details.road_names)||[]).join('/')} ${(f.properties&&f.properties.core_details&&f.properties.core_details.direction)||''}`).join('\n'));
+  const idx=parseInt(pick,10)-1; if(feats[idx]) fillFromEvent(feats[idx]);
+}catch(e){ toast('Live feed unavailable (open the app-served version to use this)'); } }
+function loadJsonFile(ev){ const file=ev.target.files[0]; if(!file)return; const fr=new FileReader();
+  fr.onload=()=>{ try{ const j=JSON.parse(fr.result); const f=(j.features&&j.features[0])||j; fillFromEvent(f); }catch(e){ toast('Could not parse JSON'); } }; fr.readAsText(file); }
+
+// ---- schedule build-out ----
+function buildWeeks(){ const pattern=v('schedPattern'), start=v('schedStart'), weeks=parseInt(v('schedWeeks')||'0',10), from=v('schedFrom'), to=v('schedTo');
+  if(!start||!weeks){ toast('Set a start date and # of weeks'); return; }
+  const s=new Date(start+'T00:00'); const totalDays=weeks*7; schedule=[];
+  if(pattern==='Continuous'){ const e=new Date(s); e.setDate(e.getDate()+totalDays);
+    schedule.push({label:`${s.toDateString()} → ${e.toDateString()} (continuous)`}); }
+  else { const dow = pattern==='Weekdays'?[1,2,3,4,5] : pattern==='Weekends'?[0,6] : [0,1,2,3,4,5,6];
+    for(let d=0; d<totalDays; d++){ const day=new Date(s); day.setDate(s.getDate()+d);
+      if(dow.includes(day.getDay())) schedule.push({label:`${day.toDateString()}${(from&&to)?`  ${from}–${to}`:''}`}); } }
+  const box=el('schedList'); box.style.display='block';
+  box.innerHTML=`<b>${schedule.length} occurrence(s):</b><br>`+schedule.slice(0,80).map(o=>o.label).join('<br>')+(schedule.length>80?'<br>…':'');
+  // span begin/end date-time
+  if(!v('beginDT')) el('beginDT').value = start+'T'+(from||'00:00');
+  const end=new Date(s); end.setDate(s.getDate()+totalDays); el('endDT').value = end.toISOString().slice(0,10)+'T'+(to||'23:59');
+  saveState(); toast(`Built ${schedule.length} occurrences`); }
+
+// ---- outputs ----
 const fmtDT = s => s ? new Date(s).toLocaleString() : '—';
+function routeVal(){ const r=v('route'); return r==='__other'?(v('routeOther')||'route'):r; }
+function onRouteChange(){ el('routeOther').style.display = v('route')==='__other' ? 'block' : 'none'; }
+function fields(){ const seg=(beginPt&&endPt)?`${dirLabel(bearing(beginPt,endPt))}, ~${miles(beginPt,endPt).toFixed(1)} mi  [${beginPt.lat.toFixed(4)},${beginPt.lng.toFixed(4)} → ${endPt.lat.toFixed(4)},${endPt.lng.toFixed(4)}]`:'(not set)';
+  return [ ['Route',routeVal()],['Direction',v('direction')],['Selected segment',seg],['DOT project #',v('project')],
+    ['Intelligent Work Zone',v('iwz')],['Description',v('description')],['Begin location',v('beginLoc')],['End location',v('endLoc')],
+    ['County/counties',v('counties')],['DOT requestor',v('requestor')],['Requestor email',v('email')],['24-hr contact',v('contact24')],
+    ['Traffic impact',v('impact')],['Schedule pattern',v('schedPattern')],['Begin',fmtDT(v('beginDT'))],['End',fmtDT(v('endDT'))],
+    ['Width restriction',v('rWidth')],['Height restriction',v('rHeight')],['Weight restriction',v('rWeight')],['Length restriction',v('rLength')],
+    ['Restriction timing',v('rTiming')],['Marked detour',v('detour')],['Oversize allowed',v('oversize')],['Detour notes',v('detourNotes')],
+    ['Traffic technician',v('techContact')],['DMS request',v('dms')],['Send to (RCE)',v('rce')] ]; }
+function scheduleText(){ return schedule.length ? '\n\nSCHEDULE ('+schedule.length+' occurrences):\n'+schedule.map(o=>'  • '+o.label).join('\n') : ''; }
+function summaryText(){ return 'IOWA DOT — CARS 511 WORK-ZONE REQUEST\n'+'='.repeat(42)+'\n'+
+  fields().map(([k,val])=>`${k}: ${val||'—'}`).join('\n')+scheduleText()+'\n\n(Built with the CARS 511 Request Builder — review before submitting.)'; }
+function copySummary(){ navigator.clipboard.writeText(summaryText()).then(()=>toast('Summary copied')); }
+function emailRCE(){ const to=v('rceEmail'); const subj=`CARS 511 Request — ${routeVal()} ${v('direction')} — ${v('project')||'work zone'}`;
+  if(!to) toast('Tip: set the RCE email to pre-fill To:'); location.href=`mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(summaryText())}`; }
+function genPDF(){ const {jsPDF}=window.jspdf; const doc=new jsPDF({unit:'pt',format:'letter'}); const M=48; let y=54;
+  doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.text('Iowa DOT — CARS 511 Work-Zone Request',M,y); y+=8;
+  doc.setDrawColor(200); doc.line(M,y,564,y); y+=20; doc.setFontSize(10);
+  fields().forEach(([k,val])=>{ if(y>740){doc.addPage();y=54;} doc.setFont('helvetica','bold'); doc.text(`${k}:`,M,y);
+    doc.setFont('helvetica','normal'); const lines=doc.splitTextToSize(String(val||'—'),380); doc.text(lines,M+150,y); y+=Math.max(16,lines.length*13); });
+  if(schedule.length){ if(y>700){doc.addPage();y=54;} y+=6; doc.setFont('helvetica','bold'); doc.text(`Schedule (${schedule.length} occurrences):`,M,y); y+=16; doc.setFont('helvetica','normal');
+    schedule.forEach(o=>{ if(y>750){doc.addPage();y=54;} doc.text('• '+o.label,M+8,y); y+=13; }); }
+  doc.save(`CARS511_${(routeVal()||'route').replace(/\W+/g,'')}_${(v('project')||'wz')}.pdf`); toast('PDF generated'); }
 
-function fields() {
-  const seg = (beginPt && endPt)
-    ? `${dirLabel(bearing(beginPt,endPt))}, ~${miles(beginPt,endPt).toFixed(1)} mi  [${beginPt.lat.toFixed(4)},${beginPt.lng.toFixed(4)} → ${endPt.lat.toFixed(4)},${endPt.lng.toFixed(4)}]`
-    : '(not set)';
-  return [
-    ['Route', routeVal()], ['Direction', v('direction')], ['Selected segment', seg],
-    ['DOT project #', v('project')], ['Intelligent Work Zone', v('iwz')],
-    ['Description', v('description')],
-    ['Begin location', v('beginLoc')], ['End location', v('endLoc')], ['County/counties', v('counties')],
-    ['DOT requestor', v('requestor')], ['Requestor email', v('email')], ['24-hr contact', v('contact24')],
-    ['Traffic impact', v('impact')],
-    ['Begin', fmtDT(v('beginDT'))], ['End', fmtDT(v('endDT'))], ['Closure timing', v('timing')],
-    ['Width restriction', v('rWidth')], ['Height restriction', v('rHeight')],
-    ['Weight restriction', v('rWeight')], ['Length restriction', v('rLength')], ['Restriction timing', v('rTiming')],
-    ['Marked detour', v('detour')], ['Oversize allowed', v('oversize')], ['Detour notes', v('detourNotes')],
-    ['Traffic technician', v('techContact')], ['DMS request', v('dms')],
-    ['Send to (RCE)', v('rce')]
-  ];
-}
+function resetAll(){ if(!confirm('Clear the form and pins? (Saved projects are kept.)')) return;
+  FIELD_IDS.forEach(id=>{ if(el(id)) el(id).value = el(id).tagName==='SELECT'?el(id).options[0].value:''; });
+  [beginMk,endMk,line].forEach(x=>x&&x.remove()); beginPt=endPt=beginMk=endMk=line=null; schedule=[];
+  el('schedList').style.display='none'; el('selinfo').textContent='No segment selected yet — click the map to place the begin point.';
+  onRouteChange(); setMode('begin'); saveState(); }
 
-function toast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); }
-
-function summaryText() {
-  return 'IOWA DOT — CARS 511 WORK-ZONE REQUEST\n' + '='.repeat(42) + '\n' +
-    fields().map(([k,val]) => `${k}: ${val || '—'}`).join('\n') +
-    '\n\n(Generated by the CARS 511 Request Builder — review before submitting.)';
-}
-
-function copySummary() { navigator.clipboard.writeText(summaryText()).then(()=>toast('Summary copied')); }
-
-function emailRCE() {
-  const to = v('rceEmail');
-  const subj = `CARS 511 Request — ${routeVal()} ${v('direction')} — ${v('project')||'work zone'}`;
-  const body = summaryText();
-  if (!to) toast('Tip: set the RCE email to pre-fill the To: field');
-  location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
-}
-
-function genPDF() {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit:'pt', format:'letter' });
-  const M=48; let y=54;
-  doc.setFont('helvetica','bold'); doc.setFontSize(15);
-  doc.text('Iowa DOT — CARS 511 Work-Zone Request', M, y); y+=8;
-  doc.setDrawColor(200); doc.line(M,y,564,y); y+=20;
-  doc.setFontSize(10);
-  fields().forEach(([k,val]) => {
-    if (y>740) { doc.addPage(); y=54; }
-    doc.setFont('helvetica','bold'); doc.text(`${k}:`, M, y);
-    doc.setFont('helvetica','normal');
-    const lines = doc.splitTextToSize(String(val||'—'), 380);
-    doc.text(lines, M+150, y); y += Math.max(16, lines.length*13);
-  });
-  y+=10; doc.setFontSize(8); doc.setTextColor(120);
-  doc.text('Generated by the CARS 511 Request Builder — review before submitting to the RCE office.', M, Math.min(y,760));
-  doc.save(`CARS511_${(routeVal()||'route').replace(/\W+/g,'')}_${(v('project')||'wz')}.pdf`);
-  toast('PDF generated');
-}
-
-function resetSeg() {
-  [beginMk,endMk,line].forEach(x=>x&&x.remove());
-  beginPt=endPt=beginMk=endMk=line=null;
-  document.getElementById('direction').value='';
-  document.getElementById('selinfo').textContent='No segment selected yet — click the map to place the begin point.';
-  setMode('begin');
-}
+// ---- init ----
+el('route').addEventListener('change', ()=>{ onRouteChange(); saveState(); });
+FIELD_IDS.forEach(id=>{ if(el(id)) el(id).addEventListener('input', saveState); });
+loadState(); renderProjects(); onRouteChange();
 </script>
 </body>
 </html>
