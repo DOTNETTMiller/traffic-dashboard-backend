@@ -219,6 +219,14 @@ window.addEventListener('resize', ()=>map.invalidateSize());
 
 let mode='begin', beginPt=null, endPt=null, beginMk=null, endMk=null, line=null, schedule=[];
 let detourPts=[], detourLine=null, detourMks=[];
+let wzRoute=null, detourRoute=null, detourMeters=null;
+// Snap a set of [lon,lat] waypoints to the driving road path via OSRM (free, no key).
+async function osrmRoute(lonlat){ try{
+  const u='https://router.project-osrm.org/route/v1/driving/'+lonlat.map(c=>c[0]+','+c[1]).join(';')+'?overview=full&geometries=geojson';
+  const r=await fetch(u); const j=await r.json();
+  if(j.code!=='Ok'||!j.routes||!j.routes[0]) return null;
+  return { latlngs: j.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]), meters: j.routes[0].distance };
+}catch(e){ return null; } }
 
 const FIELD_IDS = ['route','routeOther','direction','project','iwz','description','beginLoc','endLoc','counties',
   'requestor','email','contact24','impact','beginDT','endDT','timing','rWidth','rHeight','rWeight','rLength','rTiming',
@@ -262,10 +270,17 @@ function bearing(a,b){ const toR=d=>d*Math.PI/180,toD=r=>r*180/Math.PI;
 function dirLabel(b){ if(b>=315||b<45)return 'Northbound'; if(b<135)return 'Eastbound'; if(b<225)return 'Southbound'; return 'Westbound'; }
 function miles(a,b){ const R=3958.8,toR=d=>d*Math.PI/180; const dLat=toR(b.lat-a.lat),dLng=toR(b.lng-a.lng);
   const h=Math.sin(dLat/2)**2+Math.cos(toR(a.lat))*Math.cos(toR(b.lat))*Math.sin(dLng/2)**2; return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h)); }
-function redraw(){ [beginMk,endMk,line].forEach(x=>x&&x.remove()); beginMk=endMk=line=null;
+function drawWZLine(){ if(line){line.remove();line=null;}
+  const pts=(wzRoute&&wzRoute.length)?wzRoute:((beginPt&&endPt)?[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]]:null);
+  if(pts) line=L.polyline(pts,{color:'#dc2626',weight:6,opacity:.85}).addTo(map); }
+async function snapWZ(){ if(!(beginPt&&endPt))return; const r=await osrmRoute([[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]]);
+  if(!r||!beginPt||!endPt)return; wzRoute=r.latlngs; drawWZLine();
+  const dir=dirLabel(bearing(beginPt,endPt));
+  el('selinfo').innerHTML=`<b>Segment:</b> ${dir}, ${(r.meters/1609.34).toFixed(1)} mi (follows road)<br>begin ${beginPt.lat.toFixed(4)}, ${beginPt.lng.toFixed(4)} → end ${endPt.lat.toFixed(4)}, ${endPt.lng.toFixed(4)}`; saveState(); }
+function redraw(){ [beginMk,endMk,line].forEach(x=>x&&x.remove()); beginMk=endMk=line=null; wzRoute=null;
   if(beginPt) beginMk=mk(beginPt,'A','#1d4ed8'); if(endPt) endMk=mk(endPt,'B','#dc2626');
-  if(beginPt&&endPt){ line=L.polyline([beginPt,endPt],{color:'#dc2626',weight:6,opacity:.8}).addTo(map);
-    try{ map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13}); }catch(e){} }
+  drawWZLine();
+  if(beginPt&&endPt){ try{ map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13}); }catch(e){} snapWZ(); }
   refresh(); }
 function refresh(){ const info=el('selinfo');
   if(beginPt&&endPt){ const dir=dirLabel(bearing(beginPt,endPt)); el('direction').value=dir;
@@ -274,29 +289,31 @@ function refresh(){ const info=el('selinfo');
   saveState(); }
 
 map.on('click', e=>{
-  if(mode==='detour'){ detourPts.push(e.latlng); if(v('detour')!=='Yes') el('detour').value='Yes'; drawDetour(); saveState(); return; }
+  if(mode==='detour'){ detourPts.push(e.latlng); if(v('detour')!=='Yes') el('detour').value='Yes'; detourRoute=null; drawDetour(); saveState(); snapDetour(); return; }
   if(mode==='begin'){ beginPt=e.latlng; if(beginMk)beginMk.remove(); beginMk=mk(e.latlng,'A','#1d4ed8'); }
   else { endPt=e.latlng; if(endMk)endMk.remove(); endMk=mk(e.latlng,'B','#dc2626'); }
-  if(beginPt&&endPt){ if(line)line.remove(); line=L.polyline([beginPt,endPt],{color:'#dc2626',weight:6,opacity:.8}).addTo(map); }
-  refresh(); reverseFill(e.latlng, mode==='begin'?'begin':'end'); });
+  wzRoute=null; drawWZLine(); refresh(); reverseFill(e.latlng, mode==='begin'?'begin':'end');
+  if(beginPt&&endPt) snapWZ(); });
 
 // ---- detour route drawing ----
 function drawDetour(){ if(detourLine){detourLine.remove();detourLine=null;} detourMks.forEach(x=>x.remove()); detourMks=[];
   detourPts.forEach((p,i)=>detourMks.push(L.circleMarker(p,{radius:4,color:'#7c3aed',weight:2,fillColor:'#fff',fillOpacity:1}).bindTooltip(String(i+1),{permanent:false}).addTo(map)));
-  if(detourPts.length>=2) detourLine=L.polyline(detourPts,{color:'#7c3aed',weight:4,opacity:.9,dashArray:'8,6'}).addTo(map);
-  let mi=0; for(let i=1;i<detourPts.length;i++) mi+=miles(detourPts[i-1],detourPts[i]);
+  const pl=(detourRoute&&detourRoute.length)?detourRoute:detourPts.map(p=>[p.lat,p.lng]);
+  if(pl.length>=2) detourLine=L.polyline(pl,{color:'#7c3aed',weight:4,opacity:.9,dashArray:'8,6'}).addTo(map);
+  const mi = detourMeters!=null ? detourMeters/1609.34 : detourMiles();
   const info=el('detourInfo');
   if(!detourPts.length){ info.style.display='none'; return; }
   info.style.display='block';
-  info.innerHTML=`<b>Detour:</b> ${detourPts.length} pts, ~${mi.toFixed(1)} mi`+
+  info.innerHTML=`<b>Detour:</b> ${detourPts.length} pts, ${mi.toFixed(1)} mi${detourRoute?' (follows road)':''}`+
     (detourPts.length>=2?` &nbsp; <a href="#" onclick="exportDetour();return false">⬇ GeoJSON</a> &nbsp; <a href="${gmapsDetour()}" target="_blank" rel="noopener">🗺 Google Maps</a>`:''); }
-function undoDetour(){ detourPts.pop(); drawDetour(); saveState(); }
-function clearDetour(){ detourPts=[]; drawDetour(); saveState(); }
+function undoDetour(){ detourPts.pop(); detourRoute=null; detourMeters=null; drawDetour(); saveState(); snapDetour(); }
+function clearDetour(){ detourPts=[]; detourRoute=null; detourMeters=null; drawDetour(); saveState(); }
+async function snapDetour(){ if(detourPts.length<2){detourRoute=null;detourMeters=null;drawDetour();return;} const r=await osrmRoute(detourPts.map(p=>[p.lng,p.lat])); detourRoute=r?r.latlngs:null; detourMeters=r?r.meters:null; drawDetour(); saveState(); }
 function detourMiles(){ let mi=0; for(let i=1;i<detourPts.length;i++) mi+=miles(detourPts[i-1],detourPts[i]); return mi; }
 function gmapsDetour(){ return 'https://www.google.com/maps/dir/'+detourPts.map(p=>`${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join('/'); }
 function exportDetour(){ const fc={type:'FeatureCollection',features:[]};
-  if(beginPt&&endPt) fc.features.push({type:'Feature',properties:{role:'work-zone',route:routeVal(),direction:v('direction')},geometry:{type:'LineString',coordinates:[[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]]}});
-  if(detourPts.length>=2) fc.features.push({type:'Feature',properties:{role:'detour',length_mi:+detourMiles().toFixed(1)},geometry:{type:'LineString',coordinates:detourPts.map(p=>[p.lng,p.lat])}});
+  if(beginPt&&endPt) fc.features.push({type:'Feature',properties:{role:'work-zone',route:routeVal(),direction:v('direction')},geometry:{type:'LineString',coordinates:(wzRoute&&wzRoute.length?wzRoute:[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]]).map(c=>[c[1],c[0]])}});
+  if(detourPts.length>=2) fc.features.push({type:'Feature',properties:{role:'detour',length_mi:+(detourMeters!=null?detourMeters/1609.34:detourMiles()).toFixed(1)},geometry:{type:'LineString',coordinates:(detourRoute&&detourRoute.length?detourRoute:detourPts.map(p=>[p.lat,p.lng])).map(c=>[c[1],c[0]])}});
   const blob=new Blob([JSON.stringify(fc,null,2)],{type:'application/geo+json'}); const a=document.createElement('a');
   a.href=URL.createObjectURL(blob); a.download=`CARS511_detour_${(routeVal()||'route').replace(/\W+/g,'')}.geojson`; a.click(); toast('Detour GeoJSON downloaded'); }
 
