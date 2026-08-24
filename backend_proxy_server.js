@@ -6193,12 +6193,11 @@ app.get('/api/cwz/events', async (req, res) => {
         const p = e.coordinates || (e.longitude != null ? [e.longitude, e.latitude] : null);
         if (Array.isArray(p)) pts.push(p);
       }
-      const cAge = tomtomCache.timestamp ? Date.now() - tomtomCache.timestamp : Infinity;
-      if (cAge === Infinity) { await refreshTomTomIncidents(); }
-      else if (cAge > tomtomCache.ttl && !tomtomCache.isRefreshing) { refreshTomTomIncidents(); }
+      // Both sets refresh in the BACKGROUND — the cwz response never blocks on TomTom.
+      // (The zone-wide set already covers the corridor, so no cold-fetch await here.)
       const zAge = tomtomZoneCache.timestamp ? Date.now() - tomtomZoneCache.timestamp : Infinity;
       if ((zAge === Infinity || zAge > tomtomZoneCache.ttl) && !tomtomZoneCache.isRefreshing) {
-        refreshTomTomForZones(pts); // background only
+        refreshTomTomForZones(pts);
       }
       // Union corridor + nationwide, de-duped by incident id.
       const byId = new Map();
