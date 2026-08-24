@@ -1427,15 +1427,23 @@ async function scanBridges(){ if(!beginPt||!endPt){ toast('Select a road segment
   near.forEach(b=>{ const low=b.clr<15; L.marker([+b.latitude,+b.longitude],{icon:L.divIcon({className:'',html:
     `<div style="background:${low?'#b45309':'#334155'};color:#fff;border:2px solid #fff;border-radius:5px;padding:1px 4px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.4)">🌉 ${ftIn(b.clr)}</div>`,iconSize:[60,18],iconAnchor:[30,9]})})
     .bindPopup(`<b>${b.bridge_name||'Bridge'}</b><br>${b.route||''} — clearance ${ftIn(b.clr)}<br><span style="color:#888">NBI Item 54 · verified ${b.last_verified||'n/a'}</span>`).addTo(bridgeLayer); });
+  window.__nbiNear = near;
   const box=el('nbiBox'); box.style.display='block';
-  if(!near.length){ box.innerHTML='No NBI low-clearance bridges on this segment'+(route?` (route ${route})`:'')+'. (Dataset = vertical clearances only; widths not in NBI feed.)'; return; }
+  if(!near.length){ box.innerHTML='No NBI low-clearance bridges on this segment'+(route?` (route ${route})`:'')+'.'; return; }
   const low=near[0];
-  box.innerHTML=`<b>${near.length} NBI bridge(s) on segment</b> — lowest <b>${ftIn(low.clr)}</b>:<br>`+
-    near.slice(0,8).map(b=>`${b.clr<15?'⚠️ ':''}${ftIn(b.clr)} — ${(b.bridge_name||'').slice(0,42)}`).join('<br>')+
-    `<br><button style="margin-top:6px;padding:6px 10px;border:1px solid #b45309;background:#fff7ed;color:#b45309;border-radius:6px;cursor:pointer;font-weight:600" onclick="applyNBI(${low.clr})">Use ${ftIn(low.clr)} as height restriction</button>`;
-  toast(`${near.length} bridges — lowest ${ftIn(low.clr)}`); }
-function applyNBI(clr){ el('rHeight').value=ftIn(clr); if(v('rTiming')==='None'||!v('rTiming'))el('rTiming').value='24 hours';
-  el('overhead').value = clr<15 ? 'Yes' : v('overhead')||'No'; saveState(); toast('Height restriction applied'); }
+  const widths=near.map(b=>+b.width_feet).filter(w=>Number.isFinite(w)&&w>0);
+  const minW=widths.length?Math.min(...widths):null;
+  box.innerHTML=`<b>${near.length} NBI bridge(s) on segment</b> — lowest clearance <b>${ftIn(low.clr)}</b>${minW!=null?`, narrowest <b>${ftIn(minW)}</b>`:''}:<br>`+
+    near.slice(0,8).map(b=>`${b.clr<15?'⚠️ ':''}${ftIn(b.clr)}${b.width_feet?` × ${ftIn(+b.width_feet)} w`:''} — ${(b.bridge_name||'').slice(0,38)}`).join('<br>')+
+    `<br><button style="margin-top:6px;padding:6px 10px;border:1px solid #b45309;background:#fff7ed;color:#b45309;border-radius:6px;cursor:pointer;font-weight:600" onclick="applyNBI()">Apply as restrictions (H ${ftIn(low.clr)}${minW!=null?` · W ${ftIn(minW)}`:''})</button>`;
+  toast(`${near.length} bridges — lowest ${ftIn(low.clr)}${minW!=null?`, narrowest ${ftIn(minW)}`:''}`); }
+function applyNBI(){ const near=window.__nbiNear||[]; if(!near.length)return;
+  const clr=near[0].clr; el('rHeight').value=ftIn(clr);
+  const widths=near.map(b=>+b.width_feet).filter(w=>Number.isFinite(w)&&w>0);
+  if(widths.length) el('rWidth').value=ftIn(Math.min(...widths));
+  if(v('rTiming')==='None'||!v('rTiming'))el('rTiming').value='24 hours';
+  el('overhead').value = clr<15 ? 'Yes' : v('overhead')||'No'; saveState();
+  toast('Height + width restrictions applied'); }
 
 // ---- fill the OFFICIAL Iowa CARS 511 PDF (coordinate overlay, verified) ----
 const PDF_MAP = {

@@ -91,6 +91,11 @@ function discoverMapping(names) {
   return {
     underRef:   pickField(names, [/054A/i, /VERT_CLR_UND.*REF/i, /REF.*VERT_CLR_UND/i, /under.*ref/i]),
     underMeters: pickField(names, [/VERT_CLR_UND_054B/i, /054B/i, /MIN_VERT_CLR_UND/i, /VERT_CLR_UND/i, /underclear/i]),
+    // Width (horizontal) restriction: lateral underclearance (Item 55B right / 56 left) is the
+    // width a road passing UNDER the structure faces; fall back to Item 47 total horizontal clearance.
+    latUnderR:  pickField(names, [/LAT_UND_MT_055B/i, /055B/i, /LAT_UND_MT/i]),
+    latUnderL:  pickField(names, [/LEFT_LAT_UND_MT_056/i, /_056\b/i, /LEFT_LAT_UND/i]),
+    horiz047:   pickField(names, [/HORR_CLR_MT_047/i, /_047\b/i, /HORIZ_CLR/i, /MIN_HORIZ/i]),
     lat:        pickField(names, [/^LATDD$/i, /LATDD/i, /^LAT$/i, /LATITUDE/i, /LAT_016/i, /\bLAT\b/i]),
     lon:        pickField(names, [/^LONGDD$/i, /LONGDD/i, /^LON[G]?$/i, /LONGITUDE/i, /LONG_017/i, /\bLON/i]),
     state:      pickField(names, [/STATE_CODE_001/i, /STATE_CODE/i, /STATE_NAME/i, /\bSTATE\b/i]),
@@ -203,6 +208,13 @@ function transform(rec, map, wantedRoutes, allRoutes = false, prefixes = null) {
   const name = `${route} underpass${carries ? ` at ${carries}` : ''}${struct ? ` (#${struct})` : ''}`.slice(0, 200);
 
   const feetStr = `${Math.floor(feet)}'${Math.round((feet - Math.floor(feet)) * 12)}"`;
+
+  // Width restriction (horizontal): min lateral underclearance (55B/56), else Item 47.
+  const latVals = [toMeters(rec[map.latUnderR]), toMeters(rec[map.latUnderL])].filter(v => v != null && v > 0 && v < 30);
+  let widthMeters = latVals.length ? Math.min(...latVals) : null;
+  if (widthMeters == null) { const h = toMeters(rec[map.horiz047]); if (h != null && h > 0 && h < 30) widthMeters = h; }
+  const width_feet = widthMeters != null ? Number((widthMeters * M_TO_FT).toFixed(2)) : null;
+
   const warning = feet < 14.0
     ? `⚠️ LOW CLEARANCE: ${feetStr} (${meters.toFixed(2)} m) per NBI. Verify before routing oversize/tall loads.`
     : null;
@@ -215,8 +227,10 @@ function transform(rec, map, wantedRoutes, allRoutes = false, prefixes = null) {
     longitude: Number(lon.toFixed(6)),
     clearance_feet: Number(feet.toFixed(2)),
     clearance_meters: Number(meters.toFixed(2)),
+    width_feet,                       // horizontal restriction (null when unrestricted/not reported)
+    width_meters: widthMeters != null ? Number(widthMeters.toFixed(2)) : null,
     direction: 'Both',
-    restriction_type: 'vertical',
+    restriction_type: width_feet != null ? 'vertical+width' : 'vertical',
     watch_radius_km: 2,
     warning_message: warning,
     last_verified: inspDateISO(rec, map),
