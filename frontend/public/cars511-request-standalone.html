@@ -1367,12 +1367,14 @@ const IADOT='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services';
 const d2=(p,lat,lng)=>{ const k=Math.cos(p.lat*Math.PI/180), dx=(lng-p.lng)*k, dy=lat-p.lat; return dx*dx+dy*dy; };
 async function iaQuery(layer,params){ try{ const r=await fetch(IADOT+'/'+layer+'/FeatureServer/0/query?'+params+'&f=json'); return await r.json(); }catch(e){ return null; } }
 // Nearest POSTED reference post (milepost) to a point, preferring the travel direction.
-async function iowaRefPost(pt,dirLetter){
-  const bb=[pt.lng-0.02,pt.lat-0.02,pt.lng+0.02,pt.lat+0.02].join(',');
-  const j=await iaQuery('Reference_Post_View','where=1%3D1&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=REFERENCE_POST_VALUE,OFFICIAL_COMMON_NAME,OFFICIAL_ROUTE_DIRECTION,ROUTE_ID&returnGeometry=true&outSR=4326&resultRecordCount=300');
+async function iowaRefPost(pt,dirLetter,routeId){
+  const pad = routeId ? 0.06 : 0.02;   // widen when locked to a route (end may be off it)
+  const bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
+  const where = routeId ? encodeURIComponent("ROUTE_ID='"+routeId+"'") : '1%3D1';
+  const j=await iaQuery('Reference_Post_View','where='+where+'&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=REFERENCE_POST_VALUE,OFFICIAL_COMMON_NAME,OFFICIAL_ROUTE_DIRECTION,ROUTE_ID&returnGeometry=true&outSR=4326&resultRecordCount=400');
   const f=(j&&j.features)||[]; if(!f.length) return null;
   let cands=f.filter(x=>x.geometry).map(x=>({x,d:d2(pt,x.geometry.y,x.geometry.x)})).sort((a,b)=>a.d-b.d);
-  if(dirLetter){ const m=cands.filter(c=>c.x.attributes.OFFICIAL_ROUTE_DIRECTION===dirLetter); if(m.length) cands=m; }
+  if(!routeId && dirLetter){ const m=cands.filter(c=>c.x.attributes.OFFICIAL_ROUTE_DIRECTION===dirLetter); if(m.length) cands=m; }
   const a=cands[0].x.attributes; return { mp:a.REFERENCE_POST_VALUE, route:a.OFFICIAL_COMMON_NAME, dir:a.OFFICIAL_ROUTE_DIRECTION, routeId:a.ROUTE_ID };
 }
 // Authoritative centerline geometry between two points along a directional ROUTEID.
@@ -1399,13 +1401,18 @@ async function iowaCenterline(routeId,a,b){
   const near=pt=>{ let bi=0,bd=Infinity; for(let i=0;i<chain.length;i++){ const d=d2(pt,chain[i][0],chain[i][1]); if(d<bd){bd=d;bi=i;} } return bi; };
   let ia=near(a), ib=near(b); if(ia>ib){const t=ia;ia=ib;ib=t;}
   const slice=chain.slice(ia,ib+1); if(slice.length<2) return null;
+  // Must actually reach BOTH clicked ends (else concurrency/off-route → OSRM draws to the end).
+  const ep=[slice[0], slice[slice.length-1]];
+  const reachA=Math.min(...ep.map(p=>miles({lat:p[0],lng:p[1]},a)*1609.34));
+  const reachB=Math.min(...ep.map(p=>miles({lat:p[0],lng:p[1]},b)*1609.34));
+  if(reachA>500 || reachB>500) return null;   // click too far from this route's centerline → OSRM
   let mi=0, maxGap=0; for(let i=1;i<slice.length;i++){ const g=miles({lat:slice[i-1][0],lng:slice[i-1][1]},{lat:slice[i][0],lng:slice[i][1]}); mi+=g; if(g>maxGap)maxGap=g; }
   if(maxGap>0.3) return null;        // discontinuity remains → let OSRM draw a clean line
   return { latlngs:slice, miles:mi };
 }
 async function snapWZ(){ if(!(beginPt&&endPt))return;
   const dir=dirLabel(bearing(beginPt,endPt)); const dLetter=dir[0];
-  const rpA=await iowaRefPost(beginPt,dLetter); const rpB=await iowaRefPost(endPt,dLetter);
+  const rpA=await iowaRefPost(beginPt,dLetter); const rpB=await iowaRefPost(endPt,dLetter, rpA&&rpA.routeId);
   let mpA=null,mpB=null;
   if(rpA){ mpA=rpA.mp; if(!v('beginLoc')) el('beginLoc').value='MP '+rpA.mp;
     if(rpA.route){ const opt=[...el('route').options].find(o=>o.value===rpA.route); if(opt) el('route').value=rpA.route; else if(!v('route')){ el('route').value='__other'; onRouteChange(); el('routeOther').value=rpA.route; } } }
@@ -1463,7 +1470,7 @@ function exportDetour(){ const fc={type:'FeatureCollection',features:[]};
 async function reverseFill(latlng, which){ if(!el('autofill').checked) return;
   try{ const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16&lat=${latlng.lat}&lon=${latlng.lng}`);
     const j=await r.json(); const a=j.address||{}; const road=a.road||a.motorway||a.trunk||'';
-    const locId = which==='begin'?'beginLoc':'endLoc'; if(road && !v(locId)) el(locId).value=road;
+    // (begin/end location is filled with the milepost by snapWZ — don't overwrite with the road name)
     if(a.county && !v('counties')) el('counties').value=a.county;
     const m=(road.match(/\bI[- ]?\d+/i)||[])[0]; if(m && !v('route')){ const norm='I-'+m.replace(/\D/g,''); const opt=[...el('route').options].find(o=>o.value===norm); if(opt) el('route').value=norm; }
     onRouteChange(); saveState();
