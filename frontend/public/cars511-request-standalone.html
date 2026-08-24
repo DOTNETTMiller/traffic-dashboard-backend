@@ -1483,14 +1483,13 @@ function exportDetour(){ const fc={type:'FeatureCollection',features:[]};
   a.href=URL.createObjectURL(blob); a.download=`CARS511_detour_${(routeVal()||'route').replace(/\W+/g,'')}.geojson`; a.click(); toast('Detour GeoJSON downloaded'); }
 
 // ---- snap / auto-fill road + county via reverse geocode ----
+// County via FCC area API (CORS-open, no Referer needed → works from file://; Nominatim did not).
+// Route + milepost come from the Iowa DOT reference posts in snapWZ.
 async function reverseFill(latlng, which){ if(!el('autofill').checked) return;
-  try{ const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16&lat=${latlng.lat}&lon=${latlng.lng}`);
-    const j=await r.json(); const a=j.address||{}; const road=a.road||a.motorway||a.trunk||'';
-    // (begin/end location is filled with the milepost by snapWZ — don't overwrite with the road name)
-    if(a.county && !v('counties')) el('counties').value=a.county;
-    const m=(road.match(/\bI[- ]?\d+/i)||[])[0]; if(m && !v('route')){ const norm='I-'+m.replace(/\D/g,''); const opt=[...el('route').options].find(o=>o.value===norm); if(opt) el('route').value=norm; }
-    onRouteChange(); saveState();
-  }catch(e){ /* offline / blocked — silently skip */ } }
+  try{ const r=await fetch('https://geo.fcc.gov/api/census/area?lat='+latlng.lat+'&lon='+latlng.lng+'&format=json');
+    const j=await r.json(); const c=(j.results||[])[0]||{};
+    if(c.county_name && !v('counties')){ el('counties').value = /county/i.test(c.county_name)?c.county_name:(c.county_name+' County'); saveState(); }
+  }catch(e){ /* offline — skip */ } }
 
 // ---- auto-populate from an existing work zone ----
 function fillFromEvent(f){ const p=f.properties||f||{}; const c=p.core_details||{};
@@ -1506,15 +1505,28 @@ function fillFromEvent(f){ const p=f.properties||f||{}; const c=p.core_details||
   redraw(); onRouteChange(); saveState(); toast('Loaded work zone'); }
 function toLocalDT(d){ const t=(typeof d==='number')?d:Date.parse(d); if(!Number.isFinite(t))return ''; const dt=new Date(t-new Date().getTimezoneOffset()*60000); return dt.toISOString().slice(0,16); }
 
-// Load a real Iowa DOT 511 event (construction/closure) to pre-fill — works standalone (CORS-open ArcGIS).
-async function loadFromFeed(){ try{ toast('Loading Iowa DOT 511 events…');
+// Load real Iowa DOT 511 events (construction/closure) as tappable pins near the view.
+let eventLayer=null;
+async function queryEvents(bb){
   const where=encodeURIComponent("phrase LIKE '%Construction%' OR headline LIKE '%Construction%' OR headline LIKE '%Closed%' OR STYLE LIKE '%roadwork%'");
-  const url='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/511_IA_Event_Lines_View/FeatureServer/0/query?where='+where+'&outFields=Route,headline,direction,phrase,IssueDT,ExpireDT&returnGeometry=true&outSR=4326&resultRecordCount=300&f=json';
-  const j=await (await fetch(url)).json(); const fe=(j.features||[]);
-  if(!fe.length){ toast('No Iowa DOT construction events right now'); return; }
-  const pick=prompt('Iowa DOT 511 events — type 1–'+Math.min(fe.length,40)+' to load:\n\n'+fe.slice(0,40).map((f,i)=>`${i+1}. ${f.attributes.headline||f.attributes.Route||'event'}`).join('\n'));
-  const f=fe[parseInt(pick,10)-1]; if(f) fillFromIowaEvent(f);
-}catch(e){ toast('Iowa DOT feed unavailable (needs internet)'); } }
+  const url='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/511_IA_Event_Lines_View/FeatureServer/0/query?where='+where+'&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=Route,headline,direction,phrase,IssueDT,ExpireDT&returnGeometry=true&outSR=4326&resultRecordCount=150&f=json';
+  try{ const j=await (await fetch(url)).json(); return j.features||[]; }catch(e){ return []; }
+}
+async function loadFromFeed(){ toast('Loading Iowa DOT events nearby…');
+  const c = beginPt || map.getCenter();
+  const dLat=2/69, dLon=(2/69)/Math.max(0.2,Math.cos(c.lat*Math.PI/180));   // ~2 miles
+  let fe = await queryEvents([c.lng-dLon,c.lat-dLat,c.lng+dLon,c.lat+dLat].join(','));
+  let scope='within 2 mi';
+  if(!fe.length){ const b=map.getBounds(); fe=await queryEvents([b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].join(',')); scope='in view'; }
+  if(!fe.length){ toast('No Iowa DOT construction events nearby — pan/zoom to the area'); return; }
+  if(eventLayer) eventLayer.remove(); eventLayer=L.layerGroup().addTo(map); const bounds=[];
+  fe.forEach(f=>{ const g=f.geometry; if(!g||!g.paths||!g.paths[0]||!g.paths[0].length)return; const p=g.paths[0]; const mid=p[Math.floor(p.length/2)]; const ll=[mid[1],mid[0]]; bounds.push(ll);
+    L.marker(ll,{icon:L.divIcon({className:'',html:'<div style="background:#15803d;color:#fff;border:2px solid #fff;border-radius:10px;padding:1px 6px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.4)">▶ load</div>',iconSize:[48,18],iconAnchor:[24,9]})})
+      .bindTooltip((f.attributes.headline||f.attributes.Route||'event'),{direction:'top'})
+      .on('click',()=>{ fillFromIowaEvent(f); if(eventLayer){eventLayer.remove();eventLayer=null;} })
+      .addTo(eventLayer); });
+  if(bounds.length){ try{ map.fitBounds(bounds,{padding:[60,60],maxZoom:12}); }catch(e){} }
+  toast(fe.length+' event(s) '+scope+' — tap a green ▶ pin to load'); }
 function fillFromIowaEvent(f){ const a=f.attributes;
   let rt=(String(a.Route||'').match(/\b(?:I|US|IA)-?\s?\d+/i)||[''])[0].toUpperCase().replace(/\s+/g,'').replace(/^(I|US|IA)(\d)/,'$1-$2');
   if(rt){ const opt=[...el('route').options].find(o=>o.value===rt); if(opt) el('route').value=rt; else { el('route').value='__other'; onRouteChange(); el('routeOther').value=rt; } }
