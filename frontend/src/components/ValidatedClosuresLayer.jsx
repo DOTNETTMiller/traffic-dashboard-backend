@@ -11,19 +11,24 @@ import api from '../services/api';
 //
 // The camera <img> is fetched by the browser directly from the DOT host — $0 server egress.
 
+// Per-source color + priority. When a zone has multiple sources it's drawn in its
+// strongest source's color (device > camera > TomTom) with a gold border to flag "multi".
 const SOURCE_META = {
-  device: { glyph: '🔗', label: 'device' },
-  camera: { glyph: '📷', label: 'camera' },
-  tomtom: { glyph: '🚗', label: 'TomTom' }
+  device: { glyph: '🔗', label: 'device', color: '#2563eb' },  // blue — hardware on site
+  camera: { glyph: '📷', label: 'camera', color: '#16a34a' },  // green — visual truth
+  tomtom: { glyph: '🚗', label: 'TomTom', color: '#d97706' }   // amber — independent report
 };
+const PRIORITY = ['device', 'camera', 'tomtom'];
+const primarySource = (sources) => PRIORITY.find(s => sources.includes(s)) || 'camera';
 
 function verifiedIcon(sources) {
   const glyphs = sources.map(s => (SOURCE_META[s] || {}).glyph).filter(Boolean).join('');
   const strong = sources.length >= 2;           // 2+ independent sources = higher confidence
+  const color = (SOURCE_META[primarySource(sources)] || {}).color || '#16a34a';
   return L.divIcon({
     className: 'validated-closure-icon',
     html: `<div style="display:flex;align-items:center;gap:2px;
-      background:${strong ? '#15803d' : '#16a34a'};color:#fff;
+      background:${color};color:#fff;
       border:2px solid ${strong ? '#fde047' : '#fff'};border-radius:12px;padding:1px 5px;font-size:11px;font-weight:700;
       box-shadow:0 1px 4px rgba(0,0,0,.4);white-space:nowrap;">✓ ${glyphs || '✔'}</div>`,
     iconSize: [48, 20],
@@ -51,14 +56,23 @@ function featureLine(f) {
   return pts.length >= 2 ? pts : null;
 }
 
-export default function ValidatedClosuresLayer({ visible = false }) {
+export default function ValidatedClosuresLayer({ visible = false, sources: enabled = null, onCounts = null }) {
   const [features, setFeatures] = useState([]);
 
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
     api.get('/api/cwz/events')
-      .then((res) => { if (!cancelled) setFeatures((res && res.data && res.data.features) || []); })
+      .then((res) => {
+        if (cancelled) return;
+        const feats = (res && res.data && res.data.features) || [];
+        setFeatures(feats);
+        if (onCounts) {
+          const counts = { device: 0, camera: 0, tomtom: 0, total: feats.length };
+          feats.forEach(f => (f.properties?.x_verification || []).forEach(s => { if (counts[s] != null) counts[s]++; }));
+          onCounts(counts);
+        }
+      })
       .catch((err) => console.error('ValidatedClosuresLayer load failed:', err.message));
     return () => { cancelled = true; };
   }, [visible]);
@@ -73,10 +87,13 @@ export default function ValidatedClosuresLayer({ visible = false }) {
         const p = f.properties || {};
         const c = p.core_details || {};
         const sources = p.x_verification || [];
+        // Source filter: show a zone if ANY of its validators is enabled (null = show all).
+        if (enabled && !sources.some(s => enabled[s])) return null;
         const devices = p.x_connected_devices || [];
         const cameraSeen = p.x_camera_detected || [];
         const line = featureLine(f);
         const strong = sources.length >= 2;
+        const color = (SOURCE_META[primarySource(sources)] || {}).color || '#16a34a';
         const road = (c.road_names || []).join(', ');
         const howShort = sources.map(s => `${(SOURCE_META[s] || {}).glyph || ''} ${(SOURCE_META[s] || {}).label || s}`).join(' + ') || 'verified';
 
@@ -84,7 +101,7 @@ export default function ValidatedClosuresLayer({ visible = false }) {
           <Fragment key={`vwz-${f.id || i}`}>
             {line && (
               <Polyline positions={line}
-                pathOptions={{ color: strong ? '#15803d' : '#16a34a', weight: 6, opacity: 0.75 }} />
+                pathOptions={{ color, weight: strong ? 7 : 5, opacity: 0.8 }} />
             )}
             <Marker position={ll} icon={verifiedIcon(sources)}>
               <Tooltip direction="top" offset={[0, -8]} opacity={0.95}>

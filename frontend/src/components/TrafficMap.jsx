@@ -452,6 +452,9 @@ export default function TrafficMap({
 
   // On-map filter state for the historical crash layer (client-side only).
   const [crashCorridor, setCrashCorridor] = useState('Both');
+  // Validated Work Zones: per-source filter + live counts for the legend.
+  const [validatedSources, setValidatedSources] = useState({ device: true, camera: true, tomtom: true });
+  const [validatedCounts, setValidatedCounts] = useState(null);
   const [crashYear, setCrashYear] = useState('all');
   const [crashYears, setCrashYears] = useState([]);
 
@@ -1246,8 +1249,8 @@ export default function TrafficMap({
         {/* Connected arrow boards / portable DMS auto-associated to work zones */}
         <ConnectedDevicesLayer visible={showConnectedDevices} />
 
-        {/* Validated (device- or camera-verified) work zones, with evidence in the popup */}
-        <ValidatedClosuresLayer visible={showValidatedClosures} />
+        {/* Validated (device / camera / TomTom-verified) work zones, color-coded by source */}
+        <ValidatedClosuresLayer visible={showValidatedClosures} sources={validatedSources} onCounts={setValidatedCounts} />
 
         {/* State OS/OW Regulations Layer */}
         {showCorridorRegulations && (
@@ -1310,6 +1313,38 @@ export default function TrafficMap({
         {/* Bounding Box Selector for exporting filtered TIM/CV-TIM data */}
         <BoundingBoxSelector isDarkMode={isDarkMode} />
       </MapContainer>
+
+      {/* Validated Work Zones — color legend + per-source filter */}
+      {showValidatedClosures && (
+        <div style={{
+          position: 'absolute', bottom: '24px', left: '16px', zIndex: 1000,
+          background: 'rgba(255,255,255,0.96)', border: '2px solid #e5e7eb', borderRadius: '10px',
+          padding: '10px 12px', boxShadow: '0 4px 14px rgba(0,0,0,0.12)', fontSize: '12px', minWidth: '170px'
+        }}>
+          <div style={{ fontWeight: 700, color: '#374151', marginBottom: '6px' }}>
+            ✓ Validated by{validatedCounts ? ` (${validatedCounts.total})` : ''}
+          </div>
+          {[
+            ['device', '🔗', 'Device on site', '#2563eb'],
+            ['camera', '📷', 'Camera', '#16a34a'],
+            ['tomtom', '🚗', 'TomTom (independent)', '#d97706']
+          ].map(([k, glyph, label, color]) => (
+            <label key={k} style={{
+              display: 'flex', alignItems: 'center', gap: '7px', cursor: 'pointer',
+              padding: '3px 0', opacity: validatedSources[k] ? 1 : 0.45
+            }}>
+              <input type="checkbox" checked={validatedSources[k]}
+                onChange={() => setValidatedSources(s => ({ ...s, [k]: !s[k] }))} />
+              <span style={{ width: '11px', height: '11px', borderRadius: '3px', background: color, display: 'inline-block', flexShrink: 0 }} />
+              <span>{glyph} {label}</span>
+              {validatedCounts && <span style={{ color: '#94a3b8', marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{validatedCounts[k] || 0}</span>}
+            </label>
+          ))}
+          <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '5px', borderTop: '1px solid #eef2f7', paddingTop: '5px' }}>
+            gold border = 2+ sources agree
+          </div>
+        </div>
+      )}
 
       {/* Historical-crash layer filter (corridor + year), client-side only */}
       {showHistoricalCrashes && (
