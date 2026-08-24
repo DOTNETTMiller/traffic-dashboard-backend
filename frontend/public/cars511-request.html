@@ -558,7 +558,7 @@ function dmsIcon(sel){ return L.divIcon({className:'',html:
   iconSize:[52,18],iconAnchor:[26,9]}); }
 async function scanDevices(){ if(!beginPt||!endPt){ toast('Select a road segment (A→B) first'); return; }
   toast('Scanning Iowa DMS…'); const route=interstate(routeVal());
-  const pad=0.2; // ~14 mi — DMS warn well upstream of a closure
+  const pad=0.08; // ~5 mi around the segment — signs close to the zone
   const bb=[Math.min(beginPt.lng,endPt.lng)-pad, Math.min(beginPt.lat,endPt.lat)-pad, Math.max(beginPt.lng,endPt.lng)+pad, Math.max(beginPt.lat,endPt.lat)+pad].join(',');
   const url='https://services.arcgis.com/8lRhdTsQyJpO52F1/ArcGIS/rest/services/DMS_View/FeatureServer/0/query'+
     '?where=1%3D1&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'+
