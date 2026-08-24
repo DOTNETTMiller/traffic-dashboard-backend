@@ -48,6 +48,12 @@ function featureLatLng(f) {
   return null;
 }
 
+const fmtDate = (d) => {
+  if (!d) return null;
+  const t = Date.parse(d);
+  return Number.isFinite(t) ? new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : null;
+};
+
 // LineString → [[lat,lng],...] for a highlight polyline (null if not a line).
 function featureLine(f) {
   const g = f.geometry;
@@ -95,6 +101,8 @@ export default function ValidatedClosuresLayer({ visible = false, sources: enabl
         const strong = sources.length >= 2;
         const color = (SOURCE_META[primarySource(sources)] || {}).color || '#16a34a';
         const road = (c.road_names || []).join(', ');
+        const startStr = fmtDate(p.start_date);
+        const endStr = fmtDate(p.end_date);
         const howShort = sources.map(s => `${(SOURCE_META[s] || {}).glyph || ''} ${(SOURCE_META[s] || {}).label || s}`).join(' + ') || 'verified';
 
         return (
@@ -109,15 +117,26 @@ export default function ValidatedClosuresLayer({ visible = false, sources: enabl
               </Tooltip>
               <Popup maxWidth={300}>
                 <div style={{ fontSize: 13, minWidth: 240 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 2 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 4 }}>
                     ✓ Validated Work Zone {strong && <span style={{ color: '#15803d' }}>· multi-source</span>}
                   </div>
-                  <div style={{ color: '#555', marginBottom: 6 }}>
-                    {road} {c.direction || ''}
+
+                  {/* The event as the DOT reported it (WZDx) */}
+                  <div style={{ background: '#f8fafc', border: '1px solid #eef2f7', borderRadius: 6, padding: '6px 8px', marginBottom: 8 }}>
+                    <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 2 }}>Event (as reported)</div>
+                    <div style={{ color: '#334155' }}>{road}{c.direction ? ` · ${c.direction}` : ''}</div>
+                    {c.description && <div style={{ color: '#475569', marginTop: 2 }}>{c.description}</div>}
+                    {(startStr || endStr) && (
+                      <div style={{ color: '#64748b', marginTop: 2 }}>{startStr || '?'} → {endStr || 'ongoing'}</div>
+                    )}
+                    {p.vehicle_impact && (
+                      <div style={{ color: '#64748b', marginTop: 2 }}>impact: {String(p.vehicle_impact).replace(/-/g, ' ')}</div>
+                    )}
+                    <div style={{ color: '#94a3b8', fontSize: 11, marginTop: 2 }}>{c.name || f.id}</div>
                   </div>
 
                   <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>
-                    How this was validated ({sources.length} source{sources.length === 1 ? '' : 's'}):
+                    Validated by ({sources.length} independent source{sources.length === 1 ? '' : 's'}):
                   </div>
 
                   {sources.includes('device') && (
