@@ -1673,33 +1673,38 @@ async function fillOfficial(){
 
 // ---- SeamlessDocs auto-fill bookmarklet (runs ON their page = same-origin there) ----
 function seamlessFill(){
-  const c=v('contact24'); const parts=c.split('/');
-  const map = {
-    'DOT Requestor': v('requestor'),
-    'E-mail address': v('email'),
-    'Route and direction': (routeVal()+' '+v('direction')).trim(),
-    'Project Number': v('project'),
-    'Project Description': v('description'),
-    'begin location': v('beginLoc'),
-    'end location': v('endLoc'),
-    'County': v('counties'),
-    'Contact Name': (parts[0]||'').trim(),
-    'Phone Number': (parts[1]||'').trim(),
-    'begin date': fmtMDY(v('beginDT')),
-    'end date': fmtMDY(v('endDT')),
-    'Times of closure': (v('schedFrom')&&v('schedTo')) ? `${v('schedFrom')} - ${v('schedTo')}` : ''
-  };
-  // Fill routine: match each value to a field by its visible label text, set value + fire events.
+  const c=v('contact24').split('/'); const tc=v('techContact').split('/');
+  const times=(v('schedFrom')&&v('schedTo'))?`${v('schedFrom')} - ${v('schedTo')}`:'';
+  // [ exact SeamlessDocs field aria-label , value ] — fields carry aria-label="… Text Box"
+  const map=[
+    ['Requester Text Box', v('requestor')],
+    ['Email Text Box', v('email')],
+    ['Route and direction Text Box', (routeVal()+' '+v('direction')).trim()],
+    ['DOT project name Text Box', v('project')],
+    ['Project Description Text Box', v('description')],
+    ['Project Begin Location Text Box', v('beginLoc')],
+    ['Project End Location Text Box', v('endLoc')],
+    ['County Text Box', v('counties')],
+    ['Name Text Box', (c[0]||'').trim()],
+    ['Phone Text Box', (c[1]||'').trim()],
+    ['Project begin date and time Text Box', fmtMDY(v('beginDT'))],
+    ['Project end date and time Text Box', fmtMDY(v('endDT'))],
+    ['Times of closure Text Box', times],
+    ['if yes, weight restriction Text Box', v('rWeight')],
+    ['If known length restriction Text Box', v('rLength')],
+    ['How many overhead bridges Text Box', v('rHeight')?'1':''],
+    ['Estimated Vertical Clearance 1 Text Box', v('rHeight')],
+    ['how many width restricted areas Text Box', v('rWidth')?'1':''],
+    ['Measured width minus (at least) 1 ft. (1) Text Box', v('rWidth')],
+    ['District Traffic Tech name Text Box', (tc[0]||'').trim()],
+    ['District Traffic Tech phone Text Box', (tc[1]||'').trim()]
+  ].filter(p=>p[1]);
+  // Fill routine (runs ON the SeamlessDocs page): exact aria-label match on .doc_field inputs.
   const fill = "(function(){var D="+JSON.stringify(map)+";"+
-    "function n(s){return(s||'').toLowerCase().replace(/[^a-z0-9]/g,'')}"+
-    "var L=[].slice.call(document.querySelectorAll('label,legend,.field-label,span,div,p'));"+
-    "function set(i,val){try{var p=i.tagName=='TEXTAREA'?HTMLTextAreaElement.prototype:(i.tagName=='SELECT'?HTMLSelectElement.prototype:HTMLInputElement.prototype);Object.getOwnPropertyDescriptor(p,'value').set.call(i,val);['input','change','blur'].forEach(function(e){i.dispatchEvent(new Event(e,{bubbles:true}))})}catch(e){}}"+
-    "var c=0;Object.keys(D).forEach(function(k){var val=D[k];if(!val)return;"+
-    "var lab=L.find(function(l){return l.children.length===0&&n(l.textContent).indexOf(n(k))>=0});if(!lab)return;"+
-    "var inp=null,f=lab.getAttribute&&lab.getAttribute('for');if(f)inp=document.getElementById(f);"+
-    "if(!inp){var b=lab.parentElement;for(var d=0;d<4&&b&&!inp;d++){inp=b.querySelector('input:not([type=hidden]):not([type=radio]):not([type=checkbox]),textarea,select');b=b.parentElement}}"+
-    "if(inp&&!inp.value){set(inp,val);c++}});"+
-    "alert('511 auto-fill: set '+c+' text field(s). Set Yes/No, checkboxes and uploads manually, and REVIEW every field before submitting.')})()";
+    "function set(i,val){try{var p=i.tagName=='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(p,'value').set.call(i,val);['input','keyup','change','blur'].forEach(function(e){i.dispatchEvent(new Event(e,{bubbles:true}))})}catch(e){}}"+
+    "var F=[].slice.call(document.querySelectorAll('input.doc_field,textarea.doc_field'));var c=0;"+
+    "D.forEach(function(p){var el=F.find(function(x){return (x.getAttribute('aria-label')||'')===p[0];});if(el){set(el,p[1]);c++;}});"+
+    "alert('511 auto-fill: '+c+' of '+D.length+' fields set. Set the Yes/No, dropdowns (impact, RCE office, travel direction) and file uploads manually, then review before submitting.')})()";
   window.__bm = 'javascript:'+fill;
   el('sdBm').href = window.__bm;
   el('sdModal').style.display='flex';
