@@ -1266,7 +1266,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
     <div class="actions">
       <button class="primary" onclick="fillOfficial()">📝 Fill official 511 PDF</button>
-      <button class="primary" onclick="emailRCE()">✉️ Email to RCE</button>
+      <button class="primary" onclick="seamlessFill()">🔗 Auto-fill site form</button>
+      <button class="ghost" onclick="emailRCE()">✉️ Email to RCE</button>
       <button class="ghost" onclick="genPDF()">📄 Summary PDF</button>
       <button class="ghost" onclick="copySummary()">📋 Copy</button>
       <button class="ghost" onclick="resetAll()">🗑 New</button>
@@ -1275,6 +1276,23 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   <div style="flex:1;position:relative">
     <div class="maphint" id="maphint">Click the road to set the <b>begin</b> point &nbsp;·&nbsp; <span style="color:#94a3b8">(map tiles need internet)</span></div>
     <div id="map"></div>
+  </div>
+</div>
+<div id="sdModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:5000;align-items:center;justify-content:center;padding:16px" onclick="el('sdModal').style.display='none'">
+  <div style="background:#fff;max-width:470px;border-radius:10px;padding:18px" onclick="event.stopPropagation()">
+    <div style="font-weight:700;color:var(--brand-navy);font-size:15px;margin-bottom:8px">🔗 Auto-fill the SeamlessDocs 511 form</div>
+    <ol style="font-size:13px;color:#334155;padding-left:18px;line-height:1.6;margin:0 0 8px">
+      <li><b>Drag</b> this to your bookmarks bar → <a id="sdBm" href="#" style="font-weight:700;color:var(--accent);text-decoration:none">📌 Fill 511 form</a></li>
+      <li>Open the <a href="https://iowadot.seamlessdocs.com/f/Cars511RequestForm" target="_blank" rel="noopener">official SeamlessDocs 511 form</a>.</li>
+      <li>Click the <b>📌 Fill 511 form</b> bookmark → text fields fill from your entries.</li>
+    </ol>
+    <div style="font-size:12px;color:#b45309;background:#fff7ed;border-radius:6px;padding:6px 8px;margin-bottom:10px">
+      Beta: matches fields by label, so it fills <b>text fields only</b> — it can't set Yes/No, checkboxes, or file uploads. Set those manually and <b>review every field before submitting</b>. (If a field doesn't fill, SeamlessDocs changed its layout — use “📋 Copy” to paste.)
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="ghost" onclick="copyBm()" style="flex:1;padding:8px;border-radius:6px;cursor:pointer">📋 Copy bookmark code</button>
+      <button class="primary" onclick="el('sdModal').style.display='none'" style="flex:1;padding:8px;border-radius:6px;border:none;cursor:pointer">Done</button>
+    </div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -1527,6 +1545,41 @@ async function fillOfficial(){
     toast('Official 511 PDF filled — review before submitting');
   }catch(e){ toast('Fill failed — use “Summary PDF”, or the app-served version'); console.error(e); }
 }
+
+// ---- SeamlessDocs auto-fill bookmarklet (runs ON their page = same-origin there) ----
+function seamlessFill(){
+  const c=v('contact24'); const parts=c.split('/');
+  const map = {
+    'DOT Requestor': v('requestor'),
+    'E-mail address': v('email'),
+    'Route and direction': (routeVal()+' '+v('direction')).trim(),
+    'Project Number': v('project'),
+    'Project Description': v('description'),
+    'begin location': v('beginLoc'),
+    'end location': v('endLoc'),
+    'County': v('counties'),
+    'Contact Name': (parts[0]||'').trim(),
+    'Phone Number': (parts[1]||'').trim(),
+    'begin date': fmtMDY(v('beginDT')),
+    'end date': fmtMDY(v('endDT')),
+    'Times of closure': (v('schedFrom')&&v('schedTo')) ? `${v('schedFrom')} - ${v('schedTo')}` : ''
+  };
+  // Fill routine: match each value to a field by its visible label text, set value + fire events.
+  const fill = "(function(){var D="+JSON.stringify(map)+";"+
+    "function n(s){return(s||'').toLowerCase().replace(/[^a-z0-9]/g,'')}"+
+    "var L=[].slice.call(document.querySelectorAll('label,legend,.field-label,span,div,p'));"+
+    "function set(i,val){try{var p=i.tagName=='TEXTAREA'?HTMLTextAreaElement.prototype:(i.tagName=='SELECT'?HTMLSelectElement.prototype:HTMLInputElement.prototype);Object.getOwnPropertyDescriptor(p,'value').set.call(i,val);['input','change','blur'].forEach(function(e){i.dispatchEvent(new Event(e,{bubbles:true}))})}catch(e){}}"+
+    "var c=0;Object.keys(D).forEach(function(k){var val=D[k];if(!val)return;"+
+    "var lab=L.find(function(l){return l.children.length===0&&n(l.textContent).indexOf(n(k))>=0});if(!lab)return;"+
+    "var inp=null,f=lab.getAttribute&&lab.getAttribute('for');if(f)inp=document.getElementById(f);"+
+    "if(!inp){var b=lab.parentElement;for(var d=0;d<4&&b&&!inp;d++){inp=b.querySelector('input:not([type=hidden]):not([type=radio]):not([type=checkbox]),textarea,select');b=b.parentElement}}"+
+    "if(inp&&!inp.value){set(inp,val);c++}});"+
+    "alert('511 auto-fill: set '+c+' text field(s). Set Yes/No, checkboxes and uploads manually, and REVIEW every field before submitting.')})()";
+  window.__bm = 'javascript:'+fill;
+  el('sdBm').href = window.__bm;
+  el('sdModal').style.display='flex';
+}
+function copyBm(){ if(window.__bm) navigator.clipboard.writeText(window.__bm).then(()=>toast('Bookmark code copied — make a new bookmark, paste as the URL')); }
 
 // ---- init ----
 el('route').addEventListener('change', ()=>{ onRouteChange(); saveState(); });
