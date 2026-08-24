@@ -1422,8 +1422,10 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
   const dir=dirLabel(bearing(beginPt,endPt)); const dLetter=dir[0];
   iowaRCEOffice(beginPt).then(rce=>{ if(!rce)return;
     const opt=[...el('rce').options].find(o=>o.value.indexOf('District '+rce.District)===0); if(opt) el('rce').value=opt.value;
+    setRceOffice(rce.City||('District '+rce.District));   // auto-fills the saved cc email for this office
+    const remembered = !!rceBook()[rce.City||('District '+rce.District)];
     const box=el('rceInfo'); if(box){ box.style.display='block';
-      box.innerHTML='Nearest RCE office: <b>'+(rce.City||'')+'</b> (District '+rce.District+')'+(rce.Address?' · '+rce.Address:'')+(rce.WebLink?' · <a href="'+rce.WebLink+'" target="_blank" rel="noopener">contacts &amp; email</a>':''); }
+      box.innerHTML='Nearest RCE office: <b>'+(rce.City||'')+'</b> (District '+rce.District+')'+(rce.Address?' · '+rce.Address:'')+(rce.WebLink?' · <a href="'+rce.WebLink+'" target="_blank" rel="noopener">contacts &amp; email</a>':'')+(remembered?' · <span style="color:#15803d">saved cc loaded</span>':' · <span style="color:#b45309">add the RCE cc once — it’s remembered</span>'); }
     saveState();
   }).catch(()=>{});
   const rpA=await iowaRefPost(beginPt,dLetter); const rpB=await iowaRefPost(endPt,dLetter, rpA&&rpA.routeId);
@@ -1693,7 +1695,13 @@ function seamlessFill(){
 function copyBm(){ if(window.__bm) navigator.clipboard.writeText(window.__bm).then(()=>toast('Bookmark code copied — make a new bookmark, paste as the URL')); }
 
 // ---- init ----
+// RCE email book — the cc email is remembered PER OFFICE and auto-fills next time.
+function rceBook(){ try{ return JSON.parse(localStorage.getItem('cars511_rce_book')||'{}'); }catch(e){ return {}; } }
+function setRceOffice(key){ window.__rceOffice=key||null; if(key){ const b=rceBook(); if(b[key]&&!v('rceEmail')){ el('rceEmail').value=b[key]; saveState(); } } }
+function saveRceEmail(){ const key=window.__rceOffice; if(!key) return; const b=rceBook(); const em=v('rceEmail'); if(em) b[key]=em; else delete b[key]; localStorage.setItem('cars511_rce_book',JSON.stringify(b)); }
 el('route').addEventListener('change', ()=>{ onRouteChange(); saveState(); });
+el('rce').addEventListener('change', ()=>{ setRceOffice(v('rce')); saveState(); });
+el('rceEmail').addEventListener('input', saveRceEmail);
 FIELD_IDS.forEach(id=>{ if(el(id)) el(id).addEventListener('input', saveState); });
 loadState(); renderProjects(); onRouteChange();
 </script>
