@@ -178,6 +178,7 @@
       <input id="rceEmail" placeholder="firstname.lastname@iowadot.us" />
       <div class="hint" id="rceInfo" style="display:none"></div>
       <div class="hint">"Email TMC (cc RCE)" opens a <b>draft in your mail app</b> — review, then send (it does not auto-send). Iowa DOT has no generic office email; the RCE is a person (firstname.lastname@iowadot.us) — the office link above lists the current RCE. TMC: 515-237-3300 · <a href="https://iowadot.seamlessdocs.com/f/Cars511RequestForm" target="_blank" rel="noopener">SeamlessDocs CARS 511</a></div>
+      <div id="emailAlt" class="hint" style="display:none;margin-top:6px;padding:8px;background:#fff7ed;border:1px solid #E1A626;border-radius:6px"></div>
     </fieldset>
 
     <div class="actions">
@@ -495,8 +496,20 @@ function summaryText(){ return 'IOWA DOT — CARS 511 WORK-ZONE REQUEST\n'+'='.r
 function copySummary(){ navigator.clipboard.writeText(summaryText()).then(()=>toast('Summary copied')); }
 function emailRCE(){ const to=v('tmcEmail')||'IowaDOT.Traffic@iowadot.us'; const cc=v('rceEmail');
   const subj=`CARS 511 Request — ${routeVal()} ${v('direction')} — ${v('project')||'work zone'}`;
-  const q=`subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(summaryText())}`+(cc?`&cc=${encodeURIComponent(cc)}`:'');
-  location.href=`mailto:${encodeURIComponent(to)}?${q}`; }
+  const body=summaryText();
+  // Copy the full text first so it's always available even if no mail app is set up.
+  if(navigator.clipboard) navigator.clipboard.writeText(body).catch(()=>{});
+  const q=`subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`+(cc?`&cc=${encodeURIComponent(cc)}`:'');
+  const mailto=`mailto:${to}?${q}`;
+  // location.href='mailto:' is blocked on file:// pages ("unsafe attempt to load URL"); an <a> click is reliable.
+  try{ const a=document.createElement('a'); a.href=mailto; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); }catch(e){}
+  // Always show a fallback: many machines have no default mail app for mailto: links.
+  const gmail=`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`+(cc?`&cc=${encodeURIComponent(cc)}`:'');
+  const alt=el('emailAlt');
+  if(alt){ alt.style.display='block';
+    alt.innerHTML=`<b>Mail app didn’t open?</b> The request text is <b>already copied</b> — paste it into a new email to <b>${to}</b>${cc?` (cc ${cc})`:''}. `+
+      `Or <a href="${gmail}" target="_blank" rel="noopener">open a Gmail draft ↗</a>.`; }
+  toast('Draft opened + request text copied to clipboard'); }
 function genPDF(){ const {jsPDF}=window.jspdf; const doc=new jsPDF({unit:'pt',format:'letter'}); const M=48; let y=54;
   doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.text('Iowa DOT — CARS 511 Work-Zone Request',M,y); y+=8;
   doc.setDrawColor(200); doc.line(M,y,564,y); y+=20; doc.setFontSize(10);
@@ -588,7 +601,8 @@ const PDF_MAP = {
   requestor:{p:0,x:44,top:370}, email:{p:0,x:310,top:370}, iwzYes:{p:0,x:57,top:414}, iwzNo:{p:0,x:98,top:414},
   rce:{p:0,x:46,top:468}, routeDir:{p:0,x:44,top:519}, project:{p:0,x:44,top:577}, description:{p:0,x:44,top:635},
   beginLoc:{p:0,x:44,top:681}, endLoc:{p:0,x:44,top:725},
-  counties:{p:1,x:44,top:67}, contactName:{p:1,x:178,top:108}, phone:{p:1,x:178,top:148}, impact:{p:1,x:46,top:200},
+  counties:{p:1,x:44,top:67}, contactName:{p:1,x:178,top:108}, phone:{p:1,x:178,top:148}, impact:{p:1,x:46,top:202},
+  addlInfo:{p:1,x:44,top:270},
   ohYes:{p:1,x:57,top:331}, ohNo:{p:1,x:98,top:331},
   beginDT:{p:1,x:246,top:365}, endDT:{p:1,x:236,top:404}, cont:{p:1,x:31,top:499}, wkdy:{p:1,x:105,top:499},
   nights:{p:1,x:261,top:499}, closureTimes:{p:1,x:330,top:532}, restrYes:{p:1,x:57,top:676}, restrNo:{p:1,x:95,top:676},
@@ -607,12 +621,27 @@ async function fillOfficial(){
     const font=await doc.embedFont(StandardFonts.Helvetica); const pages=doc.getPages(); const H=pages[0].getHeight();
     const put=(k,t,size=9)=>{ const m=PDF_MAP[k]; if(!m||t==null||t==='')return; pages[m.p].drawText(String(t),{x:m.x,y:H-m.top,size:m.size||size,font,color:rgb(0,0,0.6)}); };
     const X=k=>put(k,'X',11);
+    // white-out a flat placeholder band (dropdowns bake "Choose an…" text into the page)
+    const mask=(p,t1,t2,x=40,w=402)=>pages[p].drawRectangle({x,y:H-t2,width:w,height:t2-t1,color:rgb(1,1,1)});
+    // word-wrap for the multi-line "Additional project information" box
+    const wrap=(txt,size,maxW)=>{ const out=[]; let ln=''; for(const w of String(txt).split(/\s+/)){ const t=ln?ln+' '+w:w;
+      if(font.widthOfTextAtSize(t,size)>maxW&&ln){ out.push(ln); ln=w; } else ln=t; } if(ln)out.push(ln); return out; };
+    const putWrap=(k,t,{size=8,maxW=392,lh=10,maxLines=3}={})=>{ const m=PDF_MAP[k]; if(!m||!t)return;
+      let lines=wrap(t,size,maxW); if(lines.length>maxLines){ lines=lines.slice(0,maxLines); lines[maxLines-1]=lines[maxLines-1].replace(/.{0,2}$/,'…'); }
+      lines.forEach((line,i)=>pages[m.p].drawText(line,{x:m.x,y:H-m.top-i*lh,size,font,color:rgb(0,0,0.6)})); };
     put('requestor',v('requestor')); put('email',v('email'));
     (v('iwz')==='Yes')?X('iwzYes'):X('iwzNo');
-    put('rce',v('rce')); put('routeDir',(routeVal()+' '+v('direction')).trim()); put('project',v('project'));
+    mask(0,452,478); put('rce',v('rce'));
+    put('routeDir',(routeVal()+' '+v('direction')).trim()); put('project',v('project'));
     put('description',v('description')); put('beginLoc',v('beginLoc')); put('endLoc',v('endLoc')); put('counties',v('counties'));
     const c=v('contact24'); if(c){ const parts=c.split('/'); put('contactName',parts[0].trim()); if(parts[1])put('phone',parts[1].trim()); }
-    put('impact',v('impact')); (v('overhead')==='Yes')?X('ohYes'):X('ohNo');
+    mask(1,185,211); put('impact',v('impact')); (v('overhead')==='Yes')?X('ohYes'):X('ohNo');
+    // Official form has no field to list specific DMS signs → put them (and detour/oversize notes) in "Additional project information"
+    const addl=[];
+    if(v('dms')) addl.push(v('dms').replace(/^Requesting messaging on:\s*/i,'DMS requested: '));
+    if(v('detourNotes')) addl.push('Detour: '+v('detourNotes'));
+    if(v('oversize')&&v('oversize')!=='N/A') addl.push('Oversize: '+v('oversize'));
+    putWrap('addlInfo', addl.join('   ·   '));
     put('beginDT',fmtMDY(v('beginDT'))); put('endDT',fmtMDY(v('endDT')));
     const tp=v('schedPattern'); if(tp==='Continuous')X('cont'); if(tp==='Weekdays')X('wkdy'); if(tp==='Nights')X('nights');
     if(v('schedFrom')&&v('schedTo')) put('closureTimes',`${v('schedFrom')} - ${v('schedTo')}`);
