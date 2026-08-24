@@ -1158,6 +1158,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     </div>
     <div class="selinfo" id="selinfo">No segment selected yet — click the map to place the begin point.</div>
     <label class="chk"><input type="checkbox" id="autofill" checked /> Auto-fill road & county from the map (uses internet)</label>
+    <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanBridges()">🌉 Scan NBI clearances on segment</button>
+    <div class="schedList" id="nbiBox" style="display:none"></div>
 
     <fieldset>
       <legend>General</legend>
@@ -1223,6 +1225,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       </div>
       <label>Restriction timing</label>
       <select id="rTiming"><option>24 hours</option><option>Limited hours</option><option>None</option></select>
+      <label>Temporary overhead signals? (15′ standard height reference)</label>
+      <select id="overhead"><option>No</option><option>Yes</option></select>
     </fieldset>
 
     <fieldset>
@@ -1271,7 +1275,7 @@ let mode='begin', beginPt=null, endPt=null, beginMk=null, endMk=null, line=null,
 
 const FIELD_IDS = ['route','routeOther','direction','project','iwz','description','beginLoc','endLoc','counties',
   'requestor','email','contact24','impact','beginDT','endDT','timing','rWidth','rHeight','rWeight','rLength','rTiming',
-  'detour','oversize','detourNotes','techContact','dms','rce','rceEmail','schedPattern','schedWeeks','schedStart','schedFrom','schedTo'];
+  'detour','oversize','detourNotes','techContact','dms','rce','rceEmail','overhead','schedPattern','schedWeeks','schedStart','schedFrom','schedTo'];
 const el = id => document.getElementById(id);
 const v = id => (el(id) && el(id).value || '').trim();
 const toast = m => { const t=el('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); };
@@ -1405,12 +1409,41 @@ function resetAll(){ if(!confirm('Clear the form and pins? (Saved projects are k
   el('schedList').style.display='none'; el('selinfo').textContent='No segment selected yet — click the map to place the begin point.';
   onRouteChange(); setMode('begin'); saveState(); }
 
+// ---- NBI bridge clearances on the selected segment ----
+let NBI=null; let bridgeLayer=null;
+async function loadNBI(){ if(NBI) return NBI; try{ const r=await fetch('https://corridor-bridges.pages.dev/bridges.json'); const j=await r.json(); NBI=Array.isArray(j)?j:(j.bridges||[]); }catch(e){ NBI=[]; } return NBI; }
+function ftIn(f){ const ft=Math.floor(f); let inch=Math.round((f-ft)*12); let F=ft; if(inch===12){F++;inch=0;} return `${F} ft ${inch} in`; }
+function distToSegM(p,a,b){ const k=Math.cos(a.lat*Math.PI/180); const X=ll=>[ll.lng*k*111320, ll.lat*110574];
+  const P=X(p),A=X(a),B=X(b); const dx=B[0]-A[0],dy=B[1]-A[1]; const l2=dx*dx+dy*dy||1;
+  let t=((P[0]-A[0])*dx+(P[1]-A[1])*dy)/l2; t=Math.max(0,Math.min(1,t));
+  return Math.hypot(P[0]-(A[0]+t*dx), P[1]-(A[1]+t*dy)); }
+async function scanBridges(){ if(!beginPt||!endPt){ toast('Select a road segment (A→B) first'); return; }
+  toast('Scanning NBI…'); const all=await loadNBI(); const route=interstate(routeVal());
+  const near=all.filter(b=>{ const la=+b.latitude, lo=+b.longitude; if(!Number.isFinite(la)||!Number.isFinite(lo))return false;
+      if(route && interstate(b.route)!==route) return false;
+      return distToSegM({lat:la,lng:lo}, beginPt, endPt) <= 1000; })
+    .map(b=>({...b, clr:+b.clearance_feet})).filter(b=>Number.isFinite(b.clr)).sort((a,b)=>a.clr-b.clr);
+  if(bridgeLayer) bridgeLayer.remove(); bridgeLayer=L.layerGroup().addTo(map);
+  near.forEach(b=>{ const low=b.clr<15; L.marker([+b.latitude,+b.longitude],{icon:L.divIcon({className:'',html:
+    `<div style="background:${low?'#b45309':'#334155'};color:#fff;border:2px solid #fff;border-radius:5px;padding:1px 4px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.4)">🌉 ${ftIn(b.clr)}</div>`,iconSize:[60,18],iconAnchor:[30,9]})})
+    .bindPopup(`<b>${b.bridge_name||'Bridge'}</b><br>${b.route||''} — clearance ${ftIn(b.clr)}<br><span style="color:#888">NBI Item 54 · verified ${b.last_verified||'n/a'}</span>`).addTo(bridgeLayer); });
+  const box=el('nbiBox'); box.style.display='block';
+  if(!near.length){ box.innerHTML='No NBI low-clearance bridges on this segment'+(route?` (route ${route})`:'')+'. (Dataset = vertical clearances only; widths not in NBI feed.)'; return; }
+  const low=near[0];
+  box.innerHTML=`<b>${near.length} NBI bridge(s) on segment</b> — lowest <b>${ftIn(low.clr)}</b>:<br>`+
+    near.slice(0,8).map(b=>`${b.clr<15?'⚠️ ':''}${ftIn(b.clr)} — ${(b.bridge_name||'').slice(0,42)}`).join('<br>')+
+    `<br><button style="margin-top:6px;padding:6px 10px;border:1px solid #b45309;background:#fff7ed;color:#b45309;border-radius:6px;cursor:pointer;font-weight:600" onclick="applyNBI(${low.clr})">Use ${ftIn(low.clr)} as height restriction</button>`;
+  toast(`${near.length} bridges — lowest ${ftIn(low.clr)}`); }
+function applyNBI(clr){ el('rHeight').value=ftIn(clr); if(v('rTiming')==='None'||!v('rTiming'))el('rTiming').value='24 hours';
+  el('overhead').value = clr<15 ? 'Yes' : v('overhead')||'No'; saveState(); toast('Height restriction applied'); }
+
 // ---- fill the OFFICIAL Iowa CARS 511 PDF (coordinate overlay, verified) ----
 const PDF_MAP = {
   requestor:{p:0,x:44,top:370}, email:{p:0,x:310,top:370}, iwzYes:{p:0,x:57,top:414}, iwzNo:{p:0,x:98,top:414},
   rce:{p:0,x:46,top:468}, routeDir:{p:0,x:44,top:519}, project:{p:0,x:44,top:577}, description:{p:0,x:44,top:635},
   beginLoc:{p:0,x:44,top:681}, endLoc:{p:0,x:44,top:725},
   counties:{p:1,x:44,top:67}, contactName:{p:1,x:178,top:108}, phone:{p:1,x:178,top:148}, impact:{p:1,x:46,top:200},
+  ohYes:{p:1,x:57,top:331}, ohNo:{p:1,x:98,top:331},
   beginDT:{p:1,x:246,top:365}, endDT:{p:1,x:236,top:404}, cont:{p:1,x:31,top:499}, wkdy:{p:1,x:105,top:499},
   nights:{p:1,x:261,top:499}, closureTimes:{p:1,x:330,top:532}, restrYes:{p:1,x:57,top:676}, restrNo:{p:1,x:95,top:676},
   detourYes:{p:2,x:57,top:58}, detourNo:{p:2,x:87,top:58}, dmsYes:{p:2,x:57,top:179}, dmsNo:{p:2,x:87,top:179}
@@ -1433,7 +1466,8 @@ async function fillOfficial(){
     put('rce',v('rce')); put('routeDir',(routeVal()+' '+v('direction')).trim()); put('project',v('project'));
     put('description',v('description')); put('beginLoc',v('beginLoc')); put('endLoc',v('endLoc')); put('counties',v('counties'));
     const c=v('contact24'); if(c){ const parts=c.split('/'); put('contactName',parts[0].trim()); if(parts[1])put('phone',parts[1].trim()); }
-    put('impact',v('impact')); put('beginDT',fmtMDY(v('beginDT'))); put('endDT',fmtMDY(v('endDT')));
+    put('impact',v('impact')); (v('overhead')==='Yes')?X('ohYes'):X('ohNo');
+    put('beginDT',fmtMDY(v('beginDT'))); put('endDT',fmtMDY(v('endDT')));
     const tp=v('schedPattern'); if(tp==='Continuous')X('cont'); if(tp==='Weekdays')X('wkdy'); if(tp==='Nights')X('nights');
     if(v('schedFrom')&&v('schedTo')) put('closureTimes',`${v('schedFrom')} - ${v('schedTo')}`);
     (['rWidth','rHeight','rWeight','rLength'].some(id=>v(id)))?X('restrYes'):X('restrNo');
