@@ -1283,19 +1283,22 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 </div>
 <div id="sdModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:5000;align-items:center;justify-content:center;padding:16px" onclick="el('sdModal').style.display='none'">
   <div style="background:#fff;max-width:470px;border-radius:10px;padding:18px" onclick="event.stopPropagation()">
-    <div style="font-weight:700;color:var(--brand-navy);font-size:15px;margin-bottom:8px">🔗 Auto-fill the SeamlessDocs 511 form</div>
+    <div style="font-weight:700;color:var(--brand-navy);font-size:15px;margin-bottom:8px">🔗 Fill the SeamlessDocs 511 form</div>
+    <div style="font-size:12px;background:#e6f0f3;border-radius:6px;padding:7px 9px;margin-bottom:8px">
+      <b>One-time setup:</b> drag this to your bookmarks bar → <a id="sdBm" href="#" style="font-weight:700;color:var(--accent);text-decoration:none">📌&nbsp;Fill&nbsp;511&nbsp;form</a> &nbsp;<span style="color:#64748b">(do this once)</span>
+    </div>
     <ol style="font-size:13px;color:#334155;padding-left:18px;line-height:1.6;margin:0 0 8px">
-      <li><b>Drag</b> this to your bookmarks bar → <a id="sdBm" href="#" style="font-weight:700;color:var(--accent);text-decoration:none">📌 Fill 511 form</a></li>
-      <li>Open the <a href="https://iowadot.seamlessdocs.com/f/Cars511RequestForm" target="_blank" rel="noopener">official SeamlessDocs 511 form</a>.</li>
-      <li>Click the <b>📌 Fill 511 form</b> bookmark → text fields fill from your entries.</li>
+      <li>Click <b>📋 Copy data + open form</b> below (copies your entries, opens the 511 form).</li>
+      <li>On the form, click your <b>📌 Fill 511 form</b> bookmark → the text fields fill.</li>
     </ol>
     <div style="font-size:12px;color:#b45309;background:#fff7ed;border-radius:6px;padding:6px 8px;margin-bottom:10px">
-      Beta: matches fields by label, so it fills <b>text fields only</b> — it can't set Yes/No, checkboxes, or file uploads. Set those manually and <b>review every field before submitting</b>. (If a field doesn't fill, SeamlessDocs changed its layout — use “📋 Copy” to paste.)
+      Fills <b>text fields</b> (route, dates, locations, county, contact, restrictions…). Set the <b>Yes/No, dropdowns (impact, RCE office, direction) and file uploads</b> yourself, and <b>review before submitting</b>.
     </div>
     <div style="display:flex;gap:8px">
-      <button class="ghost" onclick="copyBm()" style="flex:1;padding:8px;border-radius:6px;cursor:pointer">📋 Copy bookmark code</button>
-      <button class="primary" onclick="el('sdModal').style.display='none'" style="flex:1;padding:8px;border-radius:6px;border:none;cursor:pointer">Done</button>
+      <button class="primary" onclick="copyAndOpen()" style="flex:2;padding:9px;border-radius:6px;border:none;cursor:pointer;font-weight:700">📋 Copy data + open form</button>
+      <button class="ghost" onclick="el('sdModal').style.display='none'" style="flex:1;padding:9px;border-radius:6px;cursor:pointer">Done</button>
     </div>
+    <div style="font-size:11px;color:#94a3b8;margin-top:6px">Can’t drag? <a href="#" onclick="copyBm();return false">copy the bookmark code</a> and make a new bookmark with it.</div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -1699,15 +1702,20 @@ function seamlessFill(){
     ['District Traffic Tech name Text Box', (tc[0]||'').trim()],
     ['District Traffic Tech phone Text Box', (tc[1]||'').trim()]
   ].filter(p=>p[1]);
-  // Fill routine (runs ON the SeamlessDocs page): exact aria-label match on .doc_field inputs.
-  const fill = "(function(){var D="+JSON.stringify(map)+";"+
+  // Data is carried via the clipboard; the bookmarklet (installed ONCE) reads it and fills.
+  window.__sdData = JSON.stringify(map);
+  const bm = "javascript:(function(){navigator.clipboard.readText().then(function(t){var D;try{D=JSON.parse(t)}catch(e){alert('In the CARS 511 builder, click \\u2018Copy data + open form\\u2019 first.');return;}"+
     "function set(i,val){try{var p=i.tagName=='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(p,'value').set.call(i,val);['input','keyup','change','blur'].forEach(function(e){i.dispatchEvent(new Event(e,{bubbles:true}))})}catch(e){}}"+
     "var F=[].slice.call(document.querySelectorAll('input.doc_field,textarea.doc_field'));var c=0;"+
     "D.forEach(function(p){var el=F.find(function(x){return (x.getAttribute('aria-label')||'')===p[0];});if(el){set(el,p[1]);c++;}});"+
-    "alert('511 auto-fill: '+c+' of '+D.length+' fields set. Set the Yes/No, dropdowns (impact, RCE office, travel direction) and file uploads manually, then review before submitting.')})()";
-  window.__bm = 'javascript:'+fill;
-  el('sdBm').href = window.__bm;
+    "alert('511 auto-fill: '+c+' of '+D.length+' fields set. Set Yes/No, dropdowns and uploads manually, then review.');}).catch(function(){alert('Allow clipboard access for this bookmark (or use Copy data first).')})})()";
+  window.__bm = bm; el('sdBm').href = bm;
   el('sdModal').style.display='flex';
+}
+function copyAndOpen(){ if(!window.__sdData){ toast('Fill some fields first'); return; }
+  const open=()=>window.open('https://iowadot.seamlessdocs.com/f/Cars511RequestForm','_blank');
+  navigator.clipboard.writeText(window.__sdData).then(()=>{ open(); toast('Data copied — on the form, click your 📌 Fill 511 form bookmark'); })
+    .catch(()=>{ open(); toast('Form opened — allow clipboard, then click the bookmark'); });
 }
 function copyBm(){ if(window.__bm) navigator.clipboard.writeText(window.__bm).then(()=>toast('Bookmark code copied — make a new bookmark, paste as the URL')); }
 
