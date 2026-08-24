@@ -164,21 +164,23 @@
     </fieldset>
 
     <fieldset>
-      <legend>Send to</legend>
-      <label>RCE / District office</label>
+      <legend>Submit to</legend>
+      <label>Traffic Management Center — primary recipient</label>
+      <input id="tmcEmail" value="IowaDOT.Traffic@iowadot.us" />
+      <label>RCE / District office (copied)</label>
       <select id="rce">
         <option>District 1 (Ames)</option><option>District 2 (Mason City)</option><option>District 3 (Sioux City)</option>
         <option>District 4 (Atlantic)</option><option>District 5 (Fairfield)</option><option>District 6 (Cedar Rapids)</option>
       </select>
-      <label>RCE email (remembered)</label>
+      <label>RCE email — cc (remembered)</label>
       <input id="rceEmail" placeholder="rce.office@iowadot.us" />
-      <div class="hint">Official form: <a href="https://iowadot.seamlessdocs.com/f/Cars511RequestForm" target="_blank" rel="noopener">SeamlessDocs CARS 511</a> · <a href="/dotnet/construct/docs/511RCE.pdf" target="_blank" rel="noopener">help doc</a></div>
+      <div class="hint">Requests go to the TMC and <b>cc the RCE</b>. TMC: 515-237-3300 · Official form: <a href="https://iowadot.seamlessdocs.com/f/Cars511RequestForm" target="_blank" rel="noopener">SeamlessDocs CARS 511</a> · <a href="/dotnet/construct/docs/511RCE.pdf" target="_blank" rel="noopener">help doc</a></div>
     </fieldset>
 
     <div class="actions">
       <button class="primary" onclick="fillOfficial()">📝 Fill official 511 PDF</button>
       <button class="primary" onclick="seamlessFill()">🔗 Auto-fill site form</button>
-      <button class="ghost" onclick="emailRCE()">✉️ Email to RCE</button>
+      <button class="ghost" onclick="emailRCE()">✉️ Email TMC (cc RCE)</button>
       <button class="ghost" onclick="genPDF()">📄 Summary PDF</button>
       <button class="ghost" onclick="copySummary()">📋 Copy</button>
       <button class="ghost" onclick="resetAll()">🗑 New</button>
@@ -217,7 +219,7 @@ let detourPts=[], detourLine=null, detourMks=[];
 
 const FIELD_IDS = ['route','routeOther','direction','project','iwz','description','beginLoc','endLoc','counties',
   'requestor','email','contact24','impact','beginDT','endDT','timing','rWidth','rHeight','rWeight','rLength','rTiming',
-  'detour','oversize','detourNotes','techContact','dms','rce','rceEmail','overhead','schedPattern','schedWeeks','schedStart','schedFrom','schedTo'];
+  'detour','oversize','detourNotes','techContact','dms','rce','rceEmail','tmcEmail','overhead','schedPattern','schedWeeks','schedStart','schedFrom','schedTo'];
 const el = id => document.getElementById(id);
 const v = id => (el(id) && el(id).value || '').trim();
 const toast = m => { const t=el('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); };
@@ -354,14 +356,17 @@ function fields(){ const seg=(beginPt&&endPt)?`${dirLabel(bearing(beginPt,endPt)
     ['Traffic impact',v('impact')],['Schedule pattern',v('schedPattern')],['Begin',fmtDT(v('beginDT'))],['End',fmtDT(v('endDT'))],
     ['Width restriction',v('rWidth')],['Height restriction',v('rHeight')],['Weight restriction',v('rWeight')],['Length restriction',v('rLength')],
     ['Restriction timing',v('rTiming')],['Marked detour',v('detour')],['Oversize allowed',v('oversize')],['Detour notes',v('detourNotes')],
-    ['Traffic technician',v('techContact')],['DMS request',v('dms')],['Send to (RCE)',v('rce')] ]; }
+    ['Traffic technician',v('techContact')],['DMS request',v('dms')],
+    ['Submit to (TMC)',v('tmcEmail')||'IowaDOT.Traffic@iowadot.us'],['RCE (cc)',v('rce')] ]; }
 function scheduleText(){ return schedule.length ? '\n\nSCHEDULE ('+schedule.length+' occurrences):\n'+schedule.map(o=>'  • '+o.label).join('\n') : ''; }
 function detourText(){ return detourPts.length>=2 ? `\n\nDETOUR: ${detourPts.length} points, ~${detourMiles().toFixed(1)} mi\n  Map: ${gmapsDetour()}` : ''; }
 function summaryText(){ return 'IOWA DOT — CARS 511 WORK-ZONE REQUEST\n'+'='.repeat(42)+'\n'+
   fields().map(([k,val])=>`${k}: ${val||'—'}`).join('\n')+scheduleText()+detourText()+'\n\n(Built with the CARS 511 Request Builder — review before submitting.)'; }
 function copySummary(){ navigator.clipboard.writeText(summaryText()).then(()=>toast('Summary copied')); }
-function emailRCE(){ const to=v('rceEmail'); const subj=`CARS 511 Request — ${routeVal()} ${v('direction')} — ${v('project')||'work zone'}`;
-  if(!to) toast('Tip: set the RCE email to pre-fill To:'); location.href=`mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(summaryText())}`; }
+function emailRCE(){ const to=v('tmcEmail')||'IowaDOT.Traffic@iowadot.us'; const cc=v('rceEmail');
+  const subj=`CARS 511 Request — ${routeVal()} ${v('direction')} — ${v('project')||'work zone'}`;
+  const q=`subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(summaryText())}`+(cc?`&cc=${encodeURIComponent(cc)}`:'');
+  location.href=`mailto:${encodeURIComponent(to)}?${q}`; }
 function genPDF(){ const {jsPDF}=window.jspdf; const doc=new jsPDF({unit:'pt',format:'letter'}); const M=48; let y=54;
   doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.text('Iowa DOT — CARS 511 Work-Zone Request',M,y); y+=8;
   doc.setDrawColor(200); doc.line(M,y,564,y); y+=20; doc.setFontSize(10);
