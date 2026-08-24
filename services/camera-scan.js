@@ -40,8 +40,22 @@ async function scanActive(events, opts = {}) {
     if (cv.isActiveNow(ev) !== true) continue;               // WZDx says active now
     const id = ev.id || ev.road_event_id;
     if (!id) continue;
-    const led = ledger.get(id);
+    const led = await ledger.get(id);
     if (led && led.tc_removed) continue;                     // camera already saw TC removed — done
+
+    // FREE re-stamp: a previously-confirmed zone stays camera-verified across cache rebuilds.
+    // The x_camera_* fields live on the transient event object; the ledger is the source of
+    // truth, so re-apply them every scan with no new vision call. (This is what makes the
+    // Validated Work Zones layer persist — the flag is otherwise wiped on each refresh.)
+    if (led && led.seen) {
+      ev.x_camera_verified = true;
+      if (led.devices) { try { ev.x_camera_detected = JSON.parse(led.devices); } catch (_) { /* ignore */ } }
+      ev.x_camera_checked_at = led.detected_at || led.last_check_at;
+      if (led.camera_url) ev.x_camera_url = led.camera_url;
+      if (led.camera_id) ev.x_camera_id = led.camera_id;
+      if (!ev.x_zone_activity || ev.x_zone_activity === 'suspect-inactive') ev.x_zone_activity = 'confirmed-active';
+    }
+
     if (led && led.checks >= 2 && !led.seen) continue;       // gave up (never confirmed at start)
 
     // Decide which check (if any) is due.
@@ -74,7 +88,7 @@ async function scanActive(events, opts = {}) {
     if (!det.available) continue;                            // vision off/unconfigured → don't burn a check
     checked++;
     const seen = !!det.work_zone;
-    ledger.record(id, { phase, seen });
+    await ledger.record(id, { phase, seen, camera: m.camera.id, cameraUrl: m.camera.imageUrl, devices: det.devices, detectedAt: det.checkedAt });
     if (seen) {
       ev.x_camera_verified = true;
       ev.x_camera_detected = det.devices;

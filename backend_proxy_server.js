@@ -6135,6 +6135,22 @@ app.get('/api/cwz/events', async (req, res) => {
   await ensureDeviceMatch(); // experimental: elevate events on open, not on the shared refresh
   try {
     const cwz = require('./services/cwz-roadevent-feed');
+    // Re-stamp camera-verified from the durable ledger. The x_camera_* flags live on the
+    // transient event cache (wiped each refresh); the ledger is the source of truth, so
+    // re-apply for free on open — no vision call. This is what persists camera validation.
+    try {
+      const verified = await require('./services/camera-check-ledger').verifiedMap();
+      for (const e of (eventsCache.data?.events || [])) {
+        const v = verified[e.id];
+        if (!v) continue;
+        e.x_camera_verified = true;
+        if (v.camera_url) e.x_camera_url = v.camera_url;
+        if (v.camera_id) e.x_camera_id = v.camera_id;
+        if (v.devices) { try { e.x_camera_detected = JSON.parse(v.devices); } catch (_) { /* ignore */ } }
+        e.x_camera_checked_at = v.detected_at || e.x_camera_checked_at;
+        if (!e.x_zone_activity || e.x_zone_activity === 'suspect-inactive') e.x_zone_activity = 'confirmed-active';
+      }
+    } catch (_) { /* ledger optional */ }
     // Elevated = device-verified (connected board) OR camera-verified (a camera saw the zone).
     const connected = (eventsCache.data?.events || []).filter(e => e.x_cwz_connected || e.x_camera_verified);
     res.set('Content-Type', 'application/json');
