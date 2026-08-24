@@ -71,6 +71,12 @@
     <label class="chk"><input type="checkbox" id="autofill" checked /> Auto-fill road & county from the map (uses internet)</label>
     <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanBridges()">🌉 Scan NBI clearances on segment</button>
     <div class="schedList" id="nbiBox" style="display:none"></div>
+    <div class="mapbtns" style="margin-top:8px">
+      <button id="btnDetour" onclick="setMode('detour')">✏️ Draw detour</button>
+      <button onclick="undoDetour()">↶ Undo pt</button>
+      <button onclick="clearDetour()">✕ Clear</button>
+    </div>
+    <div class="selinfo" id="detourInfo" style="display:none"></div>
 
     <fieldset>
       <legend>General</legend>
@@ -183,6 +189,7 @@ const map = L.map('map').setView([41.85, -93.5], 7);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap' }).addTo(map);
 
 let mode='begin', beginPt=null, endPt=null, beginMk=null, endMk=null, line=null, schedule=[];
+let detourPts=[], detourLine=null, detourMks=[];
 
 const FIELD_IDS = ['route','routeOther','direction','project','iwz','description','beginLoc','endLoc','counties',
   'requestor','email','contact24','impact','beginDT','endDT','timing','rWidth','rHeight','rWeight','rLength','rTiming',
@@ -192,26 +199,29 @@ const v = id => (el(id) && el(id).value || '').trim();
 const toast = m => { const t=el('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); };
 
 // ---- persistence (remembers fields + saved projects) ----
-function saveState(){ const s={pts:{beginPt,endPt}}; FIELD_IDS.forEach(id=>{ if(el(id)) s[id]=el(id).value; }); localStorage.setItem('cars511_state', JSON.stringify(s)); }
+function saveState(){ const s={pts:{beginPt,endPt,detourPts}}; FIELD_IDS.forEach(id=>{ if(el(id)) s[id]=el(id).value; }); localStorage.setItem('cars511_state', JSON.stringify(s)); }
 function loadState(){ try{ const s=JSON.parse(localStorage.getItem('cars511_state')||'{}');
   FIELD_IDS.forEach(id=>{ if(el(id)&&s[id]!=null) el(id).value=s[id]; });
   if(s.pts&&s.pts.beginPt){ beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng); if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng); redraw(); }
+  if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){ detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng)); drawDetour(); }
 }catch(e){} }
 function projects(){ try{ return JSON.parse(localStorage.getItem('cars511_projects')||'[]'); }catch(e){ return []; } }
 function renderProjects(){ const sel=el('projPicker'); sel.innerHTML='<option value="">↺ Saved projects…</option>'+
   projects().map(p=>`<option value="${p.name.replace(/"/g,'&quot;')}">${p.name}</option>`).join(''); }
 function saveProject(){ const name=prompt('Save this project as:'); if(!name) return; const list=projects().filter(p=>p.name!==name);
   const data={}; FIELD_IDS.forEach(id=>{ if(el(id)) data[id]=el(id).value; });
-  list.push({name, when:new Date().toISOString(), data, beginPt, endPt}); localStorage.setItem('cars511_projects',JSON.stringify(list));
+  list.push({name, when:new Date().toISOString(), data, beginPt, endPt, detourPts}); localStorage.setItem('cars511_projects',JSON.stringify(list));
   renderProjects(); toast('Saved "'+name+'"'); }
 function loadProject(name){ const p=projects().find(x=>x.name===name); if(!p) return;
   FIELD_IDS.forEach(id=>{ if(el(id)&&p.data[id]!=null) el(id).value=p.data[id]; });
   beginPt = p.beginPt?L.latLng(p.beginPt.lat,p.beginPt.lng):null; endPt = p.endPt?L.latLng(p.endPt.lat,p.endPt.lng):null;
-  redraw(); onRouteChange(); saveState(); toast('Loaded "'+name+'"'); }
+  detourPts = Array.isArray(p.detourPts)?p.detourPts.map(q=>L.latLng(q.lat,q.lng)):[];
+  redraw(); drawDetour(); onRouteChange(); saveState(); toast('Loaded "'+name+'"'); }
 
 // ---- map selection ----
 function setMode(m){ mode=m; el('btnBegin').classList.toggle('active',m==='begin'); el('btnEnd').classList.toggle('active',m==='end');
-  el('maphint').innerHTML=`Click the road to set the <b>${m}</b> point`; }
+  const bd=el('btnDetour'); if(bd) bd.classList.toggle('active',m==='detour');
+  el('maphint').innerHTML = m==='detour' ? 'Click to trace the <b>detour</b> route (add multiple points)' : `Click the road to set the <b>${m}</b> point`; }
 function mk(latlng,label,color){ return L.marker(latlng,{icon:L.divIcon({className:'',html:
   `<div style="background:${color};color:#fff;border:2px solid #fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.4)">${label}</div>`,
   iconSize:[24,24],iconAnchor:[12,12]})}).addTo(map); }
@@ -233,10 +243,32 @@ function refresh(){ const info=el('selinfo');
   else if(beginPt){ info.innerHTML=`Begin set. Now click <b>END</b>.`; setMode('end'); }
   saveState(); }
 
-map.on('click', e=>{ if(mode==='begin'){ beginPt=e.latlng; if(beginMk)beginMk.remove(); beginMk=mk(e.latlng,'A','#1d4ed8'); }
+map.on('click', e=>{
+  if(mode==='detour'){ detourPts.push(e.latlng); if(v('detour')!=='Yes') el('detour').value='Yes'; drawDetour(); saveState(); return; }
+  if(mode==='begin'){ beginPt=e.latlng; if(beginMk)beginMk.remove(); beginMk=mk(e.latlng,'A','#1d4ed8'); }
   else { endPt=e.latlng; if(endMk)endMk.remove(); endMk=mk(e.latlng,'B','#dc2626'); }
   if(beginPt&&endPt){ if(line)line.remove(); line=L.polyline([beginPt,endPt],{color:'#dc2626',weight:6,opacity:.8}).addTo(map); }
   refresh(); reverseFill(e.latlng, mode==='begin'?'begin':'end'); });
+
+// ---- detour route drawing ----
+function drawDetour(){ if(detourLine){detourLine.remove();detourLine=null;} detourMks.forEach(x=>x.remove()); detourMks=[];
+  detourPts.forEach((p,i)=>detourMks.push(L.circleMarker(p,{radius:4,color:'#7c3aed',weight:2,fillColor:'#fff',fillOpacity:1}).bindTooltip(String(i+1),{permanent:false}).addTo(map)));
+  if(detourPts.length>=2) detourLine=L.polyline(detourPts,{color:'#7c3aed',weight:4,opacity:.9,dashArray:'8,6'}).addTo(map);
+  let mi=0; for(let i=1;i<detourPts.length;i++) mi+=miles(detourPts[i-1],detourPts[i]);
+  const info=el('detourInfo');
+  if(!detourPts.length){ info.style.display='none'; return; }
+  info.style.display='block';
+  info.innerHTML=`<b>Detour:</b> ${detourPts.length} pts, ~${mi.toFixed(1)} mi`+
+    (detourPts.length>=2?` &nbsp; <a href="#" onclick="exportDetour();return false">⬇ GeoJSON</a> &nbsp; <a href="${gmapsDetour()}" target="_blank" rel="noopener">🗺 Google Maps</a>`:''); }
+function undoDetour(){ detourPts.pop(); drawDetour(); saveState(); }
+function clearDetour(){ detourPts=[]; drawDetour(); saveState(); }
+function detourMiles(){ let mi=0; for(let i=1;i<detourPts.length;i++) mi+=miles(detourPts[i-1],detourPts[i]); return mi; }
+function gmapsDetour(){ return 'https://www.google.com/maps/dir/'+detourPts.map(p=>`${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join('/'); }
+function exportDetour(){ const fc={type:'FeatureCollection',features:[]};
+  if(beginPt&&endPt) fc.features.push({type:'Feature',properties:{role:'work-zone',route:routeVal(),direction:v('direction')},geometry:{type:'LineString',coordinates:[[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]]}});
+  if(detourPts.length>=2) fc.features.push({type:'Feature',properties:{role:'detour',length_mi:+detourMiles().toFixed(1)},geometry:{type:'LineString',coordinates:detourPts.map(p=>[p.lng,p.lat])}});
+  const blob=new Blob([JSON.stringify(fc,null,2)],{type:'application/geo+json'}); const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=`CARS511_detour_${(routeVal()||'route').replace(/\W+/g,'')}.geojson`; a.click(); toast('Detour GeoJSON downloaded'); }
 
 // ---- snap / auto-fill road + county via reverse geocode ----
 async function reverseFill(latlng, which){ if(!el('autofill').checked) return;
@@ -300,8 +332,9 @@ function fields(){ const seg=(beginPt&&endPt)?`${dirLabel(bearing(beginPt,endPt)
     ['Restriction timing',v('rTiming')],['Marked detour',v('detour')],['Oversize allowed',v('oversize')],['Detour notes',v('detourNotes')],
     ['Traffic technician',v('techContact')],['DMS request',v('dms')],['Send to (RCE)',v('rce')] ]; }
 function scheduleText(){ return schedule.length ? '\n\nSCHEDULE ('+schedule.length+' occurrences):\n'+schedule.map(o=>'  • '+o.label).join('\n') : ''; }
+function detourText(){ return detourPts.length>=2 ? `\n\nDETOUR: ${detourPts.length} points, ~${detourMiles().toFixed(1)} mi\n  Map: ${gmapsDetour()}` : ''; }
 function summaryText(){ return 'IOWA DOT — CARS 511 WORK-ZONE REQUEST\n'+'='.repeat(42)+'\n'+
-  fields().map(([k,val])=>`${k}: ${val||'—'}`).join('\n')+scheduleText()+'\n\n(Built with the CARS 511 Request Builder — review before submitting.)'; }
+  fields().map(([k,val])=>`${k}: ${val||'—'}`).join('\n')+scheduleText()+detourText()+'\n\n(Built with the CARS 511 Request Builder — review before submitting.)'; }
 function copySummary(){ navigator.clipboard.writeText(summaryText()).then(()=>toast('Summary copied')); }
 function emailRCE(){ const to=v('rceEmail'); const subj=`CARS 511 Request — ${routeVal()} ${v('direction')} — ${v('project')||'work zone'}`;
   if(!to) toast('Tip: set the RCE email to pre-fill To:'); location.href=`mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(summaryText())}`; }
@@ -317,6 +350,7 @@ function genPDF(){ const {jsPDF}=window.jspdf; const doc=new jsPDF({unit:'pt',fo
 function resetAll(){ if(!confirm('Clear the form and pins? (Saved projects are kept.)')) return;
   FIELD_IDS.forEach(id=>{ if(el(id)) el(id).value = el(id).tagName==='SELECT'?el(id).options[0].value:''; });
   [beginMk,endMk,line].forEach(x=>x&&x.remove()); beginPt=endPt=beginMk=endMk=line=null; schedule=[];
+  detourPts=[]; drawDetour();
   el('schedList').style.display='none'; el('selinfo').textContent='No segment selected yet — click the map to place the begin point.';
   onRouteChange(); setMode('begin'); saveState(); }
 
