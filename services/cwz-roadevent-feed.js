@@ -57,10 +57,12 @@ function buildFeed(events, opts = {}) {
     if (ev.description || ev.location) core.description = ev.description || ev.location;
     core.name = ev.id;
 
-    // Verification source: device telemetry, camera vision, or both.
+    // Verification source: device telemetry, camera vision, and/or independent
+    // corroboration from a non-DOT source (TomTom construction/closure at the zone).
     const src = [];
     if (ev.x_cwz_connected) src.push('device');
     if (ev.x_camera_verified) src.push('camera');
+    if (ev.x_tomtom_corroborated) src.push('tomtom');
     const props = {
       core_details: core,
       vehicle_impact: vehicleImpact(ev),
@@ -81,6 +83,12 @@ function buildFeed(events, opts = {}) {
       props.x_camera_checked_at = ev.x_camera_checked_at;
       props.x_camera_url = ev.x_camera_url || null;   // live snapshot of the zone
       props.x_camera_id = ev.x_camera_id || null;
+    }
+    if (ev.x_tomtom_corroborated) {
+      props.x_tomtom_corroborated = true;
+      props.x_tomtom_category = ev.x_tomtom_category || null;   // Road works / Lane closed / Road closed
+      props.x_tomtom_distance_m = ev.x_tomtom_distance_m ?? null;
+      if (ev.x_tomtom_delay_s != null) props.x_tomtom_delay_s = ev.x_tomtom_delay_s;
     }
     features.push({ id: ev.id, type: 'Feature', properties: props, geometry: geom });
   }

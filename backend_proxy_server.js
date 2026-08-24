@@ -6151,8 +6151,21 @@ app.get('/api/cwz/events', async (req, res) => {
         if (!e.x_zone_activity || e.x_zone_activity === 'suspect-inactive') e.x_zone_activity = 'confirmed-active';
       }
     } catch (_) { /* ledger optional */ }
-    // Elevated = device-verified (connected board) OR camera-verified (a camera saw the zone).
-    const connected = (eventsCache.data?.events || []).filter(e => e.x_cwz_connected || e.x_camera_verified);
+    // Independent secondary corroboration: TomTom (commercial, non-DOT) construction/closure
+    // near a zone confirms it from a source that never touches the WZDx feed. Lazy + free —
+    // reuses the cached TomTom incident set (background-refresh if stale, block only on cold).
+    try {
+      const age = tomtomCache.timestamp ? Date.now() - tomtomCache.timestamp : Infinity;
+      if (age === Infinity) { await refreshTomTomIncidents(); }
+      else if (age > tomtomCache.ttl && !tomtomCache.isRefreshing) { refreshTomTomIncidents(); }
+      const tt = tomtomCache.data;
+      if (tt && Array.isArray(tt.incidents)) {
+        require('./services/tomtom-corroboration').corroborate(eventsCache.data?.events || [], tt.incidents);
+      }
+    } catch (_) { /* corroboration optional */ }
+    // Elevated = device-verified (connected board) OR camera-verified (a camera saw the zone)
+    // OR independently corroborated by TomTom (a non-DOT source reports the same work zone).
+    const connected = (eventsCache.data?.events || []).filter(e => e.x_cwz_connected || e.x_camera_verified || e.x_tomtom_corroborated);
     res.set('Content-Type', 'application/json');
     res.json(cwz.buildFeed(connected));
   } catch (err) {
