@@ -1315,6 +1315,7 @@ const FIELD_IDS = ['route','routeOther','direction','project','iwz','description
 const el = id => document.getElementById(id);
 const v = id => (el(id) && el(id).value || '').trim();
 const toast = m => { const t=el('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); };
+const interstate = s => { const m=String(s||'').toUpperCase().match(/\bI[-\s]?(\d{1,3})\b/); return m ? 'I-'+parseInt(m[1],10) : null; };
 
 // ---- persistence (remembers fields + saved projects) ----
 function saveState(){ const s={pts:{beginPt,endPt,detourPts}}; FIELD_IDS.forEach(id=>{ if(el(id)) s[id]=el(id).value; }); localStorage.setItem('cars511_state', JSON.stringify(s)); }
