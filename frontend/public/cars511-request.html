@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CARS 511 Work-Zone Request Builder</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --ink:#0f172a; --sub:#64748b; --line:#e2e8f0; --bg:#f1f5f9; --panel:#fff;
+    --accent:#1d4ed8; --accent-soft:#eff6ff; --good:#15803d;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); background:var(--bg); height:100vh; display:flex; flex-direction:column; }
+  header { background:var(--panel); border-bottom:1px solid var(--line); padding:10px 18px; display:flex; align-items:baseline; gap:12px; }
+  header h1 { font-size:16px; margin:0; }
+  header .sub { color:var(--sub); font-size:12px; }
+  .wrap { flex:1; display:flex; min-height:0; }
+  .form { width:440px; max-width:46vw; overflow-y:auto; background:var(--panel); border-right:1px solid var(--line); padding:14px 16px; }
+  #map { flex:1; }
+  fieldset { border:1px solid var(--line); border-radius:8px; margin:0 0 12px; padding:10px 12px; }
+  legend { font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.4px; color:var(--accent); padding:0 4px; }
+  label { display:block; font-size:12px; color:var(--sub); margin:8px 0 2px; }
+  input, select, textarea { width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-size:13px; font-family:inherit; background:#fff; }
+  textarea { resize:vertical; min-height:44px; }
+  .row { display:flex; gap:8px; }
+  .row > div { flex:1; }
+  .hint { font-size:11px; color:var(--sub); margin-top:3px; }
+  .mapbtns { display:flex; gap:6px; margin-bottom:8px; }
+  .mapbtns button { flex:1; padding:8px; border:1px solid var(--line); background:#fff; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; }
+  .mapbtns button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .selinfo { background:var(--accent-soft); border-radius:6px; padding:6px 8px; font-size:12px; margin-bottom:8px; }
+  .actions { position:sticky; bottom:0; background:var(--panel); border-top:1px solid var(--line); padding:10px 0 2px; display:flex; gap:8px; flex-wrap:wrap; }
+  .actions button { flex:1; min-width:120px; padding:9px; border-radius:7px; border:none; cursor:pointer; font-weight:700; font-size:13px; }
+  .primary { background:var(--accent); color:#fff; }
+  .ghost { background:#f1f5f9; color:var(--ink); border:1px solid var(--line)!important; }
+  .maphint { position:absolute; z-index:500; top:10px; left:50px; background:rgba(255,255,255,.94); border:1px solid var(--line);
+    border-radius:8px; padding:6px 10px; font-size:12px; box-shadow:0 2px 8px rgba(0,0,0,.12); pointer-events:none; }
+  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--good); color:#fff;
+    padding:9px 16px; border-radius:8px; font-size:13px; opacity:0; transition:opacity .2s; z-index:1000; }
+  .toast.show { opacity:1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🚧 CARS 511 Work-Zone Request Builder</h1>
+  <span class="sub">Click the road to mark the work zone, fill the details, then generate the Iowa DOT CARS 511 request. Review before sending.</span>
+</header>
+<div class="wrap">
+  <div class="form" id="form">
+    <div class="mapbtns">
+      <button id="btnBegin" class="active" onclick="setMode('begin')">① Set BEGIN on map</button>
+      <button id="btnEnd" onclick="setMode('end')">② Set END on map</button>
+    </div>
+    <div class="selinfo" id="selinfo">No segment selected yet — click the map to place the begin point.</div>
+
+    <fieldset>
+      <legend>General</legend>
+      <div class="row">
+        <div><label>Route</label>
+          <select id="route">
+            <option value="">— select —</option>
+            <option>I-80</option><option>I-35</option><option>I-29</option><option>I-235</option>
+            <option>I-380</option><option>I-280</option><option>I-680</option><option>I-129</option>
+            <option value="__other">Other (type below)</option>
+          </select>
+        </div>
+        <div><label>Direction</label><input id="direction" placeholder="auto from map" /></div>
+      </div>
+      <input id="routeOther" placeholder="e.g. US-30, IA-1" style="margin-top:6px;display:none" />
+      <div class="row">
+        <div><label>DOT project #</label><input id="project" /></div>
+        <div><label>Intelligent Work Zone?</label>
+          <select id="iwz"><option>No</option><option>Yes</option></select></div>
+      </div>
+      <label>Project description</label>
+      <textarea id="description" placeholder="e.g. Bridge deck overlay, right lane closed"></textarea>
+      <div class="row">
+        <div><label>Begin location (cross-street / MP)</label><input id="beginLoc" /></div>
+        <div><label>End location (cross-street / MP)</label><input id="endLoc" /></div>
+      </div>
+      <label>County / counties</label><input id="counties" />
+      <div class="row">
+        <div><label>DOT requestor</label><input id="requestor" /></div>
+        <div><label>Requestor email</label><input id="email" type="email" /></div>
+      </div>
+      <label>24-hour contact (name / phone)</label><input id="contact24" />
+      <label>Traffic impact</label>
+      <select id="impact">
+        <option>Lane restriction(s)</option><option>Full closure</option>
+        <option>Shoulder closure</option><option>Ramp closure</option><option>Rolling slowdown</option>
+      </select>
+    </fieldset>
+
+    <fieldset>
+      <legend>Timeline</legend>
+      <div class="row">
+        <div><label>Begin date/time</label><input id="beginDT" type="datetime-local" /></div>
+        <div><label>End date/time</label><input id="endDT" type="datetime-local" /></div>
+      </div>
+      <label>Closure timing</label>
+      <select id="timing">
+        <option>Continuous</option><option>Daytime (weekdays)</option><option>Nights</option><option>Weekends</option>
+      </select>
+    </fieldset>
+
+    <fieldset>
+      <legend>Restrictions</legend>
+      <div class="row">
+        <div><label>Width</label><input id="rWidth" placeholder="e.g. 11 ft" /></div>
+        <div><label>Height</label><input id="rHeight" placeholder="e.g. 15 ft 6 in" /></div>
+      </div>
+      <div class="row">
+        <div><label>Weight</label><input id="rWeight" /></div>
+        <div><label>Length</label><input id="rLength" /></div>
+      </div>
+      <label>Restriction timing</label>
+      <select id="rTiming"><option>24 hours</option><option>Limited hours</option><option>None</option></select>
+    </fieldset>
+
+    <fieldset>
+      <legend>Detour & DMS</legend>
+      <div class="row">
+        <div><label>Marked detour?</label><select id="detour"><option>No</option><option>Yes</option></select></div>
+        <div><label>Oversize loads allowed?</label><select id="oversize"><option>N/A</option><option>Yes</option><option>No</option></select></div>
+      </div>
+      <label>Detour restrictions / notes</label><textarea id="detourNotes"></textarea>
+      <label>Traffic technician contact</label><input id="techContact" />
+      <label>Dynamic Message Sign (DMS) request</label><textarea id="dms" placeholder="Requested DMS message / location"></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>Send to</legend>
+      <label>RCE / District office</label>
+      <select id="rce">
+        <option>District 1 (Ames)</option><option>District 2 (Mason City)</option>
+        <option>District 3 (Sioux City)</option><option>District 4 (Atlantic)</option>
+        <option>District 5 (Fairfield)</option><option>District 6 (Cedar Rapids)</option>
+      </select>
+      <label>RCE email (set your office's address)</label>
+      <input id="rceEmail" placeholder="rce.office@iowadot.us" />
+    </fieldset>
+
+    <div class="actions">
+      <button class="primary" onclick="genPDF()">📄 Generate PDF</button>
+      <button class="primary" onclick="emailRCE()">✉️ Email to RCE</button>
+      <button class="ghost" onclick="copySummary()">📋 Copy</button>
+      <button class="ghost" onclick="resetSeg()">↺ Reset pins</button>
+    </div>
+  </div>
+  <div style="flex:1;position:relative">
+    <div class="maphint" id="maphint">Click the road to set the <b>begin</b> point</div>
+    <div id="map"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const map = L.map('map').setView([41.85, -93.5], 7); // Iowa
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, attribution: '© OpenStreetMap'
+}).addTo(map);
+
+let mode = 'begin';
+let beginPt = null, endPt = null, beginMk = null, endMk = null, line = null;
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('btnBegin').classList.toggle('active', m === 'begin');
+  document.getElementById('btnEnd').classList.toggle('active', m === 'end');
+  document.getElementById('maphint').innerHTML = `Click the road to set the <b>${m}</b> point`;
+}
+
+function mk(latlng, label, color) {
+  return L.marker(latlng, { icon: L.divIcon({ className:'', html:
+    `<div style="background:${color};color:#fff;border:2px solid #fff;border-radius:50%;width:24px;height:24px;
+     display:flex;align-items:center;justify-content:center;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.4)">${label}</div>`,
+     iconSize:[24,24], iconAnchor:[12,12] }) }).addTo(map);
+}
+
+function bearing(a, b) {
+  const toR = d => d*Math.PI/180, toD = r => r*180/Math.PI;
+  const y = Math.sin(toR(b.lng-a.lng))*Math.cos(toR(b.lat));
+  const x = Math.cos(toR(a.lat))*Math.sin(toR(b.lat)) - Math.sin(toR(a.lat))*Math.cos(toR(b.lat))*Math.cos(toR(b.lng-a.lng));
+  return (toD(Math.atan2(y,x))+360)%360;
+}
+function dirLabel(brg) {
+  if (brg>=315||brg<45) return 'Northbound';
+  if (brg<135) return 'Eastbound';
+  if (brg<225) return 'Southbound';
+  return 'Westbound';
+}
+function miles(a, b) {
+  const R=3958.8, toR=d=>d*Math.PI/180;
+  const dLat=toR(b.lat-a.lat), dLng=toR(b.lng-a.lng);
+  const h=Math.sin(dLat/2)**2 + Math.cos(toR(a.lat))*Math.cos(toR(b.lat))*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));
+}
+
+function refresh() {
+  const info = document.getElementById('selinfo');
+  if (beginPt && endPt) {
+    if (line) line.remove();
+    line = L.polyline([beginPt, endPt], { color:'#dc2626', weight:6, opacity:.8 }).addTo(map);
+    const brg = bearing(beginPt, endPt);
+    const dir = dirLabel(brg);
+    document.getElementById('direction').value = dir;
+    const len = miles(beginPt, endPt).toFixed(1);
+    info.innerHTML = `<b>Segment:</b> ${dir}, ~${len} mi<br>` +
+      `begin ${beginPt.lat.toFixed(4)}, ${beginPt.lng.toFixed(4)} → end ${endPt.lat.toFixed(4)}, ${endPt.lng.toFixed(4)}`;
+  } else if (beginPt) {
+    info.innerHTML = `Begin set (${beginPt.lat.toFixed(4)}, ${beginPt.lng.toFixed(4)}). Now click <b>END</b>.`;
+    setMode('end');
+  }
+}
+
+map.on('click', e => {
+  if (mode === 'begin') { beginPt = e.latlng; if (beginMk) beginMk.remove(); beginMk = mk(e.latlng,'A','#1d4ed8'); }
+  else { endPt = e.latlng; if (endMk) endMk.remove(); endMk = mk(e.latlng,'B','#dc2626'); }
+  refresh();
+});
+
+document.getElementById('route').addEventListener('change', e => {
+  document.getElementById('routeOther').style.display = e.target.value === '__other' ? 'block' : 'none';
+});
+
+function routeVal() {
+  const r = document.getElementById('route').value;
+  return r === '__other' ? (document.getElementById('routeOther').value || 'route') : r;
+}
+const v = id => (document.getElementById(id).value || '').trim();
+const fmtDT = s => s ? new Date(s).toLocaleString() : '—';
+
+function fields() {
+  const seg = (beginPt && endPt)
+    ? `${dirLabel(bearing(beginPt,endPt))}, ~${miles(beginPt,endPt).toFixed(1)} mi  [${beginPt.lat.toFixed(4)},${beginPt.lng.toFixed(4)} → ${endPt.lat.toFixed(4)},${endPt.lng.toFixed(4)}]`
+    : '(not set)';
+  return [
+    ['Route', routeVal()], ['Direction', v('direction')], ['Selected segment', seg],
+    ['DOT project #', v('project')], ['Intelligent Work Zone', v('iwz')],
+    ['Description', v('description')],
+    ['Begin location', v('beginLoc')], ['End location', v('endLoc')], ['County/counties', v('counties')],
+    ['DOT requestor', v('requestor')], ['Requestor email', v('email')], ['24-hr contact', v('contact24')],
+    ['Traffic impact', v('impact')],
+    ['Begin', fmtDT(v('beginDT'))], ['End', fmtDT(v('endDT'))], ['Closure timing', v('timing')],
+    ['Width restriction', v('rWidth')], ['Height restriction', v('rHeight')],
+    ['Weight restriction', v('rWeight')], ['Length restriction', v('rLength')], ['Restriction timing', v('rTiming')],
+    ['Marked detour', v('detour')], ['Oversize allowed', v('oversize')], ['Detour notes', v('detourNotes')],
+    ['Traffic technician', v('techContact')], ['DMS request', v('dms')],
+    ['Send to (RCE)', v('rce')]
+  ];
+}
+
+function toast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); }
+
+function summaryText() {
+  return 'IOWA DOT — CARS 511 WORK-ZONE REQUEST\n' + '='.repeat(42) + '\n' +
+    fields().map(([k,val]) => `${k}: ${val || '—'}`).join('\n') +
+    '\n\n(Generated by the CARS 511 Request Builder — review before submitting.)';
+}
+
+function copySummary() { navigator.clipboard.writeText(summaryText()).then(()=>toast('Summary copied')); }
+
+function emailRCE() {
+  const to = v('rceEmail');
+  const subj = `CARS 511 Request — ${routeVal()} ${v('direction')} — ${v('project')||'work zone'}`;
+  const body = summaryText();
+  if (!to) toast('Tip: set the RCE email to pre-fill the To: field');
+  location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+}
+
+function genPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'letter' });
+  const M=48; let y=54;
+  doc.setFont('helvetica','bold'); doc.setFontSize(15);
+  doc.text('Iowa DOT — CARS 511 Work-Zone Request', M, y); y+=8;
+  doc.setDrawColor(200); doc.line(M,y,564,y); y+=20;
+  doc.setFontSize(10);
+  fields().forEach(([k,val]) => {
+    if (y>740) { doc.addPage(); y=54; }
+    doc.setFont('helvetica','bold'); doc.text(`${k}:`, M, y);
+    doc.setFont('helvetica','normal');
+    const lines = doc.splitTextToSize(String(val||'—'), 380);
+    doc.text(lines, M+150, y); y += Math.max(16, lines.length*13);
+  });
+  y+=10; doc.setFontSize(8); doc.setTextColor(120);
+  doc.text('Generated by the CARS 511 Request Builder — review before submitting to the RCE office.', M, Math.min(y,760));
+  doc.save(`CARS511_${(routeVal()||'route').replace(/\W+/g,'')}_${(v('project')||'wz')}.pdf`);
+  toast('PDF generated');
+}
+
+function resetSeg() {
+  [beginMk,endMk,line].forEach(x=>x&&x.remove());
+  beginPt=endPt=beginMk=endMk=line=null;
+  document.getElementById('direction').value='';
+  document.getElementById('selinfo').textContent='No segment selected yet — click the map to place the begin point.';
+  setMode('begin');
+}
+</script>
+</body>
+</html>
