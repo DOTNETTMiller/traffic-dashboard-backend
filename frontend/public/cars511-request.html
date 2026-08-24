@@ -288,17 +288,30 @@ async function iowaRefPost(pt,dirLetter){
 }
 // Authoritative centerline geometry between two points along a directional ROUTEID.
 async function iowaCenterline(routeId,a,b){
-  const bb=[Math.min(a.lng,b.lng)-0.02,Math.min(a.lat,b.lat)-0.02,Math.max(a.lng,b.lng)+0.02,Math.max(a.lat,b.lat)+0.02].join(',');
-  const j=await iaQuery('Road_Network_View','where='+encodeURIComponent("ROUTEID='"+routeId+"'")+'&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=FROMMEASURE&returnGeometry=true&returnM=true&outSR=4326&resultRecordCount=800');
+  const bb=[Math.min(a.lng,b.lng)-0.03,Math.min(a.lat,b.lat)-0.03,Math.max(a.lng,b.lng)+0.03,Math.max(a.lat,b.lat)+0.03].join(',');
+  const j=await iaQuery('Road_Network_View','where='+encodeURIComponent("ROUTEID='"+routeId+"'")+'&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=FROMMEASURE&returnGeometry=true&outSR=4326&resultRecordCount=1000');
   const f=(j&&j.features)||[]; if(!f.length) return null;
-  const segs=[]; for(const x of f){ const paths=(x.geometry&&x.geometry.paths)||[]; for(const p of paths) segs.push({from:x.attributes.FROMMEASURE||0, verts:p.map(c=>[c[1],c[0]])}); }
-  segs.sort((s,t)=>s.from-t.from);
-  let verts=[]; for(const s of segs) verts=verts.concat(s.verts);
-  if(verts.length<2) return null;
-  const near=pt=>{ let bi=0,bd=Infinity; for(let i=0;i<verts.length;i++){ const d=d2(pt,verts[i][0],verts[i][1]); if(d<bd){bd=d;bi=i;} } return bi; };
+  const segs=[]; for(const x of f){ for(const p of ((x.geometry&&x.geometry.paths)||[])) if(p.length>=2) segs.push(p.map(c=>[c[1],c[0]])); }
+  if(!segs.length) return null;
+  // Assemble segments into ONE continuous chain by linking matching endpoints
+  // (robust to reversed vertex order — fixes the "breaks up before the end" gaps).
+  const TH=140; // metres tolerance to treat two endpoints as the same node
+  const mBetween=(u,v)=>miles({lat:u[0],lng:u[1]},{lat:v[0],lng:v[1]})*1609.34;
+  let si=0,sbd=Infinity; for(let i=0;i<segs.length;i++){ const v=segs[i]; const dd=Math.min(d2(a,v[0][0],v[0][1]),d2(a,v[v.length-1][0],v[v.length-1][1])); if(dd<sbd){sbd=dd;si=i;} }
+  const used=new Array(segs.length).fill(false); used[si]=true; let chain=segs[si].slice();
+  let grew=true, guard=0;
+  while(grew && guard++<segs.length+4){ grew=false; const head=chain[0], tail=chain[chain.length-1];
+    for(let i=0;i<segs.length;i++){ if(used[i])continue; const v=segs[i];
+      if(mBetween(tail,v[0])<TH){ chain=chain.concat(v.slice(1)); used[i]=true; grew=true; break; }
+      if(mBetween(tail,v[v.length-1])<TH){ chain=chain.concat(v.slice().reverse().slice(1)); used[i]=true; grew=true; break; }
+      if(mBetween(head,v[v.length-1])<TH){ chain=v.slice(0,-1).concat(chain); used[i]=true; grew=true; break; }
+      if(mBetween(head,v[0])<TH){ chain=v.slice().reverse().slice(0,-1).concat(chain); used[i]=true; grew=true; break; } } }
+  if(chain.length<2) return null;
+  const near=pt=>{ let bi=0,bd=Infinity; for(let i=0;i<chain.length;i++){ const d=d2(pt,chain[i][0],chain[i][1]); if(d<bd){bd=d;bi=i;} } return bi; };
   let ia=near(a), ib=near(b); if(ia>ib){const t=ia;ia=ib;ib=t;}
-  const slice=verts.slice(ia,ib+1); if(slice.length<2) return null;
-  let mi=0; for(let i=1;i<slice.length;i++) mi+=miles({lat:slice[i-1][0],lng:slice[i-1][1]},{lat:slice[i][0],lng:slice[i][1]});
+  const slice=chain.slice(ia,ib+1); if(slice.length<2) return null;
+  let mi=0, maxGap=0; for(let i=1;i<slice.length;i++){ const g=miles({lat:slice[i-1][0],lng:slice[i-1][1]},{lat:slice[i][0],lng:slice[i][1]}); mi+=g; if(g>maxGap)maxGap=g; }
+  if(maxGap>0.3) return null;        // discontinuity remains → let OSRM draw a clean line
   return { latlngs:slice, miles:mi };
 }
 async function snapWZ(){ if(!(beginPt&&endPt))return;
