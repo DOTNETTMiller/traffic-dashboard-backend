@@ -161,6 +161,34 @@ function corridorTiles(lines, { maxAreaKm2 = 9500, padKm = 10, maxTiles = 90 } =
   return out.slice(0, maxTiles);
 }
 
+// Build a minimal set of bbox tiles covering a set of POINTS (active work-zone
+// locations nationwide), each well under TomTom's 10,000 km² limit. Points are
+// [lon, lat]. We bucket onto a coarse grid (cellDeg) and emit one padded tile per
+// OCCUPIED cell — so N clustered zones cost far fewer requests than one bbox/zone.
+// cellDeg 0.8 stays < 10,000 km² even at low latitudes (Florida ≈ 7,100 km²).
+function pointsToTiles(points, { cellDeg = 0.8, padKm = 3, maxTiles = 220 } = {}) {
+  const cells = new Map();
+  for (const p of (points || [])) {
+    if (!Array.isArray(p) || p.length < 2) continue;
+    const lon = Number(p[0]), lat = Number(p[1]);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    const cx = Math.floor(lon / cellDeg), cy = Math.floor(lat / cellDeg);
+    const key = `${cx},${cy}`;
+    if (!cells.has(key)) cells.set(key, [cx, cy]);
+  }
+  const dLat = padKm / 110.574;
+  const out = [];
+  for (const [cx, cy] of cells.values()) {
+    if (out.length >= maxTiles) break;
+    const minLon = cx * cellDeg, maxLon = (cx + 1) * cellDeg;
+    const minLat = cy * cellDeg, maxLat = (cy + 1) * cellDeg;
+    const midLat = (minLat + maxLat) / 2;
+    const dLon = padKm / (111.320 * Math.cos(midLat * Math.PI / 180) || 1);
+    out.push([minLon - dLon, minLat - dLat, maxLon + dLon, maxLat + dLat].map(n => n.toFixed(5)).join(','));
+  }
+  return out;
+}
+
 // One-tile diagnostic: returns the raw HTTP status + a short body snippet so a
 // ?debug=1 request can reveal why tiles return empty (key/quota/format issues).
 async function debugTile({ apiKey, bbox }) {
@@ -235,6 +263,7 @@ module.exports = {
   fetchIncidents,
   normalizeIncident,
   corridorTiles,
+  pointsToTiles,
   debugTile,
   bboxAreaKm2,
   budgetRemaining,

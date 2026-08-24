@@ -4973,6 +4973,33 @@ async function refreshTomTomIncidents() {
   return tomtomCache.data;
 }
 
+// Nationwide TomTom incidents for work-zone VALIDATION (not the corridor map layer).
+// Tiles are built from the active work-zone locations themselves (clustered), so
+// coverage follows the zones across all states while staying well under the daily
+// request budget. Longer TTL (work zones are stable over hours); background-refresh
+// only — never blocks the /api/cwz/events response.
+let tomtomZoneCache = { data: null, timestamp: null, ttl: 3 * 60 * 60 * 1000, isRefreshing: false };
+async function refreshTomTomForZones(points) {
+  if (tomtomZoneCache.isRefreshing) return tomtomZoneCache.data;
+  const apiKey = tomtomApiKey();
+  if (!apiKey || !Array.isArray(points) || !points.length) return tomtomZoneCache.data;
+  tomtomZoneCache.isRefreshing = true;
+  try {
+    const tiles = tomtomIncidents.pointsToTiles(points, { maxTiles: 220 });
+    const result = await tomtomIncidents.fetchIncidents({ apiKey, tiles });
+    const HIGHWAY_RE = /^(I|US)[-\s.]?\d/i;
+    const incidents = result.incidents.filter(i => (i.roadNumbers || []).some(r => HIGHWAY_RE.test(r)));
+    tomtomZoneCache.data = { incidents, count: incidents.length, tiles: tiles.length, budgetLeft: result.budgetLeft, stopped: result.stopped, timestamp: new Date().toISOString() };
+    tomtomZoneCache.timestamp = Date.now();
+    console.log(`🚗 TomTom(zones): ${incidents.length} interstate/US incidents / ${tiles.length} tiles (${result.requests} reqs, ${result.budgetLeft} budget left${result.stopped ? ', BUDGET STOP' : ''})`);
+  } catch (err) {
+    console.error('🚗 TomTom(zones) refresh error:', err.message);
+  } finally {
+    tomtomZoneCache.isRefreshing = false;
+  }
+  return tomtomZoneCache.data;
+}
+
 app.get('/api/tomtom/incidents', async (req, res) => {
   if (!process.env.TOMTOM_API_KEY) {
     return res.status(503).json({ success: false, error: 'TomTom not configured', incidents: [] });
@@ -6152,16 +6179,33 @@ app.get('/api/cwz/events', async (req, res) => {
       }
     } catch (_) { /* ledger optional */ }
     // Independent secondary corroboration: TomTom (commercial, non-DOT) construction/closure
-    // near a zone confirms it from a source that never touches the WZDx feed. Lazy + free —
-    // reuses the cached TomTom incident set (background-refresh if stale, block only on cold).
+    // near a zone confirms it from a source that never touches the WZDx feed. Free (reuses
+    // cached incidents) + lazy. NATIONWIDE: the zone-wide tile set is built from the active
+    // work-zone locations themselves, so corroboration follows the zones across every state,
+    // not just the I-80/I-35 corridor. The zone set refreshes in the BACKGROUND (never blocks
+    // this response); corridor set is kept warm as a fallback.
     try {
-      const age = tomtomCache.timestamp ? Date.now() - tomtomCache.timestamp : Infinity;
-      if (age === Infinity) { await refreshTomTomIncidents(); }
-      else if (age > tomtomCache.ttl && !tomtomCache.isRefreshing) { refreshTomTomIncidents(); }
-      const tt = tomtomCache.data;
-      if (tt && Array.isArray(tt.incidents)) {
-        require('./services/tomtom-corroboration').corroborate(eventsCache.data?.events || [], tt.incidents);
+      const events = eventsCache.data?.events || [];
+      const cvv = require('./services/camera-validation');
+      const pts = [];
+      for (const e of events) {
+        if (cvv.isActiveNow(e) !== true) continue;
+        const p = e.coordinates || (e.longitude != null ? [e.longitude, e.latitude] : null);
+        if (Array.isArray(p)) pts.push(p);
       }
+      const cAge = tomtomCache.timestamp ? Date.now() - tomtomCache.timestamp : Infinity;
+      if (cAge === Infinity) { await refreshTomTomIncidents(); }
+      else if (cAge > tomtomCache.ttl && !tomtomCache.isRefreshing) { refreshTomTomIncidents(); }
+      const zAge = tomtomZoneCache.timestamp ? Date.now() - tomtomZoneCache.timestamp : Infinity;
+      if ((zAge === Infinity || zAge > tomtomZoneCache.ttl) && !tomtomZoneCache.isRefreshing) {
+        refreshTomTomForZones(pts); // background only
+      }
+      // Union corridor + nationwide, de-duped by incident id.
+      const byId = new Map();
+      for (const i of (tomtomZoneCache.data?.incidents || [])) byId.set(i.id, i);
+      for (const i of (tomtomCache.data?.incidents || [])) if (!byId.has(i.id)) byId.set(i.id, i);
+      const all = [...byId.values()];
+      if (all.length) require('./services/tomtom-corroboration').corroborate(events, all);
     } catch (_) { /* corroboration optional */ }
     // Elevated = device-verified (connected board) OR camera-verified (a camera saw the zone)
     // OR independently corroborated by TomTom (a non-DOT source reports the same work zone).
