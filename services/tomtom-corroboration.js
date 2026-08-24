@@ -13,6 +13,7 @@
  */
 
 const turf = require('@turf/turf');
+const { isActiveNow } = require('./camera-validation');
 
 // TomTom iconCategory codes that indicate a work zone / closure.
 //   7 = Lane closed, 8 = Road closed, 9 = Road works
@@ -37,6 +38,7 @@ function corroborate(events, incidents, opts = {}) {
 
   let n = 0;
   for (const ev of (events || [])) {
+    if (isActiveNow(ev) !== true) continue;              // only zones WZDx currently claims are active
     const evPt = ev.coordinates || (ev.longitude != null ? [ev.longitude, ev.latitude] : null);
     if (!Array.isArray(evPt)) continue;
     const evRoute = interstate(ev.corridor || ev.route || ev.location);
