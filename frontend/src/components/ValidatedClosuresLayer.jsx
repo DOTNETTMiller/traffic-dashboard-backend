@@ -1,26 +1,33 @@
-import { useEffect, useState } from 'react';
-import { Marker, Popup, Tooltip } from 'react-leaflet';
+import { useEffect, useState, Fragment } from 'react';
+import { Marker, Popup, Tooltip, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import api from '../services/api';
 
-// "Validated Work Zones" layer — the elevated closures from the CWZ 1.0 feed (device- or
-// camera-verified). Each marker's popup shows the evidence: connected devices and/or the
-// live camera snapshot that saw the zone. Loads once when toggled on (no polling).
+// "Validated Work Zones" layer — the elevated closures from the CWZ 1.0 feed, verified by
+// one or more INDEPENDENT sources: a connected device on site (🔗), a camera that sees the
+// traffic control (📷), and/or an independent TomTom construction/closure report (🚗).
+// Each marker highlights the zone on the map and its popup spells out exactly HOW it was
+// validated, per source. Loads once when toggled on (no polling).
 //
-// The camera <img> is fetched by the browser directly from the DOT camera host, so it costs
-// the server nothing.
+// The camera <img> is fetched by the browser directly from the DOT host — $0 server egress.
+
+const SOURCE_META = {
+  device: { glyph: '🔗', label: 'device' },
+  camera: { glyph: '📷', label: 'camera' },
+  tomtom: { glyph: '🚗', label: 'TomTom' }
+};
 
 function verifiedIcon(sources) {
-  const cam = sources.includes('camera');
-  const dev = sources.includes('device');
-  const glyph = cam && dev ? '📷🔗' : cam ? '📷' : '🔗';
+  const glyphs = sources.map(s => (SOURCE_META[s] || {}).glyph).filter(Boolean).join('');
+  const strong = sources.length >= 2;           // 2+ independent sources = higher confidence
   return L.divIcon({
     className: 'validated-closure-icon',
-    html: `<div style="display:flex;align-items:center;gap:2px;background:#16a34a;color:#fff;
-      border:2px solid #fff;border-radius:12px;padding:1px 5px;font-size:11px;font-weight:700;
-      box-shadow:0 1px 4px rgba(0,0,0,.4);white-space:nowrap;">✓ ${glyph}</div>`,
-    iconSize: [44, 20],
-    iconAnchor: [22, 10]
+    html: `<div style="display:flex;align-items:center;gap:2px;
+      background:${strong ? '#15803d' : '#16a34a'};color:#fff;
+      border:2px solid ${strong ? '#fde047' : '#fff'};border-radius:12px;padding:1px 5px;font-size:11px;font-weight:700;
+      box-shadow:0 1px 4px rgba(0,0,0,.4);white-space:nowrap;">✓ ${glyphs || '✔'}</div>`,
+    iconSize: [48, 20],
+    iconAnchor: [24, 10]
   });
 }
 
@@ -34,6 +41,14 @@ function featureLatLng(f) {
     return Array.isArray(c) ? [c[1], c[0]] : null;
   }
   return null;
+}
+
+// LineString → [[lat,lng],...] for a highlight polyline (null if not a line).
+function featureLine(f) {
+  const g = f.geometry;
+  if (!g || g.type !== 'LineString' || !Array.isArray(g.coordinates)) return null;
+  const pts = g.coordinates.filter(c => Array.isArray(c) && c.length >= 2).map(c => [c[1], c[0]]);
+  return pts.length >= 2 ? pts : null;
 }
 
 export default function ValidatedClosuresLayer({ visible = false }) {
@@ -60,50 +75,77 @@ export default function ValidatedClosuresLayer({ visible = false }) {
         const sources = p.x_verification || [];
         const devices = p.x_connected_devices || [];
         const cameraSeen = p.x_camera_detected || [];
+        const line = featureLine(f);
+        const strong = sources.length >= 2;
+        const road = (c.road_names || []).join(', ');
+        const howShort = sources.map(s => `${(SOURCE_META[s] || {}).glyph || ''} ${(SOURCE_META[s] || {}).label || s}`).join(' + ') || 'verified';
+
         return (
-          <Marker key={`vwz-${f.id || i}`} position={ll} icon={verifiedIcon(sources)}>
-            <Tooltip direction="top" offset={[0, -8]} opacity={0.95}>
-              ✓ Validated {(c.road_names || []).join(', ')} — {sources.join(' + ') || 'verified'}
-            </Tooltip>
-            <Popup maxWidth={280}>
-              <div style={{ fontSize: 13, minWidth: 230 }}>
-                <div style={{ fontWeight: 700, marginBottom: 2 }}>
-                  ✓ Validated Work Zone
-                </div>
-                <div style={{ color: '#555', marginBottom: 6 }}>
-                  {(c.road_names || []).join(', ')} {c.direction || ''} · {sources.map(s => s === 'camera' ? '📷 camera' : '🔗 device').join(' + ')}
-                </div>
-
-                {devices.length > 0 && (
-                  <div style={{ background: '#f1f5f9', borderRadius: 6, padding: '5px 8px', marginBottom: 6 }}>
-                    <div style={{ fontWeight: 700, fontSize: 12 }}>Connected devices ({devices.length})</div>
-                    {devices.slice(0, 4).map((d, j) => (
-                      <div key={j} style={{ color: '#334155' }}>{d.device_id} · {d.confidence}%</div>
-                    ))}
-                    {p.x_connected_confidence != null && <div style={{ color: '#555' }}>best match {p.x_connected_confidence}%</div>}
+          <Fragment key={`vwz-${f.id || i}`}>
+            {line && (
+              <Polyline positions={line}
+                pathOptions={{ color: strong ? '#15803d' : '#16a34a', weight: 6, opacity: 0.75 }} />
+            )}
+            <Marker position={ll} icon={verifiedIcon(sources)}>
+              <Tooltip direction="top" offset={[0, -8]} opacity={0.95}>
+                ✓ {road} — validated by {howShort}
+              </Tooltip>
+              <Popup maxWidth={300}>
+                <div style={{ fontSize: 13, minWidth: 240 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 2 }}>
+                    ✓ Validated Work Zone {strong && <span style={{ color: '#15803d' }}>· multi-source</span>}
                   </div>
-                )}
+                  <div style={{ color: '#555', marginBottom: 6 }}>
+                    {road} {c.direction || ''}
+                  </div>
 
-                {p.x_camera_verified && (
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 3 }}>
-                      Camera {cameraSeen.length ? `saw: ${cameraSeen.join(', ')}` : 'view'}
+                  <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>
+                    How this was validated ({sources.length} source{sources.length === 1 ? '' : 's'}):
+                  </div>
+
+                  {sources.includes('device') && (
+                    <div style={{ background: '#eff6ff', borderRadius: 6, padding: '5px 8px', marginBottom: 5 }}>
+                      <div style={{ fontWeight: 700, fontSize: 12 }}>🔗 Connected device on site</div>
+                      {devices.slice(0, 4).map((d, j) => (
+                        <div key={j} style={{ color: '#334155' }}>{d.device_id} · {d.confidence}%</div>
+                      ))}
+                      {p.x_connected_confidence != null && <div style={{ color: '#555' }}>best match {p.x_connected_confidence}%</div>}
                     </div>
-                    {p.x_camera_url && (
-                      <img src={p.x_camera_url} alt="camera view of work zone"
-                        style={{ width: '100%', borderRadius: 6, display: 'block' }}
-                        onError={(e) => { e.target.style.display = 'none'; }} />
-                    )}
-                    {p.x_camera_checked_at && (
-                      <div style={{ color: '#999', fontSize: 11, marginTop: 3 }}>
-                        checked {new Date(p.x_camera_checked_at).toLocaleString()}
+                  )}
+
+                  {sources.includes('camera') && (
+                    <div style={{ background: '#f0fdf4', borderRadius: 6, padding: '5px 8px', marginBottom: 5 }}>
+                      <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 3 }}>
+                        📷 Camera {cameraSeen.length ? `saw: ${cameraSeen.join(', ')}` : 'view'}
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </Popup>
-          </Marker>
+                      {p.x_camera_url && (
+                        <img src={p.x_camera_url} alt="camera view of work zone"
+                          style={{ width: '100%', borderRadius: 6, display: 'block' }}
+                          onError={(e) => { e.target.style.display = 'none'; }} />
+                      )}
+                      {p.x_camera_checked_at && (
+                        <div style={{ color: '#999', fontSize: 11, marginTop: 3 }}>
+                          checked {new Date(p.x_camera_checked_at).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {sources.includes('tomtom') && (
+                    <div style={{ background: '#fefce8', borderRadius: 6, padding: '5px 8px', marginBottom: 5 }}>
+                      <div style={{ fontWeight: 700, fontSize: 12 }}>🚗 Independent TomTom report</div>
+                      <div style={{ color: '#334155' }}>
+                        {p.x_tomtom_category || 'Roadwork'}{p.x_tomtom_distance_m != null ? ` · ${p.x_tomtom_distance_m}m away` : ''}
+                      </div>
+                      {p.x_tomtom_delay_s != null && (
+                        <div style={{ color: '#b45309' }}>traffic delay {Math.round(p.x_tomtom_delay_s / 60)} min</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </Popup>
+            </Marker>
+          </Fragment>
         );
       })}
     </>
