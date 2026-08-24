@@ -615,18 +615,26 @@ function seamlessFill(){
   ].filter(p=>p[1]);
   // Data is carried via the clipboard; the bookmarklet (installed ONCE) reads it and fills.
   window.__sdData = JSON.stringify(map);
-  const bm = "javascript:(function(){navigator.clipboard.readText().then(function(t){var D;try{D=JSON.parse(t)}catch(e){alert('In the CARS 511 builder, click \\u2018Copy data + open form\\u2019 first.');return;}"+
+  const bm = "javascript:(function(){"+
+    "function fill(t){var D;try{D=JSON.parse(t)}catch(e){alert('Open the form with \\u2018Copy data + open form\\u2019 from the builder.');return;}"+
     "function set(i,val){try{var p=i.tagName=='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(p,'value').set.call(i,val);['input','keyup','change','blur'].forEach(function(e){i.dispatchEvent(new Event(e,{bubbles:true}))})}catch(e){}}"+
     "var F=[].slice.call(document.querySelectorAll('input.doc_field,textarea.doc_field'));var c=0;"+
     "D.forEach(function(p){var el=F.find(function(x){return (x.getAttribute('aria-label')||'')===p[0];});if(el){set(el,p[1]);c++;}});"+
-    "alert('511 auto-fill: '+c+' of '+D.length+' fields set. Set Yes/No, dropdowns and uploads manually, then review.');}).catch(function(){alert('Allow clipboard access for this bookmark (or use Copy data first).')})})()";
+    "alert('511 auto-fill: '+c+' of '+D.length+' fields set. Set Yes/No, dropdowns and uploads manually, then review.');}"+
+    "var h=location.hash||'',i=h.indexOf('CARS511=');"+
+    "if(i>=0){fill(decodeURIComponent(h.slice(i+8)));}"+
+    "else if(navigator.clipboard&&navigator.clipboard.readText){navigator.clipboard.readText().then(fill).catch(function(){alert('No 511 data found — use \\u2018Copy data + open form\\u2019 first.');});}"+
+    "else{alert('No 511 data found — use \\u2018Copy data + open form\\u2019 first.');}})()";
   window.__bm = bm; el('sdBm').href = bm;
   el('sdModal').style.display='flex';
 }
 function copyAndOpen(){ if(!window.__sdData){ toast('Fill some fields first'); return; }
-  const open=()=>window.open('https://iowadot.seamlessdocs.com/f/Cars511RequestForm','_blank');
-  navigator.clipboard.writeText(window.__sdData).then(()=>{ open(); toast('Data copied — on the form, click your 📌 Fill 511 form bookmark'); })
-    .catch(()=>{ open(); toast('Form opened — allow clipboard, then click the bookmark'); });
+  // Carry the data in the opened URL's hash (bookmarklet reads its own location.hash — no
+  // clipboard permission needed); also copy to clipboard as a fallback.
+  const url='https://iowadot.seamlessdocs.com/f/Cars511RequestForm#CARS511='+encodeURIComponent(window.__sdData);
+  try{ navigator.clipboard.writeText(window.__sdData); }catch(e){}
+  window.open(url,'_blank');
+  toast('Form opened — now click your 📌 Fill 511 form bookmark');
 }
 function copyBm(){ if(window.__bm) navigator.clipboard.writeText(window.__bm).then(()=>toast('Bookmark code copied — make a new bookmark, paste as the URL')); }
 
