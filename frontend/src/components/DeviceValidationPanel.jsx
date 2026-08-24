@@ -39,7 +39,7 @@ function Sparkline({ data, accessor, color, label, fmt = (v) => v }) {
   );
 }
 
-export default function DeviceValidationPanel({ onClose }) {
+export default function DeviceValidationPanel({ onClose, onShowOnMap }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
@@ -61,7 +61,16 @@ export default function DeviceValidationPanel({ onClose }) {
         maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: `1px solid ${C.line}` }}>
           <div style={{ fontSize: 17, fontWeight: 700, color: C.ink }}>🔶 Connected Device Validation</div>
-          <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: 22, cursor: 'pointer', color: C.sub }}>×</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {onShowOnMap && (
+              <button onClick={onShowOnMap} style={{
+                border: '1px solid #2563eb', background: '#eff6ff', color: '#1d4ed8', fontWeight: 600,
+                fontSize: 13, cursor: 'pointer', borderRadius: 8, padding: '6px 12px' }}>
+                📍 Show on map
+              </button>
+            )}
+            <button onClick={onClose} style={{ border: 'none', background: 'transparent', fontSize: 22, cursor: 'pointer', color: C.sub }}>×</button>
+          </div>
         </div>
 
         <div style={{ padding: 18 }}>

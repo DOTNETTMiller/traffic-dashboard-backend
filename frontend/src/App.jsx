@@ -120,6 +120,7 @@ function App() {
   const [showConnectedDevices, setShowConnectedDevices] = useState(false); // Arrow boards / portable DMS auto-linked to work zones
   const [showValidatedClosures, setShowValidatedClosures] = useState(false); // Device/camera-verified work zones (CWZ) with evidence
   const [showDeviceHealth, setShowDeviceHealth] = useState(false); // Device↔work-zone validation monitoring panel
+  const [validatedFocus, setValidatedFocus] = useState(null); // {sources, center, zoom, token} — "Show on map" from the device panel
   const [showCorridorRegulations, setShowCorridorRegulations] = useState(false); // Hidden by default - toggle to show
   const [interstateOnly, setInterstateOnly] = useState(true); // Show only interstate events by default
   const [loadingMessages, setLoadingMessages] = useState(true);
@@ -1185,6 +1186,7 @@ function App() {
                   showTomTomIncidents={showTomTomIncidents}
                   showConnectedDevices={showConnectedDevices}
                   showValidatedClosures={showValidatedClosures}
+                  validatedFocus={validatedFocus}
                   showCorridorRegulations={showCorridorRegulations}
                   ipawsGeofence={ipawsGeofence}
                   onGeofenceUpdate={setIpawsGeofence}
@@ -1353,7 +1355,16 @@ function App() {
       )}
 
       {showDeviceHealth && (
-        <DeviceValidationPanel onClose={() => setShowDeviceHealth(false)} />
+        <DeviceValidationPanel
+          onClose={() => setShowDeviceHealth(false)}
+          onShowOnMap={() => {
+            setShowDeviceHealth(false);
+            setView('map');
+            setShowValidatedClosures(true);
+            // Isolate device-validated zones and fly to the Iowa/Omaha cluster where they live.
+            setValidatedFocus({ sources: { device: true, camera: false, tomtom: false }, center: [41.6, -93.7], zoom: 8, token: Date.now() });
+          }}
+        />
       )}
 
       {/* IPAWS Rules Configuration */}

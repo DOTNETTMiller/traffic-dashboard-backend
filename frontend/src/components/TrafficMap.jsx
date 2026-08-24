@@ -103,6 +103,20 @@ function MapCenterController({ selectedEvent }) {
   return null;
 }
 
+// Flies the map to a requested location when its token changes (e.g. the device
+// panel's "Show on map" jumping to the Iowa device-validated cluster).
+function ValidatedFocusController({ focus }) {
+  const map = useMap();
+  const lastToken = useRef(null);
+  useEffect(() => {
+    if (focus && focus.token && focus.token !== lastToken.current && Array.isArray(focus.center)) {
+      lastToken.current = focus.token;
+      map.flyTo(focus.center, focus.zoom || 9, { animate: true, duration: 1 });
+    }
+  }, [focus, map]);
+  return null;
+}
+
 // Component to capture map reference
 function MapRefCapturer({ mapRef }) {
   const map = useMap();
@@ -426,6 +440,7 @@ export default function TrafficMap({
   itsEquipmentType = null,
   showConnectedDevices = false,
   showValidatedClosures = false,
+  validatedFocus = null,
   showCADDElements = false,
   showV2XDeployments = false,
   showEvents = true,
@@ -455,6 +470,10 @@ export default function TrafficMap({
   // Validated Work Zones: per-source filter + live counts for the legend.
   const [validatedSources, setValidatedSources] = useState({ device: true, camera: true, tomtom: true });
   const [validatedCounts, setValidatedCounts] = useState(null);
+  // "Show on map" from the device panel: apply the requested source filter when it changes.
+  useEffect(() => {
+    if (validatedFocus && validatedFocus.sources) setValidatedSources(validatedFocus.sources);
+  }, [validatedFocus]);
   const [crashYear, setCrashYear] = useState('all');
   const [crashYears, setCrashYears] = useState([]);
 
@@ -1250,6 +1269,7 @@ export default function TrafficMap({
         <ConnectedDevicesLayer visible={showConnectedDevices} />
 
         {/* Validated (device / camera / TomTom-verified) work zones, color-coded by source */}
+        <ValidatedFocusController focus={validatedFocus} />
         <ValidatedClosuresLayer visible={showValidatedClosures} sources={validatedSources} onCounts={setValidatedCounts} />
 
         {/* State OS/OW Regulations Layer */}
