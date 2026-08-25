@@ -679,7 +679,9 @@ async function scanProjects(){ if(!beginPt||!endPt){ toast('Select a road segmen
   const list=[], seen=new Set();
   bid.forEach(f=>{ const d=nearOf(f); if(d<=TH){ const a=f.attributes; const num=a.PROJECT_NUMBER; if(num&&seen.has(num))return; if(num)seen.add(num);
     list.push({num, desc:a.WORK_DESC||a.CONTRACT_DESCRIPTION, loc:a.LOCATION, extra:'letting FY'+(a.LETTING_FISCAL_YEAR||'?'), src:'letting', d}); } });
-  fy.forEach(f=>{ const d=nearOf(f); if(d<=TH){ const a=f.attributes; list.push({num:a.Project_Code, desc:a.Work_Type, loc:a.Project_Location, extra:(a.Year2||'')+' program', src:'5-year', d}); } });
+  const fyMax=new Date().getFullYear()+1;   // exclude 5-yr projects 2+ years out
+  fy.forEach(f=>{ const d=nearOf(f); if(d<=TH){ const a=f.attributes; const y=parseInt(a.Year2); if(Number.isFinite(y)&&y>fyMax)return;
+    list.push({num:a.Project_Code, desc:a.Work_Type, loc:a.Project_Location, extra:(a.Year2||'')+' program', src:'5-year', d}); } });
   list.sort((a,b)=>a.d-b.d); projFeats=list;
   const box=el('projBox'); box.style.display='block';
   if(!list.length){ box.innerHTML='No Iowa DOT letting or 5-Year Program projects found near this segment.'; toast('No projects found nearby'); return; }
@@ -705,7 +707,9 @@ async function loadProjectList(){ if(projListLoaded) return; projListLoaded=true
   const res=await Promise.all([...views,fyF]); const fy=res.pop(); const bid=res.flat();
   bid.forEach(f=>{ const a=f.attributes, num=a.PROJECT_NUMBER; if(!num||projIndex[num])return;
     projIndex[num]={desc:a.WORK_DESC||a.CONTRACT_DESCRIPTION||'', extra:'letting FY'+(a.LETTING_FISCAL_YEAR||'?'), src:'letting'}; });
+  const fyMax=yr+1;   // exclude 5-yr projects 2+ years out
   fy.forEach(f=>{ const a=f.attributes, num=a.Project_Code; if(!num||projIndex[num])return;
+    const y=parseInt(a.Year2); if(Number.isFinite(y)&&y>fyMax)return;
     projIndex[num]={desc:a.Work_Type||'', extra:(a.Year2||'')+' program', src:'5-year'}; });
   rebuildProjDatalist();
   const n=Object.keys(projIndex).length; if(n) toast(n+' project numbers loaded — type to search'); }
