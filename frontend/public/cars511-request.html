@@ -110,7 +110,12 @@
       <div class="row">
         <div><label>DOT project # <span style="color:#94a3b8;font-weight:400">(type to search — last 3 yrs + programmed)</span></label>
           <input id="project" list="projList" autocomplete="off" onfocus="loadProjectList()" onchange="onProjectPick()" placeholder="start typing a project number…" />
-          <datalist id="projList"></datalist></div>
+          <datalist id="projList"></datalist>
+          <div style="font-size:11px;margin-top:2px">
+            <a href="#" onclick="document.getElementById('projCsv').click();return false" style="color:var(--accent);font-weight:600">＋ Import project list (CSV)</a>
+            &nbsp;·&nbsp; <a href="#" onclick="clearCsvProjects();return false" style="color:#94a3b8">clear imported</a>
+            <input type="file" id="projCsv" accept=".csv,text/csv" style="display:none" onchange="loadProjectsCSV(event)" />
+          </div></div>
         <div><label>Intelligent Work Zone?</label><select id="iwz"><option>No</option><option>Yes</option></select></div>
       </div>
       <label>Project description</label>
@@ -697,11 +702,37 @@ async function loadProjectList(){ if(projListLoaded) return; projListLoaded=true
     projIndex[num]={desc:a.WORK_DESC||a.CONTRACT_DESCRIPTION||'', extra:'letting FY'+(a.LETTING_FISCAL_YEAR||'?'), src:'letting'}; });
   fy.forEach(f=>{ const a=f.attributes, num=a.Project_Code; if(!num||projIndex[num])return;
     projIndex[num]={desc:a.Work_Type||'', extra:(a.Year2||'')+' program', src:'5-year'}; });
-  const esc=s=>String(s).replace(/"/g,'').replace(/[<>]/g,'');
-  el('projList').innerHTML=Object.keys(projIndex).sort().map(n=>{ const p=projIndex[n];
-    return `<option value="${esc(n)}">${esc((p.desc||'').slice(0,40)+' ['+p.src+' '+p.extra+']')}</option>`; }).join('');
+  rebuildProjDatalist();
   const n=Object.keys(projIndex).length; if(n) toast(n+' project numbers loaded — type to search'); }
+function rebuildProjDatalist(){ const esc=s=>String(s).replace(/"/g,'').replace(/[<>]/g,'');
+  el('projList').innerHTML=Object.keys(projIndex).sort().map(n=>{ const p=projIndex[n];
+    return `<option value="${esc(n)}">${esc((p.desc||'').slice(0,40)+' ['+p.src+(p.extra?' '+p.extra:'')+']')}</option>`; }).join(''); }
 function onProjectPick(){ const p=projIndex[v('project')]; if(p && !v('description') && p.desc) el('description').value=p.desc; saveState(); }
+// Import a project list from a CSV the office maintains (works offline; persists on this device).
+// Detects a project-number column + optional description; falls back to col0=number, col1=description.
+function parseCSV(text){ const rows=[]; let row=[],cur='',q=false;
+  for(let i=0;i<text.length;i++){ const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else if(c==='"')q=true; else if(c===',')( row.push(cur),cur='');
+    else if(c==='\n'||c==='\r'){ if(cur!==''||row.length){ row.push(cur); rows.push(row); row=[]; cur=''; } if(c==='\r'&&text[i+1]==='\n')i++; }
+    else cur+=c; }
+  if(cur!==''||row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(r=>r.some(x=>String(x).trim()!=='')); }
+function loadProjectsCSV(ev){ const file=ev.target.files&&ev.target.files[0]; if(!file)return; const fr=new FileReader();
+  fr.onload=()=>{ try{ const rows=parseCSV(String(fr.result)); if(!rows.length){toast('Empty CSV');return;}
+    const hdr=rows[0].map(h=>String(h).trim().toLowerCase());
+    let numI=hdr.findIndex(h=>/(project).*(number|no\.?|#|num)|^pin$|project_number|^proj(ect)?$/.test(h));
+    let descI=hdr.findIndex(h=>/desc|work|type|contract/.test(h));
+    let start=1; if(numI<0){ numI=0; descI=rows[0].length>1?1:-1; start=0; }   // no recognizable header
+    let added=0; for(let i=start;i<rows.length;i++){ const r=rows[i]; const num=String(r[numI]||'').trim(); if(!num)continue;
+      const desc=descI>=0?String(r[descI]||'').trim():''; projIndex[num]={desc, extra:'', src:'CSV'}; added++; }
+    rebuildProjDatalist(); saveCsvProjects();
+    toast(added?`${added} project(s) imported from CSV — type to search`:'No project numbers found in CSV');
+  }catch(e){ toast('Could not read CSV'); } ev.target.value=''; };
+  fr.readAsText(file); }
+function saveCsvProjects(){ const arr=Object.keys(projIndex).filter(n=>projIndex[n].src==='CSV').map(n=>({num:n,desc:projIndex[n].desc})); localStorage.setItem('cars511_projects_csv',JSON.stringify(arr)); }
+function loadCsvProjects(){ try{ const arr=JSON.parse(localStorage.getItem('cars511_projects_csv')||'[]'); arr.forEach(p=>{ if(p.num) projIndex[p.num]={desc:p.desc||'',extra:'',src:'CSV'}; }); if(arr.length) rebuildProjDatalist(); }catch(e){} }
+function clearCsvProjects(){ Object.keys(projIndex).forEach(n=>{ if(projIndex[n].src==='CSV') delete projIndex[n]; }); localStorage.removeItem('cars511_projects_csv'); rebuildProjDatalist(); toast('Imported CSV projects cleared'); }
 
 // ---- Readiness check: flag required fields before generating outputs ----
 const REQUIRED=[['requestor','DOT requestor'],['email','Requestor email'],['route','Route'],['direction','Direction'],
@@ -1134,7 +1165,7 @@ el('route').addEventListener('change', ()=>{ onRouteChange(); saveState(); });
 el('rce').addEventListener('change', ()=>{ setRceOffice(v('rce')); saveState(); });
 el('rceEmail').addEventListener('input', saveRceEmail);
 FIELD_IDS.forEach(id=>{ if(el(id)) el(id).addEventListener('input', saveState); });
-loadState(); renderProjects(); onRouteChange(); loadIntegration();
+loadState(); renderProjects(); onRouteChange(); loadIntegration(); loadCsvProjects();
 </script>
 </body>
 </html>
