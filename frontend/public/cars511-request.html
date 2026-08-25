@@ -77,7 +77,7 @@
     <label class="chk"><input type="checkbox" id="autofill" checked /> Auto-fill road & county from the map (uses internet)</label>
     <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanBridges()">🌉 Scan NBI clearances on segment</button>
     <div class="schedList" id="nbiBox" style="display:none"></div>
-    <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanDevices()">🔶 Scan DMS & connected arrow boards near segment</button>
+    <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanDevices()">🔶 Scan DMS, arrow boards & Street Smart (IWZ) devices near segment</button>
     <div class="schedList" id="dmsBox" style="display:none"></div>
     <div class="mapbtns" style="margin-top:8px">
       <button id="btnDetour" onclick="setMode('detour')">✏️ Draw detour</button>
@@ -525,7 +525,7 @@ function resetAll(){ if(!confirm('Clear the form and pins? (Saved projects are k
   FIELD_IDS.forEach(id=>{ if(el(id)) el(id).value = el(id).tagName==='SELECT'?el(id).options[0].value:''; });
   [beginMk,endMk,line].forEach(x=>x&&x.remove()); beginPt=endPt=beginMk=endMk=line=null; schedule=[];
   detourPts=[]; drawDetour();
-  Object.keys(selDMS).forEach(k=>delete selDMS[k]); Object.keys(selAB).forEach(k=>delete selAB[k]); if(deviceLayer){deviceLayer.remove();deviceLayer=null;} dmsFeats=[]; el('dmsBox').style.display='none';
+  [selDMS,selAB,selSS].forEach(s=>Object.keys(s).forEach(k=>delete s[k])); if(deviceLayer){deviceLayer.remove();deviceLayer=null;} dmsFeats=[]; el('dmsBox').style.display='none';
   el('schedList').style.display='none'; el('selinfo').textContent='No segment selected yet — click the map to place the begin point.';
   onRouteChange(); setMode('begin'); saveState(); }
 
@@ -567,18 +567,25 @@ function applyNBI(){ const near=window.__nbiNear||[]; if(!near.length)return;
 
 // ---- DMS / dynamic message signs near the segment (Iowa DOT DMS_View, CORS-open) ----
 // User taps a 🔶 marker to add/remove it from the closure. Selected signs -> DMS request field + request outputs.
-let deviceLayer=null, dmsFeats=[]; const selDMS={}, selAB={};
-// A device is a connected arrow board / portable work-zone unit when SignType is
-// Portable-Contractor (iCone/IPSI/arrow boards/QTC), else a permanent DMS sign.
-function deviceKind(a){ return (/portable-contractor/i.test(a.SignType||'') || /\bAB\b|arrow|icone/i.test(a.DeviceName||'')) ? 'ab' : 'dms'; }
+let deviceLayer=null, dmsFeats=[]; const selDMS={}, selAB={}, selSS={};
+// Device categories from Iowa DMS_View:
+//  'ss'  = Street Smart Rentals (name prefix SS/SSR) — an Intelligent Work Zone deployment
+//          (queue sensors + feedback signs + portable message boards). This is what "IWZ" means.
+//  'ab'  = other portable work-zone devices (arrow boards / iCone / IPSI / QTC), SignType Portable-Contractor.
+//  'dms' = permanent message signs (SideMount).
+function deviceKind(a){
+  if(/^SSR?\d/i.test((a.DeviceName||'').trim())) return 'ss';
+  if(/portable-contractor/i.test(a.SignType||'') || /\bAB\b|arrow|icone/i.test(a.DeviceName||'')) return 'ab';
+  return 'dms'; }
+function setFor(kind){ return kind==='ss'?selSS:(kind==='ab'?selAB:selDMS); }
 function devIcon(kind,sel){
-  const g = kind==='ab' ? '▲ Board' : '🔶 DMS';
-  const bg = sel ? '#15803d' : (kind==='ab' ? '#0891b2' : '#d97706');
+  const g = kind==='ss' ? '🟣 SS·IWZ' : (kind==='ab' ? '▲ Board' : '🔶 DMS');
+  const bg = sel ? '#15803d' : (kind==='ss' ? '#7c3aed' : (kind==='ab' ? '#0891b2' : '#d97706'));
   return L.divIcon({className:'',html:
     `<div style="background:${bg};color:#fff;border:2px solid #fff;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.4)">${sel?'✓ ':''}${g}</div>`,
-    iconSize:[58,18],iconAnchor:[29,9]}); }
+    iconSize:[66,18],iconAnchor:[33,9]}); }
 async function scanDevices(){ if(!beginPt||!endPt){ toast('Select a road segment (A→B) first'); return; }
-  toast('Scanning Iowa DMS & connected devices…'); const route=interstate(routeVal());
+  toast('Scanning Iowa DMS & work-zone devices…'); const route=interstate(routeVal());
   const pad=0.08; // ~5 mi around the segment — devices close to the zone
   const bb=[Math.min(beginPt.lng,endPt.lng)-pad, Math.min(beginPt.lat,endPt.lat)-pad, Math.max(beginPt.lng,endPt.lng)+pad, Math.max(beginPt.lat,endPt.lat)+pad].join(',');
   const url='https://services.arcgis.com/8lRhdTsQyJpO52F1/ArcGIS/rest/services/DMS_View/FeatureServer/0/query'+
@@ -588,35 +595,40 @@ async function scanDevices(){ if(!beginPt||!endPt){ toast('Select a road segment
     dmsFeats=(j.features||[]).filter(f=>f.geometry&&f.geometry.x!=null&&(!route||interstate(f.attributes.Route)===route)); }
   catch(e){ dmsFeats=[]; }
   renderDMS(); const box=el('dmsBox'); box.style.display='block';
-  if(!dmsFeats.length){ box.innerHTML='No Iowa DMS or connected devices found near this segment'+(route?` (route ${route})`:'')+'.'; }
-  else { const ab=dmsFeats.filter(f=>deviceKind(f.attributes)==='ab').length;
-    toast(`${dmsFeats.length} nearby (${ab} connected board${ab===1?'':'s'}) — tap a marker to add it`); updateDMS(); } }
+  if(!dmsFeats.length){ box.innerHTML='No Iowa DMS or work-zone devices found near this segment'+(route?` (route ${route})`:'')+'.'; }
+  else { const ss=dmsFeats.filter(f=>deviceKind(f.attributes)==='ss').length;
+    toast(`${dmsFeats.length} nearby${ss?` · ${ss} Street Smart/IWZ`:''} — tap a marker to add it`); updateDMS(); } }
 function renderDMS(){ if(deviceLayer) deviceLayer.remove(); deviceLayer=L.layerGroup().addTo(map);
   dmsFeats.forEach(f=>{ const a=f.attributes,g=f.geometry,name=a.DeviceName||'device',kind=deviceKind(a);
-    const set=kind==='ab'?selAB:selDMS, sel=!!set[name];
+    const set=setFor(kind), sel=!!set[name];
     const mk=L.marker([g.y,g.x],{icon:devIcon(kind,sel)})
       .bindTooltip(name+(a.msgtext?('<br><span style="color:#94a3b8">'+String(a.msgtext).slice(0,60)+'</span>'):''),{direction:'top'})
       .on('click',()=>{ if(set[name]) delete set[name]; else set[name]={name,route:a.Route||'',dir:a.Direction||'',msg:a.msgtext||''}; renderDMS(); updateDMS(); });
     mk.addTo(deviceLayer); }); }
-const AB_LINE=/(^|\n)Connected arrow boards on site:[^\n]*/g;   // managed auto-line in the notes field
-function updateDMS(){ const dms=Object.keys(selDMS), ab=Object.keys(selAB); const box=el('dmsBox'); box.style.display='block';
+const SS_LINE=/(^|\n)Intelligent Work Zone \(Street Smart\) devices:[^\n]*/g;              // managed auto-lines
+const AB_LINE=/(^|\n)(Arrow boards \/ portable devices|Connected arrow boards) on site:[^\n]*/g;
+function updateDMS(){ const dms=Object.keys(selDMS), ab=Object.keys(selAB), ss=Object.keys(selSS); const box=el('dmsBox'); box.style.display='block';
   // DMS → DMS request field.
   if(dms.length) el('dms').value='Requesting messaging on: '+dms.join('; ');
   else if(/^Requesting messaging on:/.test(v('dms'))) el('dms').value='';
-  // Connected boards → written into the visible Additional-info field (preserving the user's own text) + mark IWZ.
-  const userText=(v('addlNotes')||'').replace(AB_LINE,'').trim();
-  const abLine=ab.length?('Connected arrow boards on site: '+ab.join('; ')):'';
-  el('addlNotes').value=[userText,abLine].filter(Boolean).join('\n');
-  if(ab.length && v('iwz')!=='Yes') el('iwz').value='Yes';
+  // Street Smart (IWZ) + arrow boards → written into the visible Additional-info field (preserving user text).
+  const userText=(v('addlNotes')||'').replace(SS_LINE,'').replace(AB_LINE,'').trim();
+  const lines=[];
+  if(ss.length) lines.push('Intelligent Work Zone (Street Smart) devices: '+ss.join('; '));
+  if(ab.length) lines.push('Arrow boards / portable devices on site: '+ab.join('; '));
+  el('addlNotes').value=[userText,...lines].filter(Boolean).join('\n');
+  // ONLY a Street Smart / SRF deployment is an Intelligent Work Zone — arrow boards are not.
+  if(ss.length && v('iwz')!=='Yes') el('iwz').value='Yes';
   let h='';
-  if(ab.length) h+=`<b>Connected arrow boards (${ab.length})</b> — added to Additional info + IWZ set Yes:<br>`+ab.map(n=>'▲ '+n).join('<br>')+'<br>';
-  if(dms.length) h+=`${ab.length?'<br>':''}<b>Selected DMS (${dms.length})</b> — added to the DMS request:<br>`+dms.map(n=>'🔶 '+n).join('<br>')+'<br>';
-  if(dms.length||ab.length) h+=`<button style="margin-top:6px;padding:6px 10px;border:1px solid #0891b2;background:#ecfeff;color:#0e7490;border-radius:6px;cursor:pointer;font-weight:600" onclick="clearDMS()">Clear selection</button>`;
-  else h=dmsFeats.length?`Tap a ▲ connected board or 🔶 DMS marker to add it (${dmsFeats.length} nearby).`:box.innerHTML;
+  if(ss.length) h+=`<b>Street Smart / IWZ (${ss.length})</b> — Intelligent Work Zone set Yes:<br>`+ss.map(n=>'🟣 '+n).join('<br>')+'<br>';
+  if(ab.length) h+=`${ss.length?'<br>':''}<b>Arrow boards / portable devices (${ab.length})</b> — added to Additional info:<br>`+ab.map(n=>'▲ '+n).join('<br>')+'<br>';
+  if(dms.length) h+=`${(ss.length||ab.length)?'<br>':''}<b>Selected DMS (${dms.length})</b> — added to the DMS request:<br>`+dms.map(n=>'🔶 '+n).join('<br>')+'<br>';
+  if(ss.length||ab.length||dms.length) h+=`<button style="margin-top:6px;padding:6px 10px;border:1px solid #0891b2;background:#ecfeff;color:#0e7490;border-radius:6px;cursor:pointer;font-weight:600" onclick="clearDMS()">Clear selection</button>`;
+  else h=dmsFeats.length?`Tap a marker to add it (${dmsFeats.length} nearby — 🟣 Street Smart/IWZ · ▲ arrow board · 🔶 DMS).`:box.innerHTML;
   box.innerHTML=h; saveState(); }
-function clearDMS(){ Object.keys(selDMS).forEach(k=>delete selDMS[k]); Object.keys(selAB).forEach(k=>delete selAB[k]);
+function clearDMS(){ [selDMS,selAB,selSS].forEach(s=>Object.keys(s).forEach(k=>delete s[k]));
   if(/^Requesting messaging on:/.test(v('dms')))el('dms').value='';
-  el('addlNotes').value=(v('addlNotes')||'').replace(AB_LINE,'').trim(); renderDMS(); updateDMS(); }
+  el('addlNotes').value=(v('addlNotes')||'').replace(SS_LINE,'').replace(AB_LINE,'').trim(); renderDMS(); updateDMS(); }
 
 // ---- fill the OFFICIAL Iowa CARS 511 PDF (coordinate overlay, verified) ----
 const PDF_MAP = {
