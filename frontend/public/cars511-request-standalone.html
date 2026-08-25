@@ -1649,7 +1649,8 @@ function requestPayload(){ const o={}; FIELD_IDS.forEach(id=>{ if(el(id)) o[id]=
   o.segment=(beginPt&&endPt)?{begin:[beginPt.lng,beginPt.lat],end:[endPt.lng,endPt.lat],miles:+miles(beginPt,endPt).toFixed(2)}:null;
   o.geometry=(wzRoute&&wzRoute.length)?{type:'LineString',coordinates:wzRoute.map(c=>[c[1],c[0]])}
     :(o.segment?{type:'LineString',coordinates:[o.segment.begin,o.segment.end]}:null);
-  o.detour=(detourPts.length>=2)?{type:'LineString',coordinates:(detourRoute&&detourRoute.length?detourRoute:detourPts.map(p=>[p.lat,p.lng])).map(c=>[c[1],c[0]])}:null;
+  // keep o.detour as the Yes/No field; detour geometry gets its own key
+  o.detour_geometry=(detourPts.length>=2)?{type:'LineString',coordinates:(detourRoute&&detourRoute.length?detourRoute:detourPts.map(p=>[p.lat,p.lng])).map(c=>[c[1],c[0]])}:null;
   o.schedule=schedule.map(s=>s.label);
   o.devices={ dms:Object.keys(selDMS), arrowBoards:Object.keys(selAB), streetSmartIWZ:Object.keys(selSS), cameras:Object.keys(selCam) };
   o.maps={ route:gmapsRoute()||null, detour:(detourPts.length>=2)?gmapsDetour():null };
