@@ -316,9 +316,19 @@ function loadProject(name){ const p=projects().find(x=>x.name===name); if(!p) re
 function setMode(m){ mode=m; el('btnBegin').classList.toggle('active',m==='begin'); el('btnEnd').classList.toggle('active',m==='end');
   const bd=el('btnDetour'); if(bd) bd.classList.toggle('active',m==='detour');
   el('maphint').innerHTML = m==='detour' ? 'Click to trace the <b>detour</b> route (add multiple points)' : `Click the road to set the <b>${m}</b> point`; }
-function mk(latlng,label,color){ return L.marker(latlng,{icon:L.divIcon({className:'',html:
+function mk(latlng,label,color){ const drag=(label==='A'||label==='B');
+  const m=L.marker(latlng,{draggable:drag,icon:L.divIcon({className:'',html:
   `<div style="background:${color};color:#fff;border:2px solid #fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.4)">${label}</div>`,
-  iconSize:[24,24],iconAnchor:[12,12]})}).addTo(map); }
+  iconSize:[24,24],iconAnchor:[12,12]})}).addTo(map);
+  if(drag){ m.bindTooltip('drag to adjust',{direction:'top'});
+    m.on('dragend',ev=>{ const ll=ev.target.getLatLng(); if(label==='A')beginPt=ll; else endPt=ll; if(beginPt&&endPt)snapWZ(); saveState(); }); }
+  return m; }
+// destination point ~meters from (lat,lng) along a compass direction letter — for a default segment
+function offsetPt(lat,lng,dirLetter,meters){ const br={N:0,E:90,S:180,W:270}[dirLetter]!=null?{N:0,E:90,S:180,W:270}[dirLetter]:90;
+  const R=6378137,d=meters/R,brR=br*Math.PI/180,la=lat*Math.PI/180,lo=lng*Math.PI/180;
+  const la2=Math.asin(Math.sin(la)*Math.cos(d)+Math.cos(la)*Math.sin(d)*Math.cos(brR));
+  const lo2=lo+Math.atan2(Math.sin(brR)*Math.sin(d)*Math.cos(la),Math.cos(d)-Math.sin(la)*Math.sin(la2));
+  return L.latLng(la2*180/Math.PI,lo2*180/Math.PI); }
 function bearing(a,b){ const toR=d=>d*Math.PI/180,toD=r=>r*180/Math.PI;
   const y=Math.sin(toR(b.lng-a.lng))*Math.cos(toR(b.lat));
   const x=Math.cos(toR(a.lat))*Math.sin(toR(b.lat))-Math.sin(toR(a.lat))*Math.cos(toR(b.lat))*Math.cos(toR(b.lng-a.lng));
@@ -552,10 +562,12 @@ function fillFromIowaEvent(f){ const a=f.attributes;
   if(a.linktxt||a.ID){ const userText=(v('addlNotes')||'').replace(EV_LINE,'').trim();
     el('addlNotes').value=[userText,'511 event: '+(a.linktxt||a.ID)].filter(Boolean).join('\n'); }
   const p=evPt(f);
-  if(p){ wzRoute=null; beginPt=L.latLng(p[1],p[0]); endPt=null; redraw(); map.setView([p[1],p[0]],14);
-    reverseFill(beginPt,'begin');
-    iowaRCEOffice(beginPt).then(rce=>{ if(!rce)return; const opt=[...el('rce').options].find(o=>o.value.indexOf('District '+rce.District)===0); if(opt){el('rce').value=opt.value; setRceOffice(rce.City||('District '+rce.District));} });
-    setMode('end'); toast('Loaded event — route, dates, hours, county filled. Tap END to set the segment.'); }
+  if(p){ wzRoute=null; beginPt=L.latLng(p[1],p[0]);
+    // default to a ~0.8 mi segment in the travel direction (snaps to centerline); user drags A/B or clicks to adjust
+    endPt=offsetPt(beginPt.lat,beginPt.lng,(dir||'E')[0],1300);
+    redraw(); reverseFill(beginPt,'begin'); snapWZ();   // snapWZ fills mileposts + RCE office too
+    try{ map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[60,60],maxZoom:14}); }catch(e){}
+    toast('Loaded event with a default segment — drag the A/B pins (or click the map) to adjust.'); }
   else toast('Loaded event (no coordinates) — set the segment on the map');
   onRouteChange(); saveState(); }
 function loadJsonFile(ev){ const file=ev.target.files[0]; if(!file)return; const fr=new FileReader();
