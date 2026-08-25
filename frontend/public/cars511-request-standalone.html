@@ -1834,6 +1834,29 @@ function resetAll(){ if(!confirm('Clear the form and pins? (Saved projects are k
 // ---- NBI bridge clearances on the selected segment ----
 let NBI=null; let bridgeLayer=null;
 async function loadNBI(){ if(NBI) return NBI; try{ const r=await fetch('https://corridor-bridges.pages.dev/bridges.json'); const j=await r.json(); NBI=Array.isArray(j)?j:(j.bridges||[]); }catch(e){ NBI=[]; } return NBI; }
+// Live federal NBI (NTAD) — statewide + fresher than the monthly static export; covers detour roads too.
+// Item 54B = vertical underclearance (what a truck faces going UNDER a structure); values are decimal meters.
+async function fetchNBInear(bb){ const M=3.28084;
+  const url='https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/NTAD_National_Bridge_Inventory/FeatureServer/0/query'+
+    '?where=STATE_CODE_001%3D19+AND+VERT_CLR_UND_054B%3E0&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'+
+    '&outFields=VERT_CLR_UND_054B,LAT_UND_MT_055B,HORR_CLR_MT_047,FEATURES_DESC_006A,FACILITY_CARRIED_007&returnGeometry=true&outSR=4326&resultRecordCount=1000&f=json';
+  try{ const j=await (await fetch(url)).json(); if(j.error) return null;
+    return (j.features||[]).map(f=>{ const a=f.attributes,g=f.geometry; if(!g||g.x==null)return null;
+      const clr=+a.VERT_CLR_UND_054B*M; if(!(clr>0)||clr>30)return null;   // >30ft = effectively unrestricted
+      let w=null; if(+a.LAT_UND_MT_055B>0)w=+a.LAT_UND_MT_055B*M; else if(+a.HORR_CLR_MT_047>0&&+a.HORR_CLR_MT_047<30)w=+a.HORR_CLR_MT_047*M;
+      return { latitude:g.y, longitude:g.x, clearance_feet:clr, width_feet:w, bridge_name:(a.FEATURES_DESC_006A||a.FACILITY_CARRIED_007||'Bridge'), last_verified:'live NBI' }; }).filter(Boolean);
+  }catch(e){ return null; } }
+// Iowa DOT Leg17Bridges posted restrictions (Bridge_Posting) — fresh (edited 2026), weight/height postings.
+async function fetchPostings(bb){
+  const url='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Leg17Bridges/FeatureServer/0/query'+
+    "?where=Bridge_Posting+IS+NOT+NULL+AND+Bridge_Posting%3C%3E''&geometry="+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'+
+    '&outFields=Bridge_Posting,MAINTMPOSTRTE&returnGeometry=true&outSR=4326&resultRecordCount=500&f=json';
+  try{ const j=await (await fetch(url)).json(); if(j.error) return [];
+    return (j.features||[]).map(f=>{ const a=f.attributes,g=f.geometry; if(!g||g.x==null)return null;
+      const posting=String(a.Bridge_Posting||'').trim();
+      if(!posting || /^(unrestricted|none|no restriction|open)$/i.test(posting)) return null;
+      return { latitude:g.y, longitude:g.x, posting, route:a.MAINTMPOSTRTE||'' }; }).filter(Boolean);
+  }catch(e){ return []; } }
 function ftIn(f){ const ft=Math.floor(f); let inch=Math.round((f-ft)*12); let F=ft; if(inch===12){F++;inch=0;} return `${F} ft ${inch} in`; }
 function distToSegM(p,a,b){ const k=Math.cos(a.lat*Math.PI/180); const X=ll=>[ll.lng*k*111320, ll.lat*110574];
   const P=X(p),A=X(a),B=X(b); const dx=B[0]-A[0],dy=B[1]-A[1]; const l2=dx*dx+dy*dy||1;
@@ -1842,9 +1865,15 @@ function distToSegM(p,a,b){ const k=Math.cos(a.lat*Math.PI/180); const X=ll=>[ll
 function minDistToPath(pt, path){ if(!path||path.length<2) return Infinity; let m=Infinity;
   for(let i=1;i<path.length;i++){ const d=distToSegM(pt,{lat:path[i-1][0],lng:path[i-1][1]},{lat:path[i][0],lng:path[i][1]}); if(d<m)m=d; } return m; }
 async function scanBridges(){ if(!beginPt||!endPt){ toast('Select a road segment (A→B) first'); return; }
-  toast('Scanning NBI clearances (route + detour)…'); const all=await loadNBI();
+  toast('Scanning NBI clearances (route + detour)…');
   const routePath=(wzRoute&&wzRoute.length>=2)?wzRoute:[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]];
   const detourPath=(detourRoute&&detourRoute.length>=2)?detourRoute:(detourPts.length>=2?detourPts.map(p=>[p.lat,p.lng]):null);
+  // combined bbox over route + detour → query live NBI (statewide/fresh); fall back to static corridor set
+  const allPts=routePath.concat(detourPath||[]); let mnLa=90,mxLa=-90,mnLo=180,mxLo=-180;
+  allPts.forEach(p=>{ if(p[0]<mnLa)mnLa=p[0]; if(p[0]>mxLa)mxLa=p[0]; if(p[1]<mnLo)mnLo=p[1]; if(p[1]>mxLo)mxLo=p[1]; });
+  const pad=0.015, bb=[mnLo-pad,mnLa-pad,mxLo+pad,mxLa+pad].join(',');
+  let all=await fetchNBInear(bb); let src='live NBI';
+  if(!all||!all.length){ all=await loadNBI(); src='corridor dataset'; }
   const TH=1000; const tag=[];
   all.forEach(b=>{ const la=+b.latitude, lo=+b.longitude; if(!Number.isFinite(la)||!Number.isFinite(lo))return;
     const clr=+b.clearance_feet; if(!Number.isFinite(clr))return; const pt={lat:la,lng:lo};
@@ -1865,7 +1894,7 @@ async function scanBridges(){ if(!beginPt||!endPt){ toast('Select a road segment
   const lowR=routeB[0], lowD=detourB[0];
   const widthsR=routeB.map(b=>+b.width_feet).filter(w=>Number.isFinite(w)&&w>0); const minWR=widthsR.length?Math.min(...widthsR):null;
   const line=(label,b)=>b?`<b>${label}: ${ftIn(b.clr)}</b>${b.clr<15?' ⚠️':''} — ${(b.bridge_name||'').slice(0,34)}`:`${label}: none found`;
-  let h=`<b>NBI clearances</b> — ${routeB.length} on route`+(detourPath?`, ${detourB.length} on detour`:'')+`:<br>`;
+  let h=`<b>NBI clearances</b> <span style="color:#6b7280">(${src})</span> — ${routeB.length} on route`+(detourPath?`, ${detourB.length} on detour`:'')+`:<br>`;
   h+='🌉 '+line('Lowest on ROUTE', lowR)+'<br>';
   if(detourPath) h+='↩ '+line('Lowest on DETOUR', lowD)+'<br>';
   // overall lowest across both
@@ -1873,6 +1902,12 @@ async function scanBridges(){ if(!beginPt||!endPt){ toast('Select a road segment
   h+=`<span style="color:#6b7280">Overall lowest: <b>${ftIn(overall.clr)}</b> (${overall.on})</span><br>`;
   h+=routeB.slice(0,5).map(b=>`${b.clr<15?'⚠️ ':''}${ftIn(b.clr)}${b.width_feet?` × ${ftIn(+b.width_feet)} w`:''} — ${(b.bridge_name||'').slice(0,34)}`).join('<br>');
   if(lowR) h+=`<br><button style="margin-top:6px;padding:6px 10px;border:1px solid #b45309;background:#fff7ed;color:#b45309;border-radius:6px;cursor:pointer;font-weight:600" onclick="applyNBI()">Apply route restrictions (H ${ftIn(lowR.clr)}${minWR!=null?` · W ${ftIn(minWR)}`:''})</button>`;
+  // Iowa DOT posted restrictions (Bridge_Posting) near the route/detour — fresh, weight/height postings
+  try{ const posts=await fetchPostings(bb);
+    const nearPosts=posts.filter(p=>minDistToPath({lat:p.latitude,lng:p.longitude},routePath)<=TH || (detourPath&&minDistToPath({lat:p.latitude,lng:p.longitude},detourPath)<=TH));
+    if(nearPosts.length){ h+=`<br><b style="color:#9a3412">Posted restrictions nearby (${nearPosts.length}):</b><br>`+
+      nearPosts.slice(0,4).map(p=>`• ${p.route?('['+p.route+'] '):''}${p.posting.slice(0,50)}`).join('<br>'); }
+  }catch(e){}
   box.innerHTML=h;
   toast(`Route low ${lowR?ftIn(lowR.clr):'n/a'}`+(detourPath?` · detour low ${lowD?ftIn(lowD.clr):'n/a'}`:'')); }
 function applyNBI(){ const near=window.__nbiNear||[]; if(!near.length)return;
