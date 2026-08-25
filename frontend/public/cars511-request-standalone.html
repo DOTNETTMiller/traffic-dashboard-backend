@@ -2059,11 +2059,11 @@ async function scanBridges(){ if(!beginPt||!endPt){ toast('Select a road segment
     const near=wt.filter(b=>minDistToPath({lat:b.latitude,lng:b.longitude},routePath)<=TH || (detourPath&&minDistToPath({lat:b.latitude,lng:b.longitude},detourPath)<=TH));
     const rated=near.filter(b=>b.opTons!=null).sort((a,b)=>a.opTons-b.opTons);
     const posted=near.filter(b=>b.posted);
-    if(near.length){ h+=`<br><b>🏋 Bridge weight capacity</b> (NBI operating rating): `;
-      h+= rated.length ? (`lowest <b>${rated[0].opTons} US tons</b>${rated[0].opTons<40?' ⚠️':''} — ${(rated[0].name||'').slice(0,30)}`) : 'no rating data';
+    if(near.length){ h+=`<br><b>🏋 Bridge weight capacity</b> — NBI <i>operating rating</i> (max load, US tons): `;
+      h+= rated.length ? (`lowest <b>${rated[0].opTons} t</b>${rated[0].opTons<40?' ⚠️':''} — ${(rated[0].name||'').slice(0,30)}`) : 'no rating data';
       if(rated.length) window.__nbiLowTons=rated[0].opTons;
-      if(posted.length){ window.__nbiPosted=posted; h+=`<br>⛔ <b style="color:#991b1b">${posted.length} weight-POSTED bridge(s)</b> — closed/posted for load:<br>`+
-        posted.slice(0,4).map(b=>`• ${(b.name||'Bridge').slice(0,34)}${b.opTons!=null?(' — '+b.opTons+' t'):''}`).join('<br>'); }
+      if(posted.length){ window.__nbiPosted=posted; h+=`<br>⛔ <b style="color:#991b1b">${posted.length} weight-POSTED bridge(s)</b> — legally load-restricted (obey the <b>posted limit</b> on the sign; operating rating shown):<br>`+
+        posted.slice(0,4).map(b=>`• ${(b.name||'Bridge').slice(0,34)}${b.opTons!=null?(' — op. rating '+b.opTons+' t'):''}`).join('<br>'); }
       if(rated.length||posted.length) h+=`<br><button style="margin-top:6px;padding:6px 10px;border:1px solid #991b1b;background:#fef2f2;color:#991b1b;border-radius:6px;cursor:pointer;font-weight:600" onclick="applyWeight()">Note weight capacity in restrictions</button>`;
     }
   }catch(e){}

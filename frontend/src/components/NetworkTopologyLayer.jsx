@@ -192,7 +192,7 @@ export default function NetworkTopologyLayer({ visible = true, stateKey = null, 
                     <div>
                       <span style={{ color: '#6b7280' }}>Distance:</span>
                       <span style={{ fontWeight: '500', marginLeft: '4px' }}>
-                        {conn.distance_meters ? `${Math.round(conn.distance_meters)}m` : 'N/A'}
+                        {conn.distance_meters ? (conn.distance_meters * 3.28084 < 1000 ? `${Math.round(conn.distance_meters * 3.28084)} ft` : `${(conn.distance_meters / 1609.34).toFixed(1)} mi`) : 'N/A'}
                       </span>
                     </div>
                     {conn.bandwidth_mbps && (
