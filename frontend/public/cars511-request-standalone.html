@@ -1245,7 +1245,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
     <fieldset>
       <legend>Step 3 · Restrictions &amp; clearances</legend>
-      <button class="ghost" style="width:100%;margin:0 0 8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanBridges()">🌉 Scan NBI clearances (route + detour)</button>
+      <button class="ghost" style="width:100%;margin:0 0 8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanBridges()">🌉 Scan NBI clearances + weight (route + detour)</button>
       <div class="schedList" id="nbiBox" style="display:none;margin-bottom:8px"></div>
       <div class="row">
         <div><label>Width</label><input id="rWidth" placeholder="e.g. 11 ft" /></div>
@@ -1979,6 +1979,16 @@ async function fetchNBInear(bb){ const M=3.28084;
       let w=null; if(+a.LAT_UND_MT_055B>0)w=+a.LAT_UND_MT_055B*M; else if(+a.HORR_CLR_MT_047>0&&+a.HORR_CLR_MT_047<30)w=+a.HORR_CLR_MT_047*M;
       return { latitude:g.y, longitude:g.x, clearance_feet:clr, width_feet:w, bridge_name:(a.FEATURES_DESC_006A||a.FACILITY_CARRIED_007||'Bridge'), last_verified:'live NBI' }; }).filter(Boolean);
   }catch(e){ return null; } }
+// Bridge WEIGHT capacity: NBI operating rating (item 64, metric tonnes → US tons) + posting status
+// (item 41: P/R/D = weight-posted). Carrying-bridge set — near the route/detour by proximity.
+async function fetchWeightNear(bb){
+  const url='https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/NTAD_National_Bridge_Inventory/FeatureServer/0/query'+
+    '?where=STATE_CODE_001%3D19&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'+
+    '&outFields=OPERATING_RATING_064,OPEN_CLOSED_POSTED_041,FACILITY_CARRIED_007,FEATURES_DESC_006A&returnGeometry=true&outSR=4326&resultRecordCount=2000&f=json';
+  try{ const j=await (await fetch(url)).json(); if(j.error) return [];
+    return (j.features||[]).map(f=>{ const a=f.attributes,g=f.geometry; if(!g||g.x==null)return null; const op=+a.OPERATING_RATING_064; const st=a.OPEN_CLOSED_POSTED_041;
+      return { latitude:g.y, longitude:g.x, opTons:(op>0?+(op*1.10231).toFixed(1):null), posted:(st==='P'||st==='R'||st==='D'), status:st, name:(a.FACILITY_CARRIED_007||a.FEATURES_DESC_006A||'Bridge') }; }).filter(Boolean);
+  }catch(e){ return []; } }
 // Iowa DOT Leg17Bridges posted restrictions (Bridge_Posting) — fresh (edited 2026), weight/height postings.
 async function fetchPostings(bb){
   const url='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Leg17Bridges/FeatureServer/0/query'+
@@ -2041,8 +2051,27 @@ async function scanBridges(){ if(!beginPt||!endPt){ toast('Select a road segment
     if(nearPosts.length){ h+=`<br><b style="color:#9a3412">Posted restrictions nearby (${nearPosts.length}):</b><br>`+
       nearPosts.slice(0,4).map(p=>`• ${p.route?('['+p.route+'] '):''}${p.posting.slice(0,50)}`).join('<br>'); }
   }catch(e){}
+  // Bridge WEIGHT capacity (NBI operating rating) + weight-posted bridges on route/detour
+  window.__nbiPosted=null; window.__nbiLowTons=null;
+  try{ const wt=await fetchWeightNear(bb);
+    const near=wt.filter(b=>minDistToPath({lat:b.latitude,lng:b.longitude},routePath)<=TH || (detourPath&&minDistToPath({lat:b.latitude,lng:b.longitude},detourPath)<=TH));
+    const rated=near.filter(b=>b.opTons!=null).sort((a,b)=>a.opTons-b.opTons);
+    const posted=near.filter(b=>b.posted);
+    if(near.length){ h+=`<br><b>🏋 Bridge weight capacity</b> (NBI operating rating): `;
+      h+= rated.length ? (`lowest <b>${rated[0].opTons} US tons</b>${rated[0].opTons<40?' ⚠️':''} — ${(rated[0].name||'').slice(0,30)}`) : 'no rating data';
+      if(rated.length) window.__nbiLowTons=rated[0].opTons;
+      if(posted.length){ window.__nbiPosted=posted; h+=`<br>⛔ <b style="color:#991b1b">${posted.length} weight-POSTED bridge(s)</b> — closed/posted for load:<br>`+
+        posted.slice(0,4).map(b=>`• ${(b.name||'Bridge').slice(0,34)}${b.opTons!=null?(' — '+b.opTons+' t'):''}`).join('<br>'); }
+      if(rated.length||posted.length) h+=`<br><button style="margin-top:6px;padding:6px 10px;border:1px solid #991b1b;background:#fef2f2;color:#991b1b;border-radius:6px;cursor:pointer;font-weight:600" onclick="applyWeight()">Note weight capacity in restrictions</button>`;
+    }
+  }catch(e){}
   box.innerHTML=h;
-  toast(`Route low ${lowR?ftIn(lowR.clr):'n/a'}`+(detourPath?` · detour low ${lowD?ftIn(lowD.clr):'n/a'}`:'')); }
+  toast(`Route low ${lowR?ftIn(lowR.clr):'n/a'}`+(detourPath?` · detour low ${lowD?ftIn(lowD.clr):'n/a'}`:'')+(window.__nbiLowTons?` · weight ${window.__nbiLowTons}t`:'')); }
+function applyWeight(){ const tons=window.__nbiLowTons, posted=window.__nbiPosted;
+  if(tons!=null && !v('rWeight')) el('rWeight').value=tons+' tons (lowest NBI operating rating)';
+  if(posted&&posted.length){ const note='Weight-posted bridges: '+posted.map(b=>(b.name||'Bridge')+(b.opTons!=null?(' ('+b.opTons+'t)'):'')).join('; ');
+    const cur=(v('addlNotes')||'').replace(/(^|\n)Weight-posted bridges:[^\n]*/g,'').trim(); el('addlNotes').value=[cur,note].filter(Boolean).join('\n'); }
+  saveState(); toast('Weight capacity noted'); }
 function applyNBI(){ const near=window.__nbiNear||[]; if(!near.length)return;
   const clr=near[0].clr; el('rHeight').value=ftIn(clr);
   const widths=near.map(b=>+b.width_feet).filter(w=>Number.isFinite(w)&&w>0);

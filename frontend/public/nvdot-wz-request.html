@@ -115,7 +115,7 @@
 
     <fieldset>
       <legend>Step 3 · Restrictions &amp; clearances</legend>
-      <button class="primary" style="width:100%;margin-bottom:8px" onclick="scanBridges()">🌉 Scan NBI clearances (route + detour)</button>
+      <button class="primary" style="width:100%;margin-bottom:8px" onclick="scanBridges()">🌉 Scan NBI clearances + weight (route + detour)</button>
       <div class="box" id="nbiBox" style="display:none"></div>
       <div class="row">
         <div><label>Width</label><input id="rWidth" placeholder="e.g. 11 ft" /></div>
@@ -243,6 +243,9 @@ function minDistToPath(pt,path){if(!path||path.length<2)return Infinity;let m=In
 let bridgeLayer=null;
 async function fetchNBInear(bb){const url='https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/NTAD_National_Bridge_Inventory/FeatureServer/0/query?where=STATE_CODE_001%3D32+AND+VERT_CLR_UND_054B%3E0&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=VERT_CLR_UND_054B,LAT_UND_MT_055B,HORR_CLR_MT_047,FEATURES_DESC_006A,FACILITY_CARRIED_007&returnGeometry=true&outSR=4326&resultRecordCount=1000&f=json';
   try{const j=await(await fetch(url)).json();if(j.error)return[];return(j.features||[]).map(f=>{const a=f.attributes,g=f.geometry;if(!g||g.x==null)return null;const clr=+a.VERT_CLR_UND_054B*M2FT;if(!(clr>0)||clr>30)return null;let w=null;if(+a.LAT_UND_MT_055B>0)w=+a.LAT_UND_MT_055B*M2FT;else if(+a.HORR_CLR_MT_047>0&&+a.HORR_CLR_MT_047<30)w=+a.HORR_CLR_MT_047*M2FT;return{latitude:g.y,longitude:g.x,clr,width_feet:w,name:(a.FEATURES_DESC_006A||a.FACILITY_CARRIED_007||'Bridge')};}).filter(Boolean);}catch(e){return[];}}
+// Bridge WEIGHT capacity: NBI operating rating (item 64, tonnes→US tons) + posting (item 41: P/R/D)
+async function fetchWeightNear(bb){const url='https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/NTAD_National_Bridge_Inventory/FeatureServer/0/query?where=STATE_CODE_001%3D32&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=OPERATING_RATING_064,OPEN_CLOSED_POSTED_041,FACILITY_CARRIED_007,FEATURES_DESC_006A&returnGeometry=true&outSR=4326&resultRecordCount=2000&f=json';
+  try{const j=await(await fetch(url)).json();if(j.error)return[];return(j.features||[]).map(f=>{const a=f.attributes,g=f.geometry;if(!g||g.x==null)return null;const op=+a.OPERATING_RATING_064,st=a.OPEN_CLOSED_POSTED_041;return{latitude:g.y,longitude:g.x,opTons:(op>0?+(op*1.10231).toFixed(1):null),posted:(st==='P'||st==='R'||st==='D'),status:st,name:(a.FACILITY_CARRIED_007||a.FEATURES_DESC_006A||'Bridge')};}).filter(Boolean);}catch(e){return[];}}
 async function scanBridges(){if(!beginPt||!endPt){toast('Select a road segment (A→B) first');return;}toast('Scanning NBI clearances…');
   const routePath=(wzRoute&&wzRoute.length>=2)?wzRoute:[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]];
   const detourPath=(detourRoute&&detourRoute.length>=2)?detourRoute:(detourPts.length>=2?detourPts.map(p=>[p.lat,p.lng]):null);
@@ -257,8 +260,18 @@ async function scanBridges(){if(!beginPt||!endPt){toast('Select a road segment (
   const lowR=routeB[0],lowD=detourB[0];const ln=(l,b)=>b?('<b>'+l+': '+ftIn(b.clr)+'</b>'+(b.clr<15?' ⚠️':'')+' — '+(b.name||'').slice(0,30)):(l+': none');
   let h='<b>NBI clearances</b> — '+routeB.length+' on route'+(detourPath?', '+detourB.length+' on detour':'')+':<br>🌉 '+ln('Lowest on ROUTE',lowR)+'<br>';if(detourPath)h+='↩ '+ln('Lowest on DETOUR',lowD)+'<br>';
   const widths=routeB.map(b=>b.width_feet).filter(w=>w>0);const minW=widths.length?Math.min.apply(null,widths):null;
-  if(lowR)h+='<br><button style="padding:5px 9px" onclick="applyNBI()">Apply route restrictions (H '+ftIn(lowR.clr)+(minW!=null?' · W '+ftIn(minW):'')+')</button>';box.innerHTML=h;
-  toast('Route low '+(lowR?ftIn(lowR.clr):'n/a')+(detourPath?' · detour low '+(lowD?ftIn(lowD.clr):'n/a'):''));}
+  if(lowR)h+='<br><button style="padding:5px 9px" onclick="applyNBI()">Apply route restrictions (H '+ftIn(lowR.clr)+(minW!=null?' · W '+ftIn(minW):'')+')</button>';
+  window.__nbiPosted=null;window.__nbiLowTons=null;
+  try{const wt=await fetchWeightNear(bb);const near=wt.filter(b=>minDistToPath({lat:b.latitude,lng:b.longitude},routePath)<=TH||(detourPath&&minDistToPath({lat:b.latitude,lng:b.longitude},detourPath)<=TH));
+    const rated=near.filter(b=>b.opTons!=null).sort((a,b)=>a.opTons-b.opTons);const posted=near.filter(b=>b.posted);
+    if(near.length){h+='<br><b>🏋 Bridge weight capacity</b> (NBI operating rating): '+(rated.length?('lowest <b>'+rated[0].opTons+' US tons</b>'+(rated[0].opTons<40?' ⚠️':'')+' — '+(rated[0].name||'').slice(0,28)):'no rating data');
+      if(rated.length)window.__nbiLowTons=rated[0].opTons;
+      if(posted.length){window.__nbiPosted=posted;h+='<br>⛔ <b style="color:#991b1b">'+posted.length+' weight-POSTED bridge(s):</b><br>'+posted.slice(0,4).map(b=>'• '+(b.name||'Bridge').slice(0,32)+(b.opTons!=null?(' — '+b.opTons+' t'):'')).join('<br>');}
+      if(rated.length||posted.length)h+='<br><button style="margin-top:6px;padding:5px 9px;border-color:#991b1b;color:#991b1b" onclick="applyWeight()">Note weight in restrictions</button>';}
+  }catch(e){}
+  box.innerHTML=h;
+  toast('Route low '+(lowR?ftIn(lowR.clr):'n/a')+(detourPath?' · detour low '+(lowD?ftIn(lowD.clr):'n/a'):'')+(window.__nbiLowTons?' · weight '+window.__nbiLowTons+'t':''));}
+function applyWeight(){const tons=window.__nbiLowTons,posted=window.__nbiPosted;if(tons!=null&&!v('rWeight'))el('rWeight').value=tons+' tons (lowest NBI operating rating)';if(posted&&posted.length){const note='Weight-posted bridges: '+posted.map(b=>(b.name||'Bridge')+(b.opTons!=null?(' ('+b.opTons+'t)'):'')).join('; ');const cur=(v('addlNotes')||'').replace(/(^|\n)Weight-posted bridges:[^\n]*/g,'').trim();el('addlNotes').value=[cur,note].filter(Boolean).join('\n');}saveState();toast('Weight capacity noted');}
 function applyNBI(){const near=window.__nbiNear||[];if(!near.length)return;el('rHeight').value=ftIn(near[0].clr);const widths=near.map(b=>b.width_feet).filter(w=>w>0);if(widths.length)el('rWidth').value=ftIn(Math.min.apply(null,widths));if(v('rTiming')==='None'||!v('rTiming'))el('rTiming').value='24 hours';saveState();toast('Restrictions applied');}
 
 // ---- schedule ----
