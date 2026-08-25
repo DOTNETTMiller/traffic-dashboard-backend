@@ -1212,9 +1212,36 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         <div><label>Requestor email</label><input id="email" type="email" /></div>
       </div>
       <label>24-hour contact (name / phone)</label><input id="contact24" />
-      <label>Traffic impact</label>
-      <select id="impact"><option>Lane restriction(s)</option><option>Full closure</option>
-        <option>Shoulder closure</option><option>Ramp closure</option><option>Rolling slowdown</option></select>
+      <label>Traffic impact <span style="color:#94a3b8;font-weight:400">(official CARS 511 choices)</span></label>
+      <select id="impact">
+        <option>Choose one</option>
+        <option>Closed</option>
+        <option>Closed intermittently</option>
+        <option>Intermittent lane closure</option>
+        <option>Opposing traffic</option>
+        <option>Right lane closed</option>
+        <option>Right 2 lanes closed</option>
+        <option>Right 3 lanes closed</option>
+        <option>Left lane closed</option>
+        <option>Left 2 lanes closed</option>
+        <option>Left 3 lanes closed</option>
+        <option>Center lane closed</option>
+        <option>Center 2 lanes closed</option>
+        <option>Center 3 lanes closed</option>
+        <option>Right shoulder closed</option>
+        <option>Left shoulder closed</option>
+        <option>Both shoulders closed</option>
+        <option>Exit ramp closed</option>
+        <option>Entrance ramp closed</option>
+        <option>Ramp partially closed</option>
+        <option>Exit ramp partially closed</option>
+        <option>Entrance ramp partially closed</option>
+        <option>Ramp closed (systems interchange)</option>
+        <option>Local road closures in area</option>
+        <option>Single line traffic alternating directions</option>
+        <option>Slow moving maintenance vehicle</option>
+      </select>
+      <div id="laneHint" style="display:none;font-size:12px;color:#0369a1;margin-top:2px"></div>
     </fieldset>
 
     <fieldset>
@@ -1470,7 +1497,20 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
   const mpTxt=(mpA!=null&&mpB!=null)?` · MP ${Math.min(mpA,mpB)}–${Math.max(mpA,mpB)}`:'';
   el('selinfo').innerHTML=`<b>Segment:</b> ${dir}, ${mi!=null?mi.toFixed(1):'?'} mi (${src})${mpTxt}<br>begin ${beginPt.lat.toFixed(4)}, ${beginPt.lng.toFixed(4)} → end ${endPt.lat.toFixed(4)}, ${endPt.lng.toFixed(4)}`+
     ` &nbsp; <a href="${gmapsRoute()}" target="_blank" rel="noopener">🗺 Share route map</a>`;
-  saveState(); checkDuplicate(); }
+  saveState(); checkDuplicate(); showLanes(beginPt, routeId); }
+// Pull lanes-available (HPMS-equivalent) from Road_Network_View to guide the impact choice.
+async function showLanes(pt, routeId){ const hint=el('laneHint'); if(!hint) return; if(!pt){ hint.style.display='none'; return; }
+  const pad=0.004; const bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
+  const where = routeId ? "ROUTEID%3D'"+routeId+"'" : '1%3D1';
+  const url='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Road_Network_View/FeatureServer/0/query?where='+where+'&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=NUMBER_LANES,SURFACE_WIDTH,AADT,TRUCK_AADT&returnGeometry=false&resultRecordCount=1&f=json';
+  try{ const f=((await (await fetch(url)).json()).features||[])[0]; const a=f&&f.attributes;
+    if(!a||!(a.NUMBER_LANES>0)){ hint.style.display='none'; return; }
+    hint.style.display='block';
+    hint.innerHTML='🛣️ Roadway here: <b>'+a.NUMBER_LANES+' lane'+(a.NUMBER_LANES==1?'':'s')+'</b> this direction'+
+      (a.SURFACE_WIDTH?(' · '+a.SURFACE_WIDTH+' ft'):'')+
+      (a.AADT?(' · AADT '+Number(a.AADT).toLocaleString()+(a.TRUCK_AADT?(' · '+Number(a.TRUCK_AADT).toLocaleString()+' trucks/day'):'')):'')+
+      ' — pick the matching lane-closure impact above.';
+  }catch(e){ hint.style.display='none'; } }
 function redraw(){ [beginMk,endMk,line].forEach(x=>x&&x.remove()); beginMk=endMk=line=null; wzRoute=null;
   if(beginPt) beginMk=mk(beginPt,'A','#1d4ed8'); if(endPt) endMk=mk(endPt,'B','#dc2626');
   drawWZLine();
@@ -1787,7 +1827,7 @@ function resetAll(){ if(!confirm('Clear the form and pins? (Saved projects are k
   [selDMS,selAB,selSS].forEach(s=>Object.keys(s).forEach(k=>delete s[k])); if(deviceLayer){deviceLayer.remove();deviceLayer=null;} dmsFeats=[]; el('dmsBox').style.display='none';
   Object.keys(selCam).forEach(k=>delete selCam[k]); if(camLayer){camLayer.remove();camLayer=null;} camFeats=[]; el('camBox').style.display='none';
   projFeats=[]; if(el('projBox'))el('projBox').style.display='none';
-  ['dupWarn','readyBox','dbStatus'].forEach(id=>{ if(el(id))el(id).style.display='none'; });
+  ['dupWarn','readyBox','dbStatus','laneHint'].forEach(id=>{ if(el(id))el(id).style.display='none'; });
   el('schedList').style.display='none'; el('selinfo').textContent='No segment selected yet — click the map to place the begin point.';
   onRouteChange(); setMode('begin'); saveState(); }
 
