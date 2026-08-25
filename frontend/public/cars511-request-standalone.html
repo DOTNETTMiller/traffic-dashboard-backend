@@ -1161,13 +1161,17 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     <div class="mapbtns">
       <button id="btnBegin" class="active" onclick="setMode('begin')">① Set BEGIN on map</button>
       <button id="btnEnd" onclick="setMode('end')">② Set END on map</button>
+      <button id="btnGPS" onclick="useMyLocation()">📍 Use my location</button>
     </div>
     <div class="selinfo" id="selinfo">No segment selected yet — click the map to place the begin point.</div>
+    <div id="dupWarn" style="display:none;margin-top:8px;padding:8px 10px;border-radius:6px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px"></div>
     <label class="chk"><input type="checkbox" id="autofill" checked /> Auto-fill road & county from the map (uses internet)</label>
     <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanBridges()">🌉 Scan NBI clearances on segment</button>
     <div class="schedList" id="nbiBox" style="display:none"></div>
     <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanDevices()">🔶 Scan DMS, arrow boards & Street Smart (IWZ) devices near segment</button>
     <div class="schedList" id="dmsBox" style="display:none"></div>
+    <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanCameras()">📷 Attach nearby traffic cameras</button>
+    <div class="schedList" id="camBox" style="display:none"></div>
     <div class="mapbtns" style="margin-top:8px">
       <button id="btnDetour" onclick="setMode('detour')">✏️ Draw detour</button>
       <button onclick="undoDetour()">↶ Undo pt</button>
@@ -1272,7 +1276,9 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <div id="emailAlt" class="hint" style="display:none;margin-top:6px;padding:8px;background:#fff7ed;border:1px solid #E1A626;border-radius:6px"></div>
     </fieldset>
 
+    <div id="readyBox" class="schedList" style="display:none;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412"></div>
     <div class="actions">
+      <button class="ghost" onclick="checkReadiness()">✓ Check readiness</button>
       <button class="primary" onclick="fillOfficial()">📝 Fill official 511 PDF</button>
       <button class="primary" onclick="seamlessFill()">📋 Fill 511 site (copy fields)</button>
       <button class="ghost" onclick="emailRCE()">✉️ Email TMC (cc RCE)</button>
@@ -1280,6 +1286,20 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <button class="ghost" onclick="copySummary()">📋 Copy</button>
       <button class="ghost" onclick="resetAll()">🗑 New</button>
     </div>
+
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-weight:600;color:var(--accent)">🗄️ Submit to database (optional integration)</summary>
+      <div style="padding:8px 0;font-size:13px;color:#475569">If this tool replaces the paper CARS form, point it at your endpoint and it will POST the full request as JSON. Settings are saved on this device.</div>
+      <label>Database endpoint URL <span style="color:#94a3b8;font-weight:400">(HTTPS POST)</span></label>
+      <input id="dbEndpoint" placeholder="https://your-server/api/cars511" oninput="saveIntegration()" />
+      <label>Authorization header <span style="color:#94a3b8;font-weight:400">(optional — e.g. Bearer token / API key)</span></label>
+      <input id="dbAuth" placeholder="Bearer …" oninput="saveIntegration()" />
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="primary" onclick="submitToDatabase()">🚀 Submit to database</button>
+        <button class="ghost" onclick="downloadPayload()">⬇ Download JSON payload</button>
+      </div>
+      <div id="dbStatus" style="margin-top:8px;font-size:13px;display:none"></div>
+    </details>
   </div>
   <div style="flex:1;position:relative">
     <div class="maphint" id="maphint">Click the road to set the <b>begin</b> point &nbsp;·&nbsp; <span style="color:#94a3b8">(map tiles need internet)</span></div>
@@ -1447,7 +1467,7 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
   const mpTxt=(mpA!=null&&mpB!=null)?` · MP ${Math.min(mpA,mpB)}–${Math.max(mpA,mpB)}`:'';
   el('selinfo').innerHTML=`<b>Segment:</b> ${dir}, ${mi!=null?mi.toFixed(1):'?'} mi (${src})${mpTxt}<br>begin ${beginPt.lat.toFixed(4)}, ${beginPt.lng.toFixed(4)} → end ${endPt.lat.toFixed(4)}, ${endPt.lng.toFixed(4)}`+
     ` &nbsp; <a href="${gmapsRoute()}" target="_blank" rel="noopener">🗺 Share route map</a>`;
-  saveState(); }
+  saveState(); checkDuplicate(); }
 function redraw(){ [beginMk,endMk,line].forEach(x=>x&&x.remove()); beginMk=endMk=line=null; wzRoute=null;
   if(beginPt) beginMk=mk(beginPt,'A','#1d4ed8'); if(endPt) endMk=mk(endPt,'B','#dc2626');
   drawWZLine();
@@ -1546,10 +1566,108 @@ function fillFromIowaEvent(f){ const a=f.attributes;
   if(a.direction) el('direction').value=a.direction;
   el('description').value=a.phrase||a.headline||'';
   if(a.IssueDT) el('beginDT').value=toLocalDT(a.IssueDT); if(a.ExpireDT) el('endDT').value=toLocalDT(a.ExpireDT);
-  const g=f.geometry; if(g&&g.paths&&g.paths[0]&&g.paths[0].length>=2){ const p=g.paths[0]; wzRoute=null; beginPt=L.latLng(p[0][1],p[0][0]); const last=p[p.length-1]; endPt=L.latLng(last[1],last[0]); redraw(); }
-  onRouteChange(); saveState(); toast('Loaded Iowa DOT event'); }
+  const g=f.geometry; if(g&&g.paths&&g.paths[0]&&g.paths[0].length>=2){ const p=g.paths[0]; wzRoute=null; beginPt=L.latLng(p[0][1],p[0][0]); const last=p[p.length-1]; endPt=L.latLng(last[1],last[0]); redraw();
+    snapWZ(); }  // snap to centerline + auto-fill mileposts, county, RCE office for the loaded event
+  onRouteChange(); saveState(); toast('Loaded Iowa DOT event — review dates & extend as needed'); }
 function loadJsonFile(ev){ const file=ev.target.files[0]; if(!file)return; const fr=new FileReader();
   fr.onload=()=>{ try{ const j=JSON.parse(fr.result); const f=(j.features&&j.features[0])||j; fillFromEvent(f); }catch(e){ toast('Could not parse JSON'); } }; fr.readAsText(file); }
+
+// ---- GPS: set the begin (then end) point from device location ----
+function useMyLocation(){ if(!navigator.geolocation){ toast('Geolocation not available'); return; }
+  toast('Getting your location…');
+  navigator.geolocation.getCurrentPosition(p=>{ const ll=L.latLng(p.coords.latitude,p.coords.longitude);
+    if(!beginPt){ beginPt=ll; if(beginMk)beginMk.remove(); beginMk=mk(ll,'A','#1d4ed8'); map.setView(ll,14);
+      reverseFill(ll,'begin'); setMode('end'); toast('Begin set from GPS — tap END on the map, or press 📍 again'); }
+    else { endPt=ll; if(endMk)endMk.remove(); endMk=mk(ll,'B','#dc2626'); snapWZ(); toast('End set from GPS'); }
+    saveState();
+  }, e=>toast('Location error: '+(e.message||'denied')), {enableHighAccuracy:true,timeout:10000,maximumAge:0}); }
+
+// ---- Duplicate / overlap check against the live Iowa 511 feed ----
+async function checkDuplicate(){ const warn=el('dupWarn'); if(!beginPt||!endPt){ warn.style.display='none'; return; }
+  const route=interstate(routeVal());
+  const pad=0.03; const bb=[Math.min(beginPt.lng,endPt.lng)-pad,Math.min(beginPt.lat,endPt.lat)-pad,Math.max(beginPt.lng,endPt.lng)+pad,Math.max(beginPt.lat,endPt.lat)+pad].join(',');
+  let fe=[]; try{ fe=await queryEvents(bb); }catch(e){}
+  // keep events within ~0.6 mi of the segment, same interstate when known
+  const near=fe.filter(f=>{ const g=f.geometry; if(!g||!g.paths||!g.paths[0])return false;
+    if(route && interstate(f.attributes.Route)!==route) return false;
+    return g.paths[0].some(pt=>distToSegM({lat:pt[1],lng:pt[0]},beginPt,endPt)<=1000); });
+  if(!near.length){ warn.style.display='none'; return; }
+  warn.style.display='block';
+  warn.innerHTML=`⚠️ <b>${near.length} existing 511 event(s)</b> already on this segment — check before submitting a duplicate:<br>`+
+    near.slice(0,4).map(f=>{ const a=f.attributes; const exp=a.ExpireDT?(' · expires '+new Date(a.ExpireDT).toLocaleDateString()):''; return '• '+((a.headline||a.Route||'event').slice(0,60))+exp; }).join('<br>')+
+    `<br><span style="color:#6b7280">If this is an update/extension, load it (📥) instead of filing a new one.</span>`; }
+
+// ---- Nearby traffic cameras: attach for visual verification ----
+let camLayer=null, camFeats=[]; const selCam={};
+const CAM_LINE=/(^|\n)Nearby cameras:[^\n]*/g;
+async function scanCameras(){ if(!beginPt||!endPt){ toast('Select a road segment (A→B) first'); return; }
+  toast('Scanning Iowa traffic cameras…'); const route=interstate(routeVal());
+  const pad=0.06; const bb=[Math.min(beginPt.lng,endPt.lng)-pad,Math.min(beginPt.lat,endPt.lat)-pad,Math.max(beginPt.lng,endPt.lng)+pad,Math.max(beginPt.lat,endPt.lat)+pad].join(',');
+  const url='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Traffic_Cameras_View/FeatureServer/0/query'+
+    '?where=1%3D1&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'+
+    '&outFields=Desc_,Route,ImageURL,VideoURL&returnGeometry=true&outSR=4326&resultRecordCount=200&f=json';
+  try{ const j=await (await fetch(url)).json();
+    camFeats=(j.features||[]).filter(f=>f.geometry&&f.geometry.x!=null&&(!route||interstate(f.attributes.Route)===route)); }
+  catch(e){ camFeats=[]; }
+  renderCams(); const box=el('camBox'); box.style.display='block';
+  if(!camFeats.length){ box.innerHTML='No Iowa traffic cameras found near this segment'+(route?` (route ${route})`:'')+'.'; }
+  else { toast(`${camFeats.length} camera(s) nearby — tap a 📷 marker to attach it`); updateCams(); } }
+function renderCams(){ if(camLayer) camLayer.remove(); camLayer=L.layerGroup().addTo(map);
+  camFeats.forEach(f=>{ const a=f.attributes,g=f.geometry,name=a.Desc_||'camera',sel=!!selCam[name];
+    const mk2=L.marker([g.y,g.x],{icon:L.divIcon({className:'',html:`<div style="background:${sel?'#15803d':'#0369a1'};color:#fff;border:2px solid #fff;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.4)">${sel?'✓ ':''}📷</div>`,iconSize:[34,18],iconAnchor:[17,9]})})
+      .bindTooltip(name,{direction:'top'})
+      .on('click',()=>{ if(selCam[name])delete selCam[name]; else selCam[name]={name,url:a.ImageURL||a.VideoURL||''}; renderCams(); updateCams(); });
+    mk2.addTo(camLayer); }); }
+function updateCams(){ const names=Object.keys(selCam); const box=el('camBox'); box.style.display='block';
+  const userText=(v('addlNotes')||'').replace(CAM_LINE,'').trim();
+  const camLine=names.length?('Nearby cameras: '+names.map(n=>n+(selCam[n].url?(' ('+selCam[n].url+')'):'')).join('; ')):'';
+  el('addlNotes').value=[userText,camLine].filter(Boolean).join('\n');
+  if(names.length) box.innerHTML=`<b>Attached cameras (${names.length})</b> — added to Additional info:<br>`+names.map(n=>'📷 '+n).join('<br>')+
+    `<br><button style="margin-top:6px;padding:6px 10px;border:1px solid #0369a1;background:#eff6ff;color:#075985;border-radius:6px;cursor:pointer;font-weight:600" onclick="clearCams()">Clear cameras</button>`;
+  else box.innerHTML=camFeats.length?`Tap a 📷 marker to attach it for TMC/RCE verification (${camFeats.length} nearby).`:box.innerHTML;
+  saveState(); }
+function clearCams(){ Object.keys(selCam).forEach(k=>delete selCam[k]); el('addlNotes').value=(v('addlNotes')||'').replace(CAM_LINE,'').trim(); renderCams(); updateCams(); }
+
+// ---- Readiness check: flag required fields before generating outputs ----
+const REQUIRED=[['requestor','DOT requestor'],['email','Requestor email'],['route','Route'],['direction','Direction'],
+  ['beginLoc','Begin location'],['endLoc','End location'],['counties','County/counties'],['description','Description'],
+  ['impact','Traffic impact'],['beginDT','Begin date/time'],['endDT','End date/time'],['rce','RCE office'],['contact24','24-hr contact']];
+function missingFields(){ return REQUIRED.filter(([id])=>!v(id) || v(id)==='__other' && !v('routeOther')).map(([,label])=>label); }
+function checkReadiness(){ const miss=missingFields(); const b=el('readyBox');
+  if(!miss.length){ if(b){ b.style.display='block'; b.style.background='#ecfdf5'; b.style.borderColor='#a7f3d0'; b.style.color='#065f46'; b.innerHTML='✓ Ready — all required fields are filled.'; } toast('✓ Ready to submit'); return true; }
+  if(b){ b.style.display='block'; b.style.background='#fff7ed'; b.style.borderColor='#fed7aa'; b.style.color='#9a3412';
+    b.innerHTML=`⚠️ <b>${miss.length} required field(s) still empty</b> — the TMC may bounce it back:<br>`+miss.map(m=>'• '+m).join('<br>'); }
+  toast(`${miss.length} required field(s) missing`); return false; }
+
+// ---- Database integration: POST the request as structured JSON to a configurable endpoint ----
+// Lets this tool replace the paper CARS form and populate a database directly. Also the
+// basis for a WZDx feature. Endpoint + auth are stored per-device (never in the request state).
+function saveIntegration(){ localStorage.setItem('cars511_integration', JSON.stringify({endpoint:v('dbEndpoint'),auth:v('dbAuth')})); }
+function loadIntegration(){ try{ const s=JSON.parse(localStorage.getItem('cars511_integration')||'{}'); if(s.endpoint)el('dbEndpoint').value=s.endpoint; if(s.auth)el('dbAuth').value=s.auth; }catch(e){} }
+function requestPayload(){ const o={}; FIELD_IDS.forEach(id=>{ if(el(id)) o[id]=v(id); });
+  o.route=routeVal();
+  o.segment=(beginPt&&endPt)?{begin:[beginPt.lng,beginPt.lat],end:[endPt.lng,endPt.lat],miles:+miles(beginPt,endPt).toFixed(2)}:null;
+  o.geometry=(wzRoute&&wzRoute.length)?{type:'LineString',coordinates:wzRoute.map(c=>[c[1],c[0]])}
+    :(o.segment?{type:'LineString',coordinates:[o.segment.begin,o.segment.end]}:null);
+  o.detour=(detourPts.length>=2)?{type:'LineString',coordinates:(detourRoute&&detourRoute.length?detourRoute:detourPts.map(p=>[p.lat,p.lng])).map(c=>[c[1],c[0]])}:null;
+  o.schedule=schedule.map(s=>s.label);
+  o.devices={ dms:Object.keys(selDMS), arrowBoards:Object.keys(selAB), streetSmartIWZ:Object.keys(selSS), cameras:Object.keys(selCam) };
+  o.maps={ route:gmapsRoute()||null, detour:(detourPts.length>=2)?gmapsDetour():null };
+  o.submitTo=v('tmcEmail')||'IowaDOT.Traffic@iowadot.us'; o.rceCc=v('rceEmail')||null;
+  o.generatedAt=new Date().toISOString(); o.source='CARS 511 Request Builder';
+  return o; }
+function downloadPayload(){ const blob=new Blob([JSON.stringify(requestPayload(),null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`cars511_${(routeVal()||'route').replace(/\W+/g,'')}_${(v('project')||'wz')}.json`; a.click(); toast('JSON payload downloaded'); }
+async function submitToDatabase(){ const ep=v('dbEndpoint'), st=el('dbStatus'); st.style.display='block';
+  if(!ep){ st.style.color='#b91c1c'; st.textContent='Set a database endpoint URL first.'; return; }
+  const miss=missingFields(); if(miss.length && !confirm(`${miss.length} required field(s) missing:\n${miss.join(', ')}\n\nSubmit anyway?`)) return;
+  st.style.color='#475569'; st.textContent='Submitting…';
+  try{ const headers={'Content-Type':'application/json'}; if(v('dbAuth')) headers['Authorization']=v('dbAuth');
+    const r=await fetch(ep,{method:'POST',headers,body:JSON.stringify(requestPayload())});
+    if(r.ok){ let id=''; try{ const j=await r.json(); id=j.id||j.recordId||j.record_id||''; }catch(_){}
+      st.style.color='#15803d'; st.textContent=`✓ Submitted (HTTP ${r.status})`+(id?` — record ${id}`:''); }
+    else { st.style.color='#b91c1c'; st.textContent=`Server returned ${r.status} ${r.statusText||''}`.trim(); } }
+  catch(e){ st.style.color='#b91c1c'; st.textContent=`Submit failed: ${e.message} — likely CORS or endpoint unreachable. Use “Download JSON” as a fallback.`; } }
 
 // ---- schedule build-out ----
 function buildWeeks(){ const pattern=v('schedPattern'), start=v('schedStart'), weeks=parseInt(v('schedWeeks')||'0',10), from=v('schedFrom'), to=v('schedTo');
@@ -1585,7 +1703,8 @@ function detourText(){ return detourPts.length>=2 ? `\n\nDETOUR: ${detourPts.len
 function summaryText(){ return 'IOWA DOT — CARS 511 WORK-ZONE REQUEST\n'+'='.repeat(42)+'\n'+
   fields().map(([k,val])=>`${k}: ${val||'—'}`).join('\n')+scheduleText()+routeMapText()+detourText()+'\n\n(Built with the CARS 511 Request Builder — review before submitting.)'; }
 function copySummary(){ navigator.clipboard.writeText(summaryText()).then(()=>toast('Summary copied')); }
-function emailRCE(){ const to=v('tmcEmail')||'IowaDOT.Traffic@iowadot.us'; const cc=v('rceEmail');
+function emailRCE(){ const _m=missingFields(); if(_m.length){ checkReadiness(); if(!confirm(`${_m.length} required field(s) missing:\n${_m.join(', ')}\n\nEmail anyway?`)) return; }
+  const to=v('tmcEmail')||'IowaDOT.Traffic@iowadot.us'; const cc=v('rceEmail');
   const subj=`CARS 511 Request — ${routeVal()} ${v('direction')} — ${v('project')||'work zone'}`;
   const body=summaryText();
   // Copy the full text first so it's always available even if no mail app is set up.
@@ -1615,6 +1734,8 @@ function resetAll(){ if(!confirm('Clear the form and pins? (Saved projects are k
   [beginMk,endMk,line].forEach(x=>x&&x.remove()); beginPt=endPt=beginMk=endMk=line=null; schedule=[];
   detourPts=[]; drawDetour();
   [selDMS,selAB,selSS].forEach(s=>Object.keys(s).forEach(k=>delete s[k])); if(deviceLayer){deviceLayer.remove();deviceLayer=null;} dmsFeats=[]; el('dmsBox').style.display='none';
+  Object.keys(selCam).forEach(k=>delete selCam[k]); if(camLayer){camLayer.remove();camLayer=null;} camFeats=[]; el('camBox').style.display='none';
+  ['dupWarn','readyBox','dbStatus'].forEach(id=>{ if(el(id))el(id).style.display='none'; });
   el('schedList').style.display='none'; el('selinfo').textContent='No segment selected yet — click the map to place the begin point.';
   onRouteChange(); setMode('begin'); saveState(); }
 
@@ -1737,6 +1858,7 @@ async function officialBytes(){ if(window.__CARS511_PDF_B64) return b64ToBytes(w
 const p2=n=>String(n).padStart(2,'0');
 const fmtMDY=s=>{ const t=Date.parse(s); if(!Number.isFinite(t))return ''; const d=new Date(t); return `${p2(d.getMonth()+1)}/${p2(d.getDate())}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
 async function fillOfficial(){
+  const _m=missingFields(); if(_m.length){ checkReadiness(); if(!confirm(`${_m.length} required field(s) missing:\n${_m.join(', ')}\n\nFill the PDF anyway?`)) return; }
   try{
     if(!window.PDFLib){ toast('PDF library not loaded (need internet once)'); return; }
     const {PDFDocument,StandardFonts,rgb}=window.PDFLib;
@@ -1874,7 +1996,7 @@ el('route').addEventListener('change', ()=>{ onRouteChange(); saveState(); });
 el('rce').addEventListener('change', ()=>{ setRceOffice(v('rce')); saveState(); });
 el('rceEmail').addEventListener('input', saveRceEmail);
 FIELD_IDS.forEach(id=>{ if(el(id)) el(id).addEventListener('input', saveState); });
-loadState(); renderProjects(); onRouteChange();
+loadState(); renderProjects(); onRouteChange(); loadIntegration();
 </script>
 </body>
 </html>
