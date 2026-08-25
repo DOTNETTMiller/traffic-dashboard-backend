@@ -158,6 +158,8 @@
       <legend>Step 3 · Restrictions &amp; clearances</legend>
       <button class="ghost" style="width:100%;margin:0 0 8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanBridges()">🌉 Scan NBI clearances + weight (route + detour)</button>
       <div class="schedList" id="nbiBox" style="display:none;margin-bottom:8px"></div>
+      <button class="ghost" style="width:100%;margin:0 0 8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="checkOSOW(true)">⚖️ Check OSOW permit-route restrictions (route + detour)</button>
+      <div id="osowBox" style="display:none;font-size:12px;padding:7px 9px;border-radius:6px;margin-bottom:8px"></div>
       <div class="row">
         <div><label>Width</label><input id="rWidth" placeholder="e.g. 11 ft" /></div>
         <div><label>Height</label><input id="rHeight" placeholder="e.g. 15 ft 6 in" /></div>
@@ -430,7 +432,7 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
   const mpTxt=(mpA!=null&&mpB!=null)?` · MP ${Math.min(mpA,mpB)}–${Math.max(mpA,mpB)}`:'';
   el('selinfo').innerHTML=`<b>Segment:</b> ${dir}, ${mi!=null?mi.toFixed(1):'?'} mi (${src})${mpTxt}<br>begin ${beginPt.lat.toFixed(4)}, ${beginPt.lng.toFixed(4)} → end ${endPt.lat.toFixed(4)}, ${endPt.lng.toFixed(4)}`+
     ` &nbsp; <a href="${gmapsRoute()}" target="_blank" rel="noopener">🗺 Share route map</a>`;
-  saveState(); checkDuplicate(); showLanes(beginPt, routeId); }
+  saveState(); checkDuplicate(); showLanes(beginPt, routeId); checkOSOW(); }
 // Pull lanes-available (HPMS-equivalent) from Road_Network_View to guide the impact choice.
 async function showLanes(pt, routeId){ const hint=el('laneHint'); if(!hint) return; if(!pt){ hint.style.display='none'; return; }
   const pad=0.004; const bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
@@ -871,7 +873,7 @@ function resetAll(){ if(!confirm('Start a NEW request? Clears the segment, detou
   // projects + live-event pins + result banners
   projFeats=[]; if(el('projBox'))el('projBox').style.display='none';
   if(eventLayer){eventLayer.remove();eventLayer=null;} dupFeats=[];
-  ['dupWarn','readyBox','dbStatus','laneHint'].forEach(id=>{ if(el(id))el(id).style.display='none'; });
+  ['dupWarn','readyBox','dbStatus','laneHint','osowBox'].forEach(id=>{ if(el(id))el(id).style.display='none'; });
   el('schedList').style.display='none'; el('selinfo').textContent='No segment selected yet — click the map to place the begin point.';
   onRouteChange(); setMode('begin'); saveState(); }
 
@@ -983,6 +985,42 @@ function applyWeight(){ const tons=window.__nbiLowTons, posted=window.__nbiPoste
   if(posted&&posted.length){ const note='Weight-posted bridges: '+posted.map(b=>(b.name||'Bridge')+(b.opTons!=null?(' ('+b.opTons+'t)'):'')).join('; ');
     const cur=(v('addlNotes')||'').replace(/(^|\n)Weight-posted bridges:[^\n]*/g,'').trim(); el('addlNotes').value=[cur,note].filter(Boolean).join('\n'); }
   saveState(); toast('Weight capacity noted'); }
+// ---- OSOW permit-route restrictions (Iowa AllSystemsPermitOversize/Overweight) ----
+// Restriction code: 1 = Restricted, 2 = Not Reported. Each restricted segment carries a local contact.
+async function fetchOSOW(svc, field, bb){
+  const url='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/'+svc+'/FeatureServer/0/query'+
+    '?where='+field+'+IN+(%271%27,%272%27)&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'+
+    '&outFields='+field+',SHORT_COMMON_NAME_1,COUNTY_NAME,CONTACT_NAME,CONTACT_NUMBER&returnGeometry=true&outSR=4326&resultRecordCount=1500&f=json';
+  try{ const j=await (await fetch(url)).json(); if(j.error) return [];
+    return (j.features||[]).map(f=>({ level:f.attributes[field], name:f.attributes.SHORT_COMMON_NAME_1||'', county:f.attributes.COUNTY_NAME||'', contact:[f.attributes.CONTACT_NAME,f.attributes.CONTACT_NUMBER].filter(Boolean).join(' '), geom:f.geometry })); }
+  catch(e){ return []; } }
+function osowWhere(seg, routePath, detourPath, th){ const g=seg.geom; if(!g||!g.paths) return null; let onR=false,onD=false;
+  for(const pa of g.paths){ for(const pt of pa){ const p={lat:pt[1],lng:pt[0]}; if(!onR&&minDistToPath(p,routePath)<=th)onR=true; if(detourPath&&!onD&&minDistToPath(p,detourPath)<=th)onD=true; } }
+  return onR?'route':(onD?'detour':null); }
+async function checkOSOW(explicit){ const box=el('osowBox'); if(!box) return;
+  if(!beginPt||!endPt){ if(explicit){ box.style.display='block'; box.style.background='#fff7ed'; box.style.border='1px solid #fed7aa'; box.style.color='#9a3412'; box.innerHTML='Select a road segment (A→B) first.'; } else box.style.display='none'; return; }
+  if(explicit) toast('Checking OSOW permit-route restrictions…');
+  const routePath=(wzRoute&&wzRoute.length>=2)?wzRoute:[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]];
+  const detourPath=(detourRoute&&detourRoute.length>=2)?detourRoute:(detourPts.length>=2?detourPts.map(p=>[p.lat,p.lng]):null);
+  const allPts=routePath.concat(detourPath||[]); let mnLa=90,mxLa=-90,mnLo=180,mxLo=-180;
+  allPts.forEach(p=>{ if(p[0]<mnLa)mnLa=p[0]; if(p[0]>mxLa)mxLa=p[0]; if(p[1]<mnLo)mnLo=p[1]; if(p[1]>mxLo)mxLo=p[1]; });
+  const pad=0.01, bb=[mnLo-pad,mnLa-pad,mxLo+pad,mxLa+pad].join(','); const TH=250;
+  let osz=[],ovw=[]; try{ [osz,ovw]=await Promise.all([ fetchOSOW('AllSystemsPermitOversize','OVERSIZE_RESTRICTIONS',bb), fetchOSOW('AllSystemsPermitOverweight','OVERWEIGHT_RESTRICTIONS',bb) ]); }catch(e){}
+  const tag=(arr,kind)=>arr.map(s=>Object.assign({},s,{kind,where:osowWhere(s,routePath,detourPath,TH)})).filter(s=>s.where);
+  const all=[...tag(osz,'oversize'),...tag(ovw,'overweight')];
+  const restr=all.filter(s=>s.level==='1'); const notrep=all.filter(s=>s.level==='2').length;
+  box.style.display='block';
+  if(!restr.length){ box.style.background='#ecfdf5'; box.style.border='1px solid #a7f3d0'; box.style.color='#065f46';
+    box.innerHTML='✓ No OSOW oversize/overweight <b>Restricted</b> segments on this route'+(detourPath?'/detour':'')+'.'+(notrep?` <span style="color:#92702a">(${notrep} “Not Reported” — verify for permit loads.)</span>`:''); window.__osow=null; return; }
+  const seen=new Set(), uniq=[]; restr.forEach(s=>{ const k=s.kind+'|'+s.name+'|'+s.contact; if(seen.has(k))return; seen.add(k); uniq.push(s); });
+  box.style.background='#fef2f2'; box.style.border='1px solid #fecaca'; box.style.color='#991b1b';
+  box.innerHTML=`⚖️ <b>OSOW permit-route restrictions</b> — ${uniq.length} restricted segment(s) on this route${detourPath?'/detour':''}:<br>`+
+    uniq.slice(0,6).map(s=>`• [${s.kind} · ${s.where}] ${(s.name||'road').slice(0,26)}${s.county?(' ('+s.county+')'):''}${s.contact?(' — '+s.contact):''}`).join('<br>')+
+    (notrep?`<br><span style="color:#92702a">+${notrep} “Not Reported” segment(s) — verify.</span>`:'')+
+    `<br><button style="margin-top:6px;padding:5px 9px;border:1px solid #991b1b;background:#fff;color:#991b1b;border-radius:6px;cursor:pointer;font-weight:600" onclick="applyOSOW()">Note OSOW restrictions</button>`;
+  window.__osow=uniq; }
+function applyOSOW(){ const u=window.__osow; if(!u||!u.length)return; const note='OSOW permit-route restrictions: '+u.slice(0,8).map(s=>s.kind+' '+(s.name||'road')+(s.contact?(' ['+s.contact+']'):'')).join('; ');
+  const cur=(v('addlNotes')||'').replace(/(^|\n)OSOW permit-route restrictions:[^\n]*/g,'').trim(); el('addlNotes').value=[cur,note].filter(Boolean).join('\n'); saveState(); toast('OSOW restrictions noted'); }
 function applyNBI(){ const near=window.__nbiNear||[]; if(!near.length)return;
   const clr=near[0].clr; el('rHeight').value=ftIn(clr);
   const widths=near.map(b=>+b.width_feet).filter(w=>Number.isFinite(w)&&w>0);

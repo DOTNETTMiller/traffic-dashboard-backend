@@ -219,3 +219,14 @@ NDOT work zone carries a confidence signal from sources that don't touch NDOT's 
 4. **Phase 4:** live project numbers, registered WZDx feed, validation stack.
 
 Each phase is additive on the same interface — no rework of the tool itself.
+
+### 8.6 OSOW (oversize/overweight) permit-route restrictions
+
+The Iowa builder auto-checks the state's public OSOW permit-route network
+(`AllSystemsPermitOversize` / `AllSystemsPermitOverweight`), flagging **Restricted**
+segments on the route/detour with the local contact. **Nevada has no equivalent
+public GIS layer** — a scan of NDOT GIS and the NDOT ArcGIS Online org found only
+generic routes/mileposts; OSOW routing is handled inside NDOT's permit system
+("LoIS"). To add the same check for Nevada, NDOT would need to publish an OSOW
+route layer (segment + restriction status + contact); then it drops into the tool
+exactly as Iowa's does. Until then, verify OSOW routing via LoIS.
