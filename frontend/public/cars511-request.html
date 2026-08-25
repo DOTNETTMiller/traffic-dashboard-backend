@@ -282,7 +282,8 @@
 
 <script>
 const map = L.map('map').setView([41.85, -93.5], 7);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'© OpenStreetMap' }).addTo(map);
+// Esri basemap tiles: no API key, no Referer required (OSM's public tiles 403 when opened from file://).
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom:19, attribution:'Tiles © Esri' }).addTo(map);
 // Ensure Leaflet measures the container once it's laid out (blank-map guard).
 setTimeout(()=>map.invalidateSize(), 200);
 window.addEventListener('resize', ()=>map.invalidateSize());
