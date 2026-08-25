@@ -498,13 +498,22 @@ let eventLayer=null;
 // CARS511_Iowa_View — same live events with VALID point geometry + Route/headline/phrase/dates.
 async function queryEvents(bb){
   const where=encodeURIComponent("phrase LIKE '%Construction%' OR phrase LIKE '%Closed%' OR headline LIKE '%Construction%' OR headline LIKE '%Closed%'");
-  const url='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/CARS511_Iowa_View/FeatureServer/0/query?where='+where+'&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=Route,headline,phrase,IssueDate,IssueTime,ExpireDate,ExpireTime,AltRoute&returnGeometry=true&outSR=4326&resultRecordCount=250&f=json';
+  const url='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/CARS511_Iowa_View/FeatureServer/0/query?where='+where+'&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=Route,headline,phrase,cause,msg0,StartTime,EndTime,IssueDate,IssueTime,ExpireDate,ExpireTime,Desc0,STYLE,linktxt,ID,AltRoute&returnGeometry=true&outSR=4326&resultRecordCount=250&f=json';
   try{ const j=await (await fetch(url)).json(); return j.features||[]; }catch(e){ return []; }
 }
 function evPt(f){ const g=f&&f.geometry; return (g&&Number.isFinite(g.x)&&Number.isFinite(g.y))?[g.x,g.y]:null; }
 function evDir(a){ const s=((a.headline||'')+' '+(a.Route||'')).toUpperCase();
   const m=s.match(/\b([NSEW])B\b/)||s.match(/\b(NORTH|SOUTH|EAST|WEST)BOUND\b/); return m?({N:'N',S:'S',E:'E',W:'W',NORTH:'N',SOUTH:'S',EAST:'E',WEST:'W'}[m[1]]):''; }
-function evDT(dateStr,timeStr){ const t=Date.parse([dateStr,timeStr].filter(Boolean).join(' ')); return Number.isFinite(t)?toLocalDT(t):''; }
+// CARS511 dates are YYYYMMDD + HHMMSS (local wall-clock) — Date.parse can't read them.
+function evDT(dateStr,timeStr){ const ds=String(dateStr||'').trim(), ts=String(timeStr||'').trim();
+  const ymd=ds.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if(ymd){ const hms=ts.match(/^(\d{2})(\d{2})/); const H=hms?hms[1]:'00', M=(ts.match(/^\d{2}(\d{2})/)||[])[1]||'00';
+    return `${ymd[1]}-${ymd[2]}-${ymd[3]}T${H}:${M}`; }
+  const t=Date.parse([ds,ts].filter(Boolean).join(' ')); return Number.isFinite(t)?toLocalDT(t):''; }
+// "07:00 AM" -> "07:00" for <input type=time>
+function to24h(s){ const m=String(s||'').trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i); if(!m)return '';
+  let h=+m[1]; const ap=(m[3]||'').toUpperCase(); if(ap==='PM'&&h<12)h+=12; if(ap==='AM'&&h===12)h=0;
+  return String(h).padStart(2,'0')+':'+m[2]; }
 // Collapse CARS511's multiple rows per event (one per phrase) to one pin per location+route.
 function dedupeEvents(fe){ const seen=new Set(),out=[]; fe.forEach(f=>{ const p=evPt(f); if(!p)return; const k=(f.attributes.Route||'')+'@'+p[0].toFixed(3)+','+p[1].toFixed(3); if(seen.has(k))return; seen.add(k); out.push(f); }); return out; }
 async function loadFromFeed(){ toast('Loading Iowa DOT events nearby…');
@@ -523,16 +532,30 @@ async function loadFromFeed(){ toast('Loading Iowa DOT events nearby…');
       .addTo(eventLayer); });
   if(bounds.length){ try{ map.fitBounds(bounds,{padding:[60,60],maxZoom:12}); }catch(e){} }
   toast(fe.length+' event(s) '+scope+' — tap a green ▶ pin to load'); }
+const EV_LINE=/(^|\n)511 event:[^\n]*/g;   // managed reference line in the notes field
 function fillFromIowaEvent(f){ const a=f.attributes;
   let rt=(String(a.Route||'').match(/\b(?:I|US|IA)-?\s?\d+/i)||[''])[0].toUpperCase().replace(/\s+/g,'').replace(/^(I|US|IA)(\d)/,'$1-$2');
   if(rt){ const opt=[...el('route').options].find(o=>o.value===rt); if(opt) el('route').value=rt; else { el('route').value='__other'; onRouteChange(); el('routeOther').value=rt; } }
   const dir=evDir(a); if(dir) el('direction').value=dir;
-  el('description').value=a.phrase||a.headline||'';
+  // fuller description: msg0 (full text) else phrase + cause
+  el('description').value=(a.msg0 || [a.phrase,a.cause].filter(Boolean).join(' ') || a.headline || '').trim();
+  // impact: use phrase if it matches an official option
+  if(a.phrase){ const io=[...el('impact').options].find(o=>o.value.toLowerCase()===String(a.phrase).trim().toLowerCase()); if(io) el('impact').value=io.value; }
+  // dates (fixed YYYYMMDD/HHMMSS parse)
   const b=evDT(a.IssueDate,a.IssueTime); if(b) el('beginDT').value=b;
   const e=evDT(a.ExpireDate,a.ExpireTime); if(e) el('endDT').value=e;
+  // daily working hours -> times of closure
+  const sf=to24h(a.StartTime), st=to24h(a.EndTime); if(sf)el('schedFrom').value=sf; if(st)el('schedTo').value=st;
+  // county from Desc0 (e.g. "Marshalltown RCE (…) - Tama County")
+  const cm=String(a.Desc0||'').match(/([A-Z][A-Za-z.' ]*? Count(?:y|ies))\b/); if(cm) el('counties').value=cm[1].trim();
+  // 511 event reference (managed line in notes)
+  if(a.linktxt||a.ID){ const userText=(v('addlNotes')||'').replace(EV_LINE,'').trim();
+    el('addlNotes').value=[userText,'511 event: '+(a.linktxt||a.ID)].filter(Boolean).join('\n'); }
   const p=evPt(f);
   if(p){ wzRoute=null; beginPt=L.latLng(p[1],p[0]); endPt=null; redraw(); map.setView([p[1],p[0]],14);
-    reverseFill(beginPt,'begin'); setMode('end'); toast('Loaded event at its location — tap END on the map to set the segment, then review dates'); }
+    reverseFill(beginPt,'begin');
+    iowaRCEOffice(beginPt).then(rce=>{ if(!rce)return; const opt=[...el('rce').options].find(o=>o.value.indexOf('District '+rce.District)===0); if(opt){el('rce').value=opt.value; setRceOffice(rce.City||('District '+rce.District));} });
+    setMode('end'); toast('Loaded event — route, dates, hours, county filled. Tap END to set the segment.'); }
   else toast('Loaded event (no coordinates) — set the segment on the map');
   onRouteChange(); saveState(); }
 function loadJsonFile(ev){ const file=ev.target.files[0]; if(!file)return; const fr=new FileReader();
