@@ -561,15 +561,22 @@ function fillFromIowaEvent(f){ const a=f.attributes;
   const dir=evDir(a); if(dir) el('direction').value=dir;
   // fuller description: msg0 (full text) else phrase + cause
   el('description').value=(a.msg0 || [a.phrase,a.cause].filter(Boolean).join(' ') || a.headline || '').trim();
-  // impact: use phrase if it matches an official option
-  if(a.phrase){ const io=[...el('impact').options].find(o=>o.value.toLowerCase()===String(a.phrase).trim().toLowerCase()); if(io) el('impact').value=io.value; }
+  // impact: match phrase to an official option (case-insensitive) + a few common synonyms
+  if(a.phrase){ const ph=String(a.phrase).trim().toLowerCase();
+    const SYN={'shoulders closed':'Both shoulders closed','shoulder closed':'Both shoulders closed','both shoulders closed':'Both shoulders closed','road closed':'Closed','roadway closed':'Closed','lane closed':'Right lane closed'};
+    let io=[...el('impact').options].find(o=>o.value.toLowerCase()===ph);
+    if(!io && SYN[ph]) io=[...el('impact').options].find(o=>o.value===SYN[ph]);
+    if(io) el('impact').value=io.value; }
   // dates (fixed YYYYMMDD/HHMMSS parse)
   const b=evDT(a.IssueDate,a.IssueTime); if(b) el('beginDT').value=b;
   const e=evDT(a.ExpireDate,a.ExpireTime); if(e) el('endDT').value=e;
   // daily working hours -> times of closure
   const sf=to24h(a.StartTime), st=to24h(a.EndTime); if(sf)el('schedFrom').value=sf; if(st)el('schedTo').value=st;
-  // county from Desc0 (e.g. "Marshalltown RCE (…) - Tama County")
-  const cm=String(a.Desc0||'').match(/([A-Z][A-Za-z.' ]*? Count(?:y|ies))\b/); if(cm) el('counties').value=cm[1].trim();
+  // county from Desc0 — format varies: "…RCE (…) - Tama County" OR "…RCE (…) - Decatur, Clarke"
+  const d0=String(a.Desc0||''); let counties='';
+  if(/\s-\s/.test(d0)) counties=d0.split(/\s-\s/).pop().replace(/\s+/g,' ').trim();      // text after " - "
+  else { const cm=d0.match(/([A-Z][A-Za-z.' ]*? Count(?:y|ies))\b/); if(cm) counties=cm[1].trim(); }
+  if(counties && !v('counties')) el('counties').value=counties;
   // 24-hr contact: seed from the RCE office name+phone in Desc0 when blank (inspector can override)
   const rcem=String(a.Desc0||'').match(/([A-Za-z. ]+RCE)\s*\(([\d\-.() ]{7,})\)/);
   if(rcem && !v('contact24')) el('contact24').value=rcem[1].trim()+' / '+rcem[2].trim();
@@ -580,10 +587,12 @@ function fillFromIowaEvent(f){ const a=f.attributes;
   if(p){ wzRoute=null; beginPt=L.latLng(p[1],p[0]);
     // default to a ~0.8 mi segment in the travel direction (snaps to centerline); user drags A/B or clicks to adjust
     endPt=offsetPt(beginPt.lat,beginPt.lng,(dir||'E')[0],1300);
-    redraw(); reverseFill(beginPt,'begin'); snapWZ();   // snapWZ fills mileposts + RCE office too
+    redraw(); drawWZLine();   // show the segment line immediately; snapWZ refines to centerline
+    reverseFill(beginPt,'begin'); snapWZ();   // snapWZ fills mileposts + RCE office too
     try{ map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[60,60],maxZoom:14}); }catch(e){}
-    scanProjects();   // 511 events carry no project #, so surface nearby letting/programmed projects to pick
-    toast('Loaded event with a default segment — drag the A/B pins (or click the map) to adjust.'); }
+    // 511 events carry no project #/clearance/DMS, so auto-run the scans to surface them
+    scanProjects(); scanBridges(); scanDevices();
+    toast('Loaded event + auto-scanned project / clearances / devices — drag the A/B pins to adjust.'); }
   else toast('Loaded event (no coordinates) — set the segment on the map');
   onRouteChange(); saveState(); }
 function loadJsonFile(ev){ const file=ev.target.files[0]; if(!file)return; const fr=new FileReader();
