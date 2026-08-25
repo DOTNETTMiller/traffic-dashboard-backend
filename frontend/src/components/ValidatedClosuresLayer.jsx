@@ -49,6 +49,12 @@ function featureLatLng(f) {
   return null;
 }
 
+// Distance in US units: feet under ~1000 ft, else miles.
+const fmtDist = (m) => {
+  if (m == null || !Number.isFinite(+m)) return null;
+  const ft = +m * 3.28084;
+  return ft < 1000 ? `${Math.round(ft)} ft` : `${(ft / 5280).toFixed(1)} mi`;
+};
 const fmtDate = (d) => {
   if (!d) return null;
   const t = Date.parse(d);
@@ -172,7 +178,7 @@ export default function ValidatedClosuresLayer({ visible = false, sources: enabl
                     <div style={{ background: '#fefce8', borderRadius: 6, padding: '5px 8px', marginBottom: 5 }}>
                       <div style={{ fontWeight: 700, fontSize: 12 }}>🚗 Independent TomTom report</div>
                       <div style={{ color: '#334155' }}>
-                        {p.x_tomtom_category || 'Roadwork'}{p.x_tomtom_distance_m != null ? ` · ${p.x_tomtom_distance_m}m away` : ''}
+                        {p.x_tomtom_category || 'Roadwork'}{p.x_tomtom_distance_m != null ? ` · ${fmtDist(p.x_tomtom_distance_m)} away` : ''}
                       </div>
                       {p.x_tomtom_delay_s != null && (
                         <div style={{ color: '#b45309' }}>traffic delay {Math.round(p.x_tomtom_delay_s / 60)} min</div>
@@ -187,7 +193,7 @@ export default function ValidatedClosuresLayer({ visible = false, sources: enabl
                         <div style={{ color: '#334155', fontFamily: 'monospace', fontSize: 11 }}>“{p.x_dms_message}”</div>
                       )}
                       <div style={{ color: '#6d28d9', fontSize: 11 }}>
-                        {p.x_dms_name || 'DMS'}{p.x_dms_distance_m != null ? ` · ${p.x_dms_distance_m}m away` : ''}
+                        {p.x_dms_name || 'DMS'}{p.x_dms_distance_m != null ? ` · ${fmtDist(p.x_dms_distance_m)} away` : ''}
                       </div>
                     </div>
                   )}
