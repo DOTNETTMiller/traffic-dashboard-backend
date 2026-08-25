@@ -1736,14 +1736,25 @@ async function scanProjects(){ if(!beginPt||!endPt){ toast('Select a road segmen
   const pad=0.06; const bb=[Math.min(beginPt.lng,endPt.lng)-pad,Math.min(beginPt.lat,endPt.lat)-pad,Math.max(beginPt.lng,endPt.lng)+pad,Math.max(beginPt.lat,endPt.lat)+pad].join(',');
   const base='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/';
   const q=(svc,fields)=>base+svc+'/FeatureServer/0/query?where=1%3D1&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields='+fields+'&returnGeometry=true&outSR=4326&resultRecordCount=200&f=json';
-  let bid=[],fy=[];
-  try{ bid=((await (await fetch(q('Project_Scheduling_Public_Bid_Line_View','PROJECT_NUMBER,WORK_DESC,CONTRACT_DESCRIPTION,LOCATION,LETTING_FISCAL_YEAR,ROUTE_NAME'))).json()).features||[]); }catch(e){}
-  try{ fy=((await (await fetch(q('Iowa_DOT_Five_Year_Program_Project_Data_V2_Public_VIEW','Project_Code,Work_Type,Project_Location,Year2,RouteID'))).json()).features||[]); }catch(e){}
+  const fetchFeats=u=>fetch(u).then(r=>r.json()).then(j=>j.features||[]).catch(()=>[]);
+  // The letting/bid dataset is split across 4 geometry views (line/point/polygon/multipoint) — query all.
+  const BIDF='PROJECT_NUMBER,WORK_DESC,CONTRACT_DESCRIPTION,LOCATION,LETTING_FISCAL_YEAR,ROUTE_NAME';
+  const [bl,bp,bpoly,bmp,fy]=await Promise.all([
+    fetchFeats(q('Project_Scheduling_Public_Bid_Line_View',BIDF)),
+    fetchFeats(q('Project_Scheduling_Public_Bid_Point_View',BIDF)),
+    fetchFeats(q('Project_Scheduling_Public_Bid_Polygon_View',BIDF)),
+    fetchFeats(q('Project_Scheduling_Public_Bid_Multipoint_View',BIDF)),
+    fetchFeats(q('Iowa_DOT_Five_Year_Program_Project_Data_V2_Public_VIEW','Project_Code,Work_Type,Project_Location,Year2,RouteID'))
+  ]);
+  const bid=[...bl,...bp,...bpoly,...bmp];
   const TH=1600; // ~1 mi from the work segment
-  const nearOf=f=>{ const g=f.geometry; if(!g||!g.paths)return Infinity; let m=Infinity;
-    g.paths.forEach(pa=>pa.forEach(pt=>{ const d=distToSegM({lat:pt[1],lng:pt[0]},beginPt,endPt); if(d<m)m=d; })); return m; };
-  const list=[];
-  bid.forEach(f=>{ const d=nearOf(f); if(d<=TH){ const a=f.attributes; list.push({num:a.PROJECT_NUMBER, desc:a.WORK_DESC||a.CONTRACT_DESCRIPTION, loc:a.LOCATION, extra:'letting FY'+(a.LETTING_FISCAL_YEAR||'?'), src:'letting', d}); } });
+  // works for any geometry type: point (x,y), line (paths), polygon (rings), multipoint (points)
+  const geomVerts=g=>{ if(!g)return []; if(g.x!=null)return [[g.x,g.y]];
+    const out=[]; (g.paths||g.rings||[]).forEach(r=>r.forEach(pt=>out.push(pt))); (g.points||[]).forEach(pt=>out.push(pt)); return out; };
+  const nearOf=f=>{ let m=Infinity; geomVerts(f.geometry).forEach(pt=>{ const d=distToSegM({lat:pt[1],lng:pt[0]},beginPt,endPt); if(d<m)m=d; }); return m; };
+  const list=[], seen=new Set();
+  bid.forEach(f=>{ const d=nearOf(f); if(d<=TH){ const a=f.attributes; const num=a.PROJECT_NUMBER; if(num&&seen.has(num))return; if(num)seen.add(num);
+    list.push({num, desc:a.WORK_DESC||a.CONTRACT_DESCRIPTION, loc:a.LOCATION, extra:'letting FY'+(a.LETTING_FISCAL_YEAR||'?'), src:'letting', d}); } });
   fy.forEach(f=>{ const d=nearOf(f); if(d<=TH){ const a=f.attributes; list.push({num:a.Project_Code, desc:a.Work_Type, loc:a.Project_Location, extra:(a.Year2||'')+' program', src:'5-year', d}); } });
   list.sort((a,b)=>a.d-b.d); projFeats=list;
   const box=el('projBox'); box.style.display='block';
