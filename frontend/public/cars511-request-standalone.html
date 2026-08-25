@@ -1197,7 +1197,9 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       </div>
       <input id="routeOther" placeholder="e.g. US-30, IA-1" style="margin-top:6px;display:none" />
       <div class="row">
-        <div><label>DOT project #</label><input id="project" /></div>
+        <div><label>DOT project # <span style="color:#94a3b8;font-weight:400">(type to search — last 3 yrs + programmed)</span></label>
+          <input id="project" list="projList" autocomplete="off" onfocus="loadProjectList()" onchange="onProjectPick()" placeholder="start typing a project number…" />
+          <datalist id="projList"></datalist></div>
         <div><label>Intelligent Work Zone?</label><select id="iwz"><option>No</option><option>Yes</option></select></div>
       </div>
       <label>Project description</label>
@@ -1659,6 +1661,7 @@ function fillFromIowaEvent(f){ const a=f.attributes;
     endPt=offsetPt(beginPt.lat,beginPt.lng,(dir||'E')[0],1300);
     redraw(); reverseFill(beginPt,'begin'); snapWZ();   // snapWZ fills mileposts + RCE office too
     try{ map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[60,60],maxZoom:14}); }catch(e){}
+    scanProjects();   // 511 events carry no project #, so surface nearby letting/programmed projects to pick
     toast('Loaded event with a default segment — drag the A/B pins (or click the map) to adjust.'); }
   else toast('Loaded event (no coordinates) — set the segment on the map');
   onRouteChange(); saveState(); }
@@ -1766,6 +1769,28 @@ function useProject(i){ const p=projFeats[i]; if(!p)return;
   if(p.num) el('project').value=p.num;
   if(!v('description') && p.desc) el('description').value=p.desc;
   saveState(); toast('Project number set: '+(p.num||'(none)')); }
+// Autocomplete: load ALL project numbers statewide (last 3 yrs let + programmed) into the datalist,
+// so projects with no map geometry are still selectable by typing.
+let projListLoaded=false; const projIndex={};
+async function loadProjectList(){ if(projListLoaded) return; projListLoaded=true;
+  const base='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/';
+  const yr=new Date().getFullYear(), minFY=yr-3;
+  const fetchFeats=u=>fetch(u).then(r=>r.json()).then(j=>j.features||[]).catch(()=>[]);
+  const qs=(svc,fields,where)=>base+svc+'/FeatureServer/0/query?where='+encodeURIComponent(where)+'&outFields='+fields+'&returnGeometry=false&resultRecordCount=2000&f=json';
+  const BIDF='PROJECT_NUMBER,WORK_DESC,CONTRACT_DESCRIPTION,LETTING_FISCAL_YEAR,LOCATION';
+  const bidWhere='LETTING_FISCAL_YEAR >= '+minFY+' OR LETTING_FISCAL_YEAR IS NULL';
+  const views=['Line','Point','Polygon','Multipoint'].map(t=>fetchFeats(qs('Project_Scheduling_Public_Bid_'+t+'_View',BIDF,bidWhere)));
+  const fyF=fetchFeats(qs('Iowa_DOT_Five_Year_Program_Project_Data_V2_Public_VIEW','Project_Code,Work_Type,Project_Location,Year2','Year2 >= '+minFY+' OR Year2 IS NULL'));
+  const res=await Promise.all([...views,fyF]); const fy=res.pop(); const bid=res.flat();
+  bid.forEach(f=>{ const a=f.attributes, num=a.PROJECT_NUMBER; if(!num||projIndex[num])return;
+    projIndex[num]={desc:a.WORK_DESC||a.CONTRACT_DESCRIPTION||'', extra:'letting FY'+(a.LETTING_FISCAL_YEAR||'?'), src:'letting'}; });
+  fy.forEach(f=>{ const a=f.attributes, num=a.Project_Code; if(!num||projIndex[num])return;
+    projIndex[num]={desc:a.Work_Type||'', extra:(a.Year2||'')+' program', src:'5-year'}; });
+  const esc=s=>String(s).replace(/"/g,'').replace(/[<>]/g,'');
+  el('projList').innerHTML=Object.keys(projIndex).sort().map(n=>{ const p=projIndex[n];
+    return `<option value="${esc(n)}">${esc((p.desc||'').slice(0,40)+' ['+p.src+' '+p.extra+']')}</option>`; }).join('');
+  const n=Object.keys(projIndex).length; if(n) toast(n+' project numbers loaded — type to search'); }
+function onProjectPick(){ const p=projIndex[v('project')]; if(p && !v('description') && p.desc) el('description').value=p.desc; saveState(); }
 
 // ---- Readiness check: flag required fields before generating outputs ----
 const REQUIRED=[['requestor','DOT requestor'],['email','Requestor email'],['route','Route'],['direction','Direction'],
