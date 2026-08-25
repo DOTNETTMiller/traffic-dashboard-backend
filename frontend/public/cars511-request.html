@@ -77,7 +77,7 @@
     <label class="chk"><input type="checkbox" id="autofill" checked /> Auto-fill road & county from the map (uses internet)</label>
     <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanBridges()">🌉 Scan NBI clearances on segment</button>
     <div class="schedList" id="nbiBox" style="display:none"></div>
-    <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanDevices()">🔶 Scan DMS signs near segment</button>
+    <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanDevices()">🔶 Scan DMS & connected arrow boards near segment</button>
     <div class="schedList" id="dmsBox" style="display:none"></div>
     <div class="mapbtns" style="margin-top:8px">
       <button id="btnDetour" onclick="setMode('detour')">✏️ Draw detour</button>
@@ -492,7 +492,8 @@ function fields(){ const seg=(beginPt&&endPt)?`${dirLabel(bearing(beginPt,endPt)
 function scheduleText(){ return schedule.length ? '\n\nSCHEDULE ('+schedule.length+' occurrences):\n'+schedule.map(o=>'  • '+o.label).join('\n') : ''; }
 function detourText(){ return detourPts.length>=2 ? `\n\nDETOUR: ${detourPts.length} points, ~${detourMiles().toFixed(1)} mi\n  Map: ${gmapsDetour()}` : ''; }
 function summaryText(){ return 'IOWA DOT — CARS 511 WORK-ZONE REQUEST\n'+'='.repeat(42)+'\n'+
-  fields().map(([k,val])=>`${k}: ${val||'—'}`).join('\n')+scheduleText()+routeMapText()+detourText()+'\n\n(Built with the CARS 511 Request Builder — review before submitting.)'; }
+  fields().map(([k,val])=>`${k}: ${val||'—'}`).join('\n')+deviceText()+scheduleText()+routeMapText()+detourText()+'\n\n(Built with the CARS 511 Request Builder — review before submitting.)'; }
+function deviceText(){ return window.__abNote ? `\n\nCONNECTED DEVICES: ${window.__abNote.replace(/^Connected arrow boards on site:\s*/,'')}` : ''; }
 function copySummary(){ navigator.clipboard.writeText(summaryText()).then(()=>toast('Summary copied')); }
 function emailRCE(){ const to=v('tmcEmail')||'IowaDOT.Traffic@iowadot.us'; const cc=v('rceEmail');
   const subj=`CARS 511 Request — ${routeVal()} ${v('direction')} — ${v('project')||'work zone'}`;
@@ -523,7 +524,7 @@ function resetAll(){ if(!confirm('Clear the form and pins? (Saved projects are k
   FIELD_IDS.forEach(id=>{ if(el(id)) el(id).value = el(id).tagName==='SELECT'?el(id).options[0].value:''; });
   [beginMk,endMk,line].forEach(x=>x&&x.remove()); beginPt=endPt=beginMk=endMk=line=null; schedule=[];
   detourPts=[]; drawDetour();
-  Object.keys(selDMS).forEach(k=>delete selDMS[k]); if(deviceLayer){deviceLayer.remove();deviceLayer=null;} dmsFeats=[]; el('dmsBox').style.display='none';
+  Object.keys(selDMS).forEach(k=>delete selDMS[k]); Object.keys(selAB).forEach(k=>delete selAB[k]); window.__abNote=''; if(deviceLayer){deviceLayer.remove();deviceLayer=null;} dmsFeats=[]; el('dmsBox').style.display='none';
   el('schedList').style.display='none'; el('selinfo').textContent='No segment selected yet — click the map to place the begin point.';
   onRouteChange(); setMode('begin'); saveState(); }
 
@@ -565,36 +566,52 @@ function applyNBI(){ const near=window.__nbiNear||[]; if(!near.length)return;
 
 // ---- DMS / dynamic message signs near the segment (Iowa DOT DMS_View, CORS-open) ----
 // User taps a 🔶 marker to add/remove it from the closure. Selected signs -> DMS request field + request outputs.
-let deviceLayer=null, dmsFeats=[]; const selDMS={};
-function dmsIcon(sel){ return L.divIcon({className:'',html:
-  `<div style="background:${sel?'#15803d':'#d97706'};color:#fff;border:2px solid #fff;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.4)">${sel?'✓ DMS':'🔶 DMS'}</div>`,
-  iconSize:[52,18],iconAnchor:[26,9]}); }
+let deviceLayer=null, dmsFeats=[]; const selDMS={}, selAB={};
+// A device is a connected arrow board / portable work-zone unit when SignType is
+// Portable-Contractor (iCone/IPSI/arrow boards/QTC), else a permanent DMS sign.
+function deviceKind(a){ return (/portable-contractor/i.test(a.SignType||'') || /\bAB\b|arrow|icone/i.test(a.DeviceName||'')) ? 'ab' : 'dms'; }
+function devIcon(kind,sel){
+  const g = kind==='ab' ? '▲ Board' : '🔶 DMS';
+  const bg = sel ? '#15803d' : (kind==='ab' ? '#0891b2' : '#d97706');
+  return L.divIcon({className:'',html:
+    `<div style="background:${bg};color:#fff;border:2px solid #fff;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.4)">${sel?'✓ ':''}${g}</div>`,
+    iconSize:[58,18],iconAnchor:[29,9]}); }
 async function scanDevices(){ if(!beginPt||!endPt){ toast('Select a road segment (A→B) first'); return; }
-  toast('Scanning Iowa DMS…'); const route=interstate(routeVal());
-  const pad=0.08; // ~5 mi around the segment — signs close to the zone
+  toast('Scanning Iowa DMS & connected devices…'); const route=interstate(routeVal());
+  const pad=0.08; // ~5 mi around the segment — devices close to the zone
   const bb=[Math.min(beginPt.lng,endPt.lng)-pad, Math.min(beginPt.lat,endPt.lat)-pad, Math.max(beginPt.lng,endPt.lng)+pad, Math.max(beginPt.lat,endPt.lat)+pad].join(',');
   const url='https://services.arcgis.com/8lRhdTsQyJpO52F1/ArcGIS/rest/services/DMS_View/FeatureServer/0/query'+
     '?where=1%3D1&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'+
-    '&outFields=DeviceName,Route,Direction,msgtext&returnGeometry=true&outSR=4326&resultRecordCount=300&f=json';
+    '&outFields=DeviceName,Route,Direction,SignType,msgtext&returnGeometry=true&outSR=4326&resultRecordCount=300&f=json';
   try{ const j=await (await fetch(url)).json();
     dmsFeats=(j.features||[]).filter(f=>f.geometry&&f.geometry.x!=null&&(!route||interstate(f.attributes.Route)===route)); }
   catch(e){ dmsFeats=[]; }
   renderDMS(); const box=el('dmsBox'); box.style.display='block';
-  if(!dmsFeats.length){ box.innerHTML='No Iowa DMS signs found near this segment'+(route?` (route ${route})`:'')+'.'; }
-  else { toast(`${dmsFeats.length} DMS nearby — tap a 🔶 marker to add it to the closure`); updateDMS(); } }
+  if(!dmsFeats.length){ box.innerHTML='No Iowa DMS or connected devices found near this segment'+(route?` (route ${route})`:'')+'.'; }
+  else { const ab=dmsFeats.filter(f=>deviceKind(f.attributes)==='ab').length;
+    toast(`${dmsFeats.length} nearby (${ab} connected board${ab===1?'':'s'}) — tap a marker to add it`); updateDMS(); } }
 function renderDMS(){ if(deviceLayer) deviceLayer.remove(); deviceLayer=L.layerGroup().addTo(map);
-  dmsFeats.forEach(f=>{ const a=f.attributes,g=f.geometry,name=a.DeviceName||'DMS',sel=!!selDMS[name];
-    const mk=L.marker([g.y,g.x],{icon:dmsIcon(sel)})
+  dmsFeats.forEach(f=>{ const a=f.attributes,g=f.geometry,name=a.DeviceName||'device',kind=deviceKind(a);
+    const set=kind==='ab'?selAB:selDMS, sel=!!set[name];
+    const mk=L.marker([g.y,g.x],{icon:devIcon(kind,sel)})
       .bindTooltip(name+(a.msgtext?('<br><span style="color:#94a3b8">'+String(a.msgtext).slice(0,60)+'</span>'):''),{direction:'top'})
-      .on('click',()=>{ if(selDMS[name]) delete selDMS[name]; else selDMS[name]={name,route:a.Route||'',dir:a.Direction||'',msg:a.msgtext||''}; renderDMS(); updateDMS(); });
+      .on('click',()=>{ if(set[name]) delete set[name]; else set[name]={name,route:a.Route||'',dir:a.Direction||'',msg:a.msgtext||''}; renderDMS(); updateDMS(); });
     mk.addTo(deviceLayer); }); }
-function updateDMS(){ const names=Object.keys(selDMS); const box=el('dmsBox'); box.style.display='block';
-  if(names.length){ el('dms').value='Requesting messaging on: '+names.join('; ');
-    box.innerHTML=`<b>Selected DMS (${names.length})</b> — added to the DMS request:<br>`+names.map(n=>'🔶 '+n).join('<br>')+
-      `<br><button style="margin-top:6px;padding:6px 10px;border:1px solid #d97706;background:#fff7ed;color:#b45309;border-radius:6px;cursor:pointer;font-weight:600" onclick="clearDMS()">Clear selection</button>`; }
-  else { box.innerHTML=dmsFeats.length?`Tap a 🔶 DMS marker on the map to add it to the closure (${dmsFeats.length} nearby).`:box.innerHTML; }
-  saveState(); }
-function clearDMS(){ Object.keys(selDMS).forEach(k=>delete selDMS[k]); if(/^Requesting messaging on:/.test(v('dms')))el('dms').value=''; renderDMS(); updateDMS(); }
+function updateDMS(){ const dms=Object.keys(selDMS), ab=Object.keys(selAB); const box=el('dmsBox'); box.style.display='block';
+  // DMS → DMS request field; connected boards → mark Intelligent Work Zone + a devices note.
+  if(dms.length) el('dms').value='Requesting messaging on: '+dms.join('; ');
+  else if(/^Requesting messaging on:/.test(v('dms'))) el('dms').value='';
+  if(ab.length){ window.__abNote='Connected arrow boards on site: '+ab.join('; ');
+    if(v('iwz')!=='Yes') el('iwz').value='Yes'; }
+  else window.__abNote='';
+  let h='';
+  if(ab.length) h+=`<b>Connected arrow boards (${ab.length})</b> — Intelligent Work Zone set to Yes:<br>`+ab.map(n=>'▲ '+n).join('<br>')+'<br>';
+  if(dms.length) h+=`${ab.length?'<br>':''}<b>Selected DMS (${dms.length})</b> — added to the DMS request:<br>`+dms.map(n=>'🔶 '+n).join('<br>')+'<br>';
+  if(dms.length||ab.length) h+=`<button style="margin-top:6px;padding:6px 10px;border:1px solid #0891b2;background:#ecfeff;color:#0e7490;border-radius:6px;cursor:pointer;font-weight:600" onclick="clearDMS()">Clear selection</button>`;
+  else h=dmsFeats.length?`Tap a ▲ connected board or 🔶 DMS marker to add it (${dmsFeats.length} nearby).`:box.innerHTML;
+  box.innerHTML=h; saveState(); }
+function clearDMS(){ Object.keys(selDMS).forEach(k=>delete selDMS[k]); Object.keys(selAB).forEach(k=>delete selAB[k]);
+  if(/^Requesting messaging on:/.test(v('dms')))el('dms').value=''; window.__abNote=''; renderDMS(); updateDMS(); }
 
 // ---- fill the OFFICIAL Iowa CARS 511 PDF (coordinate overlay, verified) ----
 const PDF_MAP = {
@@ -639,6 +656,7 @@ async function fillOfficial(){
     // Official form has no field to list specific DMS signs → put them (and detour/oversize notes) in "Additional project information"
     const addl=[];
     if(v('dms')) addl.push(v('dms').replace(/^Requesting messaging on:\s*/i,'DMS requested: '));
+    if(window.__abNote) addl.push(window.__abNote);
     if(v('detourNotes')) addl.push('Detour: '+v('detourNotes'));
     if(v('oversize')&&v('oversize')!=='N/A') addl.push('Oversize: '+v('oversize'));
     putWrap('addlInfo', addl.join('   ·   '));
@@ -675,6 +693,7 @@ function seamlessFill(){
     ['Traffic impact (dropdown)', v('impact')], ['Intelligent Work Zone (Yes/No)', v('iwz')],
     ['Temporary overhead signals (Yes/No)', v('overhead')], ['Marked detour (Yes/No)', v('detour')],
     ['DMS request', v('dms')],
+    ['Connected arrow boards on site', (window.__abNote||'').replace(/^Connected arrow boards on site:\s*/,'')],
     ['Responsible RCE Office (check)', v('rce')],
     ['Work-zone route map (paste into description)', gmapsRoute()],
     ['Detour map (paste into description)', detourPts.length>=2?gmapsDetour():'']
