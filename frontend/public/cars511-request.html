@@ -75,9 +75,10 @@
       <button id="btnGPS" onclick="useMyLocation()">📍 Use my location</button>
     </div>
     <div class="selinfo" id="selinfo">No segment selected yet — click the map to place the begin point.</div>
+    <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="checkDuplicate(true)">🔁 Check for existing closures / duplicates</button>
     <div id="dupWarn" style="display:none;margin-top:8px;padding:8px 10px;border-radius:6px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px"></div>
     <label class="chk"><input type="checkbox" id="autofill" checked /> Auto-fill road & county from the map (uses internet)</label>
-    <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanBridges()">🌉 Scan NBI clearances on segment</button>
+    <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanBridges()">🌉 Scan NBI clearances (route + detour)</button>
     <div class="schedList" id="nbiBox" style="display:none"></div>
     <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanDevices()">🔶 Scan DMS, arrow boards & Street Smart (IWZ) devices near segment</button>
     <div class="schedList" id="dmsBox" style="display:none"></div>
@@ -451,20 +452,29 @@ function toLocalDT(d){ const t=(typeof d==='number')?d:Date.parse(d); if(!Number
 
 // Load real Iowa DOT 511 events (construction/closure) as tappable pins near the view.
 let eventLayer=null;
+// NOTE: 511_IA_Event_Lines_View line geometry is corrupt (all coords ≈ 0,0), so we use
+// CARS511_Iowa_View — same live events with VALID point geometry + Route/headline/phrase/dates.
 async function queryEvents(bb){
-  const where=encodeURIComponent("phrase LIKE '%Construction%' OR headline LIKE '%Construction%' OR headline LIKE '%Closed%' OR STYLE LIKE '%roadwork%'");
-  const url='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/511_IA_Event_Lines_View/FeatureServer/0/query?where='+where+'&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=Route,headline,direction,phrase,IssueDT,ExpireDT&returnGeometry=true&outSR=4326&resultRecordCount=150&f=json';
+  const where=encodeURIComponent("phrase LIKE '%Construction%' OR phrase LIKE '%Closed%' OR headline LIKE '%Construction%' OR headline LIKE '%Closed%'");
+  const url='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/CARS511_Iowa_View/FeatureServer/0/query?where='+where+'&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=Route,headline,phrase,IssueDate,IssueTime,ExpireDate,ExpireTime,AltRoute&returnGeometry=true&outSR=4326&resultRecordCount=250&f=json';
   try{ const j=await (await fetch(url)).json(); return j.features||[]; }catch(e){ return []; }
 }
+function evPt(f){ const g=f&&f.geometry; return (g&&Number.isFinite(g.x)&&Number.isFinite(g.y))?[g.x,g.y]:null; }
+function evDir(a){ const s=((a.headline||'')+' '+(a.Route||'')).toUpperCase();
+  const m=s.match(/\b([NSEW])B\b/)||s.match(/\b(NORTH|SOUTH|EAST|WEST)BOUND\b/); return m?({N:'N',S:'S',E:'E',W:'W',NORTH:'N',SOUTH:'S',EAST:'E',WEST:'W'}[m[1]]):''; }
+function evDT(dateStr,timeStr){ const t=Date.parse([dateStr,timeStr].filter(Boolean).join(' ')); return Number.isFinite(t)?toLocalDT(t):''; }
+// Collapse CARS511's multiple rows per event (one per phrase) to one pin per location+route.
+function dedupeEvents(fe){ const seen=new Set(),out=[]; fe.forEach(f=>{ const p=evPt(f); if(!p)return; const k=(f.attributes.Route||'')+'@'+p[0].toFixed(3)+','+p[1].toFixed(3); if(seen.has(k))return; seen.add(k); out.push(f); }); return out; }
 async function loadFromFeed(){ toast('Loading Iowa DOT events nearby…');
   const c = beginPt || map.getCenter();
   const dLat=2/69, dLon=(2/69)/Math.max(0.2,Math.cos(c.lat*Math.PI/180));   // ~2 miles
   let fe = await queryEvents([c.lng-dLon,c.lat-dLat,c.lng+dLon,c.lat+dLat].join(','));
   let scope='within 2 mi';
   if(!fe.length){ const b=map.getBounds(); fe=await queryEvents([b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].join(',')); scope='in view'; }
+  fe=dedupeEvents(fe);
   if(!fe.length){ toast('No Iowa DOT construction events nearby — pan/zoom to the area'); return; }
   if(eventLayer) eventLayer.remove(); eventLayer=L.layerGroup().addTo(map); const bounds=[];
-  fe.forEach(f=>{ const g=f.geometry; if(!g||!g.paths||!g.paths[0]||!g.paths[0].length)return; const p=g.paths[0]; const mid=p[Math.floor(p.length/2)]; const ll=[mid[1],mid[0]]; bounds.push(ll);
+  fe.forEach(f=>{ const p=evPt(f); if(!p)return; const ll=[p[1],p[0]]; bounds.push(ll);
     L.marker(ll,{icon:L.divIcon({className:'',html:'<div style="background:#15803d;color:#fff;border:2px solid #fff;border-radius:10px;padding:1px 6px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.4)">▶ load</div>',iconSize:[48,18],iconAnchor:[24,9]})})
       .bindTooltip((f.attributes.headline||f.attributes.Route||'event'),{direction:'top'})
       .on('click',()=>{ fillFromIowaEvent(f); if(eventLayer){eventLayer.remove();eventLayer=null;} })
@@ -474,12 +484,15 @@ async function loadFromFeed(){ toast('Loading Iowa DOT events nearby…');
 function fillFromIowaEvent(f){ const a=f.attributes;
   let rt=(String(a.Route||'').match(/\b(?:I|US|IA)-?\s?\d+/i)||[''])[0].toUpperCase().replace(/\s+/g,'').replace(/^(I|US|IA)(\d)/,'$1-$2');
   if(rt){ const opt=[...el('route').options].find(o=>o.value===rt); if(opt) el('route').value=rt; else { el('route').value='__other'; onRouteChange(); el('routeOther').value=rt; } }
-  if(a.direction) el('direction').value=a.direction;
+  const dir=evDir(a); if(dir) el('direction').value=dir;
   el('description').value=a.phrase||a.headline||'';
-  if(a.IssueDT) el('beginDT').value=toLocalDT(a.IssueDT); if(a.ExpireDT) el('endDT').value=toLocalDT(a.ExpireDT);
-  const g=f.geometry; if(g&&g.paths&&g.paths[0]&&g.paths[0].length>=2){ const p=g.paths[0]; wzRoute=null; beginPt=L.latLng(p[0][1],p[0][0]); const last=p[p.length-1]; endPt=L.latLng(last[1],last[0]); redraw();
-    snapWZ(); }  // snap to centerline + auto-fill mileposts, county, RCE office for the loaded event
-  onRouteChange(); saveState(); toast('Loaded Iowa DOT event — review dates & extend as needed'); }
+  const b=evDT(a.IssueDate,a.IssueTime); if(b) el('beginDT').value=b;
+  const e=evDT(a.ExpireDate,a.ExpireTime); if(e) el('endDT').value=e;
+  const p=evPt(f);
+  if(p){ wzRoute=null; beginPt=L.latLng(p[1],p[0]); endPt=null; redraw(); map.setView([p[1],p[0]],14);
+    reverseFill(beginPt,'begin'); setMode('end'); toast('Loaded event at its location — tap END on the map to set the segment, then review dates'); }
+  else toast('Loaded event (no coordinates) — set the segment on the map');
+  onRouteChange(); saveState(); }
 function loadJsonFile(ev){ const file=ev.target.files[0]; if(!file)return; const fr=new FileReader();
   fr.onload=()=>{ try{ const j=JSON.parse(fr.result); const f=(j.features&&j.features[0])||j; fillFromEvent(f); }catch(e){ toast('Could not parse JSON'); } }; fr.readAsText(file); }
 
@@ -494,19 +507,27 @@ function useMyLocation(){ if(!navigator.geolocation){ toast('Geolocation not ava
   }, e=>toast('Location error: '+(e.message||'denied')), {enableHighAccuracy:true,timeout:10000,maximumAge:0}); }
 
 // ---- Duplicate / overlap check against the live Iowa 511 feed ----
-async function checkDuplicate(){ const warn=el('dupWarn'); if(!beginPt||!endPt){ warn.style.display='none'; return; }
+let dupFeats=[];
+function dupStyle(warn,kind){ const c={warn:['#fef2f2','#fecaca','#991b1b'],ok:['#ecfdf5','#a7f3d0','#065f46'],info:['#fff7ed','#fed7aa','#9a3412']}[kind];
+  warn.style.display='block'; warn.style.background=c[0]; warn.style.borderColor=c[1]; warn.style.color=c[2]; }
+async function checkDuplicate(explicit){ const warn=el('dupWarn');
+  if(!beginPt||!endPt){ if(explicit){ dupStyle(warn,'info'); warn.innerHTML='Set a <b>begin</b> and <b>end</b> point first — then I’ll check the live Iowa 511 feed for existing closures here.'; } else warn.style.display='none'; return; }
+  if(explicit){ dupStyle(warn,'info'); warn.innerHTML='Checking the live Iowa 511 feed for existing closures…'; toast('Checking Iowa 511 for existing closures…'); }
   const route=interstate(routeVal());
-  const pad=0.03; const bb=[Math.min(beginPt.lng,endPt.lng)-pad,Math.min(beginPt.lat,endPt.lat)-pad,Math.max(beginPt.lng,endPt.lng)+pad,Math.max(beginPt.lat,endPt.lat)+pad].join(',');
+  const pad=0.05; const bb=[Math.min(beginPt.lng,endPt.lng)-pad,Math.min(beginPt.lat,endPt.lat)-pad,Math.max(beginPt.lng,endPt.lng)+pad,Math.max(beginPt.lat,endPt.lat)+pad].join(',');
   let fe=[]; try{ fe=await queryEvents(bb); }catch(e){}
   // keep events within ~0.6 mi of the segment, same interstate when known
-  const near=fe.filter(f=>{ const g=f.geometry; if(!g||!g.paths||!g.paths[0])return false;
+  const near=dedupeEvents(fe).filter(f=>{ const p=evPt(f); if(!p)return false;
     if(route && interstate(f.attributes.Route)!==route) return false;
-    return g.paths[0].some(pt=>distToSegM({lat:pt[1],lng:pt[0]},beginPt,endPt)<=1000); });
-  if(!near.length){ warn.style.display='none'; return; }
-  warn.style.display='block';
-  warn.innerHTML=`⚠️ <b>${near.length} existing 511 event(s)</b> already on this segment — check before submitting a duplicate:<br>`+
-    near.slice(0,4).map(f=>{ const a=f.attributes; const exp=a.ExpireDT?(' · expires '+new Date(a.ExpireDT).toLocaleDateString()):''; return '• '+((a.headline||a.Route||'event').slice(0,60))+exp; }).join('<br>')+
-    `<br><span style="color:#6b7280">If this is an update/extension, load it (📥) instead of filing a new one.</span>`; }
+    return distToSegM({lat:p[1],lng:p[0]},beginPt,endPt)<=1000; });
+  dupFeats=near;
+  if(!near.length){ dupStyle(warn,'ok'); warn.innerHTML='✓ No existing 511 closures found on this segment — clear to file a new request.'; return; }
+  dupStyle(warn,'warn');
+  warn.innerHTML=`⚠️ <b>${near.length} existing 511 closure(s)</b> already on this segment — avoid a duplicate:<br>`+
+    near.slice(0,5).map((f,i)=>{ const a=f.attributes; const exp=a.ExpireDT?(' · expires '+new Date(a.ExpireDT).toLocaleDateString()):'';
+      return `• ${((a.headline||a.Route||'event').slice(0,52))}${exp} — <a href="#" onclick="loadDup(${i});return false" style="color:#1d4ed8;font-weight:700">load &amp; extend</a>`; }).join('<br>')+
+    `<br><span style="color:#6b7280">Tap <b>load &amp; extend</b> to update an existing one, or keep filling to file a new request.</span>`; }
+function loadDup(i){ const f=dupFeats[i]; if(f){ fillFromIowaEvent(f); toast('Loaded existing closure — adjust dates to extend'); } }
 
 // ---- Nearby traffic cameras: attach for visual verification ----
 let camLayer=null, camFeats=[]; const selCam={};
@@ -659,26 +680,42 @@ function distToSegM(p,a,b){ const k=Math.cos(a.lat*Math.PI/180); const X=ll=>[ll
   const P=X(p),A=X(a),B=X(b); const dx=B[0]-A[0],dy=B[1]-A[1]; const l2=dx*dx+dy*dy||1;
   let t=((P[0]-A[0])*dx+(P[1]-A[1])*dy)/l2; t=Math.max(0,Math.min(1,t));
   return Math.hypot(P[0]-(A[0]+t*dx), P[1]-(A[1]+t*dy)); }
+function minDistToPath(pt, path){ if(!path||path.length<2) return Infinity; let m=Infinity;
+  for(let i=1;i<path.length;i++){ const d=distToSegM(pt,{lat:path[i-1][0],lng:path[i-1][1]},{lat:path[i][0],lng:path[i][1]}); if(d<m)m=d; } return m; }
 async function scanBridges(){ if(!beginPt||!endPt){ toast('Select a road segment (A→B) first'); return; }
-  toast('Scanning NBI…'); const all=await loadNBI(); const route=interstate(routeVal());
-  const near=all.filter(b=>{ const la=+b.latitude, lo=+b.longitude; if(!Number.isFinite(la)||!Number.isFinite(lo))return false;
-      if(route && interstate(b.route)!==route) return false;
-      return distToSegM({lat:la,lng:lo}, beginPt, endPt) <= 1000; })
-    .map(b=>({...b, clr:+b.clearance_feet})).filter(b=>Number.isFinite(b.clr)).sort((a,b)=>a.clr-b.clr);
+  toast('Scanning NBI clearances (route + detour)…'); const all=await loadNBI();
+  const routePath=(wzRoute&&wzRoute.length>=2)?wzRoute:[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]];
+  const detourPath=(detourRoute&&detourRoute.length>=2)?detourRoute:(detourPts.length>=2?detourPts.map(p=>[p.lat,p.lng]):null);
+  const TH=1000; const tag=[];
+  all.forEach(b=>{ const la=+b.latitude, lo=+b.longitude; if(!Number.isFinite(la)||!Number.isFinite(lo))return;
+    const clr=+b.clearance_feet; if(!Number.isFinite(clr))return; const pt={lat:la,lng:lo};
+    const dR=minDistToPath(pt,routePath), dD=detourPath?minDistToPath(pt,detourPath):Infinity;
+    const onR=dR<=TH, onD=dD<=TH; if(!onR&&!onD)return;
+    tag.push({...b, clr, on:(onR&&dR<=dD)?'route':'detour'}); });
+  tag.sort((a,b)=>a.clr-b.clr);
+  const routeB=tag.filter(b=>b.on==='route'), detourB=tag.filter(b=>b.on==='detour');
+  window.__nbiNear=routeB; window.__nbiDetour=detourB;
   if(bridgeLayer) bridgeLayer.remove(); bridgeLayer=L.layerGroup().addTo(map);
-  near.forEach(b=>{ const low=b.clr<15; L.marker([+b.latitude,+b.longitude],{icon:L.divIcon({className:'',html:
-    `<div style="background:${low?'#b45309':'#334155'};color:#fff;border:2px solid #fff;border-radius:5px;padding:1px 4px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.4)">🌉 ${ftIn(b.clr)}</div>`,iconSize:[60,18],iconAnchor:[30,9]})})
-    .bindPopup(`<b>${b.bridge_name||'Bridge'}</b><br>${b.route||''} — clearance ${ftIn(b.clr)}<br><span style="color:#888">NBI Item 54 · verified ${b.last_verified||'n/a'}</span>`).addTo(bridgeLayer); });
-  window.__nbiNear = near;
+  tag.forEach(b=>{ const low=b.clr<15, det=b.on==='detour';
+    const bg=det?(low?'#7c3aed':'#6d28d9'):(low?'#b45309':'#334155');
+    L.marker([+b.latitude,+b.longitude],{icon:L.divIcon({className:'',html:
+      `<div style="background:${bg};color:#fff;border:2px solid #fff;border-radius:5px;padding:1px 4px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.4)">${det?'↩':'🌉'} ${ftIn(b.clr)}</div>`,iconSize:[62,18],iconAnchor:[31,9]})})
+    .bindPopup(`<b>${b.bridge_name||'Bridge'}</b> <span style="color:${det?'#6d28d9':'#334155'}">(${det?'detour':'route'})</span><br>${b.route||''} — clearance ${ftIn(b.clr)}${b.width_feet?` · width ${ftIn(+b.width_feet)}`:''}<br><span style="color:#888">NBI Item 54 · verified ${b.last_verified||'n/a'}</span>`).addTo(bridgeLayer); });
   const box=el('nbiBox'); box.style.display='block';
-  if(!near.length){ box.innerHTML='No NBI low-clearance bridges on this segment'+(route?` (route ${route})`:'')+'.'; return; }
-  const low=near[0];
-  const widths=near.map(b=>+b.width_feet).filter(w=>Number.isFinite(w)&&w>0);
-  const minW=widths.length?Math.min(...widths):null;
-  box.innerHTML=`<b>${near.length} NBI bridge(s) on segment</b> — lowest clearance <b>${ftIn(low.clr)}</b>${minW!=null?`, narrowest <b>${ftIn(minW)}</b>`:''}:<br>`+
-    near.slice(0,8).map(b=>`${b.clr<15?'⚠️ ':''}${ftIn(b.clr)}${b.width_feet?` × ${ftIn(+b.width_feet)} w`:''} — ${(b.bridge_name||'').slice(0,38)}`).join('<br>')+
-    `<br><button style="margin-top:6px;padding:6px 10px;border:1px solid #b45309;background:#fff7ed;color:#b45309;border-radius:6px;cursor:pointer;font-weight:600" onclick="applyNBI()">Apply as restrictions (H ${ftIn(low.clr)}${minW!=null?` · W ${ftIn(minW)}`:''})</button>`;
-  toast(`${near.length} bridges — lowest ${ftIn(low.clr)}${minW!=null?`, narrowest ${ftIn(minW)}`:''}`); }
+  if(!tag.length){ box.innerHTML='No NBI bridges found on the route'+(detourPath?' or detour':'')+'.'; toast('No NBI bridges found'); return; }
+  const lowR=routeB[0], lowD=detourB[0];
+  const widthsR=routeB.map(b=>+b.width_feet).filter(w=>Number.isFinite(w)&&w>0); const minWR=widthsR.length?Math.min(...widthsR):null;
+  const line=(label,b)=>b?`<b>${label}: ${ftIn(b.clr)}</b>${b.clr<15?' ⚠️':''} — ${(b.bridge_name||'').slice(0,34)}`:`${label}: none found`;
+  let h=`<b>NBI clearances</b> — ${routeB.length} on route`+(detourPath?`, ${detourB.length} on detour`:'')+`:<br>`;
+  h+='🌉 '+line('Lowest on ROUTE', lowR)+'<br>';
+  if(detourPath) h+='↩ '+line('Lowest on DETOUR', lowD)+'<br>';
+  // overall lowest across both
+  const overall=tag[0];
+  h+=`<span style="color:#6b7280">Overall lowest: <b>${ftIn(overall.clr)}</b> (${overall.on})</span><br>`;
+  h+=routeB.slice(0,5).map(b=>`${b.clr<15?'⚠️ ':''}${ftIn(b.clr)}${b.width_feet?` × ${ftIn(+b.width_feet)} w`:''} — ${(b.bridge_name||'').slice(0,34)}`).join('<br>');
+  if(lowR) h+=`<br><button style="margin-top:6px;padding:6px 10px;border:1px solid #b45309;background:#fff7ed;color:#b45309;border-radius:6px;cursor:pointer;font-weight:600" onclick="applyNBI()">Apply route restrictions (H ${ftIn(lowR.clr)}${minWR!=null?` · W ${ftIn(minWR)}`:''})</button>`;
+  box.innerHTML=h;
+  toast(`Route low ${lowR?ftIn(lowR.clr):'n/a'}`+(detourPath?` · detour low ${lowD?ftIn(lowD.clr):'n/a'}`:'')); }
 function applyNBI(){ const near=window.__nbiNear||[]; if(!near.length)return;
   const clr=near[0].clr; el('rHeight').value=ftIn(clr);
   const widths=near.map(b=>+b.width_feet).filter(w=>Number.isFinite(w)&&w>0);
