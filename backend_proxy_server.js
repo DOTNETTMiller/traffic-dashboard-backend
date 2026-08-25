@@ -6193,11 +6193,22 @@ app.get('/api/cwz/events', async (req, res) => {
         const p = e.coordinates || (e.longitude != null ? [e.longitude, e.latitude] : null);
         if (Array.isArray(p)) pts.push(p);
       }
-      // Both sets refresh in the BACKGROUND — the cwz response never blocks on TomTom.
-      // (The zone-wide set already covers the corridor, so no cold-fetch await here.)
+      // Refresh the zone-wide TomTom set. Normally in the BACKGROUND (never blocks).
+      // EXCEPTION: on a genuinely COLD cache (no zone AND no corridor incidents cached),
+      // await the fetch once so this response actually carries corroboration — the
+      // Validated Work Zones layer loads once (no polling), so a fire-and-forget refresh
+      // would leave that single load with zero TomTom matches until something else warms
+      // the cache. One-time cold-fill only; warm calls stay non-blocking.
       const zAge = tomtomZoneCache.timestamp ? Date.now() - tomtomZoneCache.timestamp : Infinity;
-      if ((zAge === Infinity || zAge > tomtomZoneCache.ttl) && !tomtomZoneCache.isRefreshing) {
-        refreshTomTomForZones(pts);
+      const zoneStale = (zAge === Infinity || zAge > tomtomZoneCache.ttl);
+      const haveAnyIncidents = (tomtomZoneCache.data?.incidents?.length || 0)
+                             + (tomtomCache.data?.incidents?.length || 0) > 0;
+      if (zoneStale && !tomtomZoneCache.isRefreshing) {
+        if (!haveAnyIncidents) {
+          await refreshTomTomForZones(pts);      // cold: fill once so this load is corroborated
+        } else {
+          refreshTomTomForZones(pts);            // warm: refresh in background, use cache now
+        }
       }
       // Union corridor + nationwide, de-duped by incident id.
       const byId = new Map();
