@@ -148,3 +148,74 @@ reachable from the browser. Two ways:
 
 Until then, this offline build covers the full workflow using clearances,
 road geometry, county, CSV project numbers, and manual entry.
+
+
+## 8. Building it out further — data connections & roadmap
+
+Everything below already **exists** at NDOT; it's a matter of making it reachable
+from the tool. The one architectural piece to add is a small **proxy service** (a
+few dozen lines) that fetches these sources server-side and re-serves them with CORS
+enabled. Once that exists, each connection is an incremental feature on the same UI.
+
+### 8.1 The connections, by capability
+
+| Capability to add | NDOT / vendor source (confirmed live) | What it unlocks | Effort |
+|---|---|---|---|
+| **Centerline snap + posted mileposts** | NDOT GIS `LRS/ROUTES_STATE_CUM`, `LRS/ROUTES_COUNTY_MPCAL` (milepost calibration), `Authoritative/MileMarker_CoCum`, `NevadaRoutes` | Segment snaps to the state route and auto-fills posted mileposts (like the Iowa tool) instead of raw GPS | Medium |
+| **Load an existing 511 event / duplicate check** | nvroads `List/GetData/Construction` + `map/mapIcons/Construction` (or `api/v2/get/event` with a key) | Tap a live NV work zone to pre-fill route/dates/hours/description; warn on duplicates | Medium |
+| **Camera attach (visual verification)** | nvroads `List/GetData/Cameras` (has `images`, `roadway`, `area`) | Attach nearby camera snapshots to the request | Low |
+| **DMS / message-sign pull** | nvroads `List/GetData/MessageSigns` | Surface nearby message signs; document requested messaging | Low |
+| **Auto-route to the right district (RCE-equivalent)** | NDOT GIS `Authoritative/District_Boundaries`, `Subdistrict_Boundaries`, `Maintenance_Crew_Linear` | Auto-set the NDOT district + intake email from the map point | Low |
+| **Bridge/structure detail beyond clearance** | NDOT GIS `Authoritative/Bridge_Locations`, `STRUCTURES` (+ federal NBI already used) | NDOT-owned structure IDs, condition, posting | Low |
+| **Live project numbers (replace CSV)** | NDOT letting / STIP / AgileAssets (internal) — expose a read view | Type-to-search live project numbers instead of a CSV import | Medium |
+| **County polygons (offline-independent)** | NDOT GIS `Authoritative/NV_Counties` | County without the FCC call | Low |
+
+> All the NDOT GIS services above are on `gis.dot.nv.gov/arcgis/rest/services`;
+> nvroads endpoints are `POST` on `www.nvroads.com`. Both currently lack CORS
+> headers, which is the only reason the offline tool can't call them directly.
+
+### 8.2 Recommended architecture
+
+```
+  Browser tool ──HTTPS──► NDOT proxy (CORS-enabled)  ──► nvroads (events/cameras/DMS)
+                              │                        └─► NDOT GIS (LRS, districts, structures)
+                              └─► caches + normalizes  ──► returns clean JSON to the tool
+```
+- The proxy is stateless and read-only: it forwards a bounded query (a bbox around
+  the segment), caches briefly, strips to the fields the tool needs, and adds
+  `Access-Control-Allow-Origin`. Host it on an NDOT server or the corridor platform.
+- The tool then calls `…/api/nv/events?bbox=…`, `…/api/nv/cameras?bbox=…`,
+  `…/api/nv/lrs?lat=…&lon=…`, etc. — mirroring how the Iowa tool calls Iowa's
+  already-CORS-open ArcGIS layers directly.
+- Our corridor platform **already ingests nvroads** (events + cameras), so those
+  proxy endpoints are largely built.
+
+### 8.3 Publishing NDOT's work zones as a registered WZDx feed
+
+The tool already **exports** a WZDx feature per request. To turn NDOT's work zones
+into a **registered national feed**:
+1. Run the Nevada WZDx generator (see the NV kit in `docs/wzdx-diy/`) against
+   `nvroads api/v2/get/event` on a 5-minute schedule → `wzdx_nevada.geojson`.
+2. Host that file at a public URL.
+3. Register it with USDOT at **avdx@dot.gov**.
+Requests built in this tool can be POSTed into the same pipeline so inspector-filed
+closures flow straight to the national feed.
+
+### 8.4 Independent validation (optional, high value)
+
+Once zones are flowing, add the corridor platform's **validation stack** so each
+NDOT work zone carries a confidence signal from sources that don't touch NDOT's feed:
+- 🚗 **TomTom** probe (already nationwide — covers NV today),
+- 📷 **camera AI-vision** (nvroads cameras),
+- 🔶 **DMS message** corroboration (nvroads message signs).
+
+### 8.5 Suggested phasing
+
+1. **Phase 1 (now):** this offline tool — clearances, geometry, WZDx/email/PDF/DB.
+2. **Phase 2:** stand up the proxy → add district auto-routing, cameras, DMS,
+   county polygons (all Low effort).
+3. **Phase 3:** centerline snap + posted mileposts (LRS), live event load +
+   duplicate check.
+4. **Phase 4:** live project numbers, registered WZDx feed, validation stack.
+
+Each phase is additive on the same interface — no rework of the tool itself.
