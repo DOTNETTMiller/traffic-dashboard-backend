@@ -1173,6 +1173,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     <div class="schedList" id="dmsBox" style="display:none"></div>
     <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanCameras()">📷 Attach nearby traffic cameras</button>
     <div class="schedList" id="camBox" style="display:none"></div>
+    <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanProjects()">🏗️ Find DOT project # near segment (5-yr plan + letting)</button>
+    <div class="schedList" id="projBox" style="display:none"></div>
     <div class="mapbtns" style="margin-top:8px">
       <button id="btnDetour" onclick="setMode('detour')">✏️ Draw detour</button>
       <button onclick="undoDetour()">↶ Undo pt</button>
@@ -1649,6 +1651,33 @@ function updateCams(){ const names=Object.keys(selCam); const box=el('camBox'); 
   saveState(); }
 function clearCams(){ Object.keys(selCam).forEach(k=>delete selCam[k]); el('addlNotes').value=(v('addlNotes')||'').replace(CAM_LINE,'').trim(); renderCams(); updateCams(); }
 
+// ---- Find DOT project number near the segment: 5-Year Program + letting/bid schedule ----
+let projFeats=[];
+async function scanProjects(){ if(!beginPt||!endPt){ toast('Select a road segment (A→B) first'); return; }
+  toast('Finding Iowa DOT projects near the segment…');
+  const pad=0.06; const bb=[Math.min(beginPt.lng,endPt.lng)-pad,Math.min(beginPt.lat,endPt.lat)-pad,Math.max(beginPt.lng,endPt.lng)+pad,Math.max(beginPt.lat,endPt.lat)+pad].join(',');
+  const base='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/';
+  const q=(svc,fields)=>base+svc+'/FeatureServer/0/query?where=1%3D1&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields='+fields+'&returnGeometry=true&outSR=4326&resultRecordCount=200&f=json';
+  let bid=[],fy=[];
+  try{ bid=((await (await fetch(q('Project_Scheduling_Public_Bid_Line_View','PROJECT_NUMBER,WORK_DESC,CONTRACT_DESCRIPTION,LOCATION,LETTING_FISCAL_YEAR,ROUTE_NAME'))).json()).features||[]); }catch(e){}
+  try{ fy=((await (await fetch(q('Iowa_DOT_Five_Year_Program_Project_Data_V2_Public_VIEW','Project_Code,Work_Type,Project_Location,Year2,RouteID'))).json()).features||[]); }catch(e){}
+  const TH=1600; // ~1 mi from the work segment
+  const nearOf=f=>{ const g=f.geometry; if(!g||!g.paths)return Infinity; let m=Infinity;
+    g.paths.forEach(pa=>pa.forEach(pt=>{ const d=distToSegM({lat:pt[1],lng:pt[0]},beginPt,endPt); if(d<m)m=d; })); return m; };
+  const list=[];
+  bid.forEach(f=>{ const d=nearOf(f); if(d<=TH){ const a=f.attributes; list.push({num:a.PROJECT_NUMBER, desc:a.WORK_DESC||a.CONTRACT_DESCRIPTION, loc:a.LOCATION, extra:'letting FY'+(a.LETTING_FISCAL_YEAR||'?'), src:'letting', d}); } });
+  fy.forEach(f=>{ const d=nearOf(f); if(d<=TH){ const a=f.attributes; list.push({num:a.Project_Code, desc:a.Work_Type, loc:a.Project_Location, extra:(a.Year2||'')+' program', src:'5-year', d}); } });
+  list.sort((a,b)=>a.d-b.d); projFeats=list;
+  const box=el('projBox'); box.style.display='block';
+  if(!list.length){ box.innerHTML='No Iowa DOT letting or 5-Year Program projects found near this segment.'; toast('No projects found nearby'); return; }
+  box.innerHTML=`<b>${list.length} project(s) near this segment</b> — tap a number to use it:<br>`+
+    list.slice(0,10).map((p,i)=>`• <a href="#" onclick="useProject(${i});return false" style="color:#1d4ed8;font-weight:700">${p.num||'(no #)'}</a> <span style="color:#64748b">[${p.src} · ${p.extra}] ${(p.desc||'').slice(0,26)}${p.loc?(' — '+(p.loc).slice(0,30)):''}</span>`).join('<br>');
+  toast(list.length+' project(s) nearby — tap a number to use it'); }
+function useProject(i){ const p=projFeats[i]; if(!p)return;
+  if(p.num) el('project').value=p.num;
+  if(!v('description') && p.desc) el('description').value=p.desc;
+  saveState(); toast('Project number set: '+(p.num||'(none)')); }
+
 // ---- Readiness check: flag required fields before generating outputs ----
 const REQUIRED=[['requestor','DOT requestor'],['email','Requestor email'],['route','Route'],['direction','Direction'],
   ['beginLoc','Begin location'],['endLoc','End location'],['counties','County/counties'],['description','Description'],
@@ -1757,6 +1786,7 @@ function resetAll(){ if(!confirm('Clear the form and pins? (Saved projects are k
   detourPts=[]; drawDetour();
   [selDMS,selAB,selSS].forEach(s=>Object.keys(s).forEach(k=>delete s[k])); if(deviceLayer){deviceLayer.remove();deviceLayer=null;} dmsFeats=[]; el('dmsBox').style.display='none';
   Object.keys(selCam).forEach(k=>delete selCam[k]); if(camLayer){camLayer.remove();camLayer=null;} camFeats=[]; el('camBox').style.display='none';
+  projFeats=[]; if(el('projBox'))el('projBox').style.display='none';
   ['dupWarn','readyBox','dbStatus'].forEach(id=>{ if(el(id))el(id).style.display='none'; });
   el('schedList').style.display='none'; el('selinfo').textContent='No segment selected yet — click the map to place the begin point.';
   onRouteChange(); setMode('begin'); saveState(); }
