@@ -67,34 +67,24 @@
       <input type="file" id="jsonFile" accept=".json,application/json" style="display:none" onchange="loadJsonFile(event)" />
       <button onclick="saveProject()">💾 Save project</button>
       <select id="projPicker" onchange="if(this.value)loadProject(this.value)"><option value="">↺ Saved projects…</option></select>
+      <button onclick="resetAll()">🗑 New</button>
     </div>
-
-    <div class="mapbtns">
-      <button id="btnBegin" class="active" onclick="setMode('begin')">① Set BEGIN on map</button>
-      <button id="btnEnd" onclick="setMode('end')">② Set END on map</button>
-      <button id="btnGPS" onclick="useMyLocation()">📍 Use my location</button>
-    </div>
-    <div class="selinfo" id="selinfo">No segment selected yet — click the map to place the begin point.</div>
-    <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="checkDuplicate(true)">🔁 Check for existing closures / duplicates</button>
-    <div id="dupWarn" style="display:none;margin-top:8px;padding:8px 10px;border-radius:6px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px"></div>
-    <label class="chk"><input type="checkbox" id="autofill" checked /> Auto-fill road & county from the map (uses internet)</label>
-    <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanBridges()">🌉 Scan NBI clearances (route + detour)</button>
-    <div class="schedList" id="nbiBox" style="display:none"></div>
-    <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanDevices()">🔶 Scan DMS, arrow boards & Street Smart (IWZ) devices near segment</button>
-    <div class="schedList" id="dmsBox" style="display:none"></div>
-    <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanCameras()">📷 Attach nearby traffic cameras</button>
-    <div class="schedList" id="camBox" style="display:none"></div>
-    <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanProjects()">🏗️ Find DOT project # near segment (5-yr plan + letting)</button>
-    <div class="schedList" id="projBox" style="display:none"></div>
-    <div class="mapbtns" style="margin-top:8px">
-      <button id="btnDetour" onclick="setMode('detour')">✏️ Draw detour</button>
-      <button onclick="undoDetour()">↶ Undo pt</button>
-      <button onclick="clearDetour()">✕ Clear</button>
-    </div>
-    <div class="selinfo" id="detourInfo" style="display:none"></div>
 
     <fieldset>
-      <legend>General</legend>
+      <legend>Step 1 · Mark the work zone</legend>
+      <div class="mapbtns">
+        <button id="btnBegin" class="active" onclick="setMode('begin')">① Set BEGIN on map</button>
+        <button id="btnEnd" onclick="setMode('end')">② Set END on map</button>
+        <button id="btnGPS" onclick="useMyLocation()">📍 Use my location</button>
+      </div>
+      <label class="chk"><input type="checkbox" id="autofill" checked /> Auto-fill road & county from the map (uses internet)</label>
+      <div class="selinfo" id="selinfo">No segment selected yet — click the map to place the begin point.</div>
+      <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="checkDuplicate(true)">🔁 Check for existing closures / duplicates</button>
+      <div id="dupWarn" style="display:none;margin-top:8px;padding:8px 10px;border-radius:6px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Step 2 · Location &amp; details</legend>
       <div class="row">
         <div><label>Route</label>
           <select id="route">
@@ -112,12 +102,14 @@
           <input id="project" list="projList" autocomplete="off" onfocus="loadProjectList()" onchange="onProjectPick()" placeholder="start typing a project number…" />
           <datalist id="projList"></datalist>
           <div style="font-size:11px;margin-top:2px">
-            <a href="#" onclick="document.getElementById('projCsv').click();return false" style="color:var(--accent);font-weight:600">＋ Import project list (CSV)</a>
+            <a href="#" onclick="scanProjects();return false" style="color:var(--accent);font-weight:600">🏗️ find near segment</a>
+            &nbsp;·&nbsp; <a href="#" onclick="document.getElementById('projCsv').click();return false" style="color:var(--accent);font-weight:600">＋ import CSV</a>
             &nbsp;·&nbsp; <a href="#" onclick="clearCsvProjects();return false" style="color:#94a3b8">clear imported</a>
             <input type="file" id="projCsv" accept=".csv,text/csv" style="display:none" onchange="loadProjectsCSV(event)" />
           </div></div>
         <div><label>Intelligent Work Zone?</label><select id="iwz"><option>No</option><option>Yes</option></select></div>
       </div>
+      <div class="schedList" id="projBox" style="display:none"></div>
       <label>Project description</label>
       <textarea id="description" placeholder="e.g. Bridge deck overlay, right lane closed"></textarea>
       <div class="row">
@@ -163,7 +155,37 @@
     </fieldset>
 
     <fieldset>
-      <legend>Schedule — build out weeks</legend>
+      <legend>Step 3 · Restrictions &amp; clearances</legend>
+      <button class="ghost" style="width:100%;margin:0 0 8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanBridges()">🌉 Scan NBI clearances (route + detour)</button>
+      <div class="schedList" id="nbiBox" style="display:none;margin-bottom:8px"></div>
+      <div class="row">
+        <div><label>Width</label><input id="rWidth" placeholder="e.g. 11 ft" /></div>
+        <div><label>Height</label><input id="rHeight" placeholder="e.g. 15 ft 6 in" /></div>
+      </div>
+      <div class="row">
+        <div><label>Weight</label><input id="rWeight" /></div>
+        <div><label>Length</label><input id="rLength" /></div>
+      </div>
+      <label>Restriction timing</label>
+      <select id="rTiming"><option>24 hours</option><option>Limited hours</option><option>None</option></select>
+      <label>Temporary overhead signals? (15′ standard height reference)</label>
+      <select id="overhead"><option>No</option><option>Yes</option></select>
+    </fieldset>
+
+    <fieldset>
+      <legend>Step 4 · Devices, cameras &amp; DMS</legend>
+      <button class="ghost" style="width:100%;margin:0 0 8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanDevices()">🔶 Scan DMS, arrow boards & Street Smart (IWZ) devices near segment</button>
+      <div class="schedList" id="dmsBox" style="display:none;margin-bottom:8px"></div>
+      <button class="ghost" style="width:100%;margin:0 0 8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanCameras()">📷 Attach nearby traffic cameras</button>
+      <div class="schedList" id="camBox" style="display:none;margin-bottom:8px"></div>
+      <label>Dynamic Message Sign (DMS) request</label><textarea id="dms" placeholder="Requested DMS message / location"></textarea>
+      <label>Additional project information / notes <span style="color:#94a3b8;font-weight:400">(pilot car, flagger, connected devices — goes in the form's Additional info box)</span></label>
+      <textarea id="addlNotes" placeholder="Selected connected arrow boards are added here automatically; add any other notes."></textarea>
+      <label>Traffic technician contact</label><input id="techContact" />
+    </fieldset>
+
+    <fieldset>
+      <legend>Step 5 · Schedule — build out weeks</legend>
       <div class="row">
         <div><label>Pattern</label><select id="schedPattern">
           <option>Continuous</option><option>Weekdays</option><option>Nights</option><option>Weekends</option></select></div>
@@ -180,36 +202,22 @@
     </fieldset>
 
     <fieldset>
-      <legend>Restrictions</legend>
-      <div class="row">
-        <div><label>Width</label><input id="rWidth" placeholder="e.g. 11 ft" /></div>
-        <div><label>Height</label><input id="rHeight" placeholder="e.g. 15 ft 6 in" /></div>
+      <legend>Step 6 · Detour</legend>
+      <div class="mapbtns">
+        <button id="btnDetour" onclick="setMode('detour')">✏️ Draw detour</button>
+        <button onclick="undoDetour()">↶ Undo pt</button>
+        <button onclick="clearDetour()">✕ Clear</button>
       </div>
-      <div class="row">
-        <div><label>Weight</label><input id="rWeight" /></div>
-        <div><label>Length</label><input id="rLength" /></div>
-      </div>
-      <label>Restriction timing</label>
-      <select id="rTiming"><option>24 hours</option><option>Limited hours</option><option>None</option></select>
-      <label>Temporary overhead signals? (15′ standard height reference)</label>
-      <select id="overhead"><option>No</option><option>Yes</option></select>
-    </fieldset>
-
-    <fieldset>
-      <legend>Detour & DMS</legend>
+      <div class="selinfo" id="detourInfo" style="display:none"></div>
       <div class="row">
         <div><label>Marked detour?</label><select id="detour"><option>No</option><option>Yes</option></select></div>
         <div><label>Oversize allowed?</label><select id="oversize"><option>N/A</option><option>Yes</option><option>No</option></select></div>
       </div>
       <label>Detour restrictions / notes</label><textarea id="detourNotes"></textarea>
-      <label>Traffic technician contact</label><input id="techContact" />
-      <label>Dynamic Message Sign (DMS) request</label><textarea id="dms" placeholder="Requested DMS message / location"></textarea>
-      <label>Additional project information / notes <span style="color:#94a3b8;font-weight:400">(pilot car, flagger, connected devices — goes in the form's Additional info box)</span></label>
-      <textarea id="addlNotes" placeholder="Selected connected arrow boards are added here automatically; add any other notes."></textarea>
     </fieldset>
 
     <fieldset>
-      <legend>Submit to</legend>
+      <legend>Step 7 · Submit</legend>
       <label>Traffic Management Center — primary recipient</label>
       <input id="tmcEmail" value="IowaDOT.Traffic@iowadot.us" />
       <label>RCE / District office (copied)</label>
@@ -222,32 +230,29 @@
       <div class="hint" id="rceInfo" style="display:none"></div>
       <div class="hint">"Email TMC (cc RCE)" opens a <b>draft in your mail app</b> — review, then send (it does not auto-send). Iowa DOT has no generic office email; the RCE is a person (firstname.lastname@iowadot.us) — the office link above lists the current RCE. TMC: 515-237-3300 · <a href="https://iowadot.seamlessdocs.com/f/Cars511RequestForm" target="_blank" rel="noopener">SeamlessDocs CARS 511</a></div>
       <div id="emailAlt" class="hint" style="display:none;margin-top:6px;padding:8px;background:#fff7ed;border:1px solid #E1A626;border-radius:6px"></div>
-    </fieldset>
-
-    <div id="readyBox" class="schedList" style="display:none;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412"></div>
-    <div class="actions">
-      <button class="ghost" onclick="checkReadiness()">✓ Check readiness</button>
-      <button class="primary" onclick="fillOfficial()">📝 Fill official 511 PDF</button>
-      <button class="primary" onclick="seamlessFill()">📋 Fill 511 site (copy fields)</button>
-      <button class="ghost" onclick="emailRCE()">✉️ Email TMC (cc RCE)</button>
-      <button class="ghost" onclick="genPDF()">📄 Summary PDF</button>
-      <button class="ghost" onclick="copySummary()">📋 Copy</button>
-      <button class="ghost" onclick="resetAll()">🗑 New</button>
-    </div>
-
-    <details style="margin-top:10px">
-      <summary style="cursor:pointer;font-weight:600;color:var(--accent)">🗄️ Submit to database (optional integration)</summary>
-      <div style="padding:8px 0;font-size:13px;color:#475569">If this tool replaces the paper CARS form, point it at your endpoint and it will POST the full request as JSON. Settings are saved on this device.</div>
-      <label>Database endpoint URL <span style="color:#94a3b8;font-weight:400">(HTTPS POST)</span></label>
-      <input id="dbEndpoint" placeholder="https://your-server/api/cars511" oninput="saveIntegration()" />
-      <label>Authorization header <span style="color:#94a3b8;font-weight:400">(optional — e.g. Bearer token / API key)</span></label>
-      <input id="dbAuth" placeholder="Bearer …" oninput="saveIntegration()" />
-      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-        <button class="primary" onclick="submitToDatabase()">🚀 Submit to database</button>
-        <button class="ghost" onclick="downloadPayload()">⬇ Download JSON payload</button>
+      <div id="readyBox" class="schedList" style="display:none;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;margin-top:8px"></div>
+      <div class="actions">
+        <button class="ghost" onclick="checkReadiness()">✓ Check readiness</button>
+        <button class="primary" onclick="fillOfficial()">📝 Fill official 511 PDF</button>
+        <button class="primary" onclick="seamlessFill()">📋 Fill 511 site (copy fields)</button>
+        <button class="ghost" onclick="emailRCE()">✉️ Email TMC (cc RCE)</button>
+        <button class="ghost" onclick="genPDF()">📄 Summary PDF</button>
+        <button class="ghost" onclick="copySummary()">📋 Copy</button>
       </div>
-      <div id="dbStatus" style="margin-top:8px;font-size:13px;display:none"></div>
-    </details>
+      <details style="margin-top:10px">
+        <summary style="cursor:pointer;font-weight:600;color:var(--accent)">🗄️ Submit to database (optional integration)</summary>
+        <div style="padding:8px 0;font-size:13px;color:#475569">If this tool replaces the paper CARS form, point it at your endpoint and it will POST the full request as JSON. Settings are saved on this device.</div>
+        <label>Database endpoint URL <span style="color:#94a3b8;font-weight:400">(HTTPS POST)</span></label>
+        <input id="dbEndpoint" placeholder="https://your-server/api/cars511" oninput="saveIntegration()" />
+        <label>Authorization header <span style="color:#94a3b8;font-weight:400">(optional — e.g. Bearer token / API key)</span></label>
+        <input id="dbAuth" placeholder="Bearer …" oninput="saveIntegration()" />
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <button class="primary" onclick="submitToDatabase()">🚀 Submit to database</button>
+          <button class="ghost" onclick="downloadPayload()">⬇ Download JSON payload</button>
+        </div>
+        <div id="dbStatus" style="margin-top:8px;font-size:13px;display:none"></div>
+      </details>
+    </fieldset>
   </div>
   <div style="flex:1;position:relative">
     <div class="maphint" id="maphint">Click the road to set the <b>begin</b> point</div>
