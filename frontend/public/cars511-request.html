@@ -731,13 +731,23 @@ function genPDF(){ const {jsPDF}=window.jspdf; const doc=new jsPDF({unit:'pt',fo
     schedule.forEach(o=>{ if(y>750){doc.addPage();y=54;} doc.text('• '+o.label,M+8,y); y+=13; }); }
   doc.save(`CARS511_${(routeVal()||'route').replace(/\W+/g,'')}_${(v('project')||'wz')}.pdf`); toast('PDF generated'); }
 
-function resetAll(){ if(!confirm('Clear the form and pins? (Saved projects are kept.)')) return;
-  FIELD_IDS.forEach(id=>{ if(el(id)) el(id).value = el(id).tagName==='SELECT'?el(id).options[0].value:''; });
-  [beginMk,endMk,line].forEach(x=>x&&x.remove()); beginPt=endPt=beginMk=endMk=line=null; schedule=[];
-  detourPts=[]; drawDetour();
+// Identity/contact fields that carry to the next request (not cleared by New).
+const PERSIST_IDS = ['requestor','email','contact24','techContact','tmcEmail','rceEmail'];
+function resetAll(){ if(!confirm('Start a NEW request? Clears the segment, detour, scans, and map — your name/contact/email are kept. (Saved projects are untouched.)')) return;
+  FIELD_IDS.forEach(id=>{ if(el(id) && !PERSIST_IDS.includes(id)) el(id).value = el(id).tagName==='SELECT'?el(id).options[0].value:''; });
+  // segment + work-zone geometry
+  [beginMk,endMk,line].forEach(x=>x&&x.remove()); beginPt=endPt=beginMk=endMk=line=null; wzRoute=null; schedule=[];
+  // detour — must null detourRoute too, or drawDetour redraws the old line
+  detourPts=[]; detourRoute=null; detourMeters=null; drawDetour();
+  // devices
   [selDMS,selAB,selSS].forEach(s=>Object.keys(s).forEach(k=>delete s[k])); if(deviceLayer){deviceLayer.remove();deviceLayer=null;} dmsFeats=[]; el('dmsBox').style.display='none';
+  // cameras
   Object.keys(selCam).forEach(k=>delete selCam[k]); if(camLayer){camLayer.remove();camLayer=null;} camFeats=[]; el('camBox').style.display='none';
+  // bridges (NBI clearances)
+  if(bridgeLayer){bridgeLayer.remove();bridgeLayer=null;} window.__nbiNear=null; window.__nbiDetour=null; if(el('nbiBox'))el('nbiBox').style.display='none';
+  // projects + live-event pins + result banners
   projFeats=[]; if(el('projBox'))el('projBox').style.display='none';
+  if(eventLayer){eventLayer.remove();eventLayer=null;} dupFeats=[];
   ['dupWarn','readyBox','dbStatus','laneHint'].forEach(id=>{ if(el(id))el(id).style.display='none'; });
   el('schedList').style.display='none'; el('selinfo').textContent='No segment selected yet — click the map to place the begin point.';
   onRouteChange(); setMode('begin'); saveState(); }
