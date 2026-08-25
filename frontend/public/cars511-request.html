@@ -558,6 +558,9 @@ function fillFromIowaEvent(f){ const a=f.attributes;
   const sf=to24h(a.StartTime), st=to24h(a.EndTime); if(sf)el('schedFrom').value=sf; if(st)el('schedTo').value=st;
   // county from Desc0 (e.g. "Marshalltown RCE (…) - Tama County")
   const cm=String(a.Desc0||'').match(/([A-Z][A-Za-z.' ]*? Count(?:y|ies))\b/); if(cm) el('counties').value=cm[1].trim();
+  // 24-hr contact: seed from the RCE office name+phone in Desc0 when blank (inspector can override)
+  const rcem=String(a.Desc0||'').match(/([A-Za-z. ]+RCE)\s*\(([\d\-.() ]{7,})\)/);
+  if(rcem && !v('contact24')) el('contact24').value=rcem[1].trim()+' / '+rcem[2].trim();
   // 511 event reference (managed line in notes)
   if(a.linktxt||a.ID){ const userText=(v('addlNotes')||'').replace(EV_LINE,'').trim();
     el('addlNotes').value=[userText,'511 event: '+(a.linktxt||a.ID)].filter(Boolean).join('\n'); }
