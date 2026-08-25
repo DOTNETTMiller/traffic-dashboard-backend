@@ -5,12 +5,13 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
-  :root{ --brand:#12395b; --brand2:#1f6feb; --silver:#8a939b; --accent:#1f6feb; --bg:#f1f4f8; --ink:#0f2438; }
+  :root{ --brand:#002d62; --brand2:#0053b3; --silver:#a2aaad; --accent:#0053b3; --bg:#eef1f5; --ink:#0f2438; }
   *{box-sizing:border-box}
   body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--ink);background:var(--bg)}
-  header{background:var(--brand);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px}
-  header .logo{display:flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:8px;background:#fff;color:var(--brand);font-weight:800;font-size:13px;letter-spacing:.02em}
-  header h1{font-size:16px;margin:0;font-weight:800} header .sub{font-size:12px;opacity:.85;margin-top:1px}
+  header{background:linear-gradient(90deg,#002d62 0%,#0053b3 100%);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;border-bottom:3px solid var(--silver)}
+  header .logo{display:flex;flex-direction:column;align-items:center;justify-content:center;width:46px;height:44px;border-radius:8px;background:#fff;color:#002d62;font-weight:800;font-size:12px;line-height:1;letter-spacing:.03em;border:2px solid var(--silver)}
+  header .logo small{font-size:8px;font-weight:700;color:var(--silver);letter-spacing:.12em;margin-top:2px}
+  header h1{font-size:16px;margin:0;font-weight:800;letter-spacing:.01em} header .sub{font-size:12px;opacity:.9;margin-top:1px}
   .wrap{display:flex;height:calc(100vh - 60px)}
   .form{width:430px;max-width:46vw;overflow:auto;padding:12px 14px 60px;background:#fff;border-right:1px solid #dde3ea}
   #map{position:absolute;inset:0;height:100%;width:100%}
@@ -37,8 +38,8 @@
 </style>
 
 <header>
-  <div class="logo">NDOT</div>
-  <div><h1>Nevada DOT — Work-Zone Request Builder</h1>
+  <div class="logo">NV<small>DOT</small></div>
+  <div><h1>Nevada Department of Transportation — Work-Zone Request Builder</h1>
     <div class="sub">Mark the road → clearances → schedule → export WZDx / email / submit. Review before submitting.</div></div>
 </header>
 
@@ -313,7 +314,7 @@ function emailNDOT(){const _m=missingFields();if(_m.length){checkReadiness();if(
   toast('Draft opened + text copied to clipboard');}
 
 function genPDF(){const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'pt',format:'letter'});const M=48;let y=54;
-  doc.setFillColor(18,57,91);doc.rect(0,0,612,34,'F');doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text('Nevada DOT — Work-Zone Request',M,22);
+  doc.setFillColor(0,45,98);doc.rect(0,0,612,34,'F');doc.setFillColor(162,170,173);doc.rect(0,34,612,3,'F');doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text('Nevada Department of Transportation — Work-Zone Request',M,22);
   doc.setTextColor(20);y=64;doc.setFontSize(10);
   fields().forEach(r=>{if(y>740){doc.addPage();y=54;}doc.setFont('helvetica','bold');doc.text(r[0]+':',M,y);doc.setFont('helvetica','normal');const lines=doc.splitTextToSize(String(r[1]||'—'),360);doc.text(lines,M+150,y);y+=Math.max(15,lines.length*13);});
   if(schedule.length){if(y>700){doc.addPage();y=54;}y+=6;doc.setFont('helvetica','bold');doc.text('Schedule ('+schedule.length+'):',M,y);y+=15;doc.setFont('helvetica','normal');schedule.forEach(o=>{if(y>750){doc.addPage();y=54;}doc.text('• '+o.label,M+8,y);y+=13;});}
