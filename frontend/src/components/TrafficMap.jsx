@@ -468,7 +468,7 @@ export default function TrafficMap({
   // On-map filter state for the historical crash layer (client-side only).
   const [crashCorridor, setCrashCorridor] = useState('Both');
   // Validated Work Zones: per-source filter + live counts for the legend.
-  const [validatedSources, setValidatedSources] = useState({ device: true, camera: true, tomtom: true });
+  const [validatedSources, setValidatedSources] = useState({ device: true, camera: true, tomtom: true, dms: true });
   const [validatedCounts, setValidatedCounts] = useState(null);
   // "Show on map" from the device panel: apply the requested source filter when it changes.
   useEffect(() => {
@@ -1347,7 +1347,8 @@ export default function TrafficMap({
           {[
             ['device', '🔗', 'Device on site', '#2563eb'],
             ['camera', '📷', 'Camera', '#16a34a'],
-            ['tomtom', '🚗', 'TomTom (independent)', '#d97706']
+            ['tomtom', '🚗', 'TomTom (independent)', '#d97706'],
+            ['dms', '🔶', 'DMS message', '#7c3aed']
           ].map(([k, glyph, label, color]) => (
             <label key={k} style={{
               display: 'flex', alignItems: 'center', gap: '7px', cursor: 'pointer',

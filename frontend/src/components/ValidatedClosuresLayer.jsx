@@ -16,9 +16,10 @@ import api from '../services/api';
 const SOURCE_META = {
   device: { glyph: '🔗', label: 'device', color: '#2563eb' },  // blue — hardware on site
   camera: { glyph: '📷', label: 'camera', color: '#16a34a' },  // green — visual truth
-  tomtom: { glyph: '🚗', label: 'TomTom', color: '#d97706' }   // amber — independent report
+  tomtom: { glyph: '🚗', label: 'TomTom', color: '#d97706' },  // amber — independent probe
+  dms:    { glyph: '🔶', label: 'DMS msg', color: '#7c3aed' }  // purple — operator-posted sign text
 };
-const PRIORITY = ['device', 'camera', 'tomtom'];
+const PRIORITY = ['device', 'camera', 'tomtom', 'dms'];
 const primarySource = (sources) => PRIORITY.find(s => sources.includes(s)) || 'camera';
 
 function verifiedIcon(sources) {
@@ -74,7 +75,7 @@ export default function ValidatedClosuresLayer({ visible = false, sources: enabl
         const feats = (res && res.data && res.data.features) || [];
         setFeatures(feats);
         if (onCounts) {
-          const counts = { device: 0, camera: 0, tomtom: 0, total: feats.length };
+          const counts = { device: 0, camera: 0, tomtom: 0, dms: 0, total: feats.length };
           feats.forEach(f => (f.properties?.x_verification || []).forEach(s => { if (counts[s] != null) counts[s]++; }));
           onCounts(counts);
         }
@@ -176,6 +177,18 @@ export default function ValidatedClosuresLayer({ visible = false, sources: enabl
                       {p.x_tomtom_delay_s != null && (
                         <div style={{ color: '#b45309' }}>traffic delay {Math.round(p.x_tomtom_delay_s / 60)} min</div>
                       )}
+                    </div>
+                  )}
+
+                  {sources.includes('dms') && (
+                    <div style={{ background: '#f5f3ff', borderRadius: 6, padding: '5px 8px', marginBottom: 5 }}>
+                      <div style={{ fontWeight: 700, fontSize: 12 }}>🔶 Message sign posting this closure</div>
+                      {p.x_dms_message && (
+                        <div style={{ color: '#334155', fontFamily: 'monospace', fontSize: 11 }}>“{p.x_dms_message}”</div>
+                      )}
+                      <div style={{ color: '#6d28d9', fontSize: 11 }}>
+                        {p.x_dms_name || 'DMS'}{p.x_dms_distance_m != null ? ` · ${p.x_dms_distance_m}m away` : ''}
+                      </div>
                     </div>
                   )}
                 </div>

@@ -63,6 +63,7 @@ function buildFeed(events, opts = {}) {
     if (ev.x_cwz_connected) src.push('device');
     if (ev.x_camera_verified) src.push('camera');
     if (ev.x_tomtom_corroborated) src.push('tomtom');
+    if (ev.x_dms_corroborated) src.push('dms');
     const props = {
       core_details: core,
       vehicle_impact: vehicleImpact(ev),
@@ -89,6 +90,12 @@ function buildFeed(events, opts = {}) {
       props.x_tomtom_category = ev.x_tomtom_category || null;   // Road works / Lane closed / Road closed
       props.x_tomtom_distance_m = ev.x_tomtom_distance_m ?? null;
       if (ev.x_tomtom_delay_s != null) props.x_tomtom_delay_s = ev.x_tomtom_delay_s;
+    }
+    if (ev.x_dms_corroborated) {
+      props.x_dms_corroborated = true;
+      props.x_dms_message = ev.x_dms_message || null;           // the work-zone text the sign is showing
+      props.x_dms_name = ev.x_dms_name || null;                 // sign name / location
+      props.x_dms_distance_m = ev.x_dms_distance_m ?? null;
     }
     features.push({ id: ev.id, type: 'Feature', properties: props, geometry: geom });
   }

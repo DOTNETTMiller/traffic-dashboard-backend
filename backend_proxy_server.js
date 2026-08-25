@@ -6217,9 +6217,19 @@ app.get('/api/cwz/events', async (req, res) => {
       const all = [...byId.values()];
       if (all.length) require('./services/tomtom-corroboration').corroborate(events, all);
     } catch (_) { /* corroboration optional */ }
+    // Independent secondary corroboration: DMS message text. A message sign near a zone
+    // displaying "ROAD WORK / LANE CLOSED / CLOSED AT / FOLLOW DETOUR" is human-posted
+    // evidence from a DIFFERENT operational system than the WZDx feed. Free (a few
+    // CORS-open queries, cached 10 min) + lazy.
+    try {
+      const events = eventsCache.data?.events || [];
+      const dmsCorr = require('./services/dms-corroboration');
+      const signs = await dmsCorr.fetchSigns();
+      if (signs.length) dmsCorr.corroborate(events, signs);
+    } catch (_) { /* dms corroboration optional */ }
     // Elevated = device-verified (connected board) OR camera-verified (a camera saw the zone)
-    // OR independently corroborated by TomTom (a non-DOT source reports the same work zone).
-    const connected = (eventsCache.data?.events || []).filter(e => e.x_cwz_connected || e.x_camera_verified || e.x_tomtom_corroborated);
+    // OR independently corroborated by TomTom (commercial probe) or a DMS message (operator-posted).
+    const connected = (eventsCache.data?.events || []).filter(e => e.x_cwz_connected || e.x_camera_verified || e.x_tomtom_corroborated || e.x_dms_corroborated);
     res.set('Content-Type', 'application/json');
     res.json(cwz.buildFeed(connected));
   } catch (err) {
