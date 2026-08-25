@@ -1372,7 +1372,12 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script>
 const map = L.map('map').setView([41.85, -93.5], 7);
 // Esri basemap tiles: no API key, no Referer required (OSM's public tiles 403 when opened from file://).
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom:19, attribution:'Tiles © Esri' }).addTo(map);
+const baseStreet = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom:19, attribution:'Tiles © Esri' }).addTo(map);
+const baseSat = L.layerGroup([
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom:19, attribution:'Imagery © Esri' }),
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom:19 })   // road labels over the imagery
+]);
+L.control.layers({ 'Street': baseStreet, 'Satellite': baseSat }, {}, { position:'topright' }).addTo(map);
 // Ensure Leaflet measures the container once it's laid out (blank-map guard).
 setTimeout(()=>map.invalidateSize(), 200);
 window.addEventListener('resize', ()=>map.invalidateSize());

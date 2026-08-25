@@ -1270,7 +1270,12 @@ const FIELD_IDS=['route','routeOther','direction','project','description','begin
 // ---- map ----
 const map=L.map('map',{zoomControl:true}).setView([39.5,-116.9],6); // Nevada
 // Esri basemap tiles: no API key, no Referer required (OSM's public tiles 403 when opened from file://).
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'}).addTo(map);
+const baseStreet=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'}).addTo(map);
+const baseSat=L.layerGroup([
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri'}),
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19})
+]);
+L.control.layers({'Street':baseStreet,'Satellite':baseSat},{},{position:'topright'}).addTo(map);
 setTimeout(()=>map.invalidateSize(),200); window.addEventListener('resize',()=>map.invalidateSize());
 let mode='begin',beginPt=null,endPt=null,beginMk=null,endMk=null,line=null,wzRoute=null,schedule=[];
 let detourPts=[],detourLine=null,detourMks=[],detourRoute=null,detourMeters=null;
