@@ -372,7 +372,15 @@ async function iowaRefPost(pt,dirLetter,routeId){
   const f=(j&&j.features)||[]; if(!f.length) return null;
   let cands=f.filter(x=>x.geometry).map(x=>({x,d:d2(pt,x.geometry.y,x.geometry.x)})).sort((a,b)=>a.d-b.d);
   if(!routeId && dirLetter){ const m=cands.filter(c=>c.x.attributes.OFFICIAL_ROUTE_DIRECTION===dirLetter); if(m.length) cands=m; }
-  const a=cands[0].x.attributes; return { mp:a.REFERENCE_POST_VALUE, route:a.OFFICIAL_COMMON_NAME, dir:a.OFFICIAL_ROUTE_DIRECTION, routeId:a.ROUTE_ID };
+  const a=cands[0].x.attributes; const g0=cands[0].x.geometry; let mp=a.REFERENCE_POST_VALUE;
+  // Tenths: interpolate the click between the two nearest posts (numeric values only; e.g. skip "97A").
+  const v0=parseFloat(a.REFERENCE_POST_VALUE);
+  const other=Number.isFinite(v0) ? cands.find(c=>{ const vv=parseFloat(c.x.attributes.REFERENCE_POST_VALUE); return Number.isFinite(vv)&&vv!==v0&&c.x.geometry; }) : null;
+  if(other){ const g1=other.x.geometry, mp1=parseFloat(other.x.attributes.REFERENCE_POST_VALUE), k=Math.cos(pt.lat*Math.PI/180);
+    const ax=g0.x*k,ay=g0.y,bx=g1.x*k,by=g1.y,px=pt.lng*k,py=pt.lat, dx=bx-ax,dy=by-ay, l2=dx*dx+dy*dy||1;
+    let t=((px-ax)*dx+(py-ay)*dy)/l2; t=Math.max(-0.5,Math.min(1.5,t));
+    let val=Math.round((v0+(mp1-v0)*t)*10)/10; if(val>=0) mp=val; }
+  return { mp, route:a.OFFICIAL_COMMON_NAME, dir:a.OFFICIAL_ROUTE_DIRECTION, routeId:a.ROUTE_ID };
 }
 // Authoritative centerline geometry between two points along a directional ROUTEID.
 async function iowaCenterline(routeId,a,b){
@@ -426,9 +434,10 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
   }).catch(()=>{});
   const rpA=await iowaRefPost(beginPt,dLetter); const rpB=await iowaRefPost(endPt,dLetter, rpA&&rpA.routeId);
   let mpA=null,mpB=null;
-  if(rpA){ mpA=rpA.mp; if(!v('beginLoc')) el('beginLoc').value='MP '+rpA.mp;
+  const autoMP=s=>!s || /^MP\s*[\d.]+$/i.test(s);   // refresh auto-generated MP; keep custom cross-street text
+  if(rpA){ mpA=rpA.mp; if(autoMP(v('beginLoc'))) el('beginLoc').value='MP '+rpA.mp;
     if(rpA.route){ const opt=[...el('route').options].find(o=>o.value===rpA.route); if(opt) el('route').value=rpA.route; else if(!v('route')){ el('route').value='__other'; onRouteChange(); el('routeOther').value=rpA.route; } } }
-  if(rpB){ mpB=rpB.mp; if(!v('endLoc')) el('endLoc').value='MP '+rpB.mp; }
+  if(rpB){ mpB=rpB.mp; if(autoMP(v('endLoc'))) el('endLoc').value='MP '+rpB.mp; }
   let mi=null, usedIowa=false;
   const routeId=(rpA&&rpA.routeId)||(rpB&&rpB.routeId);
   if(routeId){ const cl=await iowaCenterline(routeId,beginPt,endPt); if(cl){ wzRoute=cl.latlngs; mi=cl.miles; usedIowa=true; } }
