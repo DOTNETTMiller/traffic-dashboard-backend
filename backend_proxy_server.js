@@ -6270,6 +6270,8 @@ const RAMS_LAYERS = new Set([
   '143', // All Systems Permit   (OSOW / permit routes)
   '144', // (companion permit layer)
   '133', // Project Scoping
+  '111', // Structure On and Under (VERTICAL/POSTED/HORIZONTAL_CLEARANCE + per-lane; FFII feet-inches, 9999=open)
+  '110', // Structure Control      (VERTICAL_UNDER_CLEARANCE)
 ]);
 // only these ArcGIS query params are forwarded (no returnGeometry tricks, no edits)
 const RAMS_QP = ['where', 'geometry', 'geometryType', 'inSR', 'spatialRel', 'outFields',
