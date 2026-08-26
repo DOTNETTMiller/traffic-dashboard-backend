@@ -219,9 +219,28 @@ function offsetPt(lat,lng,dl,meters){const t={N:0,E:90,S:180,W:270},br=t[dl]!=nu
 
 async function osrmRoute(coords){try{const c=coords.map(p=>p[0]+','+p[1]).join(';');const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+c+'?overview=full&geometries=geojson');const j=await r.json();const rt=j.routes&&j.routes[0];if(!rt)return null;return{latlngs:rt.geometry.coordinates.map(c=>[c[1],c[0]]),meters:rt.distance};}catch(e){return null;}}
 function drawWZLine(){if(line){line.remove();line=null;}const pts=(wzRoute&&wzRoute.length)?wzRoute:((beginPt&&endPt)?[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]]:null);if(pts)line=L.polyline(pts,{color:'#dc2626',weight:6,opacity:.85}).addTo(map);}
+// NDOT posted milepost: interpolate PostedMileage between the two nearest mile markers on the same route.
+// Uses the CORS-open NDOT ArcGIS Online mile-marker layer (MileMarker_CoCumPart2).
+const NV_MM='https://services1.arcgis.com/9Y4hSlLf13E9S0Eo/arcgis/rest/services/MileMarker_CoCumPart2/FeatureServer/0/query';
+async function nvMilepost(pt){ const pad=0.02, bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
+  const url=NV_MM+'?where=PostedMileage%3E0&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=PostedMileage,PostedRoute,PostedCounty&returnGeometry=true&outSR=4326&resultRecordCount=400&f=json';
+  try{ const f=((await(await fetch(url)).json()).features||[]).filter(x=>x.geometry&&x.geometry.x!=null&&Number.isFinite(+x.attributes.PostedMileage));
+    if(!f.length)return null; const k=Math.cos(pt.lat*Math.PI/180);
+    f.forEach(x=>x._d=Math.hypot((x.geometry.x-pt.lng)*k,(x.geometry.y-pt.lat)));
+    f.sort((a,b)=>a._d-b._d); const near=f[0], rt=near.attributes.PostedRoute; let mp=+near.attributes.PostedMileage;
+    const other=f.find(x=>x.attributes.PostedRoute===rt && +x.attributes.PostedMileage!==mp);
+    if(other){ const g0=near.geometry,g1=other.geometry,mp0=mp,mp1=+other.attributes.PostedMileage;
+      const ax=g0.x*k,ay=g0.y,bx=g1.x*k,by=g1.y,px=pt.lng*k,py=pt.lat,dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy||1e-12;
+      let t=((px-ax)*dx+(py-ay)*dy)/l2; t=Math.max(-0.5,Math.min(1.5,t)); const val=mp0+(mp1-mp0)*t; if(val>=0)mp=Math.round(val*10)/10; }
+    return {mp, route:rt, county:near.attributes.PostedCounty}; }
+  catch(e){ return null; } }
 async function snapWZ(){if(!(beginPt&&endPt))return;drawWZLine();const dir=dirLabel(bearing(beginPt,endPt));if(!v('direction'))el('direction').value=dir[0];
   const r=await osrmRoute([[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]]);let mi=miles(beginPt,endPt);if(r){wzRoute=r.latlngs;mi=r.meters/1609.34;drawWZLine();}
-  el('selinfo').innerHTML='<b>Segment:</b> '+dir+', '+mi.toFixed(1)+' mi (road-following)<br>begin '+beginPt.lat.toFixed(4)+', '+beginPt.lng.toFixed(4)+' → end '+endPt.lat.toFixed(4)+', '+endPt.lng.toFixed(4)+' &nbsp; <a href="'+gmapsRoute()+'" target="_blank" rel="noopener">🗺 map</a>';
+  const autoMP=s=>!s||/^MP\s*[\d.]+$/i.test(s); let mpTxt='';
+  try{ const [a,b]=await Promise.all([nvMilepost(beginPt),nvMilepost(endPt)]);
+    if(a&&autoMP(v('beginLoc')))el('beginLoc').value='MP '+a.mp; if(b&&autoMP(v('endLoc')))el('endLoc').value='MP '+b.mp;
+    if(a&&b) mpTxt=' · MP '+Math.min(a.mp,b.mp)+'–'+Math.max(a.mp,b.mp); }catch(e){}
+  el('selinfo').innerHTML='<b>Segment:</b> '+dir+', '+mi.toFixed(1)+' mi (road-following)'+mpTxt+'<br>begin '+beginPt.lat.toFixed(4)+', '+beginPt.lng.toFixed(4)+' → end '+endPt.lat.toFixed(4)+', '+endPt.lng.toFixed(4)+' &nbsp; <a href="'+gmapsRoute()+'" target="_blank" rel="noopener">🗺 map</a>';
   reverseFill(beginPt);saveState();}
 function redraw(){[beginMk,endMk,line].forEach(x=>x&&x.remove());beginMk=endMk=line=null;wzRoute=null;if(beginPt)beginMk=mk(beginPt,'A','#1d4ed8');if(endPt)endMk=mk(endPt,'B','#dc2626');if(beginPt&&endPt)drawWZLine();}
 map.on('click',e=>{if(mode==='detour'){detourPts.push(e.latlng);if(v('detour')!=='Yes')el('detour').value='Yes';detourRoute=null;drawDetour();snapDetour();saveState();return;}

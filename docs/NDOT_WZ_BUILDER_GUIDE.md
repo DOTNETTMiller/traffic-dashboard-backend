@@ -38,7 +38,8 @@ browser access (no CORS), so a self-contained file can't call them. See
 [§7](#7-full-parity-option-live-ndot-data) for the path to add them.
 
 > Because of that, geometry is **road-following** (not centerline-snapped), and
-> project numbers come from a **CSV you import** rather than a live lookup.
+> project numbers come from a **CSV you import** rather than a live lookup. Posted
+> mileposts DO auto-fill from NDOT's CORS-open mile-marker layer.
 
 
 ## 2. Step-by-step
