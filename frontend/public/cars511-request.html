@@ -422,6 +422,28 @@ async function iowaRCEOffice(pt){
   let best=null,bd=Infinity; for(const x of f){ const g=x.geometry; if(!g)continue; const d=d2(pt,g.y,g.x); if(d<bd){bd=d;best=x;} }
   return best?best.attributes:null;
 }
+// Distance (miles) along a polyline to the closest point to pt; also the perpendicular offset.
+function measureAlong(path, pt){ let cum=0, best={d:Infinity,s:0}; const k=Math.cos(pt.lat*Math.PI/180);
+  for(let i=1;i<path.length;i++){ const a=path[i-1], b=path[i];
+    const ax=a[1]*k,ay=a[0],bx=b[1]*k,by=b[0],px=pt.lng*k,py=pt.lat, dx=bx-ax,dy=by-ay, l2=dx*dx+dy*dy||1e-12;
+    let t=((px-ax)*dx+(py-ay)*dy)/l2; t=Math.max(0,Math.min(1,t));
+    const cx=ax+t*dx, cy=ay+t*dy, d=Math.hypot(px-cx,py-cy), segMi=miles({lat:a[0],lng:a[1]},{lat:b[0],lng:b[1]});
+    if(d<best.d) best={d, s:cum+t*segMi}; cum+=segMi; }
+  return best; }
+// Posted milepost at road-distance s, from reference-post calibration [{s, mp}] (interpolate/extrapolate).
+function interpMP(calib, s){ if(!calib.length) return null; if(calib.length===1) return calib[0].mp+(s-calib[0].s);
+  let lo=null,hi=null; for(const c of calib){ if(c.s<=s) lo=c; if(c.s>=s && hi===null) hi=c; }
+  if(lo&&hi&&hi.s!==lo.s) return lo.mp+(hi.mp-lo.mp)*(s-lo.s)/(hi.s-lo.s);
+  const a=calib[0], b=calib[calib.length-1], slope=(b.mp-a.mp)/((b.s-a.s)||1), ref=s<a.s?a:b; return ref.mp+slope*(s-ref.s); }
+// Build the road-distance→posted-milepost calibration by projecting reference posts onto the centerline.
+async function iowaMPCalib(routeId, path){
+  let mnLa=90,mxLa=-90,mnLo=180,mxLo=-180; path.forEach(p=>{ if(p[0]<mnLa)mnLa=p[0]; if(p[0]>mxLa)mxLa=p[0]; if(p[1]<mnLo)mnLo=p[1]; if(p[1]>mxLo)mxLo=p[1]; });
+  const pad=0.02, bb=[mnLo-pad,mnLa-pad,mxLo+pad,mxLa+pad].join(',');
+  const j=await iaQuery('Reference_Post_View','where='+encodeURIComponent("ROUTE_ID='"+routeId+"'")+'&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=REFERENCE_POST_VALUE&returnGeometry=true&outSR=4326&resultRecordCount=400');
+  const f=(j&&j.features)||[]; const calib=[];
+  f.forEach(x=>{ const g=x.geometry, mp=parseFloat(x.attributes.REFERENCE_POST_VALUE); if(!g||g.x==null||!Number.isFinite(mp))return;
+    const m=measureAlong(path,{lat:g.y,lng:g.x}); if(m.d<=0.008) calib.push({s:m.s, mp}); });   // post within ~2600ft of the centerline
+  const seen=new Set(), out=[]; calib.sort((a,b)=>a.s-b.s).forEach(c=>{ if(seen.has(c.mp))return; seen.add(c.mp); out.push(c); }); return out; }
 async function snapWZ(){ if(!(beginPt&&endPt))return;
   const dir=dirLabel(bearing(beginPt,endPt)); const dLetter=dir[0];
   iowaRCEOffice(beginPt).then(rce=>{ if(!rce)return;
@@ -441,6 +463,12 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
   let mi=null, usedIowa=false;
   const routeId=(rpA&&rpA.routeId)||(rpB&&rpB.routeId);
   if(routeId){ const cl=await iowaCenterline(routeId,beginPt,endPt); if(cl){ wzRoute=cl.latlngs; mi=cl.miles; usedIowa=true; } }
+  // Precise mileposts: interpolate ALONG the centerline (follows road curves). GUARDED — only override the
+  // reliable straight-line tenths when the two agree (<1 mi); posts outside the segment can clamp/skew otherwise.
+  if(usedIowa && wzRoute && wzRoute.length>=2 && routeId){ try{ const calib=await iowaMPCalib(routeId, wzRoute);
+    if(calib.length>=2){ const pa=interpMP(calib, measureAlong(wzRoute,beginPt).s), pb=interpMP(calib, measureAlong(wzRoute,endPt).s);
+      if(pa!=null && pa>=0 && rpA && Math.abs(pa-rpA.mp)<1){ mpA=Math.round(pa*10)/10; if(autoMP(v('beginLoc'))) el('beginLoc').value='MP '+mpA; }
+      if(pb!=null && pb>=0 && rpB && Math.abs(pb-rpB.mp)<1){ mpB=Math.round(pb*10)/10; if(autoMP(v('endLoc'))) el('endLoc').value='MP '+mpB; } } }catch(e){} }
   if(!usedIowa){ const r=await osrmRoute([[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]]); if(r){ wzRoute=r.latlngs; mi=r.meters/1609.34; } }
   if(!beginPt||!endPt)return; drawWZLine();
   const src=usedIowa?'Iowa DOT centerline':'road';
