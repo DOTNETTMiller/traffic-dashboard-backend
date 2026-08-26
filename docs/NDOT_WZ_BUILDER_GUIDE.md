@@ -32,9 +32,12 @@ feature**, an **email**, a **summary PDF**, or a **database submission**.
 - Produce four outputs: **WZDx feature**, **email to NDOT**, **summary PDF**, and a
   **database submission** (or JSON download).
 
-**It does not** (in this offline build): pull live NV 511 events, cameras, DMS, or
-NDOT centerline mileposts. Those systems (nvroads, NDOT GIS) don't allow direct
-browser access (no CORS), so a self-contained file can't call them. See
+- Auto-fill **posted mileposts** (Begin/End) by interpolating between NDOT mile
+  markers.
+
+**It does not** (in this offline build): pull live NV 511 events, cameras, or DMS.
+Those systems (nvroads, NDOT ATMS GIS) don't allow direct browser access (no CORS),
+so a self-contained file can't call them. See
 [§7](#7-full-parity-option-live-ndot-data) for the path to add them.
 
 > Because of that, geometry is **road-following** (not centerline-snapped), and
@@ -114,10 +117,11 @@ All are read-only and need no login.
 | Federal **NTAD National Bridge Inventory** | Bridge clearances (item 54B), Nevada = STATE_CODE 32 | CORS-open ✓ |
 | **OSRM** (`router.project-osrm.org`) | Road-following segment + detour geometry | CORS-open ✓ |
 | **FCC** area API (`geo.fcc.gov`) | County from lat/lon | CORS-open ✓ |
-| OpenStreetMap tiles / Google Maps links | Basemap / shareable map links | — |
+| NDOT **MileMarker_CoCumPart2** (ArcGIS Online) | Posted mileposts (interpolated) | CORS-open ✓ |
+| Esri basemap / Google Maps links | Basemap / shareable map links | — |
 
 *Not used in this build (no CORS):* nvroads (events/cameras/DMS) and NDOT
-`gis.dot.nv.gov` (centerline/mileposts). See §7.
+`gis.dot.nv.gov` (centerline geometry). See §7.
 
 
 ## 6. Setup for IT (database + hosting)
