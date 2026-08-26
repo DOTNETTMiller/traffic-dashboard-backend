@@ -6253,6 +6253,50 @@ app.get('/api/cwz/devices', async (req, res) => {
   }
 });
 
+// ---- Iowa RAMS LRS proxy (read-only, scoped) ----
+// RAMS (gis.iowadot.gov/rams/rest/services/lrs/MapServer) is Iowa DOT's authoritative,
+// current, PUBLIC (no-token) roadway system — but it is NOT CORS-open, so a double-clicked
+// request-builder HTML (file://) can't call it directly. We re-serve it CORS-open and
+// read-only, restricted to an allow-list of layers and safe ArcGIS /query params, so the
+// tool can pull current project locations, true LRS mileposts, and OSOW routes.
+const RAMS_BASE = 'https://gis.iowadot.gov/rams/rest/services/lrs/MapServer';
+// layer id -> friendly name (allow-list; only these can be queried through the proxy)
+const RAMS_LAYERS = new Set([
+  '146', // PPMS Project Line   (current project locations + PID + MEASURE + dates)
+  '150', // PPMS Project Point
+  '98',  // Reference Posts      (ROUTE_ID, MEASURE, REFERENCE_POST_VALUE, lat/lon)
+  '25',  // LRS Calibration Point
+  '22',  // LRS Centerline       (M-enabled — true measure-based mileposts)
+  '143', // All Systems Permit   (OSOW / permit routes)
+  '144', // (companion permit layer)
+  '133', // Project Scoping
+]);
+// only these ArcGIS query params are forwarded (no returnGeometry tricks, no edits)
+const RAMS_QP = ['where', 'geometry', 'geometryType', 'inSR', 'spatialRel', 'outFields',
+  'returnGeometry', 'outSR', 'resultRecordCount', 'orderByFields', 'returnCountOnly',
+  'returnDistinctValues', 'objectIds', 'distance', 'units'];
+app.get('/api/ia/rams/:layer/query', async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  const layer = String(req.params.layer || '');
+  if (!/^\d+$/.test(layer) || !RAMS_LAYERS.has(layer)) {
+    return res.status(400).json({ error: 'RAMS layer not allowed' });
+  }
+  const qs = RAMS_QP
+    .filter(k => req.query[k] != null)
+    .map(k => `${k}=${encodeURIComponent(String(req.query[k]))}`)
+    .join('&');
+  const url = `${RAMS_BASE}/${layer}/query?${qs}&f=json`;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    const txt = await r.text();
+    res.set('Content-Type', 'application/json');
+    res.set('Cache-Control', 'public, max-age=300'); // RAMS updates slowly; 5-min edge cache
+    res.status(r.ok ? 200 : r.status).send(txt);
+  } catch (err) {
+    res.status(502).json({ error: 'RAMS proxy failed: ' + err.message });
+  }
+});
+
 // Endpoint to fetch from a specific state
 app.get('/api/events/:state', async (req, res) => {
   let stateKey = req.params.state.toLowerCase();
