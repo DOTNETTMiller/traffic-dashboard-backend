@@ -88,7 +88,7 @@ async function scanActive(events, opts = {}) {
     if (!det.available) continue;                            // vision off/unconfigured → don't burn a check
     checked++;
     const seen = !!det.work_zone;
-    await ledger.record(id, { phase, seen, camera: m.camera.id, cameraUrl: m.camera.imageUrl, devices: det.devices, detectedAt: det.checkedAt });
+    await ledger.record(id, { phase, seen, camera: m.camera.id, cameraUrl: m.camera.imageUrl, devices: det.devices, stagedOnly: det.staged_only, detectedAt: det.checkedAt });
     if (seen) {
       ev.x_camera_verified = true;
       ev.x_camera_detected = det.devices;
@@ -108,6 +108,7 @@ async function scanActive(events, opts = {}) {
       tcRemoved++;
     }
     actions.push({ eventId: id, phase, camera: m.camera.id, distanceM: m.distanceM, seen, devices: det.devices,
+      stagedOnly: det.staged_only || undefined,
       tcRemoved: (phase === 'daily' && !seen) || undefined });
   }
   return { due, checked, elevated, tcRemoved, actions };

@@ -16,8 +16,20 @@
 const turf = require('@turf/turf');
 const { isActiveNow } = require('./camera-validation');
 
-// Message text that indicates the sign is talking about a work zone / closure.
-const WZ_RE = /ROAD ?WORK|WORK ?ZONE|LANE (CLOSED|CLOSURE)|(RIGHT|LEFT|CENTER) LANE|SHOULDER (CLOSED|WORK)|CONSTRUCTION|ROAD ?CLOSED|CLOSED ?AT|\bCLOSED\b|DETOUR|REDUCED? SPEED|EXPECT DELAY|\bMERGE\b|WORKERS?|PAVING|BRIDGE WORK/i;
+// A DMS corroborates a work zone only if it STATES a real closure / roadwork (WZ_STRONG)
+// AND is not one of the unrelated messages boards routinely cycle through (WZ_EXCLUDE).
+// This keeps a nearby sign showing an Amber alert, a seat-belt/OWI campaign, a generic
+// "slow down / it's the law" awareness slogan, a travel-time readout, weather, or a crash
+// from being counted as evidence of the work zone.
+//
+// STRONG deliberately drops the weak bare tokens the old rule matched on (a lone "CLOSED",
+// "MERGE", "WORKERS", "REDUCED SPEED", "EXPECT DELAY") — those appear in incident/ramp/
+// generic messages too — and requires a specific roadwork/closure phrase instead.
+const WZ_STRONG = /ROAD ?WORK|WORK ?ZONE|LANE (CLOSED|CLOSURE)|(RIGHT|LEFT|CENTER|#?\d) LANES? CLOSED|SHOULDER (CLOSED|WORK)|SHLDR (CLOSED|CLD)|ROAD ?CLOSED|CLOSED (AT|AHEAD|MON|TUE|WED|THU|FRI|SAT|SUN|NIGHT|\d)|RAMP CLOSED|\bDETOUR\b|CONSTRUCTION|PAVING|MILLING|BRIDGE WORK|WORK AHEAD/i;
+const WZ_EXCLUDE = /AMBER ALERT|SILVER ALERT|BLUE ALERT|CLICK IT|BUCKLE UP|SEAT ?BELT|DRIVE SOBER|\bDUI\b|\bOWI\b|DON'?T DRINK|IMPAIRED|BUZZED|TEXT.*DRIV|DISTRACT|PHONE DOWN|PUT.*PHONE DOWN|MOVE OVER|IT'?S THE LAW|GIVE.*BRAKE|SAVE LIVES|SLOW DOWN,? SAVE|GAME ?DAY|EVENT TRAFFIC|TRAVEL TIME|\b\d+ MIN\b|\bMINUTES? TO\b|HIGH WIND|DENSE FOG|\bSNOW\b|\bICE\b|\bCRASH\b|COLLISION|STALLED|DISABLED VEH|\bINCIDENT\b|EMERGENCY VEH|\bVOTE\b|ELECTION/i;
+// Back-compat alias (no other module imports this, but keep the name stable).
+const WZ_RE = WZ_STRONG;
+const isWorkZoneMsg = (msg) => WZ_STRONG.test(msg) && !WZ_EXCLUDE.test(msg);
 
 function interstate(s) {
   const m = String(s || '').toUpperCase().match(/\bI[-\s]?(\d{1,3})\b/);
@@ -87,7 +99,7 @@ async function fetchSigns(opts = {}) {
 function corroborate(events, signs, opts = {}) {
   const maxM = opts.maxM || 8000; // ~5 mi — DMS warn upstream of a closure
   const wz = (signs || []).filter(s =>
-    Array.isArray(s.coordinates) && s.message && WZ_RE.test(s.message));
+    Array.isArray(s.coordinates) && s.message && isWorkZoneMsg(s.message));
   if (!wz.length) return 0;
 
   let n = 0;
@@ -107,6 +119,8 @@ function corroborate(events, signs, opts = {}) {
     if (best && bestD <= maxM) {
       ev.x_dms_corroborated = true;
       ev.x_dms_message = best.message.slice(0, 120);
+      const mm = best.message.match(WZ_STRONG);
+      ev.x_dms_match = mm ? mm[0] : undefined; // which closure phrase corroborated
       ev.x_dms_name = best.name;
       ev.x_dms_id = best.id;
       ev.x_dms_distance_m = Math.round(bestD);
@@ -117,4 +131,4 @@ function corroborate(events, signs, opts = {}) {
   return n;
 }
 
-module.exports = { corroborate, fetchSigns, WZ_RE };
+module.exports = { corroborate, fetchSigns, WZ_RE, WZ_STRONG, WZ_EXCLUDE, isWorkZoneMsg };

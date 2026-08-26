@@ -82,14 +82,27 @@ function fetchBuffer(url, timeoutMs = 12000) {
   });
 }
 
+// The key distinction: contractors often PILE cones/barrels off the road when not
+// working. A stack of stored devices is NOT an active work zone — only devices actually
+// deployed along the travel lanes are. Ask the model to separate the two so a pile of
+// stored cones can't count as a live closure.
 const DETECT_PROMPT =
-  'This is a highway traffic camera still. Reply ONLY compact JSON: '
-  + '{"work_zone":true|false,"devices":[any of arrow-board,cones,barrels,drums,signs,workers,tma],"confidence":0..1}. '
-  + 'Detect only TEMPORARY traffic-control devices actually visible. If none, devices:[] and work_zone:false.';
+  'This is a highway traffic camera still. Look for TEMPORARY traffic-control devices '
+  + '(arrow-board, cones, barrels, drums, signs, workers, tma) and decide whether they are '
+  + 'ACTIVELY DEPLOYED for a live work zone or only STORED/STAGED. '
+  + 'Deployed = cones or barrels arranged in a line/taper along or across the travel lanes '
+  + '(a real closure), an arrow-board lit and facing traffic, or workers/equipment in the roadway. '
+  + 'Stored/staged = cones or barrels piled, stacked, bundled, or clustered on the shoulder, median, '
+  + 'ditch, ramp, or a staging area and NOT arranged along a lane; an arrow-board that is dark or blank. '
+  + 'Reply ONLY compact JSON: {"work_zone":true|false,"deployed":true|false,"staged_only":true|false,'
+  + '"devices":[any of arrow-board,cones,barrels,drums,signs,workers,tma],"confidence":0..1}. '
+  + 'Set work_zone:true ONLY for an actively deployed closure. If devices are merely piled/stored off '
+  + 'the roadway, set staged_only:true, deployed:false, work_zone:false. If no temporary devices at all, '
+  + 'all false and devices:[].';
 
 function parseJsonBlock(txt) {
   const m = txt && txt.match(/\{[\s\S]*\}/);
-  return m ? JSON.parse(m[0]) : { work_zone: false, devices: [], confidence: 0 };
+  return m ? JSON.parse(m[0]) : { work_zone: false, deployed: false, staged_only: false, devices: [], confidence: 0 };
 }
 
 // --- provider: Anthropic (Claude vision) ---
@@ -216,9 +229,15 @@ async function detect(camera, opts = {}) {
       : provider === 'openai' ? await callOpenAI(buf.toString('base64'), oaClient)
       : await callAnthropic(buf.toString('base64'), apiKey);
     const devices = Array.isArray(out.devices) ? out.devices.filter((d) => TC_DEVICES.includes(d)) : [];
+    // Piled/stored devices don't make an active zone. Only count work_zone when the model
+    // says the devices are deployed (default true if it didn't say) AND not staged-only.
+    // (YOLO has no deployed/staged notion → both undefined → behaves as before.)
+    const stagedOnly = out.staged_only === true;
+    const deployed = out.deployed !== false && !stagedOnly;
     const result = {
       available: true, provider,
-      work_zone: !!out.work_zone,
+      work_zone: !!out.work_zone && deployed && !stagedOnly,
+      deployed, staged_only: stagedOnly,
       devices,
       confidence: typeof out.confidence === 'number' ? out.confidence : null,
       checkedAt: new Date().toISOString()
