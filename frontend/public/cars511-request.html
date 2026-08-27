@@ -354,6 +354,21 @@ async function oppositeRoad(offM){ if(!(wzRoute&&wzRoute.length>=2&&beginPt&&end
   for(const pr of [[B2,A2],[A2,B2]]){ try{ const r=await osrmRoute([[pr[0][1],pr[0][0]],[pr[1][1],pr[1][0]]]);
     if(r&&r.latlngs&&r.latlngs.length>=2){ const mi=r.meters/1609.34; if(mi<bestMi){ bestMi=mi; best=r.latlngs; } } }catch(e){} }
   return (best && bestMi <= Math.max(fwdMi*1.8, fwdMi+0.5)) ? best : null; }
+// Trim a polyline so it spans exactly between the perpendicular feet of two reference points
+// (the forward line's endpoints) — makes the opposite carriageway equal-length and end-aligned
+// with the marked line, instead of over/undershooting to the nearest source vertex.
+function segFoot(pt,p,q){ const cos=Math.cos(pt[0]*Math.PI/180)||1e-6;
+  const ax=p[1]*cos,ay=p[0],bx=q[1]*cos,by=q[0],px=pt[1]*cos,py=pt[0];
+  const dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy||1e-12; let t=((px-ax)*dx+(py-ay)*dy)/l2; t=Math.max(0,Math.min(1,t));
+  return [ay+t*dy,(ax+t*dx)/cos]; }
+function projectFoot(line,pt){ let bi=0,bp=line[0],bd=Infinity; const cos=Math.cos(pt[0]*Math.PI/180)||1e-6;
+  for(let i=0;i<line.length-1;i++){ const f=segFoot(pt,line[i],line[i+1]); const d=Math.hypot((f[1]-pt[1])*cos,(f[0]-pt[0])); if(d<bd){bd=d;bi=i;bp=f;} }
+  return {i:bi,point:bp}; }
+function clipToEnds(line,aArr,bArr){ if(!line||line.length<2) return line;
+  const fa=projectFoot(line,aArr), fb=projectFoot(line,bArr);
+  let i1=fa.i,p1=fa.point,i2=fb.i,p2=fb.point; if(i1>i2){ [i1,i2]=[i2,i1]; [p1,p2]=[p2,p1]; }
+  const out=[p1]; for(let k=i1+1;k<=i2;k++) out.push(line[k]); out.push(p2);
+  return out.length>=2?out:line; }
 // Snap a set of [lon,lat] waypoints to the driving road path via OSRM (free, no key).
 async function osrmRoute(lonlat){ try{
   const u='https://router.project-osrm.org/route/v1/driving/'+lonlat.map(c=>c[0]+','+c[1]).join(';')+'?overview=full&geometries=geojson';
@@ -558,6 +573,8 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
       if(opp){ try{ const cl=await iowaCenterline(opp,beginPt,endPt); if(cl&&cl.latlngs&&cl.latlngs.length>=2){ wzRoute2=cl.latlngs; oppSrc='centerline'; } }catch(e){} } }
     if(!wzRoute2){ const r=await oppositeRoad(divided?34:18); if(r){ wzRoute2=r; oppSrc='road'; } }
     if(!wzRoute2){ wzRoute2=offsetPolyline(wzRoute, divided?28:14); oppSrc='approx'; }
+    // trim to the forward line's endpoints so both roadbeds are equal-length and end-aligned
+    if(wzRoute2 && wzRoute2.length>=2) wzRoute2=clipToEnds(wzRoute2, wzRoute[0], wzRoute[wzRoute.length-1]);
   }
   if(!beginPt||!endPt)return; drawWZLine();
   const src=usedIowa?'Iowa DOT centerline':'road';
