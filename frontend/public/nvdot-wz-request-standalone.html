@@ -1352,6 +1352,15 @@ function drawWZLine(){if(line){line.remove();line=null;}if(line2){line2.remove()
 // NDOT posted milepost: interpolate PostedMileage between the two nearest mile markers on the same route.
 // Uses the CORS-open NDOT ArcGIS Online mile-marker layer (MileMarker_CoCumPart2).
 const NV_MM='https://services1.arcgis.com/9Y4hSlLf13E9S0Eo/arcgis/rest/services/MileMarker_CoCumPart2/FeatureServer/0/query';
+// NDOT posted-route codes are internal (IR15N, US395, SR115, plus frontage/ramp codes like
+// FREL05/SPCL54). Map the mainline ones to the friendly dropdown values; return null for codes
+// that have no clean public route name (leave those for the user).
+function nvRouteFriendly(code){ const s=String(code||'').toUpperCase().trim();
+  const n=(s.match(/(\d+)/)||[])[1]; if(!n) return null;
+  if(/^IR/.test(s)) return 'I-'+parseInt(n,10);
+  if(/^US/.test(s)) return 'US-'+parseInt(n,10);
+  if(/^SR/.test(s)) return 'SR-'+parseInt(n,10);
+  return null; }
 async function nvMilepost(pt){ const pad=0.02, bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
   const url=NV_MM+'?where=PostedMileage%3E0&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=PostedMileage,PostedRoute,PostedCounty&returnGeometry=true&outSR=4326&resultRecordCount=400&f=json';
   try{ const f=((await(await fetch(url)).json()).features||[]).filter(x=>x.geometry&&x.geometry.x!=null&&Number.isFinite(+x.attributes.PostedMileage));
@@ -1378,6 +1387,11 @@ async function snapWZ(){if(!(beginPt&&endPt))return;drawWZLine();const dir=dirLa
   const autoMP=s=>!s||/^MP\s*[\d.]+$/i.test(s); let mpTxt='';
   try{ const [a,b]=await Promise.all([nvMilepost(beginPt),nvMilepost(endPt)]);
     if(a&&autoMP(v('beginLoc')))el('beginLoc').value='MP '+a.mp; if(b&&autoMP(v('endLoc')))el('endLoc').value='MP '+b.mp;
+    // auto-fill Route from the posted route code (only when not already set)
+    const rc=(a&&a.route)||(b&&b.route);
+    if(rc && !v('route')){ const fr=nvRouteFriendly(rc);
+      if(fr){ const opt=[...el('route').options].find(o=>o.value===fr);
+        if(opt){ el('route').value=fr; } else { el('route').value='__other'; onRouteChange(); el('routeOther').value=fr; } saveState(); } }
     if(a&&b) mpTxt=' · MP '+Math.min(a.mp,b.mp)+'–'+Math.max(a.mp,b.mp); }catch(e){}
   const bothTxt=v('direction')==='Both'?(oppSrc==='road'?' · <b>both roadbeds (routed)</b>':divided?' · <b>both roadbeds (approx.)</b>':' · both directions'):'';
   el('selinfo').innerHTML='<b>Segment:</b> '+dir+', '+mi.toFixed(1)+' mi (road-following)'+mpTxt+bothTxt+'<br>begin '+beginPt.lat.toFixed(4)+', '+beginPt.lng.toFixed(4)+' → end '+endPt.lat.toFixed(4)+', '+endPt.lng.toFixed(4)+' &nbsp; <a href="'+gmapsRoute()+'" target="_blank" rel="noopener">🗺 map</a>';
@@ -1390,7 +1404,7 @@ map.on('click',e=>{if(mode==='detour'){detourPts.push(e.latlng);if(v('detour')!=
 function useMyLocation(){if(!navigator.geolocation){toast('No geolocation');return;}toast('Getting location…');navigator.geolocation.getCurrentPosition(p=>{const ll=L.latLng(p.coords.latitude,p.coords.longitude);if(!beginPt){beginPt=ll;if(beginMk)beginMk.remove();beginMk=mk(ll,'A','#1d4ed8');map.setView(ll,14);reverseFill(ll);setMode('end');toast('Begin set — tap END or press again');}else{endPt=ll;if(endMk)endMk.remove();endMk=mk(ll,'B','#dc2626');snapWZ();}saveState();},e=>toast('Location error: '+(e.message||'denied')),{enableHighAccuracy:true,timeout:10000});}
 
 // county via FCC (CORS-open, works file://)
-async function reverseFill(pt){if(!el('autofill').checked)return;try{const r=await fetch('https://geo.fcc.gov/api/census/area?lat='+pt.lat+'&lon='+pt.lng+'&format=json');const j=await r.json();const c=(j.results&&j.results[0]);if(c&&c.county_name&&!v('counties'))el('counties').value=c.county_name+' County';saveState();}catch(e){}}
+async function reverseFill(pt){if(!el('autofill').checked)return;try{const r=await fetch('https://geo.fcc.gov/api/census/area?lat='+pt.lat+'&lon='+pt.lng+'&format=json');const j=await r.json();const c=(j.results&&j.results[0]);if(c&&c.county_name&&!v('counties'))el('counties').value=/county/i.test(c.county_name)?c.county_name:(c.county_name+' County');saveState();}catch(e){}}
 
 function gmapsRoute(){if(!(beginPt&&endPt))return '';const o=beginPt.lat.toFixed(5)+','+beginPt.lng.toFixed(5),d=endPt.lat.toFixed(5)+','+endPt.lng.toFixed(5);return 'https://www.google.com/maps/dir/?api=1&origin='+o+'&destination='+d+'&travelmode=driving';}
 function gmapsDetour(){return 'https://www.google.com/maps/dir/'+detourPts.map(p=>p.lat.toFixed(5)+','+p.lng.toFixed(5)).join('/');}
