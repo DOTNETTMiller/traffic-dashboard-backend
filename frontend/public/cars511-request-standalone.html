@@ -1414,15 +1414,19 @@ window.addEventListener('resize', ()=>map.invalidateSize());
 let mode='begin', beginPt=null, endPt=null, beginMk=null, endMk=null, line=null, schedule=[];
 let detourPts=[], detourLine=null, detourMks=[];
 let wzRoute=null, detourRoute=null, detourMeters=null;
-let wzRoute2=null, line2=null;   // opposite carriageway (drawn only for both-direction closures on a DIVIDED highway)
-// Median lateral separation (m) between two road polylines ([lat,lng] pairs). Used to decide
-// whether the opposing carriageway is physically separate (divided) vs the same roadbed (undivided).
-function carriagewaySepM(a,b){ if(!a||!b||a.length<2||b.length<2) return 0;
-  const R=6371000, toR=d=>d*Math.PI/180;
-  const dm=(p,q)=>{ const la=toR((p[0]+q[0])/2), x=toR(q[1]-p[1])*Math.cos(la), y=toR(q[0]-p[0]); return Math.sqrt(x*x+y*y)*R; };
-  const minToA=pt=>{ let m=Infinity; for(const vtx of a){ const d=dm(pt,vtx); if(d<m)m=d; } return m; };
-  const s=[]; for(let i=1;i<=5;i++) s.push(minToA(b[Math.floor(b.length*i/6)]));
-  s.sort((x,y)=>x-y); return s[2]; }   // median of 5 samples — robust to crossovers/interchanges
+let wzRoute2=null, line2=null;   // opposite carriageway for a both-direction closure on a divided highway
+// The opposite roadbed of a divided highway runs PARALLEL to the marked line — so draw it as a
+// perpendicular offset of the forward polyline (to the left of travel, i.e. the opposing side in
+// right-hand traffic). Routing end->begin does NOT work: OSRM returns a drivable path that loops
+// out to an interchange ("wraps") instead of the parallel carriageway.
+function offsetPolyline(route, m){ if(!route||route.length<2) return null; const out=[];
+  for(let i=0;i<route.length;i++){ const a=route[Math.max(0,i-1)], b=route[Math.min(route.length-1,i+1)];
+    const lat=route[i][0], lng=route[i][1], cos=Math.cos(lat*Math.PI/180)||1e-6;
+    const ex=(b[1]-a[1])*111320*cos, ny=(b[0]-a[0])*110540;     // local tangent (east,north) in metres
+    const len=Math.hypot(ex,ny)||1, tx=ex/len, ty=ny/len;       // unit tangent
+    const pe=-ty*m, pn=tx*m;                                     // left-perpendicular * offset metres
+    out.push([ lat + pn/110540, lng + pe/(111320*cos) ]); }
+  return out; }
 // Snap a set of [lon,lat] waypoints to the driving road path via OSRM (free, no key).
 async function osrmRoute(lonlat){ try{
   const u='https://router.project-osrm.org/route/v1/driving/'+lonlat.map(c=>c[0]+','+c[1]).join(';')+'?overview=full&geometries=geojson';
@@ -1614,18 +1618,16 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
       if(pa!=null && pa>=0 && rpA && Math.abs(pa-rpA.mp)<1){ mpA=Math.round(pa*10)/10; if(autoMP(v('beginLoc'))) el('beginLoc').value='MP '+mpA; }
       if(pb!=null && pb>=0 && rpB && Math.abs(pb-rpB.mp)<1){ mpB=Math.round(pb*10)/10; if(autoMP(v('endLoc'))) el('endLoc').value='MP '+mpB; } } }catch(e){} }
   if(!usedIowa){ const r=await osrmRoute([[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]]); if(r){ wzRoute=r.latlngs; mi=r.meters/1609.34; } }
-  // Both-direction closure: trace the OPPOSITE carriageway by routing end→begin. On a divided
-  // highway OSRM returns the other roadbed (kept only if physically separate); on an undivided
-  // road it retraces the same line (separation ~0 → not drawn, since it's one roadbed).
-  wzRoute2=null; let divided=false;
-  if(el('bothDir')&&el('bothDir').checked && wzRoute && wzRoute.length>=2){
-    const rev=await osrmRoute([[endPt.lng,endPt.lat],[beginPt.lng,beginPt.lat]]);
-    if(rev&&rev.latlngs&&rev.latlngs.length>=2 && carriagewaySepM(wzRoute,rev.latlngs)>18){ wzRoute2=rev.latlngs; divided=true; }
-  }
+  // Both-direction closure: draw the OPPOSITE carriageway as a parallel offset of the marked line
+  // (the opposing roadbed runs alongside it). Interstates/divided highways get a wider offset.
+  wzRoute2=null;
+  const bothOn=el('bothDir')&&el('bothDir').checked;
+  const divided=/^I-/.test(routeVal());
+  if(bothOn && wzRoute && wzRoute.length>=2) wzRoute2=offsetPolyline(wzRoute, divided?28:14);
   if(!beginPt||!endPt)return; drawWZLine();
   const src=usedIowa?'Iowa DOT centerline':'road';
   const mpTxt=(mpA!=null&&mpB!=null)?` · MP ${Math.min(mpA,mpB)}–${Math.max(mpA,mpB)}`:'';
-  const bothTxt=(el('bothDir')&&el('bothDir').checked)?(divided?' · <b>both roadbeds (divided)</b>':' · both directions'):'';
+  const bothTxt=bothOn?(divided?' · <b>both roadbeds (divided)</b>':' · both directions'):'';
   el('selinfo').innerHTML=`<b>Segment:</b> ${dir}, ${mi!=null?mi.toFixed(1):'?'} mi (${src})${mpTxt}${bothTxt}<br>begin ${beginPt.lat.toFixed(4)}, ${beginPt.lng.toFixed(4)} → end ${endPt.lat.toFixed(4)}, ${endPt.lng.toFixed(4)}`+
     ` &nbsp; <a href="${gmapsRoute()}" target="_blank" rel="noopener">🗺 Share route map</a>`;
   saveState(); checkDuplicate(); showLanes(beginPt, routeId); }

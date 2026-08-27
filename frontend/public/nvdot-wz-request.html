@@ -237,12 +237,15 @@ const baseSat=L.layerGroup([
 L.control.layers({'Street':baseStreet,'Satellite':baseSat},{},{position:'topright'}).addTo(map);
 setTimeout(()=>map.invalidateSize(),200); window.addEventListener('resize',()=>map.invalidateSize());
 let mode='begin',beginPt=null,endPt=null,beginMk=null,endMk=null,line=null,wzRoute=null,schedule=[];
-let wzRoute2=null,line2=null;   // opposite carriageway (drawn only when direction=Both on a DIVIDED highway)
-// Median lateral separation (m) between two road polylines ([lat,lng]) — decides divided vs undivided.
-function carriagewaySepM(a,b){if(!a||!b||a.length<2||b.length<2)return 0;const R=6371000,toR=d=>d*Math.PI/180;
-  const dm=(p,q)=>{const la=toR((p[0]+q[0])/2),x=toR(q[1]-p[1])*Math.cos(la),y=toR(q[0]-p[0]);return Math.sqrt(x*x+y*y)*R;};
-  const minToA=pt=>{let m=Infinity;for(const vtx of a){const d=dm(pt,vtx);if(d<m)m=d;}return m;};
-  const s=[];for(let i=1;i<=5;i++)s.push(minToA(b[Math.floor(b.length*i/6)]));s.sort((x,y)=>x-y);return s[2];}
+let wzRoute2=null,line2=null;   // opposite carriageway for a both-direction closure on a divided highway
+// Opposite roadbed runs PARALLEL → draw it as a perpendicular offset of the marked line (left of
+// travel = opposing side in right-hand traffic). Routing end->begin loops out to interchanges ("wraps").
+function offsetPolyline(route,m){if(!route||route.length<2)return null;const out=[];
+  for(let i=0;i<route.length;i++){const a=route[Math.max(0,i-1)],b=route[Math.min(route.length-1,i+1)];
+    const lat=route[i][0],lng=route[i][1],cos=Math.cos(lat*Math.PI/180)||1e-6;
+    const ex=(b[1]-a[1])*111320*cos,ny=(b[0]-a[0])*110540,len=Math.hypot(ex,ny)||1,tx=ex/len,ty=ny/len;
+    out.push([lat+(tx*m)/110540, lng+(-ty*m)/(111320*cos)]);}
+  return out;}
 // E/W vs N/S axis from the segment's bearing → the two directions for a both-direction closure.
 function nvAxis(){if(beginPt&&endPt){const b=((bearing(beginPt,endPt))%360+360)%360;const ew=(b>45&&b<135)||(b>225&&b<315);return ew?['E','W']:['N','S'];}
   const n=(String(routeVal()).match(/\d+/)||[])[0];return (n&&parseInt(n,10)%2===0)?['E','W']:['N','S'];}
@@ -274,11 +277,9 @@ async function nvMilepost(pt){ const pad=0.02, bb=[pt.lng-pad,pt.lat-pad,pt.lng+
   catch(e){ return null; } }
 async function snapWZ(){if(!(beginPt&&endPt))return;drawWZLine();const dir=dirLabel(bearing(beginPt,endPt));if(!v('direction'))el('direction').value=dir[0];
   const r=await osrmRoute([[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]]);let mi=miles(beginPt,endPt);if(r){wzRoute=r.latlngs;mi=r.meters/1609.34;}
-  // Both-direction closure: trace the OPPOSITE carriageway (end→begin). Divided highway → other
-  // roadbed (kept if physically separate); undivided → same line (separation ~0 → not drawn).
-  wzRoute2=null;let divided=false;
-  if(v('direction')==='Both'&&wzRoute&&wzRoute.length>=2){const rev=await osrmRoute([[endPt.lng,endPt.lat],[beginPt.lng,beginPt.lat]]);
-    if(rev&&rev.latlngs&&rev.latlngs.length>=2&&carriagewaySepM(wzRoute,rev.latlngs)>18){wzRoute2=rev.latlngs;divided=true;}}
+  // Both-direction closure: draw the OPPOSITE carriageway as a parallel offset of the marked line.
+  wzRoute2=null;const divided=/^I-/.test(routeVal());
+  if(v('direction')==='Both'&&wzRoute&&wzRoute.length>=2)wzRoute2=offsetPolyline(wzRoute,divided?28:14);
   drawWZLine();
   const autoMP=s=>!s||/^MP\s*[\d.]+$/i.test(s); let mpTxt='';
   try{ const [a,b]=await Promise.all([nvMilepost(beginPt),nvMilepost(endPt)]);
