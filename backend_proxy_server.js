@@ -5059,9 +5059,29 @@ app.get('/api/tomtom/incidents', async (req, res) => {
   res.json(tomtomCache.data || { success: true, count: 0, incidents: [] });
 });
 
-// Lightweight breaker/status — NEVER triggers a pull. Lets the UI show a chip
-// ("out of credits · retry 3:00 PM") without spending a request.
-app.get('/api/tomtom/status', (req, res) => {
+// Lightweight breaker/status. Normally NEVER triggers a pull. One exception: if we've never
+// pulled yet this process life (fresh deploy) and aren't in cooldown, do ONE cheap single-tile
+// probe so the chip reflects reality (e.g. "out of credits") instead of the optimistic default
+// 'ok'. Guarded by tomtomProbed so it happens at most once per process.
+let tomtomProbed = false;
+app.get('/api/tomtom/status', async (req, res) => {
+  const noPullsYet = !tomtomCache.timestamp && !tomtomZoneCache.timestamp;
+  if (!tomtomProbed && tomtomStatus === 'ok' && noPullsYet && !tomtomInCooldown() && tomtomApiKey()) {
+    tomtomProbed = true;
+    try {
+      const lines = corridorTileLines();
+      const tiles = lines.length ? tomtomIncidents.corridorTiles(lines) : [];
+      if (tiles.length) {
+        const s = await tomtomIncidents.debugTile({ apiKey: tomtomApiKey(), bbox: tiles[0] });
+        const body = s && s.bodySnippet || '';
+        if (s && (s.httpStatus === 403 || s.httpStatus === 402 || /InsufficientFunds|enough credits/i.test(body))) {
+          noteTomTomResult({ error: 'insufficient-credits' });
+        } else if (s && s.httpStatus === 429) {
+          noteTomTomResult({ error: 'rate-limited' });
+        }
+      }
+    } catch (_) { /* probe best-effort */ }
+  }
   res.json({
     configured: !!tomtomApiKey(),
     status: tomtomStatus,
@@ -18414,6 +18434,166 @@ app.get('/api/bridges/all', async (req, res) => {
     : bridges;
   res.set('Cache-Control', 'public, max-age=0, must-revalidate');
   res.json({ success: true, bridges: out });
+});
+
+// ============ BRIDGE CLEARANCE IMPORT (BridgeCheck AR / Clearance Hub) ============
+// BridgeCheck AR auto-syncs each saved measurement to /import and bulk-uploads
+// to /bulk-import; /sync-hub pulls the national Clearance Hub dataset. All three
+// funnel through db.importBridgeClearance's conservative merge: a LOWER
+// clearance applies immediately, a HIGHER one is held unless allow_raise=1 —
+// an imported number must never silently relax a restriction trucks route by.
+
+const BRIDGE_IMPORT_STATE_NAMES = {
+  AL: 'alabama', AK: 'alaska', AZ: 'arizona', AR: 'arkansas', CA: 'california',
+  CO: 'colorado', CT: 'connecticut', DE: 'delaware', DC: 'district of columbia',
+  FL: 'florida', GA: 'georgia', HI: 'hawaii', ID: 'idaho', IL: 'illinois',
+  IN: 'indiana', IA: 'iowa', KS: 'kansas', KY: 'kentucky', LA: 'louisiana',
+  ME: 'maine', MD: 'maryland', MA: 'massachusetts', MI: 'michigan',
+  MN: 'minnesota', MS: 'mississippi', MO: 'missouri', MT: 'montana',
+  NE: 'nebraska', NV: 'nevada', NH: 'new hampshire', NJ: 'new jersey',
+  NM: 'new mexico', NY: 'new york', NC: 'north carolina', ND: 'north dakota',
+  OH: 'ohio', OK: 'oklahoma', OR: 'oregon', PA: 'pennsylvania',
+  RI: 'rhode island', SC: 'south carolina', SD: 'south dakota',
+  TN: 'tennessee', TX: 'texas', UT: 'utah', VT: 'vermont', VA: 'virginia',
+  WA: 'washington', WV: 'west virginia', WI: 'wisconsin', WY: 'wyoming'
+};
+
+function bridgeWatchRadiusKm(feet) {
+  if (feet < 13.5) return 15;   // critical: under 13'6"
+  if (feet < 14.0) return 12;   // warning: under 14'
+  return 10;
+}
+
+// Accepts both the BridgeCheck AR export shape (clearance_feet + state_key)
+// and Clearance Hub rows (min_vert_clearance_in + 2-letter state). Returns
+// null for rows that can't produce a warning (no coordinates or no clearance —
+// e.g. the hub's identity-only structures).
+function normalizeBridgeImport(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const lat = Number(raw.latitude);
+  const lon = Number(raw.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) return null;
+
+  let feet = Number(raw.clearance_feet);
+  if (!Number.isFinite(feet) && raw.min_vert_clearance_in != null) {
+    feet = Number(raw.min_vert_clearance_in) / 12;
+  }
+  if (!Number.isFinite(feet) || feet <= 0 || feet > 99) return null;
+
+  let stateKey = (raw.state_key || '').toString().trim().toLowerCase();
+  if (!stateKey && raw.state) {
+    const code = raw.state.toString().trim().toUpperCase();
+    stateKey = BRIDGE_IMPORT_STATE_NAMES[code] || code.toLowerCase();
+  }
+  if (!stateKey) stateKey = 'unknown';
+
+  const route = (raw.route || raw.route_carried || raw.structure_number || 'Unknown route').toString();
+  const bridgeName = (raw.bridge_name
+    || (raw.feature_crossed ? `${route} over ${raw.feature_crossed}` : null)
+    || (raw.structure_number ? `Structure ${raw.structure_number}` : route)).toString();
+
+  const ft = Math.floor(feet);
+  const inches = Math.round((feet - ft) * 12);
+  const source = (raw.source && raw.method)
+    ? `Clearance Hub: ${raw.source}`
+    : (raw.source || 'BridgeCheckAR').toString();
+  const warning = raw.warning_message
+    || `⚠️ LOW CLEARANCE: ${bridgeName} - ${ft}'${inches}" clearance (${source})`;
+
+  return {
+    bridge_name: bridgeName,
+    route,
+    state_key: stateKey,
+    latitude: lat,
+    longitude: lon,
+    clearance_feet: feet,
+    clearance_meters: Number(raw.clearance_meters) || Math.round(feet * 0.3048 * 1000) / 1000,
+    direction: (raw.direction || 'Both').toString(),
+    restriction_type: (raw.restriction_type || 'vertical').toString(),
+    watch_radius_km: Number(raw.watch_radius_km) || bridgeWatchRadiusKm(feet),
+    warning_message: warning,
+    source,
+    source_record_id: raw.record_id ? raw.record_id.toString() : null
+  };
+}
+
+async function importBridgeRecords(rawList, allowRaise) {
+  const counts = { received: rawList.length, inserted: 0, lowered: 0, raised: 0, raise_held: 0, verified: 0, skipped: 0 };
+  for (const raw of rawList) {
+    const rec = normalizeBridgeImport(raw);
+    if (!rec) { counts.skipped++; continue; }
+    const { action } = await db.importBridgeClearance(rec, { allowRaise });
+    counts[action]++;
+  }
+  return counts;
+}
+
+const handleBridgeImport = async (req, res) => {
+  try {
+    const body = req.body;
+    const list = Array.isArray(body) ? body
+      : Array.isArray(body?.items) ? body.items
+      : Array.isArray(body?.bridges) ? body.bridges
+      : body && typeof body === 'object' ? [body]
+      : [];
+    if (!list.length) {
+      return res.status(400).json({ success: false, error: 'No bridge clearance records in request body' });
+    }
+    const allowRaise = req.query.allow_raise === '1' || req.query.allow_raise === 'true';
+    const counts = await importBridgeRecords(list, allowRaise);
+    console.log(`🌉 Bridge clearance import: ${JSON.stringify(counts)}`);
+    res.json({ success: true, ...counts });
+  } catch (error) {
+    console.error('Bridge clearance import error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+app.post('/api/bridge-clearances/import', requireAdmin, handleBridgeImport);
+app.post('/api/bridge-clearances/bulk-import', requireAdmin, handleBridgeImport);
+
+// Pull the national Clearance Hub dataset (public reads, no hub token needed).
+// Body/query: hub_url (required), max_feet (default 16.5 — only low underpasses
+// matter operationally), allow_raise, max_pages.
+app.post('/api/bridge-clearances/sync-hub', requireAdmin, async (req, res) => {
+  try {
+    const hubUrl = (req.body?.hub_url || req.query.hub_url || '').toString().replace(/\/+$/, '');
+    if (!hubUrl) {
+      return res.status(400).json({ success: false, error: 'hub_url is required' });
+    }
+    const maxFeet = Number(req.body?.max_feet ?? req.query.max_feet) || 16.5;
+    const allowRaise = (req.body?.allow_raise ?? req.query.allow_raise) === true
+      || req.query.allow_raise === '1';
+    const maxPages = Math.min(Number(req.body?.max_pages ?? req.query.max_pages) || 8, 40);
+
+    const pageSize = 5000;
+    let scanned = 0;
+    const rows = [];
+    for (let page = 0; page < maxPages; page++) {
+      const r = await fetch(`${hubUrl}/v1/export.geojson?limit=${pageSize}&offset=${page * pageSize}`);
+      if (!r.ok) {
+        return res.status(502).json({ success: false, error: `Clearance Hub responded ${r.status}`, scanned });
+      }
+      const geo = await r.json();
+      const features = geo.features || [];
+      scanned += features.length;
+      for (const f of features) {
+        const props = f.properties || {};
+        // == null also drops identity-only hub rows (Number(null) would be 0)
+        const feetIn = props.min_vert_clearance_in == null ? NaN : Number(props.min_vert_clearance_in);
+        if (!Number.isFinite(feetIn) || feetIn <= 0 || feetIn / 12 > maxFeet) continue;
+        rows.push(props);
+      }
+      if (features.length < pageSize) break;
+    }
+
+    const counts = await importBridgeRecords(rows, allowRaise);
+    console.log(`🌉 Clearance Hub sync: scanned ${scanned}, ${JSON.stringify(counts)}`);
+    res.json({ success: true, scanned, max_feet: maxFeet, ...counts });
+  } catch (error) {
+    console.error('Clearance Hub sync error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // ============ PROJECTS & BIWEEKLY REPORTS API ============
