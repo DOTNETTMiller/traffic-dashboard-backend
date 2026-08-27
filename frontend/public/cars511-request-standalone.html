@@ -1136,9 +1136,29 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--good); color:#fff;
     padding:9px 16px; border-radius:8px; font-size:13px; opacity:0; transition:opacity .2s; z-index:1000; }
   .toast.show { opacity:1; }
+  /* ---- accessibility + mobile responsiveness ---- */
+  a.skiplink { position:absolute; left:8px; top:-48px; background:#fff; color:var(--accent); border:2px solid var(--accent);
+    padding:8px 12px; border-radius:0 0 6px 6px; z-index:3000; font-weight:700; transition:top .15s; }
+  a.skiplink:focus { top:0; }
+  :focus-visible { outline:3px solid var(--brand-gold); outline-offset:2px; }
+  .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0; }
+  @media (max-width:860px) {
+    html, body { height:auto; }
+    body { min-height:100vh; }
+    header { position:sticky; top:0; z-index:1200; }
+    .wrap { flex-direction:column; min-height:0; }
+    .form { width:100%; max-width:100%; border-right:none; border-bottom:2px solid var(--brand-gold); }
+    #mapwrap { flex:none; height:56vh; min-height:340px; }
+    input, select, textarea { font-size:16px; }          /* prevents iOS auto-zoom on focus */
+    .mapbtns button, .bar button, .bar select, .actions button { min-height:44px; }  /* WCAG touch target */
+    .actions { position:static; }
+  }
+  @media (max-width:480px) { .row { flex-direction:column; gap:0; } }
+  @media (prefers-reduced-motion:reduce) { * { transition:none !important; animation:none !important; } }
 </style>
 </head>
 <body>
+<a href="#form" class="skiplink">Skip to request form</a>
 <header>
   <div class="brand"><svg viewBox="0 0 202 48" role="img" aria-label="Iowa DOT" style="height:38px;width:auto;display:block" fill="none" xmlns="http://www.w3.org/2000/svg"><g clip-path="url(#iadot_a)"><path d="M38.46 32.078c7.48-.095 14.961-.56 22.4-1.426 3.687-8.263-.021-17.952-8.284-21.64-8.263-3.687-17.951.022-21.639 8.285a16.381 16.381 0 0 0 .433 14.253c2.04.264 3.984.433 5.759.497.317 0 .613 0 .919.02h.423l-.011.011Z" fill="url(#iadot_b)"/><path d="M45.888 0C32.702-.053 21.956 10.598 21.903 23.794c0 2.124.265 4.227.814 6.277 2.79.56 5.547 1.046 8.157 1.394l.475.064c-4.184-8.03-1.078-17.93 6.953-22.115 8.03-4.184 17.93-1.077 22.114 6.953a16.39 16.39 0 0 1 .433 14.274l.476-.042c2.6-.275 5.209-.581 7.85-.898C72.377 16.895 64.6 3.92 51.805.718A24.145 24.145 0 0 0 45.909 0H45.888Z" fill="#03617A"/><path d="M46.11 34.477a78.138 78.138 0 0 1-8.178-2.135 10.54 10.54 0 0 1-.824-.295 63.405 63.405 0 0 1-5.759-.497l-.475-.064c-2.61-.348-5.368-.834-8.157-1.394a23.96 23.96 0 0 0 14.708 16.314 48.114 48.114 0 0 1 7.195-4.385c4.385-2.06 8.442-3.53 8.442-4.829 0-1.3-3.698-2.007-6.952-2.715Z" fill="#C6D667"/><path d="m61.315 30.599-.476.042a220.341 220.341 0 0 1-22.4 1.427h-.422c.348.095.718.18 1.109.274 1.057.243 2.261.476 3.603.74 5.156 1.014 7.776 1.32 12.014 1.955 4.564.686 5.853 2.937-1.839 7.47a20.976 20.976 0 0 0-5.822 5.43c10.566-.56 19.526-7.956 22.062-18.226-2.61.307-5.22.603-7.83.888Z" fill="#C6D667"/><path d="M54.752 35.037c-4.226-.634-6.857-.951-12.013-1.955a158.496 158.496 0 0 1-3.603-.74c-.39-.095-.76-.18-1.11-.274-.306 0-.602 0-.919-.021.254.095.529.2.825.295a78.154 78.154 0 0 0 8.178 2.135c3.254.697 6.952 1.426 6.952 2.715 0 1.29-4.057 2.768-8.442 4.829a50.517 50.517 0 0 0-7.196 4.385l.222.095c2.642.972 5.42 1.479 8.231 1.479.402 0 .803 0 1.205-.032a20.82 20.82 0 0 1 5.822-5.43c7.691-4.523 6.402-6.784 1.838-7.47l.01-.011Z" fill="#fff"/><path d="M188.359 34.55 172.648 1.49h-6.636l-13.757 28.93-7.639 16.07h8.633l5.156-10.957h21.628l5.104 10.957h8.896l-5.674-11.94Zm-19.103-22.167 7.343 15.701h-14.707l7.364-15.7ZM0 1.49v45h8.22v-45H0ZM146.592 1.49h-8.421l-10.862 27.027-2.472 6.15-1.86-6.36-7.66-26.173h-7.925l-7.523 25.654-2.018 6.879-2.736-6.826L84.528 1.49h-8.422l10.535 26.594 7.29 18.406h7.682l5.917-18.67 3.824-12.066L115.211 28l5.822 18.49h7.745l6.92-17.476L146.602 1.48l-.01.01ZM195.047 43.722h-1.025v-.687h2.79v.687h-1.025v2.684h-.74v-2.684ZM197.382 43.035h.803l.887 1.427.888-1.427h.803v3.37h-.74v-2.197l-.951 1.437h-.021l-.94-1.427v2.188h-.729v-3.37Z" fill="#03617A"/></g><defs><radialGradient id="iadot_b" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(43.755 31.222) scale(24.987)"><stop stop-color="#FFEA00"/><stop offset="1" stop-color="#E1A626"/></radialGradient><clipPath id="iadot_a"><path fill="#fff" d="M0 0h200.753v47.969H0z"/></clipPath></defs></svg></div>
   <div class="htext">
@@ -1147,7 +1167,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   </div>
 </header>
 <div class="wrap">
-  <div class="form" id="form">
+  <main class="form" id="form" role="main" aria-label="CARS 511 work-zone request form">
 
     <div class="bar">
       <button onclick="loadFromFeed()">📥 Load from live feed</button>
@@ -1166,7 +1186,15 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         <button id="btnGPS" onclick="useMyLocation()">📍 Use my location</button>
       </div>
       <label class="chk"><input type="checkbox" id="autofill" checked /> Auto-fill road & county from the map (uses internet)</label>
-      <div class="selinfo" id="selinfo">No segment selected yet — click the map to place the begin point.</div>
+      <details style="margin:8px 0 0">
+        <summary style="cursor:pointer;font-size:12px;color:var(--accent);font-weight:600">⌨ Enter coordinates instead (keyboard-accessible)</summary>
+        <div class="row" style="margin-top:6px">
+          <div><label for="mllA">Begin (lat, lng)</label><input id="mllA" inputmode="decimal" placeholder="41.60, -93.60" /></div>
+          <div><label for="mllB">End (lat, lng)</label><input id="mllB" inputmode="decimal" placeholder="41.62, -93.55" /></div>
+        </div>
+        <button type="button" class="ghost" style="width:100%;margin-top:6px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="setByLatLng()">Set point(s) from coordinates</button>
+      </details>
+      <div class="selinfo" id="selinfo" role="status" aria-live="polite">No segment selected yet — click the map to place the begin point.</div>
       <button class="ghost" style="width:100%;margin:8px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="checkDuplicate(true)">🔁 Check for existing closures / duplicates</button>
       <div id="dupWarn" style="display:none;margin-top:8px;padding:8px 10px;border-radius:6px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px"></div>
     </fieldset>
@@ -1340,13 +1368,13 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
           <button class="primary" onclick="submitToDatabase()">🚀 Submit to database</button>
           <button class="ghost" onclick="downloadPayload()">⬇ Download JSON payload</button>
         </div>
-        <div id="dbStatus" style="margin-top:8px;font-size:13px;display:none"></div>
+        <div id="dbStatus" style="margin-top:8px;font-size:13px;display:none" role="status" aria-live="polite"></div>
       </details>
     </fieldset>
-  </div>
-  <div style="flex:1;position:relative">
-    <div class="maphint" id="maphint">Click the road to set the <b>begin</b> point</div>
-    <div id="map"></div>
+  </main>
+  <div id="mapwrap" style="flex:1;position:relative">
+    <div class="maphint" id="maphint" role="status" aria-live="polite">Click the road to set the <b>begin</b> point</div>
+    <div id="map" role="application" aria-label="Map — click the road to mark the work zone. Keyboard users can enter coordinates in Step 1."></div>
   </div>
 </div>
 <div id="sdModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:5000;align-items:center;justify-content:center;padding:16px" onclick="el('sdModal').style.display='none'">
@@ -1366,7 +1394,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     </details>
   </div>
 </div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="assertive"></div>
 
 <script>
 const map = L.map('map').setView([41.85, -93.5], 7);
@@ -2404,6 +2432,27 @@ el('rce').addEventListener('change', ()=>{ setRceOffice(v('rce')); saveState(); 
 el('rceEmail').addEventListener('input', saveRceEmail);
 FIELD_IDS.forEach(id=>{ if(el(id)) el(id).addEventListener('input', saveState); });
 loadState(); renderProjects(); onRouteChange(); loadIntegration(); loadCsvProjects();
+
+// ---- accessibility: associate every stray <label> with its control, and give
+// keyboard/screen-reader users a coordinate path to place the begin/end points ----
+function a11yInit(){ let n=0;
+  document.querySelectorAll('label:not([for])').forEach(lab=>{
+    if(lab.querySelector('input,select,textarea')) return;       // wrapping label — already tied to its control
+    let ctl=null, node=lab.nextElementSibling;
+    while(node && !ctl){ ctl = (node.matches&&node.matches('input,select,textarea')) ? node : (node.querySelector&&node.querySelector('input,select,textarea')); node=node.nextElementSibling; }
+    if(!ctl && lab.parentElement) ctl=lab.parentElement.querySelector('input,select,textarea');
+    if(ctl){ if(!ctl.id) ctl.id='f_a11y_'+(++n); lab.setAttribute('for', ctl.id); }
+  }); }
+a11yInit();
+function parseLL(s){ const m=String(s||'').match(/(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)/); if(!m) return null;
+  const la=+m[1], lo=+m[2]; return (Math.abs(la)<=90 && Math.abs(lo)<=180) ? [la,lo] : null; }
+function setByLatLng(){ const pa=parseLL(v('mllA')), pb=parseLL(v('mllB'));
+  if(!pa && !pb){ toast('Enter coordinates as: 41.60, -93.60'); return; }
+  if(pa) beginPt=L.latLng(pa[0],pa[1]);
+  if(pb) endPt=L.latLng(pb[0],pb[1]);
+  redraw(); if(beginPt&&endPt){ try{ map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13}); }catch(e){} }
+  else if(beginPt){ map.setView([beginPt.lat,beginPt.lng],13); setMode('end'); }
+  saveState(); toast(pa&&pb?'Begin + end set':'Point set'); }
 </script>
 </body>
 </html>

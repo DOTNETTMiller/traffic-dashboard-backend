@@ -1,3 +1,6 @@
+<!doctype html>
+<html lang="en">
+<head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Nevada DOT — Work-Zone Request Builder</title>
@@ -35,7 +38,25 @@
   a{color:var(--brand2)}
   .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#0f2438;color:#fff;padding:9px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;z-index:6000;pointer-events:none}
   .toast.show{opacity:.96}
+  /* ---- accessibility + mobile responsiveness ---- */
+  a.skiplink{position:absolute;left:8px;top:-48px;background:#fff;color:var(--brand2);border:2px solid var(--brand2);padding:8px 12px;border-radius:0 0 6px 6px;z-index:3000;font-weight:700;transition:top .15s}
+  a.skiplink:focus{top:0}
+  :focus-visible{outline:3px solid var(--brand2);outline-offset:2px}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+  @media (max-width:860px){
+    .wrap{flex-direction:column;height:auto}
+    .form{width:100%;max-width:100%;border-right:none;border-bottom:3px solid var(--silver)}
+    #mapwrap{flex:none;height:56vh;min-height:340px}
+    input,select,textarea{font-size:16px}                 /* prevents iOS auto-zoom */
+    .mapbtns button,.bar button,.bar select,.actions button{min-height:44px}
+    header{position:sticky;top:0;z-index:1200}
+  }
+  @media (max-width:480px){ .row{flex-direction:column;gap:0} }
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
 </style>
+</head>
+<body>
+<a href="#form" class="skiplink">Skip to request form</a>
 
 <header>
   <div class="logo">NV<small>DOT</small></div>
@@ -44,7 +65,7 @@
 </header>
 
 <div class="wrap">
-  <div class="form" id="form">
+  <main class="form" id="form" role="main" aria-label="NDOT work-zone request form">
     <div class="bar">
       <button onclick="saveProject()">💾 Save project</button>
       <select id="projPicker" onchange="if(this.value)loadProject(this.value)"><option value="">↺ Saved projects…</option></select>
@@ -59,7 +80,15 @@
         <button id="btnGPS" onclick="useMyLocation()">📍 My location</button>
       </div>
       <label class="chk"><input type="checkbox" id="autofill" checked /> Auto-fill county from the map (uses internet)</label>
-      <div class="selinfo" id="selinfo">No segment yet — click the road for the begin point, then the end point.</div>
+      <details style="margin-top:8px">
+        <summary style="cursor:pointer;font-size:12px;color:var(--brand2);font-weight:600">⌨ Enter coordinates instead (keyboard-accessible)</summary>
+        <div class="row" style="margin-top:6px">
+          <div><label for="mllA">Begin (lat, lng)</label><input id="mllA" inputmode="decimal" placeholder="39.16, -119.77" /></div>
+          <div><label for="mllB">End (lat, lng)</label><input id="mllB" inputmode="decimal" placeholder="39.20, -119.72" /></div>
+        </div>
+        <button type="button" style="width:100%;margin-top:6px" onclick="setByLatLng()">Set point(s) from coordinates</button>
+      </details>
+      <div class="selinfo" id="selinfo" role="status" aria-live="polite">No segment yet — click the road for the begin point, then the end point.</div>
     </fieldset>
 
     <fieldset>
@@ -180,16 +209,16 @@
         <label>Endpoint URL</label><input id="dbEndpoint" placeholder="https://your-server/api/ndot-wz" oninput="saveIntegration()" />
         <label>Authorization header</label><input id="dbAuth" placeholder="Bearer …" oninput="saveIntegration()" />
         <div class="actions"><button class="primary" onclick="submitToDatabase()">🚀 Submit</button><button onclick="downloadPayload()">⬇ Download JSON</button></div>
-        <div id="dbStatus" class="hint" style="display:none"></div>
+        <div id="dbStatus" class="hint" style="display:none" role="status" aria-live="polite"></div>
       </details>
     </fieldset>
-  </div>
-  <div style="flex:1;position:relative">
-    <div class="maphint" id="maphint">Click the road to set the <b>begin</b> point &nbsp;·&nbsp; <span style="color:#94a3b8">(map tiles need internet)</span></div>
-    <div id="map"></div>
+  </main>
+  <div id="mapwrap" style="flex:1;position:relative">
+    <div class="maphint" id="maphint" role="status" aria-live="polite">Click the road to set the <b>begin</b> point &nbsp;·&nbsp; <span style="color:#94a3b8">(map tiles need internet)</span></div>
+    <div id="map" role="application" aria-label="Map — click the road to mark the work zone. Keyboard users can enter coordinates in Step 1."></div>
   </div>
 </div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="assertive"></div>
 
 <script>
 const el=id=>document.getElementById(id);
@@ -413,4 +442,24 @@ function loadProject(i){const p=projectList()[i];if(!p)return;FIELD_IDS.forEach(
 el('route').addEventListener('change',()=>{onRouteChange();saveState();});
 FIELD_IDS.forEach(id=>{if(el(id))el(id).addEventListener('input',saveState);});
 loadState();renderProjects();onRouteChange();loadIntegration();loadCsvProjects();
+
+// ---- accessibility: associate stray <label>s with their controls + coordinate entry ----
+function a11yInit(){let n=0;
+  document.querySelectorAll('label:not([for])').forEach(lab=>{
+    if(lab.querySelector('input,select,textarea'))return;
+    let ctl=null,node=lab.nextElementSibling;
+    while(node&&!ctl){ctl=(node.matches&&node.matches('input,select,textarea'))?node:(node.querySelector&&node.querySelector('input,select,textarea'));node=node.nextElementSibling;}
+    if(!ctl&&lab.parentElement)ctl=lab.parentElement.querySelector('input,select,textarea');
+    if(ctl){if(!ctl.id)ctl.id='f_a11y_'+(++n);lab.setAttribute('for',ctl.id);}
+  });}
+a11yInit();
+function parseLL(s){const m=String(s||'').match(/(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)/);if(!m)return null;const la=+m[1],lo=+m[2];return(Math.abs(la)<=90&&Math.abs(lo)<=180)?[la,lo]:null;}
+function setByLatLng(){const pa=parseLL(v('mllA')),pb=parseLL(v('mllB'));
+  if(!pa&&!pb){toast('Enter coordinates as: 39.16, -119.77');return;}
+  if(pa)beginPt=L.latLng(pa[0],pa[1]);if(pb)endPt=L.latLng(pb[0],pb[1]);
+  redraw();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ();}
+  else if(beginPt){map.setView([beginPt.lat,beginPt.lng],13);setMode('end');}
+  saveState();toast(pa&&pb?'Begin + end set':'Point set');}
 </script>
+</body>
+</html>
