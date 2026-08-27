@@ -199,7 +199,15 @@ async function debugTile({ apiKey, bbox }) {
     const text = await resp.text();
     let count = null;
     try { count = (JSON.parse(text).incidents || []).length; } catch { /* not json */ }
-    return { httpStatus: resp.status, ok: resp.ok, incidentCount: count, bodySnippet: text.slice(0, 300), bbox };
+    // Surface any quota/rate/reset headers TomTom exposes (helps answer "when do credits reset?").
+    // Response headers never contain the API key (that's sent in the request), so this is safe.
+    const headers = {};
+    try {
+      resp.headers.forEach((v, k) => {
+        if (/ratelimit|rate-limit|retry-after|quota|reset|remaining|limit|x-tomtom|date/i.test(k)) headers[k] = v;
+      });
+    } catch (_) { /* ignore */ }
+    return { httpStatus: resp.status, ok: resp.ok, incidentCount: count, bodySnippet: text.slice(0, 300), headers, bbox };
   } catch (e) {
     return { error: e.message, bbox };
   }
