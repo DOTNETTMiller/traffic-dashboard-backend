@@ -94,7 +94,9 @@
             <option value="__other">Other (type below)</option>
           </select>
         </div>
-        <div><label>Direction</label><input id="direction" placeholder="auto from map" /></div>
+        <div><label>Direction</label><input id="direction" placeholder="auto from map" />
+          <label style="font-weight:400;font-size:12px;display:flex;align-items:center;gap:5px;margin-top:4px;color:#334155">
+            <input type="checkbox" id="bothDir" onchange="onBothDir()" style="width:auto;margin:0"> Both directions (full closure)</label></div>
       </div>
       <input id="routeOther" placeholder="e.g. US-30, IA-1" style="margin-top:6px;display:none" />
       <div class="row">
@@ -296,6 +298,15 @@ window.addEventListener('resize', ()=>map.invalidateSize());
 let mode='begin', beginPt=null, endPt=null, beginMk=null, endMk=null, line=null, schedule=[];
 let detourPts=[], detourLine=null, detourMks=[];
 let wzRoute=null, detourRoute=null, detourMeters=null;
+let wzRoute2=null, line2=null;   // opposite carriageway (drawn only for both-direction closures on a DIVIDED highway)
+// Median lateral separation (m) between two road polylines ([lat,lng] pairs). Used to decide
+// whether the opposing carriageway is physically separate (divided) vs the same roadbed (undivided).
+function carriagewaySepM(a,b){ if(!a||!b||a.length<2||b.length<2) return 0;
+  const R=6371000, toR=d=>d*Math.PI/180;
+  const dm=(p,q)=>{ const la=toR((p[0]+q[0])/2), x=toR(q[1]-p[1])*Math.cos(la), y=toR(q[0]-p[0]); return Math.sqrt(x*x+y*y)*R; };
+  const minToA=pt=>{ let m=Infinity; for(const vtx of a){ const d=dm(pt,vtx); if(d<m)m=d; } return m; };
+  const s=[]; for(let i=1;i<=5;i++) s.push(minToA(b[Math.floor(b.length*i/6)]));
+  s.sort((x,y)=>x-y); return s[2]; }   // median of 5 samples — robust to crossovers/interchanges
 // Snap a set of [lon,lat] waypoints to the driving road path via OSRM (free, no key).
 async function osrmRoute(lonlat){ try{
   const u='https://router.project-osrm.org/route/v1/driving/'+lonlat.map(c=>c[0]+','+c[1]).join(';')+'?overview=full&geometries=geojson';
@@ -316,6 +327,7 @@ const interstate = s => { const m=String(s||'').toUpperCase().match(/\bI[-\s]?(\
 function saveState(){ const s={pts:{beginPt,endPt,detourPts}}; FIELD_IDS.forEach(id=>{ if(el(id)) s[id]=el(id).value; }); localStorage.setItem('cars511_state', JSON.stringify(s)); }
 function loadState(){ try{ const s=JSON.parse(localStorage.getItem('cars511_state')||'{}');
   FIELD_IDS.forEach(id=>{ if(el(id)&&s[id]!=null) el(id).value=s[id]; });
+  if(el('bothDir')){ const isBoth=/^both\b/i.test(s.direction||''); el('bothDir').checked=isBoth; el('direction').readOnly=isBoth; }
   if(s.pts&&s.pts.beginPt){ beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng); if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng); redraw(); }
   if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){ detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng)); drawDetour(); }
 }catch(e){} }
@@ -354,11 +366,27 @@ function bearing(a,b){ const toR=d=>d*Math.PI/180,toD=r=>r*180/Math.PI;
   const x=Math.cos(toR(a.lat))*Math.sin(toR(b.lat))-Math.sin(toR(a.lat))*Math.cos(toR(b.lat))*Math.cos(toR(b.lng-a.lng));
   return (toD(Math.atan2(y,x))+360)%360; }
 function dirLabel(b){ if(b>=315||b<45)return 'Northbound'; if(b<135)return 'Eastbound'; if(b<225)return 'Southbound'; return 'Westbound'; }
+// Both-directions (full closure): a closure that takes BOTH travel directions. On the map
+// you still mark ONE segment; this derives the correct pair from the segment's axis (E/W vs
+// N/S), falling back to the route number's parity when no segment is set yet.
+function dirAxis(){ if(beginPt&&endPt){ const b=((bearing(beginPt,endPt))%360+360)%360;
+    const ew=(b>45&&b<135)||(b>225&&b<315); return ew?['EB','WB']:['NB','SB']; }
+  const n=(String(routeVal()).match(/\d+/)||[])[0];
+  return (n && parseInt(n,10)%2===0) ? ['EB','WB'] : ['NB','SB']; }
+function bothLabel(){ const p=dirAxis(); return `Both (${p[0]} & ${p[1]})`; }
+function onBothDir(){ const on=el('bothDir').checked; el('direction').readOnly=on;
+  if(on){ el('direction').value=bothLabel(); }
+  else if(beginPt&&endPt){ el('direction').value=dirLabel(bearing(beginPt,endPt)); }
+  if(beginPt&&endPt) snapWZ();            // draw (or, when unchecked, drop) the opposite carriageway
+  else { wzRoute2=null; drawWZLine(); }
+  saveState(); }
 function miles(a,b){ const R=3958.8,toR=d=>d*Math.PI/180; const dLat=toR(b.lat-a.lat),dLng=toR(b.lng-a.lng);
   const h=Math.sin(dLat/2)**2+Math.cos(toR(a.lat))*Math.cos(toR(b.lat))*Math.sin(dLng/2)**2; return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h)); }
-function drawWZLine(){ if(line){line.remove();line=null;}
+function drawWZLine(){ if(line){line.remove();line=null;} if(line2){line2.remove();line2=null;}
   const pts=(wzRoute&&wzRoute.length)?wzRoute:((beginPt&&endPt)?[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]]:null);
-  if(pts) line=L.polyline(pts,{color:'#dc2626',weight:6,opacity:.85}).addTo(map); }
+  if(pts) line=L.polyline(pts,{color:'#dc2626',weight:6,opacity:.85}).addTo(map);
+  // both-direction closure on a divided highway → draw the opposite carriageway too
+  if(wzRoute2&&wzRoute2.length&&beginPt&&endPt) line2=L.polyline(wzRoute2,{color:'#dc2626',weight:6,opacity:.85}).addTo(map); }
 // ---- Iowa DOT authoritative geometry + posted mileposts (RAMS/LRS) ----
 const IADOT='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services';
 const d2=(p,lat,lng)=>{ const k=Math.cos(p.lat*Math.PI/180), dx=(lng-p.lng)*k, dy=lat-p.lat; return dx*dx+dy*dy; };
@@ -470,10 +498,19 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
       if(pa!=null && pa>=0 && rpA && Math.abs(pa-rpA.mp)<1){ mpA=Math.round(pa*10)/10; if(autoMP(v('beginLoc'))) el('beginLoc').value='MP '+mpA; }
       if(pb!=null && pb>=0 && rpB && Math.abs(pb-rpB.mp)<1){ mpB=Math.round(pb*10)/10; if(autoMP(v('endLoc'))) el('endLoc').value='MP '+mpB; } } }catch(e){} }
   if(!usedIowa){ const r=await osrmRoute([[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]]); if(r){ wzRoute=r.latlngs; mi=r.meters/1609.34; } }
+  // Both-direction closure: trace the OPPOSITE carriageway by routing end→begin. On a divided
+  // highway OSRM returns the other roadbed (kept only if physically separate); on an undivided
+  // road it retraces the same line (separation ~0 → not drawn, since it's one roadbed).
+  wzRoute2=null; let divided=false;
+  if(el('bothDir')&&el('bothDir').checked && wzRoute && wzRoute.length>=2){
+    const rev=await osrmRoute([[endPt.lng,endPt.lat],[beginPt.lng,beginPt.lat]]);
+    if(rev&&rev.latlngs&&rev.latlngs.length>=2 && carriagewaySepM(wzRoute,rev.latlngs)>18){ wzRoute2=rev.latlngs; divided=true; }
+  }
   if(!beginPt||!endPt)return; drawWZLine();
   const src=usedIowa?'Iowa DOT centerline':'road';
   const mpTxt=(mpA!=null&&mpB!=null)?` · MP ${Math.min(mpA,mpB)}–${Math.max(mpA,mpB)}`:'';
-  el('selinfo').innerHTML=`<b>Segment:</b> ${dir}, ${mi!=null?mi.toFixed(1):'?'} mi (${src})${mpTxt}<br>begin ${beginPt.lat.toFixed(4)}, ${beginPt.lng.toFixed(4)} → end ${endPt.lat.toFixed(4)}, ${endPt.lng.toFixed(4)}`+
+  const bothTxt=(el('bothDir')&&el('bothDir').checked)?(divided?' · <b>both roadbeds (divided)</b>':' · both directions'):'';
+  el('selinfo').innerHTML=`<b>Segment:</b> ${dir}, ${mi!=null?mi.toFixed(1):'?'} mi (${src})${mpTxt}${bothTxt}<br>begin ${beginPt.lat.toFixed(4)}, ${beginPt.lng.toFixed(4)} → end ${endPt.lat.toFixed(4)}, ${endPt.lng.toFixed(4)}`+
     ` &nbsp; <a href="${gmapsRoute()}" target="_blank" rel="noopener">🗺 Share route map</a>`;
   saveState(); checkDuplicate(); showLanes(beginPt, routeId); }
 // Pull lanes-available (HPMS-equivalent) from Road_Network_View to guide the impact choice.
@@ -492,13 +529,13 @@ async function showLanes(pt, routeId){ const hint=el('laneHint'); if(!hint) retu
       (aadt?(' · AADT '+aadt.toLocaleString()+(truck?(' · '+truck.toLocaleString()+' trucks/day'):'')):'')+
       ' — size the lane closure to the tightest section.';
   }catch(e){ hint.style.display='none'; } }
-function redraw(){ [beginMk,endMk,line].forEach(x=>x&&x.remove()); beginMk=endMk=line=null; wzRoute=null;
+function redraw(){ [beginMk,endMk,line,line2].forEach(x=>x&&x.remove()); beginMk=endMk=line=line2=null; wzRoute=null; wzRoute2=null;
   if(beginPt) beginMk=mk(beginPt,'A','#1d4ed8'); if(endPt) endMk=mk(endPt,'B','#dc2626');
   drawWZLine();
   if(beginPt&&endPt){ try{ map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13}); }catch(e){} snapWZ(); }
   refresh(); }
 function refresh(){ const info=el('selinfo');
-  if(beginPt&&endPt){ const dir=dirLabel(bearing(beginPt,endPt)); el('direction').value=dir;
+  if(beginPt&&endPt){ const both=el('bothDir')&&el('bothDir').checked; const dir=both?bothLabel():dirLabel(bearing(beginPt,endPt)); el('direction').value=dir;
     info.innerHTML=`<b>Segment:</b> ${dir}, ~${miles(beginPt,endPt).toFixed(1)} mi<br>begin ${beginPt.lat.toFixed(4)}, ${beginPt.lng.toFixed(4)} → end ${endPt.lat.toFixed(4)}, ${endPt.lng.toFixed(4)}`; }
   else if(beginPt){ info.innerHTML=`Begin set. Now click <b>END</b>.`; setMode('end'); }
   saveState(); }
@@ -827,9 +864,17 @@ function saveIntegration(){ localStorage.setItem('cars511_integration', JSON.str
 function loadIntegration(){ try{ const s=JSON.parse(localStorage.getItem('cars511_integration')||'{}'); if(s.endpoint)el('dbEndpoint').value=s.endpoint; if(s.auth)el('dbAuth').value=s.auth; }catch(e){} }
 function requestPayload(){ const o={}; FIELD_IDS.forEach(id=>{ if(el(id)) o[id]=v(id); });
   o.route=routeVal();
+  // Both-directions closure: keep the human-readable string in o.direction, but also expose a
+  // structured pair so a WZDx export can emit the TWO directional road events the spec requires
+  // (WZDx has no "both" — each direction is its own RoadEventFeature over the same geometry).
+  o.both_directions = !!(el('bothDir')&&el('bothDir').checked);
+  if(o.both_directions) o.directions = dirAxis().map(d=>({EB:'eastbound',WB:'westbound',NB:'northbound',SB:'southbound'}[d]));
   o.segment=(beginPt&&endPt)?{begin:[beginPt.lng,beginPt.lat],end:[endPt.lng,endPt.lat],miles:+miles(beginPt,endPt).toFixed(2)}:null;
-  o.geometry=(wzRoute&&wzRoute.length)?{type:'LineString',coordinates:wzRoute.map(c=>[c[1],c[0]])}
-    :(o.segment?{type:'LineString',coordinates:[o.segment.begin,o.segment.end]}:null);
+  const wzCoords=(wzRoute&&wzRoute.length)?wzRoute.map(c=>[c[1],c[0]]):(o.segment?[o.segment.begin,o.segment.end]:null);
+  // Divided both-direction closure → emit BOTH carriageways as a MultiLineString.
+  o.geometry = (o.both_directions && wzRoute2 && wzRoute2.length && wzCoords)
+    ? {type:'MultiLineString',coordinates:[wzCoords, wzRoute2.map(c=>[c[1],c[0]])]}
+    : (wzCoords ? {type:'LineString',coordinates:wzCoords} : null);
   // keep o.detour as the Yes/No field; detour geometry gets its own key
   o.detour_geometry=(detourPts.length>=2)?{type:'LineString',coordinates:(detourRoute&&detourRoute.length?detourRoute:detourPts.map(p=>[p.lat,p.lng])).map(c=>[c[1],c[0]])}:null;
   o.schedule=schedule.map(s=>s.label);

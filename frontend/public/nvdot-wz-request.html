@@ -73,7 +73,7 @@
             <option value="__other">Other (type below)</option>
           </select></div>
         <div><label>Direction</label>
-          <select id="direction"><option value="">—</option><option>N</option><option>S</option><option>E</option><option>W</option><option>Both</option></select></div>
+          <select id="direction" onchange="if(beginPt&&endPt){snapWZ();}else{wzRoute2=null;drawWZLine();}saveState();"><option value="">—</option><option>N</option><option>S</option><option>E</option><option>W</option><option>Both</option></select></div>
       </div>
       <input id="routeOther" placeholder="e.g. SR-160, US-95 ALT" style="margin-top:6px;display:none" />
       <div class="row">
@@ -208,6 +208,15 @@ const baseSat=L.layerGroup([
 L.control.layers({'Street':baseStreet,'Satellite':baseSat},{},{position:'topright'}).addTo(map);
 setTimeout(()=>map.invalidateSize(),200); window.addEventListener('resize',()=>map.invalidateSize());
 let mode='begin',beginPt=null,endPt=null,beginMk=null,endMk=null,line=null,wzRoute=null,schedule=[];
+let wzRoute2=null,line2=null;   // opposite carriageway (drawn only when direction=Both on a DIVIDED highway)
+// Median lateral separation (m) between two road polylines ([lat,lng]) — decides divided vs undivided.
+function carriagewaySepM(a,b){if(!a||!b||a.length<2||b.length<2)return 0;const R=6371000,toR=d=>d*Math.PI/180;
+  const dm=(p,q)=>{const la=toR((p[0]+q[0])/2),x=toR(q[1]-p[1])*Math.cos(la),y=toR(q[0]-p[0]);return Math.sqrt(x*x+y*y)*R;};
+  const minToA=pt=>{let m=Infinity;for(const vtx of a){const d=dm(pt,vtx);if(d<m)m=d;}return m;};
+  const s=[];for(let i=1;i<=5;i++)s.push(minToA(b[Math.floor(b.length*i/6)]));s.sort((x,y)=>x-y);return s[2];}
+// E/W vs N/S axis from the segment's bearing → the two directions for a both-direction closure.
+function nvAxis(){if(beginPt&&endPt){const b=((bearing(beginPt,endPt))%360+360)%360;const ew=(b>45&&b<135)||(b>225&&b<315);return ew?['E','W']:['N','S'];}
+  const n=(String(routeVal()).match(/\d+/)||[])[0];return (n&&parseInt(n,10)%2===0)?['E','W']:['N','S'];}
 let detourPts=[],detourLine=null,detourMks=[],detourRoute=null,detourMeters=null;
 function setMode(m){mode=m;el('btnBegin').classList.toggle('active',m==='begin');el('btnEnd').classList.toggle('active',m==='end');const bd=el('btnDetour');if(bd)bd.classList.toggle('active',m==='detour');el('maphint').innerHTML=m==='detour'?'Click to trace the <b>detour</b>':'Click the road to set the <b>'+m+'</b> point';}
 function mk(latlng,label,color){const drag=(label==='A'||label==='B');const m=L.marker(latlng,{draggable:drag,icon:L.divIcon({className:'',html:'<div style="background:'+color+';color:#fff;border:2px solid #fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.4)">'+label+'</div>',iconSize:[24,24],iconAnchor:[12,12]})}).addTo(map);
@@ -218,7 +227,7 @@ function dirLabel(b){return ['N','NE','E','SE','S','SW','W','NW'][Math.round(b/4
 function offsetPt(lat,lng,dl,meters){const t={N:0,E:90,S:180,W:270},br=t[dl]!=null?t[dl]:90,R=6378137,d=meters/R,brR=br*Math.PI/180,la=lat*Math.PI/180,lo=lng*Math.PI/180,la2=Math.asin(Math.sin(la)*Math.cos(d)+Math.cos(la)*Math.sin(d)*Math.cos(brR)),lo2=lo+Math.atan2(Math.sin(brR)*Math.sin(d)*Math.cos(la),Math.cos(d)-Math.sin(la)*Math.sin(la2));return L.latLng(la2*180/Math.PI,lo2*180/Math.PI);}
 
 async function osrmRoute(coords){try{const c=coords.map(p=>p[0]+','+p[1]).join(';');const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+c+'?overview=full&geometries=geojson');const j=await r.json();const rt=j.routes&&j.routes[0];if(!rt)return null;return{latlngs:rt.geometry.coordinates.map(c=>[c[1],c[0]]),meters:rt.distance};}catch(e){return null;}}
-function drawWZLine(){if(line){line.remove();line=null;}const pts=(wzRoute&&wzRoute.length)?wzRoute:((beginPt&&endPt)?[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]]:null);if(pts)line=L.polyline(pts,{color:'#dc2626',weight:6,opacity:.85}).addTo(map);}
+function drawWZLine(){if(line){line.remove();line=null;}if(line2){line2.remove();line2=null;}const pts=(wzRoute&&wzRoute.length)?wzRoute:((beginPt&&endPt)?[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]]:null);if(pts)line=L.polyline(pts,{color:'#dc2626',weight:6,opacity:.85}).addTo(map);if(wzRoute2&&wzRoute2.length&&beginPt&&endPt)line2=L.polyline(wzRoute2,{color:'#dc2626',weight:6,opacity:.85}).addTo(map);}
 // NDOT posted milepost: interpolate PostedMileage between the two nearest mile markers on the same route.
 // Uses the CORS-open NDOT ArcGIS Online mile-marker layer (MileMarker_CoCumPart2).
 const NV_MM='https://services1.arcgis.com/9Y4hSlLf13E9S0Eo/arcgis/rest/services/MileMarker_CoCumPart2/FeatureServer/0/query';
@@ -235,14 +244,21 @@ async function nvMilepost(pt){ const pad=0.02, bb=[pt.lng-pad,pt.lat-pad,pt.lng+
     return {mp, route:rt, county:near.attributes.PostedCounty}; }
   catch(e){ return null; } }
 async function snapWZ(){if(!(beginPt&&endPt))return;drawWZLine();const dir=dirLabel(bearing(beginPt,endPt));if(!v('direction'))el('direction').value=dir[0];
-  const r=await osrmRoute([[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]]);let mi=miles(beginPt,endPt);if(r){wzRoute=r.latlngs;mi=r.meters/1609.34;drawWZLine();}
+  const r=await osrmRoute([[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]]);let mi=miles(beginPt,endPt);if(r){wzRoute=r.latlngs;mi=r.meters/1609.34;}
+  // Both-direction closure: trace the OPPOSITE carriageway (end→begin). Divided highway → other
+  // roadbed (kept if physically separate); undivided → same line (separation ~0 → not drawn).
+  wzRoute2=null;let divided=false;
+  if(v('direction')==='Both'&&wzRoute&&wzRoute.length>=2){const rev=await osrmRoute([[endPt.lng,endPt.lat],[beginPt.lng,beginPt.lat]]);
+    if(rev&&rev.latlngs&&rev.latlngs.length>=2&&carriagewaySepM(wzRoute,rev.latlngs)>18){wzRoute2=rev.latlngs;divided=true;}}
+  drawWZLine();
   const autoMP=s=>!s||/^MP\s*[\d.]+$/i.test(s); let mpTxt='';
   try{ const [a,b]=await Promise.all([nvMilepost(beginPt),nvMilepost(endPt)]);
     if(a&&autoMP(v('beginLoc')))el('beginLoc').value='MP '+a.mp; if(b&&autoMP(v('endLoc')))el('endLoc').value='MP '+b.mp;
     if(a&&b) mpTxt=' · MP '+Math.min(a.mp,b.mp)+'–'+Math.max(a.mp,b.mp); }catch(e){}
-  el('selinfo').innerHTML='<b>Segment:</b> '+dir+', '+mi.toFixed(1)+' mi (road-following)'+mpTxt+'<br>begin '+beginPt.lat.toFixed(4)+', '+beginPt.lng.toFixed(4)+' → end '+endPt.lat.toFixed(4)+', '+endPt.lng.toFixed(4)+' &nbsp; <a href="'+gmapsRoute()+'" target="_blank" rel="noopener">🗺 map</a>';
+  const bothTxt=v('direction')==='Both'?(divided?' · <b>both roadbeds (divided)</b>':' · both directions'):'';
+  el('selinfo').innerHTML='<b>Segment:</b> '+dir+', '+mi.toFixed(1)+' mi (road-following)'+mpTxt+bothTxt+'<br>begin '+beginPt.lat.toFixed(4)+', '+beginPt.lng.toFixed(4)+' → end '+endPt.lat.toFixed(4)+', '+endPt.lng.toFixed(4)+' &nbsp; <a href="'+gmapsRoute()+'" target="_blank" rel="noopener">🗺 map</a>';
   reverseFill(beginPt);saveState();}
-function redraw(){[beginMk,endMk,line].forEach(x=>x&&x.remove());beginMk=endMk=line=null;wzRoute=null;if(beginPt)beginMk=mk(beginPt,'A','#1d4ed8');if(endPt)endMk=mk(endPt,'B','#dc2626');if(beginPt&&endPt)drawWZLine();}
+function redraw(){[beginMk,endMk,line,line2].forEach(x=>x&&x.remove());beginMk=endMk=line=line2=null;wzRoute=null;wzRoute2=null;if(beginPt)beginMk=mk(beginPt,'A','#1d4ed8');if(endPt)endMk=mk(endPt,'B','#dc2626');if(beginPt&&endPt)drawWZLine();}
 map.on('click',e=>{if(mode==='detour'){detourPts.push(e.latlng);if(v('detour')!=='Yes')el('detour').value='Yes';detourRoute=null;drawDetour();snapDetour();saveState();return;}
   if(mode==='begin'){beginPt=e.latlng;if(beginMk)beginMk.remove();beginMk=mk(e.latlng,'A','#1d4ed8');setMode('end');}
   else{endPt=e.latlng;if(endMk)endMk.remove();endMk=mk(e.latlng,'B','#dc2626');}
@@ -328,20 +344,32 @@ function checkReadiness(){const miss=missingFields(),b=el('readyBox');b.style.di
 
 // ---- WZDx v4.2 RoadEventFeature ----
 function geometryCoords(){if(wzRoute&&wzRoute.length)return wzRoute.map(c=>[c[1],c[0]]);if(beginPt&&endPt)return[[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]];return null;}
-function toWZDx(){const now=new Date().toISOString();const restr=[];const push=(t,val)=>{if(val)restr.push({type:t,value:val});};
-  const coords=geometryCoords();const dir={N:'northbound',S:'southbound',E:'eastbound',W:'westbound',Both:'both'}[v('direction')]||'unknown';
-  const props={core_details:{event_type:'work-zone',data_source_id:'ndot-wz-builder',road_names:[routeVal()].filter(Boolean),direction:dir,name:v('project')||('NDOT-'+Date.now().toString(36)),description:v('description')||undefined,update_date:now},
-    start_date:v('schedStart')||now,end_date:null,vehicle_impact:v('impact')||'unknown',
-    beginning_cross_street:v('beginLoc')||undefined,ending_cross_street:v('endLoc')||undefined,
-    is_start_position_verified:false,is_end_position_verified:false};
+function toWZDx(){const now=new Date().toISOString();const coords=geometryCoords();
+  const restr=[];
   if(v('rHeight'))restr.push({type:'reduced-height',value:v('rHeight')});
   if(v('rWidth'))restr.push({type:'reduced-width',value:v('rWidth')});
   if(v('rWeight'))restr.push({type:'reduced-weight',value:v('rWeight')});
   if(v('rLength'))restr.push({type:'reduced-length',value:v('rLength')});
-  if(restr.length)props.restrictions=restr;
-  if(v('detour')==='Yes')props.x_detour=v('addlNotes')||'marked detour';
-  if(v('dms'))props.x_dms_request=v('dms');
-  return {feed_info:{update_date:now,version:'4.2',data_sources:[{data_source_id:'ndot-wz-builder',organization_name:'Nevada DOT (field builder)'}]},type:'FeatureCollection',features:coords?[{id:props.core_details.name,type:'Feature',properties:props,geometry:{type:'LineString',coordinates:coords}}]:[]};}
+  const baseName=v('project')||('NDOT-'+Date.now().toString(36));
+  const mkFeature=(dirName,geom,suffix)=>{const props={core_details:{event_type:'work-zone',data_source_id:'ndot-wz-builder',road_names:[routeVal()].filter(Boolean),direction:dirName,name:baseName+suffix,description:v('description')||undefined,update_date:now},
+    start_date:v('schedStart')||now,end_date:null,vehicle_impact:v('impact')||'unknown',
+    beginning_cross_street:v('beginLoc')||undefined,ending_cross_street:v('endLoc')||undefined,
+    is_start_position_verified:false,is_end_position_verified:false};
+    if(restr.length)props.restrictions=restr.slice();
+    if(v('detour')==='Yes')props.x_detour=v('addlNotes')||'marked detour';
+    if(v('dms'))props.x_dms_request=v('dms');
+    return {id:props.core_details.name,type:'Feature',properties:props,geometry:{type:'LineString',coordinates:geom}};};
+  let features=[];
+  if(coords){
+    // WZDx has no "both" — a both-direction closure is TWO directional RoadEventFeatures, each on
+    // its own carriageway geometry (the opposite roadbed when the highway is divided).
+    if(v('direction')==='Both'){const ax=nvAxis().map(d=>({N:'northbound',S:'southbound',E:'eastbound',W:'westbound'}[d]));
+      const g2=(wzRoute2&&wzRoute2.length)?wzRoute2.map(c=>[c[1],c[0]]):coords;
+      features=[mkFeature(ax[0],coords,'-'+ax[0]),mkFeature(ax[1],g2,'-'+ax[1])];}
+    else{const dir={N:'northbound',S:'southbound',E:'eastbound',W:'westbound'}[v('direction')]||'unknown';
+      features=[mkFeature(dir,coords,'')];}
+  }
+  return {feed_info:{update_date:now,version:'4.2',data_sources:[{data_source_id:'ndot-wz-builder',organization_name:'Nevada DOT (field builder)'}]},type:'FeatureCollection',features};}
 function downloadWZDx(){if(!(beginPt&&endPt)){toast('Mark a segment first');return;}const blob=new Blob([JSON.stringify(toWZDx(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ndot_wzdx_'+(routeVal()||'route').replace(/\W+/g,'')+'.geojson';a.click();toast('WZDx feature exported');}
 
 function emailNDOT(){const _m=missingFields();if(_m.length){checkReadiness();if(!confirm(_m.length+' required field(s) missing:\n'+_m.join(', ')+'\n\nEmail anyway?'))return;}
@@ -362,7 +390,12 @@ function genPDF(){const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'pt',form
 // ---- database submit ----
 function saveIntegration(){localStorage.setItem('ndot_integration',JSON.stringify({endpoint:v('dbEndpoint'),auth:v('dbAuth')}));}
 function loadIntegration(){try{const s=JSON.parse(localStorage.getItem('ndot_integration')||'{}');if(s.endpoint)el('dbEndpoint').value=s.endpoint;if(s.auth)el('dbAuth').value=s.auth;}catch(e){}}
-function requestPayload(){const o={};FIELD_IDS.forEach(id=>{if(el(id))o[id]=v(id);});o.route=routeVal();o.segment=(beginPt&&endPt)?{begin:[beginPt.lng,beginPt.lat],end:[endPt.lng,endPt.lat],miles:+miles(beginPt,endPt).toFixed(2)}:null;o.geometry=geometryCoords()?{type:'LineString',coordinates:geometryCoords()}:null;o.detour_geometry=(detourPts.length>=2)?{type:'LineString',coordinates:(detourRoute&&detourRoute.length?detourRoute:detourPts.map(p=>[p.lat,p.lng])).map(c=>[c[1],c[0]])}:null;o.schedule=schedule.map(s=>s.label);o.wzdx=toWZDx().features[0]||null;o.maps={route:gmapsRoute()||null,detour:detourPts.length>=2?gmapsDetour():null};o.generatedAt=new Date().toISOString();o.source='NDOT Work-Zone Request Builder';return o;}
+function requestPayload(){const o={};FIELD_IDS.forEach(id=>{if(el(id))o[id]=v(id);});o.route=routeVal();o.segment=(beginPt&&endPt)?{begin:[beginPt.lng,beginPt.lat],end:[endPt.lng,endPt.lat],miles:+miles(beginPt,endPt).toFixed(2)}:null;
+  o.both_directions=v('direction')==='Both';if(o.both_directions)o.directions=nvAxis().map(d=>({N:'northbound',S:'southbound',E:'eastbound',W:'westbound'}[d]));
+  const g1=geometryCoords();
+  o.geometry=(o.both_directions&&wzRoute2&&wzRoute2.length&&g1)?{type:'MultiLineString',coordinates:[g1,wzRoute2.map(c=>[c[1],c[0]])]}:(g1?{type:'LineString',coordinates:g1}:null);
+  o.detour_geometry=(detourPts.length>=2)?{type:'LineString',coordinates:(detourRoute&&detourRoute.length?detourRoute:detourPts.map(p=>[p.lat,p.lng])).map(c=>[c[1],c[0]])}:null;o.schedule=schedule.map(s=>s.label);
+  const wz=toWZDx();o.wzdx=wz.features.length>1?wz.features:(wz.features[0]||null);o.maps={route:gmapsRoute()||null,detour:detourPts.length>=2?gmapsDetour():null};o.generatedAt=new Date().toISOString();o.source='NDOT Work-Zone Request Builder';return o;}
 function downloadPayload(){const blob=new Blob([JSON.stringify(requestPayload(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ndot_wz_'+(routeVal()||'route').replace(/\W+/g,'')+'.json';a.click();toast('JSON downloaded');}
 async function submitToDatabase(){const ep=v('dbEndpoint'),st=el('dbStatus');st.style.display='block';if(!ep){st.style.color='#b91c1c';st.textContent='Set an endpoint URL first.';return;}const miss=missingFields();if(miss.length&&!confirm(miss.length+' required field(s) missing:\n'+miss.join(', ')+'\n\nSubmit anyway?'))return;st.style.color='#475569';st.textContent='Submitting…';try{const headers={'Content-Type':'application/json'};if(v('dbAuth'))headers['Authorization']=v('dbAuth');const r=await fetch(ep,{method:'POST',headers,body:JSON.stringify(requestPayload())});if(r.ok){let id='';try{const j=await r.json();id=j.id||j.recordId||'';}catch(_){}st.style.color='#15803d';st.textContent='✓ Submitted (HTTP '+r.status+')'+(id?' — record '+id:'');}else{st.style.color='#b91c1c';st.textContent='Server returned '+r.status+' '+(r.statusText||'');}}catch(e){st.style.color='#b91c1c';st.textContent='Submit failed: '+e.message+' — likely CORS or endpoint unreachable. Use Download JSON.';}}
 
@@ -371,7 +404,7 @@ function onRouteChange(){el('routeOther').style.display=v('route')==='__other'?'
 function saveState(){const s={pts:{beginPt,endPt,detourPts}};FIELD_IDS.forEach(id=>{if(el(id))s[id]=el(id).value;});localStorage.setItem('ndot_state',JSON.stringify(s));}
 function loadState(){try{const s=JSON.parse(localStorage.getItem('ndot_state')||'{}');FIELD_IDS.forEach(id=>{if(el(id)&&s[id]!=null)el(id).value=s[id];});if(s.pts&&s.pts.beginPt){beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng);if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng);redraw();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ();}}if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng));drawDetour();snapDetour();}}catch(e){}}
 const PERSIST=['requestor','email','contact24','tmcEmail'];
-function resetAll(){if(!confirm('Start a NEW request? Clears the segment, detour, and scans — your name/contact/email are kept.'))return;FIELD_IDS.forEach(id=>{if(el(id)&&!PERSIST.includes(id))el(id).value=el(id).tagName==='SELECT'?el(id).options[0].value:'';});[beginMk,endMk,line].forEach(x=>x&&x.remove());beginPt=endPt=beginMk=endMk=line=null;wzRoute=null;schedule=[];detourPts=[];detourRoute=null;detourMeters=null;drawDetour();if(bridgeLayer){bridgeLayer.remove();bridgeLayer=null;}['nbiBox','schedList','detourInfo','readyBox','dbStatus'].forEach(id=>{if(el(id))el(id).style.display='none';});el('selinfo').textContent='No segment yet — click the road for the begin point, then the end point.';onRouteChange();setMode('begin');saveState();}
+function resetAll(){if(!confirm('Start a NEW request? Clears the segment, detour, and scans — your name/contact/email are kept.'))return;FIELD_IDS.forEach(id=>{if(el(id)&&!PERSIST.includes(id))el(id).value=el(id).tagName==='SELECT'?el(id).options[0].value:'';});[beginMk,endMk,line,line2].forEach(x=>x&&x.remove());beginPt=endPt=beginMk=endMk=line=line2=null;wzRoute=null;wzRoute2=null;schedule=[];detourPts=[];detourRoute=null;detourMeters=null;drawDetour();if(bridgeLayer){bridgeLayer.remove();bridgeLayer=null;}['nbiBox','schedList','detourInfo','readyBox','dbStatus'].forEach(id=>{if(el(id))el(id).style.display='none';});el('selinfo').textContent='No segment yet — click the road for the begin point, then the end point.';onRouteChange();setMode('begin');saveState();}
 function projectList(){try{return JSON.parse(localStorage.getItem('ndot_projects')||'[]');}catch(e){return[];}}
 function renderProjects(){const list=projectList();el('projPicker').innerHTML='<option value="">↺ Saved projects…</option>'+list.map((p,i)=>'<option value="'+i+'">'+(p.name||'#'+i)+'</option>').join('');}
 function saveProject(){const name=prompt('Name this project:');if(!name)return;const list=projectList();const data={};FIELD_IDS.forEach(id=>{if(el(id))data[id]=el(id).value;});list.push({name,data,beginPt,endPt,detourPts});localStorage.setItem('ndot_projects',JSON.stringify(list));renderProjects();toast('Saved');}
