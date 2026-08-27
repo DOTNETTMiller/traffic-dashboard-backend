@@ -4929,6 +4929,28 @@ let tomtomCache = { data: null, timestamp: null, ttl: 45 * 60 * 1000, isRefreshi
 // (whitespace, zero-width/non-breaking chars) that would cause a 401.
 const tomtomApiKey = () => (process.env.TOMTOM_API_KEY || '').replace(/[^A-Za-z0-9]/g, '');
 
+// Circuit-breaker + pacing. When the account is out of credits (403/402 InsufficientFunds),
+// every tile fails identically — so back off for a while instead of re-firing 90 dead requests
+// on each dashboard load. Tiles within a round are also paced so a round doesn't burst the quota.
+let tomtomCooldownUntil = 0;
+let tomtomStatus = 'ok';                          // 'ok' | 'insufficient-credits' | 'rate-limited' | ...
+const TOMTOM_COOLDOWN_MS = 6 * 60 * 60 * 1000;   // out-of-credits → wait 6h before the next round
+const TOMTOM_RATELIMIT_COOLDOWN_MS = 10 * 60 * 1000; // 429 → short back-off
+const TOMTOM_TILE_DELAY_MS = 120;                // pace between tiles (load all, just not in a burst)
+const tomtomInCooldown = () => Date.now() < tomtomCooldownUntil;
+// Apply a fetch result's error to the breaker; returns the human status string.
+function noteTomTomResult(result) {
+  if (result && result.error === 'insufficient-credits') {
+    tomtomCooldownUntil = Date.now() + TOMTOM_COOLDOWN_MS; tomtomStatus = 'insufficient-credits';
+    console.warn(`🚗 TomTom: out of credits — backing off until ${new Date(tomtomCooldownUntil).toISOString()}`);
+  } else if (result && result.error === 'rate-limited') {
+    tomtomCooldownUntil = Date.now() + TOMTOM_RATELIMIT_COOLDOWN_MS; tomtomStatus = 'rate-limited';
+  } else if (result && !result.error) {
+    tomtomStatus = 'ok';
+  }
+  return tomtomStatus;
+}
+
 // One direction per corridor is enough (both directions cover the same ground);
 // halves the tile/request count.
 function corridorTileLines() {
@@ -4937,6 +4959,7 @@ function corridorTileLines() {
 
 async function refreshTomTomIncidents() {
   if (tomtomCache.isRefreshing) return tomtomCache.data;
+  if (tomtomInCooldown()) return tomtomCache.data;   // out of credits / rate-limited → don't hammer
   const apiKey = tomtomApiKey();
   if (!apiKey) return null;
   const lines = corridorTileLines();
@@ -4947,7 +4970,8 @@ async function refreshTomTomIncidents() {
   tomtomCache.isRefreshing = true;
   try {
     const tiles = tomtomIncidents.corridorTiles(lines);
-    const result = await tomtomIncidents.fetchIncidents({ apiKey, tiles });
+    const result = await tomtomIncidents.fetchIncidents({ apiKey, tiles, delayMs: TOMTOM_TILE_DELAY_MS });
+    noteTomTomResult(result);
     // Keep incidents on an Interstate or US highway — the corridor/DOT-comparison
     // scope. (Drops the flood of city-street/local-road closures the bbox returns.)
     const HIGHWAY_RE = /^(I|US)[-\s.]?\d/i;
@@ -4961,7 +4985,9 @@ async function refreshTomTomIncidents() {
       tiles: tiles.length,
       requests: result.requests,
       budgetLeft: result.budgetLeft,
-      stopped: result.stopped
+      stopped: result.stopped,
+      status: tomtomStatus,
+      cooldownUntil: tomtomInCooldown() ? new Date(tomtomCooldownUntil).toISOString() : null
     };
     tomtomCache.timestamp = Date.now();
     console.log(`🚗 TomTom: ${incidents.length} interstate/US-hwy incidents (${result.incidents.length} raw) / ${tiles.length} tiles (${result.requests} reqs, ${result.budgetLeft} budget left${result.stopped ? ', BUDGET STOP' : ''})`);
@@ -4981,15 +5007,17 @@ async function refreshTomTomIncidents() {
 let tomtomZoneCache = { data: null, timestamp: null, ttl: 3 * 60 * 60 * 1000, isRefreshing: false };
 async function refreshTomTomForZones(points) {
   if (tomtomZoneCache.isRefreshing) return tomtomZoneCache.data;
+  if (tomtomInCooldown()) return tomtomZoneCache.data;   // out of credits / rate-limited → don't hammer
   const apiKey = tomtomApiKey();
   if (!apiKey || !Array.isArray(points) || !points.length) return tomtomZoneCache.data;
   tomtomZoneCache.isRefreshing = true;
   try {
     const tiles = tomtomIncidents.pointsToTiles(points, { maxTiles: 220 });
-    const result = await tomtomIncidents.fetchIncidents({ apiKey, tiles });
+    const result = await tomtomIncidents.fetchIncidents({ apiKey, tiles, delayMs: TOMTOM_TILE_DELAY_MS });
+    noteTomTomResult(result);
     const HIGHWAY_RE = /^(I|US)[-\s.]?\d/i;
     const incidents = result.incidents.filter(i => (i.roadNumbers || []).some(r => HIGHWAY_RE.test(r)));
-    tomtomZoneCache.data = { incidents, count: incidents.length, tiles: tiles.length, budgetLeft: result.budgetLeft, stopped: result.stopped, timestamp: new Date().toISOString() };
+    tomtomZoneCache.data = { incidents, count: incidents.length, tiles: tiles.length, budgetLeft: result.budgetLeft, stopped: result.stopped, status: tomtomStatus, cooldownUntil: tomtomInCooldown() ? new Date(tomtomCooldownUntil).toISOString() : null, timestamp: new Date().toISOString() };
     tomtomZoneCache.timestamp = Date.now();
     console.log(`🚗 TomTom(zones): ${incidents.length} interstate/US incidents / ${tiles.length} tiles (${result.requests} reqs, ${result.budgetLeft} budget left${result.stopped ? ', BUDGET STOP' : ''})`);
   } catch (err) {

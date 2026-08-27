@@ -224,20 +224,35 @@ function incidentUrl(apiKey, bbox) {
  * @param {string[]} opts.tiles - array of "minLon,minLat,maxLon,maxLat" bboxes.
  * @returns {Promise<{incidents: object[], requests: number, budgetLeft: number, stopped: boolean}>}
  */
-async function fetchIncidents({ apiKey, tiles }) {
+async function fetchIncidents({ apiKey, tiles, delayMs = 0 }) {
   if (!apiKey) throw new Error('TOMTOM_API_KEY not set');
   const byId = new Map();
   let requests = 0;
   let stopped = false;
+  let error = null;                                  // 'insufficient-credits' when the account is out
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-  for (const bbox of tiles) {
-    if (budgetRemaining() <= 0) { stopped = true; break; } // guardrail
+  for (let i = 0; i < tiles.length; i++) {
+    const bbox = tiles[i];
+    if (budgetRemaining() <= 0) { stopped = true; break; }  // our own daily guardrail
+    if (i > 0 && delayMs > 0) await sleep(delayMs);         // pace tiles so a round doesn't burst
     spend(1);
     requests++;
     try {
       const resp = await fetch(incidentUrl(apiKey, bbox));
       if (!resp.ok) {
-        // 4xx (incl. over-quota with no card) — skip this tile, keep going.
+        // Out of credits / forbidden: EVERY remaining tile will fail identically, so
+        // stop the whole round now instead of wasting 89 more requests. The caller
+        // uses this to back off before the next round.
+        if (resp.status === 403 || resp.status === 402 || resp.status === 429) {
+          const body = await resp.text().catch(() => '');
+          if (resp.status === 429) error = 'rate-limited';
+          else if (/InsufficientFunds|enough credits/i.test(body) || resp.status === 402) error = 'insufficient-credits';
+          else error = `http-${resp.status}`;
+          stopped = true;
+          console.warn(`TomTom: stopping round after ${requests} tiles — HTTP ${resp.status} (${error})`);
+          break;
+        }
         console.warn(`TomTom incident tile ${bbox} -> HTTP ${resp.status}`);
         continue;
       }
@@ -255,7 +270,8 @@ async function fetchIncidents({ apiKey, tiles }) {
     incidents: [...byId.values()],
     requests,
     budgetLeft: budgetRemaining(),
-    stopped
+    stopped,
+    error
   };
 }
 
