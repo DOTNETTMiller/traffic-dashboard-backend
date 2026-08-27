@@ -6397,8 +6397,10 @@ const WZ_MP_SOURCES = {
   ia: { url: 'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Reference_Post_View/FeatureServer/0/query',
         mpField: 'REFERENCE_POST_VALUE', routeField: 'ROUTE_ID', countyField: null, where: '1=1' },
   nv: { url: 'https://services1.arcgis.com/9Y4hSlLf13E9S0Eo/arcgis/rest/services/MileMarker_CoCumPart2/FeatureServer/0/query',
-        mpField: 'PostedMileage', routeField: 'PostedRoute', countyField: 'PostedCounty', where: 'PostedMileage>0' }
-  // TODO add per corridor state as its LRS/reference-post service is identified: mn, tx, ok, ks, mo,
+        mpField: 'PostedMileage', routeField: 'PostedRoute', countyField: 'PostedCounty', where: 'PostedMileage>0' },
+  mn: { url: 'https://webgis.dot.state.mn.us/65agsf1/rest/services/sdw_infra/REFERENCE_POST/FeatureServer/0/query',
+        mpField: 'REFERENCE_POST', routeField: 'ROUTE_ID', countyField: null, where: '1=1' }
+  // TODO add per corridor state as its LRS/reference-post service is identified: tx, ok, ks, mo,
   //      ca, ut, wy, ne, il, in, oh, pa, nj  (each: {url, mpField, routeField, countyField?, where?})
 };
 app.get('/api/wz/mileposts', async (req, res) => {
