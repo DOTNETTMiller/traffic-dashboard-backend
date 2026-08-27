@@ -6255,6 +6255,28 @@ app.get('/api/cwz/events', async (req, res) => {
       const signs = await dmsCorr.fetchSigns();
       if (signs.length) dmsCorr.corroborate(events, signs);
     } catch (_) { /* dms corroboration optional */ }
+    // Sticky, positive-only accumulation for TomTom / DMS / device: once a zone is corroborated
+    // by any of these it STAYS corroborated across refreshes and (for TomTom) the credit
+    // cooldown — the validation accumulates and is never demoted. Cameras are excluded on
+    // purpose: they re-check daily via camera-check-ledger and CAN demote (a camera can see a
+    // zone is finished), so they must not be made permanently sticky here.
+    try {
+      const vl = require('./services/validation-ledger');
+      await vl.hydrate();
+      for (const e of (eventsCache.data?.events || [])) {
+        const id = e.id || e.road_event_id;
+        if (!id) continue;
+        if (e.x_tomtom_corroborated) vl.add('tomtom', id, { id: e.x_tomtom_id || null });
+        if (e.x_dms_corroborated)    vl.add('dms', id, { msg: e.x_dms_message || null });
+        if (e.x_cwz_connected)       vl.add('device', id, {});
+        if (!e.x_tomtom_corroborated && vl.has('tomtom', id)) { e.x_tomtom_corroborated = true; e.x_tomtom_sticky = true; }
+        if (!e.x_dms_corroborated && vl.has('dms', id)) {
+          e.x_dms_corroborated = true; e.x_dms_sticky = true;
+          const m = vl.metaOf('dms', id); if (m && m.msg && !e.x_dms_message) e.x_dms_message = m.msg;
+        }
+        if (!e.x_cwz_connected && vl.has('device', id)) { e.x_cwz_connected = true; e.x_device_sticky = true; }
+      }
+    } catch (_) { /* sticky accumulation optional */ }
     // Elevated = device-verified (connected board) OR camera-verified (a camera saw the zone)
     // OR independently corroborated by TomTom (commercial probe) or a DMS message (operator-posted).
     const connected = (eventsCache.data?.events || []).filter(e => e.x_cwz_connected || e.x_camera_verified || e.x_tomtom_corroborated || e.x_dms_corroborated);
