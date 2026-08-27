@@ -115,8 +115,16 @@ export default function ValidatedClosuresLayer({ visible = false, sources: enabl
         return (
           <Fragment key={`vwz-${f.id || i}`}>
             {line && (
-              <Polyline positions={line}
-                pathOptions={{ color, weight: strong ? 7 : 5, opacity: 0.8 }} />
+              <>
+                {/* highlight: colored glow halo + white casing + solid core so a validated
+                    zone's extent pops on the gray basemap (thicker when multi-source) */}
+                <Polyline positions={line} interactive={false}
+                  pathOptions={{ color, weight: strong ? 16 : 12, opacity: 0.22, lineCap: 'round', lineJoin: 'round' }} />
+                <Polyline positions={line} interactive={false}
+                  pathOptions={{ color: '#ffffff', weight: strong ? 9 : 7, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }} />
+                <Polyline positions={line}
+                  pathOptions={{ color, weight: strong ? 5 : 3.5, opacity: 1, lineCap: 'round', lineJoin: 'round' }} />
+              </>
             )}
             <Marker position={ll} icon={verifiedIcon(sources)}>
               <Tooltip direction="top" offset={[0, -8]} opacity={0.95}>
