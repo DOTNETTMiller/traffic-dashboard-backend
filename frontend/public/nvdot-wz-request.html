@@ -229,7 +229,7 @@ const FIELD_IDS=['route','routeOther','direction','project','description','begin
 // ---- map ----
 const map=L.map('map',{zoomControl:true}).setView([39.5,-116.9],6); // Nevada
 // Esri basemap tiles: no API key, no Referer required (OSM's public tiles 403 when opened from file://).
-const baseStreet=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri'}).addTo(map);
+const baseStreet=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri',crossOrigin:true,errorTileUrl:'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='}).addTo(map);
 const baseSat=L.layerGroup([
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri'}),
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19})
@@ -246,6 +246,14 @@ function offsetPolyline(route,m){if(!route||route.length<2)return null;const out
     const ex=(b[1]-a[1])*111320*cos,ny=(b[0]-a[0])*110540,len=Math.hypot(ex,ny)||1,tx=ex/len,ty=ny/len;
     out.push([lat+(tx*m)/110540, lng+(-ty*m)/(111320*cos)]);}
   return out;}
+// Route ALONG the opposing carriageway: project endpoints across the median, OSRM between them,
+// keep the non-wrapping order (follows the real road, unlike a static offset).
+async function oppositeRoad(offM){if(!(wzRoute&&wzRoute.length>=2&&beginPt&&endPt))return null;
+  const o=offsetPolyline([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],offM);if(!o)return null;
+  const A2=o[0],B2=o[1],fwdMi=miles(beginPt,endPt);let best=null,bestMi=Infinity;
+  for(const pr of [[B2,A2],[A2,B2]]){try{const r=await osrmRoute([[pr[0][1],pr[0][0]],[pr[1][1],pr[1][0]]]);
+    if(r&&r.latlngs&&r.latlngs.length>=2){const mi=r.meters/1609.34;if(mi<bestMi){bestMi=mi;best=r.latlngs;}}}catch(e){}}
+  return (best&&bestMi<=Math.max(fwdMi*1.8,fwdMi+0.5))?best:null;}
 // E/W vs N/S axis from the segment's bearing → the two directions for a both-direction closure.
 function nvAxis(){if(beginPt&&endPt){const b=((bearing(beginPt,endPt))%360+360)%360;const ew=(b>45&&b<135)||(b>225&&b<315);return ew?['E','W']:['N','S'];}
   const n=(String(routeVal()).match(/\d+/)||[])[0];return (n&&parseInt(n,10)%2===0)?['E','W']:['N','S'];}
@@ -277,15 +285,19 @@ async function nvMilepost(pt){ const pad=0.02, bb=[pt.lng-pad,pt.lat-pad,pt.lng+
   catch(e){ return null; } }
 async function snapWZ(){if(!(beginPt&&endPt))return;drawWZLine();const dir=dirLabel(bearing(beginPt,endPt));if(!v('direction'))el('direction').value=dir[0];
   const r=await osrmRoute([[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]]);let mi=miles(beginPt,endPt);if(r){wzRoute=r.latlngs;mi=r.meters/1609.34;}
-  // Both-direction closure: draw the OPPOSITE carriageway as a parallel offset of the marked line.
-  wzRoute2=null;const divided=/^I-/.test(routeVal());
-  if(v('direction')==='Both'&&wzRoute&&wzRoute.length>=2)wzRoute2=offsetPolyline(wzRoute,divided?28:14);
+  // Both-direction closure: route ALONG the opposing carriageway (follows the road); fall back to a
+  // parallel offset if routing wraps/fails.
+  wzRoute2=null;const divided=/^I-/.test(routeVal());let oppSrc='';
+  if(v('direction')==='Both'&&wzRoute&&wzRoute.length>=2){
+    const r=await oppositeRoad(divided?34:18);
+    if(r){wzRoute2=r;oppSrc='road';}else{wzRoute2=offsetPolyline(wzRoute,divided?28:14);oppSrc='approx';}
+  }
   drawWZLine();
   const autoMP=s=>!s||/^MP\s*[\d.]+$/i.test(s); let mpTxt='';
   try{ const [a,b]=await Promise.all([nvMilepost(beginPt),nvMilepost(endPt)]);
     if(a&&autoMP(v('beginLoc')))el('beginLoc').value='MP '+a.mp; if(b&&autoMP(v('endLoc')))el('endLoc').value='MP '+b.mp;
     if(a&&b) mpTxt=' · MP '+Math.min(a.mp,b.mp)+'–'+Math.max(a.mp,b.mp); }catch(e){}
-  const bothTxt=v('direction')==='Both'?(divided?' · <b>both roadbeds (divided)</b>':' · both directions'):'';
+  const bothTxt=v('direction')==='Both'?(oppSrc==='road'?' · <b>both roadbeds (routed)</b>':divided?' · <b>both roadbeds (approx.)</b>':' · both directions'):'';
   el('selinfo').innerHTML='<b>Segment:</b> '+dir+', '+mi.toFixed(1)+' mi (road-following)'+mpTxt+bothTxt+'<br>begin '+beginPt.lat.toFixed(4)+', '+beginPt.lng.toFixed(4)+' → end '+endPt.lat.toFixed(4)+', '+endPt.lng.toFixed(4)+' &nbsp; <a href="'+gmapsRoute()+'" target="_blank" rel="noopener">🗺 map</a>';
   reverseFill(beginPt);saveState();}
 function redraw(){[beginMk,endMk,line,line2].forEach(x=>x&&x.remove());beginMk=endMk=line=line2=null;wzRoute=null;wzRoute2=null;if(beginPt)beginMk=mk(beginPt,'A','#1d4ed8');if(endPt)endMk=mk(endPt,'B','#dc2626');if(beginPt&&endPt)drawWZLine();}

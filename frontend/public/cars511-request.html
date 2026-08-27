@@ -311,7 +311,7 @@
 <script>
 const map = L.map('map').setView([41.85, -93.5], 7);
 // Esri basemap tiles: no API key, no Referer required (OSM's public tiles 403 when opened from file://).
-const baseStreet = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom:19, attribution:'Tiles © Esri' }).addTo(map);
+const baseStreet = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom:19, attribution:'Tiles © Esri', crossOrigin:true, errorTileUrl:'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==' }).addTo(map);
 const baseSat = L.layerGroup([
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom:19, attribution:'Imagery © Esri' }),
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom:19 })   // road labels over the imagery
@@ -342,6 +342,18 @@ function offsetPolyline(route, m){ if(!route||route.length<2) return null; const
 // Iowa route IDs are directional (…080E / …080W, …035N / …035S) — flip the last letter to get
 // the opposite carriageway's route id so we can fetch its REAL surveyed centerline.
 function oppRouteId(id){ const m=String(id||'').match(/^(.*)([NSEW])$/); return m ? m[1]+({N:'S',S:'N',E:'W',W:'E'}[m[2]]) : null; }
+// Route ALONG the opposing carriageway: project the two endpoints across the median (perpendicular
+// offset onto the other roadbed), then OSRM-route between them. Try both orders and keep the one
+// that does NOT wrap (its length stays close to the forward segment) — the legal travel direction.
+// This follows the real road, unlike a static offset, and doesn't loop like reverse-routing the
+// original points. Returns latlngs or null.
+async function oppositeRoad(offM){ if(!(wzRoute&&wzRoute.length>=2&&beginPt&&endPt)) return null;
+  const o=offsetPolyline([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]], offM); if(!o) return null;
+  const A2=o[0], B2=o[1], fwdMi=miles(beginPt,endPt);
+  let best=null, bestMi=Infinity;
+  for(const pr of [[B2,A2],[A2,B2]]){ try{ const r=await osrmRoute([[pr[0][1],pr[0][0]],[pr[1][1],pr[1][0]]]);
+    if(r&&r.latlngs&&r.latlngs.length>=2){ const mi=r.meters/1609.34; if(mi<bestMi){ bestMi=mi; best=r.latlngs; } } }catch(e){} }
+  return (best && bestMi <= Math.max(fwdMi*1.8, fwdMi+0.5)) ? best : null; }
 // Snap a set of [lon,lat] waypoints to the driving road path via OSRM (free, no key).
 async function osrmRoute(lonlat){ try{
   const u='https://router.project-osrm.org/route/v1/driving/'+lonlat.map(c=>c[0]+','+c[1]).join(';')+'?overview=full&geometries=geojson';
@@ -536,18 +548,21 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
   // Both-direction closure: draw the OPPOSITE carriageway. Prefer the REAL surveyed opposite
   // centerline (flip the directional route id) so it follows the true opposing pavement — including
   // where roadbeds split at interchanges; fall back to a parallel offset if that isn't available.
-  wzRoute2=null; let trueOpp=false;
+  wzRoute2=null; let oppSrc='';
   const bothOn=el('bothDir')&&el('bothDir').checked;
   const divided=/^I-/.test(routeVal());
   if(bothOn && wzRoute && wzRoute.length>=2){
-    if(usedIowa && routeId){ const opp=oppRouteId(routeId);
-      if(opp){ try{ const cl=await iowaCenterline(opp,beginPt,endPt); if(cl&&cl.latlngs&&cl.latlngs.length>=2){ wzRoute2=cl.latlngs; trueOpp=true; } }catch(e){} } }
-    if(!wzRoute2) wzRoute2=offsetPolyline(wzRoute, divided?28:14);
+    // 1) authoritative Iowa opposite centerline (whenever a route id is known — even if the forward
+    //    line came from OSRM), 2) route ALONG the opposing carriageway, 3) static parallel offset.
+    if(routeId){ const opp=oppRouteId(routeId);
+      if(opp){ try{ const cl=await iowaCenterline(opp,beginPt,endPt); if(cl&&cl.latlngs&&cl.latlngs.length>=2){ wzRoute2=cl.latlngs; oppSrc='centerline'; } }catch(e){} } }
+    if(!wzRoute2){ const r=await oppositeRoad(divided?34:18); if(r){ wzRoute2=r; oppSrc='road'; } }
+    if(!wzRoute2){ wzRoute2=offsetPolyline(wzRoute, divided?28:14); oppSrc='approx'; }
   }
   if(!beginPt||!endPt)return; drawWZLine();
   const src=usedIowa?'Iowa DOT centerline':'road';
   const mpTxt=(mpA!=null&&mpB!=null)?` · MP ${Math.min(mpA,mpB)}–${Math.max(mpA,mpB)}`:'';
-  const bothTxt=bothOn?(trueOpp?' · <b>both roadbeds (Iowa centerline)</b>':divided?' · <b>both roadbeds (approx.)</b>':' · both directions'):'';
+  const bothTxt=bothOn?(oppSrc==='centerline'?' · <b>both roadbeds (Iowa centerline)</b>':oppSrc==='road'?' · <b>both roadbeds (routed)</b>':divided?' · <b>both roadbeds (approx.)</b>':' · both directions'):'';
   el('selinfo').innerHTML=`<b>Segment:</b> ${dir}, ${mi!=null?mi.toFixed(1):'?'} mi (${src})${mpTxt}${bothTxt}<br>begin ${beginPt.lat.toFixed(4)}, ${beginPt.lng.toFixed(4)} → end ${endPt.lat.toFixed(4)}, ${endPt.lng.toFixed(4)}`+
     ` &nbsp; <a href="${gmapsRoute()}" target="_blank" rel="noopener">🗺 Share route map</a>`;
   saveState(); checkDuplicate(); showLanes(beginPt, routeId); }
