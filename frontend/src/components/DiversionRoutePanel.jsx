@@ -807,9 +807,17 @@ function DiversionRouteMap({ route }) {
         style={{ height: '100%', width: '100%' }}
         attributionControl={false}
       >
+        {/* Esri Canvas light gray — keyless (CARTO now needs an API key). */}
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-          subdomains="abcd"
+          attribution='Tiles &copy; Esri'
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+          maxNativeZoom={16}
+          maxZoom={20}
+        />
+        <TileLayer
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
+          maxNativeZoom={16}
+          maxZoom={20}
         />
         <Polyline
           positions={renderedPolyline}

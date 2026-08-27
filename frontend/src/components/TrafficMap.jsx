@@ -584,14 +584,26 @@ export default function TrafficMap({
         {/* Auto-center map when IPAWS geofence is updated */}
         <IPAWSGeofenceCenterController ipawsGeofence={ipawsGeofence} />
 
-        {/* CartoDB Positron / Dark Matter — Apple-Maps-style minimal cartography */}
+        {/* Esri Canvas light/dark gray — minimal Apple-Maps-style cartography, KEYLESS.
+            (CARTO basemaps now require an API key and render a watermark for anonymous use.)
+            Esri tiles use {z}/{y}/{x} order; base + reference (labels) as two layers. */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          key={isDarkMode ? 'esri-dark-base' : 'esri-light-base'}
+          attribution='Tiles &copy; <a href="https://www.esri.com/">Esri</a>'
           url={isDarkMode
-            ? "https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png"
-            : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            ? "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+            : "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
           }
-          subdomains="abcd"
+          maxNativeZoom={16}
+          maxZoom={20}
+        />
+        <TileLayer
+          key={isDarkMode ? 'esri-dark-ref' : 'esri-light-ref'}
+          url={isDarkMode
+            ? "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
+            : "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
+          }
+          maxNativeZoom={16}
           maxZoom={20}
         />
 
