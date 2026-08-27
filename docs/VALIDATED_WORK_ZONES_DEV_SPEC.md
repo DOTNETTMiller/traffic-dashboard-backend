@@ -154,11 +154,19 @@ Each feature is a WZDx `RoadEventFeature` with CWZ/validation extensions on `pro
     // --- WZDx core (standard) ---
     "core_details": {
       "event_type": "work-zone",
+      "data_source_id": "<source id>",
       "road_names": ["I-80"],
-      "direction": "eastbound",              // westbound | northbound | southbound | ...
-      "description": "...",
-      "name": "<stable work-zone id>"
+      "direction": "eastbound",              // eastbound | westbound | northbound | southbound | unknown
+      "update_date": "2026-08-27T13:20:17Z",
+      "description": "...",                   // present when the source event has one
+      "name": "<stable work-zone id>"        // == feature.id
     },
+
+    // --- WZDx event properties (standard) ---
+    "vehicle_impact": "some-lanes-closed",   // all-lanes-closed | some-lanes-closed | unknown
+    "start_date": "2026-08-26T06:00:00Z",    // from the source event; defaults to update_date
+    "end_date": "2026-08-30T18:00:00Z",      // null when the source gives no end
+    "is_start_position_verified": true,      // a device/camera confirms the zone location
 
     // --- CWZ / validation extensions ---
     "x_verification": ["device","tomtom"],   // which validators corroborated (0..4 entries)
@@ -192,6 +200,11 @@ Each feature is a WZDx `RoadEventFeature` with CWZ/validation extensions on `pro
   }
 }
 ```
+
+> **Optional WZDx fields not currently emitted:** `beginning_cross_street` / `ending_cross_street`,
+> `beginning_milepost` / `ending_milepost`, `types_of_work`, `lanes`, `worker_presence`. These are
+> valid WZDx optionals a consumer may see elsewhere but that this feed does not populate today; treat
+> them as absent, not empty. Extent is carried by `geometry` (LineString when the source provides one).
 
 ### Derivation of `x_verification`
 `x_verification` is the array of source keys whose flag is set, in fixed order:
