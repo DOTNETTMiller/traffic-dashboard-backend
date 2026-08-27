@@ -6388,6 +6388,56 @@ app.get('/api/ia/rams/:layer/query', async (req, res) => {
   }
 });
 
+// ---- Per-state milepost proxy (/api/wz/mileposts) ----
+// Generalizes the Iowa/Nevada route+milepost auto-fill to any state: server-side query of a state's
+// LRS reference-post / mile-marker service (so states whose GIS is NOT CORS-open still work from a
+// file:// builder), returning the nearest posted milepost + route, tenths-interpolated. Add a state
+// by dropping its service into WZ_MP_SOURCES — that's all a new full-parity builder needs for this.
+const WZ_MP_SOURCES = {
+  ia: { url: 'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Reference_Post_View/FeatureServer/0/query',
+        mpField: 'REFERENCE_POST_VALUE', routeField: 'ROUTE_ID', countyField: null, where: '1=1' },
+  nv: { url: 'https://services1.arcgis.com/9Y4hSlLf13E9S0Eo/arcgis/rest/services/MileMarker_CoCumPart2/FeatureServer/0/query',
+        mpField: 'PostedMileage', routeField: 'PostedRoute', countyField: 'PostedCounty', where: 'PostedMileage>0' }
+  // TODO add per corridor state as its LRS/reference-post service is identified: mn, tx, ok, ks, mo,
+  //      ca, ut, wy, ne, il, in, oh, pa, nj  (each: {url, mpField, routeField, countyField?, where?})
+};
+app.get('/api/wz/mileposts', async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  const st = String(req.query.state || '').toLowerCase();
+  const lat = parseFloat(req.query.lat), lon = parseFloat(req.query.lon);
+  const cfg = WZ_MP_SOURCES[st];
+  if (!cfg) return res.json({ available: false, reason: `no milepost source configured for '${st}'` });
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return res.status(400).json({ error: 'lat & lon required' });
+  const pad = 0.03, bb = [lon - pad, lat - pad, lon + pad, lat + pad].join(',');
+  const of = [cfg.mpField, cfg.routeField, cfg.countyField].filter(Boolean).join(',');
+  const url = `${cfg.url}?where=${encodeURIComponent(cfg.where || '1=1')}&geometry=${encodeURIComponent(bb)}`
+    + `&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects`
+    + `&outFields=${encodeURIComponent(of)}&returnGeometry=true&outSR=4326&resultRecordCount=400&f=json`;
+  try {
+    const j = await (await fetch(url, { signal: AbortSignal.timeout(15000) })).json();
+    const feats = (j.features || []).filter(f => f.geometry && f.geometry.x != null && Number.isFinite(parseFloat(f.attributes[cfg.mpField])));
+    if (!feats.length) return res.json({ available: true, mp: null, reason: 'no posts near point' });
+    const k = Math.cos(lat * Math.PI / 180);
+    feats.forEach(f => f._d = Math.hypot((f.geometry.x - lon) * k, (f.geometry.y - lat)));
+    feats.sort((a, b) => a._d - b._d);
+    const near = feats[0], route = near.attributes[cfg.routeField] || null;
+    const county = cfg.countyField ? (near.attributes[cfg.countyField] || null) : null;
+    let mp = parseFloat(near.attributes[cfg.mpField]);
+    // tenths interpolation between the two nearest numeric posts on the same route
+    const other = feats.find(f => f.attributes[cfg.routeField] === route && parseFloat(f.attributes[cfg.mpField]) !== mp);
+    if (other) {
+      const g0 = near.geometry, g1 = other.geometry, mp0 = mp, mp1 = parseFloat(other.attributes[cfg.mpField]);
+      const ax = g0.x * k, ay = g0.y, bx = g1.x * k, by = g1.y, px = lon * k, py = lat, dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1e-12;
+      let t = ((px - ax) * dx + (py - ay) * dy) / l2; t = Math.max(-0.5, Math.min(1.5, t));
+      const val = mp0 + (mp1 - mp0) * t; if (val >= 0) mp = Math.round(val * 10) / 10;
+    }
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json({ available: true, mp, route, county, state: st });
+  } catch (e) {
+    res.status(502).json({ available: false, reason: 'milepost proxy failed: ' + e.message });
+  }
+});
+
 // Endpoint to fetch from a specific state
 app.get('/api/events/:state', async (req, res) => {
   let stateKey = req.params.state.toLowerCase();
