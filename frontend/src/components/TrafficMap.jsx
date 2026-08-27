@@ -470,6 +470,18 @@ export default function TrafficMap({
   // Validated Work Zones: per-source filter + live counts for the legend.
   const [validatedSources, setValidatedSources] = useState({ device: true, camera: true, tomtom: true, dms: true });
   const [validatedCounts, setValidatedCounts] = useState(null);
+  const [tomtomStatus, setTomtomStatus] = useState(null);
+  // TomTom breaker status for the legend chip. Fetched once when the layer opens (no polling);
+  // /api/tomtom/status never triggers a pull, so this is free.
+  useEffect(() => {
+    if (!showValidatedClosures) return;
+    let cancelled = false;
+    fetch(`${config.apiUrl}/api/tomtom/status`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setTomtomStatus(d || null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [showValidatedClosures]);
   // "Show on map" from the device panel: apply the requested source filter when it changes.
   useEffect(() => {
     if (validatedFocus && validatedFocus.sources) setValidatedSources(validatedFocus.sources);
@@ -1373,6 +1385,23 @@ export default function TrafficMap({
               {validatedCounts && <span style={{ color: '#94a3b8', marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{validatedCounts[k] || 0}</span>}
             </label>
           ))}
+          {tomtomStatus && tomtomStatus.status && tomtomStatus.status !== 'ok' && (
+            <div style={{
+              marginTop: '6px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px',
+              color: tomtomStatus.status === 'insufficient-credits' ? '#b91c1c' : '#b45309',
+              background: tomtomStatus.status === 'insufficient-credits' ? '#fef2f2' : '#fffbeb',
+              border: `1px solid ${tomtomStatus.status === 'insufficient-credits' ? '#fecaca' : '#fde68a'}`,
+              borderRadius: '6px', padding: '4px 6px'
+            }}>
+              <span>🚗</span>
+              <span>
+                {tomtomStatus.status === 'insufficient-credits' ? 'TomTom: out of credits'
+                  : tomtomStatus.status === 'rate-limited' ? 'TomTom: rate-limited'
+                  : `TomTom: ${tomtomStatus.status}`}
+                {tomtomStatus.cooldownUntil ? ` · retry ${new Date(tomtomStatus.cooldownUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}
+              </span>
+            </div>
+          )}
           <div style={{ color: '#94a3b8', fontSize: '11px', marginTop: '5px', borderTop: '1px solid #eef2f7', paddingTop: '5px' }}>
             gold border = 2+ sources agree
           </div>

@@ -5059,6 +5059,20 @@ app.get('/api/tomtom/incidents', async (req, res) => {
   res.json(tomtomCache.data || { success: true, count: 0, incidents: [] });
 });
 
+// Lightweight breaker/status — NEVER triggers a pull. Lets the UI show a chip
+// ("out of credits · retry 3:00 PM") without spending a request.
+app.get('/api/tomtom/status', (req, res) => {
+  res.json({
+    configured: !!tomtomApiKey(),
+    status: tomtomStatus,
+    cooldownUntil: tomtomInCooldown() ? new Date(tomtomCooldownUntil).toISOString() : null,
+    corridorCount: tomtomCache.data?.count ?? null,
+    zoneCount: tomtomZoneCache.data?.count ?? null,
+    lastCorridorPull: tomtomCache.timestamp ? new Date(tomtomCache.timestamp).toISOString() : null,
+    lastZonePull: tomtomZoneCache.timestamp ? new Date(tomtomZoneCache.timestamp).toISOString() : null
+  });
+});
+
 // Crash records live in the persistent PostGIS Postgres (alongside the corridor
 // geometry the clip reads), NOT the main `db.db` store. On the production
 // deployment `db.db` resolves to a separate, non-persistent handle that the
