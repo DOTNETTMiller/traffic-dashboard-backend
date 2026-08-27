@@ -19,9 +19,11 @@
 
 const BASE = 'https://api.tomtom.com/traffic/services/5/incidentDetails';
 
-// Self-imposed daily ceiling — comfortably below TomTom's 2,500/day free cap.
-// Override with TOMTOM_DAILY_BUDGET to match a paid credit budget (or lower it to conserve).
-const DAILY_BUDGET = parseInt(process.env.TOMTOM_DAILY_BUDGET, 10) || 2300;
+// Self-imposed daily ceiling. Default 2500 = TomTom's historical free daily allowance (use it
+// fully). Override with TOMTOM_DAILY_BUDGET to match a PAID credit budget — set it explicitly if
+// you add a payment method so this stays a real spend guardrail (a high cap + paid credits bills).
+// NOTE: this cap is not what causes an "InsufficientFunds" 403 — that is TomTom's own credit balance.
+const DAILY_BUDGET = parseInt(process.env.TOMTOM_DAILY_BUDGET, 10) || 2500;
 
 // Response fields we ask for (smaller payloads + only what we use).
 const FIELDS =
