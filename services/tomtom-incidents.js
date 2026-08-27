@@ -20,7 +20,8 @@
 const BASE = 'https://api.tomtom.com/traffic/services/5/incidentDetails';
 
 // Self-imposed daily ceiling — comfortably below TomTom's 2,500/day free cap.
-const DAILY_BUDGET = 2300;
+// Override with TOMTOM_DAILY_BUDGET to match a paid credit budget (or lower it to conserve).
+const DAILY_BUDGET = parseInt(process.env.TOMTOM_DAILY_BUDGET, 10) || 2300;
 
 // Response fields we ask for (smaller payloads + only what we use).
 const FIELDS =

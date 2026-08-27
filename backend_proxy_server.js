@@ -4923,7 +4923,12 @@ function getCorridorLine(corridor) {
 // (no per-user cost, no Railway egress hit); free tier + hard budget in the
 // service module means it cannot bill.
 const tomtomIncidents = require('./services/tomtom-incidents');
-let tomtomCache = { data: null, timestamp: null, ttl: 45 * 60 * 1000, isRefreshing: false };
+// TTLs are env-tunable so cadence can be dialed to the TomTom credit budget without a redeploy
+// of code. Longer TTL = fewer pulls = fewer credits. Sticky accumulation (validation-ledger)
+// means past validations persist between pulls, so a longer cadence loses no coverage.
+const TOMTOM_CORRIDOR_TTL_MS = (parseInt(process.env.TOMTOM_CORRIDOR_TTL_MIN, 10) || 45) * 60 * 1000;
+const TOMTOM_ZONE_TTL_MS = (parseFloat(process.env.TOMTOM_ZONE_TTL_HOURS) || 3) * 60 * 60 * 1000;
+let tomtomCache = { data: null, timestamp: null, ttl: TOMTOM_CORRIDOR_TTL_MS, isRefreshing: false };
 
 // TomTom keys are 32 alphanumeric chars; strip any stray paste artifacts
 // (whitespace, zero-width/non-breaking chars) that would cause a 401.
@@ -5004,7 +5009,7 @@ async function refreshTomTomIncidents() {
 // coverage follows the zones across all states while staying well under the daily
 // request budget. Longer TTL (work zones are stable over hours); background-refresh
 // only — never blocks the /api/cwz/events response.
-let tomtomZoneCache = { data: null, timestamp: null, ttl: 3 * 60 * 60 * 1000, isRefreshing: false };
+let tomtomZoneCache = { data: null, timestamp: null, ttl: TOMTOM_ZONE_TTL_MS, isRefreshing: false };
 async function refreshTomTomForZones(points) {
   if (tomtomZoneCache.isRefreshing) return tomtomZoneCache.data;
   if (tomtomInCooldown()) return tomtomZoneCache.data;   // out of credits / rate-limited → don't hammer
