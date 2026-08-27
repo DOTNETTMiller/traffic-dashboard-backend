@@ -48,17 +48,26 @@ When a source corroborates a zone, its evidence is attached to `properties`:
 
 ---
 
-## 3. API
+## 3. API reference
 
-Base URL (production): `https://corridor-communication-dashboard-production.up.railway.app`
-All endpoints are CORS-open (`Access-Control-Allow-Origin: *`), read-only, no auth.
+**Base URL (production):** `https://corridor-communication-dashboard-production.up.railway.app`
+All endpoints: `GET`, read-only, **no auth**, **CORS-open** (`Access-Control-Allow-Origin: *`),
+`Content-Type: application/json`. Responses are cached server-side; clients need not poll.
 
-### 3.1 `GET /api/cwz/events` — the Validated Work Zones feed
+| Endpoint | Purpose | Cost |
+|---|---|---|
+| `GET /api/cwz/events` | The Validated Work Zones feed (elevated zones only) | free (cached) |
+| `GET /api/cwz/devices` | Connected-device feed (hardware ↔ zone) | free (cached) |
+| `GET /api/tomtom/status` | TomTom validator health / breaker state | free (no pull) |
+| `GET /api/tomtom/incidents` | Raw TomTom corridor incidents (nav-side layer) | may spend credits |
+| `GET /api/events/{state}` | Raw per-state WZDx ingest (pre-validation) | free (cached) |
 
-Returns a WZDx v4.2 `FeatureCollection` containing **only elevated zones** — every feature has at
-least one validator set. Response is cached; `feed_info.update_frequency` = 300 s.
+### 3.1 `GET /api/cwz/events` — Validated Work Zones feed
 
-```
+WZDx v4.2 `FeatureCollection` containing **only elevated zones** (every feature has
+`x_verification.length ≥ 1`). No query parameters. Cached; `feed_info.update_frequency` = 300 s.
+
+```jsonc
 200 OK · application/json
 {
   "feed_info": {
@@ -71,26 +80,64 @@ least one validator set. Response is cached; `feed_info.update_frequency` = 300 
     "data_sources": [ { "data_source_id": "...", "organization_name": "CCAI (multi-state)" } ]
   },
   "type": "FeatureCollection",
-  "features": [ RoadEventFeature, ... ]
+  "features": [ /* RoadEventFeature — full schema in §4 */ ]
 }
 ```
+`curl -s $BASE/api/cwz/events | jq '.features | length'`
 
 ### 3.2 `GET /api/cwz/devices` — connected-device feed
 
-Companion CWZ 1.0 device `FeatureCollection`: the connected field devices and the
-`road_event_ids` they are matched to. Use to resolve `device`-validated zones to their hardware.
+Companion CWZ 1.0 device `FeatureCollection`: each connected field device and the
+`road_event_ids` it is matched to. Use to resolve a `device`-validated zone to the specific
+hardware (arrow board / DMS / sensor) that confirmed it.
 
-### 3.3 `GET /api/tomtom/status` — validator health (no cost)
+### 3.3 `GET /api/tomtom/status` — validator health (never spends credits)
 
-Reports the TomTom validator's circuit-breaker state without triggering a pull. Useful for
-consumers that want to know whether the `tomtom` signal is currently live.
+Reports the TomTom validator's circuit-breaker state without triggering a pull.
 
+```jsonc
+200 OK
+{
+  "configured": true,                          // TomTom key present
+  "status": "ok" | "insufficient-credits" | "rate-limited",
+  "cooldownUntil": "2026-08-27T19:00:00Z" | null,   // when the breaker next retries
+  "corridorCount": 42,                         // incidents in last corridor pull
+  "zoneCount": 130,                            // incidents in last nationwide-zone pull
+  "lastCorridorPull": "2026-08-27T13:20:17Z",
+  "lastZonePull":     "2026-08-27T11:00:00Z"
+}
 ```
-{ "configured": true, "status": "ok" | "insufficient-credits" | "rate-limited",
-  "cooldownUntil": "2026-08-27T19:00:00Z" | null,
-  "corridorCount": 42, "zoneCount": 130,
-  "lastCorridorPull": "...", "lastZonePull": "..." }
+
+### 3.4 `GET /api/tomtom/incidents` — raw corridor incidents (nav-side layer)
+
+The un-matched TomTom incident set for the corridor (the "what commercial nav sees" layer, distinct
+from the zone-corroboration path). **May spend TomTom credits** on a cold/stale cache.
+
+| Query param | Effect |
+|---|---|
+| *(none)* | serve cached; refresh in background if stale |
+| `?refresh=1` | force a synchronous refresh, then return |
+| `?debug=1` | fetch one tile and return raw HTTP status + key length (no secrets) — diagnostics |
+
+```jsonc
+200 OK
+{ "success": true, "timestamp": "...", "count": 42, "incidents": [ /* normalized */ ],
+  "rawCount": 193, "tiles": 90, "requests": 90, "budgetLeft": 1990, "stopped": false,
+  "status": "ok", "cooldownUntil": null }
 ```
+Each normalized incident: `{ id, source:"tomtom", eventType, category, categoryCode, description,
+latitude, longitude, geometry, from, to, roadNumbers[], startTime, endTime, delaySeconds,
+lengthMeters, severity, probability, numberOfReports, lastReportTime }`.
+
+### 3.5 `GET /api/events/{state}` — raw per-state WZDx ingest
+
+The pre-validation WZDx events for one state (`{state}` = 2-letter key, e.g. `ia`, `mn`, `ca`). This
+is the *input* to validation — use it to see the full DOT-reported set before elevation. Returns the
+state's WZDx feed shape.
+
+> **Note:** `4xx`/`503` from `/api/tomtom/*` means the TomTom source is unconfigured or in cooldown
+> (see `status`), **not** that the Validated feed is down — `/api/cwz/events` is independent and keeps
+> serving whatever validators are live.
 
 ---
 
@@ -225,6 +272,50 @@ elevated feed even while the source WZDx feed still lists it. This is the platfo
   device/responder-broadcast signal class — gated behind a partner agreement.
 
 ---
+
+## Appendix A — Upstream APIs behind each validator
+
+The platform is an aggregation/validation layer. For provenance and auditability, here are the
+external APIs each part draws on. iNODE consumers never call these directly — they are documented so
+the evidence chain is transparent.
+
+| Layer | Upstream API | Notes |
+|---|---|---|
+| **Base ingest** | State DOT **WZDx v4.x** GeoJSON feeds | The DOT-reported work zones being validated |
+| **`device`** | State device feeds (e.g. Iowa `DMS_View`, RSU/arrow-board feeds) via `device-adapters` | Auto-matched to zones by the device↔work-zone matcher |
+| **`camera`** | State **traffic-camera** still-image endpoints via `camera-adapters` **+** a vision model API — **Anthropic Claude vision** (default) or **OpenAI GPT-4o-mini** | One inference per snapshot; gated, cached, cost-capped |
+| **`tomtom`** | **TomTom Traffic Incidents API v5** — `api.tomtom.com/traffic/services/5/incidentDetails` | Credit-metered; bbox tiles ≤ 10,000 km²; circuit-breaker + daily budget |
+| **`dms`** | State **DMS message** feeds (e.g. Iowa `DMS_View` ArcGIS FeatureServer, CORS-open) via `device-adapters` | Live sign text; filtered by work-zone phrase + exclusion list |
+| **Geometry/enrichment** | **OSRM** (routing), **US Census/FCC** (county), **NTAD NBI** (bridge clearances) | Used by the request-builder tools; not part of zone elevation |
+
+**Vision provider selection** (`camera`): `VISION_PROVIDER` = `anthropic` \| `openai` \| `yolo`
+(self-hosted detector), with `VISION_MODEL` / `OPENAI_MODEL` / `VISION_YOLO_URL`. Absence of a key →
+the `camera` source is simply unavailable (no cost, no false negatives asserted).
+
+**TomTom operational envelope:** self-imposed daily budget `TOMTOM_DAILY_BUDGET` (default 2300, under
+the free 2,500/day cap); pull cadence `TOMTOM_ZONE_TTL_HOURS` (default 3) and
+`TOMTOM_CORRIDOR_TTL_MIN` (default 45); on `403/402 InsufficientFunds` the breaker backs off 6 h and
+`/api/tomtom/status` reports `insufficient-credits`. Sticky accumulation means validations persist
+through such outages.
+
+## Appendix B — Quick start
+
+```bash
+BASE=https://corridor-communication-dashboard-production.up.railway.app
+
+# 1) Pull the validated feed
+curl -s $BASE/api/cwz/events > vwz.json
+
+# 2) Count multi-source (high-confidence) zones
+jq '[.features[] | select((.properties.x_verification|length) >= 2)] | length' vwz.json
+
+# 3) List each zone: id, road, how it was validated
+jq -r '.features[] | [.id, (.properties.core_details.road_names|join("/")),
+       (.properties.x_verification|join("+"))] | @tsv' vwz.json
+
+# 4) Is the TomTom signal live right now?
+curl -s $BASE/api/tomtom/status | jq '{status, cooldownUntil}'
+```
 
 ## 9. Change log
 
