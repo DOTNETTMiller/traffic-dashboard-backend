@@ -63,7 +63,7 @@ Per-state builder (branded HTML)
   scheme) transforms the Nevada template into a branded builder + inlines libs. **A new full-parity
   state = one `WZ_MP_SOURCES` entry + one `STATES` config.**
 
-## Per-state status (14 of 16 built)
+## Per-state status (16 of 16 built ✅)
 
 | State | Milepost source | Route decode | Cameras | DMS | Logo |
 |---|---|---|---|---|---|
@@ -81,19 +81,24 @@ Per-state builder (branded HTML)
 | Utah | UDOT tenth-mile measures (proxy) | ✓ (ROUTE_ALIAS_COMMON) | ✓ | ✓ | text |
 | Kansas | KDOT reference posts (kanplan.ksdot.gov) | ✗ route manual (opaque RouteID) | — | — | text |
 | Illinois | IDOT IL_MilePost (AGOL) | ✓ interstates (10055→I-55), else manual | — | — | text |
+| Missouri | MoDOT Roads_Routes — ARNOLD/LRS line | ✓ (FULL_NAME "IS 70"→I-70) | — | — | text |
+| Ohio | ODOT Road_Inventory — ARNOLD/LRS line | ✓ (ROUTE_TYPE+NBR "IR 70"→I-70) | — | — | text |
 
-All 14 also carry: NBI bridge clearances (by state code), reduced work-zone speed, both-directions /
+All 16 also carry: NBI bridge clearances (by state code), reduced work-zone speed, both-directions /
 divided two-line drawing, coordinate entry, ADA/mobile, WZDx/email/PDF/DB outputs.
 
-## Remaining 2 — need external inputs (no accessible public point milepost service found)
+## All 16 corridor states built ✅
 
-Probed ArcGIS Online content search (many terms), each DOT's AGOL org, AND each DOT's own
-ArcGIS REST servers folder-by-folder.
+Missouri and Ohio had no *point* mile-marker service, but both publish an **M-enabled ARNOLD/LRS
+centerline** (MoDOT `MO_MoDOT_Roads_Routes`, ODOT `Road_Inventory`). The proxy's `cfg.line` path
+derives the milepost by projecting the click onto the nearest highway-system centerline and reading
+the interpolated M-value — the "minimally ARNOLD" fallback, usable for any state with an M-enabled
+LRS line even without posted mile-marker points.
 
-| State | Blocker | Path to finish |
-|---|---|---|
-| Missouri | no public point milepost service on AGOL; MoDOT ArcGIS host not reachable | MoDOT-provided service URL |
-| Ohio | ODOT TIMS server pings but exposes no milepost/reference service via REST; none on ODOT AGOL orgs | ODOT (Ohio) service URL |
+**Milepost-source accuracy note:** the all-roads datasets (UT, WY, NE, NJ, CA + the two LRS-line
+states MO/OH) resolve the interstate correctly when the click is on it; near a parallel highway the
+nearest-feature pick can grab that route — the milepost/route fields are editable. Interstate-focused
+or point sources (PA, TX, MN, IA, IN, IL, KS, OK) don't have this nuance.
 
 For these, the tool still works with a **manual route dropdown** (all universal features function); only
 route/milepost auto-fill awaits a source. National HPMS fallback was evaluated and **rejected** — its
