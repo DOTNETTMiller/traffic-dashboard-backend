@@ -6530,14 +6530,16 @@ app.get('/api/wz/dms', async (req, res) => {
   try {
     const raw = await require('./services/device-adapters').fetchState(st).catch(() => null);
     const list = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.devices) ? raw.devices : null);
-    if (!list) return res.json({ available: false, reason: (raw && raw.skipped) ? `DMS feed gated/unavailable for '${st}'` : `no DMS adapter for '${st}'` });
-    let out = list.filter(d => d && d.deviceType === 'dms')
-      .map(d => ({ id: d.id, route: d.route || d.rawRoute || null, message: (d.mode && d.mode.pattern) || d.message || '',
+    if (!list) return res.json({ available: false, reason: (raw && raw.skipped) ? `device feed gated/unavailable for '${st}'` : `no device adapter for '${st}'` });
+    // CWZ 1.0 is device-centric: include connected DMS AND arrow boards (+ any other field devices).
+    let out = list.filter(d => d && (d.deviceType === 'dms' || d.deviceType === 'arrow-board'))
+      .map(d => ({ id: d.id, deviceType: d.deviceType, route: d.route || d.rawRoute || null,
+                   message: (d.mode && d.mode.pattern) || d.message || '', portable: d.portable ?? null,
                    coordinates: Array.isArray(d.coordinates) ? d.coordinates : (d.lon != null && d.lat != null ? [+d.lon, +d.lat] : null) }))
       .filter(d => Array.isArray(d.coordinates));
     if (b) out = out.filter(d => wzInBbox(d.coordinates[0], d.coordinates[1], b));
     res.set('Cache-Control', 'public, max-age=120');
-    res.json({ available: true, count: out.length, dms: out.slice(0, 300) });
+    res.json({ available: true, count: out.length, dms: out.slice(0, 300) });  // key kept as 'dms' for back-compat; includes arrow boards
   } catch (e) { res.json({ available: false, reason: e.message }); }
 });
 

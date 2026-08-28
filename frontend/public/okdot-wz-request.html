@@ -416,6 +416,9 @@ function toWZDx(){const now=new Date().toISOString();const coords=geometryCoords
     if(v('normalSpeed'))props.x_normal_speed_mph=parseFloat(v('normalSpeed'));
     if(v('detour')==='Yes')props.x_detour=v('addlNotes')||'marked detour';
     if(v('dms'))props.x_dms_request=v('dms');
+    // CWZ 1.0: reference the connected field infrastructure scanned near the zone
+    if(nearCams&&nearCams.length)props.x_cameras=nearCams.map(function(c){return {id:c.id,route:c.route,coordinates:c.coordinates,imageUrl:c.imageUrl};});
+    if(nearDMS&&nearDMS.length)props.x_connected_devices=nearDMS;  // CWZ 1.0: connected DMS + arrow boards near the zone
     return {id:props.core_details.name,type:'Feature',properties:props,geometry:{type:'LineString',coordinates:geom}};};
   let features=[];
   if(coords){
@@ -427,7 +430,7 @@ function toWZDx(){const now=new Date().toISOString();const coords=geometryCoords
     else{const dir={N:'northbound',S:'southbound',E:'eastbound',W:'westbound'}[v('direction')]||'unknown';
       features=[mkFeature(dir,coords,'')];}
   }
-  return {feed_info:{update_date:now,version:'4.2',data_sources:[{data_source_id:'okdot-wz-builder',organization_name:'Oklahoma DOT (field builder)'}]},type:'FeatureCollection',features};}
+  return {feed_info:{update_date:now,version:'4.2',x_cwz_profile:'CWZ 1.0',x_dataset_tier:'field-request',update_frequency:0,data_sources:[{data_source_id:'okdot-wz-builder',organization_name:'Oklahoma DOT (field builder)'}]},type:'FeatureCollection',features};}
 function downloadWZDx(){if(!(beginPt&&endPt)){toast('Mark a segment first');return;}const blob=new Blob([JSON.stringify(toWZDx(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='okdot_wzdx_'+(routeVal()||'route').replace(/\W+/g,'')+'.geojson';a.click();toast('WZDx feature exported');}
 
 function emailAgency(){const _m=missingFields();if(_m.length){checkReadiness();if(!confirm(_m.length+' required field(s) missing:\n'+_m.join(', ')+'\n\nEmail anyway?'))return;}
@@ -460,9 +463,10 @@ async function scanCamsDMS(){ if(!beginPt&&!endPt){toast('Mark a segment first')
       fetch(CORRIDOR_PROXY+'/api/wz/dms?state='+WZ_STATE+'&bbox='+bb).then(r=>r.json()).catch(()=>({}))]);
     nearCams=(cj&&cj.cameras)||[]; nearDMS=(dj&&dj.dms)||[];
     if(nearCams.length) camLayer=L.layerGroup(nearCams.map(c=>L.circleMarker([c.coordinates[1],c.coordinates[0]],{radius:5,color:'#0891b2',weight:2,fillColor:'#fff',fillOpacity:1}).bindPopup('<b>Camera</b> '+(c.route||'')+(c.imageUrl?'<br><img src="'+c.imageUrl+'" style="width:210px;max-width:100%">':'')))).addTo(map);
-    if(nearDMS.length) dmsLayer=L.layerGroup(nearDMS.map(d=>L.circleMarker([d.coordinates[1],d.coordinates[0]],{radius:5,color:'#7c3aed',weight:2,fillColor:'#fff',fillOpacity:1}).bindPopup('<b>DMS</b> '+(d.route||'')+'<br>'+(d.message||'')))).addTo(map);
+    if(nearDMS.length) dmsLayer=L.layerGroup(nearDMS.map(function(d){var ab=d.deviceType==='arrow-board';return L.circleMarker([d.coordinates[1],d.coordinates[0]],{radius:5,color:ab?'#d97706':'#7c3aed',weight:2,fillColor:'#fff',fillOpacity:1}).bindPopup('<b>'+(ab?'Arrow board':'DMS')+'</b> '+(d.route||'')+(d.message?'<br>'+d.message:''));})).addTo(map);
     const cm=nearCams.length?nearCams.length+' camera(s)':((cj&&cj.available===false)?'cameras: none for this state':'0 cameras');
-    const dm=nearDMS.length?nearDMS.length+' DMS':((dj&&dj.available===false)?'DMS: none for this state':'0 DMS');
+    var nAB=nearDMS.filter(function(d){return d.deviceType==='arrow-board';}).length, nSign=nearDMS.length-nAB;
+    const dm=nearDMS.length?(nSign+' DMS'+(nAB?' + '+nAB+' arrow board(s)':'')):((dj&&dj.available===false)?'devices: none for this state':'0 devices');
     box.innerHTML='📷 '+cm+' &nbsp;·&nbsp; 🔶 '+dm+' near the zone (tap markers for detail).'; saveState();
   }catch(e){ box.textContent='Scan failed: '+e.message; } }
 function requestPayload(){const o={};FIELD_IDS.forEach(id=>{if(el(id))o[id]=v(id);});o.route=routeVal();o.segment=(beginPt&&endPt)?{begin:[beginPt.lng,beginPt.lat],end:[endPt.lng,endPt.lat],miles:+miles(beginPt,endPt).toFixed(2)}:null;o.cameras=nearCams;o.dms=nearDMS;
