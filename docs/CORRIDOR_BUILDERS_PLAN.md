@@ -50,23 +50,53 @@ Per-state builder (branded HTML)
 - **Per-state config** — `{ stateCode, routes[], brand{}, submitEmail, hasCorsMileposts }` drives a **template**; each state is generated + branded from it.
 - **Submission** — WZDx feature / email / summary PDF / database (Iowa's official 511 PDF is unique to Iowa; other states use WZDx/email/PDF).
 
-## Phased roadmap
+## Architecture as built
 
-1. **Phase 1 (in progress):** add the shared `/api/wz/{events,cameras,dms,mileposts}` endpoints to the backend (thin wrappers over existing adapters/caches; CORS already global) + deploy. Build **Minnesota** end-to-end against them as the parity proof (MN: NBI state 27 ✓, events + cameras ingested ✓, mileposts via proxy since MnDOT GIS isn't CORS-open).
-2. **Phase 2:** parameterize the proven Minnesota build into a **template + per-state config**; generate the remaining I-35 states (TX, OK, KS, MO) and the I-80 states with strong feeds.
-3. **Phase 3:** fill gaps — states missing camera/DMS feeds, milepost proxying, per-state branding polish.
-4. **Phase 4:** registered WZDx output per state (reuse the DIY-kit generators) + the validation stack (TomTom/camera/DMS).
+- **Foundation:** `GET /api/wz/mileposts?state=&lat=&lon=` — a per-state milepost proxy backed by the
+  registry `WZ_MP_SOURCES` in `backend_proxy_server.js`. Each state = one entry
+  `{ url, mpField, routeField, nameField?, countyField?, where? }`. Server-side query of the state's
+  LRS/mile-marker service (works even when the state GIS isn't CORS-open), nearest post + tenths
+  interpolation, CORS-open. Companion: `GET /api/wz/cameras` and `GET /api/wz/dms` (state+bbox) over
+  the camera/device adapters.
+- **Generator:** `scratchpad/build-state.js` — one `STATES[key]` config per state (branding, NBI code,
+  route list, map view, official logo, and a `wzRouteFriendly` that decodes that state's route-id
+  scheme) transforms the Nevada template into a branded builder + inlines libs. **A new full-parity
+  state = one `WZ_MP_SOURCES` entry + one `STATES` config.**
 
-## Per-state status
+## Per-state status (10 of 16 built)
 
-| State | Bridges | Events | Cameras | DMS | Mileposts | Tool |
-|---|---|---|---|---|---|---|
-| Iowa | ✓ | ✓ (CORS-open ArcGIS) | ✓ | ✓ | ✓ direct | **shipped (full)** |
-| Nevada | ✓ | via backend | via backend | via backend | ✓ direct (AGOL) | **shipped (baseline+MP)** |
-| Minnesota | ✓ (2,147) | ✓ ingested | ✓ ingested | — | via proxy | Phase 1 proof |
-| TX/OK/KS/MO | ✓ | ✓ ingested | partial | partial | via proxy | Phase 2 |
-| CA/UT/WY/NE/IL/IN/OH/PA/NJ | ✓ | ✓ ingested | partial | partial | via proxy | Phase 2–3 |
+| State | Milepost source | Route decode | Cameras | DMS | Logo |
+|---|---|---|---|---|---|
+| Iowa | RAMS (direct) + RAMS speed | ✓ | ✓ | ✓ | ✓ |
+| Nevada | AGOL mile markers (direct) | ✓ | ✓ | ⚠ gated | ✓ |
+| Minnesota | RAMS reference posts (proxy) | ✓ (01/02/03 sys codes) | ✓ | — | ✓ |
+| Texas | TxDOT mile markers (proxy) | ✓ (IH/US/SH) | ✓ | — | ✓ |
+| Pennsylvania | PennDOT interstate MM (proxy) | ✓ (interstate) | ✓ | ✓ | ✓ |
+| California | Caltrans postmiles (proxy) | ✓ (interstate #s) | ✓ | ✓ | text |
+| Indiana | INDOT reference posts (proxy) | ✓ (post_name I_70_) | — | — | text |
+| New Jersey | NJDOT SRI+MP (proxy) | ✓ (SRI 8-digit) | — | ✓ | text |
+| Nebraska | gis.ne.gov mile markers (proxy) | ✓ (I/US/N sets) | — | — | text |
+| Oklahoma | ODOT mile-marker signs (proxy) | ✗ route manual (opaque codes) | — | ✓ | text |
+
+All 10 also carry: NBI bridge clearances (by state code), reduced work-zone speed, both-directions /
+divided two-line drawing, coordinate entry, ADA/mobile, WZDx/email/PDF/DB outputs.
+
+## Remaining 6 — need external inputs (no clean public point milepost service found)
+
+| State | Blocker | Path to finish |
+|---|---|---|
+| Kansas | KDOT server (`wfs.ksdot.org`) unresponsive to probes | retry / get a working endpoint from KDOT |
+| Missouri | no public point milepost/reference-post service located | MoDOT-provided feed |
+| Utah | none located | UDOT feed (UDOT has LRM data — needs the service URL) |
+| Wyoming | none located | WYDOT feed |
+| Illinois | none located | IDOT feed |
+| Ohio | none located | ODOT (Ohio) feed |
+
+For these, the tool still works with a **manual route dropdown** (all universal features function); only
+route/milepost auto-fill awaits a source. National HPMS fallback was evaluated and **rejected** — its
+feature queries time out (only `returnCountOnly` responds), unusable for live lookups.
 
 ## Open items
-- **WFS for Iowa DOT projects** (offered by the program lead) — wire into the project-# lookup once the endpoint is provided.
-- Confirm the public backend base URL the tools should call for `/api/wz/*`.
+- Configure the **NV device-feed credential** in the backend to un-gate Nevada DMS.
+- Optional: official logos for CA / IN / NJ / OK (not surfaced in ArcGIS search; add if the DOTs provide).
+- **WFS for Iowa DOT projects** — wire into the project-# lookup once the endpoint is provided.
