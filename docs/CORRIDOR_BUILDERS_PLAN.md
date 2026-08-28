@@ -63,7 +63,7 @@ Per-state builder (branded HTML)
   scheme) transforms the Nevada template into a branded builder + inlines libs. **A new full-parity
   state = one `WZ_MP_SOURCES` entry + one `STATES` config.**
 
-## Per-state status (10 of 16 built)
+## Per-state status (12 of 16 built)
 
 | State | Milepost source | Route decode | Cameras | DMS | Logo |
 |---|---|---|---|---|---|
@@ -77,20 +77,22 @@ Per-state builder (branded HTML)
 | New Jersey | NJDOT SRI+MP (proxy) | ✓ (SRI 8-digit) | — | ✓ | text |
 | Nebraska | gis.ne.gov mile markers (proxy) | ✓ (I/US/N sets) | — | — | text |
 | Oklahoma | ODOT mile-marker signs (proxy) | ✗ route manual (opaque codes) | — | ✓ | text |
+| Wyoming | WYDOT mileposts (proxy, multipoint) | ✓ (FULL_NAME "I 80") | — | — | text |
+| Utah | UDOT tenth-mile measures (proxy) | ✓ (ROUTE_ALIAS_COMMON) | ✓ | ✓ | text |
 
-All 10 also carry: NBI bridge clearances (by state code), reduced work-zone speed, both-directions /
+All 12 also carry: NBI bridge clearances (by state code), reduced work-zone speed, both-directions /
 divided two-line drawing, coordinate entry, ADA/mobile, WZDx/email/PDF/DB outputs.
 
-## Remaining 6 — need external inputs (no clean public point milepost service found)
+## Remaining 4 — need external inputs (no accessible public point milepost service found)
+
+Probed both ArcGIS Online content search AND each DOT's own ArcGIS REST servers.
 
 | State | Blocker | Path to finish |
 |---|---|---|
-| Kansas | KDOT server (`wfs.ksdot.org`) unresponsive to probes | retry / get a working endpoint from KDOT |
-| Missouri | no public point milepost/reference-post service located | MoDOT-provided feed |
-| Utah | none located | UDOT feed (UDOT has LRM data — needs the service URL) |
-| Wyoming | none located | WYDOT feed |
-| Illinois | none located | IDOT feed |
-| Ohio | none located | ODOT (Ohio) feed |
+| Kansas | KDOT server (`wfs.ksdot.org`) unresponsive to all probes | working endpoint from KDOT |
+| Missouri | no public point milepost service; MoDOT ArcGIS host not reachable | MoDOT-provided service URL |
+| Illinois | IDOT ArcGIS reachable but no milepost/reference-post service in any folder | IDOT-provided service URL |
+| Ohio | ODOT ArcGIS host not reachable on probed endpoints | ODOT (Ohio) service URL |
 
 For these, the tool still works with a **manual route dropdown** (all universal features function); only
 route/milepost auto-fill awaits a source. National HPMS fallback was evaluated and **rejected** — its
