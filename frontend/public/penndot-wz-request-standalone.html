@@ -1264,6 +1264,8 @@ https://github.com/nodeca/pako/blob/master/LICENSE
         <div><label>Normal speed (mph)</label><input id="normalSpeed" inputmode="numeric" placeholder="reference, e.g. 70" /></div>
         <div><label>Reduced work-zone speed (mph)</label><input id="reducedSpeed" inputmode="numeric" placeholder="e.g. 55" /></div>
       </div>
+      <button onclick="calcTaper()" style="width:100%;margin:2px 0 0">🚧 Taper + advance-warning signs (MUTCD)</button>
+      <div class="box" id="taperBox" style="display:none"></div>
       <label>Restriction timing</label>
       <select id="rTiming"><option>24 hours</option><option>Limited hours</option><option>None</option></select>
       <div class="hint">⚖️ OSOW (oversize/overweight) permit routing: Pennsylvania publishes no public route-restriction layer, so verify restricted routes via PennDOT's permit system (LoIS). If PennDOT exposes an OSOW route layer, this check can be added (see the guide).</div>
@@ -1601,7 +1603,7 @@ function loadCsvProjects(){try{const arr=JSON.parse(localStorage.getItem('penndo
 function routeVal(){const r=v('route');return r==='__other'?(v('routeOther')||'route'):r;}
 function fmtDT(s){return s?new Date(s).toLocaleString():'—';}
 function fields(){const seg=(beginPt&&endPt)?dirLabel(bearing(beginPt,endPt))+', ~'+miles(beginPt,endPt).toFixed(1)+' mi':'(not set)';
-  return [['Route',routeVal()],['Direction',v('direction')],['Segment',seg],['Project #',v('project')],['Description',v('description')],['Begin',v('beginLoc')],['End',v('endLoc')],['County',v('counties')],['Requestor',v('requestor')],['Email',v('email')],['24-hr contact',v('contact24')],['Vehicle impact',v('impact')],['Lanes',laneSummary()],['Width',v('rWidth')],['Height',v('rHeight')],['Weight',v('rWeight')],['Length',v('rLength')],['Normal speed (mph)',v('normalSpeed')],['Reduced work-zone speed (mph)',v('reducedSpeed')],['Restriction timing',v('rTiming')],['Bridge clearance check',clearLabel()],['Marked detour',v('detour')],['Oversize',v('oversize')],['DMS request',v('dms')],['Additional notes',v('addlNotes')],['Submit to',v('tmcEmail')]];}
+  return [['Route',routeVal()],['Direction',v('direction')],['Segment',seg],['Project #',v('project')],['Description',v('description')],['Begin',v('beginLoc')],['End',v('endLoc')],['County',v('counties')],['Requestor',v('requestor')],['Email',v('email')],['24-hr contact',v('contact24')],['Vehicle impact',v('impact')],['Lanes',laneSummary()],['Width',v('rWidth')],['Height',v('rHeight')],['Weight',v('rWeight')],['Length',v('rLength')],['Normal speed (mph)',v('normalSpeed')],['Reduced work-zone speed (mph)',v('reducedSpeed')],['Restriction timing',v('rTiming')],['Scheduled end (expiration)',wzEndLabel()],['Bridge clearance check',clearLabel()],['Marked detour',v('detour')],['Oversize',v('oversize')],['DMS request',v('dms')],['Additional notes',v('addlNotes')],['Submit to',v('tmcEmail')]];}
 function summaryText(){let t='NEVADA DOT — WORK-ZONE REQUEST\n'+'='.repeat(38)+'\n'+fields().map(r=>r[0]+': '+(r[1]||'—')).join('\n');
   if(schedule.length)t+='\n\nSCHEDULE ('+schedule.length+'):\n'+schedule.map(o=>'  • '+o.label).join('\n');
   if(beginPt&&endPt)t+='\n\nROUTE MAP: '+gmapsRoute();if(detourPts.length>=2)t+='\nDETOUR MAP: '+gmapsDetour();
@@ -1614,6 +1616,30 @@ function missingFields(){return REQUIRED.filter(r=>!v(r[0])||(v(r[0])==='__other
 function clearanceRelevant(){const imp=v('impact');return v('oversize')==='Yes'||v('detour')==='Yes'||imp==='all-lanes-closed'||imp==='alternating-one-way'||imp==='all-lanes-open-shift-left'||imp==='all-lanes-open-shift-right';}
 function clearLabel(){const s=v('clearStatus');return s==='checked'?'Checked (scan run)':s==='not-needed'?'Not needed for this work':'Not yet checked';}
 function laneSummary(){if(!laneData.length)return '';return laneData.length+' lanes — '+laneData.map(function(l){return 'L'+l.order+':'+(l.status||'open');}).join(', ');}
+// Work-zone end/expiration derived from Start date + # weeks — sets the WZDx end_date so the zone
+// can't linger stale (a request with no end never expires downstream).
+function wzEndDate(){const start=v('schedStart'),weeks=parseInt(v('schedWeeks')||'0',10);if(!start||!weeks)return null;const e=new Date(start+'T00:00');e.setDate(e.getDate()+weeks*7);return e.toISOString();}
+function wzEndLabel(){const iso=wzEndDate();return iso?new Date(iso).toDateString():'';}
+// ---- MUTCD taper length + advance-warning sign spacing (Tables 6C-1/6C-4) ----
+function calcTaper(){ const box=el('taperBox'); box.style.display='block';
+  let S=parseFloat(v('normalSpeed')); if(!S||S<=0){ const p=prompt('Posted / approach speed (mph)?','55'); S=parseFloat(p); if(!S||S<=0){box.textContent='Enter a posted speed to compute taper.';return;} }
+  const W=12;  // one 12-ft lane of lateral offset (typical lane closure)
+  const Lmerge = S>=45 ? Math.round(W*S) : Math.round(W*S*S/60);          // MUTCD: L=WS (≥45) or WS²/60 (<45)
+  const Lshift=Math.round(Lmerge*0.5), Lshoulder=Math.round(Lmerge/3), Ldown=100; // shifting 0.5L, shoulder ⅓L, downstream ~100 ft/lane
+  let road,A,B,C;                                                          // advance-warning sign spacing (Table 6C-1)
+  if(S>=55){road='Freeway / Expressway';A=1000;B=1500;C=2640;}
+  else if(S>=45){road='Rural';A=500;B=500;C=500;}
+  else if(S>=30){road='Urban ≥30 mph';A=350;B=350;C=350;}
+  else{road='Urban ≤25 mph';A=100;B=100;C=100;}
+  window.__taper={Lmerge,Lshift,Lshoulder,Ldown,A,B,C,S,road};
+  box.innerHTML='<b>🚧 MUTCD TTC</b> — S='+S+' mph, 12-ft offset<br>'
+    +'Merging taper <b>'+Lmerge+' ft</b> · Shifting '+Lshift+' ft · Shoulder '+Lshoulder+' ft · Downstream ~'+Ldown+' ft/lane<br>'
+    +'Advance-warning signs ('+road+'): <b>'+A+' / '+B+' / '+C+' ft</b> (A→B→C from work space)'
+    +'<br><span style="font-size:11px;color:#64748b">Guidance from MUTCD Tables 6C-1/6C-4 — verify against your agency\'s standard drawings.</span>'
+    +'<br><button style="padding:5px 9px;margin-top:6px" onclick="addTaperNote()">Add to notes</button>'; }
+function addTaperNote(){ const t=window.__taper; if(!t)return;
+  const note='TTC (MUTCD, '+t.S+' mph): merging taper '+t.Lmerge+' ft; advance-warning sign spacing '+t.A+'/'+t.B+'/'+t.C+' ft ('+t.road+').';
+  const cur=(v('addlNotes')||'').replace(/(^|\n)TTC \(MUTCD[^\n]*/g,'').trim(); el('addlNotes').value=[cur,note].filter(Boolean).join('\n'); saveState(); toast('Taper + signs added to notes'); }
 function updateClearReminder(){const box=el('clearReminder');if(!box)return;const st=v('clearStatus');
   if(clearanceRelevant()&&st!=='checked'&&st!=='not-needed'){box.style.display='block';box.innerHTML='⚠️ This work type can route traffic onto other structures — <b>run the clearance scan</b> above, or set the check to “Not needed for this work”.';}
   else box.style.display='none';}
@@ -1636,7 +1662,7 @@ function renderLanes(){ const box=el('lanesEditor'); if(!box)return; if(!laneDat
       +'<select style="flex:0 0 96px" aria-label="Lane '+l.order+' type" onchange="setLane('+l.order+',\'type\',this.value)">'
         +LANE_TYPE.map(function(t){return '<option'+(l.type===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select>'
       +'</div>'; }).join(''); }
-function checkReadiness(){const miss=missingFields();if(clearanceRelevant()&&v('clearStatus')!=='checked'&&v('clearStatus')!=='not-needed')miss.push('Bridge clearance — scan it or mark “Not needed for this work”');updateClearReminder();const b=el('readyBox');b.style.display='block';if(!miss.length){b.style.background='#ecfdf5';b.style.borderColor='#a7f3d0';b.style.color='#065f46';b.innerHTML='✓ Ready — all required fields filled.';toast('✓ Ready');return true;}b.style.background='#fff7ed';b.style.borderColor='#fed7aa';b.style.color='#9a3412';b.innerHTML='⚠️ <b>'+miss.length+' required field(s) empty:</b><br>'+miss.map(x=>'• '+x).join('<br>');toast(miss.length+' required missing');return false;}
+function checkReadiness(){const miss=missingFields();if(clearanceRelevant()&&v('clearStatus')!=='checked'&&v('clearStatus')!=='not-needed')miss.push('Bridge clearance — scan it or mark “Not needed for this work”');if(!wzEndDate())miss.push('Scheduled end — set Start date + # weeks (sets the WZDx expiration so the zone can’t linger stale)');updateClearReminder();const b=el('readyBox');b.style.display='block';if(!miss.length){b.style.background='#ecfdf5';b.style.borderColor='#a7f3d0';b.style.color='#065f46';b.innerHTML='✓ Ready — all required fields filled.';toast('✓ Ready');return true;}b.style.background='#fff7ed';b.style.borderColor='#fed7aa';b.style.color='#9a3412';b.innerHTML='⚠️ <b>'+miss.length+' required field(s) empty:</b><br>'+miss.map(x=>'• '+x).join('<br>');toast(miss.length+' required missing');return false;}
 
 // ---- WZDx v4.2 RoadEventFeature ----
 function geometryCoords(){if(wzRoute&&wzRoute.length)return wzRoute.map(c=>[c[1],c[0]]);if(beginPt&&endPt)return[[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]];return null;}
@@ -1648,7 +1674,7 @@ function toWZDx(){const now=new Date().toISOString();const coords=geometryCoords
   if(v('rLength'))restr.push({type:'reduced-length',value:v('rLength')});
   const baseName=v('project')||('PennDOT-'+Date.now().toString(36));
   const mkFeature=(dirName,geom,suffix)=>{const props={core_details:{event_type:'work-zone',data_source_id:'penndot-wz-builder',road_names:[routeVal()].filter(Boolean),direction:dirName,name:baseName+suffix,description:v('description')||undefined,update_date:now},
-    start_date:v('schedStart')||now,end_date:null,vehicle_impact:v('impact')||'unknown',
+    start_date:v('schedStart')||now,end_date:wzEndDate(),x_review_by:wzEndDate()||undefined,vehicle_impact:v('impact')||'unknown',
     beginning_cross_street:v('beginLoc')||undefined,ending_cross_street:v('endLoc')||undefined,
     is_start_position_verified:false,is_end_position_verified:false};
     if(restr.length)props.restrictions=restr.slice();
@@ -1658,6 +1684,7 @@ function toWZDx(){const now=new Date().toISOString();const coords=geometryCoords
     props.x_clearance_check=v('clearStatus')||'pending';  // checked | not-needed | pending — clearance verification state
     props.x_clearance_relevant=clearanceRelevant();
     if(laneData.length)props.lanes=laneData.map(function(l){return {order:l.order,type:l.type||'general',status:l.status||'open'};});  // WZDx v4.2 lanes[]
+    if(window.__taper){props.x_taper_length_ft=window.__taper.Lmerge;props.x_advance_warning_ft=[window.__taper.A,window.__taper.B,window.__taper.C];}  // MUTCD TTC metadata
     if(v('dms'))props.x_dms_request=v('dms');
     // CWZ 1.0: reference the connected field infrastructure scanned near the zone
     if(nearCams&&nearCams.length)props.x_cameras=nearCams.map(function(c){return {id:c.id,route:c.route,coordinates:c.coordinates,imageUrl:c.imageUrl};});
@@ -1754,7 +1781,7 @@ function csvToCams(txt){ const lines=txt.split(/\r?\n/).filter(function(l){retur
   for(let r=1;r<lines.length;r++){ const c=split(lines[r]); const lat=parseFloat(c[iLat]),lon=parseFloat(c[iLon]); if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;
     out.push({id:(iId>=0&&c[iId])||('cam'+out.length), route:(iRoute>=0&&c[iRoute])||'', coordinates:[lon,lat], imageUrl:(iImg>=0&&c[iImg])||'', desc:(iName>=0&&c[iName])||''}); }
   return out; }
-function requestPayload(){const o={};FIELD_IDS.forEach(id=>{if(el(id))o[id]=v(id);});o.route=routeVal();o.segment=(beginPt&&endPt)?{begin:[beginPt.lng,beginPt.lat],end:[endPt.lng,endPt.lat],miles:+miles(beginPt,endPt).toFixed(2)}:null;o.cameras=nearCams;o.dms=nearDMS;o.clearance={status:v('clearStatus')||'pending',relevant:clearanceRelevant()};o.lanes=laneData.map(function(l){return {order:l.order,type:l.type||'general',status:l.status||'open'};});
+function requestPayload(){const o={};FIELD_IDS.forEach(id=>{if(el(id))o[id]=v(id);});o.route=routeVal();o.segment=(beginPt&&endPt)?{begin:[beginPt.lng,beginPt.lat],end:[endPt.lng,endPt.lat],miles:+miles(beginPt,endPt).toFixed(2)}:null;o.cameras=nearCams;o.dms=nearDMS;o.clearance={status:v('clearStatus')||'pending',relevant:clearanceRelevant()};o.lanes=laneData.map(function(l){return {order:l.order,type:l.type||'general',status:l.status||'open'};});o.ttc=window.__taper||null;
   o.both_directions=v('direction')==='Both';if(o.both_directions)o.directions=nvAxis().map(d=>({N:'northbound',S:'southbound',E:'eastbound',W:'westbound'}[d]));
   const g1=geometryCoords();
   o.geometry=(o.both_directions&&wzRoute2&&wzRoute2.length&&g1)?{type:'MultiLineString',coordinates:[g1,wzRoute2.map(c=>[c[1],c[0]])]}:(g1?{type:'LineString',coordinates:g1}:null);
