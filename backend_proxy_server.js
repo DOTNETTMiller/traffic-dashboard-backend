@@ -6422,8 +6422,12 @@ const WZ_MP_SOURCES = {
   ks: { url: 'https://kanplan.ksdot.gov/arcgis_web_adaptor/rest/services/Layers/KDOT_reference_post_markers/MapServer/0/query',
         mpField: 'ReferencePost', routeField: 'RouteID', countyField: null, where: '1=1' },  // kanplan host (wfs.ksdot down); RouteID opaque -> route manual
   il: { url: 'https://services2.arcgis.com/aIrBD8yn1TDTEXoz/arcgis/rest/services/IL_MilePost/FeatureServer/0/query',
-        mpField: 'SIGN_LEGEN', routeField: 'ROUTE_NUMB', countyField: null, where: '1=1' }  // SIGN_LEGEN posted marker; ROUTE_NUMB 10055 -> I-55
-  // Still needing a usable public point-milepost service: mo, oh
+        mpField: 'SIGN_LEGEN', routeField: 'ROUTE_NUMB', countyField: null, where: '1=1' },  // SIGN_LEGEN posted marker; ROUTE_NUMB 10055 -> I-55
+  // ARNOLD/LRS line sources (milepost = M-value at the projected click):
+  mo: { line: true, url: 'https://services2.arcgis.com/kNS2ppBA4rwAQQZy/arcgis/rest/services/MO_MoDOT_Roads_Routes/FeatureServer/0/query',
+        routeField: 'FULL_NAME', where: "DESG IN ('IS','US','MO','RT','LP','BU','SP')" },  // state highway system only; FULL_NAME "IS 70 E"
+  oh: { line: true, url: 'https://services1.arcgis.com/1AlElnGrgBM62OSj/arcgis/rest/services/Road_Inventory/FeatureServer/0/query',
+        routeParts: ['ROUTE_TYPE', 'ROUTE_NBR'], where: "ROUTE_TYPE IN ('IR','US','SR')" }  // state highways only; ROUTE_TYPE+ROUTE_NBR "IR 70"
 };
 app.get('/api/wz/mileposts', async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
@@ -6432,6 +6436,40 @@ app.get('/api/wz/mileposts', async (req, res) => {
   const cfg = WZ_MP_SOURCES[st];
   if (!cfg) return res.json({ available: false, reason: `no milepost source configured for '${st}'` });
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return res.status(400).json({ error: 'lat & lon required' });
+
+  // ---- ARNOLD / LRS line sources (cfg.line): milepost = M-value at the click projected onto the
+  // nearest M-enabled centerline. Used where a state has no point mile-marker service (MO, OH). ----
+  if (cfg.line) {
+    const padL = 0.02, bbL = [lon - padL, lat - padL, lon + padL, lat + padL].join(',');
+    const ofL = [].concat(cfg.routeParts || [cfg.routeField], cfg.countyField || []).filter(Boolean).join(',');
+    const urlL = `${cfg.url}?where=${encodeURIComponent(cfg.where || '1=1')}&geometry=${encodeURIComponent(bbL)}`
+      + `&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects`
+      + `&outFields=${encodeURIComponent(ofL)}&returnGeometry=true&returnM=true&outSR=4326&resultRecordCount=80&f=json`;
+    try {
+      const jl = await (await fetch(urlL, { signal: AbortSignal.timeout(15000) })).json();
+      const k = Math.cos(lat * Math.PI / 180), px = lon * k, py = lat;
+      let best = { d: Infinity, m: null, attr: null };
+      for (const feat of (jl.features || [])) {
+        for (const path of ((feat.geometry && feat.geometry.paths) || [])) {
+          for (let i = 1; i < path.length; i++) {
+            const A = path[i - 1], B = path[i];
+            const ax = A[0] * k, ay = A[1], bx = B[0] * k, by = B[1];
+            const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1e-12;
+            let t = ((px - ax) * dx + (py - ay) * dy) / l2; t = Math.max(0, Math.min(1, t));
+            const fx = ax + t * dx, fy = ay + t * dy, dist = Math.hypot(px - fx, py - fy);
+            if (dist < best.d) { const mA = A[2] ?? 0, mB = B[2] ?? 0; best = { d: dist, m: mA + t * (mB - mA), attr: feat.attributes }; }
+          }
+        }
+      }
+      const distM = best.d * 111320; // deg -> m (approx)
+      if (!best.attr || distM > 500) return res.json({ available: true, mp: null, reason: 'no route near point' });
+      const route = cfg.routeParts ? cfg.routeParts.map(f => best.attr[f]).filter(v => v != null && v !== '').join(' ') : (best.attr[cfg.routeField] || null);
+      const county = cfg.countyField ? (best.attr[cfg.countyField] || null) : null;
+      res.set('Cache-Control', 'public, max-age=300');
+      return res.json({ available: true, mp: Math.round((best.m || 0) * 10) / 10, route, county, state: st });
+    } catch (e) { return res.status(502).json({ available: false, reason: 'milepost (lrs) proxy failed: ' + e.message }); }
+  }
+
   const pad = 0.03, bb = [lon - pad, lat - pad, lon + pad, lat + pad].join(',');
   const of = [cfg.mpField, cfg.routeField, cfg.nameField, cfg.countyField].filter(Boolean).join(',');
   const url = `${cfg.url}?where=${encodeURIComponent(cfg.where || '1=1')}&geometry=${encodeURIComponent(bb)}`
