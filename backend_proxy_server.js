@@ -6361,6 +6361,7 @@ const RAMS_LAYERS = new Set([
   '133', // Project Scoping
   '111', // Structure On and Under (VERTICAL/POSTED/HORIZONTAL_CLEARANCE + per-lane; FFII feet-inches, 9999=open)
   '110', // Structure Control      (VERTICAL_UNDER_CLEARANCE)
+  '78',  // Speed Limit            (ROUTE_ID, FROM/TO_MEASURE, SPEED_LIMIT) — normal-speed reference
 ]);
 // only these ArcGIS query params are forwarded (no returnGeometry tricks, no edits)
 const RAMS_QP = ['where', 'geometry', 'geometryType', 'inSR', 'spatialRel', 'outFields',
