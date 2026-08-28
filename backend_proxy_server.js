@@ -6406,7 +6406,9 @@ const WZ_MP_SOURCES = {
   pa: { url: 'https://gis.penndot.pa.gov/gis/rest/services/opendata/interstatemilemarkers/MapServer/0/query',
         mpField: 'MILE_MARKER', routeField: 'ST_RT_NO', countyField: null, where: '1=1' },  // interstate mile markers only
   ca: { url: 'https://caltrans-gis.dot.ca.gov/arcgis/rest/services/CHhighway/SHN_Postmiles_Tenth/FeatureServer/0/query',
-        mpField: 'PM', routeField: 'PMRouteID', countyField: 'County', where: '1=1' }  // county postmiles (county-relative)
+        mpField: 'PM', routeField: 'PMRouteID', countyField: 'County', where: '1=1' },  // county postmiles (county-relative)
+  in: { url: 'https://gisdata.in.gov/server/rest/services/Hosted/LRSE_Reference_Post/FeatureServer/2/query',
+        mpField: 'measure', routeField: 'route_id', nameField: 'post_name', countyField: null, where: '1=1' }  // post_name I_70_75 -> I-70
   // TODO add per corridor state as its LRS/reference-post service is identified: ok, ks, mo,
   //      ca (postmiles), ut, wy, ne, il, in, oh, nj (SRI+MP)
 
@@ -6419,7 +6421,7 @@ app.get('/api/wz/mileposts', async (req, res) => {
   if (!cfg) return res.json({ available: false, reason: `no milepost source configured for '${st}'` });
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return res.status(400).json({ error: 'lat & lon required' });
   const pad = 0.03, bb = [lon - pad, lat - pad, lon + pad, lat + pad].join(',');
-  const of = [cfg.mpField, cfg.routeField, cfg.countyField].filter(Boolean).join(',');
+  const of = [cfg.mpField, cfg.routeField, cfg.nameField, cfg.countyField].filter(Boolean).join(',');
   const url = `${cfg.url}?where=${encodeURIComponent(cfg.where || '1=1')}&geometry=${encodeURIComponent(bb)}`
     + `&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects`
     + `&outFields=${encodeURIComponent(of)}&returnGeometry=true&outSR=4326&resultRecordCount=400&f=json`;
@@ -6430,7 +6432,9 @@ app.get('/api/wz/mileposts', async (req, res) => {
     const k = Math.cos(lat * Math.PI / 180);
     feats.forEach(f => f._d = Math.hypot((f.geometry.x - lon) * k, (f.geometry.y - lat)));
     feats.sort((a, b) => a._d - b._d);
-    const near = feats[0], route = near.attributes[cfg.routeField] || null;
+    // routeField groups posts for interpolation; nameField (optional) is the human-decodable route
+    // (e.g. Indiana post_name "I_70_75") returned for display when the routeField id is opaque.
+    const near = feats[0], route = (cfg.nameField ? near.attributes[cfg.nameField] : near.attributes[cfg.routeField]) || null;
     const county = cfg.countyField ? (near.attributes[cfg.countyField] || null) : null;
     let mp = parseFloat(near.attributes[cfg.mpField]);
     // tenths interpolation between the two nearest numeric posts on the same route
