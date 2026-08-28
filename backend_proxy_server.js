@@ -6443,6 +6443,40 @@ app.get('/api/wz/mileposts', async (req, res) => {
   }
 });
 
+// ---- Per-state cameras + DMS for the request builders (CORS-open wrappers over the adapters) ----
+function wzBbox(q){ const b=String(q||'').split(',').map(Number); return (b.length===4 && b.every(Number.isFinite)) ? b : null; } // minLon,minLat,maxLon,maxLat
+const wzInBbox=(lon,lat,b)=> lon>=b[0]&&lon<=b[2]&&lat>=b[1]&&lat<=b[3];
+
+app.get('/api/wz/cameras', async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  const st = String(req.query.state || '').toLowerCase(); const b = wzBbox(req.query.bbox);
+  try {
+    const cams = await require('./services/camera-adapters').getCameras();
+    let out = (cams || []).filter(c => c && Array.isArray(c.coordinates));
+    if (st) out = out.filter(c => String(c.state || '').toLowerCase() === st);
+    if (b) out = out.filter(c => wzInBbox(c.coordinates[0], c.coordinates[1], b));
+    res.set('Cache-Control', 'public, max-age=120');
+    res.json({ available: true, count: out.length, cameras: out.slice(0, 300).map(c => ({ id: c.id, route: c.route, coordinates: c.coordinates, imageUrl: c.imageUrl, desc: c.desc })) });
+  } catch (e) { res.status(502).json({ available: false, reason: e.message }); }
+});
+
+app.get('/api/wz/dms', async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  const st = String(req.query.state || '').toLowerCase(); const b = wzBbox(req.query.bbox);
+  try {
+    const raw = await require('./services/device-adapters').fetchState(st).catch(() => null);
+    const list = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.devices) ? raw.devices : null);
+    if (!list) return res.json({ available: false, reason: (raw && raw.skipped) ? `DMS feed gated/unavailable for '${st}'` : `no DMS adapter for '${st}'` });
+    let out = list.filter(d => d && d.deviceType === 'dms')
+      .map(d => ({ id: d.id, route: d.route || d.rawRoute || null, message: (d.mode && d.mode.pattern) || d.message || '',
+                   coordinates: Array.isArray(d.coordinates) ? d.coordinates : (d.lon != null && d.lat != null ? [+d.lon, +d.lat] : null) }))
+      .filter(d => Array.isArray(d.coordinates));
+    if (b) out = out.filter(d => wzInBbox(d.coordinates[0], d.coordinates[1], b));
+    res.set('Cache-Control', 'public, max-age=120');
+    res.json({ available: true, count: out.length, dms: out.slice(0, 300) });
+  } catch (e) { res.json({ available: false, reason: e.message }); }
+});
+
 // Endpoint to fetch from a specific state
 app.get('/api/events/:state', async (req, res) => {
   let stateKey = req.params.state.toLowerCase();

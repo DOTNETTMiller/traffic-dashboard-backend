@@ -1211,6 +1211,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <legend>Step 3 · Restrictions &amp; clearances</legend>
       <button class="primary" style="width:100%;margin-bottom:8px" onclick="scanBridges()">🌉 Scan NBI clearances + weight (route + detour)</button>
       <div class="box" id="nbiBox" style="display:none"></div>
+      <button class="primary" style="width:100%;margin:8px 0 0" onclick="scanCamsDMS()">📷 Scan nearby cameras + DMS</button>
+      <div class="box" id="camdmsBox" style="display:none"></div>
       <div class="row">
         <div><label>Width</label><input id="rWidth" placeholder="e.g. 11 ft" /></div>
         <div><label>Height</label><input id="rHeight" placeholder="e.g. 15 ft 6 in" /></div>
@@ -1306,6 +1308,10 @@ const baseSat=L.layerGroup([
 L.control.layers({'Street':baseStreet,'Satellite':baseSat},{},{position:'topright'}).addTo(map);
 setTimeout(()=>map.invalidateSize(),200); window.addEventListener('resize',()=>map.invalidateSize());
 let mode='begin',beginPt=null,endPt=null,beginMk=null,endMk=null,line=null,wzRoute=null,schedule=[];
+// Corridor backend (CORS-open) for per-state cameras/DMS the state GIS can't serve to file://.
+const CORRIDOR_PROXY='https://corridor-communication-dashboard-production.up.railway.app';
+let WZ_STATE='tx';   // generator overrides per state
+let camLayer=null, dmsLayer=null, nearCams=[], nearDMS=[];
 let wzRoute2=null,line2=null;   // opposite carriageway for a both-direction closure on a divided highway
 // Opposite roadbed runs PARALLEL → draw it as a perpendicular offset of the marked line (left of
 // travel = opposing side in right-hand traffic). Routing end->begin loops out to interchanges ("wraps").
@@ -1512,7 +1518,24 @@ function genPDF(){const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'pt',form
 // ---- database submit ----
 function saveIntegration(){localStorage.setItem('txdot_integration',JSON.stringify({endpoint:v('dbEndpoint'),auth:v('dbAuth')}));}
 function loadIntegration(){try{const s=JSON.parse(localStorage.getItem('txdot_integration')||'{}');if(s.endpoint)el('dbEndpoint').value=s.endpoint;if(s.auth)el('dbAuth').value=s.auth;}catch(e){}}
-function requestPayload(){const o={};FIELD_IDS.forEach(id=>{if(el(id))o[id]=v(id);});o.route=routeVal();o.segment=(beginPt&&endPt)?{begin:[beginPt.lng,beginPt.lat],end:[endPt.lng,endPt.lat],miles:+miles(beginPt,endPt).toFixed(2)}:null;
+// Scan nearby cameras + DMS via the corridor proxy (per-state; state GIS isn't CORS-open).
+async function scanCamsDMS(){ if(!beginPt&&!endPt){toast('Mark a segment first');return;}
+  const box=el('camdmsBox'); box.style.display='block'; box.textContent='Scanning nearby cameras + DMS…';
+  const lats=[beginPt&&beginPt.lat,endPt&&endPt.lat].filter(v=>v!=null), lons=[beginPt&&beginPt.lng,endPt&&endPt.lng].filter(v=>v!=null);
+  const pad=0.05, bb=[Math.min(...lons)-pad,Math.min(...lats)-pad,Math.max(...lons)+pad,Math.max(...lats)+pad].join(',');
+  if(camLayer){camLayer.remove();camLayer=null;} if(dmsLayer){dmsLayer.remove();dmsLayer=null;} nearCams=[]; nearDMS=[];
+  try{
+    const [cj,dj]=await Promise.all([
+      fetch(CORRIDOR_PROXY+'/api/wz/cameras?state='+WZ_STATE+'&bbox='+bb).then(r=>r.json()).catch(()=>({})),
+      fetch(CORRIDOR_PROXY+'/api/wz/dms?state='+WZ_STATE+'&bbox='+bb).then(r=>r.json()).catch(()=>({}))]);
+    nearCams=(cj&&cj.cameras)||[]; nearDMS=(dj&&dj.dms)||[];
+    if(nearCams.length) camLayer=L.layerGroup(nearCams.map(c=>L.circleMarker([c.coordinates[1],c.coordinates[0]],{radius:5,color:'#0891b2',weight:2,fillColor:'#fff',fillOpacity:1}).bindPopup('<b>Camera</b> '+(c.route||'')+(c.imageUrl?'<br><img src="'+c.imageUrl+'" style="width:210px;max-width:100%">':'')))).addTo(map);
+    if(nearDMS.length) dmsLayer=L.layerGroup(nearDMS.map(d=>L.circleMarker([d.coordinates[1],d.coordinates[0]],{radius:5,color:'#7c3aed',weight:2,fillColor:'#fff',fillOpacity:1}).bindPopup('<b>DMS</b> '+(d.route||'')+'<br>'+(d.message||'')))).addTo(map);
+    const cm=nearCams.length?nearCams.length+' camera(s)':((cj&&cj.available===false)?'cameras: none for this state':'0 cameras');
+    const dm=nearDMS.length?nearDMS.length+' DMS':((dj&&dj.available===false)?'DMS: none for this state':'0 DMS');
+    box.innerHTML='📷 '+cm+' &nbsp;·&nbsp; 🔶 '+dm+' near the zone (tap markers for detail).'; saveState();
+  }catch(e){ box.textContent='Scan failed: '+e.message; } }
+function requestPayload(){const o={};FIELD_IDS.forEach(id=>{if(el(id))o[id]=v(id);});o.route=routeVal();o.segment=(beginPt&&endPt)?{begin:[beginPt.lng,beginPt.lat],end:[endPt.lng,endPt.lat],miles:+miles(beginPt,endPt).toFixed(2)}:null;o.cameras=nearCams;o.dms=nearDMS;
   o.both_directions=v('direction')==='Both';if(o.both_directions)o.directions=nvAxis().map(d=>({N:'northbound',S:'southbound',E:'eastbound',W:'westbound'}[d]));
   const g1=geometryCoords();
   o.geometry=(o.both_directions&&wzRoute2&&wzRoute2.length&&g1)?{type:'MultiLineString',coordinates:[g1,wzRoute2.map(c=>[c[1],c[0]])]}:(g1?{type:'LineString',coordinates:g1}:null);
