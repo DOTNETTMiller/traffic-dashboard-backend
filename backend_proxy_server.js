@@ -6414,10 +6414,10 @@ const WZ_MP_SOURCES = {
   ne: { url: 'https://gis.ne.gov/Enterprise/rest/services/Highway_Mile_Markers/FeatureServer/0/query',
         mpField: 'RefPost', routeField: 'RouteID', countyField: null, where: '1=1' },  // official NE state GIS; RouteID 080 -> I-80
   ok: { url: 'https://services6.arcgis.com/RBtoEUQ2lmN0K3GY/arcgis/rest/services/Signs__2021_Mile_Marker_View/FeatureServer/0/query',
-        mpField: 'ASSETCOMMENT', routeField: 'ROUTEID', countyField: 'COUNTY_NAME', where: '1=1' }  // milepost only; ROUTEID opaque (route manual)
-  // TODO add per corridor state as its LRS/reference-post service is identified: ok, ks, mo,
-  //      ca (postmiles), ut, wy, ne, il, in, oh, nj (SRI+MP)
-
+        mpField: 'ASSETCOMMENT', routeField: 'ROUTEID', countyField: 'COUNTY_NAME', where: '1=1' },  // milepost only; ROUTEID opaque (route manual)
+  wy: { url: 'https://services9.arcgis.com/6ukHJ1QHS9lvQoRO/arcgis/rest/services/WYDOT_Roadway_Names_Mileposts_SHP_view/FeatureServer/0/query',
+        mpField: 'MILEPOST', routeField: 'LRS_ROUTE', nameField: 'FULL_NAME', countyField: null, where: '1=1' }  // multipoint; FULL_NAME "I 80" -> I-80
+  // Still needing a usable public point-milepost service: ks (server down), mo, ut (server empty), il, oh
 };
 app.get('/api/wz/mileposts', async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
@@ -6433,21 +6433,26 @@ app.get('/api/wz/mileposts', async (req, res) => {
     + `&outFields=${encodeURIComponent(of)}&returnGeometry=true&outSR=4326&resultRecordCount=400&f=json`;
   try {
     const j = await (await fetch(url, { signal: AbortSignal.timeout(15000) })).json();
-    const feats = (j.features || []).filter(f => f.geometry && f.geometry.x != null && Number.isFinite(parseFloat(f.attributes[cfg.mpField])));
+    // Normalize point OR multipoint geometry (some services, e.g. Wyoming, return multipoint).
+    const gxy = g => { if (!g) return null; if (g.x != null && g.y != null) return [g.x, g.y]; const p = g.points && g.points[0]; return (p && p.length >= 2) ? [p[0], p[1]] : null; };
+    const feats = (j.features || []).map(f => { f._xy = gxy(f.geometry); return f; })
+      .filter(f => f._xy && Number.isFinite(parseFloat(f.attributes[cfg.mpField])));
     if (!feats.length) return res.json({ available: true, mp: null, reason: 'no posts near point' });
     const k = Math.cos(lat * Math.PI / 180);
-    feats.forEach(f => f._d = Math.hypot((f.geometry.x - lon) * k, (f.geometry.y - lat)));
+    feats.forEach(f => f._d = Math.hypot((f._xy[0] - lon) * k, (f._xy[1] - lat)));
     feats.sort((a, b) => a._d - b._d);
     // routeField groups posts for interpolation; nameField (optional) is the human-decodable route
     // (e.g. Indiana post_name "I_70_75") returned for display when the routeField id is opaque.
-    const near = feats[0], route = (cfg.nameField ? near.attributes[cfg.nameField] : near.attributes[cfg.routeField]) || null;
+    const near = feats[0], grpKey = near.attributes[cfg.routeField];
+    const route = (cfg.nameField ? near.attributes[cfg.nameField] : grpKey) || null;
     const county = cfg.countyField ? (near.attributes[cfg.countyField] || null) : null;
     let mp = parseFloat(near.attributes[cfg.mpField]);
-    // tenths interpolation between the two nearest numeric posts on the same route
-    const other = feats.find(f => f.attributes[cfg.routeField] === route && parseFloat(f.attributes[cfg.mpField]) !== mp);
+    // tenths interpolation between the two nearest numeric posts on the same route (group by routeField)
+    const other = feats.find(f => f.attributes[cfg.routeField] === grpKey && parseFloat(f.attributes[cfg.mpField]) !== mp);
     if (other) {
-      const g0 = near.geometry, g1 = other.geometry, mp0 = mp, mp1 = parseFloat(other.attributes[cfg.mpField]);
-      const ax = g0.x * k, ay = g0.y, bx = g1.x * k, by = g1.y, px = lon * k, py = lat, dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1e-12;
+      const ax = near._xy[0] * k, ay = near._xy[1], bx = other._xy[0] * k, by = other._xy[1];
+      const mp0 = mp, mp1 = parseFloat(other.attributes[cfg.mpField]);
+      const px = lon * k, py = lat, dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1e-12;
       let t = ((px - ax) * dx + (py - ay) * dy) / l2; t = Math.max(-0.5, Math.min(1.5, t));
       const val = mp0 + (mp1 - mp0) * t; if (val >= 0) mp = Math.round(val * 10) / 10;
     }
