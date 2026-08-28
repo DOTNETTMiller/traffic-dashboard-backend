@@ -1270,7 +1270,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <div class="actions">
         <button onclick="checkReadiness()">✓ Check readiness</button>
         <button class="primary" onclick="downloadWZDx()">🧩 Export WZDx</button>
-        <button onclick="emailINDOT()">✉️ Email INDOT</button>
+        <button onclick="emailAgency()">✉️ Email INDOT</button>
         <button onclick="genPDF()">📄 Summary PDF</button>
         <button onclick="copySummary()">📋 Copy</button>
       </div>
@@ -1500,7 +1500,7 @@ function toWZDx(){const now=new Date().toISOString();const coords=geometryCoords
   return {feed_info:{update_date:now,version:'4.2',data_sources:[{data_source_id:'indot-wz-builder',organization_name:'Indiana DOT (field builder)'}]},type:'FeatureCollection',features};}
 function downloadWZDx(){if(!(beginPt&&endPt)){toast('Mark a segment first');return;}const blob=new Blob([JSON.stringify(toWZDx(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='indot_wzdx_'+(routeVal()||'route').replace(/\W+/g,'')+'.geojson';a.click();toast('WZDx feature exported');}
 
-function emailINDOT(){const _m=missingFields();if(_m.length){checkReadiness();if(!confirm(_m.length+' required field(s) missing:\n'+_m.join(', ')+'\n\nEmail anyway?'))return;}
+function emailAgency(){const _m=missingFields();if(_m.length){checkReadiness();if(!confirm(_m.length+' required field(s) missing:\n'+_m.join(', ')+'\n\nEmail anyway?'))return;}
   const to=v('tmcEmail');if(!to){toast('Set an INDOT recipient email first');checkReadiness();return;}
   const body=summaryText();if(navigator.clipboard)navigator.clipboard.writeText(body).catch(()=>{});
   const subj='INDOT Work-Zone Request — '+routeVal()+' '+v('direction')+' — '+(v('project')||'work zone');

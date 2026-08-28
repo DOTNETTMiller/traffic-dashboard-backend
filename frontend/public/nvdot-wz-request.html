@@ -205,7 +205,7 @@
       <div class="actions">
         <button onclick="checkReadiness()">✓ Check readiness</button>
         <button class="primary" onclick="downloadWZDx()">🧩 Export WZDx</button>
-        <button onclick="emailNDOT()">✉️ Email NDOT</button>
+        <button onclick="emailAgency()">✉️ Email NDOT</button>
         <button onclick="genPDF()">📄 Summary PDF</button>
         <button onclick="copySummary()">📋 Copy</button>
       </div>
@@ -452,7 +452,7 @@ function toWZDx(){const now=new Date().toISOString();const coords=geometryCoords
   return {feed_info:{update_date:now,version:'4.2',data_sources:[{data_source_id:'ndot-wz-builder',organization_name:'Nevada DOT (field builder)'}]},type:'FeatureCollection',features};}
 function downloadWZDx(){if(!(beginPt&&endPt)){toast('Mark a segment first');return;}const blob=new Blob([JSON.stringify(toWZDx(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ndot_wzdx_'+(routeVal()||'route').replace(/\W+/g,'')+'.geojson';a.click();toast('WZDx feature exported');}
 
-function emailNDOT(){const _m=missingFields();if(_m.length){checkReadiness();if(!confirm(_m.length+' required field(s) missing:\n'+_m.join(', ')+'\n\nEmail anyway?'))return;}
+function emailAgency(){const _m=missingFields();if(_m.length){checkReadiness();if(!confirm(_m.length+' required field(s) missing:\n'+_m.join(', ')+'\n\nEmail anyway?'))return;}
   const to=v('tmcEmail');if(!to){toast('Set an NDOT recipient email first');checkReadiness();return;}
   const body=summaryText();if(navigator.clipboard)navigator.clipboard.writeText(body).catch(()=>{});
   const subj='NDOT Work-Zone Request — '+routeVal()+' '+v('direction')+' — '+(v('project')||'work zone');

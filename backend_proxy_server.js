@@ -6410,7 +6410,11 @@ const WZ_MP_SOURCES = {
   in: { url: 'https://gisdata.in.gov/server/rest/services/Hosted/LRSE_Reference_Post/FeatureServer/2/query',
         mpField: 'measure', routeField: 'route_id', nameField: 'post_name', countyField: null, where: '1=1' },  // post_name I_70_75 -> I-70
   nj: { url: 'https://services.arcgis.com/HggmsDF7UJsNN1FK/arcgis/rest/services/New_Jersey_Standard_Route_Id_And_Milepost/FeatureServer/0/query',
-        mpField: 'MP', routeField: 'SRI', countyField: null, where: '1=1' }  // SRI 00000080 -> I-80
+        mpField: 'MP', routeField: 'SRI', countyField: null, where: '1=1' },  // SRI 00000080 -> I-80
+  ne: { url: 'https://gis.ne.gov/Enterprise/rest/services/Highway_Mile_Markers/FeatureServer/0/query',
+        mpField: 'RefPost', routeField: 'RouteID', countyField: null, where: '1=1' },  // official NE state GIS; RouteID 080 -> I-80
+  ok: { url: 'https://services6.arcgis.com/RBtoEUQ2lmN0K3GY/arcgis/rest/services/Signs__2021_Mile_Marker_View/FeatureServer/0/query',
+        mpField: 'ASSETCOMMENT', routeField: 'ROUTEID', countyField: 'COUNTY_NAME', where: '1=1' }  // milepost only; ROUTEID opaque (route manual)
   // TODO add per corridor state as its LRS/reference-post service is identified: ok, ks, mo,
   //      ca (postmiles), ut, wy, ne, il, in, oh, nj (SRI+MP)
 
