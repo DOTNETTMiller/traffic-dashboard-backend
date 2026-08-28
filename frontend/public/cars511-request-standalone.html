@@ -1649,11 +1649,15 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
   // CORS-open). Take the max nearby value on this route = the mainline limit (ramps read lower).
   if(routeId && !v('normalSpeed')){ try{
     const dS=0.02, envS=[beginPt.lng-dS,beginPt.lat-dS,beginPt.lng+dS,beginPt.lat+dS].join(',');
-    const su='https://corridor-communication-dashboard-production.up.railway.app/api/ia/rams/78/query?where='
-      +encodeURIComponent("ROUTE_ID='"+routeId+"'")+'&geometry='+encodeURIComponent(envS)
-      +'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=SPEED_LIMIT&returnGeometry=false&resultRecordCount=10';
-    const sj=await (await fetch(su)).json();
-    const sp=(sj.features||[]).map(x=>+x.attributes.SPEED_LIMIT).filter(n=>n>0);
+    // Layer-78 ROUTE_IDs are suffixed (e.g. S001910080E5255), so match by PREFIX, not equals; fall
+    // back to the max primary-system (S-prefix) speed nearby. Max = the mainline limit (ramps lower).
+    const base78='https://corridor-communication-dashboard-production.up.railway.app/api/ia/rams/78/query'
+      +'?geometry='+encodeURIComponent(envS)+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'
+      +'&outFields=ROUTE_ID,SPEED_LIMIT&returnGeometry=false&resultRecordCount=40&where=';
+    let sj=await (await fetch(base78+encodeURIComponent("ROUTE_ID LIKE '"+routeId+"%'"))).json();
+    let sp=(sj.features||[]).map(x=>+x.attributes.SPEED_LIMIT).filter(n=>n>0);
+    if(!sp.length){ const fj=await (await fetch(base78+encodeURIComponent("1=1"))).json();
+      sp=(fj.features||[]).filter(x=>/^S/.test(String(x.attributes.ROUTE_ID||''))).map(x=>+x.attributes.SPEED_LIMIT).filter(n=>n>0); }
     if(sp.length){ el('normalSpeed').value=Math.max(...sp); saveState(); }
   }catch(e){ /* speed optional */ } }
   // Precise mileposts: interpolate ALONG the centerline (follows road curves). GUARDED — only override the
