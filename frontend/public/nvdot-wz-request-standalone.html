@@ -1167,6 +1167,10 @@ https://github.com/nodeca/pako/blob/master/LICENSE
         <button id="btnEnd" onclick="setMode('end')">② Set END</button>
         <button id="btnGPS" onclick="useMyLocation()">📍 My location</button>
       </div>
+      <div class="mapbtns" style="margin-top:6px">
+        <button onclick="undoSeg()">↶ Undo point</button>
+        <button onclick="clearSeg()">✕ Clear segment</button>
+      </div>
       <label class="chk"><input type="checkbox" id="autofill" checked /> Auto-fill county from the map (uses internet)</label>
       <details style="margin-top:8px">
         <summary style="cursor:pointer;font-size:12px;color:var(--brand2);font-weight:600">⌨ Enter coordinates instead (keyboard-accessible)</summary>
@@ -1478,6 +1482,20 @@ async function snapWZ(){if(!(beginPt&&endPt))return;drawWZLine();const dir=dirLa
   el('selinfo').innerHTML='<b>Segment:</b> '+dir+', '+mi.toFixed(1)+' mi (road-following)'+mpTxt+bothTxt+'<br>begin '+beginPt.lat.toFixed(4)+', '+beginPt.lng.toFixed(4)+' → end '+endPt.lat.toFixed(4)+', '+endPt.lng.toFixed(4)+' &nbsp; <a href="'+gmapsRoute()+'" target="_blank" rel="noopener">🗺 map</a>';
   reverseFill(beginPt);saveState();}
 function redraw(){[beginMk,endMk,line,line2].forEach(x=>x&&x.remove());beginMk=endMk=line=line2=null;wzRoute=null;wzRoute2=null;if(beginPt)beginMk=mk(beginPt,'A','#1d4ed8');if(endPt)endMk=mk(endPt,'B','#dc2626');if(beginPt&&endPt)drawWZLine();}
+// Undo the last-placed closure point (END, then BEGIN); Clear removes the whole A→B segment.
+function undoSeg(){
+  if(endPt){ endPt=null; if(endMk){endMk.remove();endMk=null;} if(line){line.remove();line=null;} if(line2){line2.remove();line2=null;} wzRoute=null;wzRoute2=null; setMode('end'); }
+  else if(beginPt){ beginPt=null; if(beginMk){beginMk.remove();beginMk=null;} setMode('begin'); }
+  else { toast('Nothing to undo'); return; }
+  el('selinfo').textContent=(beginPt&&!endPt)?'Begin set — click the road for the END point.':'No segment yet — click the road for the begin point, then the end point.';
+  saveState();
+}
+function clearSeg(){
+  [beginMk,endMk,line,line2].forEach(x=>x&&x.remove());
+  beginPt=endPt=beginMk=endMk=line=line2=null; wzRoute=null;wzRoute2=null;
+  el('selinfo').textContent='No segment yet — click the road for the begin point, then the end point.';
+  setMode('begin'); saveState();
+}
 map.on('click',e=>{if(mode==='detour'){detourPts.push(e.latlng);if(v('detour')!=='Yes')el('detour').value='Yes';detourRoute=null;drawDetour();snapDetour();saveState();return;}
   if(mode==='begin'){beginPt=e.latlng;if(beginMk)beginMk.remove();beginMk=mk(e.latlng,'A','#1d4ed8');setMode('end');}
   else{endPt=e.latlng;if(endMk)endMk.remove();endMk=mk(e.latlng,'B','#dc2626');}
