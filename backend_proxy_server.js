@@ -6418,8 +6418,10 @@ const WZ_MP_SOURCES = {
   wy: { url: 'https://services9.arcgis.com/6ukHJ1QHS9lvQoRO/arcgis/rest/services/WYDOT_Roadway_Names_Mileposts_SHP_view/FeatureServer/0/query',
         mpField: 'MILEPOST', routeField: 'LRS_ROUTE', nameField: 'FULL_NAME', countyField: null, where: '1=1' },  // multipoint; FULL_NAME "I 80" -> I-80
   ut: { url: 'https://roads.udot.utah.gov/server/rest/services/Public/Mile_Point_Tenth_Measures_Open_Data/MapServer/0/query',
-        mpField: 'Measure', routeField: 'ROUTE_ID', nameField: 'ROUTE_ALIAS_COMMON', countyField: null, where: '1=1' }  // ROUTE_ALIAS_COMMON already "I-15"
-  // Still needing a usable public point-milepost service: ks (server down), mo, il, oh
+        mpField: 'Measure', routeField: 'ROUTE_ID', nameField: 'ROUTE_ALIAS_COMMON', countyField: null, where: '1=1' },  // ROUTE_ALIAS_COMMON already "I-15"
+  ks: { url: 'https://kanplan.ksdot.gov/arcgis_web_adaptor/rest/services/Layers/KDOT_reference_post_markers/MapServer/0/query',
+        mpField: 'ReferencePost', routeField: 'RouteID', countyField: null, where: '1=1' }  // kanplan host (wfs.ksdot down); RouteID opaque -> route manual
+  // Still needing a usable public point-milepost service: mo, il, oh
 };
 app.get('/api/wz/mileposts', async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
