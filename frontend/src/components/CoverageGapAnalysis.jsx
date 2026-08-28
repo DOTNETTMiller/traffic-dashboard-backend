@@ -546,8 +546,9 @@ const CoverageGapAnalysis = () => {
                 style={{ height: '100%', width: '100%' }}
               >
                 <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+                  attribution='Tiles &copy; <a href="https://www.esri.com/">Esri</a>'
+                  maxZoom={19}
                 />
                 {/* Center marker for corridor */}
                 <Marker position={[40.0, -95.0]}>

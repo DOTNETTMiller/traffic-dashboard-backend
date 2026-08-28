@@ -175,7 +175,8 @@ export default function MiniMapControl({ parentMapRef, isVisible, onToggle }) {
         ref={miniMapRef}
       >
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+          attribution='Tiles &copy; <a href="https://www.esri.com/">Esri</a>'
           opacity={0.5}
         />
 
