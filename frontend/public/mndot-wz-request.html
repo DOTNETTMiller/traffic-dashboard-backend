@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://unpkg.com/shpjs@4.0.4/dist/shp.min.js"></script>
 <style>
   :root{ --brand:#002d62; --brand2:#0053b3; --silver:#a2aaad; --accent:#0053b3; --bg:#eef1f5; --ink:#0f2438; }
   *{box-sizing:border-box}
@@ -141,7 +142,9 @@
       <legend>Step 3 · Restrictions &amp; clearances</legend>
       <button class="primary" style="width:100%;margin-bottom:8px" onclick="scanBridges()">🌉 Scan NBI clearances + weight (route + detour)</button>
       <div class="box" id="nbiBox" style="display:none"></div>
-      <button class="primary" style="width:100%;margin:8px 0 0" onclick="scanCamsDMS()">📷 Scan nearby cameras + DMS</button>
+      <button class="primary" style="width:100%;margin:8px 0 0" onclick="scanCamsDMS()">📷 Scan nearby cameras</button>
+      <label style="display:block;font-size:12px;color:#475569;margin:6px 0 2px">Or load your cameras — GeoJSON, CSV, or zipped shapefile (parsed on this device; nothing uploaded)</label>
+      <input type="file" accept=".geojson,.json,.csv,.zip" onchange="handleCamFile(this)" style="width:100%;font-size:12px" />
       <div class="box" id="camdmsBox" style="display:none"></div>
       <div class="row">
         <div><label>Width</label><input id="rWidth" placeholder="e.g. 11 ft" /></div>
@@ -238,10 +241,17 @@ const baseSat=L.layerGroup([
 L.control.layers({'Street':baseStreet,'Satellite':baseSat},{},{position:'topright'}).addTo(map);
 setTimeout(()=>map.invalidateSize(),200); window.addEventListener('resize',()=>map.invalidateSize());
 let mode='begin',beginPt=null,endPt=null,beginMk=null,endMk=null,line=null,wzRoute=null,schedule=[];
-// Corridor backend (CORS-open) for per-state cameras/DMS the state GIS can't serve to file://.
+// SELF_CONTAINED: the emailable standalone build flips this to true → the tool makes NO calls to our
+// servers at all. Cameras then come only from the state's own GIS (CAM) or a file the user loads; the
+// live DMS/arrow-board auto-scan is hosted-only (it needs live device feeds we can't put in a file).
+const SELF_CONTAINED=false;
+// Corridor backend (CORS-open) — referenced ONLY by the hosted copy, and ONLY for the live DMS scan.
 const CORRIDOR_PROXY='https://corridor-communication-dashboard-production.up.railway.app';
 let WZ_STATE='mn';   // generator overrides per state
-let camLayer=null, dmsLayer=null, nearCams=[], nearDMS=[];
+/* ==CAM_CONFIG_START== */
+const CAM=null;
+/* ==CAM_CONFIG_END== */
+let camLayer=null, dmsLayer=null, nearCams=[], nearDMS=[], userCams=[];
 let wzRoute2=null,line2=null;   // opposite carriageway for a both-direction closure on a divided highway
 // Opposite roadbed runs PARALLEL → draw it as a perpendicular offset of the marked line (left of
 // travel = opposing side in right-hand traffic). Routing end->begin loops out to interchanges ("wraps").
@@ -284,13 +294,59 @@ function offsetPt(lat,lng,dl,meters){const t={N:0,E:90,S:180,W:270},br=t[dl]!=nu
 
 async function osrmRoute(coords){try{const c=coords.map(p=>p[0]+','+p[1]).join(';');const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+c+'?overview=full&geometries=geojson');const j=await r.json();const rt=j.routes&&j.routes[0];if(!rt)return null;return{latlngs:rt.geometry.coordinates.map(c=>[c[1],c[0]]),meters:rt.distance};}catch(e){return null;}}
 function drawWZLine(){if(line){line.remove();line=null;}if(line2){line2.remove();line2=null;}const pts=(wzRoute&&wzRoute.length)?wzRoute:((beginPt&&endPt)?[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]]:null);if(pts)line=L.polyline(pts,{color:'#dc2626',weight:6,opacity:.85}).addTo(map);if(wzRoute2&&wzRoute2.length&&beginPt&&endPt)line2=L.polyline(wzRoute2,{color:'#dc2626',weight:6,opacity:.85}).addTo(map);}
-// MnDOT posted milepost: interpolate PostedMileage between the two nearest mile markers on the same route.
-// Uses the CORS-open MnDOT ArcGIS Online mile-marker layer (MileMarker_CoCumPart2).
-const PROXY='https://corridor-communication-dashboard-production.up.railway.app';
+/* ==MP_CONFIG_START== */
+const MP={"url":"https://webgis.dot.state.mn.us/65agsf1/rest/services/sdw_infra/REFERENCE_POST/FeatureServer/0/query","mpField":"REFERENCE_POST","routeField":"ROUTE_ID","where":"1=1"};
 function wzRouteFriendly(routeId){var s=String(routeId||'');var m=s.match(/^(\d{2})0*(\d+)-[A-Z]$/);if(!m)return null;var sys=m[1],num=parseInt(m[2],10);if(sys==='01')return 'I-'+num;if(sys==='02')return 'US-'+num;if(sys==='03')return 'MN-'+num;return null;}
-async function wzMilepost(pt){ try{
-  const j=await(await fetch(PROXY+'/api/wz/mileposts?state=mn&lat='+pt.lat+'&lon='+pt.lng)).json();
-  if(!j||!j.available||j.mp==null) return null; return {mp:j.mp, route:j.route, county:j.county}; }catch(e){ return null; } }
+/* ==MP_CONFIG_END== */
+// Generic milepost resolver (shared, config-driven). Point sources: nearest posted marker + tenths
+// interpolation between the two nearest posts on the same route. LRS-line sources (MP.line): project
+// the click onto the nearest M-enabled centerline and read the interpolated M-value.
+async function wzMilepost(pt){ if(!MP||!MP.url) return null; const k=Math.cos(pt.lat*Math.PI/180);
+  try{
+    if(MP.line){ const pad=0.02, bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
+      const parts=(MP.routeParts||[MP.routeField]).filter(Boolean);
+      const of=parts.concat(MP.countyField?[MP.countyField]:[]).join(',');
+      const url=MP.url+'?where='+encodeURIComponent(MP.where||'1=1')+'&geometry='+encodeURIComponent(bb)
+        +'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'
+        +'&outFields='+encodeURIComponent(of)+'&returnGeometry=true&returnM=true&outSR=4326&resultRecordCount=80&f=json';
+      const jl=await(await fetch(url)).json(); const px=pt.lng*k, py=pt.lat; let best={d:Infinity,m:null,attr:null};
+      (jl.features||[]).forEach(function(feat){ ((feat.geometry&&feat.geometry.paths)||[]).forEach(function(path){
+        for(let i=1;i<path.length;i++){ const A=path[i-1],B=path[i];
+          const ax=A[0]*k,ay=A[1],bx=B[0]*k,by=B[1],dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy||1e-12;
+          let t=((px-ax)*dx+(py-ay)*dy)/l2; t=Math.max(0,Math.min(1,t));
+          const fx=ax+t*dx,fy=ay+t*dy,dist=Math.hypot(px-fx,py-fy);
+          if(dist<best.d){ const mA=A[2]==null?0:A[2], mB=B[2]==null?0:B[2]; best={d:dist,m:mA+t*(mB-mA),attr:feat.attributes}; } } }); });
+      if(!best.attr || best.d*111320>500) return null;
+      const route=MP.routeParts?MP.routeParts.map(function(f){return best.attr[f];}).filter(function(v){return v!=null&&v!=='';}).join(' '):(best.attr[MP.routeField]||null);
+      const county=MP.countyField?(best.attr[MP.countyField]||null):null;
+      return {mp:Math.round((best.m||0)*10)/10, route:route, county:county}; }
+    const pad=0.03, bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
+    const of=[MP.mpField,MP.routeField,MP.nameField,MP.countyField].filter(Boolean).join(',');
+    const url=MP.url+'?where='+encodeURIComponent(MP.where||'1=1')+'&geometry='+encodeURIComponent(bb)
+      +'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'
+      +'&outFields='+encodeURIComponent(of)+'&returnGeometry=true&outSR=4326&resultRecordCount=400&f=json';
+    const j=await(await fetch(url)).json();
+    const gxy=function(g){ if(!g)return null; if(g.x!=null&&g.y!=null)return [g.x,g.y]; const p=g.points&&g.points[0]; return (p&&p.length>=2)?[p[0],p[1]]:null; };
+    const feats=(j.features||[]).map(function(f){ f._xy=gxy(f.geometry); return f; }).filter(function(f){ return f._xy&&Number.isFinite(parseFloat(f.attributes[MP.mpField])); });
+    if(!feats.length) return null;
+    feats.forEach(function(f){ f._d=Math.hypot((f._xy[0]-pt.lng)*k,(f._xy[1]-pt.lat)); });
+    feats.sort(function(a,b){ return a._d-b._d; });
+    const near=feats[0], grpKey=near.attributes[MP.routeField];
+    const route=(MP.nameField?near.attributes[MP.nameField]:grpKey)||null;
+    const county=MP.countyField?(near.attributes[MP.countyField]||null):null;
+    let mp=parseFloat(near.attributes[MP.mpField]);
+    // Interpolate to tenths using the ADJACENT mile marker (nearest milepost VALUE on the same route),
+    // not the spatially-2nd-nearest — at interchanges a nearby post can belong to a different mile
+    // segment (e.g. where mileposting resets), which would otherwise skew the value wildly.
+    const same=feats.filter(function(f){ return f.attributes[MP.routeField]===grpKey&&parseFloat(f.attributes[MP.mpField])!==mp; })
+      .sort(function(a,b){ return Math.abs(parseFloat(a.attributes[MP.mpField])-mp)-Math.abs(parseFloat(b.attributes[MP.mpField])-mp); });
+    const other=same[0];
+    if(other && Math.abs(parseFloat(other.attributes[MP.mpField])-mp)<=3){
+      const ax=near._xy[0]*k,ay=near._xy[1],bx=other._xy[0]*k,by=other._xy[1],mp0=mp,mp1=parseFloat(other.attributes[MP.mpField]);
+      const px=pt.lng*k,py=pt.lat,dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy||1e-12; let t=((px-ax)*dx+(py-ay)*dy)/l2; t=Math.max(-0.5,Math.min(1.5,t));
+      const val=mp0+(mp1-mp0)*t; if(val>=0)mp=Math.round(val*10)/10; }
+    return {mp:mp, route:route, county:county};
+  }catch(e){ return null; } }
 async function snapWZ(){if(!(beginPt&&endPt))return;drawWZLine();const dir=dirLabel(bearing(beginPt,endPt));if(!v('direction'))el('direction').value=dir[0];
   const r=await osrmRoute([[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]]);let mi=miles(beginPt,endPt);if(r){wzRoute=r.latlngs;mi=r.meters/1609.34;}
   // Both-direction closure: route ALONG the opposing carriageway (follows the road); fall back to a
@@ -452,23 +508,65 @@ function genPDF(){const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'pt',form
 function saveIntegration(){localStorage.setItem('mndot_integration',JSON.stringify({endpoint:v('dbEndpoint'),auth:v('dbAuth')}));}
 function loadIntegration(){try{const s=JSON.parse(localStorage.getItem('mndot_integration')||'{}');if(s.endpoint)el('dbEndpoint').value=s.endpoint;if(s.auth)el('dbAuth').value=s.auth;}catch(e){}}
 // Scan nearby cameras + DMS via the corridor proxy (per-state; state GIS isn't CORS-open).
+// Cameras come from the state's OWN GIS (CAM) or a file the user loads — never from our servers.
+async function loadCamerasFromSource(bb){ if(!CAM||!CAM.url) return [];
+  const url=CAM.url+'?where='+encodeURIComponent(CAM.where||'1=1')+'&geometry='+encodeURIComponent(bb)
+    +'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&outSR=4326&resultRecordCount=300&f=json';
+  try{ const j=await(await fetch(url)).json(); return (j.features||[]).map(function(f){ const a=f.attributes||{}, g=f.geometry||{};
+    let lon=g.x, lat=g.y; if(lon==null&&g.points&&g.points[0]){lon=g.points[0][0];lat=g.points[0][1];}
+    if(lon==null) return null;
+    let img=CAM.imageField?a[CAM.imageField]:''; if(!img&&CAM.imageTemplate&&CAM.idField) img=String(CAM.imageTemplate).replace('{id}',encodeURIComponent(a[CAM.idField]));
+    return {id:(CAM.idField&&a[CAM.idField])||a.OBJECTID||'cam', route:(CAM.routeField&&a[CAM.routeField])||'', coordinates:[lon,lat], imageUrl:img||'', desc:(CAM.nameField&&a[CAM.nameField])||''}; }).filter(Boolean);
+  }catch(e){ return []; } }
+function camsInBbox(list,b){ return (list||[]).filter(function(c){ const x=c.coordinates[0],y=c.coordinates[1]; return x>=b[0]&&x<=b[2]&&y>=b[1]&&y<=b[3]; }); }
+function renderCamsDMS(box){ if(camLayer){camLayer.remove();camLayer=null;}
+  if(nearCams.length) camLayer=L.layerGroup(nearCams.map(c=>L.circleMarker([c.coordinates[1],c.coordinates[0]],{radius:5,color:'#0891b2',weight:2,fillColor:'#fff',fillOpacity:1}).bindPopup('<b>Camera</b> '+(c.route||c.desc||'')+(c.imageUrl?'<br><img src="'+c.imageUrl+'" style="width:210px;max-width:100%" referrerpolicy="no-referrer">':'')))).addTo(map);
+  const cm=nearCams.length?nearCams.length+' camera(s)':(CAM?'0 cameras near the zone':'0 cameras — set CAM or load a camera file');
+  let dm='';
+  if(nearDMS.length){ const nAB=nearDMS.filter(function(d){return d.deviceType==='arrow-board';}).length, nSign=nearDMS.length-nAB; dm=nSign+' DMS'+(nAB?' + '+nAB+' arrow board(s)':''); }
+  box.innerHTML='📷 '+cm+(SELF_CONTAINED?'':' &nbsp;·&nbsp; 🔶 '+(dm||'0 devices'))+' near the zone (tap markers for detail).'; saveState(); }
 async function scanCamsDMS(){ if(!beginPt&&!endPt){toast('Mark a segment first');return;}
-  const box=el('camdmsBox'); box.style.display='block'; box.textContent='Scanning nearby cameras + DMS…';
+  const box=el('camdmsBox'); box.style.display='block'; box.textContent='Loading nearby cameras…';
   const lats=[beginPt&&beginPt.lat,endPt&&endPt.lat].filter(v=>v!=null), lons=[beginPt&&beginPt.lng,endPt&&endPt.lng].filter(v=>v!=null);
-  const pad=0.05, bb=[Math.min(...lons)-pad,Math.min(...lats)-pad,Math.max(...lons)+pad,Math.max(...lats)+pad].join(',');
-  if(camLayer){camLayer.remove();camLayer=null;} if(dmsLayer){dmsLayer.remove();dmsLayer=null;} nearCams=[]; nearDMS=[];
+  const pad=0.05, bbA=[Math.min(...lons)-pad,Math.min(...lats)-pad,Math.max(...lons)+pad,Math.max(...lats)+pad], bb=bbA.join(',');
+  if(dmsLayer){dmsLayer.remove();dmsLayer=null;} nearDMS=[];
   try{
-    const [cj,dj]=await Promise.all([
-      fetch(CORRIDOR_PROXY+'/api/wz/cameras?state='+WZ_STATE+'&bbox='+bb).then(r=>r.json()).catch(()=>({})),
-      fetch(CORRIDOR_PROXY+'/api/wz/dms?state='+WZ_STATE+'&bbox='+bb).then(r=>r.json()).catch(()=>({}))]);
-    nearCams=(cj&&cj.cameras)||[]; nearDMS=(dj&&dj.dms)||[];
-    if(nearCams.length) camLayer=L.layerGroup(nearCams.map(c=>L.circleMarker([c.coordinates[1],c.coordinates[0]],{radius:5,color:'#0891b2',weight:2,fillColor:'#fff',fillOpacity:1}).bindPopup('<b>Camera</b> '+(c.route||'')+(c.imageUrl?'<br><img src="'+c.imageUrl+'" style="width:210px;max-width:100%">':'')))).addTo(map);
-    if(nearDMS.length) dmsLayer=L.layerGroup(nearDMS.map(function(d){var ab=d.deviceType==='arrow-board';return L.circleMarker([d.coordinates[1],d.coordinates[0]],{radius:5,color:ab?'#d97706':'#7c3aed',weight:2,fillColor:'#fff',fillOpacity:1}).bindPopup('<b>'+(ab?'Arrow board':'DMS')+'</b> '+(d.route||'')+(d.message?'<br>'+d.message:''));})).addTo(map);
-    const cm=nearCams.length?nearCams.length+' camera(s)':((cj&&cj.available===false)?'cameras: none for this state':'0 cameras');
-    var nAB=nearDMS.filter(function(d){return d.deviceType==='arrow-board';}).length, nSign=nearDMS.length-nAB;
-    const dm=nearDMS.length?(nSign+' DMS'+(nAB?' + '+nAB+' arrow board(s)':'')):((dj&&dj.available===false)?'devices: none for this state':'0 devices');
-    box.innerHTML='📷 '+cm+' &nbsp;·&nbsp; 🔶 '+dm+' near the zone (tap markers for detail).'; saveState();
+    const src=await loadCamerasFromSource(bb);
+    nearCams=camsInBbox(userCams,bbA).concat(src);
+    // DMS/arrow-board auto-scan is hosted-only (live + portable — can't be state-owned in a file).
+    if(!SELF_CONTAINED){ try{ const dj=await fetch(CORRIDOR_PROXY+'/api/wz/dms?state='+WZ_STATE+'&bbox='+bb).then(r=>r.json()).catch(()=>({}));
+      nearDMS=(dj&&dj.dms)||[];
+      if(nearDMS.length) dmsLayer=L.layerGroup(nearDMS.map(function(d){var ab=d.deviceType==='arrow-board';return L.circleMarker([d.coordinates[1],d.coordinates[0]],{radius:5,color:ab?'#d97706':'#7c3aed',weight:2,fillColor:'#fff',fillOpacity:1}).bindPopup('<b>'+(ab?'Arrow board':'DMS')+'</b> '+(d.route||'')+(d.message?'<br>'+d.message:''));})).addTo(map); }catch(e){} }
+    renderCamsDMS(box);
   }catch(e){ box.textContent='Scan failed: '+e.message; } }
+// Load cameras from a user file — GeoJSON, CSV, or a zipped shapefile (.zip). All parsed locally; nothing uploaded.
+async function handleCamFile(input){ const f=input.files&&input.files[0]; if(!f)return; const box=el('camdmsBox'); box.style.display='block'; box.textContent='Reading '+f.name+'…';
+  try{ const nm=f.name.toLowerCase(); let cams=[];
+    if(nm.endsWith('.zip')){ if(typeof shp==='undefined'){box.textContent='Shapefile support isn’t available in this build — try GeoJSON or CSV.';return;}
+      cams=geojsonToCams(await shp(await f.arrayBuffer())); }
+    else if(nm.endsWith('.csv')){ cams=csvToCams(await f.text()); }
+    else { cams=geojsonToCams(JSON.parse(await f.text())); }
+    const bad=cams.filter(function(c){return Math.abs(c.coordinates[0])>180||Math.abs(c.coordinates[1])>90;}).length;
+    cams=cams.filter(function(c){return Math.abs(c.coordinates[0])<=180&&Math.abs(c.coordinates[1])<=90;});
+    userCams=cams; toast(cams.length+' camera(s) loaded'+(bad?' ('+bad+' skipped)':''));
+    if(beginPt||endPt){ scanCamsDMS(); }
+    else box.innerHTML='📷 '+cams.length+' camera(s) loaded — mark a segment to plot those near the zone.'+(bad?' <span style="color:#b45309">'+bad+' skipped (coordinates out of range — export as WGS84 lat/lon).</span>':''); saveState();
+  }catch(e){ box.textContent='Could not read file: '+e.message; } input.value=''; }
+function pickField(props,cands){ const keys=Object.keys(props||{}); for(const c of cands){ const hit=keys.find(k=>k.toLowerCase()===c); if(hit)return hit; } for(const c of cands){ const hit=keys.find(k=>k.toLowerCase().indexOf(c)>=0); if(hit)return hit; } return null; }
+function geojsonToCams(gj){ const feats=(gj&&gj.type==='FeatureCollection')?gj.features:(gj&&gj.type==='Feature'?[gj]:(Array.isArray(gj)?gj:[])); const out=[];
+  feats.forEach(function(ft){ const g=ft.geometry||ft; if(!g||g.type!=='Point'||!g.coordinates)return; const p=ft.properties||{};
+    const kImg=pickField(p,['imageurl','image_url','image','snapshot','url','videourl','cctvurl']), kName=pickField(p,['name','title','desc','description','location','label']), kRoute=pickField(p,['route','road','highway','rte','roadway']), kId=pickField(p,['id','cameraid','deviceid','objectid']);
+    out.push({id:(kId&&p[kId])||('cam'+out.length), route:(kRoute&&p[kRoute])||'', coordinates:[+g.coordinates[0],+g.coordinates[1]], imageUrl:(kImg&&p[kImg])||'', desc:(kName&&p[kName])||''}); });
+  return out; }
+function csvToCams(txt){ const lines=txt.split(/\r?\n/).filter(function(l){return l.trim();}); if(lines.length<2)return [];
+  const split=function(l){ const o=[]; let cur='',q=false; for(let i=0;i<l.length;i++){const ch=l[i]; if(ch==='"'){ if(q&&l[i+1]==='"'){cur+='"';i++;} else q=!q; } else if(ch===','&&!q){o.push(cur);cur='';} else cur+=ch; } o.push(cur); return o; };
+  const low=split(lines[0]).map(function(s){return s.trim().toLowerCase();});
+  const idx=function(cands){ for(const c of cands){ const i=low.indexOf(c); if(i>=0)return i; } for(const c of cands){ const i=low.findIndex(function(h){return h.indexOf(c)>=0;}); if(i>=0)return i; } return -1; };
+  const iLat=idx(['lat','latitude','y']), iLon=idx(['lon','lng','long','longitude','x']), iImg=idx(['imageurl','image','snapshot','url','videourl']), iName=idx(['name','title','desc','location']), iRoute=idx(['route','road','highway','rte']), iId=idx(['id','cameraid','objectid']);
+  if(iLat<0||iLon<0)return []; const out=[];
+  for(let r=1;r<lines.length;r++){ const c=split(lines[r]); const lat=parseFloat(c[iLat]),lon=parseFloat(c[iLon]); if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;
+    out.push({id:(iId>=0&&c[iId])||('cam'+out.length), route:(iRoute>=0&&c[iRoute])||'', coordinates:[lon,lat], imageUrl:(iImg>=0&&c[iImg])||'', desc:(iName>=0&&c[iName])||''}); }
+  return out; }
 function requestPayload(){const o={};FIELD_IDS.forEach(id=>{if(el(id))o[id]=v(id);});o.route=routeVal();o.segment=(beginPt&&endPt)?{begin:[beginPt.lng,beginPt.lat],end:[endPt.lng,endPt.lat],miles:+miles(beginPt,endPt).toFixed(2)}:null;o.cameras=nearCams;o.dms=nearDMS;
   o.both_directions=v('direction')==='Both';if(o.both_directions)o.directions=nvAxis().map(d=>({N:'northbound',S:'southbound',E:'eastbound',W:'westbound'}[d]));
   const g1=geometryCoords();

@@ -50,6 +50,28 @@ Per-state builder (branded HTML)
 - **Per-state config** — `{ stateCode, routes[], brand{}, submitEmail, hasCorsMileposts }` drives a **template**; each state is generated + branded from it.
 - **Submission** — WZDx feature / email / summary PDF / database (Iowa's official 511 PDF is unique to Iowa; other states use WZDx/email/PDF).
 
+## Self-contained (no dependency on our servers) — updated
+
+The distributed builders now talk **only to original public sources**, never to the Corridor
+Communicator backend:
+
+- **Mileposts → direct to each state's own CORS-open GIS.** All 16 state milepost services were
+  verified CORS-open, so the builder queries them client-side (nearest posted marker + tenths
+  interpolation, or the ARNOLD/LRS-line projection for MO/OH). No proxy, no egress on us. The
+  interpolation uses the **adjacent milepost-value** post (not the spatially-2nd-nearest), so it
+  returns true tenths and isn't skewed by a nearby post from a different mile segment at interchanges.
+- **Cameras → the state's own ArcGIS layer, or a file the user loads.** Each builder has a `CAM`
+  config pointing at the state's public CCTV layer (auto-loads cameras near the zone; thumbnails load
+  live via `<img>`). Where no public layer exists, the user loads their own cameras from a **GeoJSON,
+  CSV, or zipped shapefile** (parsed on-device with `shpjs`, reprojected to WGS84; nothing uploaded).
+  8 states have a qualifying public layer (pre-filled: CA, NE, IL, KS, UT, OH — plus IA/NV reference);
+  the rest use file-load.
+- **DMS / arrow boards → hosted-only.** The live device auto-scan needs feeds that can't live in a
+  file, so it runs only in the copy we host (`SELF_CONTAINED=false`); the emailable standalone omits it.
+
+The `SELF_CONTAINED` flag (flipped true in the standalone build) is what enforces "no calls to our
+servers" in the distributed file.
+
 ## Architecture as built
 
 - **Foundation:** `GET /api/wz/mileposts?state=&lat=&lon=` — a per-state milepost proxy backed by the

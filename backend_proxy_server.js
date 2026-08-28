@@ -6491,9 +6491,13 @@ app.get('/api/wz/mileposts', async (req, res) => {
     const route = (cfg.nameField ? near.attributes[cfg.nameField] : grpKey) || null;
     const county = cfg.countyField ? (near.attributes[cfg.countyField] || null) : null;
     let mp = parseFloat(near.attributes[cfg.mpField]);
-    // tenths interpolation between the two nearest numeric posts on the same route (group by routeField)
-    const other = feats.find(f => f.attributes[cfg.routeField] === grpKey && parseFloat(f.attributes[cfg.mpField]) !== mp);
-    if (other) {
+    // tenths interpolation using the ADJACENT mile marker — the nearest milepost VALUE on the same
+    // route, not the spatially-2nd-nearest. At interchanges a nearby post can belong to a different
+    // mile segment (mileposting resets), which would otherwise skew the interpolated value wildly.
+    const same = feats.filter(f => f.attributes[cfg.routeField] === grpKey && parseFloat(f.attributes[cfg.mpField]) !== mp)
+      .sort((a, b) => Math.abs(parseFloat(a.attributes[cfg.mpField]) - mp) - Math.abs(parseFloat(b.attributes[cfg.mpField]) - mp));
+    const other = same[0];
+    if (other && Math.abs(parseFloat(other.attributes[cfg.mpField]) - mp) <= 3) {
       const ax = near._xy[0] * k, ay = near._xy[1], bx = other._xy[0] * k, by = other._xy[1];
       const mp0 = mp, mp1 = parseFloat(other.attributes[cfg.mpField]);
       const px = lon * k, py = lat, dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1e-12;
