@@ -181,6 +181,7 @@
     <fieldset>
       <legend>Step 5 · Detour &amp; notes</legend>
       <div class="mapbtns">
+        <button onclick="suggestDetour()">✨ Suggest detour</button>
         <button id="btnDetour" onclick="setMode('detour')">✏️ Draw detour</button>
         <button onclick="undoDetour()">↶ Undo</button>
         <button onclick="clearDetour()">✕ Clear</button>
@@ -388,6 +389,27 @@ function drawDetour(){if(detourLine){detourLine.remove();detourLine=null;}detour
 function undoDetour(){detourPts.pop();detourRoute=null;detourMeters=null;drawDetour();snapDetour();saveState();}
 function clearDetour(){detourPts=[];detourRoute=null;detourMeters=null;drawDetour();saveState();}
 async function snapDetour(){if(detourPts.length<2){detourRoute=null;detourMeters=null;drawDetour();return;}const r=await osrmRoute(detourPts.map(p=>[p.lng,p.lat]));detourRoute=r?r.latlngs:null;detourMeters=r?r.meters:null;drawDetour();saveState();}
+// Auto-suggest a detour AROUND the closure: route A→(via)→B through a point offset perpendicular to the
+// closure so the path leaves the closed roadway, then keep the shortest option that actually avoids the
+// closure midpoint. It's a reviewable draft — the user can drag/redraw points afterward.
+async function suggestDetour(){ if(!beginPt||!endPt){toast('Mark the closure (A→B) first');return;}
+  const info=el('detourInfo');info.style.display='block';info.textContent='Suggesting a detour…';
+  const midLat=(beginPt.lat+endPt.lat)/2, midLng=(beginPt.lng+endPt.lng)/2;
+  const perp=(bearing(beginPt,endPt)+90)*Math.PI/180, cosL=Math.cos(midLat*Math.PI/180)||1e-6;
+  let best=null;
+  for(const off of [0.7,1.3,2.0]){ for(const side of [1,-1]){
+    const vlat=midLat+side*Math.cos(perp)*(off/69), vlng=midLng+side*Math.sin(perp)*(off/(69*cosL));
+    let via=null; try{ const nj=await(await fetch('https://router.project-osrm.org/nearest/v1/driving/'+vlng+','+vlat+'?number=1')).json(); if(nj.code==='Ok'&&nj.waypoints&&nj.waypoints[0])via=nj.waypoints[0].location; }catch(e){}
+    if(!via)continue;
+    const r=await osrmRoute([[beginPt.lng,beginPt.lat],via,[endPt.lng,endPt.lat]]);
+    if(!r||!r.latlngs||r.latlngs.length<2)continue;
+    if(minDistToPath({lat:midLat,lng:midLng},r.latlngs)<300)continue;   // still on the closed road → reject
+    if(!best||r.meters<best.meters)best={latlngs:r.latlngs,meters:r.meters};
+  }}
+  if(!best){info.textContent='No automatic detour found — trace it manually with ✏️ Draw detour.';toast('No auto detour — trace manually');return;}
+  detourPts=[beginPt,endPt]; detourRoute=best.latlngs; detourMeters=best.meters;
+  if(v('detour')!=='Yes')el('detour').value='Yes';
+  drawDetour(); saveState(); toast('Suggested detour '+(best.meters/1609.34).toFixed(1)+' mi — review & adjust');}
 
 // ---- NBI bridge clearances (federal NTAD, Utah = state 32) ----
 const M2FT=3.28084;
@@ -407,14 +429,17 @@ async function scanBridges(){if(!beginPt||!endPt){toast('Select a road segment (
   const pad=0.015,bb=[mnLo-pad,mnLa-pad,mxLo+pad,mxLa+pad].join(',');
   const all=await fetchNBInear(bb);const TH=1000,tag=[];
   all.forEach(b=>{const pt={lat:b.latitude,lng:b.longitude};const dR=minDistToPath(pt,routePath),dD=detourPath?minDistToPath(pt,detourPath):Infinity;const onR=dR<=TH,onD=dD<=TH;if(!onR&&!onD)return;tag.push(Object.assign({},b,{on:(onR&&dR<=dD)?'route':'detour'}));});
-  tag.sort((a,b)=>a.clr-b.clr);const routeB=tag.filter(b=>b.on==='route'),detourB=tag.filter(b=>b.on==='detour');window.__nbiNear=routeB;
+  tag.sort((a,b)=>a.clr-b.clr);const routeB=tag.filter(b=>b.on==='route'),detourB=tag.filter(b=>b.on==='detour');window.__nbiNear=routeB;window.__nbiDetour=detourB;
   if(bridgeLayer)bridgeLayer.remove();bridgeLayer=L.layerGroup().addTo(map);
   tag.forEach(b=>{const low=b.clr<15,det=b.on==='detour',bg=det?(low?'#7c3aed':'#6d28d9'):(low?'#b45309':'#334155');L.marker([b.latitude,b.longitude],{icon:L.divIcon({className:'',html:'<div style="background:'+bg+';color:#fff;border:2px solid #fff;border-radius:5px;padding:1px 4px;font-size:11px;font-weight:700;white-space:nowrap">'+(det?'↩':'🌉')+' '+ftIn(b.clr)+'</div>',iconSize:[62,18],iconAnchor:[31,9]})}).bindPopup('<b>'+b.name+'</b> ('+(det?'detour':'route')+')<br>clearance '+ftIn(b.clr)+(b.width_feet?' · width '+ftIn(b.width_feet):'')).addTo(bridgeLayer);});
   const box=el('nbiBox');box.style.display='block';if(!tag.length){box.innerHTML='No NBI bridges found on the route'+(detourPath?' or detour':'')+'.';toast('No NBI bridges found');return;}
   const lowR=routeB[0],lowD=detourB[0];const ln=(l,b)=>b?('<b>'+l+': '+ftIn(b.clr)+'</b>'+(b.clr<15?' ⚠️':'')+' — '+(b.name||'').slice(0,30)):(l+': none');
   let h='<b>NBI clearances</b> — '+routeB.length+' on route'+(detourPath?', '+detourB.length+' on detour':'')+':<br>🌉 '+ln('Lowest on ROUTE',lowR)+'<br>';if(detourPath)h+='↩ '+ln('Lowest on DETOUR',lowD)+'<br>';
-  const widths=routeB.map(b=>b.width_feet).filter(w=>w>0);const minW=widths.length?Math.min.apply(null,widths):null;
-  if(lowR)h+='<br><button style="padding:5px 9px" onclick="applyNBI()">Apply route restrictions (H '+ftIn(lowR.clr)+(minW!=null?' · W '+ftIn(minW):'')+')</button>';
+  // The DETOUR governs when present — diverted traffic must clear the detour's lowest bridge, so that
+  // is the controlling height for the form. Fall back to the route's lowest when there's no detour.
+  const govLow=detourB.length?lowD:lowR, govSrc=detourB.length?'detour':'route';
+  const govW=(function(){const w=(detourB.length?detourB:routeB).map(b=>b.width_feet).filter(x=>x>0);return w.length?Math.min.apply(null,w):null;})();
+  if(govLow)h+='<br><button style="padding:5px 9px" onclick="applyNBI()">Apply restrictions (H '+ftIn(govLow.clr)+' · '+govSrc+' governs'+(govW!=null?' · W '+ftIn(govW):'')+')</button>';
   window.__nbiPosted=null;window.__nbiLowTons=null;
   try{const wt=await fetchWeightNear(bb);const near=wt.filter(b=>minDistToPath({lat:b.latitude,lng:b.longitude},routePath)<=TH||(detourPath&&minDistToPath({lat:b.latitude,lng:b.longitude},detourPath)<=TH));
     const rated=near.filter(b=>b.opTons!=null).sort((a,b)=>a.opTons-b.opTons);const posted=near.filter(b=>b.posted);
@@ -426,7 +451,18 @@ async function scanBridges(){if(!beginPt||!endPt){toast('Select a road segment (
   box.innerHTML=h;
   toast('Route low '+(lowR?ftIn(lowR.clr):'n/a')+(detourPath?' · detour low '+(lowD?ftIn(lowD.clr):'n/a'):'')+(window.__nbiLowTons?' · weight '+window.__nbiLowTons+'t':''));}
 function applyWeight(){const tons=window.__nbiLowTons,posted=window.__nbiPosted;if(tons!=null&&!v('rWeight'))el('rWeight').value=tons+' tons (lowest NBI operating rating)';if(posted&&posted.length){const note='Weight-posted bridges: '+posted.map(b=>(b.name||'Bridge')+(b.opTons!=null?(' ('+b.opTons+'t)'):'')).join('; ');const cur=(v('addlNotes')||'').replace(/(^|\n)Weight-posted bridges:[^\n]*/g,'').trim();el('addlNotes').value=[cur,note].filter(Boolean).join('\n');}saveState();toast('Weight capacity noted');}
-function applyNBI(){const near=window.__nbiNear||[];if(!near.length)return;el('rHeight').value=ftIn(near[0].clr);const widths=near.map(b=>b.width_feet).filter(w=>w>0);if(widths.length)el('rWidth').value=ftIn(Math.min.apply(null,widths));if(v('rTiming')==='None'||!v('rTiming'))el('rTiming').value='24 hours';saveState();toast('Restrictions applied');}
+function applyNBI(){const routeB=window.__nbiNear||[],detB=window.__nbiDetour||[];
+  // When a detour exists it governs: the lowest DETOUR clearance is the controlling height for the
+  // form (diverted/oversize traffic must physically clear it). Otherwise use the route's lowest.
+  const useDet=detB.length>0, src=useDet?detB:routeB, gov=src[0]; if(!gov)return;
+  el('rHeight').value=ftIn(gov.clr);
+  const widths=src.map(b=>b.width_feet).filter(w=>w>0);if(widths.length)el('rWidth').value=ftIn(Math.min.apply(null,widths));
+  if(v('rTiming')==='None'||!v('rTiming'))el('rTiming').value='24 hours';
+  // Note the controlling path + the other path's low for the reviewer.
+  const other=(useDet?routeB:detB)[0];
+  const note='Controlling clearance '+ftIn(gov.clr)+' — lowest on the '+(useDet?'DETOUR':'route')+(other?('; '+(useDet?'route':'detour')+' low '+ftIn(other.clr)):'');
+  const cur=(v('addlNotes')||'').replace(/(^|\n)Controlling clearance[^\n]*/g,'').trim();el('addlNotes').value=[cur,note].filter(Boolean).join('\n');
+  saveState();toast('Height set to '+ftIn(gov.clr)+' ('+(useDet?'detour':'route')+' governs)');}
 
 // ---- schedule ----
 function buildWeeks(){const pattern=v('schedPattern'),start=v('schedStart'),weeks=parseInt(v('schedWeeks')||'0',10),from=v('schedFrom'),to=v('schedTo');if(!start||!weeks){toast('Set a start date and # of weeks');return;}const s=new Date(start+'T00:00'),totalDays=weeks*7;schedule=[];if(pattern==='Continuous'){const e=new Date(s);e.setDate(e.getDate()+totalDays);schedule.push({label:s.toDateString()+' → '+e.toDateString()+' (continuous)'});}else{const dow=pattern==='Weekdays'?[1,2,3,4,5]:pattern==='Weekends'?[0,6]:[0,1,2,3,4,5,6];for(let d=0;d<totalDays;d++){const day=new Date(s);day.setDate(s.getDate()+d);if(dow.includes(day.getDay()))schedule.push({label:day.toDateString()+((from&&to)?('  '+from+'–'+to):'')});}}const box=el('schedList');box.style.display='block';box.innerHTML='<b>'+schedule.length+' occurrence(s):</b><br>'+schedule.slice(0,60).map(o=>o.label).join('<br>')+(schedule.length>60?'<br>…':'');saveState();toast('Built '+schedule.length+' occurrences');}
