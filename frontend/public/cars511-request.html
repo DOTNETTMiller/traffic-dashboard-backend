@@ -396,7 +396,7 @@ function saveState(){ const s={pts:{beginPt,endPt,detourPts}}; FIELD_IDS.forEach
 function loadState(){ try{ const s=JSON.parse(localStorage.getItem('cars511_state')||'{}');
   FIELD_IDS.forEach(id=>{ if(el(id)&&s[id]!=null) el(id).value=s[id]; });
   if(el('bothDir')){ const isBoth=/^both\b/i.test(s.direction||''); el('bothDir').checked=isBoth; el('direction').readOnly=isBoth; }
-  if(s.pts&&s.pts.beginPt){ beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng); if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng); redraw(); }
+  if(s.pts&&s.pts.beginPt){ beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng); if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng); redraw(); if(beginPt&&endPt)setMode('locked'); }
   if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){ detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng)); drawDetour(); }
 }catch(e){} }
 function projects(){ try{ return JSON.parse(localStorage.getItem('cars511_projects')||'[]'); }catch(e){ return []; } }
@@ -415,7 +415,7 @@ function loadProject(name){ const p=projects().find(x=>x.name===name); if(!p) re
 // ---- map selection ----
 function setMode(m){ mode=m; el('btnBegin').classList.toggle('active',m==='begin'); el('btnEnd').classList.toggle('active',m==='end');
   const bd=el('btnDetour'); if(bd) bd.classList.toggle('active',m==='detour');
-  el('maphint').innerHTML = m==='detour' ? 'Click to trace the <b>detour</b> route (add multiple points)' : `Click the road to set the <b>${m}</b> point`; }
+  el('maphint').innerHTML = m==='detour' ? 'Click to trace the <b>detour</b> route (add multiple points)' : m==='locked' ? 'Segment set ✓ — drag <b>A</b>/<b>B</b> to fine-tune, or tap <b>Set BEGIN/END</b> to redo' : `Click the road to set the <b>${m}</b> point`; }
 function mk(latlng,label,color){ const drag=(label==='A'||label==='B');
   const m=L.marker(latlng,{draggable:drag,icon:L.divIcon({className:'',html:
   `<div style="background:${color};color:#fff;border:2px solid #fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.4)">${label}</div>`,
@@ -633,9 +633,12 @@ function refresh(){ const info=el('selinfo');
 
 map.on('click', e=>{
   if(mode==='detour'){ detourPts.push(e.latlng); if(v('detour')!=='Yes') el('detour').value='Yes'; detourRoute=null; drawDetour(); saveState(); snapDetour(); return; }
-  if(mode==='begin'){ beginPt=e.latlng; if(beginMk)beginMk.remove(); beginMk=mk(e.latlng,'A','#1d4ed8'); }
+  if(mode!=='begin' && mode!=='end') return;   // locked: ignore stray taps (e.g. while panning) — drag A/B or tap Set BEGIN/END to change
+  const wasBegin = mode==='begin';
+  if(wasBegin){ beginPt=e.latlng; if(beginMk)beginMk.remove(); beginMk=mk(e.latlng,'A','#1d4ed8'); }
   else { endPt=e.latlng; if(endMk)endMk.remove(); endMk=mk(e.latlng,'B','#dc2626'); }
-  wzRoute=null; drawWZLine(); refresh(); reverseFill(e.latlng, mode==='begin'?'begin':'end');
+  wzRoute=null; drawWZLine(); refresh(); reverseFill(e.latlng, wasBegin?'begin':'end');
+  setMode(wasBegin ? 'end' : 'locked');
   if(beginPt&&endPt) snapWZ(); });
 
 // ---- detour route drawing ----
@@ -789,7 +792,7 @@ function useMyLocation(){ if(!navigator.geolocation){ toast('Geolocation not ava
   navigator.geolocation.getCurrentPosition(p=>{ const ll=L.latLng(p.coords.latitude,p.coords.longitude);
     if(!beginPt){ beginPt=ll; if(beginMk)beginMk.remove(); beginMk=mk(ll,'A','#1d4ed8'); map.setView(ll,14);
       reverseFill(ll,'begin'); setMode('end'); toast('Begin set from GPS — tap END on the map, or press 📍 again'); }
-    else { endPt=ll; if(endMk)endMk.remove(); endMk=mk(ll,'B','#dc2626'); snapWZ(); toast('End set from GPS'); }
+    else { endPt=ll; if(endMk)endMk.remove(); endMk=mk(ll,'B','#dc2626'); snapWZ(); setMode('locked'); toast('End set from GPS'); }
     saveState();
   }, e=>toast('Location error: '+(e.message||'denied')), {enableHighAccuracy:true,timeout:10000,maximumAge:0}); }
 
@@ -1485,7 +1488,7 @@ function setByLatLng(){ const pa=parseLL(v('mllA')), pb=parseLL(v('mllB'));
   if(!pa && !pb){ toast('Enter coordinates as: 41.60, -93.60'); return; }
   if(pa) beginPt=L.latLng(pa[0],pa[1]);
   if(pb) endPt=L.latLng(pb[0],pb[1]);
-  redraw(); if(beginPt&&endPt){ try{ map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13}); }catch(e){} }
+  redraw(); if(beginPt&&endPt){ try{ map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13}); }catch(e){} snapWZ(); setMode('locked'); }
   else if(beginPt){ map.setView([beginPt.lat,beginPt.lng],13); setMode('end'); }
   saveState(); toast(pa&&pb?'Begin + end set':'Point set'); }
 </script>
