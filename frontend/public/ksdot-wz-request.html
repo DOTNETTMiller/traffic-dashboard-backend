@@ -541,9 +541,14 @@ function closureGeom(f){ if(CLOSURES.type==='wzdx'){ const g=f.geometry; if(!g)r
     if(g.type==='LineString')return [g.coordinates.map(c=>[c[1],c[0]])];
     if(g.type==='MultiLineString')return g.coordinates.map(l=>l.map(c=>[c[1],c[0]]));
     if(g.type==='Point')return [[[g.coordinates[1],g.coordinates[0]]]]; return []; }
+  if(CLOSURES.type==='ca-lcs'){ const b=f.location&&f.location.begin,e=f.location&&f.location.end;
+    const bp=(b&&+b.beginLatitude)?[+b.beginLatitude,+b.beginLongitude]:null, ep=(e&&+e.endLatitude)?[+e.endLatitude,+e.endLongitude]:null;
+    if(bp&&ep&&(bp[0]!==ep[0]||bp[1]!==ep[1]))return [[bp,ep]]; return bp?[[bp]]:[]; }
   const g=f.geometry, out=[]; if(g&&g.paths)g.paths.forEach(p=>out.push(p.map(pt=>[pt[1],pt[0]]))); if(g&&g.x!=null)out.push([[g.y,g.x]]); return out; }
 function closureInfo(f){ if(CLOSURES.type==='wzdx'){ const p=f.properties||{},c=p.core_details||{};
     return {road:(c.road_names&&c.road_names[0])||'',dir:c.direction||'',desc:c.description||'',impact:c.vehicle_impact||p.vehicle_impact||'',start:p.start_date,end:p.end_date}; }
+  if(CLOSURES.type==='ca-lcs'){ const b=(f.location&&f.location.begin)||{},c=f.closure||{},ct=c.closureTimestamp||{};
+    return {road:(b.beginRoute||'')+(b.beginRouteSuffix||''),dir:(f.location&&f.location.travelFlowDirection)||'',desc:c.typeOfWork||'',impact:String(c.typeOfClosure||c.lanesClosed||''),start:ct.closureStartDate||null,end:ct.closureEndDate||null}; }
   const a=f.attributes||{},cfg=CLOSURES; return {road:a[cfg.roadField]||'',dir:cfg.dirField?a[cfg.dirField]||'':'',desc:cfg.descField?a[cfg.descField]||'':'',impact:cfg.impactField?a[cfg.impactField]||'':'',start:cfg.startField?a[cfg.startField]:null,end:cfg.endField?a[cfg.endField]:null}; }
 async function scanClosures(){ if(!CLOSURES){toast('No public closures feed for this state');return;} if(!beginPt&&!endPt){toast('Mark a segment first');return;}
   const box=el('closuresBox'); box.style.display='block'; box.textContent='Loading nearby closures…';
@@ -552,6 +557,8 @@ async function scanClosures(){ if(!CLOSURES){toast('No public closures feed for 
   try{
     let feats=[];
     if(CLOSURES.type==='wzdx'){ const j=await(await fetch(CLOSURES.url)).json(); feats=(j.features||[]).filter(f=>{const c=f.properties&&f.properties.core_details;return c&&c.event_type==='work-zone';}); }
+    else if(CLOSURES.type==='ca-lcs'){ box.textContent='Loading Caltrans lane closures (12 districts)…';
+      const dd=await Promise.all(CLOSURES.urls.map(u=>fetch(u).then(r=>r.json()).catch(()=>({})))); feats=dd.flatMap(x=>(x.data||[])).map(x=>x.lcs).filter(l=>l&&l.location&&l.closure&&l.closure.closureID); }
     else { const url=CLOSURES.url+'?where='+encodeURIComponent(CLOSURES.where||'1=1')+'&geometry='+encodeURIComponent(bbA.join(','))+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&outSR=4326&resultRecordCount=250&f=json'; const j=await(await fetch(url)).json(); feats=j.features||[]; }
     if(closuresLayer){closuresLayer.remove();closuresLayer=null;} closuresLayer=L.layerGroup().addTo(map);
     const seg=(wzRoute&&wzRoute.length)?wzRoute:[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]];
