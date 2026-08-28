@@ -140,6 +140,12 @@
         <option>all-lanes-open</option>
         <option>unknown</option>
       </select>
+      <label>Lanes this direction <span class="hint" style="display:inline">→ WZDx lanes[]</span></label>
+      <div class="row" style="align-items:center;gap:8px">
+        <div style="flex:0 0 auto"><input id="laneCount" type="number" min="0" max="8" style="width:70px" placeholder="#" onchange="buildLanes(+this.value)" aria-label="Number of through lanes this direction" /></div>
+        <div style="flex:1;font-size:12px;color:#64748b">Enter # of through lanes, then set each lane's status below (Lane 1 = leftmost).</div>
+      </div>
+      <div id="lanesEditor"></div>
     </fieldset>
 
     <fieldset>
@@ -254,7 +260,7 @@ const baseSat=L.layerGroup([
 ]);
 L.control.layers({'Street':baseStreet,'Satellite':baseSat},{},{position:'topright'}).addTo(map);
 setTimeout(()=>map.invalidateSize(),200); window.addEventListener('resize',()=>map.invalidateSize());
-let mode='begin',beginPt=null,endPt=null,beginMk=null,endMk=null,line=null,wzRoute=null,schedule=[];
+let mode='begin',beginPt=null,endPt=null,beginMk=null,endMk=null,line=null,wzRoute=null,schedule=[],laneData=[];
 // SELF_CONTAINED: the emailable standalone build flips this to true → the tool makes NO calls to our
 // servers at all. Cameras then come only from the state's own GIS (CAM) or a file the user loads; the
 // live DMS/arrow-board auto-scan is hosted-only (it needs live device feeds we can't put in a file).
@@ -508,7 +514,7 @@ function loadCsvProjects(){try{const arr=JSON.parse(localStorage.getItem('modot_
 function routeVal(){const r=v('route');return r==='__other'?(v('routeOther')||'route'):r;}
 function fmtDT(s){return s?new Date(s).toLocaleString():'—';}
 function fields(){const seg=(beginPt&&endPt)?dirLabel(bearing(beginPt,endPt))+', ~'+miles(beginPt,endPt).toFixed(1)+' mi':'(not set)';
-  return [['Route',routeVal()],['Direction',v('direction')],['Segment',seg],['Project #',v('project')],['Description',v('description')],['Begin',v('beginLoc')],['End',v('endLoc')],['County',v('counties')],['Requestor',v('requestor')],['Email',v('email')],['24-hr contact',v('contact24')],['Vehicle impact',v('impact')],['Width',v('rWidth')],['Height',v('rHeight')],['Weight',v('rWeight')],['Length',v('rLength')],['Normal speed (mph)',v('normalSpeed')],['Reduced work-zone speed (mph)',v('reducedSpeed')],['Restriction timing',v('rTiming')],['Bridge clearance check',clearLabel()],['Marked detour',v('detour')],['Oversize',v('oversize')],['DMS request',v('dms')],['Additional notes',v('addlNotes')],['Submit to',v('tmcEmail')]];}
+  return [['Route',routeVal()],['Direction',v('direction')],['Segment',seg],['Project #',v('project')],['Description',v('description')],['Begin',v('beginLoc')],['End',v('endLoc')],['County',v('counties')],['Requestor',v('requestor')],['Email',v('email')],['24-hr contact',v('contact24')],['Vehicle impact',v('impact')],['Lanes',laneSummary()],['Width',v('rWidth')],['Height',v('rHeight')],['Weight',v('rWeight')],['Length',v('rLength')],['Normal speed (mph)',v('normalSpeed')],['Reduced work-zone speed (mph)',v('reducedSpeed')],['Restriction timing',v('rTiming')],['Bridge clearance check',clearLabel()],['Marked detour',v('detour')],['Oversize',v('oversize')],['DMS request',v('dms')],['Additional notes',v('addlNotes')],['Submit to',v('tmcEmail')]];}
 function summaryText(){let t='NEVADA DOT — WORK-ZONE REQUEST\n'+'='.repeat(38)+'\n'+fields().map(r=>r[0]+': '+(r[1]||'—')).join('\n');
   if(schedule.length)t+='\n\nSCHEDULE ('+schedule.length+'):\n'+schedule.map(o=>'  • '+o.label).join('\n');
   if(beginPt&&endPt)t+='\n\nROUTE MAP: '+gmapsRoute();if(detourPts.length>=2)t+='\nDETOUR MAP: '+gmapsDetour();
@@ -520,9 +526,29 @@ function missingFields(){return REQUIRED.filter(r=>!v(r[0])||(v(r[0])==='__other
 // are the cases where a low structure on the (alternate) path actually constrains the request.
 function clearanceRelevant(){const imp=v('impact');return v('oversize')==='Yes'||v('detour')==='Yes'||imp==='all-lanes-closed'||imp==='alternating-one-way'||imp==='all-lanes-open-shift-left'||imp==='all-lanes-open-shift-right';}
 function clearLabel(){const s=v('clearStatus');return s==='checked'?'Checked (scan run)':s==='not-needed'?'Not needed for this work':'Not yet checked';}
+function laneSummary(){if(!laneData.length)return '';return laneData.length+' lanes — '+laneData.map(function(l){return 'L'+l.order+':'+(l.status||'open');}).join(', ');}
 function updateClearReminder(){const box=el('clearReminder');if(!box)return;const st=v('clearStatus');
   if(clearanceRelevant()&&st!=='checked'&&st!=='not-needed'){box.style.display='block';box.innerHTML='⚠️ This work type can route traffic onto other structures — <b>run the clearance scan</b> above, or set the check to “Not needed for this work”.';}
   else box.style.display='none';}
+// ---- Lanes (WZDx lanes[]) ----
+const LANE_STATUS=['open','closed','shift-left','shift-right','merge-left','merge-right','alternating-flow'];
+const LANE_TYPE=['general','shoulder','exit-lane','entrance-lane','hov-lane'];
+function buildLanes(n){ n=Math.max(0,Math.min(8,parseInt(n,10)||0)); const prev=laneData; laneData=[];
+  for(let i=1;i<=n;i++){ const old=prev.find(l=>l.order===i); laneData.push(old||{order:i,type:i===1?'general':'general',status:'open'}); }
+  if(el('laneCount'))el('laneCount').value=n||''; renderLanes(); syncImpactFromLanes(); saveState(); }
+function setLane(order,field,val){ const l=laneData.find(x=>x.order===order); if(!l)return; l[field]=val; if(field==='status')renderLanes(); syncImpactFromLanes(); saveState(); }
+function deriveImpact(){ const gen=laneData.filter(l=>l.type==='general'); if(!gen.length)return ''; const closed=gen.filter(l=>l.status==='closed').length;
+  if(closed===0)return 'all-lanes-open'; if(closed>=gen.length)return 'all-lanes-closed'; return 'some-lanes-closed'; }
+function syncImpactFromLanes(){ const di=deriveImpact(); if(di && !v('impact')){ el('impact').value=di; updateClearReminder(); } }
+function renderLanes(){ const box=el('lanesEditor'); if(!box)return; if(!laneData.length){box.innerHTML='';return;}
+  box.innerHTML=laneData.map(function(l){ const active=l.status&&l.status!=='open';
+    return '<div class="row" style="align-items:center;gap:6px;margin:3px 0">'
+      +'<div style="flex:0 0 62px;font-weight:600;font-size:13px">Lane '+l.order+(active?' <span style="color:#b45309">●</span>':'')+'</div>'
+      +'<select style="flex:1" aria-label="Lane '+l.order+' status" onchange="setLane('+l.order+',\'status\',this.value)">'
+        +LANE_STATUS.map(function(s){return '<option'+(l.status===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select>'
+      +'<select style="flex:0 0 96px" aria-label="Lane '+l.order+' type" onchange="setLane('+l.order+',\'type\',this.value)">'
+        +LANE_TYPE.map(function(t){return '<option'+(l.type===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select>'
+      +'</div>'; }).join(''); }
 function checkReadiness(){const miss=missingFields();if(clearanceRelevant()&&v('clearStatus')!=='checked'&&v('clearStatus')!=='not-needed')miss.push('Bridge clearance — scan it or mark “Not needed for this work”');updateClearReminder();const b=el('readyBox');b.style.display='block';if(!miss.length){b.style.background='#ecfdf5';b.style.borderColor='#a7f3d0';b.style.color='#065f46';b.innerHTML='✓ Ready — all required fields filled.';toast('✓ Ready');return true;}b.style.background='#fff7ed';b.style.borderColor='#fed7aa';b.style.color='#9a3412';b.innerHTML='⚠️ <b>'+miss.length+' required field(s) empty:</b><br>'+miss.map(x=>'• '+x).join('<br>');toast(miss.length+' required missing');return false;}
 
 // ---- WZDx v4.2 RoadEventFeature ----
@@ -544,6 +570,7 @@ function toWZDx(){const now=new Date().toISOString();const coords=geometryCoords
     if(v('detour')==='Yes')props.x_detour=v('addlNotes')||'marked detour';
     props.x_clearance_check=v('clearStatus')||'pending';  // checked | not-needed | pending — clearance verification state
     props.x_clearance_relevant=clearanceRelevant();
+    if(laneData.length)props.lanes=laneData.map(function(l){return {order:l.order,type:l.type||'general',status:l.status||'open'};});  // WZDx v4.2 lanes[]
     if(v('dms'))props.x_dms_request=v('dms');
     // CWZ 1.0: reference the connected field infrastructure scanned near the zone
     if(nearCams&&nearCams.length)props.x_cameras=nearCams.map(function(c){return {id:c.id,route:c.route,coordinates:c.coordinates,imageUrl:c.imageUrl};});
@@ -640,7 +667,7 @@ function csvToCams(txt){ const lines=txt.split(/\r?\n/).filter(function(l){retur
   for(let r=1;r<lines.length;r++){ const c=split(lines[r]); const lat=parseFloat(c[iLat]),lon=parseFloat(c[iLon]); if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;
     out.push({id:(iId>=0&&c[iId])||('cam'+out.length), route:(iRoute>=0&&c[iRoute])||'', coordinates:[lon,lat], imageUrl:(iImg>=0&&c[iImg])||'', desc:(iName>=0&&c[iName])||''}); }
   return out; }
-function requestPayload(){const o={};FIELD_IDS.forEach(id=>{if(el(id))o[id]=v(id);});o.route=routeVal();o.segment=(beginPt&&endPt)?{begin:[beginPt.lng,beginPt.lat],end:[endPt.lng,endPt.lat],miles:+miles(beginPt,endPt).toFixed(2)}:null;o.cameras=nearCams;o.dms=nearDMS;o.clearance={status:v('clearStatus')||'pending',relevant:clearanceRelevant()};
+function requestPayload(){const o={};FIELD_IDS.forEach(id=>{if(el(id))o[id]=v(id);});o.route=routeVal();o.segment=(beginPt&&endPt)?{begin:[beginPt.lng,beginPt.lat],end:[endPt.lng,endPt.lat],miles:+miles(beginPt,endPt).toFixed(2)}:null;o.cameras=nearCams;o.dms=nearDMS;o.clearance={status:v('clearStatus')||'pending',relevant:clearanceRelevant()};o.lanes=laneData.map(function(l){return {order:l.order,type:l.type||'general',status:l.status||'open'};});
   o.both_directions=v('direction')==='Both';if(o.both_directions)o.directions=nvAxis().map(d=>({N:'northbound',S:'southbound',E:'eastbound',W:'westbound'}[d]));
   const g1=geometryCoords();
   o.geometry=(o.both_directions&&wzRoute2&&wzRoute2.length&&g1)?{type:'MultiLineString',coordinates:[g1,wzRoute2.map(c=>[c[1],c[0]])]}:(g1?{type:'LineString',coordinates:g1}:null);
@@ -651,14 +678,14 @@ async function submitToDatabase(){const ep=v('dbEndpoint'),st=el('dbStatus');st.
 
 // ---- persistence ----
 function onRouteChange(){el('routeOther').style.display=v('route')==='__other'?'block':'none';}
-function saveState(){const s={pts:{beginPt,endPt,detourPts}};FIELD_IDS.forEach(id=>{if(el(id))s[id]=el(id).value;});localStorage.setItem('modot_state',JSON.stringify(s));}
-function loadState(){try{const s=JSON.parse(localStorage.getItem('modot_state')||'{}');FIELD_IDS.forEach(id=>{if(el(id)&&s[id]!=null)el(id).value=s[id];});if(s.pts&&s.pts.beginPt){beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng);if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng);redraw();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ();}}if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng));drawDetour();snapDetour();}}catch(e){}}
+function saveState(){const s={pts:{beginPt,endPt,detourPts},lanes:laneData};FIELD_IDS.forEach(id=>{if(el(id))s[id]=el(id).value;});localStorage.setItem('modot_state',JSON.stringify(s));}
+function loadState(){try{const s=JSON.parse(localStorage.getItem('modot_state')||'{}');FIELD_IDS.forEach(id=>{if(el(id)&&s[id]!=null)el(id).value=s[id];});if(s.pts&&s.pts.beginPt){beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng);if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng);redraw();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ();}}if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng));drawDetour();snapDetour();}if(Array.isArray(s.lanes)){laneData=s.lanes;if(el('laneCount'))el('laneCount').value=laneData.length||'';renderLanes();}}catch(e){}}
 const PERSIST=['requestor','email','contact24','tmcEmail'];
-function resetAll(){if(!confirm('Start a NEW request? Clears the segment, detour, and scans — your name/contact/email are kept.'))return;FIELD_IDS.forEach(id=>{if(el(id)&&!PERSIST.includes(id))el(id).value=el(id).tagName==='SELECT'?el(id).options[0].value:'';});[beginMk,endMk,line,line2].forEach(x=>x&&x.remove());beginPt=endPt=beginMk=endMk=line=line2=null;wzRoute=null;wzRoute2=null;schedule=[];detourPts=[];detourRoute=null;detourMeters=null;drawDetour();if(bridgeLayer){bridgeLayer.remove();bridgeLayer=null;}['nbiBox','schedList','detourInfo','readyBox','dbStatus','clearReminder'].forEach(id=>{if(el(id))el(id).style.display='none';});el('selinfo').textContent='No segment yet — click the road for the begin point, then the end point.';onRouteChange();setMode('begin');updateClearReminder();saveState();}
+function resetAll(){if(!confirm('Start a NEW request? Clears the segment, detour, and scans — your name/contact/email are kept.'))return;FIELD_IDS.forEach(id=>{if(el(id)&&!PERSIST.includes(id))el(id).value=el(id).tagName==='SELECT'?el(id).options[0].value:'';});[beginMk,endMk,line,line2].forEach(x=>x&&x.remove());beginPt=endPt=beginMk=endMk=line=line2=null;wzRoute=null;wzRoute2=null;schedule=[];detourPts=[];detourRoute=null;detourMeters=null;drawDetour();laneData=[];if(el('laneCount'))el('laneCount').value='';renderLanes();if(bridgeLayer){bridgeLayer.remove();bridgeLayer=null;}['nbiBox','schedList','detourInfo','readyBox','dbStatus','clearReminder'].forEach(id=>{if(el(id))el(id).style.display='none';});el('selinfo').textContent='No segment yet — click the road for the begin point, then the end point.';onRouteChange();setMode('begin');updateClearReminder();saveState();}
 function projectList(){try{return JSON.parse(localStorage.getItem('modot_projects')||'[]');}catch(e){return[];}}
 function renderProjects(){const list=projectList();el('projPicker').innerHTML='<option value="">↺ Saved projects…</option>'+list.map((p,i)=>'<option value="'+i+'">'+(p.name||'#'+i)+'</option>').join('');}
-function saveProject(){const name=prompt('Name this project:');if(!name)return;const list=projectList();const data={};FIELD_IDS.forEach(id=>{if(el(id))data[id]=el(id).value;});list.push({name,data,beginPt,endPt,detourPts});localStorage.setItem('modot_projects',JSON.stringify(list));renderProjects();toast('Saved');}
-function loadProject(i){const p=projectList()[i];if(!p)return;FIELD_IDS.forEach(id=>{if(el(id)&&p.data[id]!=null)el(id).value=p.data[id];});beginPt=p.beginPt?L.latLng(p.beginPt.lat,p.beginPt.lng):null;endPt=p.endPt?L.latLng(p.endPt.lat,p.endPt.lng):null;detourPts=Array.isArray(p.detourPts)?p.detourPts.map(q=>L.latLng(q.lat,q.lng)):[];redraw();drawDetour();snapDetour();onRouteChange();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ();}toast('Loaded '+(p.name||''));}
+function saveProject(){const name=prompt('Name this project:');if(!name)return;const list=projectList();const data={};FIELD_IDS.forEach(id=>{if(el(id))data[id]=el(id).value;});list.push({name,data,beginPt,endPt,detourPts,lanes:laneData});localStorage.setItem('modot_projects',JSON.stringify(list));renderProjects();toast('Saved');}
+function loadProject(i){const p=projectList()[i];if(!p)return;FIELD_IDS.forEach(id=>{if(el(id)&&p.data[id]!=null)el(id).value=p.data[id];});beginPt=p.beginPt?L.latLng(p.beginPt.lat,p.beginPt.lng):null;endPt=p.endPt?L.latLng(p.endPt.lat,p.endPt.lng):null;detourPts=Array.isArray(p.detourPts)?p.detourPts.map(q=>L.latLng(q.lat,q.lng)):[];laneData=Array.isArray(p.lanes)?p.lanes:[];if(el('laneCount'))el('laneCount').value=laneData.length||'';renderLanes();redraw();drawDetour();snapDetour();onRouteChange();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ();}toast('Loaded '+(p.name||''));}
 
 el('route').addEventListener('change',()=>{onRouteChange();saveState();});
 FIELD_IDS.forEach(id=>{if(el(id))el(id).addEventListener('input',saveState);});
