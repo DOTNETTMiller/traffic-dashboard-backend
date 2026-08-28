@@ -1284,6 +1284,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         <div><label>Weight</label><input id="rWeight" /></div>
         <div><label>Length</label><input id="rLength" /></div>
       </div>
+      <div class="row">
+        <div><label>Normal speed (mph)</label><input id="normalSpeed" inputmode="numeric" placeholder="reference, e.g. 70" /></div>
+        <div><label>Reduced work-zone speed (mph)</label><input id="reducedSpeed" inputmode="numeric" placeholder="e.g. 55" /></div>
+      </div>
       <label>Restriction timing</label>
       <select id="rTiming"><option>24 hours</option><option>Limited hours</option><option>None</option></select>
       <label>Temporary overhead signals? (15′ standard height reference)</label>
@@ -1466,7 +1470,7 @@ async function osrmRoute(lonlat){ try{
 }catch(e){ return null; } }
 
 const FIELD_IDS = ['route','routeOther','direction','project','iwz','description','beginLoc','endLoc','counties',
-  'requestor','email','contact24','impact','beginDT','endDT','timing','rWidth','rHeight','rWeight','rLength','rTiming',
+  'requestor','email','contact24','impact','beginDT','endDT','timing','rWidth','rHeight','rWeight','rLength','normalSpeed','reducedSpeed','rTiming',
   'detour','oversize','detourNotes','techContact','dms','addlNotes','rce','rceEmail','tmcEmail','overhead','schedPattern','schedWeeks','schedStart','schedFrom','schedTo'];
 const el = id => document.getElementById(id);
 const v = id => (el(id) && el(id).value || '').trim();
@@ -2079,7 +2083,7 @@ function fields(){ const seg=(beginPt&&endPt)?`${dirLabel(bearing(beginPt,endPt)
     ['Intelligent Work Zone',v('iwz')],['Description',v('description')],['Begin location',v('beginLoc')],['End location',v('endLoc')],
     ['County/counties',v('counties')],['DOT requestor',v('requestor')],['Requestor email',v('email')],['24-hr contact',v('contact24')],
     ['Traffic impact',v('impact')],['Schedule pattern',v('schedPattern')],['Begin',fmtDT(v('beginDT'))],['End',fmtDT(v('endDT'))],
-    ['Width restriction',v('rWidth')],['Height restriction',v('rHeight')],['Weight restriction',v('rWeight')],['Length restriction',v('rLength')],
+    ['Width restriction',v('rWidth')],['Height restriction',v('rHeight')],['Weight restriction',v('rWeight')],['Length restriction',v('rLength')],['Normal speed (mph)',v('normalSpeed')],['Reduced work-zone speed (mph)',v('reducedSpeed')],
     ['Restriction timing',v('rTiming')],['Marked detour',v('detour')],['Oversize allowed',v('oversize')],['Detour notes',v('detourNotes')],
     ['Traffic technician',v('techContact')],['DMS request',v('dms')],['Additional info / notes',v('addlNotes')],
     ['Submit to (TMC)',v('tmcEmail')||'IowaDOT.Traffic@iowadot.us'],['RCE (cc)',v('rce')] ]; }

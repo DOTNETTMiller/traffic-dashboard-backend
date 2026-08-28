@@ -149,6 +149,10 @@
         <div><label>Weight</label><input id="rWeight" /></div>
         <div><label>Length</label><input id="rLength" /></div>
       </div>
+      <div class="row">
+        <div><label>Normal speed (mph)</label><input id="normalSpeed" inputmode="numeric" placeholder="reference, e.g. 70" /></div>
+        <div><label>Reduced work-zone speed (mph)</label><input id="reducedSpeed" inputmode="numeric" placeholder="e.g. 55" /></div>
+      </div>
       <label>Restriction timing</label>
       <select id="rTiming"><option>24 hours</option><option>Limited hours</option><option>None</option></select>
       <div class="hint">⚖️ OSOW (oversize/overweight) permit routing: Minnesota publishes no public route-restriction layer, so verify restricted routes via MnDOT's permit system (LoIS). If MnDOT exposes an OSOW route layer, this check can be added (see the guide).</div>
@@ -219,7 +223,7 @@
 const el=id=>document.getElementById(id);
 const v=id=>{const e=el(id);return e?String(e.value||'').trim():'';};
 function toast(m){const t=el('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),3200);}
-const FIELD_IDS=['route','routeOther','direction','project','description','beginLoc','endLoc','counties','requestor','email','contact24','impact','rWidth','rHeight','rWeight','rLength','rTiming','detour','oversize','dms','addlNotes','tmcEmail','schedPattern','schedWeeks','schedStart','schedFrom','schedTo'];
+const FIELD_IDS=['route','routeOther','direction','project','description','beginLoc','endLoc','counties','requestor','email','contact24','impact','rWidth','rHeight','rWeight','rLength','normalSpeed','reducedSpeed','rTiming','detour','oversize','dms','addlNotes','tmcEmail','schedPattern','schedWeeks','schedStart','schedFrom','schedTo'];
 
 // ---- map ----
 const map=L.map('map',{zoomControl:true}).setView([46.3,-94.2],6); // Minnesota
@@ -382,7 +386,7 @@ function loadCsvProjects(){try{const arr=JSON.parse(localStorage.getItem('mndot_
 function routeVal(){const r=v('route');return r==='__other'?(v('routeOther')||'route'):r;}
 function fmtDT(s){return s?new Date(s).toLocaleString():'—';}
 function fields(){const seg=(beginPt&&endPt)?dirLabel(bearing(beginPt,endPt))+', ~'+miles(beginPt,endPt).toFixed(1)+' mi':'(not set)';
-  return [['Route',routeVal()],['Direction',v('direction')],['Segment',seg],['Project #',v('project')],['Description',v('description')],['Begin',v('beginLoc')],['End',v('endLoc')],['County',v('counties')],['Requestor',v('requestor')],['Email',v('email')],['24-hr contact',v('contact24')],['Vehicle impact',v('impact')],['Width',v('rWidth')],['Height',v('rHeight')],['Weight',v('rWeight')],['Length',v('rLength')],['Restriction timing',v('rTiming')],['Marked detour',v('detour')],['Oversize',v('oversize')],['DMS request',v('dms')],['Additional notes',v('addlNotes')],['Submit to',v('tmcEmail')]];}
+  return [['Route',routeVal()],['Direction',v('direction')],['Segment',seg],['Project #',v('project')],['Description',v('description')],['Begin',v('beginLoc')],['End',v('endLoc')],['County',v('counties')],['Requestor',v('requestor')],['Email',v('email')],['24-hr contact',v('contact24')],['Vehicle impact',v('impact')],['Width',v('rWidth')],['Height',v('rHeight')],['Weight',v('rWeight')],['Length',v('rLength')],['Normal speed (mph)',v('normalSpeed')],['Reduced work-zone speed (mph)',v('reducedSpeed')],['Restriction timing',v('rTiming')],['Marked detour',v('detour')],['Oversize',v('oversize')],['DMS request',v('dms')],['Additional notes',v('addlNotes')],['Submit to',v('tmcEmail')]];}
 function summaryText(){let t='NEVADA DOT — WORK-ZONE REQUEST\n'+'='.repeat(38)+'\n'+fields().map(r=>r[0]+': '+(r[1]||'—')).join('\n');
   if(schedule.length)t+='\n\nSCHEDULE ('+schedule.length+'):\n'+schedule.map(o=>'  • '+o.label).join('\n');
   if(beginPt&&endPt)t+='\n\nROUTE MAP: '+gmapsRoute();if(detourPts.length>=2)t+='\nDETOUR MAP: '+gmapsDetour();
@@ -406,6 +410,8 @@ function toWZDx(){const now=new Date().toISOString();const coords=geometryCoords
     beginning_cross_street:v('beginLoc')||undefined,ending_cross_street:v('endLoc')||undefined,
     is_start_position_verified:false,is_end_position_verified:false};
     if(restr.length)props.restrictions=restr.slice();
+    if(v('reducedSpeed'))props.reduced_speed_limit_kph=Math.round(parseFloat(v('reducedSpeed'))*1.60934);  // WZDx standard (mph→kph)
+    if(v('normalSpeed'))props.x_normal_speed_mph=parseFloat(v('normalSpeed'));
     if(v('detour')==='Yes')props.x_detour=v('addlNotes')||'marked detour';
     if(v('dms'))props.x_dms_request=v('dms');
     return {id:props.core_details.name,type:'Feature',properties:props,geometry:{type:'LineString',coordinates:geom}};};
