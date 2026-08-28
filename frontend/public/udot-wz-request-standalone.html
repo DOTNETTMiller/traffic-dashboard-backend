@@ -1252,6 +1252,10 @@ https://github.com/nodeca/pako/blob/master/LICENSE
       <label style="display:block;font-size:12px;color:#475569;margin:6px 0 2px">Or load your cameras — GeoJSON, CSV, or zipped shapefile (parsed on this device; nothing uploaded)</label>
       <input type="file" accept=".geojson,.json,.csv,.zip" onchange="handleCamFile(this)" style="width:100%;font-size:12px" />
       <div class="box" id="camdmsBox" style="display:none"></div>
+      <div id="closuresRow" style="display:none">
+        <button class="primary" style="width:100%;margin:8px 0 0" onclick="scanClosures()">🚧 Show existing closures (conflict check)</button>
+        <div class="box" id="closuresBox" style="display:none"></div>
+      </div>
       <div class="row">
         <div><label>Width</label><input id="rWidth" placeholder="e.g. 11 ft" /></div>
         <div><label>Height</label><input id="rHeight" placeholder="e.g. 15 ft 6 in" /></div>
@@ -1360,7 +1364,10 @@ let WZ_STATE='ut';   // generator overrides per state
 /* ==CAM_CONFIG_START== */
 const CAM={"url":"https://services.arcgis.com/pA2nEVnB6tquxgOW/arcgis/rest/services/Rural_CCTV_Locations_UPDATE/FeatureServer/0/query","idField":null,"routeField":null,"nameField":"name","imageField":"ImageUrl","where":"1=1"};
 /* ==CAM_CONFIG_END== */
-let camLayer=null, dmsLayer=null, nearCams=[], nearDMS=[], userCams=[];
+/* ==CLOSURES_CONFIG_START== */
+const CLOSURES={"type":"arcgis","url":"https://services.arcgis.com/pA2nEVnB6tquxgOW/arcgis/rest/services/Traffic_Events_View/FeatureServer/0/query","roadField":"RoadwayName","startField":"StartTime","endField":"EndTime","impactField":"LaneImpact","descField":"Description","dirField":"Direction"};
+/* ==CLOSURES_CONFIG_END== */
+let camLayer=null, dmsLayer=null, nearCams=[], nearDMS=[], userCams=[], closuresLayer=null;
 let wzRoute2=null,line2=null;   // opposite carriageway for a both-direction closure on a divided highway
 // Opposite roadbed runs PARALLEL → draw it as a perpendicular offset of the marked line (left of
 // travel = opposing side in right-hand traffic). Routing end->begin loops out to interchanges ("wraps").
@@ -1611,6 +1618,59 @@ function summaryText(){let t='NEVADA DOT — WORK-ZONE REQUEST\n'+'='.repeat(38)
 function copySummary(){navigator.clipboard.writeText(summaryText()).then(()=>toast('Summary copied'));}
 const REQUIRED=[['requestor','Requestor'],['email','Email'],['route','Route'],['direction','Direction'],['beginLoc','Begin location'],['endLoc','End location'],['counties','County'],['description','Description'],['impact','Vehicle impact']];
 function missingFields(){return REQUIRED.filter(r=>!v(r[0])||(v(r[0])==='__other'&&!v('routeOther'))).map(r=>r[1]);}
+// ---- Existing closures conflict check (WZDx feed OR ArcGIS layer, per CLOSURES config) ----
+function closToMs(x){ if(x==null||x==='')return null;
+  if(typeof x==='string'&&/^\d{8}$/.test(x)) return Date.parse(x.slice(0,4)+'-'+x.slice(4,6)+'-'+x.slice(6,8)+'T00:00');   // YYYYMMDD string (CARS511)
+  if(typeof x==='number'){ if(Number.isInteger(x)&&x>=19000101&&x<=21001231){ const s=''+x; return Date.parse(s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8)+'T00:00'); } return x; }  // YYYYMMDD int vs epoch ms
+  return Date.parse(x); }
+function fmtRange(s,e){ const f=x=>{const m=closToMs(x);return m?new Date(m).toLocaleDateString():'?';}; return f(s)+' → '+f(e); }
+function closureGeom(f){ if(CLOSURES.type==='wzdx'){ const g=f.geometry; if(!g)return [];
+    if(g.type==='LineString')return [g.coordinates.map(c=>[c[1],c[0]])];
+    if(g.type==='MultiLineString')return g.coordinates.map(l=>l.map(c=>[c[1],c[0]]));
+    if(g.type==='Point')return [[[g.coordinates[1],g.coordinates[0]]]]; return []; }
+  const g=f.geometry, out=[]; if(g&&g.paths)g.paths.forEach(p=>out.push(p.map(pt=>[pt[1],pt[0]]))); if(g&&g.x!=null)out.push([[g.y,g.x]]); return out; }
+function closureInfo(f){ if(CLOSURES.type==='wzdx'){ const p=f.properties||{},c=p.core_details||{};
+    return {road:(c.road_names&&c.road_names[0])||'',dir:c.direction||'',desc:c.description||'',impact:c.vehicle_impact||p.vehicle_impact||'',start:p.start_date,end:p.end_date}; }
+  const a=f.attributes||{},cfg=CLOSURES; return {road:a[cfg.roadField]||'',dir:cfg.dirField?a[cfg.dirField]||'':'',desc:cfg.descField?a[cfg.descField]||'':'',impact:cfg.impactField?a[cfg.impactField]||'':'',start:cfg.startField?a[cfg.startField]:null,end:cfg.endField?a[cfg.endField]:null}; }
+async function scanClosures(){ if(!CLOSURES){toast('No public closures feed for this state');return;} if(!beginPt&&!endPt){toast('Mark a segment first');return;}
+  const box=el('closuresBox'); box.style.display='block'; box.textContent='Loading nearby closures…';
+  const lats=[beginPt&&beginPt.lat,endPt&&endPt.lat].filter(v=>v!=null),lons=[beginPt&&beginPt.lng,endPt&&endPt.lng].filter(v=>v!=null);
+  const pad=0.05, bbA=[Math.min(...lons)-pad,Math.min(...lats)-pad,Math.max(...lons)+pad,Math.max(...lats)+pad];
+  try{
+    let feats=[];
+    if(CLOSURES.type==='wzdx'){ const j=await(await fetch(CLOSURES.url)).json(); feats=(j.features||[]).filter(f=>{const c=f.properties&&f.properties.core_details;return c&&c.event_type==='work-zone';}); }
+    else { const url=CLOSURES.url+'?where='+encodeURIComponent(CLOSURES.where||'1=1')+'&geometry='+encodeURIComponent(bbA.join(','))+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&outSR=4326&resultRecordCount=250&f=json'; const j=await(await fetch(url)).json(); feats=j.features||[]; }
+    if(closuresLayer){closuresLayer.remove();closuresLayer=null;} closuresLayer=L.layerGroup().addTo(map);
+    const seg=(wzRoute&&wzRoute.length)?wzRoute:[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]];
+    const now=Date.now(); const near=[],conflicts=[],recs=[];
+    feats.forEach(f=>{ const info=closureInfo(f); const em=closToMs(info.end); if(em&&em<now)return;
+      const polys=closureGeom(f); if(!polys.length)return;
+      let dmin=Infinity; polys.forEach(ll=>ll.forEach(pt=>{const d=minDistToPath({lat:pt[0],lng:pt[1]},seg); if(d<dmin)dmin=d;}));
+      if(dmin>4000)return;   // WZDx feeds are statewide — keep only what's near the segment
+      const overlap=dmin<=150, idx=recs.length; recs.push(info);
+      polys.forEach(ll=>{ (ll.length>=2?L.polyline(ll,{color:overlap?'#dc2626':'#f59e0b',weight:overlap?6:4,opacity:.85,dashArray:overlap?null:'6,5'})
+        :L.circleMarker(ll[0],{radius:6,color:overlap?'#dc2626':'#f59e0b',weight:2,fillColor:'#fff',fillOpacity:1}))
+        .bindPopup('<b>'+(info.road||'Closure')+'</b> '+(info.dir||'')+'<br>'+(info.impact||'')+(info.desc?'<br>'+String(info.desc).slice(0,120):'')+'<br>'+fmtRange(info.start,info.end)
+          +'<br><button type="button" style="margin-top:5px;padding:4px 8px;cursor:pointer" onclick="prefillFromClosure('+idx+')">Use as basis</button>').addTo(closuresLayer); });
+      near.push({road:info.road,impact:info.impact,start:info.start,end:info.end,d:Math.round(dmin)}); if(overlap)conflicts.push(near[near.length-1]); });
+    window.__closConflicts=conflicts; window.__closRecs=recs;
+    if(!near.length){ box.innerHTML='✓ No current closures near this segment.'; }
+    else{ box.innerHTML='🚧 <b>'+near.length+' closure(s)</b> nearby'+(conflicts.length?' · <b style="color:#b91c1c">'+conflicts.length+' overlap your segment</b>':' — none overlap')+'.'
+      +(conflicts.length?'<br>'+conflicts.slice(0,5).map(c=>'• '+(c.road||'')+' — '+(c.impact||'')+' ('+fmtRange(c.start,c.end)+')').join('<br>'):'')
+      +'<br><span style="font-size:11px;color:#64748b">Tap a closure → “Use as basis” to prefill.</span>'; }
+    if(el('readyBox')&&el('readyBox').style.display!=='none') checkReadiness();
+    toast(near.length+' closure(s)'+(conflicts.length?', '+conflicts.length+' overlap':''));
+  }catch(e){ box.textContent='Could not load closures: '+e.message; } }
+function prefillFromClosure(i){ const info=(window.__closRecs||[])[i]; if(!info)return;
+  const rt=String(info.road||'').trim();
+  if(rt){ const opt=[...el('route').options].find(o=>o.value.toUpperCase()===rt.toUpperCase());
+    if(opt){ el('route').value=opt.value; onRouteChange(); } else { el('route').value='__other'; onRouteChange(); el('routeOther').value=rt; } }
+  if(info.desc && el('description'))el('description').value=String(info.desc).slice(0,300);
+  if(info.impact && el('impact')){ const o=[...el('impact').options].find(x=>x.value===info.impact); if(o){ el('impact').value=info.impact; } }
+  const sm=closToMs(info.start), em=closToMs(info.end);
+  if(sm && el('schedStart')){ const s=new Date(sm); el('schedStart').value=new Date(s.getTime()-s.getTimezoneOffset()*60000).toISOString().slice(0,10);
+    if(em && el('schedWeeks')){ const days=Math.max(1,Math.round((em-sm)/86400000)); el('schedWeeks').value=Math.max(1,Math.ceil(days/7)); } }
+  updateClearReminder(); saveState(); toast('Prefilled from existing closure — review'); }
 // Bridge clearance is RELEVANT when the work reroutes/shifts traffic or allows oversize loads — those
 // are the cases where a low structure on the (alternate) path actually constrains the request.
 function clearanceRelevant(){const imp=v('impact');return v('oversize')==='Yes'||v('detour')==='Yes'||imp==='all-lanes-closed'||imp==='alternating-one-way'||imp==='all-lanes-open-shift-left'||imp==='all-lanes-open-shift-right';}
@@ -1662,7 +1722,7 @@ function renderLanes(){ const box=el('lanesEditor'); if(!box)return; if(!laneDat
       +'<select style="flex:0 0 96px" aria-label="Lane '+l.order+' type" onchange="setLane('+l.order+',\'type\',this.value)">'
         +LANE_TYPE.map(function(t){return '<option'+(l.type===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select>'
       +'</div>'; }).join(''); }
-function checkReadiness(){const miss=missingFields();if(clearanceRelevant()&&v('clearStatus')!=='checked'&&v('clearStatus')!=='not-needed')miss.push('Bridge clearance — scan it or mark “Not needed for this work”');if(!wzEndDate())miss.push('Scheduled end — set Start date + # weeks (sets the WZDx expiration so the zone can’t linger stale)');updateClearReminder();const b=el('readyBox');b.style.display='block';if(!miss.length){b.style.background='#ecfdf5';b.style.borderColor='#a7f3d0';b.style.color='#065f46';b.innerHTML='✓ Ready — all required fields filled.';toast('✓ Ready');return true;}b.style.background='#fff7ed';b.style.borderColor='#fed7aa';b.style.color='#9a3412';b.innerHTML='⚠️ <b>'+miss.length+' required field(s) empty:</b><br>'+miss.map(x=>'• '+x).join('<br>');toast(miss.length+' required missing');return false;}
+function checkReadiness(){const miss=missingFields();if(clearanceRelevant()&&v('clearStatus')!=='checked'&&v('clearStatus')!=='not-needed')miss.push('Bridge clearance — scan it or mark “Not needed for this work”');if(!wzEndDate())miss.push('Scheduled end — set Start date + # weeks (sets the WZDx expiration so the zone can’t linger stale)');updateClearReminder();const cf=(window.__closConflicts||[]);const ch=cf.length?('<br><b style="color:#b91c1c">⚠️ Overlaps '+cf.length+' existing closure(s):</b><br>'+cf.slice(0,4).map(c=>'• '+(c.road||'')+' — '+(c.impact||'')+' ('+fmtRange(c.start,c.end)+')').join('<br>')+'<br><span style="font-size:11px">Confirm this isn’t a duplicate, or coordinate timing.</span>'):'';const b=el('readyBox');b.style.display='block';if(!miss.length){if(cf.length){b.style.background='#fff7ed';b.style.borderColor='#fed7aa';b.style.color='#9a3412';b.innerHTML='✓ Required fields filled.'+ch;}else{b.style.background='#ecfdf5';b.style.borderColor='#a7f3d0';b.style.color='#065f46';b.innerHTML='✓ Ready — all required fields filled.';}toast(cf.length?'Ready — overlaps a closure':'✓ Ready');return true;}b.style.background='#fff7ed';b.style.borderColor='#fed7aa';b.style.color='#9a3412';b.innerHTML='⚠️ <b>'+miss.length+' required field(s) empty:</b><br>'+miss.map(x=>'• '+x).join('<br>')+ch;toast(miss.length+' required missing');return false;}
 
 // ---- WZDx v4.2 RoadEventFeature ----
 function geometryCoords(){if(wzRoute&&wzRoute.length)return wzRoute.map(c=>[c[1],c[0]]);if(beginPt&&endPt)return[[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]];return null;}
@@ -1795,7 +1855,7 @@ function onRouteChange(){el('routeOther').style.display=v('route')==='__other'?'
 function saveState(){const s={pts:{beginPt,endPt,detourPts},lanes:laneData};FIELD_IDS.forEach(id=>{if(el(id))s[id]=el(id).value;});localStorage.setItem('udot_state',JSON.stringify(s));}
 function loadState(){try{const s=JSON.parse(localStorage.getItem('udot_state')||'{}');FIELD_IDS.forEach(id=>{if(el(id)&&s[id]!=null)el(id).value=s[id];});if(s.pts&&s.pts.beginPt){beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng);if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng);redraw();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ();}}if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng));drawDetour();snapDetour();}if(Array.isArray(s.lanes)){laneData=s.lanes;if(el('laneCount'))el('laneCount').value=laneData.length||'';renderLanes();}}catch(e){}}
 const PERSIST=['requestor','email','contact24','tmcEmail'];
-function resetAll(){if(!confirm('Start a NEW request? Clears the segment, detour, and scans — your name/contact/email are kept.'))return;FIELD_IDS.forEach(id=>{if(el(id)&&!PERSIST.includes(id))el(id).value=el(id).tagName==='SELECT'?el(id).options[0].value:'';});[beginMk,endMk,line,line2].forEach(x=>x&&x.remove());beginPt=endPt=beginMk=endMk=line=line2=null;wzRoute=null;wzRoute2=null;schedule=[];detourPts=[];detourRoute=null;detourMeters=null;drawDetour();laneData=[];if(el('laneCount'))el('laneCount').value='';renderLanes();if(bridgeLayer){bridgeLayer.remove();bridgeLayer=null;}['nbiBox','schedList','detourInfo','readyBox','dbStatus','clearReminder'].forEach(id=>{if(el(id))el(id).style.display='none';});el('selinfo').textContent='No segment yet — click the road for the begin point, then the end point.';onRouteChange();setMode('begin');updateClearReminder();saveState();}
+function resetAll(){if(!confirm('Start a NEW request? Clears the segment, detour, and scans — your name/contact/email are kept.'))return;FIELD_IDS.forEach(id=>{if(el(id)&&!PERSIST.includes(id))el(id).value=el(id).tagName==='SELECT'?el(id).options[0].value:'';});[beginMk,endMk,line,line2].forEach(x=>x&&x.remove());beginPt=endPt=beginMk=endMk=line=line2=null;wzRoute=null;wzRoute2=null;schedule=[];detourPts=[];detourRoute=null;detourMeters=null;drawDetour();laneData=[];if(el('laneCount'))el('laneCount').value='';renderLanes();if(bridgeLayer){bridgeLayer.remove();bridgeLayer=null;}if(closuresLayer){closuresLayer.remove();closuresLayer=null;}window.__closConflicts=null;window.__closRecs=null;['nbiBox','schedList','detourInfo','readyBox','dbStatus','clearReminder','closuresBox'].forEach(id=>{if(el(id))el(id).style.display='none';});el('selinfo').textContent='No segment yet — click the road for the begin point, then the end point.';onRouteChange();setMode('begin');updateClearReminder();saveState();}
 function projectList(){try{return JSON.parse(localStorage.getItem('udot_projects')||'[]');}catch(e){return[];}}
 function renderProjects(){const list=projectList();el('projPicker').innerHTML='<option value="">↺ Saved projects…</option>'+list.map((p,i)=>'<option value="'+i+'">'+(p.name||'#'+i)+'</option>').join('');}
 function saveProject(){const name=prompt('Name this project:');if(!name)return;const list=projectList();const data={};FIELD_IDS.forEach(id=>{if(el(id))data[id]=el(id).value;});list.push({name,data,beginPt,endPt,detourPts,lanes:laneData});localStorage.setItem('udot_projects',JSON.stringify(list));renderProjects();toast('Saved');}
@@ -1803,7 +1863,7 @@ function loadProject(i){const p=projectList()[i];if(!p)return;FIELD_IDS.forEach(
 
 el('route').addEventListener('change',()=>{onRouteChange();saveState();});
 FIELD_IDS.forEach(id=>{if(el(id))el(id).addEventListener('input',saveState);});
-loadState();renderProjects();onRouteChange();loadIntegration();loadCsvProjects();updateClearReminder();
+loadState();renderProjects();onRouteChange();loadIntegration();loadCsvProjects();updateClearReminder();if(CLOSURES&&el('closuresRow'))el('closuresRow').style.display='block';
 
 // ---- accessibility: associate stray <label>s with their controls + coordinate entry ----
 function a11yInit(){let n=0;
