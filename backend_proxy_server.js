@@ -6402,9 +6402,12 @@ const WZ_MP_SOURCES = {
   mn: { url: 'https://webgis.dot.state.mn.us/65agsf1/rest/services/sdw_infra/REFERENCE_POST/FeatureServer/0/query',
         mpField: 'REFERENCE_POST', routeField: 'ROUTE_ID', countyField: null, where: '1=1' },
   tx: { url: 'https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Mile_Markers/FeatureServer/0/query',
-        mpField: 'MARKER', routeField: 'RTE_NM', countyField: null, where: '1=1' }
+        mpField: 'MARKER', routeField: 'RTE_NM', countyField: null, where: '1=1' },
+  pa: { url: 'https://gis.penndot.pa.gov/gis/rest/services/opendata/interstatemilemarkers/MapServer/0/query',
+        mpField: 'MILE_MARKER', routeField: 'ST_RT_NO', countyField: null, where: '1=1' }  // interstate mile markers only
   // TODO add per corridor state as its LRS/reference-post service is identified: ok, ks, mo,
-  //      ca, ut, wy, ne, il, in, oh, pa, nj  (each: {url, mpField, routeField, countyField?, where?})
+  //      ca (postmiles), ut, wy, ne, il, in, oh, nj (SRI+MP)
+
 };
 app.get('/api/wz/mileposts', async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
