@@ -185,7 +185,22 @@
     </fieldset>
 
     <fieldset>
-      <legend>Step 3 · Restrictions &amp; clearances</legend>
+      <legend>Step 3 · Detour</legend>
+      <div class="mapbtns">
+        <button id="btnDetour" onclick="setMode('detour')">✏️ Draw detour</button>
+        <button onclick="undoDetour()">↶ Undo pt</button>
+        <button onclick="clearDetour()">✕ Clear</button>
+      </div>
+      <div class="selinfo" id="detourInfo" style="display:none"></div>
+      <div class="row">
+        <div><label>Marked detour?</label><select id="detour"><option>No</option><option>Yes</option></select></div>
+        <div><label>Oversize allowed?</label><select id="oversize"><option>N/A</option><option>Yes</option><option>No</option></select></div>
+      </div>
+      <label>Detour restrictions / notes</label><textarea id="detourNotes"></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>Step 4 · Restrictions &amp; clearances</legend>
       <button class="ghost" style="width:100%;margin:0 0 8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanBridges()">🌉 Scan NBI clearances + weight (route + detour)</button>
       <div class="schedList" id="nbiBox" style="display:none;margin-bottom:8px"></div>
       <button class="ghost" style="width:100%;margin:0 0 8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanClosures()">🚧 Show nearby Iowa DOT closures (conflict check)</button>
@@ -209,7 +224,7 @@
     </fieldset>
 
     <fieldset>
-      <legend>Step 4 · Devices, cameras &amp; DMS</legend>
+      <legend>Step 5 · Devices, cameras &amp; DMS</legend>
       <button class="ghost" style="width:100%;margin:0 0 8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanDevices()">🔶 Scan DMS, arrow boards & Street Smart (IWZ) devices near segment</button>
       <div class="schedList" id="dmsBox" style="display:none;margin-bottom:8px"></div>
       <button class="ghost" style="width:100%;margin:0 0 8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanCameras()">📷 Attach nearby traffic cameras</button>
@@ -221,7 +236,7 @@
     </fieldset>
 
     <fieldset>
-      <legend>Step 5 · Schedule — build out weeks</legend>
+      <legend>Step 6 · Schedule — build out weeks</legend>
       <div class="row">
         <div><label>Pattern</label><select id="schedPattern">
           <option>Continuous</option><option>Weekdays</option><option>Nights</option><option>Weekends</option></select></div>
@@ -235,21 +250,6 @@
       <button class="ghost" style="width:100%;margin-top:8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="buildWeeks()">📅 Build weeks → occurrences</button>
       <div class="schedList" id="schedList" style="display:none"></div>
       <div class="hint">Fills Begin/End date-time to span the schedule and lists each work night/day for the request.</div>
-    </fieldset>
-
-    <fieldset>
-      <legend>Step 6 · Detour</legend>
-      <div class="mapbtns">
-        <button id="btnDetour" onclick="setMode('detour')">✏️ Draw detour</button>
-        <button onclick="undoDetour()">↶ Undo pt</button>
-        <button onclick="clearDetour()">✕ Clear</button>
-      </div>
-      <div class="selinfo" id="detourInfo" style="display:none"></div>
-      <div class="row">
-        <div><label>Marked detour?</label><select id="detour"><option>No</option><option>Yes</option></select></div>
-        <div><label>Oversize allowed?</label><select id="oversize"><option>N/A</option><option>Yes</option><option>No</option></select></div>
-      </div>
-      <label>Detour restrictions / notes</label><textarea id="detourNotes"></textarea>
     </fieldset>
 
     <fieldset>

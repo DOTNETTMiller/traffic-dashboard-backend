@@ -149,7 +149,24 @@
     </fieldset>
 
     <fieldset>
-      <legend>Step 3 · Restrictions &amp; clearances</legend>
+      <legend>Step 3 · Detour &amp; notes</legend>
+      <div class="mapbtns">
+        <button onclick="suggestDetour()">✨ Suggest detour</button>
+        <button id="btnDetour" onclick="setMode('detour')">✏️ Draw detour</button>
+        <button onclick="undoDetour()">↶ Undo</button>
+        <button onclick="clearDetour()">✕ Clear</button>
+      </div>
+      <div class="box" id="detourInfo" style="display:none"></div>
+      <div class="row">
+        <div><label>Marked detour?</label><select id="detour" onchange="updateClearReminder();saveState()"><option>No</option><option>Yes</option></select></div>
+        <div><label>Oversize allowed?</label><select id="oversize" onchange="updateClearReminder();saveState()"><option>N/A</option><option>Yes</option><option>No</option></select></div>
+      </div>
+      <label>DMS / message-sign request</label><textarea id="dms" placeholder="Requested message / location"></textarea>
+      <label>Additional notes</label><textarea id="addlNotes" placeholder="Pilot car, flagger, devices, etc."></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>Step 4 · Restrictions &amp; clearances</legend>
       <button class="primary" style="width:100%;margin-bottom:8px" onclick="scanBridges()">🌉 Scan NBI clearances + weight (route + detour)</button>
       <div class="box" id="nbiBox" style="display:none"></div>
       <div id="clearReminder" class="box" style="display:none;background:#fff7ed;border-color:#fed7aa;color:#9a3412;margin-top:6px"></div>
@@ -189,7 +206,7 @@
     </fieldset>
 
     <fieldset>
-      <legend>Step 4 · Schedule — build out weeks</legend>
+      <legend>Step 5 · Schedule — build out weeks</legend>
       <div class="row">
         <div><label>Pattern</label><select id="schedPattern"><option>Continuous</option><option>Weekdays</option><option>Nights</option><option>Weekends</option></select></div>
         <div><label># weeks</label><input id="schedWeeks" type="number" min="1" max="52" placeholder="3" /></div>
@@ -201,23 +218,6 @@
       </div>
       <button style="width:100%;margin-top:8px" onclick="buildWeeks()">📅 Build weeks → occurrences</button>
       <div class="box" id="schedList" style="display:none"></div>
-    </fieldset>
-
-    <fieldset>
-      <legend>Step 5 · Detour &amp; notes</legend>
-      <div class="mapbtns">
-        <button onclick="suggestDetour()">✨ Suggest detour</button>
-        <button id="btnDetour" onclick="setMode('detour')">✏️ Draw detour</button>
-        <button onclick="undoDetour()">↶ Undo</button>
-        <button onclick="clearDetour()">✕ Clear</button>
-      </div>
-      <div class="box" id="detourInfo" style="display:none"></div>
-      <div class="row">
-        <div><label>Marked detour?</label><select id="detour" onchange="updateClearReminder();saveState()"><option>No</option><option>Yes</option></select></div>
-        <div><label>Oversize allowed?</label><select id="oversize" onchange="updateClearReminder();saveState()"><option>N/A</option><option>Yes</option><option>No</option></select></div>
-      </div>
-      <label>DMS / message-sign request</label><textarea id="dms" placeholder="Requested message / location"></textarea>
-      <label>Additional notes</label><textarea id="addlNotes" placeholder="Pilot car, flagger, devices, etc."></textarea>
     </fieldset>
 
     <fieldset>
