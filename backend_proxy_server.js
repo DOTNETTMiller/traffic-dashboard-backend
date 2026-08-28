@@ -6427,7 +6427,7 @@ const WZ_MP_SOURCES = {
   mo: { line: true, url: 'https://services2.arcgis.com/kNS2ppBA4rwAQQZy/arcgis/rest/services/MO_MoDOT_Roads_Routes/FeatureServer/0/query',
         routeField: 'FULL_NAME', where: "DESG IN ('IS','US','MO','RT','LP','BU','SP')" },  // state highway system only; FULL_NAME "IS 70 E"
   oh: { line: true, url: 'https://services1.arcgis.com/1AlElnGrgBM62OSj/arcgis/rest/services/Road_Inventory/FeatureServer/0/query',
-        routeParts: ['ROUTE_TYPE', 'ROUTE_NBR'], where: "ROUTE_TYPE IN ('IR','US','SR')" }  // state highways only; ROUTE_TYPE+ROUTE_NBR "IR 70"
+        routeParts: ['ROUTE_TYPE', 'ROUTE_NBR'], countyField: 'COUNTY_CD', where: "ROUTE_TYPE IN ('IR','US','SR')" }  // OH log point is county-relative -> return county
 };
 app.get('/api/wz/mileposts', async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
