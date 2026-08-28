@@ -6408,7 +6408,9 @@ const WZ_MP_SOURCES = {
   ca: { url: 'https://caltrans-gis.dot.ca.gov/arcgis/rest/services/CHhighway/SHN_Postmiles_Tenth/FeatureServer/0/query',
         mpField: 'PM', routeField: 'PMRouteID', countyField: 'County', where: '1=1' },  // county postmiles (county-relative)
   in: { url: 'https://gisdata.in.gov/server/rest/services/Hosted/LRSE_Reference_Post/FeatureServer/2/query',
-        mpField: 'measure', routeField: 'route_id', nameField: 'post_name', countyField: null, where: '1=1' }  // post_name I_70_75 -> I-70
+        mpField: 'measure', routeField: 'route_id', nameField: 'post_name', countyField: null, where: '1=1' },  // post_name I_70_75 -> I-70
+  nj: { url: 'https://services.arcgis.com/HggmsDF7UJsNN1FK/arcgis/rest/services/New_Jersey_Standard_Route_Id_And_Milepost/FeatureServer/0/query',
+        mpField: 'MP', routeField: 'SRI', countyField: null, where: '1=1' }  // SRI 00000080 -> I-80
   // TODO add per corridor state as its LRS/reference-post service is identified: ok, ks, mo,
   //      ca (postmiles), ut, wy, ne, il, in, oh, nj (SRI+MP)
 
