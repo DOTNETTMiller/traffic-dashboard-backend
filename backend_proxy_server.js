@@ -6404,7 +6404,9 @@ const WZ_MP_SOURCES = {
   tx: { url: 'https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Mile_Markers/FeatureServer/0/query',
         mpField: 'MARKER', routeField: 'RTE_NM', countyField: null, where: '1=1' },
   pa: { url: 'https://gis.penndot.pa.gov/gis/rest/services/opendata/interstatemilemarkers/MapServer/0/query',
-        mpField: 'MILE_MARKER', routeField: 'ST_RT_NO', countyField: null, where: '1=1' }  // interstate mile markers only
+        mpField: 'MILE_MARKER', routeField: 'ST_RT_NO', countyField: null, where: '1=1' },  // interstate mile markers only
+  ca: { url: 'https://caltrans-gis.dot.ca.gov/arcgis/rest/services/CHhighway/SHN_Postmiles_Tenth/FeatureServer/0/query',
+        mpField: 'PM', routeField: 'PMRouteID', countyField: 'County', where: '1=1' }  // county postmiles (county-relative)
   // TODO add per corridor state as its LRS/reference-post service is identified: ok, ks, mo,
   //      ca (postmiles), ut, wy, ne, il, in, oh, nj (SRI+MP)
 
