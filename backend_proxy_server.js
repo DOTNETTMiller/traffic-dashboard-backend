@@ -5143,6 +5143,11 @@ app.get('/api/tomtom/deviation', async (req, res) => {
   try {
     if (!eventsCache.data && startupCachePromise) { try { await startupCachePromise; } catch (_) { /* serve what we have */ } }
     const events = eventsCache.data?.events || [];
+    if (req.query.debug === 'fields') {
+      const sample = events.filter(e => /on US \d/i.test(String(e.description || e.name || ''))).slice(0, 3)
+        .map(e => ({ id: e.id, keys: Object.keys(e).slice(0, 40), description: e.description, name: e.name, route: e.route, corridor: e.corridor, location: e.location, eventType: e.eventType }));
+      return res.json({ sample, buildMarker: 'geometry-v2' });
+    }
     const byId = new Map();
     for (const i of (tomtomZoneCache.data?.incidents || [])) byId.set(i.id, i);
     for (const i of (tomtomCache.data?.incidents || [])) if (!byId.has(i.id)) byId.set(i.id, i);
