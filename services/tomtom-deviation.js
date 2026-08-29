@@ -22,10 +22,14 @@ function routeTok(s) {
   m = S.match(/\bUS[-\s]?(\d{1,3})\b/); if (m) return `US-${parseInt(m[1], 10)}`;
   return null;
 }
-// The DOT zone's ACTUAL road: prefer the description ("Roadwork on US 206…"), which names the real
-// road, over the coarse corridor tag (which labels adjacent-road work with the parent interstate).
+// The DOT zone's ACTUAL road. Prefer the road the work is ON ("Roadwork on US 206 between … I-287 …"
+// → US-206, NOT the cross-street I-287), then any route in the description, then the structured fields.
+// The coarse corridor tag is last — it labels adjacent-road work with the parent interstate.
 function dotRoute(ev) {
-  return routeTok(ev.description) || routeTok(ev.name) || routeTok(ev.route) || routeTok(ev.corridor) || routeTok(ev.location);
+  const desc = String(ev.description || ev.name || '');
+  const on = desc.match(/\bon\s+((?:I|IH|US|SR|SH)[-\s]?\d{1,3})/i);
+  if (on) { const t = routeTok(on[1]); if (t) return t; }
+  return routeTok(desc) || routeTok(ev.route) || routeTok(ev.corridor) || routeTok(ev.location);
 }
 function incRoute(i) { return routeTok((i.roadNumbers || []).join(' ')) || routeTok(i.description); }
 function evPoint(ev) { return ev.coordinates || (ev.longitude != null ? [ev.longitude, ev.latitude] : null); }
