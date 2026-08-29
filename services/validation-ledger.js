@@ -11,15 +11,15 @@
  * that a zone is finished. The other three sources have no such "it's gone" signal, so for
  * them positive-only + sticky is correct.
  *
- * DURABILITY: the source of truth is a JSON file on the persistent `data/` volume (the same
- * disk the truck-parking data uses) — so validations survive restarts AND redeploys. The DB
- * table is kept as a best-effort secondary (prod's Postgres adapter has quirks around plain
- * INSERTs/composite keys), but the file is what we trust. In-memory Maps are the hot path.
+ * DURABILITY: persists to the `validation_ledger` table in db.db — Postgres on prod (the SAME
+ * durable store the camera ledger uses; the app's local disk is ephemeral on Railway), SQLite
+ * locally. Hydrated once on startup; the in-memory Map per source is the hot path. A forced-
+ * redeploy test confirmed the full set reloads after a restart. (Sticky flag reads 0 while the
+ * source is live because a fresh pull re-corroborates the same zones — it only lights up when the
+ * source can't re-see a zone and the ledger keeps it alive.)
  */
 
 const db = require('../database');
-const fs = require('fs');
-const path = require('path');
 
 function execSql(sql) {
   if (typeof db.db.execAsync === 'function') return db.db.execAsync(sql);
@@ -27,56 +27,8 @@ function execSql(sql) {
 }
 
 const SOURCES = ['tomtom', 'dms', 'device'];
-const mem = { tomtom: new Map(), dms: new Map(), device: new Map() };  // event_id -> meta
-const seenAt = { tomtom: new Map(), dms: new Map(), device: new Map() }; // event_id -> epoch ms (for pruning)
-let ready = false, hydrated = false, saveTimer = null;
-
-// Durable JSON backing on the persistent volume. LEDGER_FILE overrides; otherwise use the app's
-// `data/` dir (Railway-mounted volume) if present, else a repo-local file for dev.
-const DATA_DIR = process.env.LEDGER_DIR
-  || (fs.existsSync(path.join(__dirname, '..', 'data')) ? path.join(__dirname, '..', 'data') : path.join(__dirname, '..'));
-const LEDGER_FILE = process.env.LEDGER_FILE || path.join(DATA_DIR, 'validation-ledger.json');
-const PRUNE_MS = 180 * 24 * 60 * 60 * 1000;   // drop zones untouched ~180 days (surely finished)
-
-function loadFile() {
-  try {
-    if (!fs.existsSync(LEDGER_FILE)) return;
-    const obj = JSON.parse(fs.readFileSync(LEDGER_FILE, 'utf8'));
-    const cutoff = Date.now() - PRUNE_MS;
-    for (const src of SOURCES) {
-      const rows = obj[src] || {};
-      for (const id of Object.keys(rows)) {
-        const r = rows[id] || {};
-        const ts = r.ts || 0;
-        if (ts && ts < cutoff) continue;
-        mem[src].set(id, r.meta || {});
-        seenAt[src].set(id, ts || Date.now());
-      }
-    }
-  } catch (e) { console.error('validation-ledger loadFile:', e.message); }
-}
-
-function saveFileSoon() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    try {
-      try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (_) {}
-      const cutoff = Date.now() - PRUNE_MS;
-      const obj = {};
-      for (const src of SOURCES) {
-        obj[src] = {};
-        for (const [id, meta] of mem[src]) {
-          const ts = seenAt[src].get(id) || Date.now();
-          if (ts < cutoff) { mem[src].delete(id); seenAt[src].delete(id); continue; }
-          obj[src][id] = { meta, ts };
-        }
-      }
-      const tmp = LEDGER_FILE + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(obj));
-      fs.renameSync(tmp, LEDGER_FILE);   // atomic replace
-    } catch (e) { console.error('validation-ledger save:', e.message); }
-  }, 1500);
-}
+const mem = { tomtom: new Map(), dms: new Map(), device: new Map() }; // event_id -> meta
+let ready = false, hydrated = false;
 
 async function ensure() {
   if (ready) return;
@@ -96,44 +48,43 @@ async function ensure() {
 // Load the durable ledger into memory once. Safe to call on every request (no-op after first).
 async function hydrate() {
   if (hydrated) return;
-  hydrated = true;
-  loadFile();                                  // PRIMARY: durable file on the persistent volume
-  try {                                        // SECONDARY: DB table (best-effort union)
+  try {
     await ensure();
     const rows = await db.db.prepare('SELECT event_id, source, meta FROM validation_ledger').all();
     for (const r of (rows || [])) {
-      if (!mem[r.source] || mem[r.source].has(r.event_id)) continue;
+      if (!mem[r.source]) continue;
       let m = {}; try { m = JSON.parse(r.meta || '{}'); } catch (_) { /* ignore */ }
       mem[r.source].set(r.event_id, m);
-      seenAt[r.source].set(r.event_id, Date.now());
     }
-  } catch (e) { /* DB optional — the file is authoritative */ }
+  } catch (e) { console.error('validation-ledger hydrate:', e.message); }
+  hydrated = true;
 }
 
 function has(source, id) { return !!(mem[source] && id && mem[source].has(id)); }
 function metaOf(source, id) { return mem[source] && mem[source].get(id); }
 
 // Record a NEW corroboration (idempotent). Sets memory synchronously so has() is immediately
-// consistent; persists to the durable file (debounced) + the DB table (background, best-effort).
+// consistent; persists to the table in the background (never blocks the response).
 function add(source, id, meta) {
   if (!mem[source] || !id || mem[source].has(id)) return;
   mem[source].set(id, meta || {});
-  seenAt[source].set(id, Date.now());
-  saveFileSoon();
   (async () => {
     try {
       await ensure();
       const now = new Date().toISOString();
       await db.db.prepare('INSERT INTO validation_ledger (event_id, source, first_at, last_at, meta) VALUES (?, ?, ?, ?, ?)')
         .run(id, source, now, now, JSON.stringify(meta || {}));
-    } catch (e) { /* PK conflict (already stored) or adapter quirk — memory + file are authoritative */ }
+      // Prune zones not touched in ~180 days (surely finished) so the table can't grow forever.
+      const cutoff = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString();
+      await db.db.prepare('DELETE FROM validation_ledger WHERE last_at < ?').run(cutoff);
+    } catch (e) { /* PK conflict (raced) or write error — memory is already authoritative */ }
   })();
 }
 
-// Diagnostics: counts per source + where the durable file lives.
+// Diagnostics (exposed on /api/tomtom/status): in-memory counts per source + the backing store.
 function stats() {
   const counts = {}; for (const s of SOURCES) counts[s] = mem[s].size;
-  return { counts, file: LEDGER_FILE, fileExists: (() => { try { return fs.existsSync(LEDGER_FILE); } catch (_) { return false; } })() };
+  return { counts, store: process.env.DATABASE_URL ? 'postgres' : 'sqlite' };
 }
 
 module.exports = { hydrate, has, metaOf, add, stats, SOURCES };
