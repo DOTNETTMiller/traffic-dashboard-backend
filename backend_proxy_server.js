@@ -4927,8 +4927,11 @@ const tomtomIncidents = require('./services/tomtom-incidents');
 // of code. Longer TTL = fewer pulls = fewer credits. Sticky accumulation (validation-ledger)
 // means past validations persist between pulls, so a longer cadence loses no coverage.
 const TOMTOM_CORRIDOR_TTL_MS = (parseInt(process.env.TOMTOM_CORRIDOR_TTL_MIN, 10) || 45) * 60 * 1000;
-const TOMTOM_ZONE_TTL_MS = (parseFloat(process.env.TOMTOM_ZONE_TTL_HOURS) || 3) * 60 * 60 * 1000;
+const TOMTOM_ZONE_TTL_MS = (parseFloat(process.env.TOMTOM_ZONE_TTL_HOURS) || 12) * 60 * 60 * 1000;  // 12h default: work zones are stable + validations are sticky, so a slow cadence keeps credit use tiny
 let tomtomCache = { data: null, timestamp: null, ttl: TOMTOM_CORRIDOR_TTL_MS, isRefreshing: false };
+// TomTom work-zone validation is scoped to the platform's mission corridor (I-80/I-35) so a small
+// credit allowance sustains it — matching I-80/I-35 (incl. I-35W/E, directional suffixes), not I-235/I-355.
+const tomtomCorridorRoute = s => { const m = String(s || '').toUpperCase().match(/\bI[-\s]?(80|35)(?!\d)/); return m ? 'I-' + m[1] : null; };
 
 // TomTom keys are 32 alphanumeric chars; strip any stray paste artifacts
 // (whitespace, zero-width/non-breaking chars) that would cause a 401.
@@ -5017,7 +5020,7 @@ async function refreshTomTomForZones(points) {
   if (!apiKey || !Array.isArray(points) || !points.length) return tomtomZoneCache.data;
   tomtomZoneCache.isRefreshing = true;
   try {
-    const tiles = tomtomIncidents.pointsToTiles(points, { maxTiles: 220 });
+    const tiles = tomtomIncidents.pointsToTiles(points, { maxTiles: 80 });  // corridor-scoped points rarely exceed ~40 tiles; cap gives headroom without a nationwide sweep
     const result = await tomtomIncidents.fetchIncidents({ apiKey, tiles, delayMs: TOMTOM_TILE_DELAY_MS });
     noteTomTomResult(result);
     const HIGHWAY_RE = /^(I|US)[-\s.]?\d/i;
@@ -5091,6 +5094,46 @@ app.get('/api/tomtom/status', async (req, res) => {
     lastCorridorPull: tomtomCache.timestamp ? new Date(tomtomCache.timestamp).toISOString() : null,
     lastZonePull: tomtomZoneCache.timestamp ? new Date(tomtomZoneCache.timestamp).toISOString() : null
   });
+});
+
+// On-demand: force ONE corridor-scoped TomTom pass and corroborate right now. Clears the
+// circuit-breaker so a fresh attempt runs the moment credits are back — the cheap way to
+// "get some verified work zones" without waiting for the background cycle. Rate-limited to
+// once / 10 min so it can't be spammed to drain credits.
+let lastVerifyNowAt = 0;
+app.get('/api/tomtom/verify-now', async (req, res) => {
+  if (!tomtomApiKey()) return res.status(503).json({ error: 'TomTom not configured' });
+  const since = Date.now() - lastVerifyNowAt;
+  if (since < 10 * 60 * 1000) return res.status(429).json({ error: 'ran recently — try again later', retryAfterSec: Math.ceil((10 * 60 * 1000 - since) / 1000) });
+  lastVerifyNowAt = Date.now();
+  tomtomCooldownUntil = 0;  // manual retry: clear the backoff for this attempt
+  try {
+    const events = eventsCache.data?.events || [];
+    const cvv = require('./services/camera-validation');
+    const pts = [];
+    for (const e of events) {
+      if (cvv.isActiveNow(e) !== true) continue;
+      if (!tomtomCorridorRoute(e.corridor || e.route || e.location)) continue;
+      const p = e.coordinates || (e.longitude != null ? [e.longitude, e.latitude] : null);
+      if (Array.isArray(p)) pts.push(p);
+    }
+    await refreshTomTomForZones(pts);
+    const byId = new Map();
+    for (const i of (tomtomZoneCache.data?.incidents || [])) byId.set(i.id, i);
+    for (const i of (tomtomCache.data?.incidents || [])) if (!byId.has(i.id)) byId.set(i.id, i);
+    const all = [...byId.values()];
+    const verified = all.length ? require('./services/tomtom-corroboration').corroborate(events, all) : 0;
+    res.json({
+      status: tomtomStatus,
+      corridorZones: pts.length,
+      tiles: tomtomZoneCache.data?.tiles ?? null,
+      incidents: all.length,
+      verified,
+      budgetLeft: tomtomZoneCache.data?.budgetLeft ?? null,
+      cooldownUntil: tomtomInCooldown() ? new Date(tomtomCooldownUntil).toISOString() : null,
+      note: tomtomStatus === 'insufficient-credits' ? 'TomTom account is out of credits — top up / refresh the key, then run this again.' : undefined
+    });
+  } catch (e) { res.status(502).json({ error: e.message, status: tomtomStatus }); }
 });
 
 // Crash records live in the persistent PostGIS Postgres (alongside the corridor
@@ -6257,6 +6300,7 @@ app.get('/api/cwz/events', async (req, res) => {
       const pts = [];
       for (const e of events) {
         if (cvv.isActiveNow(e) !== true) continue;
+        if (!tomtomCorridorRoute(e.corridor || e.route || e.location)) continue;  // scope to I-80/I-35 → far fewer tiles → credit-sustainable
         const p = e.coordinates || (e.longitude != null ? [e.longitude, e.latitude] : null);
         if (Array.isArray(p)) pts.push(p);
       }
