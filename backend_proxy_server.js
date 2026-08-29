@@ -5020,7 +5020,7 @@ async function refreshTomTomForZones(points) {
   if (!apiKey || !Array.isArray(points) || !points.length) return tomtomZoneCache.data;
   tomtomZoneCache.isRefreshing = true;
   try {
-    const tiles = tomtomIncidents.pointsToTiles(points, { maxTiles: 80 });  // corridor-scoped points rarely exceed ~40 tiles; cap gives headroom without a nationwide sweep
+    const tiles = tomtomIncidents.pointsToTiles(points, { maxTiles: 200 });  // nationwide zone coverage; 12h TTL keeps the daily request count modest
     const result = await tomtomIncidents.fetchIncidents({ apiKey, tiles, delayMs: TOMTOM_TILE_DELAY_MS });
     noteTomTomResult(result);
     const HIGHWAY_RE = /^(I|US)[-\s.]?\d/i;
@@ -5092,11 +5092,12 @@ app.get('/api/tomtom/status', async (req, res) => {
     corridorCount: tomtomCache.data?.count ?? null,
     zoneCount: tomtomZoneCache.data?.count ?? null,
     lastCorridorPull: tomtomCache.timestamp ? new Date(tomtomCache.timestamp).toISOString() : null,
-    lastZonePull: tomtomZoneCache.timestamp ? new Date(tomtomZoneCache.timestamp).toISOString() : null
+    lastZonePull: tomtomZoneCache.timestamp ? new Date(tomtomZoneCache.timestamp).toISOString() : null,
+    ledger: (() => { try { return require('./services/validation-ledger').stats(); } catch (_) { return null; } })()
   });
 });
 
-// On-demand: force ONE corridor-scoped TomTom pass and corroborate right now. Clears the
+// On-demand: force ONE TomTom pass and corroborate right now. Clears the
 // circuit-breaker so a fresh attempt runs the moment credits are back — the cheap way to
 // "get some verified work zones" without waiting for the background cycle. Rate-limited to
 // once / 10 min so it can't be spammed to drain credits.
@@ -5112,8 +5113,7 @@ app.get('/api/tomtom/verify-now', async (req, res) => {
     const cvv = require('./services/camera-validation');
     const pts = [];
     for (const e of events) {
-      if (cvv.isActiveNow(e) !== true) continue;
-      if (!tomtomCorridorRoute(e.corridor || e.route || e.location)) continue;
+      if (cvv.isActiveNow(e) !== true) continue;   // nationwide (all active zones)
       const p = e.coordinates || (e.longitude != null ? [e.longitude, e.latitude] : null);
       if (Array.isArray(p)) pts.push(p);
     }
@@ -5125,7 +5125,7 @@ app.get('/api/tomtom/verify-now', async (req, res) => {
     const verified = all.length ? require('./services/tomtom-corroboration').corroborate(events, all) : 0;
     res.json({
       status: tomtomStatus,
-      corridorZones: pts.length,
+      zones: pts.length,
       tiles: tomtomZoneCache.data?.tiles ?? null,
       incidents: all.length,
       verified,
@@ -6299,8 +6299,7 @@ app.get('/api/cwz/events', async (req, res) => {
       const cvv = require('./services/camera-validation');
       const pts = [];
       for (const e of events) {
-        if (cvv.isActiveNow(e) !== true) continue;
-        if (!tomtomCorridorRoute(e.corridor || e.route || e.location)) continue;  // scope to I-80/I-35 → far fewer tiles → credit-sustainable
+        if (cvv.isActiveNow(e) !== true) continue;   // NATIONWIDE validation (all states/interstates); 12h TTL keeps credit use ~4x under the old cadence
         const p = e.coordinates || (e.longitude != null ? [e.longitude, e.latitude] : null);
         if (Array.isArray(p)) pts.push(p);
       }
