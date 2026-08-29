@@ -15,10 +15,19 @@ const turf = require('@turf/turf');
 const { WORKZONE_CATS } = require('./tomtom-corroboration');
 const { isActiveNow } = require('./camera-validation');
 
-function interstate(s) {
-  const m = String(s || '').toUpperCase().match(/\bI[-\s]?(\d{1,3})\b/);
-  return m ? `I-${parseInt(m[1], 10)}` : null;
+// Normalize a route token from any string — Interstate OR US route (state routes → null).
+function routeTok(s) {
+  const S = String(s || '').toUpperCase();
+  let m = S.match(/\bI[-\s]?(\d{1,3})\b/); if (m) return `I-${parseInt(m[1], 10)}`;
+  m = S.match(/\bUS[-\s]?(\d{1,3})\b/); if (m) return `US-${parseInt(m[1], 10)}`;
+  return null;
 }
+// The DOT zone's ACTUAL road: prefer the description ("Roadwork on US 206…"), which names the real
+// road, over the coarse corridor tag (which labels adjacent-road work with the parent interstate).
+function dotRoute(ev) {
+  return routeTok(ev.description) || routeTok(ev.name) || routeTok(ev.route) || routeTok(ev.corridor) || routeTok(ev.location);
+}
+function incRoute(i) { return routeTok((i.roadNumbers || []).join(' ')) || routeTok(i.description); }
 function evPoint(ev) { return ev.coordinates || (ev.longitude != null ? [ev.longitude, ev.latitude] : null); }
 // A DOT WORK ZONE (not an incident, DMS status, camera, or "No Report" placeholder). The events
 // cache mixes all event kinds; the scorecard compares work zones only.
@@ -37,7 +46,6 @@ function timingDisagrees(ev, inc, tolMs) {
 }
 
 function scorecard(events, incidents, opts = {}) {
-  const maxM = opts.maxM || 1500;
   const tolMs = (opts.timingTolHours || 24) * 3600 * 1000;
   const inc = (incidents || []).filter(i =>
     WORKZONE_CATS.has(Number(i.categoryCode)) && Number.isFinite(i.latitude) && Number.isFinite(i.longitude));
@@ -50,17 +58,23 @@ function scorecard(events, incidents, opts = {}) {
   const matchedIncidentIds = new Set();
   const matched = [], dotOnly = [], timingGaps = [];
 
+  const sameRouteM = opts.maxM || 1200;   // same named road: generous (zone/incident points offset along the road)
+  const proxM = opts.proxM || 500;        // road unreadable on one side: fall back to TIGHT proximity only
   for (const ev of dotZones) {
     const evPt = evPoint(ev);
-    const evRoute = interstate(ev.corridor || ev.route || ev.location);
-    let best = null, bestD = Infinity;
+    const evRoute = dotRoute(ev);           // the zone's REAL road (from description), not the corridor tag
+    let best = null, bestD = Infinity, bestSame = false;
     for (const i of inc) {
-      const iRoute = interstate((i.roadNumbers || []).join(' ')) || interstate(i.description);
-      if (evRoute && iRoute && iRoute !== evRoute) continue;   // same interstate when both name one
+      const iRoute = incRoute(i);
+      const same = !!(evRoute && iRoute && evRoute === iRoute);
+      // both roads known + different → never (parallel road); same road → generous; one unknown → tight proximity.
+      const limit = (evRoute && iRoute) ? (same ? sameRouteM : -1) : proxM;
+      if (limit < 0) continue;
       const d = turf.distance(turf.point(evPt), turf.point([i.longitude, i.latitude]), { units: 'meters' });
-      if (d < bestD) { bestD = d; best = i; }
+      if (d > limit) continue;
+      if ((same && !bestSame) || (same === bestSame && d < bestD)) { best = i; bestD = d; bestSame = same; }
     }
-    if (best && bestD <= maxM) {
+    if (best) {
       matchedIncidentIds.add(best.id);
       const rec = { id: ev.id, route: evRoute || ev.route || ev.corridor || null, coordinates: evPt,
         tomtom: { id: best.id, category: best.category, distance_m: Math.round(bestD) } };
@@ -73,7 +87,7 @@ function scorecard(events, incidents, opts = {}) {
   }
 
   const tomtomOnly = inc.filter(i => !matchedIncidentIds.has(i.id)).map(i => ({
-    id: i.id, route: interstate((i.roadNumbers || []).join(' ')) || interstate(i.description) || null,
+    id: i.id, route: incRoute(i) || null,
     category: i.category, coordinates: [i.longitude, i.latitude], description: i.description || null, severity: i.severity || null }));
 
   const denom = matched.length + dotOnly.length;

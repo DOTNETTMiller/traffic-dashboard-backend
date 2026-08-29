@@ -119,7 +119,7 @@ export default function TomTomDeviationPanel({ onClose, onShowOnMap }) {
               )}
 
               <div style={{ marginTop: 12, fontSize: 11, color: C.sub }}>
-                Match rule: TomTom road-works / lane-closed / road-closed within 1500 m on the same interstate. Read-only — no extra API calls.
+                Match rule: same road (read from the zone’s description, not the coarse corridor tag) within ~1.2 km, or tight proximity when a road can’t be read. Geometry-based. Read-only — no extra API calls.
               </div>
             </>
           )}
