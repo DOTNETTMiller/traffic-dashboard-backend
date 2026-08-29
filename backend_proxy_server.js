@@ -4927,7 +4927,7 @@ const tomtomIncidents = require('./services/tomtom-incidents');
 // of code. Longer TTL = fewer pulls = fewer credits. Sticky accumulation (validation-ledger)
 // means past validations persist between pulls, so a longer cadence loses no coverage.
 const TOMTOM_CORRIDOR_TTL_MS = (parseInt(process.env.TOMTOM_CORRIDOR_TTL_MIN, 10) || 45) * 60 * 1000;
-const TOMTOM_ZONE_TTL_MS = (parseFloat(process.env.TOMTOM_ZONE_TTL_HOURS) || 12) * 60 * 60 * 1000;  // 12h default: work zones are stable + validations are sticky, so a slow cadence keeps credit use tiny
+const TOMTOM_ZONE_TTL_MS = (parseFloat(process.env.TOMTOM_ZONE_TTL_HOURS) || 6) * 60 * 60 * 1000;  // 6h default: validations are STICKY, so a faster cadence catches more transient/overnight zones (each banked forever) — ~800 req/day at ~200 tiles, well under the 2500 self-cap. Env-adjustable.
 let tomtomCache = { data: null, timestamp: null, ttl: TOMTOM_CORRIDOR_TTL_MS, isRefreshing: false };
 // TomTom work-zone validation is scoped to the platform's mission corridor (I-80/I-35) so a small
 // credit allowance sustains it — matching I-80/I-35 (incl. I-35W/E, directional suffixes), not I-235/I-355.
