@@ -97,6 +97,10 @@
         <button id="btnEnd" onclick="setMode('end')">② Set END on map</button>
         <button id="btnGPS" onclick="useMyLocation()">📍 Use my location</button>
       </div>
+      <div class="mapbtns" style="margin-top:6px">
+        <button onclick="undoSeg()">↶ Undo point</button>
+        <button onclick="clearSeg()">✕ Clear segment</button>
+      </div>
       <label class="chk"><input type="checkbox" id="autofill" checked /> Auto-fill road & county from the map (uses internet)</label>
       <details style="margin:8px 0 0">
         <summary style="cursor:pointer;font-size:12px;color:var(--accent);font-weight:600">⌨ Enter coordinates instead (keyboard-accessible)</summary>
@@ -182,11 +186,18 @@
         <option>Slow moving maintenance vehicle</option>
       </select>
       <div id="laneHint" style="display:none;font-size:12px;color:#0369a1;margin-top:2px"></div>
+      <label>Lanes this direction <span style="font-weight:400;color:#64748b">→ WZDx lanes[]</span></label>
+      <div class="row" style="align-items:center;gap:8px">
+        <div style="flex:0 0 auto"><input id="laneCount" type="number" min="0" max="8" style="width:70px" placeholder="#" onchange="buildLanes(+this.value)" aria-label="Number of through lanes this direction" /></div>
+        <div style="flex:1;font-size:12px;color:#64748b">Enter # of through lanes, then set each lane's status below (Lane 1 = leftmost).</div>
+      </div>
+      <div id="lanesEditor"></div>
     </fieldset>
 
     <fieldset>
       <legend>Step 3 · Detour</legend>
       <div class="mapbtns">
+        <button onclick="suggestDetour()">✨ Suggest detour</button>
         <button id="btnDetour" onclick="setMode('detour')">✏️ Draw detour</button>
         <button onclick="undoDetour()">↶ Undo pt</button>
         <button onclick="clearDetour()">✕ Clear</button>
@@ -218,6 +229,8 @@
         <div><label>Normal speed (mph)</label><input id="normalSpeed" inputmode="numeric" placeholder="reference, e.g. 70" /></div>
         <div><label>Reduced work-zone speed (mph)</label><input id="reducedSpeed" inputmode="numeric" placeholder="e.g. 55" /></div>
       </div>
+      <button class="ghost" style="width:100%;margin:2px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="calcTaper()">🚧 Taper + advance-warning signs (MUTCD)</button>
+      <div class="schedList" id="taperBox" style="display:none;margin:6px 0"></div>
       <label>Restriction timing</label>
       <select id="rTiming"><option>24 hours</option><option>Limited hours</option><option>None</option></select>
       <label>Temporary overhead signals? (15′ standard height reference)</label>
@@ -330,7 +343,7 @@ const __ov={}; function setOverlay(name, layer){ if(__ov[name]){ try{ layerContr
 setTimeout(()=>map.invalidateSize(), 200);
 window.addEventListener('resize', ()=>map.invalidateSize());
 
-let mode='begin', beginPt=null, endPt=null, beginMk=null, endMk=null, line=null, schedule=[];
+let mode='begin', beginPt=null, endPt=null, beginMk=null, endMk=null, line=null, schedule=[], laneData=[];
 let detourPts=[], detourLine=null, detourMks=[];
 let wzRoute=null, detourRoute=null, detourMeters=null;
 let wzRoute2=null, line2=null;   // opposite carriageway for a both-direction closure on a divided highway
@@ -393,12 +406,13 @@ const toast = m => { const t=el('toast'); t.textContent=m; t.classList.add('show
 const interstate = s => { const m=String(s||'').toUpperCase().match(/\bI[-\s]?(\d{1,3})\b/); return m ? 'I-'+parseInt(m[1],10) : null; };
 
 // ---- persistence (remembers fields + saved projects) ----
-function saveState(){ const s={pts:{beginPt,endPt,detourPts}}; FIELD_IDS.forEach(id=>{ if(el(id)) s[id]=el(id).value; }); localStorage.setItem('cars511_state', JSON.stringify(s)); }
+function saveState(){ const s={pts:{beginPt,endPt,detourPts},lanes:laneData}; FIELD_IDS.forEach(id=>{ if(el(id)) s[id]=el(id).value; }); localStorage.setItem('cars511_state', JSON.stringify(s)); }
 function loadState(){ try{ const s=JSON.parse(localStorage.getItem('cars511_state')||'{}');
   FIELD_IDS.forEach(id=>{ if(el(id)&&s[id]!=null) el(id).value=s[id]; });
   if(el('bothDir')){ const isBoth=/^both\b/i.test(s.direction||''); el('bothDir').checked=isBoth; el('direction').readOnly=isBoth; }
   if(s.pts&&s.pts.beginPt){ beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng); if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng); redraw(); if(beginPt&&endPt)setMode('locked'); }
   if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){ detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng)); drawDetour(); }
+  if(Array.isArray(s.lanes)){ laneData=s.lanes; if(el('laneCount'))el('laneCount').value=laneData.length||''; renderLanes(); }
 }catch(e){} }
 function projects(){ try{ return JSON.parse(localStorage.getItem('cars511_projects')||'[]'); }catch(e){ return []; } }
 function renderProjects(){ const sel=el('projPicker'); sel.innerHTML='<option value="">↺ Saved projects…</option>'+
@@ -946,6 +960,40 @@ const REQUIRED=[['requestor','DOT requestor'],['email','Requestor email'],['rout
   ['beginLoc','Begin location'],['endLoc','End location'],['counties','County/counties'],['description','Description'],
   ['impact','Traffic impact'],['beginDT','Begin date/time'],['endDT','End date/time'],['rce','RCE office'],['contact24','24-hr contact']];
 function missingFields(){ return REQUIRED.filter(([id])=>!v(id) || v(id)==='__other' && !v('routeOther')).map(([,label])=>label); }
+// ---- Lanes (WZDx lanes[]) ----
+const LANE_STATUS=['open','closed','shift-left','shift-right','merge-left','merge-right','alternating-flow'];
+const LANE_TYPE=['general','shoulder','exit-lane','entrance-lane','hov-lane'];
+function buildLanes(n){ n=Math.max(0,Math.min(8,parseInt(n,10)||0)); const prev=laneData; laneData=[]; for(let i=1;i<=n;i++){ const old=prev.find(l=>l.order===i); laneData.push(old||{order:i,type:'general',status:'open'}); } if(el('laneCount'))el('laneCount').value=n||''; renderLanes(); saveState(); }
+function setLane(order,field,val){ const l=laneData.find(x=>x.order===order); if(!l)return; l[field]=val; if(field==='status')renderLanes(); saveState(); }
+function renderLanes(){ const box=el('lanesEditor'); if(!box)return; if(!laneData.length){box.innerHTML='';return;}
+  box.innerHTML=laneData.map(function(l){ const active=l.status&&l.status!=='open';
+    return '<div class="row" style="align-items:center;gap:6px;margin:3px 0"><div style="flex:0 0 62px;font-weight:600;font-size:13px">Lane '+l.order+(active?' <span style="color:#b45309">●</span>':'')+'</div>'
+      +'<select style="flex:1" onchange="setLane('+l.order+',\'status\',this.value)">'+LANE_STATUS.map(function(s){return '<option'+(l.status===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select>'
+      +'<select style="flex:0 0 96px" onchange="setLane('+l.order+',\'type\',this.value)">'+LANE_TYPE.map(function(t){return '<option'+(l.type===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'; }).join(''); }
+function laneSummary(){ if(!laneData.length)return ''; return laneData.length+' lanes — '+laneData.map(function(l){return 'L'+l.order+':'+(l.status||'open');}).join(', '); }
+// ---- MUTCD taper length + advance-warning sign spacing (Tables 6C-1/6C-4) ----
+function calcTaper(){ const box=el('taperBox'); box.style.display='block'; let S=parseFloat(v('normalSpeed')); if(!S||S<=0){ const p=prompt('Posted / approach speed (mph)?','55'); S=parseFloat(p); if(!S||S<=0){box.textContent='Enter a posted speed to compute taper.';return;} }
+  const W=12; const Lm=S>=45?Math.round(W*S):Math.round(W*S*S/60), Ls=Math.round(Lm*0.5), Lsh=Math.round(Lm/3); let road,A,B,C;
+  if(S>=55){road='Freeway / Expressway';A=1000;B=1500;C=2640;}else if(S>=45){road='Rural';A=500;B=500;C=500;}else if(S>=30){road='Urban ≥30 mph';A=350;B=350;C=350;}else{road='Urban ≤25 mph';A=100;B=100;C=100;}
+  window.__taper={Lm,Ls,Lsh,A,B,C,S,road};
+  box.innerHTML='<b>🚧 MUTCD TTC</b> — S='+S+' mph, 12-ft offset<br>Merging taper <b>'+Lm+' ft</b> · Shifting '+Ls+' ft · Shoulder '+Lsh+' ft<br>Advance-warning signs ('+road+'): <b>'+A+' / '+B+' / '+C+' ft</b><br><span style="font-size:11px;color:#64748b">MUTCD Tables 6C-1/6C-4 — verify vs your standard drawings.</span><br><button style="padding:5px 9px;margin-top:6px" onclick="addTaperNote()">Add to notes</button>'; }
+function addTaperNote(){ const t=window.__taper; if(!t)return; const note='TTC (MUTCD, '+t.S+' mph): merging taper '+t.Lm+' ft; advance-warning sign spacing '+t.A+'/'+t.B+'/'+t.C+' ft ('+t.road+').'; const cur=(v('addlNotes')||'').replace(/(^|\n)TTC \(MUTCD[^\n]*/g,'').trim(); el('addlNotes').value=[cur,note].filter(Boolean).join('\n'); saveState(); toast('Taper + signs added to notes'); }
+// ---- Work-zone end / expiration (from Start date + # weeks) ----
+function wzEndDate(){ const start=v('schedStart'),weeks=parseInt(v('schedWeeks')||'0',10); if(!start||!weeks)return null; const e=new Date(start+'T00:00'); e.setDate(e.getDate()+weeks*7); return e.toISOString(); }
+function wzEndLabel(){ const iso=wzEndDate(); return iso?new Date(iso).toDateString():''; }
+// ---- Auto-suggest a detour AROUND the closure ----
+async function suggestDetour(){ if(!beginPt||!endPt){ toast('Mark the closure (A→B) first'); return; } const info=el('detourInfo'); if(info){info.style.display='block';info.textContent='Suggesting a detour…';}
+  const midLat=(beginPt.lat+endPt.lat)/2, midLng=(beginPt.lng+endPt.lng)/2, perp=(bearing(beginPt,endPt)+90)*Math.PI/180, cosL=Math.cos(midLat*Math.PI/180)||1e-6; let best=null;
+  for(const off of [0.7,1.3,2.0]){ for(const side of [1,-1]){
+    const vlat=midLat+side*Math.cos(perp)*(off/69), vlng=midLng+side*Math.sin(perp)*(off/(69*cosL)); let via=null;
+    try{ const nj=await(await fetch('https://router.project-osrm.org/nearest/v1/driving/'+vlng+','+vlat+'?number=1')).json(); if(nj.code==='Ok'&&nj.waypoints&&nj.waypoints[0])via=nj.waypoints[0].location; }catch(e){}
+    if(!via)continue; const r=await osrmRoute([[beginPt.lng,beginPt.lat],via,[endPt.lng,endPt.lat]]); if(!r||!r.latlngs||r.latlngs.length<2)continue;
+    if(minDistToPath({lat:midLat,lng:midLng},r.latlngs)<300)continue; if(!best||r.meters<best.meters)best={latlngs:r.latlngs,meters:r.meters}; }}
+  if(!best){ if(info)info.textContent='No automatic detour found — trace it manually with ✏️ Draw detour.'; toast('No auto detour — trace manually'); return; }
+  detourPts=[beginPt,endPt]; detourRoute=best.latlngs; detourMeters=best.meters; if(v('detour')!=='Yes')el('detour').value='Yes'; drawDetour(); saveState(); toast('Suggested detour '+(best.meters/1609.34).toFixed(1)+' mi — review & adjust'); }
+// ---- Closure undo / clear ----
+function undoSeg(){ if(endPt){ endPt=null; if(endMk){endMk.remove();endMk=null;} if(line){line.remove();line=null;} if(line2){line2.remove();line2=null;} wzRoute=null;wzRoute2=null; setMode('end'); } else if(beginPt){ beginPt=null; if(beginMk){beginMk.remove();beginMk=null;} setMode('begin'); } else { toast('Nothing to undo'); return; } if(typeof refresh==='function')refresh(); saveState(); }
+function clearSeg(){ [beginMk,endMk,line,line2].forEach(x=>x&&x.remove()); beginPt=endPt=beginMk=endMk=line=line2=null; wzRoute=null;wzRoute2=null; setMode('begin'); if(typeof refresh==='function')refresh(); saveState(); }
 // Work that physically CHANGES the vertical clearance (overlay/mill/paving alters the deck or road
 // grade) → the posted/NBI clearance is now wrong and must be re-measured. Read from the description.
 function clearanceAltering(){ return /overlay|inlay|\bmill|resurfac|\bpav(e|ing)\b|\bdeck\b|grind|grade\s*rais|shoring|falsework|bridge\s*(repair|rehab|work)/i.test(v('description')||''); }
@@ -955,6 +1003,7 @@ function updateClearAlter(){ const box=el('clearAlterBox'); if(!box)return;
   else box.style.display='none'; }
 function checkReadiness(){ const miss=missingFields(); const b=el('readyBox');
   if(clearanceAltering() && !window.__nbiNear) miss.push('Bridge clearance — this work can alter clearance; scan NBI + update the posted value');
+  if(!wzEndDate()) miss.push('Scheduled end — set Start date + # weeks (sets the request’s expiration)');
   updateClearAlter();
   const conflicts=(window.__iaConflicts||[]);
   const conflictHtml=conflicts.length?(`<br><b style="color:#b91c1c">⚠️ Overlaps ${conflicts.length} existing Iowa DOT closure(s):</b><br>`+conflicts.slice(0,4).map(c=>'• '+(c.street||'')+' — '+(c.laneimpact||'')+' ('+fmtRange(c.start,c.end)+')').join('<br>')+'<br><span style="font-size:11px">Confirm this isn’t a duplicate, or coordinate timing.</span>'):'';
@@ -973,6 +1022,9 @@ function saveIntegration(){ localStorage.setItem('cars511_integration', JSON.str
 function loadIntegration(){ try{ const s=JSON.parse(localStorage.getItem('cars511_integration')||'{}'); if(s.endpoint)el('dbEndpoint').value=s.endpoint; if(s.auth)el('dbAuth').value=s.auth; }catch(e){} }
 function requestPayload(){ const o={}; FIELD_IDS.forEach(id=>{ if(el(id)) o[id]=v(id); });
   o.route=routeVal();
+  o.lanes=laneData.map(function(l){return {order:l.order,type:l.type||'general',status:l.status||'open'};});
+  o.ttc=window.__taper||null;
+  o.expiration=wzEndDate();
   // Both-directions closure: keep the human-readable string in o.direction, but also expose a
   // structured pair so a WZDx export can emit the TWO directional road events the spec requires
   // (WZDx has no "both" — each direction is its own RoadEventFeature over the same geometry).
@@ -1031,7 +1083,7 @@ function fields(){ const seg=(beginPt&&endPt)?`${dirLabel(bearing(beginPt,endPt)
     ['County/counties',v('counties')],['DOT requestor',v('requestor')],['Requestor email',v('email')],['24-hr contact',v('contact24')],
     ['Traffic impact',v('impact')],['Schedule pattern',v('schedPattern')],['Begin',fmtDT(v('beginDT'))],['End',fmtDT(v('endDT'))],
     ['Width restriction',v('rWidth')],['Height restriction',v('rHeight')],['Weight restriction',v('rWeight')],['Length restriction',v('rLength')],['Normal speed (mph)',v('normalSpeed')],['Reduced work-zone speed (mph)',v('reducedSpeed')],
-    ['Restriction timing',v('rTiming')],['Marked detour',v('detour')],['Oversize allowed',v('oversize')],['Detour notes',v('detourNotes')],
+    ['Lanes',laneSummary()],['Restriction timing',v('rTiming')],['Scheduled end (expiration)',wzEndLabel()],['Marked detour',v('detour')],['Oversize allowed',v('oversize')],['Detour notes',v('detourNotes')],
     ['Traffic technician',v('techContact')],['DMS request',v('dms')],['Additional info / notes',v('addlNotes')],
     ['Submit to (TMC)',v('tmcEmail')||'IowaDOT.Traffic@iowadot.us'],['RCE (cc)',v('rce')] ]; }
 function scheduleText(){ return schedule.length ? '\n\nSCHEDULE ('+schedule.length+' occurrences):\n'+schedule.map(o=>'  • '+o.label).join('\n') : ''; }
@@ -1071,6 +1123,7 @@ function resetAll(){ if(!confirm('Start a NEW request? Clears the segment, detou
   FIELD_IDS.forEach(id=>{ if(el(id) && !PERSIST_IDS.includes(id)) el(id).value = el(id).tagName==='SELECT'?el(id).options[0].value:''; });
   // segment + work-zone geometry
   [beginMk,endMk,line].forEach(x=>x&&x.remove()); beginPt=endPt=beginMk=endMk=line=null; wzRoute=null; schedule=[];
+  laneData=[]; if(el('laneCount'))el('laneCount').value=''; renderLanes(); if(el('taperBox'))el('taperBox').style.display='none'; window.__taper=null;
   // detour — must null detourRoute too, or drawDetour redraws the old line
   detourPts=[]; detourRoute=null; detourMeters=null; drawDetour();
   // devices
