@@ -41,8 +41,11 @@ function scorecard(events, incidents, opts = {}) {
   const tolMs = (opts.timingTolHours || 24) * 3600 * 1000;
   const inc = (incidents || []).filter(i =>
     WORKZONE_CATS.has(Number(i.categoryCode)) && Number.isFinite(i.latitude) && Number.isFinite(i.longitude));
-  // DOT-reported set = active WORK-ZONE events with a usable point (excludes incidents/DMS/placeholders).
-  const dotZones = (events || []).filter(e => isActiveNow(e) === true && isWorkZone(e) && Array.isArray(evPoint(e)));
+  // DOT-reported set = active WORK-ZONE events with a usable point. Excludes 511 placeholder markers
+  // (e.g. "<street>: No Report") that some feeds label as work-zone type but carry no actual closure.
+  const isPlaceholder = e => /no report|not reported|no current/i.test(String(e.description || e.name || ''));
+  const dotZones = (events || []).filter(e =>
+    isActiveNow(e) === true && isWorkZone(e) && !isPlaceholder(e) && Array.isArray(evPoint(e)));
 
   const matchedIncidentIds = new Set();
   const matched = [], dotOnly = [], timingGaps = [];
