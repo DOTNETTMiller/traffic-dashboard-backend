@@ -122,7 +122,7 @@
         <div><label>County</label><input id="counties" /></div>
       </div>
       <label>Description</label>
-      <textarea id="description" placeholder="e.g. Bridge deck rehab, right lane closed"></textarea>
+      <textarea id="description" placeholder="e.g. Bridge deck rehab, right lane closed" oninput="updateClearReminder();saveState()"></textarea>
       <div class="row">
         <div><label>Begin location (cross-street / MP)</label><input id="beginLoc" /></div>
         <div><label>End location (cross-street / MP)</label><input id="endLoc" /></div>
@@ -620,9 +620,12 @@ function prefillFromClosure(i){ const info=(window.__closRecs||[])[i]; if(!info)
   if(sm && el('schedStart')){ const s=new Date(sm); el('schedStart').value=new Date(s.getTime()-s.getTimezoneOffset()*60000).toISOString().slice(0,10);
     if(em && el('schedWeeks')){ const days=Math.max(1,Math.round((em-sm)/86400000)); el('schedWeeks').value=Math.max(1,Math.ceil(days/7)); } }
   updateClearReminder(); saveState(); toast('Prefilled from existing closure — review'); }
-// Bridge clearance is RELEVANT when the work reroutes/shifts traffic or allows oversize loads — those
-// are the cases where a low structure on the (alternate) path actually constrains the request.
-function clearanceRelevant(){const imp=v('impact');return v('oversize')==='Yes'||v('detour')==='Yes'||imp==='all-lanes-closed'||imp==='alternating-one-way'||imp==='all-lanes-open-shift-left'||imp==='all-lanes-open-shift-right';}
+// Work that physically CHANGES the vertical clearance (raises/lowers the deck or the road grade under
+// a structure) — the posted/NBI clearance is now wrong and must be re-measured. Read from description.
+function clearanceAltering(){return /overlay|inlay|\bmill|resurfac|\bpav(e|ing)\b|\bdeck\b|grind|grade\s*rais|shoring|falsework|bridge\s*(repair|rehab|work)/i.test(v('description')||'');}
+// Bridge clearance is RELEVANT when the work (a) reroutes/shifts traffic or allows oversize loads — a low
+// structure on the (alternate) path constrains it — OR (b) alters the clearance itself (overlay/mill/paving).
+function clearanceRelevant(){const imp=v('impact');return clearanceAltering()||v('oversize')==='Yes'||v('detour')==='Yes'||imp==='all-lanes-closed'||imp==='alternating-one-way'||imp==='all-lanes-open-shift-left'||imp==='all-lanes-open-shift-right';}
 function clearLabel(){const s=v('clearStatus');return s==='checked'?'Checked (scan run)':s==='not-needed'?'Not needed for this work':'Not yet checked';}
 function laneSummary(){if(!laneData.length)return '';return laneData.length+' lanes — '+laneData.map(function(l){return 'L'+l.order+':'+(l.status||'open');}).join(', ');}
 // Work-zone end/expiration derived from Start date + # weeks — sets the WZDx end_date so the zone
@@ -650,7 +653,10 @@ function addTaperNote(){ const t=window.__taper; if(!t)return;
   const note='TTC (MUTCD, '+t.S+' mph): merging taper '+t.Lmerge+' ft; advance-warning sign spacing '+t.A+'/'+t.B+'/'+t.C+' ft ('+t.road+').';
   const cur=(v('addlNotes')||'').replace(/(^|\n)TTC \(MUTCD[^\n]*/g,'').trim(); el('addlNotes').value=[cur,note].filter(Boolean).join('\n'); saveState(); toast('Taper + signs added to notes'); }
 function updateClearReminder(){const box=el('clearReminder');if(!box)return;const st=v('clearStatus');
-  if(clearanceRelevant()&&st!=='checked'&&st!=='not-needed'){box.style.display='block';box.innerHTML='⚠️ This work type can route traffic onto other structures — <b>run the clearance scan</b> above, or set the check to “Not needed for this work”.';}
+  if(clearanceRelevant()&&st!=='checked'&&st!=='not-needed'){box.style.display='block';
+    box.innerHTML=clearanceAltering()
+      ? '⚠️ This work can <b>change the vertical clearance</b> (deck overlay / milling / paving alters the deck or road grade) — <b>measure the new clearance and update the posted value</b>. Run the NBI scan, or set the check to “Not needed for this work”.'
+      : '⚠️ This work type can route traffic onto other structures — <b>run the clearance scan</b> above, or set the check to “Not needed for this work”.';}
   else box.style.display='none';}
 // ---- Lanes (WZDx lanes[]) ----
 const LANE_STATUS=['open','closed','shift-left','shift-right','merge-left','merge-right','alternating-flow'];
@@ -692,6 +698,7 @@ function toWZDx(){const now=new Date().toISOString();const coords=geometryCoords
     if(v('detour')==='Yes')props.x_detour=v('addlNotes')||'marked detour';
     props.x_clearance_check=v('clearStatus')||'pending';  // checked | not-needed | pending — clearance verification state
     props.x_clearance_relevant=clearanceRelevant();
+    if(clearanceAltering())props.x_clearance_altering=true;  // work physically changes vertical clearance → posted value must be re-measured
     if(laneData.length)props.lanes=laneData.map(function(l){return {order:l.order,type:l.type||'general',status:l.status||'open'};});  // WZDx v4.2 lanes[]
     if(window.__taper){props.x_taper_length_ft=window.__taper.Lmerge;props.x_advance_warning_ft=[window.__taper.A,window.__taper.B,window.__taper.C];}  // MUTCD TTC metadata
     if(v('dms'))props.x_dms_request=v('dms');

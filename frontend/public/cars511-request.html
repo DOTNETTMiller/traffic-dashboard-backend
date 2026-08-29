@@ -141,7 +141,7 @@
       </div>
       <div class="schedList" id="projBox" style="display:none"></div>
       <label>Project description</label>
-      <textarea id="description" placeholder="e.g. Bridge deck overlay, right lane closed"></textarea>
+      <textarea id="description" placeholder="e.g. Bridge deck overlay, right lane closed" oninput="updateClearAlter();saveState()"></textarea>
       <div class="row">
         <div><label>Begin location (cross-street / MP)</label><input id="beginLoc" /></div>
         <div><label>End location (cross-street / MP)</label><input id="endLoc" /></div>
@@ -203,6 +203,7 @@
       <legend>Step 4 · Restrictions &amp; clearances</legend>
       <button class="ghost" style="width:100%;margin:0 0 8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanBridges()">🌉 Scan NBI clearances + weight (route + detour)</button>
       <div class="schedList" id="nbiBox" style="display:none;margin-bottom:8px"></div>
+      <div id="clearAlterBox" style="display:none;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:6px;padding:6px 8px;font-size:12px;margin-bottom:8px"></div>
       <button class="ghost" style="width:100%;margin:0 0 8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanClosures()">🚧 Show nearby Iowa DOT closures (conflict check)</button>
       <div class="schedList" id="closuresBox" style="display:none;margin-bottom:8px"></div>
       <div class="row">
@@ -945,7 +946,16 @@ const REQUIRED=[['requestor','DOT requestor'],['email','Requestor email'],['rout
   ['beginLoc','Begin location'],['endLoc','End location'],['counties','County/counties'],['description','Description'],
   ['impact','Traffic impact'],['beginDT','Begin date/time'],['endDT','End date/time'],['rce','RCE office'],['contact24','24-hr contact']];
 function missingFields(){ return REQUIRED.filter(([id])=>!v(id) || v(id)==='__other' && !v('routeOther')).map(([,label])=>label); }
+// Work that physically CHANGES the vertical clearance (overlay/mill/paving alters the deck or road
+// grade) → the posted/NBI clearance is now wrong and must be re-measured. Read from the description.
+function clearanceAltering(){ return /overlay|inlay|\bmill|resurfac|\bpav(e|ing)\b|\bdeck\b|grind|grade\s*rais|shoring|falsework|bridge\s*(repair|rehab|work)/i.test(v('description')||''); }
+function updateClearAlter(){ const box=el('clearAlterBox'); if(!box)return;
+  if(clearanceAltering() && !window.__nbiNear){ box.style.display='block';
+    box.innerHTML='⚠️ This work can <b>change the vertical clearance</b> (deck overlay / milling / paving) — <b>scan NBI clearances above, measure the new clearance, and update the posted value</b>.'; }
+  else box.style.display='none'; }
 function checkReadiness(){ const miss=missingFields(); const b=el('readyBox');
+  if(clearanceAltering() && !window.__nbiNear) miss.push('Bridge clearance — this work can alter clearance; scan NBI + update the posted value');
+  updateClearAlter();
   const conflicts=(window.__iaConflicts||[]);
   const conflictHtml=conflicts.length?(`<br><b style="color:#b91c1c">⚠️ Overlaps ${conflicts.length} existing Iowa DOT closure(s):</b><br>`+conflicts.slice(0,4).map(c=>'• '+(c.street||'')+' — '+(c.laneimpact||'')+' ('+fmtRange(c.start,c.end)+')').join('<br>')+'<br><span style="font-size:11px">Confirm this isn’t a duplicate, or coordinate timing.</span>'):'';
   if(!miss.length){ if(b){ b.style.display='block';
@@ -1192,7 +1202,7 @@ async function scanBridges(){ if(!beginPt||!endPt){ toast('Select a road segment
     tag.push({...b, clr, on:(onR&&dR<=dD)?'route':'detour'}); });
   tag.sort((a,b)=>a.clr-b.clr);
   const routeB=tag.filter(b=>b.on==='route'), detourB=tag.filter(b=>b.on==='detour');
-  window.__nbiNear=routeB; window.__nbiDetour=detourB;
+  window.__nbiNear=routeB; window.__nbiDetour=detourB; if(typeof updateClearAlter==='function')updateClearAlter();
   if(bridgeLayer) bridgeLayer.remove(); bridgeLayer=L.layerGroup().addTo(map); setOverlay('🌉 Bridges', bridgeLayer);
   tag.forEach(b=>{ const low=b.clr<15, det=b.on==='detour';
     const bg=det?(low?'#7c3aed':'#6d28d9'):(low?'#b45309':'#334155');
@@ -1469,7 +1479,7 @@ el('route').addEventListener('change', ()=>{ onRouteChange(); saveState(); });
 el('rce').addEventListener('change', ()=>{ setRceOffice(v('rce')); saveState(); });
 el('rceEmail').addEventListener('input', saveRceEmail);
 FIELD_IDS.forEach(id=>{ if(el(id)) el(id).addEventListener('input', saveState); });
-loadState(); renderProjects(); onRouteChange(); loadIntegration(); loadCsvProjects();
+loadState(); renderProjects(); onRouteChange(); loadIntegration(); loadCsvProjects(); updateClearAlter();
 
 // ---- accessibility: associate every stray <label> with its control, and give
 // keyboard/screen-reader users a coordinate path to place the begin/end points ----
