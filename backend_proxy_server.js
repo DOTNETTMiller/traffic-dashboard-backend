@@ -5136,6 +5136,31 @@ app.get('/api/tomtom/verify-now', async (req, res) => {
   } catch (e) { res.status(502).json({ error: e.message, status: tomtomStatus }); }
 });
 
+// Deviation scorecard (Phase 2): match DOT work zones vs TomTom incidents → matched / DOT-only
+// (not reaching drivers) / TomTom-only (unreported by DOT) / timing gaps + coverage %. Read-only:
+// uses already-cached DOT events + TomTom incidents (no API calls).
+app.get('/api/tomtom/deviation', async (req, res) => {
+  try {
+    if (!eventsCache.data && startupCachePromise) { try { await startupCachePromise; } catch (_) { /* serve what we have */ } }
+    const events = eventsCache.data?.events || [];
+    const byId = new Map();
+    for (const i of (tomtomZoneCache.data?.incidents || [])) byId.set(i.id, i);
+    for (const i of (tomtomCache.data?.incidents || [])) if (!byId.has(i.id)) byId.set(i.id, i);
+    const incidents = [...byId.values()];
+    const sc = require('./services/tomtom-deviation').scorecard(events, incidents, {
+      maxM: req.query.maxM ? parseInt(req.query.maxM, 10) : undefined,
+      limit: req.query.limit ? parseInt(req.query.limit, 10) : undefined
+    });
+    res.json({
+      ...sc,
+      tomtomStatus,
+      incidentsCached: incidents.length,
+      lastZonePull: tomtomZoneCache.timestamp ? new Date(tomtomZoneCache.timestamp).toISOString() : null,
+      note: incidents.length ? undefined : 'No TomTom incidents cached yet — open the corridor once or wait for the background pull.'
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Crash records live in the persistent PostGIS Postgres (alongside the corridor
 // geometry the clip reads), NOT the main `db.db` store. On the production
 // deployment `db.db` resolves to a separate, non-persistent handle that the

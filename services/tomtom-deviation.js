@@ -1,0 +1,92 @@
+/**
+ * TomTom deviation scorecard — the "what's getting through?" view (Phase 2).
+ *
+ * Matches DOT work-zone events against TomTom's independent incident feed and buckets them:
+ *   - matched     : DOT zone + a TomTom work-zone incident at the same spot  → reaching drivers
+ *   - dotOnly     : DOT zone with NO TomTom incident nearby                   → NOT reaching drivers (nav)
+ *   - tomtomOnly  : TomTom work-zone incident with no DOT zone nearby         → unreported by the DOT
+ *   - timingGaps  : matched spatially but the reported time windows disagree
+ *
+ * Reuses the corroboration match rule (TomTom cat 7/8/9 within maxM on the same interstate).
+ * Read-only: consumes already-cached DOT events + TomTom incidents — no API calls here.
+ */
+
+const turf = require('@turf/turf');
+const { WORKZONE_CATS } = require('./tomtom-corroboration');
+const { isActiveNow } = require('./camera-validation');
+
+function interstate(s) {
+  const m = String(s || '').toUpperCase().match(/\bI[-\s]?(\d{1,3})\b/);
+  return m ? `I-${parseInt(m[1], 10)}` : null;
+}
+function evPoint(ev) { return ev.coordinates || (ev.longitude != null ? [ev.longitude, ev.latitude] : null); }
+function ms(x) { const t = x == null ? null : (typeof x === 'number' ? x : Date.parse(x)); return Number.isFinite(t) ? t : null; }
+
+// Do the DOT zone's and TomTom incident's reported windows disagree by more than tolHours?
+function timingDisagrees(ev, inc, tolMs) {
+  const dEnd = ms(ev.endDate || ev.end_date || ev.endTime);
+  const tEnd = ms(inc.endTime);
+  if (dEnd == null || tEnd == null) return false;      // can't judge → not a gap
+  return Math.abs(dEnd - tEnd) > tolMs;
+}
+
+function scorecard(events, incidents, opts = {}) {
+  const maxM = opts.maxM || 1500;
+  const tolMs = (opts.timingTolHours || 24) * 3600 * 1000;
+  const inc = (incidents || []).filter(i =>
+    WORKZONE_CATS.has(Number(i.categoryCode)) && Number.isFinite(i.latitude) && Number.isFinite(i.longitude));
+  // DOT-reported set = active work-zone events with a usable point.
+  const dotZones = (events || []).filter(e => isActiveNow(e) === true && Array.isArray(evPoint(e)));
+
+  const matchedIncidentIds = new Set();
+  const matched = [], dotOnly = [], timingGaps = [];
+
+  for (const ev of dotZones) {
+    const evPt = evPoint(ev);
+    const evRoute = interstate(ev.corridor || ev.route || ev.location);
+    let best = null, bestD = Infinity;
+    for (const i of inc) {
+      const iRoute = interstate((i.roadNumbers || []).join(' ')) || interstate(i.description);
+      if (evRoute && iRoute && iRoute !== evRoute) continue;   // same interstate when both name one
+      const d = turf.distance(turf.point(evPt), turf.point([i.longitude, i.latitude]), { units: 'meters' });
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    if (best && bestD <= maxM) {
+      matchedIncidentIds.add(best.id);
+      const rec = { id: ev.id, route: evRoute || ev.route || ev.corridor || null, coordinates: evPt,
+        tomtom: { id: best.id, category: best.category, distance_m: Math.round(bestD) } };
+      matched.push(rec);
+      if (timingDisagrees(ev, best, tolMs)) timingGaps.push({ ...rec, dotEnd: ev.endDate || ev.end_date || null, tomtomEnd: best.endTime || null });
+    } else {
+      dotOnly.push({ id: ev.id, route: evRoute || ev.route || ev.corridor || null, coordinates: evPt,
+        description: ev.description || ev.name || null });
+    }
+  }
+
+  const tomtomOnly = inc.filter(i => !matchedIncidentIds.has(i.id)).map(i => ({
+    id: i.id, route: interstate((i.roadNumbers || []).join(' ')) || interstate(i.description) || null,
+    category: i.category, coordinates: [i.longitude, i.latitude], description: i.description || null, severity: i.severity || null }));
+
+  const denom = matched.length + dotOnly.length;
+  const coveragePct = denom ? Math.round((matched.length / denom) * 100) : null;
+
+  const cap = opts.limit || 250;
+  return {
+    summary: {
+      dotZones: dotZones.length,
+      tomtomWorkZones: inc.length,
+      matched: matched.length,
+      dotOnly: dotOnly.length,        // DOT reports it, nav doesn't → not reaching drivers
+      tomtomOnly: tomtomOnly.length,  // nav sees it, DOT didn't report → reporting gap
+      timingGaps: timingGaps.length,
+      coveragePct                     // % of DOT zones nav is also showing
+    },
+    dotOnly: dotOnly.slice(0, cap),
+    tomtomOnly: tomtomOnly.slice(0, cap),
+    timingGaps: timingGaps.slice(0, cap),
+    matchedSample: matched.slice(0, 25),
+    generatedAt: new Date().toISOString()
+  };
+}
+
+module.exports = { scorecard };
