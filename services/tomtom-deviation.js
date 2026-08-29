@@ -20,6 +20,12 @@ function interstate(s) {
   return m ? `I-${parseInt(m[1], 10)}` : null;
 }
 function evPoint(ev) { return ev.coordinates || (ev.longitude != null ? [ev.longitude, ev.latitude] : null); }
+// A DOT WORK ZONE (not an incident, DMS status, camera, or "No Report" placeholder). The events
+// cache mixes all event kinds; the scorecard compares work zones only.
+function isWorkZone(ev) {
+  const t = String(ev.eventType || ev.event_type || ev.type || (ev.core_details && ev.core_details.event_type) || '').toLowerCase();
+  return /work.?zone|construction|road\s*work|roadwork|maintenance|lane\s*clos/.test(t);
+}
 function ms(x) { const t = x == null ? null : (typeof x === 'number' ? x : Date.parse(x)); return Number.isFinite(t) ? t : null; }
 
 // Do the DOT zone's and TomTom incident's reported windows disagree by more than tolHours?
@@ -35,8 +41,8 @@ function scorecard(events, incidents, opts = {}) {
   const tolMs = (opts.timingTolHours || 24) * 3600 * 1000;
   const inc = (incidents || []).filter(i =>
     WORKZONE_CATS.has(Number(i.categoryCode)) && Number.isFinite(i.latitude) && Number.isFinite(i.longitude));
-  // DOT-reported set = active work-zone events with a usable point.
-  const dotZones = (events || []).filter(e => isActiveNow(e) === true && Array.isArray(evPoint(e)));
+  // DOT-reported set = active WORK-ZONE events with a usable point (excludes incidents/DMS/placeholders).
+  const dotZones = (events || []).filter(e => isActiveNow(e) === true && isWorkZone(e) && Array.isArray(evPoint(e)));
 
   const matchedIncidentIds = new Set();
   const matched = [], dotOnly = [], timingGaps = [];

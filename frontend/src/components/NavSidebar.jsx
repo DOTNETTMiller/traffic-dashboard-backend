@@ -49,6 +49,7 @@ const NAV = [
       { actionKey: 'toggle-tomtom-incidents', toggleProp: 'showTomTomIncidents',     icon: '🚗', label: 'TomTom Incidents (nav)' },
       { actionKey: 'toggle-connected-devices', toggleProp: 'showConnectedDevices',   icon: '🔶', label: 'Connected Arrow Boards' },
       { actionKey: 'open-device-health',                                             icon: '🩺', label: 'Device Validation Monitor' },
+      { actionKey: 'open-tomtom-deviation',                                          icon: '🚗', label: 'TomTom Deviation' },
       { actionKey: 'toggle-validated-closures', toggleProp: 'showValidatedClosures', icon: '✅', label: 'Validated Work Zones' },
       { actionKey: 'toggle-corridor-regs',    toggleProp: 'showCorridorRegulations', icon: '🚛', label: 'OS/OW Permit Rules' }
     ]
