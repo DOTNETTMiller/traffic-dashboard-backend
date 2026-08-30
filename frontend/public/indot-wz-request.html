@@ -325,8 +325,8 @@ function offsetPt(lat,lng,dl,meters){const t={N:0,E:90,S:180,W:270},br=t[dl]!=nu
 async function osrmRoute(coords){try{const c=coords.map(p=>p[0]+','+p[1]).join(';');const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+c+'?overview=full&geometries=geojson');const j=await r.json();const rt=j.routes&&j.routes[0];if(!rt)return null;return{latlngs:rt.geometry.coordinates.map(c=>[c[1],c[0]]),meters:rt.distance};}catch(e){return null;}}
 function drawWZLine(){if(line){line.remove();line=null;}if(line2){line2.remove();line2=null;}const pts=(wzRoute&&wzRoute.length)?wzRoute:((beginPt&&endPt)?[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]]:null);if(pts)line=L.polyline(pts,{color:'#dc2626',weight:6,opacity:.85}).addTo(map);if(wzRoute2&&wzRoute2.length&&beginPt&&endPt)line2=L.polyline(wzRoute2,{color:'#dc2626',weight:6,opacity:.85}).addTo(map);}
 /* ==MP_CONFIG_START== */
-const MP={"url":"https://gisdata.in.gov/server/rest/services/Hosted/LRSE_Reference_Post/FeatureServer/2/query","mpField":"measure","routeField":"route_id","nameField":"post_name","where":"1=1"};
-function wzRouteFriendly(x){var m=String(x||'').match(/^([IUS])_(\d+)_/);if(!m)return null;var t={I:'I-',U:'US-',S:'SR-'}[m[1]];return t?t+parseInt(m[2],10):null;}
+const MP={"url":"https://services.arcgis.com/m0skr7SJ35eSV0W6/arcgis/rest/services/IINDOT_ARIES_SUPPORT_DATA/FeatureServer/1/query","mpField":"PostNumber","routeField":"RID","where":"1=1"};
+function wzRouteFriendly(x){return x?String(x):null;}
 /* ==MP_CONFIG_END== */
 // Generic milepost resolver (shared, config-driven). Point sources: nearest posted marker + tenths
 // interpolation between the two nearest posts on the same route. LRS-line sources (MP.line): project
