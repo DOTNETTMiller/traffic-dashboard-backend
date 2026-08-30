@@ -1669,7 +1669,7 @@ async function scanClosures(){ if(!CLOSURES){toast('No public closures feed for 
       const ds=caDistricts(midLat,midLon); const urls=ds.length?CLOSURES.urls.filter((u,i)=>ds.indexOf(i+1)>=0):CLOSURES.urls;
       box.textContent='Loading Caltrans lane closures ('+urls.length+' district'+(urls.length>1?'s':'')+')…';
       const dd=await Promise.all(urls.map(u=>fetch(u).then(r=>r.json()).catch(()=>({})))); feats=dd.flatMap(x=>(x.data||[])).map(x=>x.lcs).filter(l=>l&&l.location&&l.closure&&l.closure.closureID); }
-    else { const url=CLOSURES.url+'?where='+encodeURIComponent(CLOSURES.where||'1=1')+'&geometry='+encodeURIComponent(bbA.join(','))+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&outSR=4326&resultRecordCount=250&f=json'; const j=await(await fetch(url)).json(); feats=j.features||[]; }
+    else { const url=CLOSURES.url+'?where='+encodeURIComponent(CLOSURES.where||'1=1')+'&geometry='+encodeURIComponent(bbA.join(','))+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&outSR=4326'+(CLOSURES.noPaging?'':'&resultRecordCount=250')+'&f=json'; const j=await(await fetch(url)).json(); feats=j.features||[]; }
     if(closuresLayer){closuresLayer.remove();closuresLayer=null;} closuresLayer=L.layerGroup().addTo(map);
     const seg=(wzRoute&&wzRoute.length)?wzRoute:[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]];
     const now=Date.now(); const near=[],conflicts=[],recs=[];
