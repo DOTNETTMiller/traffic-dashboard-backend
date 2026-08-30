@@ -367,7 +367,7 @@ async function wzMilepost(pt){ if(!MP||!MP.url) return null; const k=Math.cos(pt
       +'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'
       +'&outFields='+encodeURIComponent(of)+'&returnGeometry=true&outSR=4326&resultRecordCount=400&f=json';
     const j=await(await fetch(url)).json();
-    const gxy=function(g){ if(!g)return null; if(g.x!=null&&g.y!=null)return [g.x,g.y]; const p=g.points&&g.points[0]; return (p&&p.length>=2)?[p[0],p[1]]:null; };
+    const gxy=function(g){ if(!g)return null; if(g.x!=null&&g.y!=null)return [g.x,g.y]; const p=g.points&&g.points[0]; if(p&&p.length>=2)return [p[0],p[1]]; const pa=g.paths&&g.paths[0]; if(pa&&pa.length){ const v=pa[Math.floor(pa.length/2)]; return (v&&v.length>=2)?[v[0],v[1]]:null; } return null; };
     const feats=(j.features||[]).map(function(f){ f._xy=gxy(f.geometry); return f; }).filter(function(f){ return f._xy&&Number.isFinite(parseFloat(f.attributes[MP.mpField])); });
     if(!feats.length) return null;
     feats.forEach(function(f){ f._d=Math.hypot((f._xy[0]-pt.lng)*k,(f._xy[1]-pt.lat)); });

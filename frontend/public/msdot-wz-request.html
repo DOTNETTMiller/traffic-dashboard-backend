@@ -1,0 +1,856 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MDOT — Work-Zone Request Builder</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://unpkg.com/shpjs@4.0.4/dist/shp.min.js"></script>
+<style>
+  :root{ --brand:#002d62; --brand2:#0053b3; --silver:#a2aaad; --accent:#0053b3; --bg:#eef1f5; --ink:#0f2438; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+  header{background:linear-gradient(90deg,#002d62 0%,#0053b3 100%);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;border-bottom:3px solid var(--silver)}
+  header .logo{display:flex;flex-direction:column;align-items:center;justify-content:center;width:46px;height:44px;border-radius:8px;background:#fff;color:#002d62;font-weight:800;font-size:12px;line-height:1;letter-spacing:.03em;border:2px solid var(--silver)}
+  header .logo small{font-size:8px;font-weight:700;color:var(--silver);letter-spacing:.12em;margin-top:2px}
+  header h1{font-size:16px;margin:0;font-weight:800;letter-spacing:.01em} header .sub{font-size:12px;opacity:.9;margin-top:1px}
+  .wrap{display:flex;height:calc(100vh - 60px)}
+  .form{width:430px;max-width:46vw;overflow:auto;padding:12px 14px 60px;background:#fff;border-right:1px solid #dde3ea}
+  #map{position:absolute;inset:0;height:100%;width:100%}
+  .maphint{position:absolute;top:10px;left:10px;z-index:1000;background:rgba(255,255,255,.95);padding:6px 10px;border-radius:6px;font-size:12px;box-shadow:0 1px 6px rgba(0,0,0,.2)}
+  fieldset{border:1px solid #dde3ea;border-radius:10px;margin:0 0 12px;padding:10px 12px}
+  legend{font-weight:700;color:var(--brand);font-size:13px;padding:0 6px}
+  label{display:block;font-size:12px;font-weight:600;margin:8px 0 2px;color:#334}
+  input,select,textarea{width:100%;padding:7px 8px;border:1px solid #cdd6df;border-radius:6px;font-size:13px;font-family:inherit}
+  textarea{min-height:52px;resize:vertical}
+  .row{display:flex;gap:8px} .row>div{flex:1}
+  .bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  button{border:1px solid var(--brand2);background:#fff;color:var(--brand2);border-radius:6px;padding:7px 10px;font-size:13px;font-weight:600;cursor:pointer}
+  button.primary{background:var(--brand2);color:#fff} button.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .mapbtns{display:flex;gap:6px} .mapbtns button{flex:1}
+  .selinfo{font-size:12px;background:#eef3fb;border:1px solid #d3e0f5;border-radius:6px;padding:7px 9px;margin-top:8px;color:#22344a}
+  .box{font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:7px 9px;margin-top:8px;white-space:normal}
+  .hint{font-size:11px;color:#64748b;margin-top:4px}
+  .actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .chk{display:flex;align-items:center;gap:6px;font-weight:500;font-size:12px;margin-top:8px}
+  .chk input{width:auto}
+  a{color:var(--brand2)}
+  .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#0f2438;color:#fff;padding:9px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;z-index:6000;pointer-events:none}
+  .toast.show{opacity:.96}
+  /* ---- accessibility + mobile responsiveness ---- */
+  a.skiplink{position:absolute;left:8px;top:-48px;background:#fff;color:var(--brand2);border:2px solid var(--brand2);padding:8px 12px;border-radius:0 0 6px 6px;z-index:3000;font-weight:700;transition:top .15s}
+  a.skiplink:focus{top:0}
+  :focus-visible{outline:3px solid var(--brand2);outline-offset:2px}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+  @media (max-width:860px){
+    .wrap{flex-direction:column;height:auto}
+    .form{width:100%;max-width:100%;border-right:none;border-bottom:3px solid var(--silver)}
+    #mapwrap{flex:none;height:56vh;min-height:340px}
+    input,select,textarea{font-size:16px}                 /* prevents iOS auto-zoom */
+    .mapbtns button,.bar button,.bar select,.actions button{min-height:44px}
+    header{position:sticky;top:0;z-index:1200}
+  }
+  @media (max-width:480px){ .row{flex-direction:column;gap:0} }
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
+</style>
+</head>
+<body>
+<a href="#form" class="skiplink">Skip to request form</a>
+
+<header>
+  <div class="logo">M<small>DOT</small></div>
+  <div><h1>Mississippi Department of Transportation — Work-Zone Request Builder</h1>
+    <div class="sub">Mark the road → clearances → schedule → export WZDx / email / submit. Review before submitting.</div></div>
+</header>
+
+<div class="wrap">
+  <main class="form" id="form" role="main" aria-label="MDOT work-zone request form">
+    <div class="bar">
+      <button onclick="saveProject()">💾 Save project</button>
+      <select id="projPicker" onchange="if(this.value)loadProject(this.value)"><option value="">↺ Saved projects…</option></select>
+      <button onclick="resetAll()">🗑 New</button>
+    </div>
+
+    <fieldset>
+      <legend>Step 1 · Mark the work zone</legend>
+      <div class="mapbtns">
+        <button id="btnBegin" class="active" onclick="setMode('begin')">① Set BEGIN</button>
+        <button id="btnEnd" onclick="setMode('end')">② Set END</button>
+        <button id="btnGPS" onclick="useMyLocation()">📍 My location</button>
+      </div>
+      <div class="mapbtns" style="margin-top:6px">
+        <button onclick="undoSeg()">↶ Undo point</button>
+        <button onclick="clearSeg()">✕ Clear segment</button>
+      </div>
+      <label class="chk"><input type="checkbox" id="autofill" checked /> Auto-fill county from the map (uses internet)</label>
+      <details style="margin-top:8px">
+        <summary style="cursor:pointer;font-size:12px;color:var(--brand2);font-weight:600">⌨ Enter coordinates instead (keyboard-accessible)</summary>
+        <div class="row" style="margin-top:6px">
+          <div><label for="mllA">Begin (lat, lng)</label><input id="mllA" inputmode="decimal" placeholder="32.30, -90.18" /></div>
+          <div><label for="mllB">End (lat, lng)</label><input id="mllB" inputmode="decimal" placeholder="32.32, -90.20" /></div>
+        </div>
+        <button type="button" style="width:100%;margin-top:6px" onclick="setByLatLng()">Set point(s) from coordinates</button>
+      </details>
+      <div class="selinfo" id="selinfo" role="status" aria-live="polite">No segment yet — click the road for the begin point, then the end point.</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Step 2 · Location &amp; details</legend>
+      <div class="row">
+        <div><label>Route</label>
+          <select id="route"><option value="">— select —</option><option>I-10</option><option>I-20</option><option>I-22</option><option>I-55</option><option>I-59</option><option>I-110</option><option>I-220</option><option>I-269</option><option>US-45</option><option>US-49</option><option>US-51</option><option>US-61</option><option>US-72</option><option>US-78</option><option>US-82</option><option>US-84</option><option>US-90</option><option>US-98</option><option>MS-25</option><option value="__other">Other (type below)</option></select></div>
+        <div><label>Direction</label>
+          <select id="direction" onchange="if(beginPt&&endPt){snapWZ();}else{wzRoute2=null;drawWZLine();}saveState();"><option value="">—</option><option>N</option><option>S</option><option>E</option><option>W</option><option>Both</option></select></div>
+      </div>
+      <input id="routeOther" placeholder="e.g. MS-25, US-49" style="margin-top:6px;display:none" />
+      <div class="row">
+        <div><label>Project # <span class="hint" style="display:inline">(type to search — import your list)</span></label>
+          <input id="project" list="projList" autocomplete="off" onchange="onProjectPick()" placeholder="start typing…" />
+          <datalist id="projList"></datalist>
+          <div style="font-size:11px;margin-top:2px">
+            <a href="#" onclick="document.getElementById('projCsv').click();return false" style="font-weight:600">＋ import CSV</a>
+            &nbsp;·&nbsp; <a href="#" onclick="clearCsvProjects();return false" style="color:#94a3b8">clear</a>
+            <input type="file" id="projCsv" accept=".csv,text/csv" style="display:none" onchange="loadProjectsCSV(event)" />
+          </div></div>
+        <div><label>County</label><input id="counties" /></div>
+      </div>
+      <label>Description</label>
+      <textarea id="description" placeholder="e.g. Bridge deck rehab, right lane closed" oninput="updateClearReminder();saveState()"></textarea>
+      <div class="row">
+        <div><label>Begin location (cross-street / MP)</label><input id="beginLoc" /></div>
+        <div><label>End location (cross-street / MP)</label><input id="endLoc" /></div>
+      </div>
+      <div class="row">
+        <div><label>Requestor</label><input id="requestor" /></div>
+        <div><label>Requestor email</label><input id="email" type="email" /></div>
+      </div>
+      <label>24-hour contact (name / phone)</label><input id="contact24" />
+      <label>Vehicle impact <span class="hint" style="display:inline">(WZDx standard)</span></label>
+      <select id="impact" onchange="updateClearReminder();saveState()">
+        <option value="">— select —</option>
+        <option>all-lanes-closed</option>
+        <option>some-lanes-closed</option>
+        <option>some-lanes-closed-merge-left</option>
+        <option>some-lanes-closed-merge-right</option>
+        <option>all-lanes-open-shift-left</option>
+        <option>all-lanes-open-shift-right</option>
+        <option>alternating-one-way</option>
+        <option>all-lanes-open</option>
+        <option>unknown</option>
+      </select>
+      <label>Lanes this direction <span class="hint" style="display:inline">→ WZDx lanes[]</span></label>
+      <div class="row" style="align-items:center;gap:8px">
+        <div style="flex:0 0 auto"><input id="laneCount" type="number" min="0" max="8" style="width:70px" placeholder="#" onchange="buildLanes(+this.value)" aria-label="Number of through lanes this direction" /></div>
+        <div style="flex:1;font-size:12px;color:#64748b">Enter # of through lanes, then set each lane's status below (Lane 1 = leftmost).</div>
+      </div>
+      <div id="laneHint" style="display:none;font-size:12px;color:#0369a1;margin-top:2px"></div>
+      <div id="lanesEditor"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Step 3 · Detour &amp; notes</legend>
+      <div class="mapbtns">
+        <button onclick="suggestDetour()">✨ Suggest detour</button>
+        <button id="btnDetour" onclick="setMode('detour')">✏️ Draw detour</button>
+        <button onclick="undoDetour()">↶ Undo</button>
+        <button onclick="clearDetour()">✕ Clear</button>
+      </div>
+      <div class="box" id="detourInfo" style="display:none"></div>
+      <div class="row">
+        <div><label>Marked detour?</label><select id="detour" onchange="updateClearReminder();saveState()"><option>No</option><option>Yes</option></select></div>
+        <div><label>Oversize allowed?</label><select id="oversize" onchange="updateClearReminder();saveState()"><option>N/A</option><option>Yes</option><option>No</option></select></div>
+      </div>
+      <label>DMS / message-sign request</label><textarea id="dms" placeholder="Requested message / location"></textarea>
+      <label>Additional notes</label><textarea id="addlNotes" placeholder="Pilot car, flagger, devices, etc."></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>Step 4 · Restrictions &amp; clearances</legend>
+      <button class="primary" style="width:100%;margin-bottom:8px" onclick="scanBridges()">🌉 Scan NBI clearances + weight (route + detour)</button>
+      <div class="box" id="nbiBox" style="display:none"></div>
+      <div id="clearReminder" class="box" style="display:none;background:#fff7ed;border-color:#fed7aa;color:#9a3412;margin-top:6px"></div>
+      <div class="row" style="margin-top:6px">
+        <div><label>Bridge clearance check <span class="hint" style="display:inline">(auto-set when you scan)</span></label>
+          <select id="clearStatus" onchange="updateClearReminder();saveState()">
+            <option value="pending">Not yet checked</option>
+            <option value="checked">Checked — scan run</option>
+            <option value="not-needed">Not needed for this work</option>
+          </select></div>
+      </div>
+      <button class="primary" style="width:100%;margin:8px 0 0" onclick="scanCamsDMS()">📷 Scan nearby cameras</button>
+      <label style="display:block;font-size:12px;color:#475569;margin:6px 0 2px">Or load your cameras — GeoJSON, CSV, or zipped shapefile (parsed on this device; nothing uploaded)</label>
+      <input type="file" accept=".geojson,.json,.csv,.zip" onchange="handleCamFile(this)" style="width:100%;font-size:12px" />
+      <div class="box" id="camdmsBox" style="display:none"></div>
+      <div id="closuresRow" style="display:none">
+        <button class="primary" style="width:100%;margin:8px 0 0" onclick="scanClosures()">🚧 Show existing closures (conflict check)</button>
+        <div class="box" id="closuresBox" style="display:none"></div>
+      </div>
+      <div class="row">
+        <div><label>Width</label><input id="rWidth" placeholder="e.g. 11 ft" /></div>
+        <div><label>Height</label><input id="rHeight" placeholder="e.g. 15 ft 6 in" /></div>
+      </div>
+      <div class="row">
+        <div><label>Weight</label><input id="rWeight" /></div>
+        <div><label>Length</label><input id="rLength" /></div>
+      </div>
+      <div class="row">
+        <div><label>Normal speed (mph)</label><input id="normalSpeed" inputmode="numeric" placeholder="reference, e.g. 70" /></div>
+        <div><label>Reduced work-zone speed (mph)</label><input id="reducedSpeed" inputmode="numeric" placeholder="e.g. 55" /></div>
+      </div>
+      <button onclick="calcTaper()" style="width:100%;margin:2px 0 0">🚧 Taper + advance-warning signs (MUTCD)</button>
+      <div class="box" id="taperBox" style="display:none"></div>
+      <label>Restriction timing</label>
+      <select id="rTiming"><option>24 hours</option><option>Limited hours</option><option>None</option></select>
+      <div class="hint">⚖️ OSOW (oversize/overweight) permit routing: Mississippi publishes no public route-restriction layer, so verify restricted routes via MDOT's permit system (LoIS). If MDOT exposes an OSOW route layer, this check can be added (see the guide).</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Step 5 · Schedule — build out weeks</legend>
+      <div class="row">
+        <div><label>Pattern</label><select id="schedPattern"><option>Continuous</option><option>Weekdays</option><option>Nights</option><option>Weekends</option></select></div>
+        <div><label># weeks</label><input id="schedWeeks" type="number" min="1" max="52" placeholder="3" /></div>
+      </div>
+      <div class="row">
+        <div><label>Start date</label><input id="schedStart" type="date" /></div>
+        <div><label>Daily from</label><input id="schedFrom" type="time" /></div>
+        <div><label>Daily to</label><input id="schedTo" type="time" /></div>
+      </div>
+      <button style="width:100%;margin-top:8px" onclick="buildWeeks()">📅 Build weeks → occurrences</button>
+      <div class="box" id="schedList" style="display:none"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Step 6 · Submit</legend>
+      <label>MDOT recipient email</label>
+      <input id="tmcEmail" placeholder="district / TMC email" />
+      <div class="hint">Set your MDOT district or TMC intake email. Email opens a draft (does not auto-send).</div>
+      <div class="box" id="readyBox" style="display:none;background:#fff7ed;border-color:#fed7aa;color:#9a3412"></div>
+      <div class="actions">
+        <button onclick="checkReadiness()">✓ Check readiness</button>
+        <button class="primary" onclick="downloadWZDx()">🧩 Export WZDx</button>
+        <button onclick="emailAgency()">✉️ Email MDOT</button>
+        <button onclick="genPDF()">📄 Summary PDF</button>
+        <button onclick="copySummary()">📋 Copy</button>
+      </div>
+      <details style="margin-top:10px">
+        <summary style="cursor:pointer;font-weight:600;color:var(--accent)">🗄️ Submit to database (optional)</summary>
+        <div class="hint" style="padding:6px 0">POSTs the full request as JSON to your endpoint. Saved on this device. Host the page same-origin as the endpoint (or enable CORS).</div>
+        <label>Endpoint URL</label><input id="dbEndpoint" placeholder="https://your-server/api/ndot-wz" oninput="saveIntegration()" />
+        <label>Authorization header</label><input id="dbAuth" placeholder="Bearer …" oninput="saveIntegration()" />
+        <div class="actions"><button class="primary" onclick="submitToDatabase()">🚀 Submit</button><button onclick="downloadPayload()">⬇ Download JSON</button></div>
+        <div id="dbStatus" class="hint" style="display:none" role="status" aria-live="polite"></div>
+      </details>
+    </fieldset>
+  </main>
+  <div id="mapwrap" style="flex:1;position:relative">
+    <div class="maphint" id="maphint" role="status" aria-live="polite">Click the road to set the <b>begin</b> point &nbsp;·&nbsp; <span style="color:#94a3b8">(map tiles need internet)</span></div>
+    <div id="map" role="application" aria-label="Map — click the road to mark the work zone. Keyboard users can enter coordinates in Step 1."></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="assertive"></div>
+
+<script>
+const el=id=>document.getElementById(id);
+const v=id=>{const e=el(id);return e?String(e.value||'').trim():'';};
+function toast(m){const t=el('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),3200);}
+const FIELD_IDS=['route','routeOther','direction','project','description','beginLoc','endLoc','counties','requestor','email','contact24','impact','rWidth','rHeight','rWeight','rLength','normalSpeed','reducedSpeed','rTiming','clearStatus','detour','oversize','dms','addlNotes','tmcEmail','schedPattern','schedWeeks','schedStart','schedFrom','schedTo'];
+
+// ---- map ----
+const map=L.map('map',{zoomControl:true}).setView([32.7,-89.7],7); // Mississippi
+// Esri basemap tiles: no API key, no Referer required (OSM's public tiles 403 when opened from file://).
+const baseStreet=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri',crossOrigin:true,errorTileUrl:'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='}).addTo(map);
+const baseSat=L.layerGroup([
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri'}),
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19})
+]);
+L.control.layers({'Street':baseStreet,'Satellite':baseSat},{},{position:'topright'}).addTo(map);
+setTimeout(()=>map.invalidateSize(),200); window.addEventListener('resize',()=>map.invalidateSize());
+let mode='begin',beginPt=null,endPt=null,beginMk=null,endMk=null,line=null,wzRoute=null,schedule=[],laneData=[];
+// SELF_CONTAINED: the emailable standalone build flips this to true → the tool makes NO calls to our
+// servers at all. Cameras then come only from the state's own GIS (CAM) or a file the user loads; the
+// live DMS/arrow-board auto-scan is hosted-only (it needs live device feeds we can't put in a file).
+const SELF_CONTAINED=false;
+// Corridor backend (CORS-open) — referenced ONLY by the hosted copy, and ONLY for the live DMS scan.
+const CORRIDOR_PROXY='https://corridor-communication-dashboard-production.up.railway.app';
+let WZ_STATE='ms';   // generator overrides per state
+/* ==CAM_CONFIG_START== */
+const CAM=null;
+/* ==CAM_CONFIG_END== */
+/* ==CLOSURES_CONFIG_START== */
+const CLOSURES=null;
+/* ==CLOSURES_CONFIG_END== */
+let camLayer=null, dmsLayer=null, nearCams=[], nearDMS=[], userCams=[], closuresLayer=null;
+let wzRoute2=null,line2=null;   // opposite carriageway for a both-direction closure on a divided highway
+// Opposite roadbed runs PARALLEL → draw it as a perpendicular offset of the marked line (left of
+// travel = opposing side in right-hand traffic). Routing end->begin loops out to interchanges ("wraps").
+function offsetPolyline(route,m){if(!route||route.length<2)return null;const out=[];
+  for(let i=0;i<route.length;i++){const a=route[Math.max(0,i-1)],b=route[Math.min(route.length-1,i+1)];
+    const lat=route[i][0],lng=route[i][1],cos=Math.cos(lat*Math.PI/180)||1e-6;
+    const ex=(b[1]-a[1])*111320*cos,ny=(b[0]-a[0])*110540,len=Math.hypot(ex,ny)||1,tx=ex/len,ty=ny/len;
+    out.push([lat+(tx*m)/110540, lng+(-ty*m)/(111320*cos)]);}
+  return out;}
+// Route ALONG the opposing carriageway: project endpoints across the median, OSRM between them,
+// keep the non-wrapping order (follows the real road, unlike a static offset).
+async function oppositeRoad(offM){if(!(wzRoute&&wzRoute.length>=2&&beginPt&&endPt))return null;
+  const o=offsetPolyline([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],offM);if(!o)return null;
+  const A2=o[0],B2=o[1],fwdMi=miles(beginPt,endPt);let best=null,bestMi=Infinity;
+  for(const pr of [[B2,A2],[A2,B2]]){try{const r=await osrmRoute([[pr[0][1],pr[0][0]],[pr[1][1],pr[1][0]]]);
+    if(r&&r.latlngs&&r.latlngs.length>=2){const mi=r.meters/1609.34;if(mi<bestMi){bestMi=mi;best=r.latlngs;}}}catch(e){}}
+  return (best&&bestMi<=Math.max(fwdMi*1.8,fwdMi+0.5))?best:null;}
+// Trim a polyline to span exactly between the perpendicular feet of two reference points.
+function segFoot(pt,p,q){const cos=Math.cos(pt[0]*Math.PI/180)||1e-6;
+  const ax=p[1]*cos,ay=p[0],bx=q[1]*cos,by=q[0],px=pt[1]*cos,py=pt[0];
+  const dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy||1e-12;let t=((px-ax)*dx+(py-ay)*dy)/l2;t=Math.max(0,Math.min(1,t));
+  return [ay+t*dy,(ax+t*dx)/cos];}
+function projectFoot(line,pt){let bi=0,bp=line[0],bd=Infinity;const cos=Math.cos(pt[0]*Math.PI/180)||1e-6;
+  for(let i=0;i<line.length-1;i++){const f=segFoot(pt,line[i],line[i+1]);const d=Math.hypot((f[1]-pt[1])*cos,(f[0]-pt[0]));if(d<bd){bd=d;bi=i;bp=f;}}
+  return {i:bi,point:bp};}
+function clipToEnds(line,aArr,bArr){if(!line||line.length<2)return line;
+  const fa=projectFoot(line,aArr),fb=projectFoot(line,bArr);let i1=fa.i,p1=fa.point,i2=fb.i,p2=fb.point;if(i1>i2){[i1,i2]=[i2,i1];[p1,p2]=[p2,p1];}
+  const out=[p1];for(let k=i1+1;k<=i2;k++)out.push(line[k]);out.push(p2);return out.length>=2?out:line;}
+// E/W vs N/S axis from the segment's bearing → the two directions for a both-direction closure.
+function nvAxis(){if(beginPt&&endPt){const b=((bearing(beginPt,endPt))%360+360)%360;const ew=(b>45&&b<135)||(b>225&&b<315);return ew?['E','W']:['N','S'];}
+  const n=(String(routeVal()).match(/\d+/)||[])[0];return (n&&parseInt(n,10)%2===0)?['E','W']:['N','S'];}
+let detourPts=[],detourLine=null,detourMks=[],detourRoute=null,detourMeters=null;
+function setMode(m){mode=m;el('btnBegin').classList.toggle('active',m==='begin');el('btnEnd').classList.toggle('active',m==='end');const bd=el('btnDetour');if(bd)bd.classList.toggle('active',m==='detour');el('maphint').innerHTML=m==='detour'?'Click to trace the <b>detour</b>':m==='locked'?'Segment set ✓ — drag <b>A</b>/<b>B</b> to fine-tune, or tap <b>Set BEGIN/END</b> to redo':'Click the road to set the <b>'+m+'</b> point';}
+function mk(latlng,label,color){const drag=(label==='A'||label==='B');const m=L.marker(latlng,{draggable:drag,icon:L.divIcon({className:'',html:'<div style="background:'+color+';color:#fff;border:2px solid #fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.4)">'+label+'</div>',iconSize:[24,24],iconAnchor:[12,12]})}).addTo(map);
+  if(drag){m.bindTooltip('drag to adjust',{direction:'top'});m.on('dragend',ev=>{const ll=ev.target.getLatLng();if(label==='A')beginPt=ll;else endPt=ll;if(beginPt&&endPt)snapWZ();saveState();});}return m;}
+function miles(a,b){const R=3958.8,dLat=(b.lat-a.lat)*Math.PI/180,dLng=(b.lng-a.lng)*Math.PI/180,x=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(x));}
+function bearing(a,b){const toR=d=>d*Math.PI/180,toD=r=>r*180/Math.PI,y=Math.sin(toR(b.lng-a.lng))*Math.cos(toR(b.lat)),x=Math.cos(toR(a.lat))*Math.sin(toR(b.lat))-Math.sin(toR(a.lat))*Math.cos(toR(b.lat))*Math.cos(toR(b.lng-a.lng));return (toD(Math.atan2(y,x))+360)%360;}
+function dirLabel(b){return ['N','NE','E','SE','S','SW','W','NW'][Math.round(b/45)%8];}
+function offsetPt(lat,lng,dl,meters){const t={N:0,E:90,S:180,W:270},br=t[dl]!=null?t[dl]:90,R=6378137,d=meters/R,brR=br*Math.PI/180,la=lat*Math.PI/180,lo=lng*Math.PI/180,la2=Math.asin(Math.sin(la)*Math.cos(d)+Math.cos(la)*Math.sin(d)*Math.cos(brR)),lo2=lo+Math.atan2(Math.sin(brR)*Math.sin(d)*Math.cos(la),Math.cos(d)-Math.sin(la)*Math.sin(la2));return L.latLng(la2*180/Math.PI,lo2*180/Math.PI);}
+
+async function osrmRoute(coords){try{const c=coords.map(p=>p[0]+','+p[1]).join(';');const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+c+'?overview=full&geometries=geojson');const j=await r.json();const rt=j.routes&&j.routes[0];if(!rt)return null;return{latlngs:rt.geometry.coordinates.map(c=>[c[1],c[0]]),meters:rt.distance};}catch(e){return null;}}
+function drawWZLine(){if(line){line.remove();line=null;}if(line2){line2.remove();line2=null;}const pts=(wzRoute&&wzRoute.length)?wzRoute:((beginPt&&endPt)?[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]]:null);if(pts)line=L.polyline(pts,{color:'#dc2626',weight:6,opacity:.85}).addTo(map);if(wzRoute2&&wzRoute2.length&&beginPt&&endPt)line2=L.polyline(wzRoute2,{color:'#dc2626',weight:6,opacity:.85}).addTo(map);}
+/* ==MP_CONFIG_START== */
+const MP={"line":true,"segmentBased":true,"url":"https://services.arcgis.com/04HiymDgLlsbhaV4/arcgis/rest/services/Mississippi_RCI/FeatureServer/0/query","routeField":"ROUTEID","mpField":"BEGINMILE","mpEndField":"ENDMILE","where":"1=1"};
+function wzRouteFriendly(x){if(x==null)return '';var s=String(x).trim().toUpperCase();var m=s.match(/^(I|IH|INTERSTATE|US|USH|MS|SR|STATE)[\s-]*0*([0-9]+[A-Z]?)$/);if(m){var p=m[1];var pre=(p==='I'||p==='IH'||p==='INTERSTATE')?'I':(p==='US'||p==='USH')?'US':'MS';return pre+'-'+m[2];}var n=s.replace(/^0+/,'');if(/^[0-9]+[A-Z]?$/.test(n))return 'I-'+n;return s;}
+/* ==MP_CONFIG_END== */
+// Generic milepost resolver (shared, config-driven). Point sources: nearest posted marker + tenths
+// interpolation between the two nearest posts on the same route. LRS-line sources (MP.line): project
+// the click onto the nearest M-enabled centerline and read the interpolated M-value.
+async function wzMilepost(pt){ if(!MP||!MP.url) return null; const k=Math.cos(pt.lat*Math.PI/180);
+  try{
+    if(MP.line){ const pad=0.02, bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
+      const parts=(MP.routeCols?MP.routeCols.map(function(rc){return rc.f;}):(MP.routeParts||[MP.routeField])).filter(Boolean);
+      const of=parts.concat(MP.countyField?[MP.countyField]:[]).concat(MP.segmentBased?[MP.mpField,MP.mpEndField]:[]).join(',');
+      const url=MP.url+'?where='+encodeURIComponent(MP.where||'1=1')+'&geometry='+encodeURIComponent(bb)
+        +'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'
+        +'&outFields='+encodeURIComponent(of)+'&returnGeometry=true&returnM=true&outSR=4326&resultRecordCount=80&f=json';
+      const jl=await(await fetch(url)).json(); const px=pt.lng*k, py=pt.lat; let best={d:Infinity,m:null,attr:null,feat:null,pi:0,si:1,t:0};
+      (jl.features||[]).forEach(function(feat){ ((feat.geometry&&feat.geometry.paths)||[]).forEach(function(path,pi){
+        for(let i=1;i<path.length;i++){ const A=path[i-1],B=path[i];
+          const ax=A[0]*k,ay=A[1],bx=B[0]*k,by=B[1],dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy||1e-12;
+          let t=((px-ax)*dx+(py-ay)*dy)/l2; t=Math.max(0,Math.min(1,t));
+          const fx=ax+t*dx,fy=ay+t*dy,dist=Math.hypot(px-fx,py-fy);
+          if(dist<best.d){ const mA=A[2]==null?0:A[2], mB=B[2]==null?0:B[2]; best={d:dist,m:mA+t*(mB-mA),attr:feat.attributes,feat:feat,pi:pi,si:i,t:t}; } } }); });
+      if(!best.attr || best.d*111320>500) return null;
+      let mval=best.m||0;
+      if(MP.segmentBased){ // non-M LRS: interpolate MP_START..MP_END by fractional length along the matched segment feature
+        const mp0=parseFloat(best.attr[MP.mpField]),mp1=parseFloat(best.attr[MP.mpEndField]);
+        const path=(best.feat.geometry.paths||[])[best.pi]||[]; let cum=0,tot=0; const seg=[];
+        for(let i=1;i<path.length;i++){ const a=path[i-1],b=path[i]; const dd=Math.hypot((b[0]-a[0])*k,(b[1]-a[1])); seg.push(dd); tot+=dd; }
+        for(let i=1;i<best.si;i++) cum+=seg[i-1]||0; cum+=(seg[best.si-1]||0)*best.t;
+        const frac=tot>0?cum/tot:0;
+        if(Number.isFinite(mp0)&&Number.isFinite(mp1)) mval=mp0+frac*(mp1-mp0); }
+      // route: routeCols = pick the first populated class column and prefix it (KS: interstate_routes→I-, us_routes→US-);
+      // routeParts = concatenate fields (OH ROUTE_TYPE+ROUTE_NBR); else a single routeField.
+      const route=MP.routeCols?(function(){for(var i=0;i<MP.routeCols.length;i++){var rc=MP.routeCols[i],val=best.attr[rc.f];if(val!=null&&String(val).trim()!=='')return rc.p+String(val).trim();}return null;})()
+        :MP.routeParts?MP.routeParts.map(function(f){return best.attr[f];}).filter(function(v){return v!=null&&v!=='';}).join(' '):(best.attr[MP.routeField]||null);
+      const county=MP.countyField?(best.attr[MP.countyField]||null):null;
+      return {mp:Math.round((mval||0)*10)/10, route:route, county:county}; }
+    const pad=0.03, bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
+    const of=[MP.mpField,MP.routeField,MP.nameField,MP.countyField].filter(Boolean).concat(MP.routeCols?MP.routeCols.map(function(c){return c.f;}):[]).join(',');
+    const url=MP.url+'?where='+encodeURIComponent(MP.where||'1=1')+'&geometry='+encodeURIComponent(bb)
+      +'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'
+      +'&outFields='+encodeURIComponent(of)+'&returnGeometry=true&outSR=4326&resultRecordCount=400&f=json';
+    const j=await(await fetch(url)).json();
+    const gxy=function(g){ if(!g)return null; if(g.x!=null&&g.y!=null)return [g.x,g.y]; const p=g.points&&g.points[0]; if(p&&p.length>=2)return [p[0],p[1]]; const pa=g.paths&&g.paths[0]; if(pa&&pa.length){ const v=pa[Math.floor(pa.length/2)]; return (v&&v.length>=2)?[v[0],v[1]]:null; } return null; };
+    const feats=(j.features||[]).map(function(f){ f._xy=gxy(f.geometry); return f; }).filter(function(f){ return f._xy&&Number.isFinite(parseFloat(f.attributes[MP.mpField])); });
+    if(!feats.length) return null;
+    feats.forEach(function(f){ f._d=Math.hypot((f._xy[0]-pt.lng)*k,(f._xy[1]-pt.lat)); });
+    feats.sort(function(a,b){ return a._d-b._d; });
+    const near=feats[0];
+    // routeCols (a point layer whose signed route is split across class columns, e.g. OR I_RTE/US_RTE_1/OR_RTE_1):
+    // pick the first populated column (with optional prefix) for BOTH the route label and the interpolation grouping.
+    const pickCol=function(attr){ if(!MP.routeCols)return null; for(var i=0;i<MP.routeCols.length;i++){var c=MP.routeCols[i],vv=attr[c.f];if(vv!=null&&String(vv).trim()!=='')return (c.p||'')+String(vv).trim();} return null; };
+    const grpKey=MP.routeCols?pickCol(near.attributes):near.attributes[MP.routeField];
+    const route=(MP.routeCols?pickCol(near.attributes):(MP.nameField?near.attributes[MP.nameField]:near.attributes[MP.routeField]))||null;
+    const county=MP.countyField?(near.attributes[MP.countyField]||null):null;
+    let mp=parseFloat(near.attributes[MP.mpField]);
+    // Interpolate to tenths using the ADJACENT mile marker (nearest milepost VALUE on the same route),
+    // not the spatially-2nd-nearest — at interchanges a nearby post can belong to a different mile
+    // segment (e.g. where mileposting resets), which would otherwise skew the value wildly.
+    const same=feats.filter(function(f){ return (MP.routeCols?pickCol(f.attributes):f.attributes[MP.routeField])===grpKey&&parseFloat(f.attributes[MP.mpField])!==mp; })
+      .sort(function(a,b){ return Math.abs(parseFloat(a.attributes[MP.mpField])-mp)-Math.abs(parseFloat(b.attributes[MP.mpField])-mp); });
+    const other=same[0];
+    if(other && Math.abs(parseFloat(other.attributes[MP.mpField])-mp)<=3){
+      const ax=near._xy[0]*k,ay=near._xy[1],bx=other._xy[0]*k,by=other._xy[1],mp0=mp,mp1=parseFloat(other.attributes[MP.mpField]);
+      const px=pt.lng*k,py=pt.lat,dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy||1e-12; let t=((px-ax)*dx+(py-ay)*dy)/l2; t=Math.max(-0.5,Math.min(1.5,t));
+      const val=mp0+(mp1-mp0)*t; if(val>=0)mp=Math.round(val*10)/10; }
+    return {mp:mp, route:route, county:county};
+  }catch(e){ return null; } }
+async function snapWZ(){if(!(beginPt&&endPt))return;drawWZLine();const dir=dirLabel(bearing(beginPt,endPt));if(!v('direction'))el('direction').value=dir[0];
+  const r=await osrmRoute([[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]]);let mi=miles(beginPt,endPt);if(r){wzRoute=r.latlngs;mi=r.meters/1609.34;}
+  // Both-direction closure: route ALONG the opposing carriageway (follows the road); fall back to a
+  // parallel offset if routing wraps/fails.
+  wzRoute2=null;const divided=/^I-/.test(routeVal());let oppSrc='';
+  if(v('direction')==='Both'&&wzRoute&&wzRoute.length>=2){
+    const r=await oppositeRoad(divided?34:18);
+    if(r){wzRoute2=r;oppSrc='road';}else{wzRoute2=offsetPolyline(wzRoute,divided?28:14);oppSrc='approx';}
+    if(wzRoute2&&wzRoute2.length>=2)wzRoute2=clipToEnds(wzRoute2,wzRoute[0],wzRoute[wzRoute.length-1]);
+  }
+  drawWZLine();
+  const autoMP=s=>!s||/^MP\s*[\d.]+$/i.test(s); let mpTxt='';
+  try{ const [a,b]=await Promise.all([wzMilepost(beginPt),wzMilepost(endPt)]);
+    if(a&&autoMP(v('beginLoc')))el('beginLoc').value='MP '+a.mp; if(b&&autoMP(v('endLoc')))el('endLoc').value='MP '+b.mp;
+    // auto-fill Route from the posted route code (only when not already set)
+    const rc=(a&&a.route)||(b&&b.route);
+    if(rc && !v('route')){ const fr=wzRouteFriendly(rc);
+      if(fr){ const opt=[...el('route').options].find(o=>o.value===fr);
+        if(opt){ el('route').value=fr; } else { el('route').value='__other'; onRouteChange(); el('routeOther').value=fr; } saveState(); } }
+    if(a&&b) mpTxt=' · MP '+Math.min(a.mp,b.mp)+'–'+Math.max(a.mp,b.mp); }catch(e){}
+  const bothTxt=v('direction')==='Both'?(oppSrc==='road'?' · <b>both roadbeds (routed)</b>':divided?' · <b>both roadbeds (approx.)</b>':' · both directions'):'';
+  el('selinfo').innerHTML='<b>Segment:</b> '+dir+', '+mi.toFixed(1)+' mi (road-following)'+mpTxt+bothTxt+'<br>begin '+beginPt.lat.toFixed(4)+', '+beginPt.lng.toFixed(4)+' → end '+endPt.lat.toFixed(4)+', '+endPt.lng.toFixed(4)+' &nbsp; <a href="'+gmapsRoute()+'" target="_blank" rel="noopener">🗺 map</a>';
+  reverseFill(beginPt);suggestLanes();saveState();}
+function redraw(){[beginMk,endMk,line,line2].forEach(x=>x&&x.remove());beginMk=endMk=line=line2=null;wzRoute=null;wzRoute2=null;if(beginPt)beginMk=mk(beginPt,'A','#1d4ed8');if(endPt)endMk=mk(endPt,'B','#dc2626');if(beginPt&&endPt)drawWZLine();}
+// Undo the last-placed closure point (END, then BEGIN); Clear removes the whole A→B segment.
+function undoSeg(){
+  if(endPt){ endPt=null; if(endMk){endMk.remove();endMk=null;} if(line){line.remove();line=null;} if(line2){line2.remove();line2=null;} wzRoute=null;wzRoute2=null; setMode('end'); }
+  else if(beginPt){ beginPt=null; if(beginMk){beginMk.remove();beginMk=null;} setMode('begin'); }
+  else { toast('Nothing to undo'); return; }
+  el('selinfo').textContent=(beginPt&&!endPt)?'Begin set — click the road for the END point.':'No segment yet — click the road for the begin point, then the end point.';
+  saveState();
+}
+function clearSeg(){
+  [beginMk,endMk,line,line2].forEach(x=>x&&x.remove());
+  beginPt=endPt=beginMk=endMk=line=line2=null; wzRoute=null;wzRoute2=null;
+  el('selinfo').textContent='No segment yet — click the road for the begin point, then the end point.';
+  setMode('begin'); saveState();
+}
+map.on('click',e=>{if(mode==='detour'){detourPts.push(e.latlng);if(v('detour')!=='Yes')el('detour').value='Yes';detourRoute=null;drawDetour();snapDetour();saveState();return;}
+  if(mode==='begin'){beginPt=e.latlng;if(beginMk)beginMk.remove();beginMk=mk(e.latlng,'A','#1d4ed8');setMode('end');}
+  else if(mode==='end'){endPt=e.latlng;if(endMk)endMk.remove();endMk=mk(e.latlng,'B','#dc2626');setMode('locked');}
+  else{return;}   // locked: ignore stray taps (e.g. while panning) — drag A/B or tap Set BEGIN/END to change
+  if(beginPt&&endPt)snapWZ();else el('selinfo').textContent='Begin set. Now click END on the map.';saveState();});
+function useMyLocation(){if(!navigator.geolocation){toast('No geolocation');return;}toast('Getting location…');navigator.geolocation.getCurrentPosition(p=>{const ll=L.latLng(p.coords.latitude,p.coords.longitude);if(!beginPt){beginPt=ll;if(beginMk)beginMk.remove();beginMk=mk(ll,'A','#1d4ed8');map.setView(ll,14);reverseFill(ll);setMode('end');toast('Begin set — tap END or press again');}else{endPt=ll;if(endMk)endMk.remove();endMk=mk(ll,'B','#dc2626');snapWZ();setMode('locked');}saveState();},e=>toast('Location error: '+(e.message||'denied')),{enableHighAccuracy:true,timeout:10000});}
+
+// county via FCC (CORS-open, works file://)
+async function reverseFill(pt){if(!el('autofill').checked)return;try{const r=await fetch('https://geo.fcc.gov/api/census/area?lat='+pt.lat+'&lon='+pt.lng+'&format=json');const j=await r.json();const c=(j.results&&j.results[0]);if(c&&c.county_name&&!v('counties'))el('counties').value=/county/i.test(c.county_name)?c.county_name:(c.county_name+' County');saveState();}catch(e){}}
+
+function gmapsRoute(){if(!(beginPt&&endPt))return '';const o=beginPt.lat.toFixed(5)+','+beginPt.lng.toFixed(5),d=endPt.lat.toFixed(5)+','+endPt.lng.toFixed(5);return 'https://www.google.com/maps/dir/?api=1&origin='+o+'&destination='+d+'&travelmode=driving';}
+function gmapsDetour(){return 'https://www.google.com/maps/dir/'+detourPts.map(p=>p.lat.toFixed(5)+','+p.lng.toFixed(5)).join('/');}
+
+// ---- detour ----
+function drawDetour(){if(detourLine){detourLine.remove();detourLine=null;}detourMks.forEach(x=>x.remove());detourMks=[];detourPts.forEach((p,i)=>detourMks.push(L.circleMarker(p,{radius:4,color:'#7c3aed',weight:2,fillColor:'#fff',fillOpacity:1}).addTo(map)));const pl=(detourRoute&&detourRoute.length)?detourRoute:detourPts.map(p=>[p.lat,p.lng]);if(pl.length>=2)detourLine=L.polyline(pl,{color:'#7c3aed',weight:4,opacity:.9,dashArray:'8,6'}).addTo(map);const info=el('detourInfo');if(!detourPts.length){info.style.display='none';return;}const mi=detourMeters!=null?detourMeters/1609.34:0;info.style.display='block';info.innerHTML='<b>Detour:</b> '+detourPts.length+' pts'+(detourRoute?(', '+mi.toFixed(1)+' mi (follows road)'):'')+(detourPts.length>=2?' &nbsp; <a href="'+gmapsDetour()+'" target="_blank" rel="noopener">🗺 map</a>':'');}
+function undoDetour(){detourPts.pop();detourRoute=null;detourMeters=null;drawDetour();snapDetour();saveState();}
+function clearDetour(){detourPts=[];detourRoute=null;detourMeters=null;drawDetour();saveState();}
+async function snapDetour(){if(detourPts.length<2){detourRoute=null;detourMeters=null;drawDetour();return;}const r=await osrmRoute(detourPts.map(p=>[p.lng,p.lat]));detourRoute=r?r.latlngs:null;detourMeters=r?r.meters:null;drawDetour();saveState();}
+// Auto-suggest a detour AROUND the closure: route A→(via)→B through a point offset perpendicular to the
+// closure so the path leaves the closed roadway, then keep the shortest option that actually avoids the
+// closure midpoint. It's a reviewable draft — the user can drag/redraw points afterward.
+async function suggestDetour(){ if(!beginPt||!endPt){toast('Mark the closure (A→B) first');return;}
+  const info=el('detourInfo');info.style.display='block';info.textContent='Suggesting a detour…';
+  const midLat=(beginPt.lat+endPt.lat)/2, midLng=(beginPt.lng+endPt.lng)/2;
+  const perp=(bearing(beginPt,endPt)+90)*Math.PI/180, cosL=Math.cos(midLat*Math.PI/180)||1e-6;
+  let best=null;
+  for(const off of [0.7,1.3,2.0]){ for(const side of [1,-1]){
+    const vlat=midLat+side*Math.cos(perp)*(off/69), vlng=midLng+side*Math.sin(perp)*(off/(69*cosL));
+    let via=null; try{ const nj=await(await fetch('https://router.project-osrm.org/nearest/v1/driving/'+vlng+','+vlat+'?number=1')).json(); if(nj.code==='Ok'&&nj.waypoints&&nj.waypoints[0])via=nj.waypoints[0].location; }catch(e){}
+    if(!via)continue;
+    const r=await osrmRoute([[beginPt.lng,beginPt.lat],via,[endPt.lng,endPt.lat]]);
+    if(!r||!r.latlngs||r.latlngs.length<2)continue;
+    if(minDistToPath({lat:midLat,lng:midLng},r.latlngs)<300)continue;   // still on the closed road → reject
+    if(!best||r.meters<best.meters)best={latlngs:r.latlngs,meters:r.meters};
+  }}
+  if(!best){info.textContent='No automatic detour found — trace it manually with ✏️ Draw detour.';toast('No auto detour — trace manually');return;}
+  detourPts=[beginPt,endPt]; detourRoute=best.latlngs; detourMeters=best.meters;
+  if(v('detour')!=='Yes')el('detour').value='Yes';
+  drawDetour(); saveState(); toast('Suggested detour '+(best.meters/1609.34).toFixed(1)+' mi — review & adjust');}
+
+// ---- NBI bridge clearances (federal NTAD, Mississippi = state 32) ----
+const M2FT=3.28084;
+function ftIn(f){const ft=Math.floor(f);let inch=Math.round((f-ft)*12);let F=ft;if(inch===12){F++;inch=0;}return F+" ft "+inch+" in";}
+function distToSegM(p,a,b){const k=Math.cos(a.lat*Math.PI/180),X=ll=>[ll.lng*k*111320,ll.lat*110574],P=X(p),A=X(a),B=X(b),dx=B[0]-A[0],dy=B[1]-A[1],l2=dx*dx+dy*dy||1;let t=((P[0]-A[0])*dx+(P[1]-A[1])*dy)/l2;t=Math.max(0,Math.min(1,t));return Math.hypot(P[0]-(A[0]+t*dx),P[1]-(A[1]+t*dy));}
+function minDistToPath(pt,path){if(!path||path.length<2)return Infinity;let m=Infinity;for(let i=1;i<path.length;i++){const d=distToSegM(pt,{lat:path[i-1][0],lng:path[i-1][1]},{lat:path[i][0],lng:path[i][1]});if(d<m)m=d;}return m;}
+let bridgeLayer=null;
+async function fetchNBInear(bb){const url='https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/NTAD_National_Bridge_Inventory/FeatureServer/0/query?where=STATE_CODE_001%3D28+AND+VERT_CLR_UND_054B%3E0&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=VERT_CLR_UND_054B,LAT_UND_MT_055B,HORR_CLR_MT_047,FEATURES_DESC_006A,FACILITY_CARRIED_007&returnGeometry=true&outSR=4326&resultRecordCount=1000&f=json';
+  try{const j=await(await fetch(url)).json();if(j.error)return[];return(j.features||[]).map(f=>{const a=f.attributes,g=f.geometry;if(!g||g.x==null)return null;const clr=+a.VERT_CLR_UND_054B*M2FT;if(!(clr>0)||clr>30)return null;let w=null;if(+a.LAT_UND_MT_055B>0)w=+a.LAT_UND_MT_055B*M2FT;else if(+a.HORR_CLR_MT_047>0&&+a.HORR_CLR_MT_047<30)w=+a.HORR_CLR_MT_047*M2FT;return{latitude:g.y,longitude:g.x,clr,width_feet:w,name:(a.FEATURES_DESC_006A||a.FACILITY_CARRIED_007||'Bridge')};}).filter(Boolean);}catch(e){return[];}}
+// Bridge WEIGHT capacity: NBI operating rating (item 64, tonnes→US tons) + posting (item 41: P/R/D)
+async function fetchWeightNear(bb){const url='https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/NTAD_National_Bridge_Inventory/FeatureServer/0/query?where=STATE_CODE_001%3D28&geometry='+bb+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=OPERATING_RATING_064,OPEN_CLOSED_POSTED_041,FACILITY_CARRIED_007,FEATURES_DESC_006A&returnGeometry=true&outSR=4326&resultRecordCount=2000&f=json';
+  try{const j=await(await fetch(url)).json();if(j.error)return[];return(j.features||[]).map(f=>{const a=f.attributes,g=f.geometry;if(!g||g.x==null)return null;const op=+a.OPERATING_RATING_064,st=a.OPEN_CLOSED_POSTED_041;return{latitude:g.y,longitude:g.x,opTons:(op>0?+(op*1.10231).toFixed(1):null),posted:(st==='P'||st==='R'||st==='D'),status:st,name:(a.FACILITY_CARRIED_007||a.FEATURES_DESC_006A||'Bridge')};}).filter(Boolean);}catch(e){return[];}}
+async function scanBridges(){if(!beginPt||!endPt){toast('Select a road segment (A→B) first');return;}toast('Scanning NBI clearances…');
+  const routePath=(wzRoute&&wzRoute.length>=2)?wzRoute:[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]];
+  const detourPath=(detourRoute&&detourRoute.length>=2)?detourRoute:(detourPts.length>=2?detourPts.map(p=>[p.lat,p.lng]):null);
+  const allPts=routePath.concat(detourPath||[]);let mnLa=90,mxLa=-90,mnLo=180,mxLo=-180;allPts.forEach(p=>{if(p[0]<mnLa)mnLa=p[0];if(p[0]>mxLa)mxLa=p[0];if(p[1]<mnLo)mnLo=p[1];if(p[1]>mxLo)mxLo=p[1];});
+  const pad=0.015,bb=[mnLo-pad,mnLa-pad,mxLo+pad,mxLa+pad].join(',');
+  const all=await fetchNBInear(bb);const TH=1000,tag=[];
+  if(el('clearStatus')&&v('clearStatus')!=='not-needed'){el('clearStatus').value='checked';updateClearReminder();}  // running the scan = clearance checked
+  all.forEach(b=>{const pt={lat:b.latitude,lng:b.longitude};const dR=minDistToPath(pt,routePath),dD=detourPath?minDistToPath(pt,detourPath):Infinity;const onR=dR<=TH,onD=dD<=TH;if(!onR&&!onD)return;tag.push(Object.assign({},b,{on:(onR&&dR<=dD)?'route':'detour'}));});
+  tag.sort((a,b)=>a.clr-b.clr);const routeB=tag.filter(b=>b.on==='route'),detourB=tag.filter(b=>b.on==='detour');window.__nbiNear=routeB;window.__nbiDetour=detourB;
+  if(bridgeLayer)bridgeLayer.remove();bridgeLayer=L.layerGroup().addTo(map);
+  tag.forEach(b=>{const low=b.clr<15,det=b.on==='detour',bg=det?(low?'#7c3aed':'#6d28d9'):(low?'#b45309':'#334155');L.marker([b.latitude,b.longitude],{icon:L.divIcon({className:'',html:'<div style="background:'+bg+';color:#fff;border:2px solid #fff;border-radius:5px;padding:1px 4px;font-size:11px;font-weight:700;white-space:nowrap">'+(det?'↩':'🌉')+' '+ftIn(b.clr)+'</div>',iconSize:[62,18],iconAnchor:[31,9]})}).bindPopup('<b>'+b.name+'</b> ('+(det?'detour':'route')+')<br>clearance '+ftIn(b.clr)+(b.width_feet?' · width '+ftIn(b.width_feet):'')).addTo(bridgeLayer);});
+  const box=el('nbiBox');box.style.display='block';if(!tag.length){box.innerHTML='No NBI bridges found on the route'+(detourPath?' or detour':'')+'.';toast('No NBI bridges found');return;}
+  const lowR=routeB[0],lowD=detourB[0];const ln=(l,b)=>b?('<b>'+l+': '+ftIn(b.clr)+'</b>'+(b.clr<15?' ⚠️':'')+' — '+(b.name||'').slice(0,30)):(l+': none');
+  let h='<b>NBI clearances</b> — '+routeB.length+' on route'+(detourPath?', '+detourB.length+' on detour':'')+':<br>🌉 '+ln('Lowest on ROUTE',lowR)+'<br>';if(detourPath)h+='↩ '+ln('Lowest on DETOUR',lowD)+'<br>';
+  // The DETOUR governs when present — diverted traffic must clear the detour's lowest bridge, so that
+  // is the controlling height for the form. Fall back to the route's lowest when there's no detour.
+  const govLow=detourB.length?lowD:lowR, govSrc=detourB.length?'detour':'route';
+  const govW=(function(){const w=(detourB.length?detourB:routeB).map(b=>b.width_feet).filter(x=>x>0);return w.length?Math.min.apply(null,w):null;})();
+  if(govLow)h+='<br><button style="padding:5px 9px" onclick="applyNBI()">Apply restrictions (H '+ftIn(govLow.clr)+' · '+govSrc+' governs'+(govW!=null?' · W '+ftIn(govW):'')+')</button>';
+  window.__nbiPosted=null;window.__nbiLowTons=null;
+  try{const wt=await fetchWeightNear(bb);const near=wt.filter(b=>minDistToPath({lat:b.latitude,lng:b.longitude},routePath)<=TH||(detourPath&&minDistToPath({lat:b.latitude,lng:b.longitude},detourPath)<=TH));
+    const rated=near.filter(b=>b.opTons!=null).sort((a,b)=>a.opTons-b.opTons);const posted=near.filter(b=>b.posted);
+    if(near.length){h+='<br><b>🏋 Bridge weight capacity</b> — NBI <i>operating rating</i> (max load, US tons): '+(rated.length?('lowest <b>'+rated[0].opTons+' t</b>'+(rated[0].opTons<40?' ⚠️':'')+' — '+(rated[0].name||'').slice(0,28)):'no rating data');
+      if(rated.length)window.__nbiLowTons=rated[0].opTons;
+      if(posted.length){window.__nbiPosted=posted;h+='<br>⛔ <b style="color:#991b1b">'+posted.length+' weight-POSTED bridge(s)</b> — obey the posted limit; operating rating shown:<br>'+posted.slice(0,4).map(b=>'• '+(b.name||'Bridge').slice(0,32)+(b.opTons!=null?(' — op. rating '+b.opTons+' t'):'')).join('<br>');}
+      if(rated.length||posted.length)h+='<br><button style="margin-top:6px;padding:5px 9px;border-color:#991b1b;color:#991b1b" onclick="applyWeight()">Note weight in restrictions</button>';}
+  }catch(e){}
+  box.innerHTML=h;
+  toast('Route low '+(lowR?ftIn(lowR.clr):'n/a')+(detourPath?' · detour low '+(lowD?ftIn(lowD.clr):'n/a'):'')+(window.__nbiLowTons?' · weight '+window.__nbiLowTons+'t':''));}
+function applyWeight(){const tons=window.__nbiLowTons,posted=window.__nbiPosted;if(tons!=null&&!v('rWeight'))el('rWeight').value=tons+' tons (lowest NBI operating rating)';if(posted&&posted.length){const note='Weight-posted bridges: '+posted.map(b=>(b.name||'Bridge')+(b.opTons!=null?(' ('+b.opTons+'t)'):'')).join('; ');const cur=(v('addlNotes')||'').replace(/(^|\n)Weight-posted bridges:[^\n]*/g,'').trim();el('addlNotes').value=[cur,note].filter(Boolean).join('\n');}saveState();toast('Weight capacity noted');}
+function applyNBI(){const routeB=window.__nbiNear||[],detB=window.__nbiDetour||[];
+  // When a detour exists it governs: the lowest DETOUR clearance is the controlling height for the
+  // form (diverted/oversize traffic must physically clear it). Otherwise use the route's lowest.
+  const useDet=detB.length>0, src=useDet?detB:routeB, gov=src[0]; if(!gov)return;
+  el('rHeight').value=ftIn(gov.clr);
+  const widths=src.map(b=>b.width_feet).filter(w=>w>0);if(widths.length)el('rWidth').value=ftIn(Math.min.apply(null,widths));
+  if(v('rTiming')==='None'||!v('rTiming'))el('rTiming').value='24 hours';
+  // Note the controlling path + the other path's low for the reviewer.
+  const other=(useDet?routeB:detB)[0];
+  const note='Controlling clearance '+ftIn(gov.clr)+' — lowest on the '+(useDet?'DETOUR':'route')+(other?('; '+(useDet?'route':'detour')+' low '+ftIn(other.clr)):'');
+  const cur=(v('addlNotes')||'').replace(/(^|\n)Controlling clearance[^\n]*/g,'').trim();el('addlNotes').value=[cur,note].filter(Boolean).join('\n');
+  saveState();toast('Height set to '+ftIn(gov.clr)+' ('+(useDet?'detour':'route')+' governs)');}
+
+// ---- schedule ----
+function buildWeeks(){const pattern=v('schedPattern'),start=v('schedStart'),weeks=parseInt(v('schedWeeks')||'0',10),from=v('schedFrom'),to=v('schedTo');if(!start||!weeks){toast('Set a start date and # of weeks');return;}const s=new Date(start+'T00:00'),totalDays=weeks*7;schedule=[];if(pattern==='Continuous'){const e=new Date(s);e.setDate(e.getDate()+totalDays);schedule.push({label:s.toDateString()+' → '+e.toDateString()+' (continuous)'});}else{const dow=pattern==='Weekdays'?[1,2,3,4,5]:pattern==='Weekends'?[0,6]:[0,1,2,3,4,5,6];for(let d=0;d<totalDays;d++){const day=new Date(s);day.setDate(s.getDate()+d);if(dow.includes(day.getDay()))schedule.push({label:day.toDateString()+((from&&to)?('  '+from+'–'+to):'')});}}const box=el('schedList');box.style.display='block';box.innerHTML='<b>'+schedule.length+' occurrence(s):</b><br>'+schedule.slice(0,60).map(o=>o.label).join('<br>')+(schedule.length>60?'<br>…':'');saveState();toast('Built '+schedule.length+' occurrences');}
+
+// ---- project autocomplete via CSV (offline; NV live layers are not CORS-open) ----
+const projIndex={};
+function rebuildProjDatalist(){const esc=s=>String(s).replace(/"/g,'').replace(/[<>]/g,'');el('projList').innerHTML=Object.keys(projIndex).sort().map(n=>'<option value="'+esc(n)+'">'+esc((projIndex[n].desc||'').slice(0,40))+'</option>').join('');}
+function onProjectPick(){const p=projIndex[v('project')];if(p&&!v('description')&&p.desc)el('description').value=p.desc;saveState();}
+function parseCSV(text){const rows=[];let row=[],cur='',q=false;for(let i=0;i<text.length;i++){const c=text[i];if(q){if(c==='"'){if(text[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=c;}else if(c==='"')q=true;else if(c===','){row.push(cur);cur='';}else if(c==='\n'||c==='\r'){if(cur!==''||row.length){row.push(cur);rows.push(row);row=[];cur='';}if(c==='\r'&&text[i+1]==='\n')i++;}else cur+=c;}if(cur!==''||row.length){row.push(cur);rows.push(row);}return rows.filter(r=>r.some(x=>String(x).trim()!==''));}
+function loadProjectsCSV(ev){const file=ev.target.files&&ev.target.files[0];if(!file)return;const fr=new FileReader();fr.onload=()=>{try{const rows=parseCSV(String(fr.result));if(!rows.length){toast('Empty CSV');return;}const hdr=rows[0].map(h=>String(h).trim().toLowerCase());let numI=hdr.findIndex(h=>/(project).*(number|no\.?|#|num)|^pin$|project_number|^proj(ect)?$/.test(h));let descI=hdr.findIndex(h=>/desc|work|type|contract/.test(h));let start=1;if(numI<0){numI=0;descI=rows[0].length>1?1:-1;start=0;}let added=0;for(let i=start;i<rows.length;i++){const r=rows[i];const num=String(r[numI]||'').trim();if(!num)continue;projIndex[num]={desc:descI>=0?String(r[descI]||'').trim():''};added++;}rebuildProjDatalist();localStorage.setItem('msdot_projects_csv',JSON.stringify(Object.keys(projIndex).map(n=>({num:n,desc:projIndex[n].desc}))));toast(added?added+' project(s) imported':'No project numbers found');}catch(e){toast('Could not read CSV');}ev.target.value='';};fr.readAsText(file);}
+function clearCsvProjects(){Object.keys(projIndex).forEach(n=>delete projIndex[n]);localStorage.removeItem('msdot_projects_csv');rebuildProjDatalist();toast('Imported projects cleared');}
+function loadCsvProjects(){try{const arr=JSON.parse(localStorage.getItem('msdot_projects_csv')||'[]');arr.forEach(p=>{if(p.num)projIndex[p.num]={desc:p.desc||''};});if(arr.length)rebuildProjDatalist();}catch(e){}}
+
+// ---- outputs ----
+function routeVal(){const r=v('route');return r==='__other'?(v('routeOther')||'route'):r;}
+function fmtDT(s){return s?new Date(s).toLocaleString():'—';}
+function fields(){const seg=(beginPt&&endPt)?dirLabel(bearing(beginPt,endPt))+', ~'+miles(beginPt,endPt).toFixed(1)+' mi':'(not set)';
+  return [['Route',routeVal()],['Direction',v('direction')],['Segment',seg],['Project #',v('project')],['Description',v('description')],['Begin',v('beginLoc')],['End',v('endLoc')],['County',v('counties')],['Requestor',v('requestor')],['Email',v('email')],['24-hr contact',v('contact24')],['Vehicle impact',v('impact')],['Lanes',laneSummary()],['Width',v('rWidth')],['Height',v('rHeight')],['Weight',v('rWeight')],['Length',v('rLength')],['Normal speed (mph)',v('normalSpeed')],['Reduced work-zone speed (mph)',v('reducedSpeed')],['Restriction timing',v('rTiming')],['Scheduled end (expiration)',wzEndLabel()],['Bridge clearance check',clearLabel()],['Marked detour',v('detour')],['Oversize',v('oversize')],['DMS request',v('dms')],['Additional notes',v('addlNotes')],['Submit to',v('tmcEmail')]];}
+function summaryText(){let t='NEVADA DOT — WORK-ZONE REQUEST\n'+'='.repeat(38)+'\n'+fields().map(r=>r[0]+': '+(r[1]||'—')).join('\n');
+  if(schedule.length)t+='\n\nSCHEDULE ('+schedule.length+'):\n'+schedule.map(o=>'  • '+o.label).join('\n');
+  if(beginPt&&endPt)t+='\n\nROUTE MAP: '+gmapsRoute();if(detourPts.length>=2)t+='\nDETOUR MAP: '+gmapsDetour();
+  return t+'\n\n(Built with the MDOT Work-Zone Request Builder — review before submitting.)';}
+function copySummary(){navigator.clipboard.writeText(summaryText()).then(()=>toast('Summary copied'));}
+const REQUIRED=[['requestor','Requestor'],['email','Email'],['route','Route'],['direction','Direction'],['beginLoc','Begin location'],['endLoc','End location'],['counties','County'],['description','Description'],['impact','Vehicle impact']];
+function missingFields(){return REQUIRED.filter(r=>!v(r[0])||(v(r[0])==='__other'&&!v('routeOther'))).map(r=>r[1]);}
+// ---- Existing closures conflict check (WZDx feed OR ArcGIS layer, per CLOSURES config) ----
+function closToMs(x){ if(x==null||x==='')return null;
+  if(typeof x==='string'&&/^\d{8}$/.test(x)) return Date.parse(x.slice(0,4)+'-'+x.slice(4,6)+'-'+x.slice(6,8)+'T00:00');   // YYYYMMDD string (CARS511)
+  if(typeof x==='number'){ if(Number.isInteger(x)&&x>=19000101&&x<=21001231){ const s=''+x; return Date.parse(s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8)+'T00:00'); } return x; }  // YYYYMMDD int vs epoch ms
+  return Date.parse(x); }
+function fmtRange(s,e){ const f=x=>{const m=closToMs(x);return m?new Date(m).toLocaleDateString():'?';}; return f(s)+' → '+f(e); }
+// Caltrans districts have no lat/lon index, so fetch only the district(s) whose (generous, overlapping)
+// box contains the segment — usually 1–3 of 12. Box = [minLat,maxLat,minLon,maxLon]; overlap is intentional.
+const CA_DIST_BOX={1:[38.5,42.1,-124.6,-122.4],2:[39.4,42.1,-123.6,-119.8],3:[37.9,39.9,-122.6,-119.9],4:[36.8,39.0,-123.3,-121.1],5:[34.7,37.5,-122.6,-119.3],6:[34.9,37.7,-121.0,-117.5],7:[33.5,35.0,-119.8,-117.5],8:[33.2,35.9,-118.1,-113.9],9:[35.4,38.8,-120.3,-117.4],10:[37.1,39.0,-121.7,-119.2],11:[32.4,33.8,-117.8,-114.3],12:[33.2,34.1,-118.3,-117.3]};
+function caDistricts(lat,lon){ const out=[]; for(const d in CA_DIST_BOX){const b=CA_DIST_BOX[d]; if(lat>=b[0]&&lat<=b[1]&&lon>=b[2]&&lon<=b[3])out.push(+d);} return out; }
+function closureGeom(f){ if(CLOSURES.type==='wzdx'){ const g=f.geometry; if(!g)return [];
+    if(g.type==='LineString')return [g.coordinates.map(c=>[c[1],c[0]])];
+    if(g.type==='MultiLineString')return g.coordinates.map(l=>l.map(c=>[c[1],c[0]]));
+    if(g.type==='Point')return [[[g.coordinates[1],g.coordinates[0]]]]; return []; }
+  if(CLOSURES.type==='ca-lcs'){ const b=f.location&&f.location.begin,e=f.location&&f.location.end;
+    const bp=(b&&+b.beginLatitude)?[+b.beginLatitude,+b.beginLongitude]:null, ep=(e&&+e.endLatitude)?[+e.endLatitude,+e.endLongitude]:null;
+    if(bp&&ep&&(bp[0]!==ep[0]||bp[1]!==ep[1]))return [[bp,ep]]; return bp?[[bp]]:[]; }
+  const g=f.geometry, out=[]; if(g&&g.paths)g.paths.forEach(p=>out.push(p.map(pt=>[pt[1],pt[0]]))); if(g&&g.x!=null)out.push([[g.y,g.x]]); return out; }
+function closureInfo(f){ if(CLOSURES.type==='wzdx'){ const p=f.properties||{},c=p.core_details||{};
+    return {road:(c.road_names&&c.road_names[0])||'',dir:c.direction||'',desc:c.description||'',impact:c.vehicle_impact||p.vehicle_impact||'',start:p.start_date,end:p.end_date}; }
+  if(CLOSURES.type==='ca-lcs'){ const b=(f.location&&f.location.begin)||{},c=f.closure||{},ct=c.closureTimestamp||{};
+    return {road:(b.beginRoute||'')+(b.beginRouteSuffix||''),dir:(f.location&&f.location.travelFlowDirection)||'',desc:c.typeOfWork||'',impact:String(c.typeOfClosure||c.lanesClosed||''),start:ct.closureStartDate||null,end:ct.closureEndDate||null}; }
+  const a=f.attributes||{},cfg=CLOSURES; return {road:a[cfg.roadField]||'',dir:cfg.dirField?a[cfg.dirField]||'':'',desc:cfg.descField?a[cfg.descField]||'':'',impact:cfg.impactField?a[cfg.impactField]||'':'',start:cfg.startField?a[cfg.startField]:null,end:cfg.endField?a[cfg.endField]:null}; }
+async function scanClosures(){ if(!CLOSURES){toast('No public closures feed for this state');return;} if(!beginPt&&!endPt){toast('Mark a segment first');return;}
+  const box=el('closuresBox'); box.style.display='block'; box.textContent='Loading nearby closures…';
+  const lats=[beginPt&&beginPt.lat,endPt&&endPt.lat].filter(v=>v!=null),lons=[beginPt&&beginPt.lng,endPt&&endPt.lng].filter(v=>v!=null);
+  const pad=0.05, bbA=[Math.min(...lons)-pad,Math.min(...lats)-pad,Math.max(...lons)+pad,Math.max(...lats)+pad];
+  try{
+    let feats=[];
+    if(CLOSURES.type==='wzdx'){ const j=await(await fetch(CLOSURES.url)).json(); feats=(j.features||[]).filter(f=>{const c=f.properties&&f.properties.core_details;return c&&c.event_type==='work-zone';}); }
+    else if(CLOSURES.type==='ca-lcs'){ const midLat=(Math.min(...lats)+Math.max(...lats))/2,midLon=(Math.min(...lons)+Math.max(...lons))/2;
+      const ds=caDistricts(midLat,midLon); const urls=ds.length?CLOSURES.urls.filter((u,i)=>ds.indexOf(i+1)>=0):CLOSURES.urls;
+      box.textContent='Loading Caltrans lane closures ('+urls.length+' district'+(urls.length>1?'s':'')+')…';
+      const dd=await Promise.all(urls.map(u=>fetch(u).then(r=>r.json()).catch(()=>({})))); feats=dd.flatMap(x=>(x.data||[])).map(x=>x.lcs).filter(l=>l&&l.location&&l.closure&&l.closure.closureID); }
+    else { const url=CLOSURES.url+'?where='+encodeURIComponent(CLOSURES.where||'1=1')+'&geometry='+encodeURIComponent(bbA.join(','))+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&outSR=4326&resultRecordCount=250&f=json'; const j=await(await fetch(url)).json(); feats=j.features||[]; }
+    if(closuresLayer){closuresLayer.remove();closuresLayer=null;} closuresLayer=L.layerGroup().addTo(map);
+    const seg=(wzRoute&&wzRoute.length)?wzRoute:[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]];
+    const now=Date.now(); const near=[],conflicts=[],recs=[];
+    feats.forEach(f=>{ const info=closureInfo(f); const em=closToMs(info.end); if(em&&em<now)return;
+      const polys=closureGeom(f); if(!polys.length)return;
+      let dmin=Infinity; polys.forEach(ll=>ll.forEach(pt=>{const d=minDistToPath({lat:pt[0],lng:pt[1]},seg); if(d<dmin)dmin=d;}));
+      if(dmin>4000)return;   // WZDx feeds are statewide — keep only what's near the segment
+      const overlap=dmin<=150, idx=recs.length; recs.push(info);
+      polys.forEach(ll=>{ (ll.length>=2?L.polyline(ll,{color:overlap?'#dc2626':'#f59e0b',weight:overlap?6:4,opacity:.85,dashArray:overlap?null:'6,5'})
+        :L.circleMarker(ll[0],{radius:6,color:overlap?'#dc2626':'#f59e0b',weight:2,fillColor:'#fff',fillOpacity:1}))
+        .bindPopup('<b>'+(info.road||'Closure')+'</b> '+(info.dir||'')+'<br>'+(info.impact||'')+(info.desc?'<br>'+String(info.desc).slice(0,120):'')+'<br>'+fmtRange(info.start,info.end)
+          +'<br><button type="button" style="margin-top:5px;padding:4px 8px;cursor:pointer" onclick="prefillFromClosure('+idx+')">Use as basis</button>').addTo(closuresLayer); });
+      near.push({road:info.road,impact:info.impact,start:info.start,end:info.end,d:Math.round(dmin)}); if(overlap)conflicts.push(near[near.length-1]); });
+    window.__closConflicts=conflicts; window.__closRecs=recs;
+    if(!near.length){ box.innerHTML='✓ No current closures near this segment.'; }
+    else{ box.innerHTML='🚧 <b>'+near.length+' closure(s)</b> nearby'+(conflicts.length?' · <b style="color:#b91c1c">'+conflicts.length+' overlap your segment</b>':' — none overlap')+'.'
+      +(conflicts.length?'<br>'+conflicts.slice(0,5).map(c=>'• '+(c.road||'')+' — '+(c.impact||'')+' ('+fmtRange(c.start,c.end)+')').join('<br>'):'')
+      +'<br><span style="font-size:11px;color:#64748b">Tap a closure → “Use as basis” to prefill.</span>'; }
+    if(el('readyBox')&&el('readyBox').style.display!=='none') checkReadiness();
+    toast(near.length+' closure(s)'+(conflicts.length?', '+conflicts.length+' overlap':''));
+  }catch(e){ box.textContent='Could not load closures: '+e.message; } }
+function prefillFromClosure(i){ const info=(window.__closRecs||[])[i]; if(!info)return;
+  const rt=String(info.road||'').trim();
+  if(rt){ const opt=[...el('route').options].find(o=>o.value.toUpperCase()===rt.toUpperCase());
+    if(opt){ el('route').value=opt.value; onRouteChange(); } else { el('route').value='__other'; onRouteChange(); el('routeOther').value=rt; } }
+  if(info.desc && el('description'))el('description').value=String(info.desc).slice(0,300);
+  if(info.impact && el('impact')){ const o=[...el('impact').options].find(x=>x.value===info.impact); if(o){ el('impact').value=info.impact; } }
+  const sm=closToMs(info.start), em=closToMs(info.end);
+  if(sm && el('schedStart')){ const s=new Date(sm); el('schedStart').value=new Date(s.getTime()-s.getTimezoneOffset()*60000).toISOString().slice(0,10);
+    if(em && el('schedWeeks')){ const days=Math.max(1,Math.round((em-sm)/86400000)); el('schedWeeks').value=Math.max(1,Math.ceil(days/7)); } }
+  updateClearReminder(); saveState(); toast('Prefilled from existing closure — review'); }
+// Work that physically CHANGES the vertical clearance (raises/lowers the deck or the road grade under
+// a structure) — the posted/NBI clearance is now wrong and must be re-measured. Read from description.
+function clearanceAltering(){return /overlay|inlay|\bmill|resurfac|\bpav(e|ing)\b|\bdeck\b|grind|grade\s*rais|shoring|falsework|bridge\s*(repair|rehab|work)/i.test(v('description')||'');}
+// Bridge clearance is RELEVANT when the work (a) reroutes/shifts traffic or allows oversize loads — a low
+// structure on the (alternate) path constrains it — OR (b) alters the clearance itself (overlay/mill/paving).
+function clearanceRelevant(){const imp=v('impact');return clearanceAltering()||v('oversize')==='Yes'||v('detour')==='Yes'||imp==='all-lanes-closed'||imp==='alternating-one-way'||imp==='all-lanes-open-shift-left'||imp==='all-lanes-open-shift-right';}
+function clearLabel(){const s=v('clearStatus');return s==='checked'?'Checked (scan run)':s==='not-needed'?'Not needed for this work':'Not yet checked';}
+function laneSummary(){if(!laneData.length)return '';return laneData.length+' lanes — '+laneData.map(function(l){return 'L'+l.order+':'+(l.status||'open');}).join(', ');}
+// Auto-suggest the through-lane count. Prefer the state's OWN roadway-inventory lanes layer (LANES,
+// generator-injected); fall back to the national HPMS/NHS through-lanes layer (complete for interstates)
+// where a state hasn't published lane counts. Reports majority + minimum; pre-fills the editor when empty.
+/* ==LANES_CONFIG_START== */
+const LANES=null;
+/* ==LANES_CONFIG_END== */
+const NHS_LANES={url:'https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/2022_HPMS_Through_Lanes_on_NHS/FeatureServer/0/query',lanesField:'THROUGH_LANES',label:'HPMS (NHS)'};
+async function suggestLanes(){ const hint=el('laneHint'); if(!hint||(!beginPt&&!endPt))return;
+  const src=LANES||NHS_LANES, lf=src.lanesField;
+  const lats=[beginPt&&beginPt.lat,endPt&&endPt.lat].filter(v=>v!=null),lons=[beginPt&&beginPt.lng,endPt&&endPt.lng].filter(v=>v!=null);
+  const pad=0.01,bb=[Math.min(...lons)-pad,Math.min(...lats)-pad,Math.max(...lons)+pad,Math.max(...lats)+pad].join(',');
+  try{ const url=src.url+'?where='+encodeURIComponent(src.where||(lf+'>0'))+'&geometry='+encodeURIComponent(bb)+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields='+encodeURIComponent(lf)+'&returnGeometry=false&resultRecordCount=100&f=json';
+    const nums=(((await(await fetch(url)).json()).features)||[]).map(function(f){return +f.attributes[lf];}).filter(function(n){return n>0;});
+    if(!nums.length){ hint.style.display='none'; return; }
+    const counts={}; nums.forEach(function(n){counts[n]=(counts[n]||0)+1;}); const maj=+Object.keys(counts).sort(function(a,b){return counts[b]-counts[a];})[0]; const lo=Math.min.apply(null,nums);
+    hint.style.display='block';
+    hint.innerHTML=(src.label||'HPMS')+': ~<b>'+maj+'</b> through lane(s) here'+(lo!==maj?(' (as few as '+lo+')'):'')+(laneData.length?'':' · <a href="#" onclick="buildLanes('+maj+');return false" style="color:#0369a1">use '+maj+'</a>');
+    if(!laneData.length && !v('laneCount')) buildLanes(maj);   // pre-fill the editor when empty
+  }catch(e){ hint.style.display='none'; } }
+// Work-zone end/expiration derived from Start date + # weeks — sets the WZDx end_date so the zone
+// can't linger stale (a request with no end never expires downstream).
+function wzEndDate(){const start=v('schedStart'),weeks=parseInt(v('schedWeeks')||'0',10);if(!start||!weeks)return null;const e=new Date(start+'T00:00');e.setDate(e.getDate()+weeks*7);return e.toISOString();}
+function wzEndLabel(){const iso=wzEndDate();return iso?new Date(iso).toDateString():'';}
+// ---- MUTCD taper length + advance-warning sign spacing (Tables 6C-1/6C-4) ----
+function calcTaper(){ const box=el('taperBox'); box.style.display='block';
+  let S=parseFloat(v('normalSpeed')); if(!S||S<=0){ const p=prompt('Posted / approach speed (mph)?','55'); S=parseFloat(p); if(!S||S<=0){box.textContent='Enter a posted speed to compute taper.';return;} }
+  const W=12;  // one 12-ft lane of lateral offset (typical lane closure)
+  const Lmerge = S>=45 ? Math.round(W*S) : Math.round(W*S*S/60);          // MUTCD: L=WS (≥45) or WS²/60 (<45)
+  const Lshift=Math.round(Lmerge*0.5), Lshoulder=Math.round(Lmerge/3), Ldown=100; // shifting 0.5L, shoulder ⅓L, downstream ~100 ft/lane
+  let road,A,B,C;                                                          // advance-warning sign spacing (Table 6C-1)
+  if(S>=55){road='Freeway / Expressway';A=1000;B=1500;C=2640;}
+  else if(S>=45){road='Rural';A=500;B=500;C=500;}
+  else if(S>=30){road='Urban ≥30 mph';A=350;B=350;C=350;}
+  else{road='Urban ≤25 mph';A=100;B=100;C=100;}
+  window.__taper={Lmerge,Lshift,Lshoulder,Ldown,A,B,C,S,road};
+  box.innerHTML='<b>🚧 MUTCD TTC</b> — S='+S+' mph, 12-ft offset<br>'
+    +'Merging taper <b>'+Lmerge+' ft</b> · Shifting '+Lshift+' ft · Shoulder '+Lshoulder+' ft · Downstream ~'+Ldown+' ft/lane<br>'
+    +'Advance-warning signs ('+road+'): <b>'+A+' / '+B+' / '+C+' ft</b> (A→B→C from work space)'
+    +'<br><span style="font-size:11px;color:#64748b">Guidance from MUTCD Tables 6C-1/6C-4 — verify against your agency\'s standard drawings.</span>'
+    +'<br><button style="padding:5px 9px;margin-top:6px" onclick="addTaperNote()">Add to notes</button>'; }
+function addTaperNote(){ const t=window.__taper; if(!t)return;
+  const note='TTC (MUTCD, '+t.S+' mph): merging taper '+t.Lmerge+' ft; advance-warning sign spacing '+t.A+'/'+t.B+'/'+t.C+' ft ('+t.road+').';
+  const cur=(v('addlNotes')||'').replace(/(^|\n)TTC \(MUTCD[^\n]*/g,'').trim(); el('addlNotes').value=[cur,note].filter(Boolean).join('\n'); saveState(); toast('Taper + signs added to notes'); }
+function updateClearReminder(){const box=el('clearReminder');if(!box)return;const st=v('clearStatus');
+  if(clearanceRelevant()&&st!=='checked'&&st!=='not-needed'){box.style.display='block';
+    box.innerHTML=clearanceAltering()
+      ? '⚠️ This work can <b>change the vertical clearance</b> (deck overlay / milling / paving alters the deck or road grade) — <b>measure the new clearance and update the posted value</b>. Run the NBI scan, or set the check to “Not needed for this work”.'
+      : '⚠️ This work type can route traffic onto other structures — <b>run the clearance scan</b> above, or set the check to “Not needed for this work”.';}
+  else box.style.display='none';}
+// ---- Lanes (WZDx lanes[]) ----
+const LANE_STATUS=['open','closed','shift-left','shift-right','merge-left','merge-right','alternating-flow'];
+const LANE_TYPE=['general','shoulder','exit-lane','entrance-lane','hov-lane'];
+function buildLanes(n){ n=Math.max(0,Math.min(8,parseInt(n,10)||0)); const prev=laneData; laneData=[];
+  for(let i=1;i<=n;i++){ const old=prev.find(l=>l.order===i); laneData.push(old||{order:i,type:i===1?'general':'general',status:'open'}); }
+  if(el('laneCount'))el('laneCount').value=n||''; renderLanes(); syncImpactFromLanes(); saveState(); }
+function setLane(order,field,val){ const l=laneData.find(x=>x.order===order); if(!l)return; l[field]=val; if(field==='status')renderLanes(); syncImpactFromLanes(); saveState(); }
+function deriveImpact(){ const gen=laneData.filter(l=>l.type==='general'); if(!gen.length)return ''; const closed=gen.filter(l=>l.status==='closed').length;
+  if(closed===0)return 'all-lanes-open'; if(closed>=gen.length)return 'all-lanes-closed'; return 'some-lanes-closed'; }
+function syncImpactFromLanes(){ const di=deriveImpact(); if(di && !v('impact')){ el('impact').value=di; updateClearReminder(); } }
+function renderLanes(){ const box=el('lanesEditor'); if(!box)return; if(!laneData.length){box.innerHTML='';return;}
+  box.innerHTML=laneData.map(function(l){ const active=l.status&&l.status!=='open';
+    return '<div class="row" style="align-items:center;gap:6px;margin:3px 0">'
+      +'<div style="flex:0 0 62px;font-weight:600;font-size:13px">Lane '+l.order+(active?' <span style="color:#b45309">●</span>':'')+'</div>'
+      +'<select style="flex:1" aria-label="Lane '+l.order+' status" onchange="setLane('+l.order+',\'status\',this.value)">'
+        +LANE_STATUS.map(function(s){return '<option'+(l.status===s?' selected':'')+'>'+s+'</option>';}).join('')+'</select>'
+      +'<select style="flex:0 0 96px" aria-label="Lane '+l.order+' type" onchange="setLane('+l.order+',\'type\',this.value)">'
+        +LANE_TYPE.map(function(t){return '<option'+(l.type===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select>'
+      +'</div>'; }).join(''); }
+function checkReadiness(){const miss=missingFields();if(clearanceRelevant()&&v('clearStatus')!=='checked'&&v('clearStatus')!=='not-needed')miss.push('Bridge clearance — scan it or mark “Not needed for this work”');if(!wzEndDate())miss.push('Scheduled end — set Start date + # weeks (sets the WZDx expiration so the zone can’t linger stale)');updateClearReminder();const cf=(window.__closConflicts||[]);const ch=cf.length?('<br><b style="color:#b91c1c">⚠️ Overlaps '+cf.length+' existing closure(s):</b><br>'+cf.slice(0,4).map(c=>'• '+(c.road||'')+' — '+(c.impact||'')+' ('+fmtRange(c.start,c.end)+')').join('<br>')+'<br><span style="font-size:11px">Confirm this isn’t a duplicate, or coordinate timing.</span>'):'';const b=el('readyBox');b.style.display='block';if(!miss.length){if(cf.length){b.style.background='#fff7ed';b.style.borderColor='#fed7aa';b.style.color='#9a3412';b.innerHTML='✓ Required fields filled.'+ch;}else{b.style.background='#ecfdf5';b.style.borderColor='#a7f3d0';b.style.color='#065f46';b.innerHTML='✓ Ready — all required fields filled.';}toast(cf.length?'Ready — overlaps a closure':'✓ Ready');return true;}b.style.background='#fff7ed';b.style.borderColor='#fed7aa';b.style.color='#9a3412';b.innerHTML='⚠️ <b>'+miss.length+' required field(s) empty:</b><br>'+miss.map(x=>'• '+x).join('<br>')+ch;toast(miss.length+' required missing');return false;}
+
+// ---- WZDx v4.2 RoadEventFeature ----
+function geometryCoords(){if(wzRoute&&wzRoute.length)return wzRoute.map(c=>[c[1],c[0]]);if(beginPt&&endPt)return[[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]];return null;}
+function toWZDx(){const now=new Date().toISOString();const coords=geometryCoords();
+  const restr=[];
+  if(v('rHeight'))restr.push({type:'reduced-height',value:v('rHeight')});
+  if(v('rWidth'))restr.push({type:'reduced-width',value:v('rWidth')});
+  if(v('rWeight'))restr.push({type:'reduced-weight',value:v('rWeight')});
+  if(v('rLength'))restr.push({type:'reduced-length',value:v('rLength')});
+  const baseName=v('project')||('MDOT-'+Date.now().toString(36));
+  const mkFeature=(dirName,geom,suffix)=>{const props={core_details:{event_type:'work-zone',data_source_id:'msdot-wz-builder',road_names:[routeVal()].filter(Boolean),direction:dirName,name:baseName+suffix,description:v('description')||undefined,update_date:now},
+    start_date:v('schedStart')||now,end_date:wzEndDate(),x_review_by:wzEndDate()||undefined,vehicle_impact:v('impact')||'unknown',
+    beginning_cross_street:v('beginLoc')||undefined,ending_cross_street:v('endLoc')||undefined,
+    is_start_position_verified:false,is_end_position_verified:false};
+    if(restr.length)props.restrictions=restr.slice();
+    if(v('reducedSpeed'))props.reduced_speed_limit_kph=Math.round(parseFloat(v('reducedSpeed'))*1.60934);  // WZDx standard (mph→kph)
+    if(v('normalSpeed'))props.x_normal_speed_mph=parseFloat(v('normalSpeed'));
+    if(v('detour')==='Yes')props.x_detour=v('addlNotes')||'marked detour';
+    props.x_clearance_check=v('clearStatus')||'pending';  // checked | not-needed | pending — clearance verification state
+    props.x_clearance_relevant=clearanceRelevant();
+    if(clearanceAltering())props.x_clearance_altering=true;  // work physically changes vertical clearance → posted value must be re-measured
+    if(laneData.length)props.lanes=laneData.map(function(l){return {order:l.order,type:l.type||'general',status:l.status||'open'};});  // WZDx v4.2 lanes[]
+    if(window.__taper){props.x_taper_length_ft=window.__taper.Lmerge;props.x_advance_warning_ft=[window.__taper.A,window.__taper.B,window.__taper.C];}  // MUTCD TTC metadata
+    if(v('dms'))props.x_dms_request=v('dms');
+    // CWZ 1.0: reference the connected field infrastructure scanned near the zone
+    if(nearCams&&nearCams.length)props.x_cameras=nearCams.map(function(c){return {id:c.id,route:c.route,coordinates:c.coordinates,imageUrl:c.imageUrl};});
+    if(nearDMS&&nearDMS.length)props.x_connected_devices=nearDMS;  // CWZ 1.0: connected DMS + arrow boards near the zone
+    return {id:props.core_details.name,type:'Feature',properties:props,geometry:{type:'LineString',coordinates:geom}};};
+  let features=[];
+  if(coords){
+    // WZDx has no "both" — a both-direction closure is TWO directional RoadEventFeatures, each on
+    // its own carriageway geometry (the opposite roadbed when the highway is divided).
+    if(v('direction')==='Both'){const ax=nvAxis().map(d=>({N:'northbound',S:'southbound',E:'eastbound',W:'westbound'}[d]));
+      const g2=(wzRoute2&&wzRoute2.length)?wzRoute2.map(c=>[c[1],c[0]]):coords;
+      features=[mkFeature(ax[0],coords,'-'+ax[0]),mkFeature(ax[1],g2,'-'+ax[1])];}
+    else{const dir={N:'northbound',S:'southbound',E:'eastbound',W:'westbound'}[v('direction')]||'unknown';
+      features=[mkFeature(dir,coords,'')];}
+  }
+  return {feed_info:{update_date:now,version:'4.2',x_cwz_profile:'CWZ 1.0',x_dataset_tier:'field-request',update_frequency:0,data_sources:[{data_source_id:'msdot-wz-builder',organization_name:'Mississippi DOT (field builder)'}]},type:'FeatureCollection',features};}
+function downloadWZDx(){if(!(beginPt&&endPt)){toast('Mark a segment first');return;}const blob=new Blob([JSON.stringify(toWZDx(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='msdot_wzdx_'+(routeVal()||'route').replace(/\W+/g,'')+'.geojson';a.click();toast('WZDx feature exported');}
+
+function emailAgency(){const _m=missingFields();if(_m.length){checkReadiness();if(!confirm(_m.length+' required field(s) missing:\n'+_m.join(', ')+'\n\nEmail anyway?'))return;}
+  const to=v('tmcEmail');if(!to){toast('Set an MDOT recipient email first');checkReadiness();return;}
+  const body=summaryText();if(navigator.clipboard)navigator.clipboard.writeText(body).catch(()=>{});
+  const subj='MDOT Work-Zone Request — '+routeVal()+' '+v('direction')+' — '+(v('project')||'work zone');
+  const mailto='mailto:'+to+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body);
+  try{const a=document.createElement('a');a.href=mailto;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();}catch(e){}
+  toast('Draft opened + text copied to clipboard');}
+
+function genPDF(){const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'pt',format:'letter'});const M=48;let y=54;
+  doc.setFillColor(0,45,98);doc.rect(0,0,612,34,'F');doc.setFillColor(162,170,173);doc.rect(0,34,612,3,'F');doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text('Mississippi Department of Transportation — Work-Zone Request',M,22);
+  doc.setTextColor(20);y=64;doc.setFontSize(10);
+  fields().forEach(r=>{if(y>740){doc.addPage();y=54;}doc.setFont('helvetica','bold');doc.text(r[0]+':',M,y);doc.setFont('helvetica','normal');const lines=doc.splitTextToSize(String(r[1]||'—'),360);doc.text(lines,M+150,y);y+=Math.max(15,lines.length*13);});
+  if(schedule.length){if(y>700){doc.addPage();y=54;}y+=6;doc.setFont('helvetica','bold');doc.text('Schedule ('+schedule.length+'):',M,y);y+=15;doc.setFont('helvetica','normal');schedule.forEach(o=>{if(y>750){doc.addPage();y=54;}doc.text('• '+o.label,M+8,y);y+=13;});}
+  doc.save('MSDOT_WZ_'+(routeVal()||'route').replace(/\W+/g,'')+'.pdf');toast('Summary PDF generated');}
+
+// ---- database submit ----
+function saveIntegration(){localStorage.setItem('msdot_integration',JSON.stringify({endpoint:v('dbEndpoint'),auth:v('dbAuth')}));}
+function loadIntegration(){try{const s=JSON.parse(localStorage.getItem('msdot_integration')||'{}');if(s.endpoint)el('dbEndpoint').value=s.endpoint;if(s.auth)el('dbAuth').value=s.auth;}catch(e){}}
+// Scan nearby cameras + DMS via the corridor proxy (per-state; state GIS isn't CORS-open).
+// Cameras come from the state's OWN GIS (CAM) or a file the user loads — never from our servers.
+async function loadCamerasFromSource(bb){ if(!CAM||!CAM.url) return [];
+  const url=CAM.url+'?where='+encodeURIComponent(CAM.where||'1=1')+'&geometry='+encodeURIComponent(bb)
+    +'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&outSR=4326&resultRecordCount=300&f=json';
+  try{ const j=await(await fetch(url)).json(); return (j.features||[]).map(function(f){ const a=f.attributes||{}, g=f.geometry||{};
+    let lon=g.x, lat=g.y; if(lon==null&&g.points&&g.points[0]){lon=g.points[0][0];lat=g.points[0][1];}
+    if(lon==null) return null;
+    let img=CAM.imageField?a[CAM.imageField]:''; if(!img&&CAM.imageTemplate&&CAM.idField) img=String(CAM.imageTemplate).replace('{id}',encodeURIComponent(a[CAM.idField]));
+    return {id:(CAM.idField&&a[CAM.idField])||a.OBJECTID||'cam', route:(CAM.routeField&&a[CAM.routeField])||'', coordinates:[lon,lat], imageUrl:img||'', desc:(CAM.nameField&&a[CAM.nameField])||''}; }).filter(Boolean);
+  }catch(e){ return []; } }
+function camsInBbox(list,b){ return (list||[]).filter(function(c){ const x=c.coordinates[0],y=c.coordinates[1]; return x>=b[0]&&x<=b[2]&&y>=b[1]&&y<=b[3]; }); }
+function renderCamsDMS(box){ if(camLayer){camLayer.remove();camLayer=null;}
+  if(nearCams.length) camLayer=L.layerGroup(nearCams.map(c=>L.circleMarker([c.coordinates[1],c.coordinates[0]],{radius:5,color:'#0891b2',weight:2,fillColor:'#fff',fillOpacity:1}).bindPopup('<b>Camera</b> '+(c.route||c.desc||'')+(c.imageUrl?'<br><img src="'+c.imageUrl+'" style="width:210px;max-width:100%" referrerpolicy="no-referrer">':'')))).addTo(map);
+  const cm=nearCams.length?nearCams.length+' camera(s)':(CAM?'0 cameras near the zone':'0 cameras — set CAM or load a camera file');
+  let dm='';
+  if(nearDMS.length){ const nAB=nearDMS.filter(function(d){return d.deviceType==='arrow-board';}).length, nSign=nearDMS.length-nAB; dm=nSign+' DMS'+(nAB?' + '+nAB+' arrow board(s)':''); }
+  box.innerHTML='📷 '+cm+(SELF_CONTAINED?'':' &nbsp;·&nbsp; 🔶 '+(dm||'0 devices'))+' near the zone (tap markers for detail).'; saveState(); }
+async function scanCamsDMS(){ if(!beginPt&&!endPt){toast('Mark a segment first');return;}
+  const box=el('camdmsBox'); box.style.display='block'; box.textContent='Loading nearby cameras…';
+  const lats=[beginPt&&beginPt.lat,endPt&&endPt.lat].filter(v=>v!=null), lons=[beginPt&&beginPt.lng,endPt&&endPt.lng].filter(v=>v!=null);
+  const pad=0.05, bbA=[Math.min(...lons)-pad,Math.min(...lats)-pad,Math.max(...lons)+pad,Math.max(...lats)+pad], bb=bbA.join(',');
+  if(dmsLayer){dmsLayer.remove();dmsLayer=null;} nearDMS=[];
+  try{
+    const src=await loadCamerasFromSource(bb);
+    nearCams=camsInBbox(userCams,bbA).concat(src);
+    // DMS/arrow-board auto-scan is hosted-only (live + portable — can't be state-owned in a file).
+    if(!SELF_CONTAINED){ try{ const dj=await fetch(CORRIDOR_PROXY+'/api/wz/dms?state='+WZ_STATE+'&bbox='+bb).then(r=>r.json()).catch(()=>({}));
+      nearDMS=(dj&&dj.dms)||[];
+      if(nearDMS.length) dmsLayer=L.layerGroup(nearDMS.map(function(d){var ab=d.deviceType==='arrow-board';return L.circleMarker([d.coordinates[1],d.coordinates[0]],{radius:5,color:ab?'#d97706':'#7c3aed',weight:2,fillColor:'#fff',fillOpacity:1}).bindPopup('<b>'+(ab?'Arrow board':'DMS')+'</b> '+(d.route||'')+(d.message?'<br>'+d.message:''));})).addTo(map); }catch(e){} }
+    renderCamsDMS(box);
+  }catch(e){ box.textContent='Scan failed: '+e.message; } }
+// Load cameras from a user file — GeoJSON, CSV, or a zipped shapefile (.zip). All parsed locally; nothing uploaded.
+async function handleCamFile(input){ const f=input.files&&input.files[0]; if(!f)return; const box=el('camdmsBox'); box.style.display='block'; box.textContent='Reading '+f.name+'…';
+  try{ const nm=f.name.toLowerCase(); let cams=[];
+    if(nm.endsWith('.zip')){ if(typeof shp==='undefined'){box.textContent='Shapefile support isn’t available in this build — try GeoJSON or CSV.';return;}
+      cams=geojsonToCams(await shp(await f.arrayBuffer())); }
+    else if(nm.endsWith('.csv')){ cams=csvToCams(await f.text()); }
+    else { cams=geojsonToCams(JSON.parse(await f.text())); }
+    const bad=cams.filter(function(c){return Math.abs(c.coordinates[0])>180||Math.abs(c.coordinates[1])>90;}).length;
+    cams=cams.filter(function(c){return Math.abs(c.coordinates[0])<=180&&Math.abs(c.coordinates[1])<=90;});
+    userCams=cams; toast(cams.length+' camera(s) loaded'+(bad?' ('+bad+' skipped)':''));
+    if(beginPt||endPt){ scanCamsDMS(); }
+    else box.innerHTML='📷 '+cams.length+' camera(s) loaded — mark a segment to plot those near the zone.'+(bad?' <span style="color:#b45309">'+bad+' skipped (coordinates out of range — export as WGS84 lat/lon).</span>':''); saveState();
+  }catch(e){ box.textContent='Could not read file: '+e.message; } input.value=''; }
+function pickField(props,cands){ const keys=Object.keys(props||{}); for(const c of cands){ const hit=keys.find(k=>k.toLowerCase()===c); if(hit)return hit; } for(const c of cands){ const hit=keys.find(k=>k.toLowerCase().indexOf(c)>=0); if(hit)return hit; } return null; }
+function geojsonToCams(gj){ const feats=(gj&&gj.type==='FeatureCollection')?gj.features:(gj&&gj.type==='Feature'?[gj]:(Array.isArray(gj)?gj:[])); const out=[];
+  feats.forEach(function(ft){ const g=ft.geometry||ft; if(!g||g.type!=='Point'||!g.coordinates)return; const p=ft.properties||{};
+    const kImg=pickField(p,['imageurl','image_url','image','snapshot','url','videourl','cctvurl']), kName=pickField(p,['name','title','desc','description','location','label']), kRoute=pickField(p,['route','road','highway','rte','roadway']), kId=pickField(p,['id','cameraid','deviceid','objectid']);
+    out.push({id:(kId&&p[kId])||('cam'+out.length), route:(kRoute&&p[kRoute])||'', coordinates:[+g.coordinates[0],+g.coordinates[1]], imageUrl:(kImg&&p[kImg])||'', desc:(kName&&p[kName])||''}); });
+  return out; }
+function csvToCams(txt){ const lines=txt.split(/\r?\n/).filter(function(l){return l.trim();}); if(lines.length<2)return [];
+  const split=function(l){ const o=[]; let cur='',q=false; for(let i=0;i<l.length;i++){const ch=l[i]; if(ch==='"'){ if(q&&l[i+1]==='"'){cur+='"';i++;} else q=!q; } else if(ch===','&&!q){o.push(cur);cur='';} else cur+=ch; } o.push(cur); return o; };
+  const low=split(lines[0]).map(function(s){return s.trim().toLowerCase();});
+  const idx=function(cands){ for(const c of cands){ const i=low.indexOf(c); if(i>=0)return i; } for(const c of cands){ const i=low.findIndex(function(h){return h.indexOf(c)>=0;}); if(i>=0)return i; } return -1; };
+  const iLat=idx(['lat','latitude','y']), iLon=idx(['lon','lng','long','longitude','x']), iImg=idx(['imageurl','image','snapshot','url','videourl']), iName=idx(['name','title','desc','location']), iRoute=idx(['route','road','highway','rte']), iId=idx(['id','cameraid','objectid']);
+  if(iLat<0||iLon<0)return []; const out=[];
+  for(let r=1;r<lines.length;r++){ const c=split(lines[r]); const lat=parseFloat(c[iLat]),lon=parseFloat(c[iLon]); if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;
+    out.push({id:(iId>=0&&c[iId])||('cam'+out.length), route:(iRoute>=0&&c[iRoute])||'', coordinates:[lon,lat], imageUrl:(iImg>=0&&c[iImg])||'', desc:(iName>=0&&c[iName])||''}); }
+  return out; }
+function requestPayload(){const o={};FIELD_IDS.forEach(id=>{if(el(id))o[id]=v(id);});o.route=routeVal();o.segment=(beginPt&&endPt)?{begin:[beginPt.lng,beginPt.lat],end:[endPt.lng,endPt.lat],miles:+miles(beginPt,endPt).toFixed(2)}:null;o.cameras=nearCams;o.dms=nearDMS;o.clearance={status:v('clearStatus')||'pending',relevant:clearanceRelevant()};o.lanes=laneData.map(function(l){return {order:l.order,type:l.type||'general',status:l.status||'open'};});o.ttc=window.__taper||null;
+  o.both_directions=v('direction')==='Both';if(o.both_directions)o.directions=nvAxis().map(d=>({N:'northbound',S:'southbound',E:'eastbound',W:'westbound'}[d]));
+  const g1=geometryCoords();
+  o.geometry=(o.both_directions&&wzRoute2&&wzRoute2.length&&g1)?{type:'MultiLineString',coordinates:[g1,wzRoute2.map(c=>[c[1],c[0]])]}:(g1?{type:'LineString',coordinates:g1}:null);
+  o.detour_geometry=(detourPts.length>=2)?{type:'LineString',coordinates:(detourRoute&&detourRoute.length?detourRoute:detourPts.map(p=>[p.lat,p.lng])).map(c=>[c[1],c[0]])}:null;o.schedule=schedule.map(s=>s.label);
+  const wz=toWZDx();o.wzdx=wz.features.length>1?wz.features:(wz.features[0]||null);o.maps={route:gmapsRoute()||null,detour:detourPts.length>=2?gmapsDetour():null};o.generatedAt=new Date().toISOString();o.source='MDOT Work-Zone Request Builder';return o;}
+function downloadPayload(){const blob=new Blob([JSON.stringify(requestPayload(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='msdot_wz_'+(routeVal()||'route').replace(/\W+/g,'')+'.json';a.click();toast('JSON downloaded');}
+async function submitToDatabase(){const ep=v('dbEndpoint'),st=el('dbStatus');st.style.display='block';if(!ep){st.style.color='#b91c1c';st.textContent='Set an endpoint URL first.';return;}const miss=missingFields();if(miss.length&&!confirm(miss.length+' required field(s) missing:\n'+miss.join(', ')+'\n\nSubmit anyway?'))return;st.style.color='#475569';st.textContent='Submitting…';try{const headers={'Content-Type':'application/json'};if(v('dbAuth'))headers['Authorization']=v('dbAuth');const r=await fetch(ep,{method:'POST',headers,body:JSON.stringify(requestPayload())});if(r.ok){let id='';try{const j=await r.json();id=j.id||j.recordId||'';}catch(_){}st.style.color='#15803d';st.textContent='✓ Submitted (HTTP '+r.status+')'+(id?' — record '+id:'');}else{st.style.color='#b91c1c';st.textContent='Server returned '+r.status+' '+(r.statusText||'');}}catch(e){st.style.color='#b91c1c';st.textContent='Submit failed: '+e.message+' — likely CORS or endpoint unreachable. Use Download JSON.';}}
+
+// ---- persistence ----
+function onRouteChange(){el('routeOther').style.display=v('route')==='__other'?'block':'none';}
+function saveState(){const s={pts:{beginPt,endPt,detourPts},lanes:laneData};FIELD_IDS.forEach(id=>{if(el(id))s[id]=el(id).value;});localStorage.setItem('msdot_state',JSON.stringify(s));}
+function loadState(){try{const s=JSON.parse(localStorage.getItem('msdot_state')||'{}');FIELD_IDS.forEach(id=>{if(el(id)&&s[id]!=null)el(id).value=s[id];});if(s.pts&&s.pts.beginPt){beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng);if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng);redraw();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ();setMode('locked');}}if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng));drawDetour();snapDetour();}if(Array.isArray(s.lanes)){laneData=s.lanes;if(el('laneCount'))el('laneCount').value=laneData.length||'';renderLanes();}}catch(e){}}
+const PERSIST=['requestor','email','contact24','tmcEmail'];
+function resetAll(){if(!confirm('Start a NEW request? Clears the segment, detour, and scans — your name/contact/email are kept.'))return;FIELD_IDS.forEach(id=>{if(el(id)&&!PERSIST.includes(id))el(id).value=el(id).tagName==='SELECT'?el(id).options[0].value:'';});[beginMk,endMk,line,line2].forEach(x=>x&&x.remove());beginPt=endPt=beginMk=endMk=line=line2=null;wzRoute=null;wzRoute2=null;schedule=[];detourPts=[];detourRoute=null;detourMeters=null;drawDetour();laneData=[];if(el('laneCount'))el('laneCount').value='';renderLanes();if(bridgeLayer){bridgeLayer.remove();bridgeLayer=null;}if(closuresLayer){closuresLayer.remove();closuresLayer=null;}window.__closConflicts=null;window.__closRecs=null;['nbiBox','schedList','detourInfo','readyBox','dbStatus','clearReminder','closuresBox'].forEach(id=>{if(el(id))el(id).style.display='none';});el('selinfo').textContent='No segment yet — click the road for the begin point, then the end point.';onRouteChange();setMode('begin');updateClearReminder();saveState();}
+function projectList(){try{return JSON.parse(localStorage.getItem('msdot_projects')||'[]');}catch(e){return[];}}
+function renderProjects(){const list=projectList();el('projPicker').innerHTML='<option value="">↺ Saved projects…</option>'+list.map((p,i)=>'<option value="'+i+'">'+(p.name||'#'+i)+'</option>').join('');}
+function saveProject(){const name=prompt('Name this project:');if(!name)return;const list=projectList();const data={};FIELD_IDS.forEach(id=>{if(el(id))data[id]=el(id).value;});list.push({name,data,beginPt,endPt,detourPts,lanes:laneData});localStorage.setItem('msdot_projects',JSON.stringify(list));renderProjects();toast('Saved');}
+function loadProject(i){const p=projectList()[i];if(!p)return;FIELD_IDS.forEach(id=>{if(el(id)&&p.data[id]!=null)el(id).value=p.data[id];});beginPt=p.beginPt?L.latLng(p.beginPt.lat,p.beginPt.lng):null;endPt=p.endPt?L.latLng(p.endPt.lat,p.endPt.lng):null;detourPts=Array.isArray(p.detourPts)?p.detourPts.map(q=>L.latLng(q.lat,q.lng)):[];laneData=Array.isArray(p.lanes)?p.lanes:[];if(el('laneCount'))el('laneCount').value=laneData.length||'';renderLanes();redraw();drawDetour();snapDetour();onRouteChange();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ();setMode('locked');}toast('Loaded '+(p.name||''));}
+
+el('route').addEventListener('change',()=>{onRouteChange();saveState();});
+FIELD_IDS.forEach(id=>{if(el(id))el(id).addEventListener('input',saveState);});
+loadState();renderProjects();onRouteChange();loadIntegration();loadCsvProjects();updateClearReminder();if(CLOSURES&&el('closuresRow'))el('closuresRow').style.display='block';
+
+// ---- accessibility: associate stray <label>s with their controls + coordinate entry ----
+function a11yInit(){let n=0;
+  document.querySelectorAll('label:not([for])').forEach(lab=>{
+    if(lab.querySelector('input,select,textarea'))return;
+    let ctl=null,node=lab.nextElementSibling;
+    while(node&&!ctl){ctl=(node.matches&&node.matches('input,select,textarea'))?node:(node.querySelector&&node.querySelector('input,select,textarea'));node=node.nextElementSibling;}
+    if(!ctl&&lab.parentElement)ctl=lab.parentElement.querySelector('input,select,textarea');
+    if(ctl){if(!ctl.id)ctl.id='f_a11y_'+(++n);lab.setAttribute('for',ctl.id);}
+  });}
+a11yInit();
+function parseLL(s){const m=String(s||'').match(/(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)/);if(!m)return null;const la=+m[1],lo=+m[2];return(Math.abs(la)<=90&&Math.abs(lo)<=180)?[la,lo]:null;}
+function setByLatLng(){const pa=parseLL(v('mllA')),pb=parseLL(v('mllB'));
+  if(!pa&&!pb){toast('Enter coordinates as: 39.16, -119.77');return;}
+  if(pa)beginPt=L.latLng(pa[0],pa[1]);if(pb)endPt=L.latLng(pb[0],pb[1]);
+  redraw();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ();setMode('locked');}
+  else if(beginPt){map.setView([beginPt.lat,beginPt.lng],13);setMode('end');}
+  saveState();toast(pa&&pb?'Begin + end set':'Point set');}
+</script>
+</body>
+</html>
