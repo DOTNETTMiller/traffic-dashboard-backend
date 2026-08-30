@@ -1441,7 +1441,7 @@ async function wzMilepost(pt){ if(!MP||!MP.url) return null; const k=Math.cos(pt
       const county=MP.countyField?(best.attr[MP.countyField]||null):null;
       return {mp:Math.round((best.m||0)*10)/10, route:route, county:county}; }
     const pad=0.03, bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
-    const of=[MP.mpField,MP.routeField,MP.nameField,MP.countyField].filter(Boolean).join(',');
+    const of=[MP.mpField,MP.routeField,MP.nameField,MP.countyField].filter(Boolean).concat(MP.routeCols?MP.routeCols.map(function(c){return c.f;}):[]).join(',');
     const url=MP.url+'?where='+encodeURIComponent(MP.where||'1=1')+'&geometry='+encodeURIComponent(bb)
       +'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'
       +'&outFields='+encodeURIComponent(of)+'&returnGeometry=true&outSR=4326&resultRecordCount=400&f=json';
@@ -1451,14 +1451,18 @@ async function wzMilepost(pt){ if(!MP||!MP.url) return null; const k=Math.cos(pt
     if(!feats.length) return null;
     feats.forEach(function(f){ f._d=Math.hypot((f._xy[0]-pt.lng)*k,(f._xy[1]-pt.lat)); });
     feats.sort(function(a,b){ return a._d-b._d; });
-    const near=feats[0], grpKey=near.attributes[MP.routeField];
-    const route=(MP.nameField?near.attributes[MP.nameField]:grpKey)||null;
+    const near=feats[0];
+    // routeCols (a point layer whose signed route is split across class columns, e.g. OR I_RTE/US_RTE_1/OR_RTE_1):
+    // pick the first populated column (with optional prefix) for BOTH the route label and the interpolation grouping.
+    const pickCol=function(attr){ if(!MP.routeCols)return null; for(var i=0;i<MP.routeCols.length;i++){var c=MP.routeCols[i],vv=attr[c.f];if(vv!=null&&String(vv).trim()!=='')return (c.p||'')+String(vv).trim();} return null; };
+    const grpKey=MP.routeCols?pickCol(near.attributes):near.attributes[MP.routeField];
+    const route=(MP.routeCols?pickCol(near.attributes):(MP.nameField?near.attributes[MP.nameField]:near.attributes[MP.routeField]))||null;
     const county=MP.countyField?(near.attributes[MP.countyField]||null):null;
     let mp=parseFloat(near.attributes[MP.mpField]);
     // Interpolate to tenths using the ADJACENT mile marker (nearest milepost VALUE on the same route),
     // not the spatially-2nd-nearest — at interchanges a nearby post can belong to a different mile
     // segment (e.g. where mileposting resets), which would otherwise skew the value wildly.
-    const same=feats.filter(function(f){ return f.attributes[MP.routeField]===grpKey&&parseFloat(f.attributes[MP.mpField])!==mp; })
+    const same=feats.filter(function(f){ return (MP.routeCols?pickCol(f.attributes):f.attributes[MP.routeField])===grpKey&&parseFloat(f.attributes[MP.mpField])!==mp; })
       .sort(function(a,b){ return Math.abs(parseFloat(a.attributes[MP.mpField])-mp)-Math.abs(parseFloat(b.attributes[MP.mpField])-mp); });
     const other=same[0];
     if(other && Math.abs(parseFloat(other.attributes[MP.mpField])-mp)<=3){
