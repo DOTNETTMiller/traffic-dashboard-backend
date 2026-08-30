@@ -334,7 +334,7 @@ function wzRouteFriendly(x){var s=String(x||'').toUpperCase().trim();var m=s.mat
 async function wzMilepost(pt){ if(!MP||!MP.url) return null; const k=Math.cos(pt.lat*Math.PI/180);
   try{
     if(MP.line){ const pad=0.02, bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
-      const parts=(MP.routeParts||[MP.routeField]).filter(Boolean);
+      const parts=(MP.routeCols?MP.routeCols.map(function(rc){return rc.f;}):(MP.routeParts||[MP.routeField])).filter(Boolean);
       const of=parts.concat(MP.countyField?[MP.countyField]:[]).join(',');
       const url=MP.url+'?where='+encodeURIComponent(MP.where||'1=1')+'&geometry='+encodeURIComponent(bb)
         +'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'
@@ -347,7 +347,10 @@ async function wzMilepost(pt){ if(!MP||!MP.url) return null; const k=Math.cos(pt
           const fx=ax+t*dx,fy=ay+t*dy,dist=Math.hypot(px-fx,py-fy);
           if(dist<best.d){ const mA=A[2]==null?0:A[2], mB=B[2]==null?0:B[2]; best={d:dist,m:mA+t*(mB-mA),attr:feat.attributes}; } } }); });
       if(!best.attr || best.d*111320>500) return null;
-      const route=MP.routeParts?MP.routeParts.map(function(f){return best.attr[f];}).filter(function(v){return v!=null&&v!=='';}).join(' '):(best.attr[MP.routeField]||null);
+      // route: routeCols = pick the first populated class column and prefix it (KS: interstate_routes→I-, us_routes→US-);
+      // routeParts = concatenate fields (OH ROUTE_TYPE+ROUTE_NBR); else a single routeField.
+      const route=MP.routeCols?(function(){for(var i=0;i<MP.routeCols.length;i++){var rc=MP.routeCols[i],val=best.attr[rc.f];if(val!=null&&String(val).trim()!=='')return rc.p+String(val).trim();}return null;})()
+        :MP.routeParts?MP.routeParts.map(function(f){return best.attr[f];}).filter(function(v){return v!=null&&v!=='';}).join(' '):(best.attr[MP.routeField]||null);
       const county=MP.countyField?(best.attr[MP.countyField]||null):null;
       return {mp:Math.round((best.m||0)*10)/10, route:route, county:county}; }
     const pad=0.03, bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
@@ -607,19 +610,23 @@ function clearanceAltering(){return /overlay|inlay|\bmill|resurfac|\bpav(e|ing)\
 function clearanceRelevant(){const imp=v('impact');return clearanceAltering()||v('oversize')==='Yes'||v('detour')==='Yes'||imp==='all-lanes-closed'||imp==='alternating-one-way'||imp==='all-lanes-open-shift-left'||imp==='all-lanes-open-shift-right';}
 function clearLabel(){const s=v('clearStatus');return s==='checked'?'Checked (scan run)':s==='not-needed'?'Not needed for this work':'Not yet checked';}
 function laneSummary(){if(!laneData.length)return '';return laneData.length+' lanes — '+laneData.map(function(l){return 'L'+l.order+':'+(l.status||'open');}).join(', ');}
-// Auto-suggest the through-lane count from the national HPMS/NHS through-lanes layer (CORS-open, fast;
-// interstates are all on the NHS). Reports the majority + minimum along the segment; pre-fills the
-// editor when empty. HPMS-equivalent state data would be more current, but this is one national source.
-const NHS_LANES='https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/2022_HPMS_Through_Lanes_on_NHS/FeatureServer/0/query';
+// Auto-suggest the through-lane count. Prefer the state's OWN roadway-inventory lanes layer (LANES,
+// generator-injected); fall back to the national HPMS/NHS through-lanes layer (complete for interstates)
+// where a state hasn't published lane counts. Reports majority + minimum; pre-fills the editor when empty.
+/* ==LANES_CONFIG_START== */
+const LANES={"url":"https://services1.arcgis.com/1AlElnGrgBM62OSj/arcgis/rest/services/Road_Inventory/FeatureServer/0/query","lanesField":"LANES_NBR","where":"LANES_NBR>0","label":"ODOT inventory"};
+/* ==LANES_CONFIG_END== */
+const NHS_LANES={url:'https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/2022_HPMS_Through_Lanes_on_NHS/FeatureServer/0/query',lanesField:'THROUGH_LANES',label:'HPMS (NHS)'};
 async function suggestLanes(){ const hint=el('laneHint'); if(!hint||(!beginPt&&!endPt))return;
+  const src=LANES||NHS_LANES, lf=src.lanesField;
   const lats=[beginPt&&beginPt.lat,endPt&&endPt.lat].filter(v=>v!=null),lons=[beginPt&&beginPt.lng,endPt&&endPt.lng].filter(v=>v!=null);
   const pad=0.01,bb=[Math.min(...lons)-pad,Math.min(...lats)-pad,Math.max(...lons)+pad,Math.max(...lats)+pad].join(',');
-  try{ const url=NHS_LANES+'?where=THROUGH_LANES%3E0&geometry='+encodeURIComponent(bb)+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=THROUGH_LANES&returnGeometry=false&resultRecordCount=100&f=json';
-    const nums=(((await(await fetch(url)).json()).features)||[]).map(function(f){return +f.attributes.THROUGH_LANES;}).filter(function(n){return n>0;});
+  try{ const url=src.url+'?where='+encodeURIComponent(src.where||(lf+'>0'))+'&geometry='+encodeURIComponent(bb)+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields='+encodeURIComponent(lf)+'&returnGeometry=false&resultRecordCount=100&f=json';
+    const nums=(((await(await fetch(url)).json()).features)||[]).map(function(f){return +f.attributes[lf];}).filter(function(n){return n>0;});
     if(!nums.length){ hint.style.display='none'; return; }
     const counts={}; nums.forEach(function(n){counts[n]=(counts[n]||0)+1;}); const maj=+Object.keys(counts).sort(function(a,b){return counts[b]-counts[a];})[0]; const lo=Math.min.apply(null,nums);
     hint.style.display='block';
-    hint.innerHTML='HPMS (NHS): ~<b>'+maj+'</b> through lane(s) here'+(lo!==maj?(' (as few as '+lo+')'):'')+(laneData.length?'':' · <a href="#" onclick="buildLanes('+maj+');return false" style="color:#0369a1">use '+maj+'</a>');
+    hint.innerHTML=(src.label||'HPMS')+': ~<b>'+maj+'</b> through lane(s) here'+(lo!==maj?(' (as few as '+lo+')'):'')+(laneData.length?'':' · <a href="#" onclick="buildLanes('+maj+');return false" style="color:#0369a1">use '+maj+'</a>');
     if(!laneData.length && !v('laneCount')) buildLanes(maj);   // pre-fill the editor when empty
   }catch(e){ hint.style.display='none'; } }
 // Work-zone end/expiration derived from Start date + # weeks — sets the WZDx end_date so the zone
