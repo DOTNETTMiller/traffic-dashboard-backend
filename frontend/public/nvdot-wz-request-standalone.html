@@ -1237,6 +1237,7 @@ https://github.com/nodeca/pako/blob/master/LICENSE
         <div style="flex:0 0 auto"><input id="laneCount" type="number" min="0" max="8" style="width:70px" placeholder="#" onchange="buildLanes(+this.value)" aria-label="Number of through lanes this direction" /></div>
         <div style="flex:1;font-size:12px;color:#64748b">Enter # of through lanes, then set each lane's status below (Lane 1 = leftmost).</div>
       </div>
+      <div id="laneHint" style="display:none;font-size:12px;color:#0369a1;margin-top:2px"></div>
       <div id="lanesEditor"></div>
     </fieldset>
 
@@ -1507,7 +1508,7 @@ async function snapWZ(){if(!(beginPt&&endPt))return;drawWZLine();const dir=dirLa
     if(a&&b) mpTxt=' · MP '+Math.min(a.mp,b.mp)+'–'+Math.max(a.mp,b.mp); }catch(e){}
   const bothTxt=v('direction')==='Both'?(oppSrc==='road'?' · <b>both roadbeds (routed)</b>':divided?' · <b>both roadbeds (approx.)</b>':' · both directions'):'';
   el('selinfo').innerHTML='<b>Segment:</b> '+dir+', '+mi.toFixed(1)+' mi (road-following)'+mpTxt+bothTxt+'<br>begin '+beginPt.lat.toFixed(4)+', '+beginPt.lng.toFixed(4)+' → end '+endPt.lat.toFixed(4)+', '+endPt.lng.toFixed(4)+' &nbsp; <a href="'+gmapsRoute()+'" target="_blank" rel="noopener">🗺 map</a>';
-  reverseFill(beginPt);saveState();}
+  reverseFill(beginPt);suggestLanes();saveState();}
 function redraw(){[beginMk,endMk,line,line2].forEach(x=>x&&x.remove());beginMk=endMk=line=line2=null;wzRoute=null;wzRoute2=null;if(beginPt)beginMk=mk(beginPt,'A','#1d4ed8');if(endPt)endMk=mk(endPt,'B','#dc2626');if(beginPt&&endPt)drawWZLine();}
 // Undo the last-placed closure point (END, then BEGIN); Clear removes the whole A→B segment.
 function undoSeg(){
@@ -1715,6 +1716,21 @@ function clearanceAltering(){return /overlay|inlay|\bmill|resurfac|\bpav(e|ing)\
 function clearanceRelevant(){const imp=v('impact');return clearanceAltering()||v('oversize')==='Yes'||v('detour')==='Yes'||imp==='all-lanes-closed'||imp==='alternating-one-way'||imp==='all-lanes-open-shift-left'||imp==='all-lanes-open-shift-right';}
 function clearLabel(){const s=v('clearStatus');return s==='checked'?'Checked (scan run)':s==='not-needed'?'Not needed for this work':'Not yet checked';}
 function laneSummary(){if(!laneData.length)return '';return laneData.length+' lanes — '+laneData.map(function(l){return 'L'+l.order+':'+(l.status||'open');}).join(', ');}
+// Auto-suggest the through-lane count from the national HPMS/NHS through-lanes layer (CORS-open, fast;
+// interstates are all on the NHS). Reports the majority + minimum along the segment; pre-fills the
+// editor when empty. HPMS-equivalent state data would be more current, but this is one national source.
+const NHS_LANES='https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/2022_HPMS_Through_Lanes_on_NHS/FeatureServer/0/query';
+async function suggestLanes(){ const hint=el('laneHint'); if(!hint||(!beginPt&&!endPt))return;
+  const lats=[beginPt&&beginPt.lat,endPt&&endPt.lat].filter(v=>v!=null),lons=[beginPt&&beginPt.lng,endPt&&endPt.lng].filter(v=>v!=null);
+  const pad=0.01,bb=[Math.min(...lons)-pad,Math.min(...lats)-pad,Math.max(...lons)+pad,Math.max(...lats)+pad].join(',');
+  try{ const url=NHS_LANES+'?where=THROUGH_LANES%3E0&geometry='+encodeURIComponent(bb)+'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=THROUGH_LANES&returnGeometry=false&resultRecordCount=100&f=json';
+    const nums=(((await(await fetch(url)).json()).features)||[]).map(function(f){return +f.attributes.THROUGH_LANES;}).filter(function(n){return n>0;});
+    if(!nums.length){ hint.style.display='none'; return; }
+    const counts={}; nums.forEach(function(n){counts[n]=(counts[n]||0)+1;}); const maj=+Object.keys(counts).sort(function(a,b){return counts[b]-counts[a];})[0]; const lo=Math.min.apply(null,nums);
+    hint.style.display='block';
+    hint.innerHTML='HPMS (NHS): ~<b>'+maj+'</b> through lane(s) here'+(lo!==maj?(' (as few as '+lo+')'):'')+(laneData.length?'':' · <a href="#" onclick="buildLanes('+maj+');return false" style="color:#0369a1">use '+maj+'</a>');
+    if(!laneData.length && !v('laneCount')) buildLanes(maj);   // pre-fill the editor when empty
+  }catch(e){ hint.style.display='none'; } }
 // Work-zone end/expiration derived from Start date + # weeks — sets the WZDx end_date so the zone
 // can't linger stale (a request with no end never expires downstream).
 function wzEndDate(){const start=v('schedStart'),weeks=parseInt(v('schedWeeks')||'0',10);if(!start||!weeks)return null;const e=new Date(start+'T00:00');e.setDate(e.getDate()+weeks*7);return e.toISOString();}
