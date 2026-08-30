@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>IINDOT — Work-Zone Request Builder</title>
+<title>INDOT — Work-Zone Request Builder</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -325,7 +325,7 @@ function offsetPt(lat,lng,dl,meters){const t={N:0,E:90,S:180,W:270},br=t[dl]!=nu
 async function osrmRoute(coords){try{const c=coords.map(p=>p[0]+','+p[1]).join(';');const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+c+'?overview=full&geometries=geojson');const j=await r.json();const rt=j.routes&&j.routes[0];if(!rt)return null;return{latlngs:rt.geometry.coordinates.map(c=>[c[1],c[0]]),meters:rt.distance};}catch(e){return null;}}
 function drawWZLine(){if(line){line.remove();line=null;}if(line2){line2.remove();line2=null;}const pts=(wzRoute&&wzRoute.length)?wzRoute:((beginPt&&endPt)?[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]]:null);if(pts)line=L.polyline(pts,{color:'#dc2626',weight:6,opacity:.85}).addTo(map);if(wzRoute2&&wzRoute2.length&&beginPt&&endPt)line2=L.polyline(wzRoute2,{color:'#dc2626',weight:6,opacity:.85}).addTo(map);}
 /* ==MP_CONFIG_START== */
-const MP={"url":"https://services.arcgis.com/m0skr7SJ35eSV0W6/arcgis/rest/services/IINDOT_ARIES_SUPPORT_DATA/FeatureServer/1/query","mpField":"PostNumber","routeField":"RID","where":"1=1"};
+const MP={"url":"https://services.arcgis.com/m0skr7SJ35eSV0W6/arcgis/rest/services/INDOT_ARIES_SUPPORT_DATA/FeatureServer/1/query","mpField":"PostNumber","routeField":"RID","where":"1=1"};
 function wzRouteFriendly(x){return x?String(x):null;}
 /* ==MP_CONFIG_END== */
 // Generic milepost resolver (shared, config-driven). Point sources: nearest posted marker + tenths
@@ -745,7 +745,7 @@ function genPDF(){const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'pt',form
   doc.setTextColor(20);y=64;doc.setFontSize(10);
   fields().forEach(r=>{if(y>740){doc.addPage();y=54;}doc.setFont('helvetica','bold');doc.text(r[0]+':',M,y);doc.setFont('helvetica','normal');const lines=doc.splitTextToSize(String(r[1]||'—'),360);doc.text(lines,M+150,y);y+=Math.max(15,lines.length*13);});
   if(schedule.length){if(y>700){doc.addPage();y=54;}y+=6;doc.setFont('helvetica','bold');doc.text('Schedule ('+schedule.length+'):',M,y);y+=15;doc.setFont('helvetica','normal');schedule.forEach(o=>{if(y>750){doc.addPage();y=54;}doc.text('• '+o.label,M+8,y);y+=13;});}
-  doc.save('IINDOT_WZ_'+(routeVal()||'route').replace(/\W+/g,'')+'.pdf');toast('Summary PDF generated');}
+  doc.save('INDOT_WZ_'+(routeVal()||'route').replace(/\W+/g,'')+'.pdf');toast('Summary PDF generated');}
 
 // ---- database submit ----
 function saveIntegration(){localStorage.setItem('indot_integration',JSON.stringify({endpoint:v('dbEndpoint'),auth:v('dbAuth')}));}

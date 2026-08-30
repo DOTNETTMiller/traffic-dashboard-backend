@@ -745,7 +745,7 @@ function genPDF(){const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'pt',form
   doc.setTextColor(20);y=64;doc.setFontSize(10);
   fields().forEach(r=>{if(y>740){doc.addPage();y=54;}doc.setFont('helvetica','bold');doc.text(r[0]+':',M,y);doc.setFont('helvetica','normal');const lines=doc.splitTextToSize(String(r[1]||'—'),360);doc.text(lines,M+150,y);y+=Math.max(15,lines.length*13);});
   if(schedule.length){if(y>700){doc.addPage();y=54;}y+=6;doc.setFont('helvetica','bold');doc.text('Schedule ('+schedule.length+'):',M,y);y+=15;doc.setFont('helvetica','normal');schedule.forEach(o=>{if(y>750){doc.addPage();y=54;}doc.text('• '+o.label,M+8,y);y+=13;});}
-  doc.save('PENPennDOT_WZ_'+(routeVal()||'route').replace(/\W+/g,'')+'.pdf');toast('Summary PDF generated');}
+  doc.save('PENNDOT_WZ_'+(routeVal()||'route').replace(/\W+/g,'')+'.pdf');toast('Summary PDF generated');}
 
 // ---- database submit ----
 function saveIntegration(){localStorage.setItem('penndot_integration',JSON.stringify({endpoint:v('dbEndpoint'),auth:v('dbAuth')}));}
