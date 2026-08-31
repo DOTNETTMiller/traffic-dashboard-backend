@@ -7,6 +7,7 @@ import './styles/textVisibility.css';
 import TrafficMap from './components/TrafficMap';
 import DeviceValidationPanel from './components/DeviceValidationPanel';
 import TomTomDeviationPanel from './components/TomTomDeviationPanel';
+import WzExceptionsPanel from './components/WzExceptionsPanel';
 import EventTable from './components/EventTable';
 import EventFilters from './components/EventFilters';
 import CorridorWarnings from './components/CorridorWarnings';
@@ -122,6 +123,7 @@ function App() {
   const [showValidatedClosures, setShowValidatedClosures] = useState(false); // Device/camera-verified work zones (CWZ) with evidence
   const [showDeviceHealth, setShowDeviceHealth] = useState(false); // Device↔work-zone validation monitoring panel
   const [showTomTomDeviation, setShowTomTomDeviation] = useState(false); // TomTom deviation scorecard ("what's getting through?")
+  const [showWzExceptions, setShowWzExceptions] = useState(false); // Fix Queue: deviation findings → one-click builder corrections
   const [validatedFocus, setValidatedFocus] = useState(null); // {sources, center, zoom, token} — "Show on map" from the device panel
   const [showCorridorRegulations, setShowCorridorRegulations] = useState(false); // Hidden by default - toggle to show
   const [interstateOnly, setInterstateOnly] = useState(true); // Show only interstate events by default
@@ -826,6 +828,7 @@ function App() {
           'open-corridor-briefing': () => setShowCorridorBriefing(true),
           'open-device-health':     () => setShowDeviceHealth(true),
           'open-tomtom-deviation':  () => setShowTomTomDeviation(true),
+          'open-wz-exceptions':     () => setShowWzExceptions(true),
           'open-alerts':            () => setShowAlertsModal(true),
           'open-ipaws-active':      () => setShowIPAWSActiveAlerts(true),
           'open-ipaws-rules':       () => setShowIPAWSRules(true),
@@ -1380,6 +1383,10 @@ function App() {
             setValidatedFocus({ sources: { device: false, camera: false, tomtom: true }, token: Date.now() });
           }}
         />
+      )}
+
+      {showWzExceptions && (
+        <WzExceptionsPanel onClose={() => setShowWzExceptions(false)} />
       )}
 
       {/* IPAWS Rules Configuration */}

@@ -159,4 +159,71 @@ function classify(scorecard, opts = {}) {
   };
 }
 
-module.exports = { classify, normState, coordState, STATE_BUILDER };
+// ── Step 2: re-verify tick ────────────────────────────────────────────────────────────────────
+// Track open exceptions across scorecard runs; one that was open and is no longer flagged has stopped
+// deviating (steward fixed it, or the ghost expired) → counts as re-verified/resolved. In-memory for
+// now (resets on process restart) — a durable table is the production follow-up. Only reconcile on a
+// VALID pull (incidents cached) so an empty pull doesn't mass-"resolve" everything.
+const _ledger = new Map();   // exId → { firstSeen, lastSeen, priority, route, state, kind }
+let _resolved = [];          // recent resolutions, newest first
+function reconcile(exceptions, opts = {}) {
+  const now = opts.now ? Date.parse(opts.now) : Date.now();
+  if (opts.valid === false) return { open: _ledger.size, resolvedRecently: 0, resolvedLog: _resolved.slice(0, 25), stale: true };
+  const iso = new Date(now).toISOString();
+  const seen = new Set();
+  for (const e of exceptions) {
+    seen.add(e.id);
+    const prev = _ledger.get(e.id);
+    if (prev) prev.lastSeen = iso;
+    else _ledger.set(e.id, { firstSeen: iso, lastSeen: iso, priority: e.priority, route: e.route, state: e.state, kind: e.kind });
+  }
+  for (const [id, rec] of [..._ledger]) {
+    if (!seen.has(id)) { _resolved.unshift({ id, route: rec.route, state: rec.state, kind: rec.kind, firstSeen: rec.firstSeen, resolvedAt: iso }); _ledger.delete(id); }
+  }
+  _resolved = _resolved.slice(0, 100);
+  const windowMs = (opts.resolvedWindowH || 168) * 3600 * 1000;
+  return {
+    open: _ledger.size,
+    resolvedRecently: _resolved.filter(r => now - Date.parse(r.resolvedAt) <= windowMs).length,
+    resolvedLog: _resolved.slice(0, 25)
+  };
+}
+
+// ── Step 3: steward assignment + push ─────────────────────────────────────────────────────────
+// Per-state owner registry (from env WZ_STEWARDS='{"ia":{"name":"...","email":"...","webhook":"..."}}').
+// digest() groups open exceptions by state so findings arrive as a per-owner task list; notify() fires
+// each state's webhook (Slack/Teams/email-relay) — real delivery is deployment-specific, so it's a
+// guarded fire-and-forget with a global fallback hook.
+function loadStewards() { try { return JSON.parse(process.env.WZ_STEWARDS || '{}'); } catch (_) { return {}; } }
+function digest(exceptions, opts = {}) {
+  const stewards = opts.stewards || loadStewards();
+  const byState = {};
+  for (const e of exceptions) { const st = e.state || 'unknown'; (byState[st] = byState[st] || []).push(e); }
+  return Object.entries(byState).map(([state, items]) => ({
+    state, steward: stewards[state] || null,
+    counts: { p1: items.filter(i => i.priority === 1).length, total: items.length },
+    top: items.slice(0, 10).map(i => ({ kind: i.kind, route: i.route, reason: i.reason, fix: i.fix, builderUrl: i.builderUrl }))
+  })).sort((a, b) => b.counts.p1 - a.counts.p1 || b.counts.total - a.counts.total);
+}
+async function notify(digestList, opts = {}) {
+  const globalHook = opts.webhook || process.env.WZ_NOTIFY_WEBHOOK || null;
+  const post = async (url, body) => {
+    const f = (typeof fetch === 'function') ? fetch : (await import('node-fetch').then(m => m.default).catch(() => null));
+    if (!f) return false;
+    try { const r = await f(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); return r.ok; }
+    catch (_) { return false; }
+  };
+  let sent = 0; const skipped = [];
+  for (const d of digestList) {
+    if (!d.counts.total) continue;
+    const hook = (d.steward && d.steward.webhook) || globalHook;
+    if (!hook) { skipped.push(d.state); continue; }
+    const text = `🛠️ ${d.state.toUpperCase()} work-zone fix queue — ${d.counts.total} finding(s), ${d.counts.p1} urgent` +
+      (d.steward && d.steward.name ? ` (owner: ${d.steward.name})` : '') +
+      '\n' + d.top.slice(0, 5).map(t => `• [${t.kind}] ${t.route || ''} — ${t.fix}${t.builderUrl ? ' → ' + t.builderUrl : ''}`).join('\n');
+    if (await post(hook, { text, state: d.state, digest: d })) sent++;
+  }
+  return { sent, skipped, note: sent || skipped.length ? undefined : 'no findings to notify' };
+}
+
+module.exports = { classify, reconcile, digest, notify, loadStewards, normState, coordState, STATE_BUILDER };

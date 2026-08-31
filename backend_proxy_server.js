@@ -5176,12 +5176,47 @@ app.get('/api/wz/exceptions', async (req, res) => {
       maxM: req.query.maxM ? parseInt(req.query.maxM, 10) : undefined,
       limit: req.query.limit ? parseInt(req.query.limit, 10) : 500
     });
-    const q = require('./services/wz-exceptions').classify(sc, {
+    const wzex = require('./services/wz-exceptions');
+    const q = wzex.classify(sc, {
       builderBase: req.query.builderBase || process.env.BUILDER_BASE || '',
       limit: req.query.limit ? parseInt(req.query.limit, 10) : undefined
     });
-    res.json({ ...q, tomtomStatus, incidentsCached: incidents.length,
+    const reverify = wzex.reconcile(q.exceptions, { valid: incidents.length > 0 });   // re-verify tick
+    res.json({ ...q, reverify, tomtomStatus, incidentsCached: incidents.length,
       note: incidents.length ? undefined : 'No TomTom incidents cached yet — open the corridor once or wait for the background pull.' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Per-state steward digest — the fix queue grouped by owner so findings arrive as a task list.
+app.get('/api/wz/exceptions/digest', async (req, res) => {
+  try {
+    if (!eventsCache.data && startupCachePromise) { try { await startupCachePromise; } catch (_) {} }
+    const events = eventsCache.data?.events || [];
+    const byId = new Map();
+    for (const i of (tomtomZoneCache.data?.incidents || [])) byId.set(i.id, i);
+    for (const i of (tomtomCache.data?.incidents || [])) if (!byId.has(i.id)) byId.set(i.id, i);
+    const incidents = [...byId.values()];
+    const wzex = require('./services/wz-exceptions');
+    const sc = require('./services/tomtom-deviation').scorecard(events, incidents, { limit: 500 });
+    const q = wzex.classify(sc, { builderBase: req.query.builderBase || process.env.BUILDER_BASE || '' });
+    const filtered = req.query.state ? q.exceptions.filter(e => e.state === String(req.query.state).toLowerCase()) : q.exceptions;
+    res.json({ generatedAt: q.generatedAt, states: wzex.digest(filtered) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Push the digest to per-state stewards' webhooks (or a global WZ_NOTIFY_WEBHOOK). Fire-and-forget.
+app.post('/api/wz/exceptions/notify', async (req, res) => {
+  try {
+    const events = eventsCache.data?.events || [];
+    const byId = new Map();
+    for (const i of (tomtomZoneCache.data?.incidents || [])) byId.set(i.id, i);
+    for (const i of (tomtomCache.data?.incidents || [])) if (!byId.has(i.id)) byId.set(i.id, i);
+    const incidents = [...byId.values()];
+    const wzex = require('./services/wz-exceptions');
+    const sc = require('./services/tomtom-deviation').scorecard(events, incidents, { limit: 500 });
+    const q = wzex.classify(sc, { builderBase: process.env.BUILDER_BASE || '' });
+    const result = await wzex.notify(wzex.digest(q.exceptions), { webhook: req.body && req.body.webhook });
+    res.json(result);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
