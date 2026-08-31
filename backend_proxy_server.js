@@ -5220,6 +5220,40 @@ app.post('/api/wz/exceptions/notify', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Closure actual-location updates — DORMANT (enable later with CLOSURE_LOCATION_API=true) ─────────
+// A neutral, unbranded intake so users (or a future partner source) can submit the VERIFIED real-world
+// location of a closure — the published point is often approximate. Stored for a later pull into the
+// CWZ feed to correct closure geometry. OFF by default: the routes exist so an integrator can build
+// against the contract now, but they return {enabled:false} until switched on, and nothing is wired to
+// any source or destination yet. No source or company is named in the surface.
+const CLOSURE_LOC_ENABLED = process.env.CLOSURE_LOCATION_API === 'true';
+const _closureLocationUpdates = [];   // in-memory scaffold; swap to a durable table when enabled in prod
+const CLOSURE_LOC_CONTRACT = {
+  submit: 'POST /api/closures/location  { ref, coordinates:[lng,lat] | geometry, route?, note?, source? }',
+  pull:   'GET  /api/closures/location?since=<iso>  → { count, updates:[...] }'
+};
+app.post('/api/closures/location', (req, res) => {
+  if (!CLOSURE_LOC_ENABLED) return res.status(503).json({ enabled: false, note: 'Not enabled yet.', contract: CLOSURE_LOC_CONTRACT });
+  const b = req.body || {};
+  const ref = b.ref || b.id || b.closureId;
+  const coordinates = Array.isArray(b.coordinates) ? b.coordinates : (b.lng != null && b.lat != null ? [b.lng, b.lat] : null);
+  if (!ref || (!coordinates && !b.geometry)) return res.status(400).json({ error: 'ref and coordinates|geometry required', contract: CLOSURE_LOC_CONTRACT });
+  const rec = { ref: String(ref), coordinates: coordinates || null, geometry: b.geometry || null,
+    route: b.route || null, note: b.note || null, source: b.source || null, receivedAt: new Date().toISOString() };
+  _closureLocationUpdates.push(rec);
+  if (_closureLocationUpdates.length > 5000) _closureLocationUpdates.splice(0, _closureLocationUpdates.length - 5000);
+  res.json({ ok: true, stored: rec });
+});
+app.get('/api/closures/location', (req, res) => {
+  if (!CLOSURE_LOC_ENABLED) return res.status(503).json({ enabled: false, note: 'Not enabled yet.', contract: CLOSURE_LOC_CONTRACT });
+  const since = req.query.since ? Date.parse(req.query.since) : 0;
+  const updates = _closureLocationUpdates.filter(r => !since || Date.parse(r.receivedAt) > since);
+  res.json({ count: updates.length, updates });
+});
+// Future seam — pull stored location updates into the CWZ feed to refine closure geometry. Intentionally
+// inert until CLOSURE_LOCATION_API is on; no automatic wiring to the DTCD ingest yet.
+// function pullClosureLocationsIntoCwz() { /* wire when enabled */ }
+
 // Crash records live in the persistent PostGIS Postgres (alongside the corridor
 // geometry the clip reads), NOT the main `db.db` store. On the production
 // deployment `db.db` resolves to a separate, non-persistent handle that the
