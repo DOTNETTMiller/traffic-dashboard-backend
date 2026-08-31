@@ -450,7 +450,7 @@ export default function TrafficMap({
   showBorderWaitTimes = false,
   showMaastoParking = false,
   showHistoricalCrashes = false,
-  showMajorEvents = true,
+  showMajorEvents = false,
   interstateOnly = true,
   heatMapActive = false,
   heatMapMode = 'density',

@@ -32,6 +32,7 @@ const NAV = [
     label: 'Map Layers',
     items: [
       { actionKey: 'toggle-events',           toggleProp: 'showEvents',              icon: '⚠️', label: 'Traffic Events' },
+      { actionKey: 'toggle-major-events',     toggleProp: 'showMajorEvents',         icon: '🎟️', label: 'Major Events' },
       { actionKey: 'toggle-interstate-only',  toggleProp: 'interstateOnly',          icon: '🛣️', label: 'Interstate Only' },
       { actionKey: 'toggle-weather-alerts',   toggleProp: 'showWeatherAlerts',       icon: '🌩️', label: 'Weather Alerts' },
       { actionKey: 'toggle-border-wait-times', toggleProp: 'showBorderWaitTimes',    icon: '🛂', label: 'Border Wait Times' },

@@ -109,6 +109,7 @@ function App() {
   const [showCADDElements, setShowCADDElements] = useState(false);
   const [showV2XDeployments, setShowV2XDeployments] = useState(false);
   const [showEvents, setShowEvents] = useState(true);
+  const [showMajorEvents, setShowMajorEvents] = useState(false); // Ticketmaster demand-surge events — opt-in map layer, off by default
   const [showDiversionRoutes, setShowDiversionRoutes] = useState(false);
   const [showAerialOverlays, setShowAerialOverlays] = useState(false);
   const [showWeatherAlerts, setShowWeatherAlerts] = useState(false);
@@ -806,6 +807,7 @@ function App() {
         messagesOpen={desktopMessagesOpen}
         mapLayerStates={{
           showEvents,
+          showMajorEvents,
           showParking,
           showITSEquipment,
           showV2XDeployments,
@@ -843,6 +845,7 @@ function App() {
           // booleans navigates to the map view first so the user actually
           // sees what they just turned on.
           'toggle-events':             () => { setView('map'); setShowEvents(p => !p); },
+          'toggle-major-events':       () => { setView('map'); setShowMajorEvents(p => !p); },
           'toggle-parking':            () => { setView('map'); setShowParking(p => !p); },
           'toggle-its-equipment':      () => { setView('map'); setShowITSEquipment(p => !p); },
           'toggle-v2x':                () => { setView('map'); setShowV2XDeployments(p => !p); },
@@ -1202,6 +1205,7 @@ function App() {
                   showCADDElements={showCADDElements}
                   showV2XDeployments={showV2XDeployments}
                   showEvents={showEvents}
+                  showMajorEvents={showMajorEvents}
                   showDiversionRoutes={showDiversionRoutes}
                   showAerialOverlays={showAerialOverlays}
                   showWeatherAlerts={showWeatherAlerts}
