@@ -1,0 +1,112 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Corridor Communicator — Work-Zone Exception Queue</title>
+<style>
+  :root{--brand:#0b3d91;--brand2:#1d4ed8;--ink:#0f172a;--muted:#475569;--bg:#f1f5f9;--card:#fff;--line:#e2e8f0;
+    --p1:#b91c1c;--p1b:#fee2e2;--p2:#b45309;--p2b:#fef3c7;--p3:#475569;--p3b:#e2e8f0;}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+  header{background:var(--brand);color:#fff;padding:14px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0;font-weight:650;letter-spacing:.01em}
+  header .sub{font-size:12px;opacity:.85}
+  .wrap{max-width:1040px;margin:0 auto;padding:16px}
+  .stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-width:120px}
+  .stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums;line-height:1.1}
+  .stat span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:13px}
+  .filters button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 12px;cursor:pointer;color:var(--muted)}
+  .filters button.on{background:var(--brand2);border-color:var(--brand2);color:#fff}
+  .row{background:var(--card);border:1px solid var(--line);border-left-width:4px;border-radius:10px;padding:12px 14px;margin-bottom:10px;display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start}
+  .row.p1{border-left-color:var(--p1)} .row.p2{border-left-color:var(--p2)} .row.p3{border-left-color:var(--p3)}
+  .pri{font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;height:fit-content}
+  .pri.p1{background:var(--p1b);color:var(--p1)} .pri.p2{background:var(--p2b);color:var(--p2)} .pri.p3{background:var(--p3b);color:var(--p3)}
+  .meta{font-size:12px;color:var(--muted);margin:2px 0 6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .chip{background:#eef2ff;color:var(--brand2);border-radius:5px;padding:1px 7px;font-weight:600;font-size:11px}
+  .kind{font-weight:650;color:var(--ink)}
+  .reason{font-size:13px;margin:0 0 4px}
+  .fix{font-size:12.5px;color:#065f46;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;padding:5px 8px;display:inline-block}
+  .act{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+  .btn{background:var(--brand2);color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;cursor:pointer;display:inline-block;min-height:40px;line-height:24px}
+  .btn.ghost{background:#fff;color:var(--brand2);border:1px solid var(--brand2)}
+  .btn[disabled],.btn.disabled{background:#e2e8f0;color:#94a3b8;cursor:not-allowed}
+  .empty{background:var(--card);border:1px dashed var(--line);border-radius:10px;padding:28px;text-align:center;color:var(--muted)}
+  .note{font-size:12px;color:var(--muted);margin:10px 2px}
+  @media (max-width:640px){.row{grid-template-columns:auto 1fr;}.act{grid-column:1/-1;flex-direction:row}}
+</style></head><body>
+<header>
+  <div>
+    <h1>Work-Zone Exception Queue</h1>
+    <div class="sub">Deviation findings → root-caused fixes → one-click correction in each state's builder</div>
+  </div>
+</header>
+<div class="wrap">
+  <div class="stats" id="stats"></div>
+  <div class="filters" id="filters"></div>
+  <div id="list"><div class="empty">Loading…</div></div>
+  <div class="note" id="note"></div>
+</div>
+<script>
+// Load once (no polling). Try the live endpoint; fall back to a small sample so the loop is demoable offline.
+const BUILDER_BASE=''; // deep links are root-relative to where the builders are served
+let ALL=[], FILTER='all';
+const KIND_LABEL={'stale-active':'Ghost zone (expired but active)','bad-geometry':'Missing/bad geometry',
+  'not-reaching':'Not reaching drivers','timing-mismatch':'End-date mismatch','missing-from-feed':'Unreported closure'};
+const SAMPLE={coveragePct:32,total:5,actionable:5,byKind:{},exceptions:[
+  {id:'dotOnly:a1',bucket:'dotOnly',kind:'stale-active',priority:1,state:'ne',route:'I-80',county:'Douglas',coordinates:[-96.05,41.26],endDate:'2025-11-02',
+   reason:'End date has passed but the zone is still active in your feed — a ghost zone nav already dropped.',fix:'Close/expire it, or extend the end date if work is genuinely ongoing.',
+   builderUrl:'/nedot-wz-request.html?rt=1&route=I-80&blat=41.26000&blng=-96.05000&description=Resurfacing%20MP%20440-443&ex=dotOnly%3Aa1&exkind=stale-active',builderAvailable:true},
+  {id:'tomtomOnly:x1',bucket:'tomtomOnly',kind:'missing-from-feed',priority:1,state:'ia',route:'I-35',coordinates:[-93.62,41.71],
+   reason:'A nav source shows a work zone here that your feed does not — an unreported closure.',fix:'If it is yours, author it in the builder (opens pre-filled at this location).',
+   builderUrl:'/cars511-request.html?rt=1&route=I-35&blat=41.71000&blng=-93.62000&ex=tomtomOnly%3Ax1&exkind=missing-from-feed',builderAvailable:true},
+  {id:'dotOnly:a3',bucket:'dotOnly',kind:'not-reaching',priority:2,state:'ia',route:'I-80',county:'Polk',coordinates:[-93.6,41.6],
+   reason:'You publish this zone but no nav source is showing it — the feed is not propagating to consumers.',fix:'Confirm your WZDx feed includes this zone and that it is being ingested.',
+   builderUrl:'/cars511-request.html?rt=1&route=I-80&blat=41.60000&blng=-93.60000&ex=dotOnly%3Aa3&exkind=not-reaching',builderAvailable:true},
+  {id:'timingGaps:t1',bucket:'timingGaps',kind:'timing-mismatch',priority:2,state:'mo',route:'I-70',coordinates:[-90.2,38.63],dotEnd:'2026-09-15',tomtomEnd:'2026-08-20',
+   reason:'Zone reaches nav, but your end date and the nav source disagree — drivers may see it after it clears.',fix:'Correct the zone end date to match reality.',
+   builderUrl:'/modot-wz-request.html?rt=1&route=I-70&blat=38.63000&blng=-90.20000&ex=timingGaps%3At1&exkind=timing-mismatch',builderAvailable:true},
+  {id:'dotOnly:a4',bucket:'dotOnly',kind:'not-reaching',priority:3,state:'ks',route:'US-24',coordinates:[-95.7,39.1],
+   reason:'You publish this US-route zone but no nav source is showing it.',fix:'Confirm the feed includes it; US routes propagate less reliably than interstates.',
+   builderUrl:'/ksdot-wz-request.html?rt=1&route=US-24&blat=39.10000&blng=-95.70000&ex=dotOnly%3Aa4&exkind=not-reaching',builderAvailable:true}
+]};
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function render(){
+  const q=window.__data;
+  document.getElementById('stats').innerHTML=[
+    ['coverage','coveragePct',q.coveragePct==null?'—':q.coveragePct+'%'],
+    ['findings','total',q.total],
+    ['actionable','actionable',q.actionable]
+  ].map(s=>'<div class="stat"><b>'+esc(s[2])+'</b><span>'+s[0]+'</span></div>').join('')+
+   Object.entries(q.byKind||{}).map(([k,n])=>'<div class="stat"><b>'+n+'</b><span>'+esc(KIND_LABEL[k]||k)+'</span></div>').join('');
+  const kinds=[...new Set(ALL.map(e=>e.kind))];
+  document.getElementById('filters').innerHTML=['all',...kinds].map(k=>
+    '<button class="'+(FILTER===k?'on':'')+'" onclick="setFilter(\''+k+'\')">'+esc(k==='all'?'All':(KIND_LABEL[k]||k))+'</button>').join('');
+  const rows=ALL.filter(e=>FILTER==='all'||e.kind===FILTER);
+  document.getElementById('list').innerHTML=rows.length?rows.map(e=>{
+    const label=e.kind==='missing-from-feed'?'Create in builder →':'Fix in builder →';
+    return '<div class="row p'+e.priority+'">'+
+      '<div class="pri p'+e.priority+'">P'+e.priority+'</div>'+
+      '<div><div class="kind">'+esc(KIND_LABEL[e.kind]||e.kind)+'</div>'+
+        '<div class="meta">'+(e.state?'<span class="chip">'+esc(e.state.toUpperCase())+'</span>':'')+
+          (e.route?'<span class="chip">'+esc(e.route)+'</span>':'')+
+          (e.county?'<span>'+esc(e.county)+' Co.</span>':'')+
+          (e.coordinates?'<span>'+e.coordinates[1].toFixed(3)+', '+e.coordinates[0].toFixed(3)+'</span>':'')+'</div>'+
+        '<p class="reason">'+esc(e.reason)+'</p>'+
+        '<span class="fix">✔ '+esc(e.fix)+'</span></div>'+
+      '<div class="act">'+
+        (e.builderUrl?'<a class="btn" href="'+esc(e.builderUrl)+'" target="_blank" rel="noopener">'+label+'</a>':'<span class="btn disabled">no builder</span>')+
+        (e.coordinates?'<a class="btn ghost" target="_blank" rel="noopener" href="https://www.google.com/maps?q='+e.coordinates[1]+','+e.coordinates[0]+'">map</a>':'')+
+      '</div></div>';
+  }).join(''):'<div class="empty">No exceptions in this view — coverage is clean. 🎉</div>';
+}
+window.setFilter=k=>{FILTER=k;render();};
+(async function(){
+  let q=null;
+  try{const r=await fetch('/api/wz/exceptions');if(r.ok){q=await r.json();}}catch(e){}
+  const note=document.getElementById('note');
+  if(!q||!q.exceptions||!q.exceptions.length){q=SAMPLE;note.textContent='Showing sample data (live /api/wz/exceptions returned nothing yet — needs cached TomTom incidents). The loop and deep links are real.';}
+  else{note.textContent='Live from /api/wz/exceptions · generated '+(q.generatedAt||'')+'. Each button opens the state builder pre-filled with the flagged zone; submitting carries the exception id back to close the loop.';}
+  window.__data=q;ALL=q.exceptions;render();
+})();
+</script>
+</body></html>

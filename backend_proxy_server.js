@@ -5161,6 +5161,30 @@ app.get('/api/tomtom/deviation', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Exception queue: turns the deviation scorecard into a prioritized, root-caused fix-list, each item
+// deep-linking into the relevant state's self-contained builder pre-filled with the flagged zone
+// (detect → diagnose → route → correct → re-verify). See services/wz-exceptions.js.
+app.get('/api/wz/exceptions', async (req, res) => {
+  try {
+    if (!eventsCache.data && startupCachePromise) { try { await startupCachePromise; } catch (_) { /* serve what we have */ } }
+    const events = eventsCache.data?.events || [];
+    const byId = new Map();
+    for (const i of (tomtomZoneCache.data?.incidents || [])) byId.set(i.id, i);
+    for (const i of (tomtomCache.data?.incidents || [])) if (!byId.has(i.id)) byId.set(i.id, i);
+    const incidents = [...byId.values()];
+    const sc = require('./services/tomtom-deviation').scorecard(events, incidents, {
+      maxM: req.query.maxM ? parseInt(req.query.maxM, 10) : undefined,
+      limit: req.query.limit ? parseInt(req.query.limit, 10) : 500
+    });
+    const q = require('./services/wz-exceptions').classify(sc, {
+      builderBase: req.query.builderBase || process.env.BUILDER_BASE || '',
+      limit: req.query.limit ? parseInt(req.query.limit, 10) : undefined
+    });
+    res.json({ ...q, tomtomStatus, incidentsCached: incidents.length,
+      note: incidents.length ? undefined : 'No TomTom incidents cached yet — open the corridor once or wait for the background pull.' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Crash records live in the persistent PostGIS Postgres (alongside the corridor
 // geometry the clip reads), NOT the main `db.db` store. On the production
 // deployment `db.db` resolves to a separate, non-persistent handle that the

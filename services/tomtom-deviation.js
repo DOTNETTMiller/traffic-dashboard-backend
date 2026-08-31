@@ -81,11 +81,15 @@ function scorecard(events, incidents, opts = {}) {
     if (best) {
       matchedIncidentIds.add(best.id);
       const rec = { id: ev.id, route: evRoute || ev.route || ev.corridor || null, coordinates: evPt,
+        state: ev.state || ev.event_state || null, county: ev.county || null,
+        endDate: ev.endDate || ev.end_date || ev.endTime || null,
         tomtom: { id: best.id, category: best.category, distance_m: Math.round(bestD) } };
       matched.push(rec);
       if (timingDisagrees(ev, best, tolMs)) timingGaps.push({ ...rec, dotEnd: ev.endDate || ev.end_date || null, tomtomEnd: best.endTime || null });
     } else {
       dotOnly.push({ id: ev.id, route: evRoute || ev.route || ev.corridor || null, coordinates: evPt,
+        state: ev.state || ev.event_state || null, county: ev.county || null,
+        endDate: ev.endDate || ev.end_date || ev.endTime || null,
         description: ev.description || ev.name || null });
     }
   }

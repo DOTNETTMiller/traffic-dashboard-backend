@@ -737,6 +737,7 @@ function toWZDx(){const now=new Date().toISOString();const coords=geometryCoords
     if(laneData.length)props.lanes=laneData.map(function(l){return {order:l.order,type:l.type||'general',status:l.status||'open'};});  // WZDx v4.2 lanes[]
     if(window.__taper){props.x_taper_length_ft=window.__taper.Lmerge;props.x_advance_warning_ft=[window.__taper.A,window.__taper.B,window.__taper.C];}  // MUTCD TTC metadata
     if(v('dms'))props.x_dms_request=v('dms');
+    if(window.__resolvesException)props.x_resolves_exception=window.__resolvesException;  // closes the Corridor Communicator loop: this corrected zone answers a specific deviation finding
     // CWZ 1.0: reference the connected field infrastructure scanned near the zone
     if(nearCams&&nearCams.length)props.x_cameras=nearCams.map(function(c){return {id:c.id,route:c.route,coordinates:c.coordinates,imageUrl:c.imageUrl};});
     if(nearDMS&&nearDMS.length)props.x_connected_devices=nearDMS;  // CWZ 1.0: connected DMS + arrow boards near the zone
@@ -832,7 +833,7 @@ function csvToCams(txt){ const lines=txt.split(/\r?\n/).filter(function(l){retur
   for(let r=1;r<lines.length;r++){ const c=split(lines[r]); const lat=parseFloat(c[iLat]),lon=parseFloat(c[iLon]); if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;
     out.push({id:(iId>=0&&c[iId])||('cam'+out.length), route:(iRoute>=0&&c[iRoute])||'', coordinates:[lon,lat], imageUrl:(iImg>=0&&c[iImg])||'', desc:(iName>=0&&c[iName])||''}); }
   return out; }
-function requestPayload(){const o={};FIELD_IDS.forEach(id=>{if(el(id))o[id]=v(id);});o.route=routeVal();o.segment=(beginPt&&endPt)?{begin:[beginPt.lng,beginPt.lat],end:[endPt.lng,endPt.lat],miles:+miles(beginPt,endPt).toFixed(2)}:null;o.cameras=nearCams;o.dms=nearDMS;o.clearance={status:v('clearStatus')||'pending',relevant:clearanceRelevant()};o.lanes=laneData.map(function(l){return {order:l.order,type:l.type||'general',status:l.status||'open'};});o.ttc=window.__taper||null;
+function requestPayload(){const o={};FIELD_IDS.forEach(id=>{if(el(id))o[id]=v(id);});o.route=routeVal();o.segment=(beginPt&&endPt)?{begin:[beginPt.lng,beginPt.lat],end:[endPt.lng,endPt.lat],miles:+miles(beginPt,endPt).toFixed(2)}:null;o.cameras=nearCams;o.dms=nearDMS;o.clearance={status:v('clearStatus')||'pending',relevant:clearanceRelevant()};o.lanes=laneData.map(function(l){return {order:l.order,type:l.type||'general',status:l.status||'open'};});o.ttc=window.__taper||null;if(window.__resolvesException)o.x_resolves_exception=window.__resolvesException;
   o.both_directions=v('direction')==='Both';if(o.both_directions)o.directions=nvAxis().map(d=>({N:'northbound',S:'southbound',E:'eastbound',W:'westbound'}[d]));
   const g1=geometryCoords();
   o.geometry=(o.both_directions&&wzRoute2&&wzRoute2.length&&g1)?{type:'MultiLineString',coordinates:[g1,wzRoute2.map(c=>[c[1],c[0]])]}:(g1?{type:'LineString',coordinates:g1}:null);
@@ -854,7 +855,25 @@ function loadProject(i){const p=projectList()[i];if(!p)return;FIELD_IDS.forEach(
 
 el('route').addEventListener('change',()=>{onRouteChange();saveState();});
 FIELD_IDS.forEach(id=>{if(el(id))el(id).addEventListener('input',saveState);});
-loadState();renderProjects();onRouteChange();loadIntegration();loadCsvProjects();updateClearReminder();if(CLOSURES&&el('closuresRow'))el('closuresRow').style.display='block';
+// Round-trip from a Corridor Communicator "exception" (deviation-scorecard finding): a deep link
+// (?rt=1&route=&blat=&blng=&elat=&elng=&description=&...) opens this builder PRE-FILLED with the
+// flagged zone so the steward corrects it in seconds instead of re-authoring. Overrides saved state.
+function prefillFromURL(){try{
+  const q=new URLSearchParams(location.search); if(q.get('rt')!=='1')return false;
+  FIELD_IDS.forEach(function(id){ if(id==='route'||id==='routeOther')return; if(q.has(id)&&el(id))el(id).value=q.get(id); });
+  const route=q.get('route');
+  if(route&&el('route')){ const opt=[].slice.call(el('route').options).find(function(o){return o.value===route;});
+    if(opt){el('route').value=route;} else {el('route').value='__other';onRouteChange();if(el('routeOther'))el('routeOther').value=route;} }
+  const bl=parseFloat(q.get('blat')),bg=parseFloat(q.get('blng')),eL=parseFloat(q.get('elat')),eG=parseFloat(q.get('elng'));
+  if(Number.isFinite(bl)&&Number.isFinite(bg)){ beginPt=L.latLng(bl,bg); if(Number.isFinite(eL)&&Number.isFinite(eG))endPt=L.latLng(eL,eG); redraw();
+    if(beginPt&&endPt){ try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[60,60],maxZoom:14});}catch(e){} snapWZ(); setMode('locked'); }
+    else { try{map.setView([bl,bg],14);}catch(e){} setMode('end'); } }
+  if(q.get('ex'))window.__resolvesException=q.get('ex');   // carried into the WZDx/JSON payload so submit closes the loop
+  onRouteChange(); updateClearReminder(); saveState();
+  const info=el('selinfo'); if(info) info.insertAdjacentHTML('afterbegin','<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:12px">↩ <b>Pre-filled from a Corridor Communicator finding</b>'+(q.get('exkind')?' — '+q.get('exkind'):'')+'. Review, correct, then re-export WZDx / submit.</div>');
+  return true;
+}catch(e){return false;}}
+if(!prefillFromURL())loadState();renderProjects();onRouteChange();loadIntegration();loadCsvProjects();updateClearReminder();if(CLOSURES&&el('closuresRow'))el('closuresRow').style.display='block';
 
 // ---- accessibility: associate stray <label>s with their controls + coordinate entry ----
 function a11yInit(){let n=0;
