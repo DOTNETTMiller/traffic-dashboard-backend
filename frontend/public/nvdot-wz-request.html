@@ -485,6 +485,14 @@ async function snapDetour(){if(detourPts.length<2){detourRoute=null;detourMeters
 // Auto-suggest a detour AROUND the closure: route A→(via)→B through a point offset perpendicular to the
 // closure so the path leaves the closed roadway, then keep the shortest option that actually avoids the
 // closure midpoint. It's a reviewable draft — the user can drag/redraw points afterward.
+// True if a candidate detour actually runs along the CLOSED roadway (so it's really the same route).
+// Checks the closure interior (drops the ends, where any detour touches A/B) at a tight 50 m tolerance.
+function routeUsesClosure(cand){
+  const closed=(wzRoute&&wzRoute.length>=2)?wzRoute:[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]];
+  const n=closed.length, interior=closed.filter((_,i)=> i>=n*0.2 && i<=n*0.8);
+  const samp=interior.length?interior:[[(beginPt.lat+endPt.lat)/2,(beginPt.lng+endPt.lng)/2]];
+  return samp.some(pt=> minDistToPath({lat:pt[0],lng:pt[1]}, cand) < 50);
+}
 async function suggestDetour(){ if(!beginPt||!endPt){toast('Mark the closure (A→B) first');return;}
   const info=el('detourInfo');info.style.display='block';info.textContent='Suggesting a detour…';
   const midLat=(beginPt.lat+endPt.lat)/2, midLng=(beginPt.lng+endPt.lng)/2;
@@ -496,7 +504,8 @@ async function suggestDetour(){ if(!beginPt||!endPt){toast('Mark the closure (A�
     if(!via)continue;
     const r=await osrmRoute([[beginPt.lng,beginPt.lat],via,[endPt.lng,endPt.lat]]);
     if(!r||!r.latlngs||r.latlngs.length<2)continue;
-    if(minDistToPath({lat:midLat,lng:midLng},r.latlngs)<300)continue;   // still on the closed road → reject
+    if(routeUsesClosure(r.latlngs))continue;                            // reject a "detour" that runs back along the closed road
+    if(r.meters < miles(beginPt,endPt)*1609.34*1.03)continue;          // barely longer than driving straight through → not a real detour
     if(!best||r.meters<best.meters)best={latlngs:r.latlngs,meters:r.meters};
   }}
   if(!best){info.textContent='No automatic detour found — trace it manually with ✏️ Draw detour.';toast('No auto detour — trace manually');return;}

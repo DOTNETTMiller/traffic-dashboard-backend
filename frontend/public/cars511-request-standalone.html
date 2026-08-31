@@ -2105,13 +2105,24 @@ function addTaperNote(){ const t=window.__taper; if(!t)return; const note='TTC (
 function wzEndDate(){ const start=v('schedStart'),weeks=parseInt(v('schedWeeks')||'0',10); if(!start||!weeks)return null; const e=new Date(start+'T00:00'); e.setDate(e.getDate()+weeks*7); return e.toISOString(); }
 function wzEndLabel(){ const iso=wzEndDate(); return iso?new Date(iso).toDateString():''; }
 // ---- Auto-suggest a detour AROUND the closure ----
+// True if a candidate detour actually runs along the CLOSED roadway (so it's really the same route).
+// Checks the closure's interior (drops the ends, where any detour necessarily touches A/B) at a tight
+// 50 m tolerance — on-the-closed-road vertices sit ~0 m away; a real parallel detour clears 60 m+.
+function routeUsesClosure(cand){
+  const closed=(wzRoute&&wzRoute.length>=2)?wzRoute:[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]];
+  const n=closed.length, interior=closed.filter((_,i)=> i>=n*0.2 && i<=n*0.8);
+  const samp=interior.length?interior:[[(beginPt.lat+endPt.lat)/2,(beginPt.lng+endPt.lng)/2]];
+  return samp.some(pt=> minDistToPath({lat:pt[0],lng:pt[1]}, cand) < 50);
+}
 async function suggestDetour(){ if(!beginPt||!endPt){ toast('Mark the closure (A→B) first'); return; } const info=el('detourInfo'); if(info){info.style.display='block';info.textContent='Suggesting a detour…';}
   const midLat=(beginPt.lat+endPt.lat)/2, midLng=(beginPt.lng+endPt.lng)/2, perp=(bearing(beginPt,endPt)+90)*Math.PI/180, cosL=Math.cos(midLat*Math.PI/180)||1e-6; let best=null;
   for(const off of [0.7,1.3,2.0]){ for(const side of [1,-1]){
     const vlat=midLat+side*Math.cos(perp)*(off/69), vlng=midLng+side*Math.sin(perp)*(off/(69*cosL)); let via=null;
     try{ const nj=await(await fetch('https://router.project-osrm.org/nearest/v1/driving/'+vlng+','+vlat+'?number=1')).json(); if(nj.code==='Ok'&&nj.waypoints&&nj.waypoints[0])via=nj.waypoints[0].location; }catch(e){}
     if(!via)continue; const r=await osrmRoute([[beginPt.lng,beginPt.lat],via,[endPt.lng,endPt.lat]]); if(!r||!r.latlngs||r.latlngs.length<2)continue;
-    if(minDistToPath({lat:midLat,lng:midLng},r.latlngs)<300)continue; if(!best||r.meters<best.meters)best={latlngs:r.latlngs,meters:r.meters}; }}
+    if(routeUsesClosure(r.latlngs))continue;                          // reject a "detour" that runs back along the closed road
+    if(r.meters < miles(beginPt,endPt)*1609.34*1.03)continue;        // barely longer than driving straight through → not a real detour
+    if(!best||r.meters<best.meters)best={latlngs:r.latlngs,meters:r.meters}; }}
   if(!best){ if(info)info.textContent='No automatic detour found — trace it manually with ✏️ Draw detour.'; toast('No auto detour — trace manually'); return; }
   detourPts=[beginPt,endPt]; detourRoute=best.latlngs; detourMeters=best.meters; if(v('detour')!=='Yes')el('detour').value='Yes'; drawDetour(); saveState(); toast('Suggested detour '+(best.meters/1609.34).toFixed(1)+' mi — review & adjust'); }
 // ---- Closure undo / clear ----
