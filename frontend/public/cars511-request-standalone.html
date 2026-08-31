@@ -1714,8 +1714,21 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
   const src=usedIowa?'Iowa DOT centerline':'road';
   const mpTxt=(mpA!=null&&mpB!=null)?` · MP ${Math.min(mpA,mpB)}–${Math.max(mpA,mpB)}`:'';
   const bothTxt=bothOn?(oppSrc==='centerline'?' · <b>both roadbeds (Iowa centerline)</b>':oppSrc==='road'?' · <b>both roadbeds (routed)</b>':divided?' · <b>both roadbeds (approx.)</b>':' · both directions'):'';
+  // Accuracy guardrail — overstated closure geometry is the #1 reason Google/Waze/INRIX close a whole
+  // corridor when only part is shut. Nudge the user to publish only what's PHYSICALLY closed to all traffic,
+  // and to handle truck turnaround with an advisory rather than by extending the closed limits.
+  const impLc=(v('impact')||'').toLowerCase();
+  const fullClosure=/all-lanes-closed|road-closed|^closed|closed$/.test(impLc)||impLc==='';
+  let warn='';
+  if(mi!=null && mi>=2 && fullClosure){
+    warn=`<div style="margin-top:6px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:6px 9px;font-size:11.5px;color:#991b1b;line-height:1.45">`
+      +`⚠ <b>${mi.toFixed(1)} mi marked as a full closure.</b> Publish only the roadway that is <b>physically closed to all traffic</b>. `
+      +`If part stays drivable — local access, or a truck turnaround point — mark just the closed portion. `
+      +`Overstating the closure makes navigation apps route <i>everyone</i> around the whole corridor and erodes trust in the feed. `
+      +`For trucks with no turnaround, add a <b>truck advisory</b> on the approach instead of lengthening the closure.</div>`;
+  }
   el('selinfo').innerHTML=`<b>Segment:</b> ${dir}, ${mi!=null?mi.toFixed(1):'?'} mi (${src})${mpTxt}${bothTxt}<br>begin ${beginPt.lat.toFixed(4)}, ${beginPt.lng.toFixed(4)} → end ${endPt.lat.toFixed(4)}, ${endPt.lng.toFixed(4)}`+
-    ` &nbsp; <a href="${gmapsRoute()}" target="_blank" rel="noopener">🗺 Share route map</a>`;
+    ` &nbsp; <a href="${gmapsRoute()}" target="_blank" rel="noopener">🗺 Share route map</a>`+warn;
   saveState(); checkDuplicate(); showLanes(beginPt, routeId); }
 // Pull lanes-available (HPMS-equivalent) from Road_Network_View to guide the impact choice.
 async function showLanes(pt, routeId){ const hint=el('laneHint'); if(!hint) return; if(!(beginPt&&endPt)){ hint.style.display='none'; return; }
