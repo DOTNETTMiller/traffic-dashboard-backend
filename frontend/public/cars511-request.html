@@ -299,6 +299,7 @@
         <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
           <button class="primary" onclick="submitToDatabase()">🚀 Submit to database</button>
           <button class="ghost" onclick="downloadPayload()">⬇ Download JSON payload</button>
+          <button class="ghost" onclick="downloadWZDx()">⬇ WZDx feature</button>
         </div>
         <div id="dbStatus" style="margin-top:8px;font-size:13px;display:none" role="status" aria-live="polite"></div>
       </details>
@@ -1043,7 +1044,57 @@ function requestPayload(){ const o={}; FIELD_IDS.forEach(id=>{ if(el(id)) o[id]=
   o.maps={ route:gmapsRoute()||null, detour:(detourPts.length>=2)?gmapsDetour():null };
   o.submitTo=v('tmcEmail')||'IowaDOT.Traffic@iowadot.us'; o.rceCc=v('rceEmail')||null;
   o.generatedAt=new Date().toISOString(); o.source='CARS 511 Request Builder';
+  if(window.__resolvesException)o.x_resolves_exception=window.__resolvesException;
   return o; }
+
+// ---- WZDx v4.2 export + Corridor Communicator round-trip (ported from the corridor template for parity/future use) ----
+function clearanceRelevant(){ var imp=v('impact'); return clearanceAltering()||v('oversize')==='Yes'||v('detour')==='Yes'||imp==='all-lanes-closed'||imp==='alternating-one-way'||imp==='all-lanes-open-shift-left'||imp==='all-lanes-open-shift-right'; }
+function geometryCoords(){ if(wzRoute&&wzRoute.length)return wzRoute.map(c=>[c[1],c[0]]); if(beginPt&&endPt)return[[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]]; return null; }
+function toWZDx(){ const now=new Date().toISOString(); const coords=geometryCoords();
+  const restr=[]; if(v('rHeight'))restr.push({type:'reduced-height',value:v('rHeight')}); if(v('rWidth'))restr.push({type:'reduced-width',value:v('rWidth')}); if(v('rWeight'))restr.push({type:'reduced-weight',value:v('rWeight')}); if(v('rLength'))restr.push({type:'reduced-length',value:v('rLength')});
+  const baseName=v('project')||('IADOT-'+Date.now().toString(36));
+  const mkFeature=(dirName,geom,suffix)=>{ const props={core_details:{event_type:'work-zone',data_source_id:'cars511-ia',road_names:[routeVal()].filter(Boolean),direction:dirName,name:baseName+suffix,description:v('description')||undefined,update_date:now},
+    start_date:v('schedStart')||now,end_date:wzEndDate(),vehicle_impact:v('impact')||'unknown',
+    beginning_cross_street:v('beginLoc')||undefined,ending_cross_street:v('endLoc')||undefined,
+    is_start_position_verified:false,is_end_position_verified:false};
+    if(restr.length)props.restrictions=restr.slice();
+    if(v('reducedSpeed'))props.reduced_speed_limit_kph=Math.round(parseFloat(v('reducedSpeed'))*1.60934);
+    if(v('normalSpeed'))props.x_normal_speed_mph=parseFloat(v('normalSpeed'));
+    if(v('detour')==='Yes')props.x_detour=v('addlNotes')||'marked detour';
+    props.x_clearance_relevant=clearanceRelevant(); if(clearanceAltering())props.x_clearance_altering=true;
+    if(laneData.length)props.lanes=laneData.map(l=>({order:l.order,type:l.type||'general',status:l.status||'open'}));
+    if(window.__taper){props.x_taper_length_ft=window.__taper.Lmerge;props.x_advance_warning_ft=[window.__taper.A,window.__taper.B,window.__taper.C];}
+    if(v('dms'))props.x_dms_request=v('dms');
+    if(window.__resolvesException)props.x_resolves_exception=window.__resolvesException;
+    return {id:props.core_details.name,type:'Feature',properties:props,geometry:{type:'LineString',coordinates:geom}}; };
+  let features=[];
+  if(coords){
+    const both=el('bothDir')&&el('bothDir').checked;
+    const dmap={N:'northbound',S:'southbound',E:'eastbound',W:'westbound'};
+    const primary=dmap[String(v('direction')||'').trim().charAt(0).toUpperCase()]||'unknown';
+    if(both){ const opp={northbound:'southbound',southbound:'northbound',eastbound:'westbound',westbound:'eastbound'}[primary]||'unknown';
+      const g2=(wzRoute2&&wzRoute2.length)?wzRoute2.map(c=>[c[1],c[0]]):coords;
+      features=[mkFeature(primary,coords,'-'+primary),mkFeature(opp,g2,'-'+opp)]; }
+    else features=[mkFeature(primary,coords,'')];
+  }
+  return {feed_info:{update_date:now,version:'4.2',x_cwz_profile:'CWZ 1.0',x_dataset_tier:'field-request',update_frequency:0,data_sources:[{data_source_id:'cars511-ia',organization_name:'Iowa DOT (field builder)'}]},type:'FeatureCollection',features}; }
+function downloadWZDx(){ if(!(beginPt&&endPt)){toast('Mark a segment first');return;} const blob=new Blob([JSON.stringify(toWZDx(),null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='cars511_wzdx_'+(routeVal()||'route').replace(/\W+/g,'')+'.geojson'; a.click(); toast('WZDx feature exported'); }
+// Round-trip: a ?rt=1&route=&blat=&blng=&… deep link from the Fix Queue opens this builder pre-filled (overrides saved state).
+function prefillFromURL(){ try{
+  const q=new URLSearchParams(location.search); if(q.get('rt')!=='1')return false;
+  FIELD_IDS.forEach(function(id){ if(id==='route'||id==='routeOther')return; if(q.has(id)&&el(id))el(id).value=q.get(id); });
+  const route=q.get('route');
+  if(route&&el('route')){ const opt=[].slice.call(el('route').options).find(function(o){return o.value===route;});
+    if(opt){el('route').value=route;} else {el('route').value='__other';onRouteChange();if(el('routeOther'))el('routeOther').value=route;} }
+  const bl=parseFloat(q.get('blat')),bg=parseFloat(q.get('blng')),eL=parseFloat(q.get('elat')),eG=parseFloat(q.get('elng'));
+  if(Number.isFinite(bl)&&Number.isFinite(bg)){ beginPt=L.latLng(bl,bg); if(Number.isFinite(eL)&&Number.isFinite(eG))endPt=L.latLng(eL,eG); redraw();
+    if(beginPt&&endPt){ try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[60,60],maxZoom:14});}catch(e){} snapWZ(); setMode('locked'); }
+    else { try{map.setView([bl,bg],14);}catch(e){} setMode('end'); } }
+  if(q.get('ex'))window.__resolvesException=q.get('ex');
+  onRouteChange(); if(typeof updateClearAlter==='function')updateClearAlter(); saveState();
+  const info=el('selinfo'); if(info) info.insertAdjacentHTML('afterbegin','<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:12px">↩ <b>Pre-filled from a Corridor Communicator finding</b>'+(q.get('exkind')?' — '+q.get('exkind'):'')+'. Review, correct, then re-export WZDx / submit.</div>');
+  return true;
+}catch(e){return false;} }
 function downloadPayload(){ const blob=new Blob([JSON.stringify(requestPayload(),null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`cars511_${(routeVal()||'route').replace(/\W+/g,'')}_${(v('project')||'wz')}.json`; a.click(); toast('JSON payload downloaded'); }
 async function submitToDatabase(){ const ep=v('dbEndpoint'), st=el('dbStatus'); st.style.display='block';
@@ -1532,7 +1583,7 @@ el('route').addEventListener('change', ()=>{ onRouteChange(); saveState(); });
 el('rce').addEventListener('change', ()=>{ setRceOffice(v('rce')); saveState(); });
 el('rceEmail').addEventListener('input', saveRceEmail);
 FIELD_IDS.forEach(id=>{ if(el(id)) el(id).addEventListener('input', saveState); });
-loadState(); renderProjects(); onRouteChange(); loadIntegration(); loadCsvProjects(); updateClearAlter();
+if(!prefillFromURL())loadState(); renderProjects(); onRouteChange(); loadIntegration(); loadCsvProjects(); updateClearAlter();
 
 // ---- accessibility: associate every stray <label> with its control, and give
 // keyboard/screen-reader users a coordinate path to place the begin/end points ----
