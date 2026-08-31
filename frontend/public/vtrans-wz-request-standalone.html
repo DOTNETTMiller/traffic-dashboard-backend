@@ -1321,7 +1321,7 @@ https://github.com/nodeca/pako/blob/master/LICENSE
         <button onclick="genPDF()">📄 Summary PDF</button>
         <button onclick="copySummary()">📋 Copy</button>
       </div>
-      <details style="margin-top:10px">
+      <details id="dbSection" style="margin-top:10px">
         <summary style="cursor:pointer;font-weight:600;color:var(--accent)">🗄️ Submit to database (optional)</summary>
         <div class="hint" style="padding:6px 0">POSTs the full request as JSON to your endpoint. Saved on this device. Host the page same-origin as the endpoint (or enable CORS).</div>
         <label>Endpoint URL</label><input id="dbEndpoint" placeholder="https://your-server/api/ndot-wz" oninput="saveIntegration()" />
@@ -1956,6 +1956,21 @@ function prefillFromURL(){try{
   return true;
 }catch(e){return false;}}
 if(!prefillFromURL())loadState();renderProjects();onRouteChange();loadIntegration();loadCsvProjects();updateClearReminder();if(CLOSURES&&el('closuresRow'))el('closuresRow').style.display='block';
+// Demo mode (?demo=1): a pure "show the functionality" showcase — hide the submit-to-database endpoint/
+// auth/submit controls (nothing is ever POSTed anywhere) but KEEP the client-side WZDx/JSON export, and
+// show a banner. Everything else (draw, milepost, clearance, lanes, taper, detour) works normally.
+(function(){try{if(new URLSearchParams(location.search).get('demo')!=='1')return;
+  var sec=el('dbSection');
+  if(sec){ sec.open=true;
+    ['dbEndpoint','dbAuth'].forEach(function(id){var e=el(id);if(e){e.style.display='none';var l=e.previousElementSibling;if(l&&l.tagName==='LABEL')l.style.display='none';}});
+    Array.prototype.forEach.call(sec.querySelectorAll('button'),function(btn){var oc=btn.getAttribute('onclick')||'';if(/submitToDatabase/.test(oc)||/Submit to database/i.test(btn.textContent))btn.style.display='none';});
+    var intro=sec.querySelector('div');if(intro)intro.style.display='none';
+    var st=el('dbStatus');if(st)st.style.display='none';
+    var sum=sec.querySelector('summary');if(sum)sum.innerHTML='⬇ Export (client-side — WZDx / JSON)';
+  }
+  var b=document.createElement('div');b.textContent='DEMO — draw a work zone, snap mileposts, check bridge clearances, export WZDx. Nothing is submitted or stored anywhere.';
+  b.style.cssText='position:fixed;bottom:0;left:0;right:0;background:#0b3d91;color:#fff;font:600 12px/1.4 ui-sans-serif,system-ui;text-align:center;padding:6px 10px;z-index:3000';document.body.appendChild(b);
+}catch(e){}})();
 
 // ---- accessibility: associate stray <label>s with their controls + coordinate entry ----
 function a11yInit(){let n=0;
