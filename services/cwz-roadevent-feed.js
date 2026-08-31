@@ -102,10 +102,11 @@ function buildFeed(events, opts = {}) {
 
   return {
     feed_info: {
-      title: 'CCAI Connected Work Zone — RoadEvent Feed (premier, real-time)',
-      description: 'Work zones with a confirmed connected field device present (device-verified, '
-        + 'elevated). Multi-state. CWZ 1.0 / WZDx v4.2. Each event carries its connected '
-        + 'devices and match confidence.',
+      title: 'CCAI Connected Work Zone — Validated RoadEvent Feed (premier, real-time)',
+      description: 'Validated work zones — each confirmed by at least one independent source: a '
+        + 'connected field device, camera AI, TomTom probe data, or a DMS message. Multi-state. '
+        + 'CWZ 1.0 / WZDx v4.2. Each event carries its verification sources and, when present, its '
+        + 'connected devices and match confidence.',
       update_date: updateDate,
       publisher: 'CCAI (multi-state)',
       version: opts.version || '4.2',
