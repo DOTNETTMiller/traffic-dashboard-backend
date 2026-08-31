@@ -5254,6 +5254,27 @@ app.get('/api/closures/location', (req, res) => {
 // inert until CLOSURE_LOCATION_API is on; no automatic wiring to the DTCD ingest yet.
 // function pullClosureLocationsIntoCwz() { /* wire when enabled */ }
 
+// NBI bridge-clearance enrichment for DTCD: annotate a work zone with the overhead structures that
+// restrict it (the ones its route passes UNDER) — clearance, over/under, inspection date. DTCD ingest
+// calls this per zone so the served /cwz feed carries clearance intelligence even for zones whose source
+// feed had none. Accepts a WZDx RoadEventFeature, a FeatureCollection, or {coordinates:[[lng,lat]...], route}.
+app.post('/api/nbi/enrich', async (req, res) => {
+  try {
+    const nbi = require('./services/nbi-clearance');
+    const body = req.body || {};
+    if (body.type === 'FeatureCollection' && Array.isArray(body.features)) {
+      const features = await Promise.all(body.features.map(f => nbi.enrichFeature(f).catch(() => f)));
+      return res.json({ type: 'FeatureCollection', features });
+    }
+    if (body.type === 'Feature' || (body.properties && body.geometry)) {
+      return res.json(await nbi.enrichFeature(body));
+    }
+    // bare geometry+route form → just the clearance report
+    const coords = body.coordinates || null, route = body.route || null;
+    return res.json(await nbi.clearancesForRoute(coords, route, {}));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Crash records live in the persistent PostGIS Postgres (alongside the corridor
 // geometry the clip reads), NOT the main `db.db` store. On the production
 // deployment `db.db` resolves to a separate, non-persistent handle that the
