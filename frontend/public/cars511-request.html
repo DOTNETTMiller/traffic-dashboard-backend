@@ -159,7 +159,7 @@
       </div>
       <label>24-hour contact (name / phone)</label><input id="contact24" />
       <label>Traffic impact <span style="color:#94a3b8;font-weight:400">(official CARS 511 choices)</span></label>
-      <select id="impact">
+      <select id="impact" onchange="onImpactChange()">
         <option>Choose one</option>
         <option>Closed</option>
         <option>Closed intermittently</option>
@@ -187,6 +187,16 @@
         <option>Single line traffic alternating directions</option>
         <option>Slow moving maintenance vehicle</option>
       </select>
+      <div id="splitBox" style="display:none;margin-top:8px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 10px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer">
+          <input type="checkbox" id="splitClosure" onchange="enableClosedCore(this.checked)"> Only part of this is physically closed — split into linked events
+        </label>
+        <div style="font-size:11.5px;color:#991b1b;margin:4px 0 0;line-height:1.45">Drag the red <b>C</b>/<b>D</b> handles to the roadway actually closed to all traffic. The rest becomes an <b>open, truck-advisory approach</b> — so Google/Waze/INRIX don't close the whole corridor.</div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin-top:6px;cursor:pointer">
+          <input type="checkbox" id="truckAdvisory"> Trucks can't turn around — advise trucks to detour on the approaches
+        </label>
+        <div id="coreInfo" style="display:none;font-size:11.5px;color:#334155;margin-top:6px"></div>
+      </div>
       <div id="laneHint" style="display:none;font-size:12px;color:#0369a1;margin-top:2px"></div>
       <label>Lanes this direction <span style="font-weight:400;color:#64748b">→ WZDx lanes[]</span></label>
       <div class="row" style="align-items:center;gap:8px">
@@ -347,6 +357,8 @@ setTimeout(()=>map.invalidateSize(), 200);
 window.addEventListener('resize', ()=>map.invalidateSize());
 
 let mode='begin', beginPt=null, endPt=null, beginMk=null, endMk=null, line=null, schedule=[], laneData=[];
+// Full-closure split: C/D mark the physically-closed core inside the signed extent A→B.
+let closedStartPt=null, closedEndPt=null, cMk=null, dMk=null, coreLine=null;
 let detourPts=[], detourLine=null, detourMks=[];
 let wzRoute=null, detourRoute=null, detourMeters=null;
 let wzRoute2=null, line2=null;   // opposite carriageway for a both-direction closure on a divided highway
@@ -1072,14 +1084,67 @@ function requestPayload(){ const o={}; FIELD_IDS.forEach(id=>{ if(el(id)) o[id]=
 // ---- WZDx v4.2 export + Corridor Communicator round-trip (ported from the corridor template for parity/future use) ----
 function clearanceRelevant(){ var imp=v('impact'); return clearanceAltering()||v('oversize')==='Yes'||v('detour')==='Yes'||imp==='all-lanes-closed'||imp==='alternating-one-way'||imp==='all-lanes-open-shift-left'||imp==='all-lanes-open-shift-right'; }
 function geometryCoords(){ if(wzRoute&&wzRoute.length)return wzRoute.map(c=>[c[1],c[0]]); if(beginPt&&endPt)return[[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]]; return null; }
+// CARS 511 traffic-impact text → WZDx vehicle_impact enum (the select stores CARS labels, not enums).
+function impactToWZDx(t){ t=String(t||'').trim().toLowerCase();
+  if(!t||t==='choose one') return 'unknown';
+  if(t==='opposing traffic') return 'alternating-one-way';
+  if(t.indexOf('shoulder')>=0) return 'all-lanes-open';
+  if(t.indexOf('partially')>=0) return 'some-lanes-closed';
+  if(t.indexOf('lane')>=0) return 'some-lanes-closed';
+  if(t.indexOf('closed')>=0) return 'all-lanes-closed';
+  return 'unknown'; }
+function isFullClosure(){ return impactToWZDx(v('impact'))==='all-lanes-closed'; }
+// distance helpers over a [[lat,lng]] path
+function cumMiles(path){ const c=[0]; for(let i=1;i<path.length;i++) c.push(c[i-1]+(miles({lat:path[i-1][0],lng:path[i-1][1]},{lat:path[i][0],lng:path[i][1]})||0)); return c; }
+function pointAtS(path,s){ const c=cumMiles(path),tot=c[c.length-1]; s=Math.max(0,Math.min(s,tot));
+  for(let i=1;i<path.length;i++){ if(s<=c[i]){ const seg=c[i]-c[i-1]||1e-9,t=(s-c[i-1])/seg,a=path[i-1],b=path[i]; return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]; } } return path[path.length-1].slice(); }
+// slice [[lat,lng]] between along-distances → WZDx [[lng,lat]] coordinates
+function sliceAlong(path,sStart,sEnd){ if(!path||path.length<2||!(sEnd>sStart+1e-6))return null;
+  const c=cumMiles(path),tot=c[c.length-1]; sStart=Math.max(0,Math.min(sStart,tot)); sEnd=Math.max(0,Math.min(sEnd,tot));
+  const out=[pointAtS(path,sStart)];
+  for(let i=0;i<path.length;i++){ if(c[i]>sStart+1e-6 && c[i]<sEnd-1e-6) out.push(path[i].slice()); }
+  out.push(pointAtS(path,sEnd));
+  return out.length>=2 ? out.map(p=>[p[1],p[0]]) : null; }
+
+// --- physically-closed core (full closures only) ---
+function mkCore(latlng,label){ const m=L.marker(latlng,{draggable:true,icon:L.divIcon({className:'',html:
+  `<div style="background:#b91c1c;color:#fff;border:2px solid #fff;border-radius:4px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;box-shadow:0 1px 4px rgba(0,0,0,.4)">${label}</div>`,
+  iconSize:[22,22],iconAnchor:[11,11]})}).addTo(map);
+  m.on('dragend',ev=>projectCore(label,ev.target.getLatLng())); return m; }
+function projectCore(label,ll){ if(!(wzRoute&&wzRoute.length))return; const s=measureAlong(wzRoute,ll).s; const p=pointAtS(wzRoute,s); const pt=L.latLng(p[0],p[1]);
+  if(label==='C'){ closedStartPt=pt; if(cMk)cMk.setLatLng(pt); } else { closedEndPt=pt; if(dMk)dMk.setLatLng(pt); }
+  drawClosedCore(); coreInfo(); saveState(); }
+function enableClosedCore(on){
+  if(!on){ [cMk,dMk,coreLine].forEach(x=>x&&x.remove()); cMk=dMk=coreLine=null; closedStartPt=closedEndPt=null; if(line)line.setStyle({color:'#dc2626',dashArray:null,opacity:.85}); coreInfo(); saveState(); return; }
+  if(!(wzRoute&&wzRoute.length>=2)){ toast('Mark the segment on the map first'); if(el('splitClosure'))el('splitClosure').checked=false; return; }
+  const c=cumMiles(wzRoute),tot=c[c.length-1]; const pA=pointAtS(wzRoute,tot*0.15),pB=pointAtS(wzRoute,tot*0.85);
+  closedStartPt=L.latLng(pA[0],pA[1]); closedEndPt=L.latLng(pB[0],pB[1]);
+  [cMk,dMk].forEach(x=>x&&x.remove()); cMk=mkCore(closedStartPt,'C'); dMk=mkCore(closedEndPt,'D');
+  drawClosedCore(); coreInfo(); saveState(); }
+function drawClosedCore(){ if(coreLine){coreLine.remove();coreLine=null;} if(!(closedStartPt&&closedEndPt&&wzRoute&&wzRoute.length))return;
+  let sC=measureAlong(wzRoute,closedStartPt).s, sD=measureAlong(wzRoute,closedEndPt).s; if(sC>sD){const t=sC;sC=sD;sD=t;}
+  const core=sliceAlong(wzRoute,sC,sD); if(core){ coreLine=L.polyline(core.map(cc=>[cc[1],cc[0]]),{color:'#dc2626',weight:8,opacity:.95}).addTo(map); }
+  if(line)line.setStyle({color:'#f59e0b',dashArray:'8,6',opacity:.9}); }  // extent becomes amber/advisory
+function coreInfo(){ const box=el('coreInfo'); if(!box)return; const on=el('splitClosure')&&el('splitClosure').checked;
+  if(!on){ box.style.display='none'; return; } box.style.display='block';
+  if(!(closedStartPt&&closedEndPt&&wzRoute)){ box.innerHTML='Mark the segment, then drag the C/D handles to the closed portion.'; return; }
+  let sC=measureAlong(wzRoute,closedStartPt).s, sD=measureAlong(wzRoute,closedEndPt).s; if(sC>sD){const t=sC;sC=sD;sD=t;} const c=cumMiles(wzRoute),tot=c[c.length-1];
+  box.innerHTML=`<b>Closed core:</b> ${(sD-sC).toFixed(1)} mi (red) · open approaches ${sC.toFixed(1)} + ${(tot-sD).toFixed(1)} mi. Export splits into linked WZDx events — only the core is all-lanes-closed.`; }
+function onImpactChange(){ const box=el('splitBox'); if(box){ if(isFullClosure()){ box.style.display='block'; } else { box.style.display='none'; if(el('splitClosure')&&el('splitClosure').checked){ el('splitClosure').checked=false; enableClosedCore(false); } } }
+  saveState(); if(beginPt&&endPt&&typeof snapWZ==='function'){} }
+
 function toWZDx(){ const now=new Date().toISOString(); const coords=geometryCoords();
   const restr=[]; if(v('rHeight'))restr.push({type:'reduced-height',value:v('rHeight')}); if(v('rWidth'))restr.push({type:'reduced-width',value:v('rWidth')}); if(v('rWeight'))restr.push({type:'reduced-weight',value:v('rWeight')}); if(v('rLength'))restr.push({type:'reduced-length',value:v('rLength')});
   const baseName=v('project')||('IADOT-'+Date.now().toString(36));
-  const mkFeature=(dirName,geom,suffix)=>{ const props={core_details:{event_type:'work-zone',data_source_id:'cars511-ia',road_names:[routeVal()].filter(Boolean),direction:dirName,name:baseName+suffix,description:v('description')||undefined,update_date:now},
-    start_date:v('schedStart')||now,end_date:wzEndDate(),vehicle_impact:v('impact')||'unknown',
+  const baseImpact=impactToWZDx(v('impact'));
+  const projectId=baseName+'-project';
+  const mkFeature=(dirName,geom,suffix,opts)=>{ opts=opts||{};
+    const props={core_details:{event_type:'work-zone',data_source_id:'cars511-ia',road_names:[routeVal()].filter(Boolean),direction:dirName,name:baseName+suffix,description:v('description')||undefined,update_date:now},
+    start_date:v('schedStart')||now,end_date:wzEndDate(),vehicle_impact:opts.impact||baseImpact||'unknown',
     beginning_cross_street:v('beginLoc')||undefined,ending_cross_street:v('endLoc')||undefined,
     is_start_position_verified:false,is_end_position_verified:false};
-    if(restr.length)props.restrictions=restr.slice();
+    if(opts.relationship)props.core_details.relationship=opts.relationship;
+    const rs=restr.slice().concat(opts.extraRestr||[]); if(rs.length)props.restrictions=rs;
     if(v('reducedSpeed'))props.reduced_speed_limit_kph=Math.round(parseFloat(v('reducedSpeed'))*1.60934);
     if(v('normalSpeed'))props.x_normal_speed_mph=parseFloat(v('normalSpeed'));
     if(v('detour')==='Yes')props.x_detour=v('addlNotes')||'marked detour';
@@ -1089,15 +1154,31 @@ function toWZDx(){ const now=new Date().toISOString(); const coords=geometryCoor
     if(v('dms'))props.x_dms_request=v('dms');
     if(window.__resolvesException)props.x_resolves_exception=window.__resolvesException;
     return {id:props.core_details.name,type:'Feature',properties:props,geometry:{type:'LineString',coordinates:geom}}; };
+
+  const splitOn = el('splitClosure')&&el('splitClosure').checked && baseImpact==='all-lanes-closed' && closedStartPt&&closedEndPt && wzRoute&&wzRoute.length>=2;
+  const truckRestr = (el('truckAdvisory')&&el('truckAdvisory').checked) ? [{type:'no-trucks'}] : [];
+  const dmap={N:'northbound',S:'southbound',E:'eastbound',W:'westbound'};
+  const primary=dmap[String(v('direction')||'').trim().charAt(0).toUpperCase()]||'unknown';
+  const oppOf={northbound:'southbound',southbound:'northbound',eastbound:'westbound',westbound:'eastbound'};
+  // Split a direction's centerline into open approach + closed core + open approach, linked as one project.
+  const buildSplit=(path,dirName,sfx)=>{ const c=cumMiles(path),tot=c[c.length-1];
+    let sC=measureAlong(path,closedStartPt).s, sD=measureAlong(path,closedEndPt).s; if(sC>sD){const t=sC;sC=sD;sD=t;}
+    const coreId=baseName+sfx+'-closure', a1Id=baseName+sfx+'-approach-1', a2Id=baseName+sfx+'-approach-2';
+    const a1=sliceAlong(path,0,sC), core=sliceAlong(path,sC,sD), a2=sliceAlong(path,sD,tot);
+    const firstId=a1?a1Id:coreId, feats=[];
+    if(a1)feats.push(mkFeature(dirName,a1,sfx+'-approach-1',{impact:'all-lanes-open',extraRestr:truckRestr,relationship:{first:[firstId],next:[coreId],parents:[projectId]}}));
+    feats.push(mkFeature(dirName,core,sfx+'-closure',{impact:'all-lanes-closed',relationship:{first:[firstId],next:(a2?[a2Id]:[]),parents:[projectId]}}));
+    if(a2)feats.push(mkFeature(dirName,a2,sfx+'-approach-2',{impact:'all-lanes-open',extraRestr:truckRestr,relationship:{first:[firstId],next:[],parents:[projectId]}}));
+    return feats; };
+
   let features=[];
-  if(coords){
-    const both=el('bothDir')&&el('bothDir').checked;
-    const dmap={N:'northbound',S:'southbound',E:'eastbound',W:'westbound'};
-    const primary=dmap[String(v('direction')||'').trim().charAt(0).toUpperCase()]||'unknown';
-    if(both){ const opp={northbound:'southbound',southbound:'northbound',eastbound:'westbound',westbound:'eastbound'}[primary]||'unknown';
-      const g2=(wzRoute2&&wzRoute2.length)?wzRoute2.map(c=>[c[1],c[0]]):coords;
-      features=[mkFeature(primary,coords,'-'+primary),mkFeature(opp,g2,'-'+opp)]; }
-    else features=[mkFeature(primary,coords,'')];
+  if(coords){ const both=el('bothDir')&&el('bothDir').checked;
+    if(splitOn){
+      features=buildSplit(wzRoute,primary,both?('-'+primary):'');
+      if(both){ const p2=(wzRoute2&&wzRoute2.length)?wzRoute2:wzRoute; features=features.concat(buildSplit(p2,oppOf[primary]||'unknown','-'+(oppOf[primary]||'opp'))); }
+    } else if(both){ const opp=oppOf[primary]||'unknown'; const g2=(wzRoute2&&wzRoute2.length)?wzRoute2.map(cc=>[cc[1],cc[0]]):coords;
+      features=[mkFeature(primary,coords,'-'+primary,{}),mkFeature(opp,g2,'-'+opp,{})];
+    } else features=[mkFeature(primary,coords,'',{})];
   }
   return {feed_info:{update_date:now,version:'4.2',x_cwz_profile:'CWZ 1.0',x_dataset_tier:'field-request',update_frequency:0,data_sources:[{data_source_id:'cars511-ia',organization_name:'Iowa DOT (field builder)'}]},type:'FeatureCollection',features}; }
 function downloadWZDx(){ if(!(beginPt&&endPt)){toast('Mark a segment first');return;} const blob=new Blob([JSON.stringify(toWZDx(),null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='cars511_wzdx_'+(routeVal()||'route').replace(/\W+/g,'')+'.geojson'; a.click(); toast('WZDx feature exported'); }
@@ -1618,7 +1699,7 @@ el('route').addEventListener('change', ()=>{ onRouteChange(); saveState(); });
 el('rce').addEventListener('change', ()=>{ setRceOffice(v('rce')); saveState(); });
 el('rceEmail').addEventListener('input', saveRceEmail);
 FIELD_IDS.forEach(id=>{ if(el(id)) el(id).addEventListener('input', saveState); });
-if(!prefillFromURL())loadState(); renderProjects(); onRouteChange(); loadIntegration(); loadCsvProjects(); updateClearAlter();
+if(!prefillFromURL())loadState(); renderProjects(); onRouteChange(); loadIntegration(); loadCsvProjects(); updateClearAlter(); onImpactChange();
 // Demo mode (?demo=1): pure "show the functionality" showcase — hide the submit-to-database endpoint/auth/
 // submit controls (nothing is POSTed anywhere) but KEEP client-side WZDx/JSON export + the 511 PDF fill.
 (function(){try{if(new URLSearchParams(location.search).get('demo')!=='1')return;
