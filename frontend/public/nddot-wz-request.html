@@ -44,10 +44,14 @@
   a.skiplink:focus{top:0}
   :focus-visible{outline:3px solid var(--brand2);outline-offset:2px}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+  /* mobile: the form is a drawer that slides over a full-screen map; #drawerTab toggles it */
+  #drawerTab{display:none;position:fixed;top:74px;right:0;z-index:1300;background:var(--brand2);color:#fff;border:none;border-radius:8px 0 0 8px;padding:10px 12px;font-size:13px;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,.3);align-items:center;gap:6px;cursor:pointer;min-height:44px}
   @media (max-width:860px){
-    .wrap{flex-direction:column;height:auto}
-    .form{width:100%;max-width:100%;border-right:none;border-bottom:3px solid var(--silver)}
-    #mapwrap{flex:none;height:56vh;min-height:340px}
+    .wrap{position:relative;display:block;height:calc(100vh - 66px);height:calc(100dvh - 66px)}
+    #mapwrap{position:absolute!important;inset:0;height:auto!important;min-height:0}
+    .form{position:absolute;top:0;left:0;bottom:0;width:90%;max-width:400px;z-index:1100;overflow-y:auto;border-right:1px solid #dde3ea;border-bottom:none;box-shadow:2px 0 18px rgba(0,0,0,.28);transition:transform .3s ease;will-change:transform}
+    body.mapview .form{transform:translateX(-102%)}
+    #drawerTab{display:inline-flex}
     input,select,textarea{font-size:16px}                 /* prevents iOS auto-zoom */
     .mapbtns button,.bar button,.bar select,.actions button{min-height:44px}
     header{position:sticky;top:0;z-index:1200}
@@ -64,6 +68,7 @@
   <div><h1>North Dakota Department of Transportation — Work-Zone Request Builder</h1>
     <div class="sub">Mark the road → detour → clearances → schedule → export WZDx / email / submit. Review before submitting.</div></div>
 </header>
+<button id="drawerTab" type="button" onclick="toggleDrawer()" aria-label="Show the full map">🗺 View map</button>
 
 <div class="wrap">
   <main class="form" id="form" role="main" aria-label="NDDOT work-zone request form">
@@ -314,13 +319,14 @@ function clipToEnds(line,aArr,bArr){if(!line||line.length<2)return line;
 function nvAxis(){if(beginPt&&endPt){const b=((bearing(beginPt,endPt))%360+360)%360;const ew=(b>45&&b<135)||(b>225&&b<315);return ew?['E','W']:['N','S'];}
   const n=(String(routeVal()).match(/\d+/)||[])[0];return (n&&parseInt(n,10)%2===0)?['E','W']:['N','S'];}
 let detourPts=[],detourLine=null,detourMks=[],detourRoute=null,detourMeters=null;
+function isMobile(){return window.matchMedia&&window.matchMedia('(max-width:860px)').matches;}
+function updateDrawerTab(){var t=el('drawerTab');if(!t)return;var mv=document.body.classList.contains('mapview');t.innerHTML=mv?'☰ Edit request':'🗺 View map';t.setAttribute('aria-label',mv?'Show the request form':'Show the full map');}
+function showMap(on){document.body.classList.toggle('mapview',!!on);updateDrawerTab();try{map.invalidateSize();}catch(e){}}
+function toggleDrawer(){document.body.classList.toggle('mapview');updateDrawerTab();try{map.invalidateSize();}catch(e){}}
 function setMode(m){mode=m;el('btnBegin').classList.toggle('active',m==='begin');el('btnEnd').classList.toggle('active',m==='end');const bd=el('btnDetour');if(bd)bd.classList.toggle('active',m==='detour');el('maphint').innerHTML=m==='detour'?'Click to trace the <b>detour</b>':m==='locked'?'Segment set ✓ — drag <b>A</b>/<b>B</b> to fine-tune, or tap <b>Set BEGIN/END</b> to redo':'Click the road to set the <b>'+m+'</b> point';
-  // Mobile: the map stacks below the form. Entering a placement mode brings the map into view; locking the
-  // segment (both points set) brings the form back so the user can keep filling out the request.
-  if(window.matchMedia&&window.matchMedia('(max-width:860px)').matches){
-    if(m==='begin'||m==='end'||m==='detour'){var mw=el('mapwrap')||el('map');if(mw&&mw.scrollIntoView){mw.scrollIntoView({behavior:'smooth',block:'start'});setTimeout(function(){try{map.invalidateSize();}catch(e){}},350);}}
-    else if(m==='locked'){var fm=el('form');if(fm&&fm.scrollIntoView)fm.scrollIntoView({behavior:'smooth',block:'start'});}
-  }}
+  // Mobile: the form is a drawer over a full-screen map. Starting to place points slides the form out of the
+  // way to expose the map; the user slides it back when they want it via the #drawerTab button.
+  if(isMobile()&&(m==='begin'||m==='end'||m==='detour'))showMap(true);}
 function mk(latlng,label,color){const drag=(label==='A'||label==='B');const m=L.marker(latlng,{draggable:drag,icon:L.divIcon({className:'',html:'<div style="background:'+color+';color:#fff;border:2px solid #fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.4)">'+label+'</div>',iconSize:[24,24],iconAnchor:[12,12]})}).addTo(map);
   if(drag){m.bindTooltip('drag to adjust',{direction:'top'});m.on('dragend',ev=>{const ll=ev.target.getLatLng();if(label==='A')beginPt=ll;else endPt=ll;if(beginPt&&endPt)snapWZ();saveState();});}return m;}
 function miles(a,b){const R=3958.8,dLat=(b.lat-a.lat)*Math.PI/180,dLng=(b.lng-a.lng)*Math.PI/180,x=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(x));}
