@@ -432,8 +432,12 @@ function loadProject(name){ const p=projects().find(x=>x.name===name); if(!p) re
 function setMode(m){ mode=m; el('btnBegin').classList.toggle('active',m==='begin'); el('btnEnd').classList.toggle('active',m==='end');
   const bd=el('btnDetour'); if(bd) bd.classList.toggle('active',m==='detour');
   el('maphint').innerHTML = m==='detour' ? 'Click to trace the <b>detour</b> route (add multiple points)' : m==='locked' ? 'Segment set ✓ — drag <b>A</b>/<b>B</b> to fine-tune, or tap <b>Set BEGIN/END</b> to redo' : `Click the road to set the <b>${m}</b> point`;
-  // Mobile: the map stacks below the form, so bring it into view (and resize) when the user starts placing points.
-  if((m==='begin'||m==='end'||m==='detour')&&window.matchMedia&&window.matchMedia('(max-width:860px)').matches){var mw=el('mapwrap')||el('map');if(mw&&mw.scrollIntoView){mw.scrollIntoView({behavior:'smooth',block:'start'});setTimeout(function(){try{map.invalidateSize();}catch(e){}},350);}} }
+  // Mobile: the map stacks below the form. Entering a placement mode brings the map into view; locking the
+  // segment (both points set) brings the form back so the user can keep filling out the request.
+  if(window.matchMedia&&window.matchMedia('(max-width:860px)').matches){
+    if(m==='begin'||m==='end'||m==='detour'){var mw=el('mapwrap')||el('map');if(mw&&mw.scrollIntoView){mw.scrollIntoView({behavior:'smooth',block:'start'});setTimeout(function(){try{map.invalidateSize();}catch(e){}},350);}}
+    else if(m==='locked'){var fm=el('form');if(fm&&fm.scrollIntoView)fm.scrollIntoView({behavior:'smooth',block:'start'});}
+  } }
 function mk(latlng,label,color){ const drag=(label==='A'||label==='B');
   const m=L.marker(latlng,{draggable:drag,icon:L.divIcon({className:'',html:
   `<div style="background:${color};color:#fff;border:2px solid #fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.4)">${label}</div>`,
