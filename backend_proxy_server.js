@@ -6500,7 +6500,14 @@ app.get('/api/cwz/events', async (req, res) => {
     } catch (_) { /* sticky accumulation optional */ }
     // Elevated = device-verified (connected board) OR camera-verified (a camera saw the zone)
     // OR independently corroborated by TomTom (commercial probe) or a DMS message (operator-posted).
-    const connected = (eventsCache.data?.events || []).filter(e => e.x_cwz_connected || e.x_camera_verified || e.x_tomtom_corroborated || e.x_dms_corroborated);
+    // Confidence filter: ?confidence=multi (or ?min_sources=N) returns only zones corroborated by N+
+    // INDEPENDENT sources — a "highest-confidence" view. Default N=1 (any single corroboration).
+    const sourceCount = e => (e.x_cwz_connected ? 1 : 0) + (e.x_camera_verified ? 1 : 0) + (e.x_tomtom_corroborated ? 1 : 0) + (e.x_dms_corroborated ? 1 : 0);
+    let minSources = 1;
+    if (String(req.query.confidence || '').toLowerCase() === 'multi') minSources = 2;
+    const ms = parseInt(req.query.min_sources, 10);
+    if (Number.isFinite(ms) && ms >= 1) minSources = ms;
+    const connected = (eventsCache.data?.events || []).filter(e => sourceCount(e) >= minSources);
     res.set('Content-Type', 'application/json');
     res.json(cwz.buildFeed(connected));
   } catch (err) {

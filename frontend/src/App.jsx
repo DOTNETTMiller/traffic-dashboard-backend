@@ -778,6 +778,15 @@ function App() {
               >
                 ✅ CWZ 1.0
               </a>
+              <a
+                href={`${config.apiUrl}/api/cwz/events?confidence=multi`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="tim-link"
+                title="CWZ 1.0 — highest confidence: only work zones corroborated by 2+ independent sources"
+              >
+                ⭐ CWZ 2+
+              </a>
             </div>
             <div style={{ marginLeft: '12px' }}>
               <DarkModeToggle
