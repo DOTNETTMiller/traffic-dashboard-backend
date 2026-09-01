@@ -72,8 +72,12 @@ function buildFeed(events, opts = {}) {
       // A connected device present and/or a camera that sees the zone verifies it.
       is_start_position_verified: true,
       x_cwz_connected: !!ev.x_cwz_connected,
-      x_verification: src,                       // ['device'], ['camera'], or ['device','camera']
+      x_verification: src,                       // sources corroborating this zone: device / camera / tomtom / dms
+      x_verification_count: src.length,          // 1+ — how many INDEPENDENT sources agree (the corroboration signal)
+      x_confidence_tier: src.length >= 2 ? 'multi-source' : (src.length === 1 ? 'single-source' : 'unverified'),
       x_connection_status: ev.x_connection_status || (src.length ? 'verified' : 'connected'),
+      // Physical connected devices (e.g., arrow boards) matched to the zone — the actual count, which can be
+      // 0 even when the zone is otherwise corroborated (camera/TomTom/DMS). Corroboration is x_verification_count.
       x_connected_device_count: ev.x_connected_device_count || (ev.x_connected_devices || []).length,
       x_connected_confidence: ev.x_connected_confidence,
       x_connected_devices: ev.x_connected_devices || []
