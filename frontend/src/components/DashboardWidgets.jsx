@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { theme } from '../styles/theme';
 import DashboardWidget from './DashboardWidget';
 import Skeleton from './Skeleton';
-import CwzFeedExport from './CwzFeedExport';
 
 export default function DashboardWidgets({ events, loading = false }) {
   const isInitialLoading = loading && (!events || events.length === 0);
@@ -433,8 +432,6 @@ export default function DashboardWidgets({ events, loading = false }) {
           Dashboard
         </h2>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.sm }}>
-        <CwzFeedExport events={events} />
         <button
           onClick={() => setShowConfig(!showConfig)}
           style={{
@@ -465,7 +462,6 @@ export default function DashboardWidgets({ events, loading = false }) {
           <span>⚙️</span>
           Customize Widgets
         </button>
-        </div>
       </div>
 
       {/* Widget Configuration Panel */}

@@ -769,6 +769,15 @@ function App() {
               >
                 🚧 WZDx
               </a>
+              <a
+                href={`${config.apiUrl}/api/cwz/events`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="tim-link"
+                title="CWZ 1.0 / WZDx 4.2 — elevated feed of validated, connected work zones (camera / device / TomTom / DMS corroborated)"
+              >
+                ✅ CWZ 1.0
+              </a>
             </div>
             <div style={{ marginLeft: '12px' }}>
               <DarkModeToggle
