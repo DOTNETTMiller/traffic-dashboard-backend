@@ -1,0 +1,583 @@
+<title>Corridor Data Provenance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@600;700;800&family=IBM+Plex+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --ground:#F7F8FA; --panel:#FFFFFF; --ink:#12161F; --slate:#5A6478; --faint:#828CA0;
+  --rule:#DDE1E9; --rule-soft:#EAEDF3; --accent:#C8761A; --accent-soft:#F3E4D2;
+  --ok:#1E6B3A; --ok-bg:#E4F0E8; --warn:#8A5A00; --warn-bg:#F7EEDC;
+  --stop:#9C1F1F; --stop-bg:#F7E4E4; --mute-bg:#ECEFF4;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#10131A; --panel:#161A23; --ink:#E6E9F0; --slate:#98A2B6; --faint:#6D7689;
+  --rule:#252B37; --rule-soft:#1E2430; --accent:#E9A45C; --accent-soft:#3A2A16;
+  --ok:#6FCB92; --ok-bg:#17301F; --warn:#E0AE5C; --warn-bg:#332612;
+  --stop:#E88A8A; --stop-bg:#341A1A; --mute-bg:#1E2430;
+}}
+:root[data-theme="dark"]{
+  --ground:#10131A; --panel:#161A23; --ink:#E6E9F0; --slate:#98A2B6; --faint:#6D7689;
+  --rule:#252B37; --rule-soft:#1E2430; --accent:#E9A45C; --accent-soft:#3A2A16;
+  --ok:#6FCB92; --ok-bg:#17301F; --warn:#E0AE5C; --warn-bg:#332612;
+  --stop:#E88A8A; --stop-bg:#341A1A; --mute-bg:#1E2430;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);
+  font-family:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:40px 28px 96px}
+h1,h2,.eyebrow,.stat-n{font-family:Overpass,"Helvetica Neue",Arial,sans-serif}
+.eyebrow{font-size:11.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+h1{font-size:clamp(30px,4.4vw,46px);font-weight:800;letter-spacing:-.02em;line-height:1.06;margin:0 0 12px;text-wrap:balance}
+.lede{max-width:66ch;color:var(--slate);font-size:16.5px;margin:0}
+.meta{margin-top:18px;padding-top:16px;border-top:1px solid var(--rule);
+  display:flex;flex-wrap:wrap;gap:8px 26px;font-size:13px;color:var(--faint)}
+.meta b{color:var(--slate);font-weight:600}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:1px;
+  background:var(--rule);border:1px solid var(--rule);margin:32px 0 8px}
+.stat{background:var(--panel);padding:16px 18px}
+.stat-n{font-size:28px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}
+.stat-l{font-size:11.5px;color:var(--faint);letter-spacing:.05em;text-transform:uppercase;margin-top:3px}
+.stat--hero .stat-n{color:var(--accent)}
+
+.index{display:flex;flex-wrap:wrap;gap:6px;margin:26px 0 0}
+.index a{font-size:12.5px;color:var(--slate);text-decoration:none;padding:5px 11px;
+  border:1px solid var(--rule);border-radius:2px;background:var(--panel)}
+.index a:hover{border-color:var(--accent);color:var(--accent)}
+.index a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+section{margin-top:52px;scroll-margin-top:20px}
+.sec-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+  border-bottom:2px solid var(--ink);padding-bottom:9px;margin-bottom:0}
+h2{font-size:21px;font-weight:700;letter-spacing:-.01em;margin:0}
+.count{font-size:12.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+.sec-note{margin:12px 0 0;max-width:74ch;color:var(--slate);font-size:14px}
+
+.scroller{overflow-x:auto;margin-top:16px;border:1px solid var(--rule);background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+thead th{position:sticky;top:0;background:var(--panel);text-align:left;font-weight:600;
+  font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);
+  padding:11px 14px;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{padding:11px 14px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--mute-bg)}
+tr.dim td{color:var(--faint)}
+.k{font-family:"IBM Plex Mono",ui-monospace,monospace;font-weight:600;font-size:12px;
+  text-transform:uppercase;color:var(--accent);white-space:nowrap}
+.nm{font-weight:600;min-width:150px}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.num.em{color:var(--accent);font-weight:700}
+.ep code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11.5px;
+  color:var(--slate);word-break:break-all;line-height:1.45}
+.note{color:var(--slate);font-size:12.5px;min-width:230px;max-width:380px}
+.note code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11px;
+  background:var(--mute-bg);padding:1px 4px}
+.chip{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.03em;
+  padding:2px 8px;border-radius:2px;white-space:nowrap}
+.chip--ok{background:var(--ok-bg);color:var(--ok)}
+.chip--warn{background:var(--warn-bg);color:var(--warn)}
+.chip--stop{background:var(--stop-bg);color:var(--stop)}
+.chip--mute{background:var(--mute-bg);color:var(--faint)}
+
+.callout{border-left:3px solid var(--accent);background:var(--accent-soft);
+  padding:16px 20px;margin-top:22px;font-size:14px;max-width:80ch}
+.callout b{font-weight:700}
+footer{margin-top:64px;padding-top:18px;border-top:1px solid var(--rule);
+  font-size:12.5px;color:var(--faint);max-width:76ch}
+@media (max-width:640px){.wrap{padding:28px 16px 64px}.note{min-width:180px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+<div class="wrap">
+<header>
+  <p class="eyebrow">DOT Corridor Communicator · PurposeBuilt</p>
+  <h1>Consumed APIs &amp; REST services</h1>
+  <p class="lede">Every external source the platform ingests, and which of them can actually serve as
+  evidence that a work zone is live. Prepared for the MITRE team.</p>
+  <div class="meta">
+    <span><b>Compiled</b> 3 September 2026</span>
+    <span><b>Method</b> read from running production config, then every camera and device endpoint fetched live</span>
+    <span><b>Credentials</b> all keys and tokens shown as <code>&lt;REDACTED&gt;</code></span>
+  </div>
+</header>
+
+<div class="stats">
+  <div class="stat"><div class="stat-n">37</div><div class="stat-l">Work-zone feeds</div></div>
+  <div class="stat"><div class="stat-n">33</div><div class="stat-l">US states</div></div>
+  <div class="stat"><div class="stat-n">21,941</div><div class="stat-l">Cameras</div></div>
+  <div class="stat"><div class="stat-n">4,606</div><div class="stat-l">Field devices</div></div>
+  <div class="stat stat--hero"><div class="stat-n">74</div><div class="stat-l">Arrow boards</div></div>
+  <div class="stat"><div class="stat-n">20</div><div class="stat-l">Reference APIs</div></div>
+</div>
+
+<nav class="index">
+  <a href="#wz">Work-zone feeds</a><a href="#cam">Cameras</a><a href="#dev">DMS &amp; devices</a>
+  <a href="#ref">Reference &amp; enrichment</a><a href="#ops">Operational</a>
+</nav>
+
+<div class="callout">
+  <b>What counts as evidence.</b> Only sources carrying live telemetry can validate a work zone.
+  Two of the device sources — PennDOT TSAMS and MaineDOT — are static GIS asset inventories with no
+  message field and no timestamp. Their 853 records are ingested for coverage reporting but are
+  explicitly excluded from adjudication: a row saying a sign <em>exists</em> nearby can neither confirm
+  a zone nor mark it stale.
+</div>
+
+<section id="wz">
+  <div class="sec-head"><h2>Work-zone event feeds</h2><span class="count">37 feeds · 33 US states</span></div>
+  <p class="sec-note">The primary work-zone ingest. Covers 33 states plus Quebec City, the City of Austin,
+  a second Iowa feed, and our own DTCD (CWZ&nbsp;1.0) output.</p>
+  <div class="scroller"><table>
+  <thead><tr><th>Key</th><th>Agency / source</th><th>Standard</th><th>Endpoint</th><th>Access</th></tr></thead>
+  <tbody><tr>
+<td class="k">az</td>
+<td class="nm">Arizona (Maricopa)</td>
+<td>WZDx</td>
+<td class="ep"><code>https://wzdxapi.aztech.org/construction</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">ca</td>
+<td class="nm">California DOT</td>
+<td>WZDx</td>
+<td class="ep"><code>https://api.511.org/traffic/wzdx?api_key=</code></td>
+<td><span class="chip chip--warn">key</span></td></tr><tr>
+<td class="k">au</td>
+<td class="nm">City of Austin, TX</td>
+<td>WZDx</td>
+<td class="ep"><code>https://data.austintexas.gov/download/d9mm-cjw9</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">co</td>
+<td class="nm">Colorado DOT</td>
+<td>WZDx</td>
+<td class="ep"><code>https://data.cotrip.org/api/v1/wzdx?apiKey=</code></td>
+<td><span class="chip chip--warn">key</span></td></tr><tr>
+<td class="k">de</td>
+<td class="nm">Delaware</td>
+<td>WZDx</td>
+<td class="ep"><code>https://wzdx.e-dot.com/del_dot_feed_wzdx_v4.1.geojson</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">fl</td>
+<td class="nm">Florida</td>
+<td>WZDx</td>
+<td class="ep"><code>https://us-datacloud.one.network/fdot/feed.json?app_key=&lt;REDACTED&gt;</code></td>
+<td><span class="chip chip--warn">key</span></td></tr><tr>
+<td class="k">ga</td>
+<td class="nm">Georgia DOT</td>
+<td>WZDx</td>
+<td class="ep"><code>https://511ga.org/feeds/wzdx</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">hi</td>
+<td class="nm">Hawaii</td>
+<td>WZDx</td>
+<td class="ep"><code>https://ai.blyncsy.io/wzdx/hidot/feed</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">id</td>
+<td class="nm">Idaho</td>
+<td>WZDx</td>
+<td class="ep"><code>https://511.idaho.gov/api/wzdx</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">il</td>
+<td class="nm">Illinois</td>
+<td>TMDD/CARS</td>
+<td class="ep"><code>https://travelmidwest.com/lmiga/incidents.json?path=GATEWAY.IL</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">in</td>
+<td class="nm">Indiana</td>
+<td>TMDD/CARS</td>
+<td class="ep"><code>https://inhub.carsprogram.org/data/feu-g.xml</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">ia</td>
+<td class="nm">Iowa</td>
+<td>TMDD/CARS</td>
+<td class="ep"><code>https://ia.carsprogram.org/hub/data/feu-g.xml</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">io</td>
+<td class="nm">Iowa WZDx</td>
+<td>WZDx</td>
+<td class="ep"><code>https://iowa-atms.cloud-q-free.com/api/rest/dataprism/wzdx/wzdxfeed</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">ks</td>
+<td class="nm">Kansas</td>
+<td>TMDD/CARS</td>
+<td class="ep"><code>https://kscars.kandrive.gov/hub/data/feu-g.xml</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">ky</td>
+<td class="nm">Kentucky</td>
+<td>WZDx</td>
+<td class="ep"><code>https://storage.googleapis.com/kytc-its-2020-openrecords/public/feeds/WZDx/kytc_wzdx_v4.1.geojson</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">la</td>
+<td class="nm">Louisiana</td>
+<td>WZDx</td>
+<td class="ep"><code>https://wzdx.e-dot.com/la_dot_d_feed_wzdx_v4.1.geojson</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">md</td>
+<td class="nm">Maryland</td>
+<td>WZDx</td>
+<td class="ep"><code>https://filter.ritis.org/wzdx_v4.1/mdot.geojson</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">ma</td>
+<td class="nm">Massachusetts</td>
+<td>WZDx</td>
+<td class="ep"><code>https://feed.massdot-swzm.com/massdot_wzdx_v4.1_work_zone_feed.geojson</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">mn</td>
+<td class="nm">Minnesota</td>
+<td>TMDD/CARS</td>
+<td class="ep"><code>https://mn.carsprogram.org/hub/data/feu-g.xml</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">mi</td>
+<td class="nm">Mississippi</td>
+<td>WZDx</td>
+<td class="ep"><code>https://api.mdottraffic.com/prod/v3/data/wzdx</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">mo</td>
+<td class="nm">Missouri</td>
+<td>WZDx</td>
+<td class="ep"><code>https://traveler.modot.org/timconfig/feed/desktop/mo_wzdx.json</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">ne</td>
+<td class="nm">Nebraska</td>
+<td>TMDD/CARS</td>
+<td class="ep"><code>https://ne.carsprogram.org/hub/data/feu-g.xml</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">nv</td>
+<td class="nm">Nevada</td>
+<td>TMDD/CARS</td>
+<td class="ep"><code>https://www.nvroads.com/api/v2/get/roadconditions</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">nj</td>
+<td class="nm">New Jersey</td>
+<td>WZDx</td>
+<td class="ep"><code>https://smartworkzones.njit.edu/nj/wzdx</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">nm</td>
+<td class="nm">New Mexico</td>
+<td>WZDx</td>
+<td class="ep"><code>https://ai.blyncsy.io/wzdx/nmdot/feed</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">ny</td>
+<td class="nm">New York</td>
+<td>WZDx</td>
+<td class="ep"><code>https://511ny.org/api/wzdx</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">nc</td>
+<td class="nm">North Carolina</td>
+<td>WZDx</td>
+<td class="ep"><code>https://us-datacloud.one.network/wzdx-north-carolina.json?app_key=&lt;REDACTED&gt;</code></td>
+<td><span class="chip chip--warn">key</span></td></tr><tr>
+<td class="k">oh</td>
+<td class="nm">Ohio</td>
+<td>TMDD/CARS</td>
+<td class="ep"><code>https://publicapi.ohgo.com/api/v1/constructions</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">ok</td>
+<td class="nm">Oklahoma</td>
+<td>WZDx</td>
+<td class="ep"><code>https://oktraffic.org/api/Geojsons/workzones?&amp;access_token=&lt;REDACTED&gt;</code></td>
+<td><span class="chip chip--warn">key</span></td></tr><tr>
+<td class="k">pa</td>
+<td class="nm">Pennsylvania DOT</td>
+<td>WZDx</td>
+<td class="ep"><code>https://atms.paturnpike.com/api/WZDxWorkZoneFeed?api_key=</code></td>
+<td><span class="chip chip--warn">key</span></td></tr><tr>
+<td class="k">dt</td>
+<td class="nm">PurposeBuilt DTCD (CWZ 1.0)</td>
+<td>WZDx</td>
+<td class="ep"><code>https://feeds.purposebuilt.systems/cwz</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">qu</td>
+<td class="nm">Quebec City</td>
+<td>WZDx</td>
+<td class="ep"><code>https://quebec.gewi.com/wzdx/pull</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">tx</td>
+<td class="nm">Texas DOT</td>
+<td>WZDx</td>
+<td class="ep"><code>https://api.drivetexas.org/api/conditions.wzdx.geojson</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">ut</td>
+<td class="nm">Utah</td>
+<td>TMDD/CARS</td>
+<td class="ep"><code>https://udottraffic.utah.gov/wzdx/udot/v40/data</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">va</td>
+<td class="nm">Virginia DOT</td>
+<td>WZDx</td>
+<td class="ep"><code>https://data.511-atis-ttrip-prod.iteriscloud.com/smarterRoads/workzone/workZoneJSON/current/workZone.json?token=</code></td>
+<td><span class="chip chip--warn">key</span></td></tr><tr>
+<td class="k">wa</td>
+<td class="nm">Washington</td>
+<td>WZDx</td>
+<td class="ep"><code>https://wzdx.wsdot.wa.gov/api/v4/WorkZoneFeed</code></td>
+<td><span class="chip chip--mute">open</span></td></tr><tr>
+<td class="k">wi</td>
+<td class="nm">Wisconsin</td>
+<td>WZDx</td>
+<td class="ep"><code>https://511wi.gov/api/wzdx</code></td>
+<td><span class="chip chip--mute">open</span></td></tr></tbody></table></div>
+</section>
+
+<section id="cam">
+  <div class="sec-head"><h2>Camera sources</h2><span class="count">15 networks · 21,941 cameras</span></div>
+  <p class="sec-note">Still imagery behind the camera-vision validator. Counts are live pulls; every returned
+  camera carried a usable still-image URL.</p>
+  <div class="scroller"><table>
+  <thead><tr><th>State</th><th>Network</th><th>Adapter family</th><th>Endpoint</th><th>Cameras</th></tr></thead>
+  <tbody><tr>
+<td class="k">AZ</td>
+<td class="nm">Arizona</td>
+<td>IBI/511 cameras (POST)</td>
+<td class="ep"><code>https://az511.com/ (List/GetData cameras)</code></td>
+<td class="num">644</td></tr><tr>
+<td class="k">CA</td>
+<td class="nm">California</td>
+<td>Caltrans CWWP2 (12 districts)</td>
+<td class="ep"><code>https://cwwp2.dot.ca.gov/data/d&lt;N&gt;/cctv/cctvStatusD&lt;NN&gt;.json</code></td>
+<td class="num">3,340</td></tr><tr>
+<td class="k">FL</td>
+<td class="nm">Florida</td>
+<td>ArcGIS FeatureServer</td>
+<td class="ep"><code>https://gis.fdot.gov/arcgis/rest/services/DIVAS_Cameras/FeatureServer/0/query</code></td>
+<td class="num">1,669</td></tr><tr>
+<td class="k">GA</td>
+<td class="nm">Georgia</td>
+<td>IBI/511 cameras (POST)</td>
+<td class="ep"><code>https://511ga.org/ (List/GetData cameras)</code></td>
+<td class="num">4,043</td></tr><tr>
+<td class="k">ID</td>
+<td class="nm">Idaho</td>
+<td>IBI/511 cameras (POST)</td>
+<td class="ep"><code>https://511.idaho.gov/ (List/GetData cameras)</code></td>
+<td class="num">457</td></tr><tr>
+<td class="k">IA</td>
+<td class="nm">Iowa</td>
+<td>ArcGIS FeatureServer</td>
+<td class="ep"><code>https://services.arcgis.com/8lRhdTsQyJpO52F1/.../Traffic_Cameras_View/FeatureServer/0/query</code></td>
+<td class="num">1,252</td></tr><tr>
+<td class="k">LA</td>
+<td class="nm">Louisiana</td>
+<td>IBI/511 cameras (POST)</td>
+<td class="ep"><code>https://www.511la.org/ (List/GetData cameras)</code></td>
+<td class="num">336</td></tr><tr>
+<td class="k">ME</td>
+<td class="nm">Maine / New England</td>
+<td>IBI/511 cameras (POST)</td>
+<td class="ep"><code>https://newengland511.org/ (List/GetData cameras)</code></td>
+<td class="num">405</td></tr><tr>
+<td class="k">MN</td>
+<td class="nm">Minnesota</td>
+<td>CARS cameras_v1</td>
+<td class="ep"><code>https://mntg.carsprogram.org/cameras_v1/api/cameras</code></td>
+<td class="num">1,528</td></tr><tr>
+<td class="k">NV</td>
+<td class="nm">Nevada</td>
+<td>IBI/511 cameras (POST)</td>
+<td class="ep"><code>https://www.nvroads.com/ (List/GetData cameras)</code></td>
+<td class="num">640</td></tr><tr>
+<td class="k">NY</td>
+<td class="nm">New York</td>
+<td>511NY getcameras</td>
+<td class="ep"><code>https://511ny.org/api/getcameras?format=json</code></td>
+<td class="num">1,871</td></tr><tr>
+<td class="k">NC</td>
+<td class="nm">North Carolina</td>
+<td>IBI/511 cameras (POST)</td>
+<td class="ep"><code>https://www.drivenc.gov/ (List/GetData cameras)</code></td>
+<td class="num">1,140</td></tr><tr>
+<td class="k">PA</td>
+<td class="nm">Pennsylvania</td>
+<td>IBI/511 cameras (POST)</td>
+<td class="ep"><code>https://www.511pa.com/ (List/GetData cameras)</code></td>
+<td class="num">1,536</td></tr><tr>
+<td class="k">TX</td>
+<td class="nm">Texas (Austin)</td>
+<td>Socrata open data</td>
+<td class="ep"><code>https://data.austintexas.gov/resource/b4k4-adkb.json (images: cctv.austinmobility.io)</code></td>
+<td class="num">1,005</td></tr><tr>
+<td class="k">UT</td>
+<td class="nm">Utah</td>
+<td>IBI/511 cameras (POST)</td>
+<td class="ep"><code>https://www.udottraffic.utah.gov/ (List/GetData cameras)</code></td>
+<td class="num">2,075</td></tr></tbody></table></div>
+</section>
+
+<section id="dev">
+  <div class="sec-head"><h2>DMS &amp; connected device sources</h2>
+    <span class="count">19 sources · 4,606 devices · 74 arrow boards</span></div>
+  <p class="sec-note">Connected field devices behind the device validator, and the sign text behind the DMS
+  validator. 8 further state feeds are configured but waiting on a free 511 registration.</p>
+  <div class="scroller"><table>
+  <thead><tr><th>State</th><th>Agency</th><th>Endpoint</th><th>Devices</th><th>Arrow&nbsp;boards</th>
+  <th>Evidence grade</th><th>Notes</th></tr></thead>
+  <tbody><tr>
+<td class="k">IA</td><td class="nm">Iowa DOT — DMS_View</td>
+<td class="ep"><code>services.arcgis.com/8lRhdTsQyJpO52F1/…/DMS_View/FeatureServer/0/query</code></td>
+<td class="num">119</td><td class="num em">62</td><td><span class="chip chip--ok">live telemetry</span></td>
+<td class="note">Arrow-board type inferred from the device name (Solar Tech&nbsp;-&nbsp;AB, iCone&nbsp;-&nbsp;AB), not a typed field.</td></tr><tr class="dim">
+<td class="k">AZ</td><td class="nm">Arizona</td><td class="ep"><code>https://az511.com/api/v2/get/messagesigns</code></td>
+<td class="num">—</td><td class="num">—</td><td><span class="chip chip--warn">key not set</span></td>
+<td class="note">Free 511 registration outstanding.</td></tr><tr>
+<td class="k">CA</td><td class="nm">California</td><td class="ep"><code>https://cwwp2.dot.ca.gov/data/d&lt;N&gt;/cms/cmsStatusD&lt;NN&gt;.json</code></td>
+<td class="num">1,016</td><td class="num">—</td>
+<td><span class="chip chip--ok">live telemetry</span></td><td class="note">Caltrans CWWP2 across 12 districts; some intermittently 500 and are skipped.</td></tr><tr>
+<td class="k">FL</td><td class="nm">Florida</td><td class="ep"><code>https://gis.fdot.gov/arcgis/rest/services/DIVAS_MessageBoard/FeatureServer/0/query</code></td>
+<td class="num">1,138</td><td class="num">—</td>
+<td><span class="chip chip--ok">live telemetry</span></td><td class="note"></td></tr><tr class="dim">
+<td class="k">ID</td><td class="nm">Idaho</td><td class="ep"><code>https://511.idaho.gov/api/v2/get/messagesigns</code></td>
+<td class="num">—</td><td class="num">—</td><td><span class="chip chip--warn">key not set</span></td>
+<td class="note">Free 511 registration outstanding.</td></tr><tr>
+<td class="k">KY</td><td class="nm">Kentucky</td><td class="ep"><code>https://services2.arcgis.com/CcI36Pduqd0OR4W9/.../dmsSigns_2020/FeatureServer/0/query</code></td>
+<td class="num">88</td><td class="num">—</td>
+<td><span class="chip chip--ok">live telemetry</span></td><td class="note">Filtered to <code>dmsStatus='Online'</code> (90&nbsp;→&nbsp;88).</td></tr><tr class="dim">
+<td class="k">LA</td><td class="nm">Louisiana</td><td class="ep"><code>https://511la.org/api/v2/get/messagesigns</code></td>
+<td class="num">—</td><td class="num">—</td><td><span class="chip chip--warn">key not set</span></td>
+<td class="note">Free 511 registration outstanding.</td></tr><tr>
+<td class="k">ME</td><td class="nm">Maine</td><td class="ep"><code>https://arcgisserver.maine.gov/arcgis/rest/services/mdot/MaineDOT_Dynamic/MapServer/111/query</code></td>
+<td class="num">101</td><td class="num">—</td>
+<td><span class="chip chip--stop">inventory only</span></td><td class="note">Static asset inventory: 101 Ver-Mac <em>Trailer Mounted</em> changeable message signs, no message or timestamp.</td></tr><tr>
+<td class="k">MD</td><td class="nm">Maryland</td><td class="ep"><code>https://chartimap1.sha.maryland.gov/arcgis/rest/services/CHART/DMS/MapServer/0/query</code></td>
+<td class="num">295</td><td class="num">—</td>
+<td><span class="chip chip--ok">live telemetry</span></td><td class="note"></td></tr><tr class="dim">
+<td class="k">NV</td><td class="nm">Nevada</td><td class="ep"><code>https://www.nvroads.com/api/v2/get/messagesigns</code></td>
+<td class="num">—</td><td class="num">—</td><td><span class="chip chip--warn">key not set</span></td>
+<td class="note">Free 511 registration outstanding.</td></tr><tr class="dim">
+<td class="k">NJ</td><td class="nm">New Jersey</td><td class="ep"><code>https://511nj.org/api/getmessagesigns</code></td>
+<td class="num">—</td><td class="num">—</td><td><span class="chip chip--warn">key not set</span></td>
+<td class="note">Free 511 registration outstanding.</td></tr><tr class="dim">
+<td class="k">NM</td><td class="nm">New Mexico</td><td class="ep"><code>https://servicev4.nmroads.com/RealMapWAR/GetMessageSigns</code></td>
+<td class="num">—</td><td class="num">—</td><td><span class="chip chip--mute">unreachable</span></td>
+<td class="note">NMRoads TLS certificate expired.</td></tr><tr>
+<td class="k">NY</td><td class="nm">New York</td><td class="ep"><code>https://511ny.org/api/getmessagesigns?format=json</code></td>
+<td class="num">925</td><td class="num">—</td>
+<td><span class="chip chip--ok">live telemetry</span></td><td class="note">Keyless CARS/OneStop path.</td></tr><tr class="dim">
+<td class="k">NC</td><td class="nm">North Carolina</td><td class="ep"><code>https://www.drivenc.gov/api/v2/get/messagesigns</code></td>
+<td class="num">—</td><td class="num">—</td><td><span class="chip chip--warn">key not set</span></td>
+<td class="note">Free 511 registration outstanding.</td></tr><tr>
+<td class="k">OK</td><td class="nm">Oklahoma</td><td class="ep"><code>https://oktraffic.org/api/Devices + /api/DmsStatuses</code></td>
+<td class="num">167</td><td class="num em">7</td>
+<td><span class="chip chip--ok">live telemetry</span></td><td class="note">ODOT models <em>Trailer</em> as its own non-DMS class (deviceTypeNameId&nbsp;9) — those are the towable boards. 10 registered, 3 report 0,0 and drop.</td></tr><tr>
+<td class="k">PA</td><td class="nm">Pennsylvania</td><td class="ep"><code>https://gis.penndot.gov/arcgis/rest/services/tsams/tsams/MapServer/17/query</code></td>
+<td class="num">752</td><td class="num">—</td>
+<td><span class="chip chip--stop">inventory only</span></td><td class="note">Static asset inventory: no message field, no timestamp. Also published 185 Planned + 83 Programmed + 20 Down devices not in the field — filtered to <code>DEVICE_STATUS='Existing/Standby'</code> (1040&nbsp;→&nbsp;752).</td></tr><tr class="dim">
+<td class="k">UT</td><td class="nm">Utah</td><td class="ep"><code>https://www.udottraffic.utah.gov/api/v2/get/messagesigns</code></td>
+<td class="num">—</td><td class="num">—</td><td><span class="chip chip--warn">key not set</span></td>
+<td class="note">Free 511 registration outstanding.</td></tr><tr>
+<td class="k">WA</td><td class="nm">Washington</td><td class="ep"><code>https://wzdx.wsdot.wa.gov/api/v4/DeviceFeed</code></td>
+<td class="num">5</td><td class="num em">5</td>
+<td><span class="chip chip--ok">live telemetry</span></td><td class="note">The only source with a properly typed WZDx <code>device_type</code> field.</td></tr><tr class="dim">
+<td class="k">WI</td><td class="nm">Wisconsin</td><td class="ep"><code>https://511wi.gov/api/v2/get/messagesigns</code></td>
+<td class="num">—</td><td class="num">—</td><td><span class="chip chip--warn">key not set</span></td>
+<td class="note">Free 511 registration outstanding.</td></tr></tbody></table></div>
+</section>
+
+<section id="ref">
+  <div class="sec-head"><h2>Reference &amp; enrichment</h2><span class="count">20 services</span></div>
+  <p class="sec-note">Geometry, corroboration, safety, weather, freight and analytics sources that shape or
+  annotate the event set.</p>
+  <div class="scroller"><table>
+  <thead><tr><th>Domain</th><th>Provider</th><th>Service</th><th>Endpoint</th><th>Access</th>
+  <th>What it contributes</th></tr></thead>
+  <tbody><tr>
+<td class="nm">Geometry / LRS</td><td>FHWA &amp; BTS</td><td>ARNOLD all-roads linear referenced network</td>
+<td class="ep"><code>geo.dot.gov/server/rest/services/Hosted/ARNOLD_&lt;ST&gt;_&lt;YEAR&gt;/FeatureServer/0</code></td>
+<td><span class="chip chip--mute">open</span></td>
+<td class="note">Route polylines by route id + milepost — turns route/milepost zones into road-following linework</td></tr><tr>
+<td class="nm">Geometry / LRS</td><td>Caltrans</td><td>State Highway Network centerlines</td>
+<td class="ep"><code>caltrans-gis.dot.ca.gov</code></td>
+<td><span class="chip chip--mute">open</span></td>
+<td class="note">State-centerline-first geometry where ARNOLD <code>route_id</code> schemas don't match (CA, TX)</td></tr><tr>
+<td class="nm">Geometry / LRS</td><td>State DOTs</td><td>Milepost + centerline layers (TX, NJ, IL, MO, WY, MA, CO)</td>
+<td class="ep"><code>services*.arcgis.com FeatureServers</code></td>
+<td><span class="chip chip--mute">open</span></td>
+<td class="note">Per-state route + milepost geometry for chainage</td></tr><tr>
+<td class="nm">Geometry / LRS</td><td>Iowa DOT</td><td>Reference posts / RAMS chainage</td>
+<td class="ep"><code>gis.iowadot.gov</code></td>
+<td><span class="chip chip--mute">open</span></td>
+<td class="note">Linear position for device↔work-zone matching</td></tr><tr>
+<td class="nm">Probe traffic</td><td>TomTom</td><td>Traffic Incident Details v5</td>
+<td class="ep"><code>api.tomtom.com/traffic/services/5/incidentDetails</code></td>
+<td><span class="chip chip--warn">key</span></td>
+<td class="note">Independent non-DOT corroboration; <code>iconCategory</code> 7/8/9 only. Budget-capped, circuit-broken</td></tr><tr>
+<td class="nm">Vision</td><td>Anthropic</td><td>Messages API</td>
+<td class="ep"><code>api.anthropic.com/v1/messages</code></td>
+<td><span class="chip chip--warn">key</span></td>
+<td class="note">Vision model behind camera validation. One inference per due closure, hard cap of 2 per closure</td></tr><tr>
+<td class="nm">Vision</td><td>OpenAI</td><td>Chat Completions</td>
+<td class="ep"><code>api.openai.com/v1/chat/completions</code></td>
+<td><span class="chip chip--warn">key</span></td>
+<td class="note">Alternate vision provider, selected by <code>VISION_PROVIDER</code></td></tr><tr>
+<td class="nm">Weather</td><td>NOAA / NWS</td><td>Active CAP alerts</td>
+<td class="ep"><code>api.weather.gov/alerts/active</code></td>
+<td><span class="chip chip--mute">open</span></td>
+<td class="note">Road-impacting weather; the only source reaching the 16 states + DC with no other feed</td></tr><tr>
+<td class="nm">Safety</td><td>NHTSA</td><td>FARS annual national CSV bundles</td>
+<td class="ep"><code>static.nhtsa.gov/nhtsa/downloads/FARS/&lt;year&gt;/National/</code></td>
+<td><span class="chip chip--mute">open</span></td>
+<td class="note">Work-zone and commercial-vehicle crash history. Bulk files — the live CrashAPI 403s datacenter IPs</td></tr><tr>
+<td class="nm">Freight</td><td>FHWA / BTS</td><td>National Bridge Inventory (NTAD)</td>
+<td class="ep"><code>services.arcgis.com/xOi1kZaI0eWDREZv/…/NTAD_National_Bridge_Inventory</code></td>
+<td><span class="chip chip--mute">open</span></td>
+<td class="note">Vertical underclearance for OSOW; annotates zones with structures the route passes under</td></tr><tr>
+<td class="nm">Freight</td><td>U.S. CBP</td><td>Border wait times</td>
+<td class="ep"><code>bwt.cbp.gov/api/waittimes</code></td>
+<td><span class="chip chip--mute">open</span></td>
+<td class="note">Crossing waits. CBP returns no coordinates; a local port lookup supplies them</td></tr><tr>
+<td class="nm">Truck parking</td><td>MAASTO (8 DOTs)</td><td>TPIMS V2.2 static + dynamic</td>
+<td class="ep"><code>truckparking.travelmidwest.com/TPIMS_Static.json · _Dynamic.json</code></td>
+<td><span class="chip chip--mute">open</span></td>
+<td class="note">Site metadata joined to live availability on <code>siteId</code></td></tr><tr>
+<td class="nm">Truck parking</td><td>MnDOT · WisDOT · TRIMARC</td><td>Supplemental parking feeds</td>
+<td class="ep"><code>iris.dot.state.mn.us · transportal.cee.wisc.edu · trimarc.org</code></td>
+<td><span class="chip chip--mute">open</span></td>
+<td class="note">Regional supplements</td></tr><tr>
+<td class="nm">V2X</td><td>FHWA / BTS</td><td>RSU Deployment Locations (NTAD)</td>
+<td class="ep"><code>geo.dot.gov/…/RSU_Deployment_Locations_…/FeatureServer/0</code></td>
+<td><span class="chip chip--mute">open</span></td>
+<td class="note">Roadside-unit inventory for the connected-vehicle layer</td></tr><tr>
+<td class="nm">Routing</td><td>Project OSRM</td><td>Route service v1</td>
+<td class="ep"><code>router.project-osrm.org/route/v1/driving</code></td>
+<td><span class="chip chip--mute">open</span></td>
+<td class="note">Detour geometry and travel times. Public demo server; results cached persistently</td></tr><tr>
+<td class="nm">Population</td><td>US Census</td><td>Decennial PL + TIGERweb</td>
+<td class="ep"><code>api.census.gov/data/2020/dec/pl · tigerweb.geo.census.gov</code></td>
+<td><span class="chip chip--warn">key</span></td>
+<td class="note">Population inside an IPAWS geofence; urban-area exclusion</td></tr><tr>
+<td class="nm">Population</td><td>OpenStreetMap</td><td>Overpass · Nominatim</td>
+<td class="ep"><code>overpass-api.de/api/interpreter · nominatim.openstreetmap.org</code></td>
+<td><span class="chip chip--mute">open</span></td>
+<td class="note">POI/road context and geocoding</td></tr><tr>
+<td class="nm">Demand</td><td>Ticketmaster</td><td>Discovery API v2</td>
+<td class="ep"><code>app.ticketmaster.com/discovery/v2/events.json</code></td>
+<td><span class="chip chip--warn">key</span></td>
+<td class="note">Event demand surges near the corridor. Key not yet set</td></tr><tr>
+<td class="nm">Demand</td><td>PredictHQ</td><td>Events API v1</td>
+<td class="ep"><code>api.predicthq.com/v1/events/</code></td>
+<td><span class="chip chip--warn">key</span></td>
+<td class="note">Alternate demand-surge source</td></tr><tr>
+<td class="nm">Grants</td><td>Grants.gov</td><td>search2 · fetchOpportunity</td>
+<td class="ep"><code>api.grants.gov/v1/api/search2</code></td>
+<td><span class="chip chip--mute">open</span></td>
+<td class="note">Federal opportunities, filtered to an ITS / digital-infrastructure keyword set</td></tr></tbody></table></div>
+</section>
+
+<section id="ops">
+  <div class="sec-head"><h2>Operational integrations</h2><span class="count">7 services · no data ingested</span></div>
+  <p class="sec-note">Called by the platform but contributing no inbound data. Listed for completeness;
+  endpoints are environment-specific and deliberately omitted.</p>
+  <div class="scroller"><table>
+  <thead><tr><th>Provider</th><th>Service</th><th>Purpose</th></tr></thead><tbody>
+  <tr><td class="nm">SendGrid</td><td>Transactional email</td><td class="note">Alert and digest delivery</td></tr>
+  <tr><td class="nm">Twilio</td><td>Programmable SMS</td><td class="note">Alert delivery</td></tr>
+  <tr><td class="nm">Slack</td><td>Incoming webhook</td><td class="note">Operational alert routing</td></tr>
+  <tr><td class="nm">Microsoft Teams</td><td>Incoming webhook</td><td class="note">Operational alert routing</td></tr>
+  <tr><td class="nm">ServiceNow</td><td>Incident table API</td><td class="note">Ticketing for asset-health and sensor alerts</td></tr>
+  <tr><td class="nm">S3-compatible store</td><td>Bucket API</td><td class="note">Aerial-overlay imagery and large-file storage</td></tr>
+  <tr><td class="nm">Internal ML service</td><td>Prediction endpoints</td><td class="note">Parking prediction and ML-backed analytics</td></tr>
+  </tbody></table></div>
+</section>
+
+<footer>Counts are observed, not estimated: each camera and device endpoint was fetched on 3 September 2026 and
+the returned records counted. Where a source needs a key, the table says so — request it separately rather than
+from this page. This inventory covers consumed sources only; the platform's own REST API and the feeds it
+publishes are a separate document.</footer>
+</div>
