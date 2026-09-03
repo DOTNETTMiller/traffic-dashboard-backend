@@ -1435,6 +1435,7 @@ const baseSat=L.layerGroup([
 L.control.layers({'Street':baseStreet,'Satellite':baseSat},{},{position:'topright'}).addTo(map);
 setTimeout(()=>map.invalidateSize(),200); window.addEventListener('resize',()=>map.invalidateSize());
 let schedSegments=[];
+let wzMP={a:null,b:null};   // numeric mileposts from the last snap, for the WZDx export
 let mode='begin',beginPt=null,endPt=null,beginMk=null,endMk=null,line=null,wzRoute=null,schedule=[],laneData=[];
 // SELF_CONTAINED: the emailable standalone build flips this to true → the tool makes NO calls to our
 // servers at all. Cameras then come only from the state's own GIS (CAM) or a file the user loads; the
@@ -1581,6 +1582,7 @@ async function snapWZ(){if(!(beginPt&&endPt))return;drawWZLine();const dir=dirLa
   const autoMP=s=>!s||/^MP\s*[\d.]+$/i.test(s); let mpTxt='';
   try{ const [a,b]=await Promise.all([wzMilepost(beginPt),wzMilepost(endPt)]);
     if(a&&autoMP(v('beginLoc')))el('beginLoc').value='MP '+a.mp; if(b&&autoMP(v('endLoc')))el('endLoc').value='MP '+b.mp;
+    wzMP={a:a?a.mp:null,b:b?b.mp:null};   // keep the numbers for the WZDx milepost fields
     // auto-fill Route from the posted route code (only when not already set)
     const rc=(a&&a.route)||(b&&b.route);
     if(rc && !v('route')){ const fr=wzRouteFriendly(rc);
@@ -2031,9 +2033,31 @@ function toWZDx(){const now=new Date().toISOString();const coords=geometryCoords
   if(v('rWeight'))restr.push({type:'reduced-weight',value:v('rWeight')});
   if(v('rLength'))restr.push({type:'reduced-length',value:v('rLength')});
   const baseName=v('project')||('Caltrans-'+Date.now().toString(36));
+// WZDx v4.2 carries beginning_milepost / ending_milepost (numbers) AND
+// beginning_cross_street / ending_cross_street (text) as separate fields. The builder
+// was putting whatever sat in the location box into the CROSS-STREET field, so on a
+// state highway the feed claimed a cross street of "MP 125.3" and never emitted a
+// milepost at all. Split them: a milepost goes in the milepost field as a number, and
+// anything else is a genuine cross street. Local roads have no posted milepost, so they
+// naturally produce a cross street and no milepost, which is correct rather than a
+// special case.
+const MP_RE=/^\s*MP\s*([\d.]+)\s*$/i;
+function linearRef(id, stored){
+  const txt=v(id);
+  const m=MP_RE.exec(txt);
+  if(m) return { mp: parseFloat(m[1]) };
+  if(txt) return { cross: txt };
+  return Number.isFinite(stored) ? { mp: stored } : {};
+}
+function wzLinearRefs(){
+  const a=linearRef('beginLoc', wzMP.a), b=linearRef('endLoc', wzMP.b), o={};
+  if(a.mp!=null) o.beginning_milepost=a.mp; if(a.cross) o.beginning_cross_street=a.cross;
+  if(b.mp!=null) o.ending_milepost=b.mp;    if(b.cross) o.ending_cross_street=b.cross;
+  return o;
+}
   const mkFeature=(dirName,geom,suffix)=>{const props={core_details:{event_type:'work-zone',data_source_id:'caltrans-wz-builder',road_names:[routeVal()].filter(Boolean),direction:dirName,name:baseName+suffix,description:v('description')||undefined,update_date:now},
     start_date:(v('beginDT')||now),end_date:wzEndDate(),x_review_by:wzEndDate()||undefined,vehicle_impact:v('impact')||'unknown',
-    beginning_cross_street:v('beginLoc')||undefined,ending_cross_street:v('endLoc')||undefined,
+    ...wzLinearRefs(),
     is_start_position_verified:false,is_end_position_verified:false};
     if(restr.length)props.restrictions=restr.slice();
     if(v('reducedSpeed'))props.reduced_speed_limit_kph=Math.round(parseFloat(v('reducedSpeed'))*1.60934);  // WZDx standard (mph→kph)
