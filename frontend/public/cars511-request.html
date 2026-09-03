@@ -453,13 +453,25 @@
 
 <script>
 const map = L.map('map').setView([41.85, -93.5], 7);
-// Esri basemap tiles: no API key, no Referer required (OSM's public tiles 403 when opened from file://).
-const baseStreet = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom:19, attribution:'Tiles © Esri', crossOrigin:true, errorTileUrl:'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==' }).addTo(map);
+// Basemap tiles must need no API key and no Referer — the standalone build is opened straight
+// from file://, where osm.org's own tiles 403. Both CARTO and Esri serve fine without one.
+const baseStreet = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom:19, attribution:'Tiles © Esri', crossOrigin:true, errorTileUrl:'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==' });
 const baseSat = L.layerGroup([
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom:19, attribution:'Imagery © Esri' }),
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom:19 })   // road labels over the imagery
 ]);
-const layerControl = L.control.layers({ 'Street': baseStreet, 'Satellite': baseSat }, {}, { position:'topright', collapsed:false }).addTo(map);
+// Esri's World_Street_Map lags on route changes — Stolle spotted IA 401 on it, decommissioned
+// in 1991. OpenStreetMap-derived tiles track decommissionings and new alignments far sooner,
+// which matters when the whole point is picking the right route. CARTO's tiles now carry an
+// "API KEY REQUIRED" watermark (they still return HTTP 200, so only looking catches it), so
+// this uses OSM's own tiles: keyless, no Referer needed, and current on route changes.
+// is OSM data, keeps the route shields legible, and needs no key. Esri stays selectable so
+// nothing is lost if a stretch reads better on it.
+const baseOSM = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  { maxZoom:19, attribution:'© OpenStreetMap contributors', crossOrigin:true,
+    errorTileUrl:'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==' }).addTo(map);
+const layerControl = L.control.layers({ 'Street': baseOSM, 'Street (Esri)': baseStreet, 'Satellite': baseSat },
+  {}, { position:'topright', collapsed:false }).addTo(map);
 // register scan result layers as toggleable overlays in the top-right control
 const __ov={}; function setOverlay(name, layer){ if(__ov[name]){ try{ layerControl.removeLayer(__ov[name]); }catch(e){} } __ov[name]=layer||null; if(layer){ try{ layerControl.addOverlay(layer, name); }catch(e){} } }
 // Ensure Leaflet measures the container once it's laid out (blank-map guard).
