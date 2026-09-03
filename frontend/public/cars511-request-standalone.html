@@ -1751,6 +1751,42 @@ const IADOT='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services';
 const d2=(p,lat,lng)=>{ const k=Math.cos(p.lat*Math.PI/180), dx=(lng-p.lng)*k, dy=lat-p.lat; return dx*dx+dy*dy; };
 async function iaQuery(layer,params){ try{ const r=await fetch(IADOT+'/'+layer+'/FeatureServer/0/query?'+params+'&f=json'); return await r.json(); }catch(e){ return null; } }
 // Nearest POSTED reference post (milepost) to a point, preferring the travel direction.
+// What road is this pin actually on?
+//
+// The old flow asked "where is the nearest reference post", but posts exist ONLY on the
+// state system (all 134 posted routes are Interstate, US or Iowa state — no city or county
+// roads). So a pin on a residential street matched a highway's post half a mile away and the
+// request went out as "I-35, MP 71.8". Asking the road network instead is unambiguous: on a
+// highway the pin is 0 m from that highway; on a side street it is metres from the side
+// street. Road_Network_View carries every system — INTERSTATE, US, IOWA and LOCAL — with the
+// same ROUTEID format the reference posts use, so the answer here also tells the milepost
+// lookup which route to measure along.
+function titleCase(s){ return String(s||'').toLowerCase()
+  .replace(/\b([a-z])/g,(m,c)=>c.toUpperCase()).replace(/\b(Ne|Nw|Se|Sw|Us|Ia)\b/g,m=>m.toUpperCase()); }
+async function iowaRoadAt(pt){
+  const pad=0.004;   // ~440 m — enough to catch the road under the pin, small enough to stay quick
+  const bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
+  try{
+    const j=await iaQuery('Road_Network_View','where=1%3D1&geometry='+bb+
+      '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'+
+      '&outFields=ROAD_SYSTEM_DESC,SHORT_COMMON_NAME_1,COUNTY_SIGNED_ROUTE_1,ROUTEID'+
+      '&returnGeometry=true&outSR=4326&resultRecordCount=2000');
+    const f=(j&&j.features)||[]; if(!f.length) return null;
+    let best=null, bestM=Infinity;
+    for(const x of f){
+      for(const path of ((x.geometry&&x.geometry.paths)||[])){
+        const ll=path.map(c=>[c[1],c[0]]);
+        const m=minDistToPath(pt,ll);
+        if(m<bestM){ bestM=m; best=x.attributes; }
+      }
+    }
+    if(!best) return null;
+    const sys=String(best.ROAD_SYSTEM_DESC||'').toUpperCase();
+    const local = sys==='LOCAL';
+    return { local, system:sys, routeId:best.ROUTEID||null, metres:bestM,
+      name: titleCase(String(best.COUNTY_SIGNED_ROUTE_1||best.SHORT_COMMON_NAME_1||'').split(',')[0].trim()) };
+  }catch(e){ return null; }
+}
 async function iowaRefPost(pt,dirLetter,routeId){
   const pad = routeId ? 0.06 : 0.02;   // widen when locked to a route (end may be off it)
   const bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
@@ -1842,7 +1878,12 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
     saveState();
   }).catch(()=>{});
   reverseFill(beginPt,'begin');   // county follows the begin pin on every re-snap, not just the first click
-  const rpA=await iowaRefPost(beginPt,dLetter); const rpB=await iowaRefPost(endPt,dLetter, rpA&&rpA.routeId);
+  // Identify the road under the pin FIRST, then read mileposts along THAT route — rather than
+  // grabbing the nearest post and hoping it belongs to this road.
+  const road=await iowaRoadAt(beginPt);
+  const onLocal = !!(road && road.local);
+  const rpA=onLocal?null:await iowaRefPost(beginPt,dLetter, road&&road.routeId);
+  const rpB=onLocal?null:await iowaRefPost(endPt,dLetter, (rpA&&rpA.routeId)||(road&&road.routeId));
   let mpA=null,mpB=null;
   const autoMP=s=>!s || /^MP\s*[\d.]+$/i.test(s);   // refresh auto-generated MP; keep custom cross-street text
   // County and speed used to fill once and never move again, so dragging A/B onto a different
@@ -1851,9 +1892,20 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
   if(rpA){ mpA=rpA.mp; if(autoMP(v('beginLoc'))) el('beginLoc').value='MP '+rpA.mp;
     if(rpA.route){ if(rpA.route) el('route').value=rpA.route; } }
   if(rpB){ mpB=rpB.mp; if(autoMP(v('endLoc'))) el('endLoc').value='MP '+rpB.mp; }
+  if(onLocal){
+    // A city or county road: name it properly and leave the mileposts alone — there are none
+    // to post. The form asks for "cross-street / MP" precisely because this case exists.
+    if(road.name && autoFilled('route')) setAuto('route', road.name);
+    if(autoMP(v('beginLoc'))) setAuto('beginLoc','');
+    if(autoMP(v('endLoc'))) setAuto('endLoc','');
+    const hint=el('selinfo');
+    if(hint) hint.insertAdjacentHTML('beforeend',
+      '<br><span style="color:#8a5a00">This is <b>'+(road.name||'a local road')+'</b> — not a posted state route, '+
+      'so it has no mileposts. Enter the <b>cross streets</b> for begin and end.</span>');
+  }
   flagMultiRoute(rpA&&rpA.route, rpB&&rpB.route);
   let mi=null, usedIowa=false;
-  let routeId=(rpA&&rpA.routeId)||(rpB&&rpB.routeId);
+  let routeId=(rpA&&rpA.routeId)||(rpB&&rpB.routeId)||(!onLocal&&road?road.routeId:null);
   if(routeId){ const suf=(String(routeId).match(/([NSEW])$/)||[])[1];
     if(suf && dLetter && suf!==dLetter){ const opp=oppRouteId(routeId); if(opp) routeId=opp; } }
   if(routeId){ const cl=await iowaCenterline(routeId,beginPt,endPt); if(cl){ wzRoute=cl.latlngs; mi=cl.miles; usedIowa=true; } }
