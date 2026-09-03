@@ -563,7 +563,7 @@ function rememberContact(){ const name=v('contact24'); if(!name) return;
   next.unshift({name, phone});
   localStorage.setItem('cars511_contacts', JSON.stringify(next.slice(0,200)));
   renderContacts(); saveState(); }
-function saveState(){ const s={pts:{beginPt,endPt,detourPts},lanes:laneData,segs:schedSegments,detours}; FIELD_IDS.forEach(id=>{ if(el(id)) s[id]=el(id).value; }); localStorage.setItem('cars511_state', JSON.stringify(s)); }
+function saveState(){ const s={pts:{beginPt,endPt,detourPts},lanes:laneData,segs:schedSegments,detours,auto:AUTO}; FIELD_IDS.forEach(id=>{ if(el(id)) s[id]=el(id).value; }); localStorage.setItem('cars511_state', JSON.stringify(s)); }
 function loadState(){ try{ const s=JSON.parse(localStorage.getItem('cars511_state')||'{}');
   FIELD_IDS.forEach(id=>{ if(el(id)&&s[id]!=null) el(id).value=s[id]; });
   if(el('bothDir')){ const isBoth=/^both\b/i.test(s.direction||''); el('bothDir').checked=isBoth; el('direction').readOnly=isBoth; }
@@ -572,6 +572,9 @@ function loadState(){ try{ const s=JSON.parse(localStorage.getItem('cars511_stat
   if(Array.isArray(s.lanes)){ laneData=s.lanes; if(el('laneCount'))el('laneCount').value=laneData.length||''; renderLanes(); }
   if(Array.isArray(s.segs)){ schedSegments=s.segs; syncSchedule(); }
   if(Array.isArray(s.detours)){ detours=s.detours; renderDetours(); }
+  // Restore which values the MAP filled in. Without this every restored value looks
+  // hand-typed after a reload, so county and speed would stick to the old road forever.
+  if(s.auto && typeof s.auto==='object') Object.assign(AUTO, s.auto);
 }catch(e){} }
 function projects(){ try{ return JSON.parse(localStorage.getItem('cars511_projects')||'[]'); }catch(e){ return []; } }
 function renderProjects(){ const sel=el('projPicker'); sel.innerHTML='<option value="">↺ Saved projects…</option>'+
@@ -597,6 +600,11 @@ function setMode(m){ mode=m; el('btnBegin').classList.toggle('active',m==='begin
   // Mobile: the form is a drawer over a full-screen map. Starting to place points slides the form out of the
   // way to expose the map; the user slides it back when they want it via the #drawerTab button.
   if(isMobile() && (m==='begin'||m==='end'||m==='detour')) showMap(true); }
+// Remembers what the map auto-filled, so a re-snap can replace its own value without
+// clobbering anything typed by hand. Persisted with the rest of the form state.
+const AUTO={};
+function setAuto(id,val){ if(!el(id))return; el(id).value=val; AUTO[id]=val; }
+function autoFilled(id){ const cur=v(id); return !cur || cur===AUTO[id]; }
 function mk(latlng,label,color){ const drag=(label==='A'||label==='B');
   const m=L.marker(latlng,{draggable:drag,icon:L.divIcon({className:'',html:
   `<div style="background:${color};color:#fff;border:2px solid #fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.4)">${label}</div>`,
@@ -731,9 +739,13 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
       box.innerHTML='Nearest RCE office: <b>'+(rce.City||'')+'</b> (District '+rce.District+')'+(rce.Address?' · '+rce.Address:'')+(rce.WebLink?' · <a href="'+rce.WebLink+'" target="_blank" rel="noopener">contacts &amp; email</a>':'')+(remembered?' · <span style="color:#15803d">saved cc loaded</span>':' · <span style="color:#b45309">add the RCE cc once — it’s remembered</span>'); }
     saveState();
   }).catch(()=>{});
+  reverseFill(beginPt,'begin');   // county follows the begin pin on every re-snap, not just the first click
   const rpA=await iowaRefPost(beginPt,dLetter); const rpB=await iowaRefPost(endPt,dLetter, rpA&&rpA.routeId);
   let mpA=null,mpB=null;
   const autoMP=s=>!s || /^MP\s*[\d.]+$/i.test(s);   // refresh auto-generated MP; keep custom cross-street text
+  // County and speed used to fill once and never move again, so dragging A/B onto a different
+  // route left the old county and the old speed limit sitting there. Treat them like the
+  // mileposts: refresh whatever the map put there, keep anything the user typed.
   if(rpA){ mpA=rpA.mp; if(autoMP(v('beginLoc'))) el('beginLoc').value='MP '+rpA.mp;
     if(rpA.route){ if(rpA.route) el('route').value=rpA.route; } }
   if(rpB){ mpB=rpB.mp; if(autoMP(v('endLoc'))) el('endLoc').value='MP '+rpB.mp; }
@@ -748,7 +760,7 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
   if(routeId){ const cl=await iowaCenterline(routeId,beginPt,endPt); if(cl){ wzRoute=cl.latlngs; mi=cl.miles; usedIowa=true; } }
   // Normal-speed reference from Iowa RAMS Speed Limit (layer 78) via the corridor proxy (RAMS isn't
   // CORS-open). Take the max nearby value on this route = the mainline limit (ramps read lower).
-  if(routeId && !v('normalSpeed')){ try{
+  if(routeId && autoFilled('normalSpeed')){ try{
     const dS=0.02, envS=[beginPt.lng-dS,beginPt.lat-dS,beginPt.lng+dS,beginPt.lat+dS].join(',');
     // Layer-78 ROUTE_IDs are suffixed (e.g. S001910080E5255), so match by PREFIX, not equals; fall
     // back to the max primary-system (S-prefix) speed nearby. Max = the mainline limit (ramps lower).
@@ -759,7 +771,7 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
     let sp=(sj.features||[]).map(x=>+x.attributes.SPEED_LIMIT).filter(n=>n>0);
     if(!sp.length){ const fj=await (await fetch(base78+encodeURIComponent("1=1"))).json();
       sp=(fj.features||[]).filter(x=>/^S/.test(String(x.attributes.ROUTE_ID||''))).map(x=>+x.attributes.SPEED_LIMIT).filter(n=>n>0); }
-    if(sp.length){ el('normalSpeed').value=Math.max(...sp); saveState(); }
+    if(sp.length){ setAuto('normalSpeed', String(Math.max(...sp))); saveState(); }
   }catch(e){ /* speed optional */ } }
   // Precise mileposts: interpolate ALONG the centerline (follows road curves). GUARDED — only override the
   // reliable straight-line tenths when the two agree (<1 mi); posts outside the segment can clamp/skew otherwise.
@@ -928,7 +940,8 @@ function exportDetour(){ const fc={type:'FeatureCollection',features:[]};
 async function reverseFill(latlng, which){ if(!el('autofill').checked) return;
   try{ const r=await fetch('https://geo.fcc.gov/api/census/area?lat='+latlng.lat+'&lon='+latlng.lng+'&format=json');
     const j=await r.json(); const c=(j.results||[])[0]||{};
-    if(c.county_name && !v('counties')){ el('counties').value = /county/i.test(c.county_name)?c.county_name:(c.county_name+' County'); saveState(); }
+    if(c.county_name && autoFilled('counties')){
+      setAuto('counties', /county/i.test(c.county_name)?c.county_name:(c.county_name+' County')); saveState(); }
   }catch(e){ /* offline — skip */ } }
 
 // ---- auto-populate from an existing work zone ----
