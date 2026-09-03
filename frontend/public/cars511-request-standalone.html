@@ -2682,9 +2682,21 @@ function scheduleText(){ if(!schedSegments.length) return '';
   return t; }
 // A request is 'continuous' only when nothing recurs — the form's Continuous yes/no.
 function scheduleIsContinuous(){ return schedSegments.length>0 && schedSegments.every(s=>!s.recur||!s.days.length); }
-// The form's free-text 'Times of closure'.
+// The form's free-text 'Times of closure'. "24hr a day" is only true of a closure that
+// actually runs round the clock — Jared's 8/27 submission spans six weeks and says exactly
+// that. A closure that opens and shuts inside one day or one night is continuous in the
+// form's sense (no daily on/off cycle) but is NOT 24-hour, so it states its real window.
+function segHours(s){ const a=Date.parse(s.fromDate+'T'+(s.fromTime||'00:00'));
+  let end=s.untilDate; if(segCrossesMidnight(s) && s.fromDate===s.untilDate){
+    const n=new Date(end+'T00:00'); n.setDate(n.getDate()+1); end=n.toISOString().slice(0,10); }
+  const b=Date.parse(end+'T'+(s.untilTime||'23:59'));
+  return (Number.isFinite(a)&&Number.isFinite(b)) ? (b-a)/3600000 : Infinity; }
 function timesOfClosure(){ if(!schedSegments.length) return '';
-  if(scheduleIsContinuous()) return '24hr a day';
+  if(scheduleIsContinuous()){
+    const short=schedSegments.filter(s=>segHours(s)<24);
+    if(!short.length) return '24hr a day';
+    const uniq=[...new Set(short.map(s=>`${hhmm(s.fromTime)}-${hhmm(s.untilTime)}`))];
+    return uniq.join('; '); }
   const uniq=[...new Set(schedSegments.map(s=>`${hhmm(s.fromTime)}-${hhmm(s.untilTime)}`))];
   return uniq.length===1 ? uniq[0] : schedSegments.map(s=>{
     const d=(s.days||[]).map(x=>DOW_SHORT[x]).join('/')||'daily';
