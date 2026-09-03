@@ -241,6 +241,18 @@
         <div style="flex:1;font-size:12px;color:#64748b">Enter # of through lanes, then set each lane's status below (Lane 1 = leftmost).</div>
       </div>
       <div id="lanesEditor"></div>
+
+      <div class="segHead">Closures on this request</div>
+      <div class="hint" style="margin:0 0 6px">A request covers one stretch of one route. If the job closes a cross
+        street too, or runs onto a second highway, <b>save this one and add the next</b> — the TMC has to file each
+        route as its own 511 entry, so the request goes over already split that way. They share the schedule,
+        detours and contacts below.</div>
+      <div class="mapbtns">
+        <button type="button" class="primarySm" onclick="saveWzSegment()" id="wzSaveBtn">➕ Save closure &amp; add another</button>
+      </div>
+      <div id="wzListWrap" style="display:none">
+        <div style="overflow-x:auto"><table class="segTable" id="wzTable"></table></div>
+      </div>
     </fieldset>
 
     <fieldset>
@@ -563,7 +575,7 @@ function rememberContact(){ const name=v('contact24'); if(!name) return;
   next.unshift({name, phone});
   localStorage.setItem('cars511_contacts', JSON.stringify(next.slice(0,200)));
   renderContacts(); saveState(); }
-function saveState(){ const s={pts:{beginPt,endPt,detourPts},lanes:laneData,segs:schedSegments,detours,auto:AUTO}; FIELD_IDS.forEach(id=>{ if(el(id)) s[id]=el(id).value; }); localStorage.setItem('cars511_state', JSON.stringify(s)); }
+function saveState(){ const s={pts:{beginPt,endPt,detourPts},lanes:laneData,segs:schedSegments,detours,auto:AUTO,wz:wzSegments}; FIELD_IDS.forEach(id=>{ if(el(id)) s[id]=el(id).value; }); localStorage.setItem('cars511_state', JSON.stringify(s)); }
 function loadState(){ try{ const s=JSON.parse(localStorage.getItem('cars511_state')||'{}');
   FIELD_IDS.forEach(id=>{ if(el(id)&&s[id]!=null) el(id).value=s[id]; });
   if(el('bothDir')){ const isBoth=/^both\b/i.test(s.direction||''); el('bothDir').checked=isBoth; el('direction').readOnly=isBoth; }
@@ -575,6 +587,7 @@ function loadState(){ try{ const s=JSON.parse(localStorage.getItem('cars511_stat
   // Restore which values the MAP filled in. Without this every restored value looks
   // hand-typed after a reload, so county and speed would stick to the old road forever.
   if(s.auto && typeof s.auto==='object') Object.assign(AUTO, s.auto);
+  if(Array.isArray(s.wz)){ wzSegments=s.wz; renderWzSegments(); }
 }catch(e){} }
 function projects(){ try{ return JSON.parse(localStorage.getItem('cars511_projects')||'[]'); }catch(e){ return []; } }
 function renderProjects(){ const sel=el('projPicker'); sel.innerHTML='<option value="">↺ Saved projects…</option>'+
@@ -862,6 +875,80 @@ map.on('click', e=>{
   if(beginPt&&endPt) snapWZ(); });
 
 // ---- detour route drawing ----
+// ---- More than one closure on a request ---------------------------------------
+// Castelline: a segment that runs from one highway onto another "would need that
+// transferred into two separate entries — that's the way we have to enter it into 511
+// or OpenTMS", and a head-to-head job often has to close a cross street as well. The
+// map still draws ONE closure at a time (every snap/milepost path is untouched); saved
+// closures accumulate here and each one reaches the TMC as its own block to file.
+let wzSegments=[], activeWz=-1;
+const WZ_FIELDS=['route','direction','beginLoc','endLoc','counties','impact'];
+function wzLabel(w){ return (w.route||'route')+(w.direction?' '+w.direction.toLowerCase():''); }
+function saveWzSegment(){
+  if(!(beginPt&&endPt)){ toast('Mark a begin and end point first'); return; }
+  if(!v('route')){ toast('No route yet — let the map fill it, or type one'); return; }
+  const rec={ begin:{lat:beginPt.lat,lng:beginPt.lng}, end:{lat:endPt.lat,lng:endPt.lng},
+    miles:+miles(beginPt,endPt).toFixed(1) };
+  WZ_FIELDS.forEach(f=>rec[f]=v(f));
+  if(activeWz>=0) wzSegments[activeWz]=rec; else wzSegments.push(rec);
+  activeWz=-1; el('wzSaveBtn').textContent='➕ Save closure & add another';
+  // Clear the working pins, exactly as saving a detour does. Without this the closure
+  // just filed stays drawn and allWzSegments() counts it a second time.
+  [beginMk,endMk,line,line2].forEach(x=>x&&x.remove());
+  beginPt=endPt=beginMk=endMk=line=line2=null; wzRoute=null; wzRoute2=null;
+  if(el('selinfo')) el('selinfo').textContent='Closure saved — click the map to mark the next one, or move on.';
+  setMode('begin');
+  renderWzSegments(); saveState();
+  toast(`Saved ${wzLabel(rec)} — mark the next closure on the map`);
+}
+function editWzSegment(i){ const w=wzSegments[i]; if(!w) return;
+  activeWz=i;
+  beginPt=L.latLng(w.begin.lat,w.begin.lng); endPt=L.latLng(w.end.lat,w.end.lng);
+  WZ_FIELDS.forEach(f=>{ if(el(f)) el(f).value=w[f]||''; });
+  redraw(); el('wzSaveBtn').textContent='💾 Update this closure';
+  renderWzSegments(); toast(`Editing ${wzLabel(w)}`);
+}
+function deleteWzSegment(i){ wzSegments.splice(i,1);
+  if(activeWz===i){ activeWz=-1; el('wzSaveBtn').textContent='➕ Save closure & add another'; }
+  else if(activeWz>i) activeWz--;
+  renderWzSegments(); saveState();
+}
+function renderWzSegments(){
+  const wrap=el('wzListWrap'), tbl=el('wzTable'); if(!wrap||!tbl) return;
+  if(!wzSegments.length){ wrap.style.display='none'; tbl.innerHTML=''; return; }
+  wrap.style.display='block';
+  tbl.innerHTML='<thead><tr><th>Closure</th><th>Extent</th><th>Impact</th><th></th></tr></thead><tbody>'+
+    wzSegments.map((w,i)=>`<tr class="${i===activeWz?'editing':''}">`+
+      `<td>${wzLabel(w)}</td>`+
+      `<td class="segWhen">${(w.beginLoc||'?')}<br>→ ${(w.endLoc||'?')}</td>`+
+      `<td>${w.impact&&w.impact!=='Choose one'?w.impact:'—'}</td>`+
+      `<td class="segAct"><button type="button" title="Edit" onclick="editWzSegment(${i})">\u270e</button>`+
+      `<button type="button" title="Delete" onclick="deleteWzSegment(${i})">\u2715</button></td></tr>`).join('')+'</tbody>';
+}
+// Every closure on the request: the saved ones plus whatever is currently drawn.
+function allWzSegments(){
+  const out=wzSegments.slice();
+  if(beginPt&&endPt&&v('route')&&activeWz<0){
+    const rec={ begin:{lat:beginPt.lat,lng:beginPt.lng}, end:{lat:endPt.lat,lng:endPt.lng},
+      miles:+miles(beginPt,endPt).toFixed(1) };
+    WZ_FIELDS.forEach(f=>rec[f]=v(f));
+    out.push(rec);
+  }
+  return out;
+}
+// Each extra closure is spelled out as its own block, because each becomes its own
+// 511 entry — burying them in a notes field is what makes them get missed.
+function extraClosuresText(){
+  const all=allWzSegments(); if(all.length<2) return '';
+  return '\n\n'+all.slice(1).map((w,i)=>
+    `--- CLOSURE ${i+2} OF ${all.length} — file as its own 511 entry ---\n`+
+    `Route: ${w.route}${w.direction?' - '+w.direction:''}\n`+
+    `Project begin location: ${w.beginLoc||''}\n`+
+    `Project end location: ${w.endLoc||''}\n`+
+    `County/Counties: ${w.counties||''}\n`+
+    `Describe the impact on traffic: ${w.impact&&w.impact!=='Choose one'?w.impact:''}`
+  ).join('\n\n');
+}
 // ---- Multiple named detours ---------------------------------------------------
 // Stolle: a closure often needs one detour per direction, "eastbound detour, westbound
 // detour". detourPts / detourRoute stay the ACTIVE drawing so every existing draw, undo,
@@ -1322,6 +1409,9 @@ function requestPayload(){ const o={}; FIELD_IDS.forEach(id=>{ if(el(id)) o[id]=
   o.detour_geometry=(detourPts.length>=2)?{type:'LineString',coordinates:(detourRoute&&detourRoute.length?detourRoute:detourPts.map(p=>[p.lat,p.lng])).map(c=>[c[1],c[0]])}:null;
   // The segments are what the TMC re-keys into OpenTMS, so send them as structured data;
   // `schedule` stays as the flat human-readable expansion for anything already reading it.
+  o.closures=allWzSegments().map(w=>({route:w.route,direction:w.direction,
+    begin_location:w.beginLoc,end_location:w.endLoc,counties:w.counties,impact:w.impact,
+    begin:[w.begin.lng,w.begin.lat],end:[w.end.lng,w.end.lat],miles:w.miles}));
   o.scheduleSegments=schedSegments.map(s=>({from_date:s.fromDate,until_date:s.untilDate,
     from_time:s.fromTime,until_time:s.untilTime,recurs:!!s.recur,every_weeks:s.every,
     days_of_week:s.days,crosses_midnight:segCrossesMidnight(s),description:segLabel(s)}));
@@ -1719,7 +1809,7 @@ function formFields(){
 // The email body the TMC gets: their format first, then the extras this tool adds.
 function summaryText(){
   const body=formFields().map(([k,val])=>`${k}: ${val}`).join('\n');
-  return body + scheduleText() + routeMapText() + detourText() +
+  return body + extraClosuresText() + scheduleText() + routeMapText() + detourText() +
     '\n\n---\n(Built with the CARS 511 Request Builder — mileposts from Iowa DOT RAMS. Review before submitting.)';
 }
 function copySummary(){ navigator.clipboard.writeText(summaryText()).then(()=>toast('Summary copied')); }
@@ -1770,6 +1860,7 @@ function resetAll(){ if(!confirm('Start a NEW request? Clears the segment, detou
   ['dupWarn','readyBox','dbStatus','laneHint','multiRouteWarn'].forEach(id=>{ if(el(id))el(id).style.display='none'; });
   schedSegments=[]; schedule=[]; if(typeof clearSegForm==='function') clearSegForm();
   detours=[]; activeDetour=-1; if(typeof renderDetours==='function') renderDetours();
+  wzSegments=[]; activeWz=-1; if(typeof renderWzSegments==='function') renderWzSegments();
   if(dupLayer){dupLayer.remove();dupLayer=null;} dupFeats=[];
   if(el('multiRouteWarn')) el('multiRouteWarn').style.display='none';
   el('selinfo').textContent='No segment selected yet — click the map to place the begin point.';
@@ -2204,7 +2295,7 @@ el('rce').addEventListener('change', ()=>{ setRceOffice(v('rce')); saveState(); 
 el('rceEmail').addEventListener('input', saveRceEmail);
 FIELD_IDS.forEach(id=>{ if(el(id)) el(id).addEventListener('input', saveState); });
 if(!prefillFromURL())loadState(); renderProjects(); onRouteChange(); loadIntegration(); loadCsvProjects(); updateClearAlter(); onImpactChange();
-onRecurToggle(); updateSegHints(); renderSegments(); renderContacts(); onDetourToggle(); renderDetours();
+onRecurToggle(); updateSegHints(); renderSegments(); renderContacts(); onDetourToggle(); renderDetours(); renderWzSegments();
 // Demo mode (?demo=1): pure "show the functionality" showcase — hide the submit-to-database endpoint/auth/
 // submit controls (nothing is POSTed anywhere) but KEEP client-side WZDx/JSON export + the 511 PDF fill.
 (function(){try{if(new URLSearchParams(location.search).get('demo')!=='1')return;
