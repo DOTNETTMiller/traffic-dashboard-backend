@@ -39,6 +39,24 @@
   .bar button, .bar select { padding:6px 8px; border:1px solid var(--line); background:#fff; border-radius:6px; cursor:pointer; font-size:12px; }
   .selinfo { background:var(--accent-soft); border-radius:6px; padding:6px 8px; font-size:12px; margin-bottom:8px; }
   .schedList { background:#f8fafc; border:1px solid var(--line); border-radius:6px; padding:6px 8px; font-size:12px; margin-top:8px; max-height:150px; overflow:auto; color:#334155; }
+  /* Schedule segments — mirrors the OpenTMS Timing & Recurrences panel the TMC enters closures in. */
+  .segEditor { background:#f8fafc; border:1px solid var(--line); border-radius:8px; padding:8px 10px 10px; }
+  .segHead { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--sub);
+    background:#eef2f7; border-radius:4px; padding:3px 7px; margin:10px 0 4px; }
+  .segEditor .segHead:first-child { margin-top:0; }
+  .req { color:#b91c1c; font-weight:700; }
+  .dayPicks { display:flex; flex-wrap:wrap; gap:4px 10px; }
+  .dayPicks .chk { margin-top:2px; min-width:62px; }
+  .segTable { width:100%; border-collapse:collapse; font-size:11.5px; }
+  .segTable th { text-align:left; font-weight:600; color:var(--sub); font-size:10px; text-transform:uppercase;
+    letter-spacing:.4px; padding:4px 6px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  .segTable td { padding:5px 6px; border-bottom:1px solid #eef2f7; vertical-align:top; }
+  .segTable tr:last-child td { border-bottom:0; }
+  .segTable tr.editing td { background:var(--accent-soft); }
+  .segTable .segWhen { font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .segTable .segAct button { padding:2px 6px; font-size:10.5px; border:1px solid var(--line); background:#fff;
+    border-radius:4px; cursor:pointer; margin-right:3px; }
+  .primarySm { background:var(--accent); color:#fff; border-color:var(--accent)!important; }
   .actions { position:sticky; bottom:0; background:var(--panel); border-top:1px solid var(--line); padding:10px 0 2px; display:flex; gap:8px; flex-wrap:wrap; }
   .actions button { flex:1; min-width:110px; padding:9px; border-radius:7px; border:none; cursor:pointer; font-weight:700; font-size:13px; }
   .primary { background:var(--accent); color:#fff; }
@@ -262,20 +280,70 @@
     </fieldset>
 
     <fieldset>
-      <legend>Step 6 · Schedule — build out weeks</legend>
-      <div class="row">
-        <div><label>Pattern</label><select id="schedPattern">
-          <option>Continuous</option><option>Weekdays</option><option>Nights</option><option>Weekends</option></select></div>
-        <div><label># of weeks</label><input id="schedWeeks" type="number" min="1" max="52" placeholder="e.g. 3" /></div>
+      <legend>Step 6 · Schedule</legend>
+      <div class="hint" style="margin:0 0 8px">Built the way the TMC enters it in OpenTMS. A closure that runs different hours on
+        one day (say Sunday nights start later) is a <b>separate segment</b> — add as many as the job needs.</div>
+
+      <div class="segEditor">
+        <div class="segHead">Dates of occurrence</div>
+        <div class="row">
+          <div><label>From date <span class="req">*</span></label><input id="segFromDate" type="date" /></div>
+          <div><label>Until date <span class="req">*</span></label><input id="segUntilDate" type="date" /></div>
+        </div>
+        <div class="segHead">Times of occurrence</div>
+        <div class="row">
+          <div><label>From time <span class="req">*</span></label><input id="segFromTime" type="time" oninput="updateSegHints()" /></div>
+          <div><label>Until time <span class="req">*</span></label><input id="segUntilTime" type="time" oninput="updateSegHints()" /></div>
+        </div>
+        <div class="hint" id="segOvernight" style="display:none;margin:2px 0 0">Crosses midnight — each occurrence ends the following morning.</div>
+
+        <div class="segHead">Recurring</div>
+        <label class="chk"><input type="checkbox" id="segRecur" onchange="onRecurToggle()" /> This scheduled item will recur</label>
+        <div id="segRecurBox" style="display:none;margin-top:6px">
+          <div class="row" style="align-items:end">
+            <div style="max-width:90px"><label>Every</label><input id="segEvery" type="number" min="1" max="12" value="1" /></div>
+            <div><label>&nbsp;</label><select id="segUnit"><option>Week(s)</option></select></div>
+          </div>
+          <label style="margin-top:6px">On the following days</label>
+          <div class="dayPicks" id="segDays">
+            <label class="chk"><input type="checkbox" data-dow="1" /> Mon</label>
+            <label class="chk"><input type="checkbox" data-dow="2" /> Tue</label>
+            <label class="chk"><input type="checkbox" data-dow="3" /> Wed</label>
+            <label class="chk"><input type="checkbox" data-dow="4" /> Thu</label>
+            <label class="chk"><input type="checkbox" data-dow="5" /> Fri</label>
+            <label class="chk"><input type="checkbox" data-dow="6" /> Sat</label>
+            <label class="chk"><input type="checkbox" data-dow="0" /> Sun</label>
+          </div>
+          <div class="mapbtns" style="margin-top:6px">
+            <button type="button" onclick="pickDays('week')">Week days</button>
+            <button type="button" onclick="pickDays('end')">Week ends</button>
+            <button type="button" onclick="pickDays('all')">All</button>
+            <button type="button" onclick="pickDays('none')">None</button>
+          </div>
+        </div>
+
+        <div class="mapbtns" style="margin-top:10px">
+          <button type="button" class="primarySm" onclick="saveSegment()" id="segSaveBtn">💾 Save segment</button>
+          <button type="button" onclick="clearSegForm()">✕ Cancel</button>
+        </div>
       </div>
-      <div class="row">
-        <div><label>Start date</label><input id="schedStart" type="date" /></div>
-        <div><label>Daily from</label><input id="schedFrom" type="time" /></div>
-        <div><label>Daily to</label><input id="schedTo" type="time" /></div>
+
+      <div id="segTableWrap" style="display:none;margin-top:10px">
+        <div class="segHead" style="margin-top:0">Schedule segments</div>
+        <div style="overflow-x:auto"><table class="segTable" id="segTable"></table></div>
+        <div class="hint" id="segSummary" style="margin-top:4px"></div>
       </div>
-      <button class="ghost" style="width:100%;margin-top:8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="buildWeeks()">📅 Build weeks → occurrences</button>
-      <div class="schedList" id="schedList" style="display:none"></div>
-      <div class="hint">Fills Begin/End date-time to span the schedule and lists each work night/day for the request.</div>
+
+      <div class="segHead">Project window</div>
+      <div class="row">
+        <div><label>Project begin date <span class="req">*</span></label><input id="beginDT" type="datetime-local" oninput="saveState()" /></div>
+        <div><label>Project end date <span class="req">*</span></label><input id="endDT" type="datetime-local" oninput="saveState()" /></div>
+      </div>
+      <div class="hint">Set from the segments above — the earliest start and the end of the last work period. Edit if the
+        project window is wider than the work itself.</div>
+
+      <label style="margin-top:10px">Schedule notes <span style="color:#94a3b8;font-weight:400">(anything the segments don't capture)</span></label>
+      <textarea id="schedNotes" placeholder="e.g. no work over the holiday weekend; paving crew may finish early" oninput="saveState()"></textarea>
     </fieldset>
 
     <fieldset>
@@ -357,6 +425,7 @@ setTimeout(()=>map.invalidateSize(), 200);
 window.addEventListener('resize', ()=>map.invalidateSize());
 
 let mode='begin', beginPt=null, endPt=null, beginMk=null, endMk=null, line=null, schedule=[], laneData=[];
+let schedSegments=[];   // OpenTMS-style schedule segments; `schedule` is the flat occurrence list derived from them
 // Full-closure split: C/D mark the physically-closed core inside the signed extent A→B.
 let closedStartPt=null, closedEndPt=null, cMk=null, dMk=null, coreLine=null;
 let detourPts=[], detourLine=null, detourMks=[];
@@ -414,27 +483,28 @@ async function osrmRoute(lonlat){ try{
 
 const FIELD_IDS = ['route','routeOther','direction','project','iwz','description','beginLoc','endLoc','counties',
   'requestor','email','contact24','impact','beginDT','endDT','timing','rWidth','rHeight','rWeight','rLength','normalSpeed','reducedSpeed','rTiming',
-  'detour','oversize','detourNotes','techContact','dms','addlNotes','rce','rceEmail','tmcEmail','overhead','schedPattern','schedWeeks','schedStart','schedFrom','schedTo'];
+  'detour','oversize','detourNotes','techContact','dms','addlNotes','rce','rceEmail','tmcEmail','overhead','schedNotes'];
 const el = id => document.getElementById(id);
 const v = id => (el(id) && el(id).value || '').trim();
 const toast = m => { const t=el('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); };
 const interstate = s => { const m=String(s||'').toUpperCase().match(/\bI[-\s]?(\d{1,3})\b/); return m ? 'I-'+parseInt(m[1],10) : null; };
 
 // ---- persistence (remembers fields + saved projects) ----
-function saveState(){ const s={pts:{beginPt,endPt,detourPts},lanes:laneData}; FIELD_IDS.forEach(id=>{ if(el(id)) s[id]=el(id).value; }); localStorage.setItem('cars511_state', JSON.stringify(s)); }
+function saveState(){ const s={pts:{beginPt,endPt,detourPts},lanes:laneData,segs:schedSegments}; FIELD_IDS.forEach(id=>{ if(el(id)) s[id]=el(id).value; }); localStorage.setItem('cars511_state', JSON.stringify(s)); }
 function loadState(){ try{ const s=JSON.parse(localStorage.getItem('cars511_state')||'{}');
   FIELD_IDS.forEach(id=>{ if(el(id)&&s[id]!=null) el(id).value=s[id]; });
   if(el('bothDir')){ const isBoth=/^both\b/i.test(s.direction||''); el('bothDir').checked=isBoth; el('direction').readOnly=isBoth; }
   if(s.pts&&s.pts.beginPt){ beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng); if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng); redraw(); if(beginPt&&endPt)setMode('locked'); }
   if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){ detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng)); drawDetour(); }
   if(Array.isArray(s.lanes)){ laneData=s.lanes; if(el('laneCount'))el('laneCount').value=laneData.length||''; renderLanes(); }
+  if(Array.isArray(s.segs)){ schedSegments=s.segs; syncSchedule(); }
 }catch(e){} }
 function projects(){ try{ return JSON.parse(localStorage.getItem('cars511_projects')||'[]'); }catch(e){ return []; } }
 function renderProjects(){ const sel=el('projPicker'); sel.innerHTML='<option value="">↺ Saved projects…</option>'+
   projects().map(p=>`<option value="${p.name.replace(/"/g,'&quot;')}">${p.name}</option>`).join(''); }
 function saveProject(){ const name=prompt('Save this project as:'); if(!name) return; const list=projects().filter(p=>p.name!==name);
   const data={}; FIELD_IDS.forEach(id=>{ if(el(id)) data[id]=el(id).value; });
-  list.push({name, when:new Date().toISOString(), data, beginPt, endPt, detourPts}); localStorage.setItem('cars511_projects',JSON.stringify(list));
+  list.push({name, when:new Date().toISOString(), data, beginPt, endPt, detourPts, segs:schedSegments}); localStorage.setItem('cars511_projects',JSON.stringify(list));
   renderProjects(); toast('Saved "'+name+'"'); }
 function loadProject(name){ const p=projects().find(x=>x.name===name); if(!p) return;
   FIELD_IDS.forEach(id=>{ if(el(id)&&p.data[id]!=null) el(id).value=p.data[id]; });
@@ -449,7 +519,7 @@ function showMap(on){ document.body.classList.toggle('mapview', !!on); updateDra
 function toggleDrawer(){ document.body.classList.toggle('mapview'); updateDrawerTab(); try{ map.invalidateSize(); }catch(e){} }
 function setMode(m){ mode=m; el('btnBegin').classList.toggle('active',m==='begin'); el('btnEnd').classList.toggle('active',m==='end');
   const bd=el('btnDetour'); if(bd) bd.classList.toggle('active',m==='detour');
-  el('maphint').innerHTML = m==='detour' ? 'Click to trace the <b>detour</b> route (add multiple points)' : m==='locked' ? 'Segment set ✓ — drag <b>A</b>/<b>B</b> to fine-tune, or tap <b>Set BEGIN/END</b> to redo' : `Click the road to set the <b>${m}</b> point`;
+  el('maphint').innerHTML = m==='detour' ? 'Click to trace the <b>detour</b> route (add multiple points)' : m==='locked' ? 'Segment set ✓ — drag <b>A</b>/<b>B</b> to fine-tune · <button type="button" onclick="flipCarriage()" style="border:1px solid var(--accent);background:#fff;color:var(--accent);border-radius:6px;padding:2px 8px;font-weight:700;cursor:pointer;font-size:12px">🔀 Flip carriageway</button> · or tap <b>Set BEGIN/END</b> to redo' : `Click the road to set the <b>${m}</b> point`;
   // Mobile: the form is a drawer over a full-screen map. Starting to place points slides the form out of the
   // way to expose the map; the user slides it back when they want it via the #drawerTab button.
   if(isMobile() && (m==='begin'||m==='end'||m==='detour')) showMap(true); }
@@ -594,7 +664,12 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
     if(rpA.route){ const opt=[...el('route').options].find(o=>o.value===rpA.route); if(opt) el('route').value=rpA.route; else if(!v('route')){ el('route').value='__other'; onRouteChange(); el('routeOther').value=rpA.route; } } }
   if(rpB){ mpB=rpB.mp; if(autoMP(v('endLoc'))) el('endLoc').value='MP '+rpB.mp; }
   let mi=null, usedIowa=false;
-  const routeId=(rpA&&rpA.routeId)||(rpB&&rpB.routeId);
+  let routeId=(rpA&&rpA.routeId)||(rpB&&rpB.routeId);
+  // Divided highway: keep the carriageway consistent with the travel direction (A→B). If the nearest
+  // reference post snapped to the OPPOSITE directional route id (…035S when you're going N), flip it
+  // so the drawn line follows the correct pavement instead of the other carriageway.
+  if(routeId){ const suf=(String(routeId).match(/([NSEW])$/)||[])[1];
+    if(suf && dLetter && suf!==dLetter){ const opp=oppRouteId(routeId); if(opp) routeId=opp; } }
   if(routeId){ const cl=await iowaCenterline(routeId,beginPt,endPt); if(cl){ wzRoute=cl.latlngs; mi=cl.miles; usedIowa=true; } }
   // Normal-speed reference from Iowa RAMS Speed Limit (layer 78) via the corridor proxy (RAMS isn't
   // CORS-open). Take the max nearby value on this route = the mainline limit (ramps read lower).
@@ -670,6 +745,14 @@ async function showLanes(pt, routeId){ const hint=el('laneHint'); if(!hint) retu
       (aadt?(' · AADT '+aadt.toLocaleString()+(truck?(' · '+truck.toLocaleString()+' trucks/day'):'')):'')+
       ' — size the lane closure to the tightest section.';
   }catch(e){ hint.style.display='none'; } }
+// Flip to the OTHER carriageway: reverse the A→B travel direction and re-snap. On a divided highway
+// this swaps to the opposing directional centerline (…035N ↔ …035S) so the line follows the pavement
+// you actually mean. Reuses snapWZ (which now locks the carriageway to the direction).
+function flipCarriage(){ if(!(beginPt&&endPt)){ toast('Mark a segment (A→B) first'); return; }
+  const t=beginPt; beginPt=endPt; endPt=t;
+  if(beginMk&&endMk){ const pa=beginMk.getLatLng(); beginMk.setLatLng(endMk.getLatLng()); endMk.setLatLng(pa); }
+  if(el('bothDir')&&!el('bothDir').checked && el('direction')) el('direction').value=dirLabel(bearing(beginPt,endPt));
+  wzRoute=null; snapWZ(); saveState(); toast('Flipped to the other carriageway — '+dirLabel(bearing(beginPt,endPt))); }
 function redraw(){ [beginMk,endMk,line,line2].forEach(x=>x&&x.remove()); beginMk=endMk=line=line2=null; wzRoute=null; wzRoute2=null;
   if(beginPt) beginMk=mk(beginPt,'A','#1d4ed8'); if(endPt) endMk=mk(endPt,'B','#dc2626');
   drawWZLine();
@@ -809,7 +892,11 @@ function fillFromIowaEvent(f){ const a=f.attributes;
   else { const b=evDT(a.IssueDate,a.IssueTime); if(b) el('beginDT').value=b; }
   const e=evDT(a.ExpireDate,a.ExpireTime); if(e) el('endDT').value=e;
   // daily working hours -> times of closure
-  const sf=to24h(a.StartTime), st=to24h(a.EndTime); if(sf)el('schedFrom').value=sf; if(st)el('schedTo').value=st;
+  const sf=to24h(a.StartTime), st=to24h(a.EndTime);
+  if(sf&&el('segFromTime'))el('segFromTime').value=sf; if(st&&el('segUntilTime'))el('segUntilTime').value=st;
+  if(sd&&el('segFromDate'))el('segFromDate').value=sd;
+  { const ed=evDT(a.ExpireDate,a.ExpireTime); if(ed&&el('segUntilDate'))el('segUntilDate').value=ed.slice(0,10); }
+  updateSegHints();
   // county from Desc0 — format varies: "…RCE (…) - Tama County" OR "…RCE (…) - Decatur, Clarke"
   const d0=String(a.Desc0||''); let counties='';
   if(/\s-\s/.test(d0)) counties=d0.split(/\s-\s/).pop().replace(/\s+/g,' ').trim();      // text after " - "
@@ -1014,7 +1101,8 @@ function calcTaper(){ const box=el('taperBox'); box.style.display='block'; let S
   box.innerHTML='<b>🚧 MUTCD TTC</b> — S='+S+' mph, 12-ft offset<br>Merging taper <b>'+Lm+' ft</b> · Shifting '+Ls+' ft · Shoulder '+Lsh+' ft<br>Advance-warning signs ('+road+'): <b>'+A+' / '+B+' / '+C+' ft</b><br><span style="font-size:11px;color:#64748b">MUTCD Tables 6C-1/6C-4 — verify vs your standard drawings.</span><br><button style="padding:5px 9px;margin-top:6px" onclick="addTaperNote()">Add to notes</button>'; }
 function addTaperNote(){ const t=window.__taper; if(!t)return; const note='TTC (MUTCD, '+t.S+' mph): merging taper '+t.Lm+' ft; advance-warning sign spacing '+t.A+'/'+t.B+'/'+t.C+' ft ('+t.road+').'; const cur=(v('addlNotes')||'').replace(/(^|\n)TTC \(MUTCD[^\n]*/g,'').trim(); el('addlNotes').value=[cur,note].filter(Boolean).join('\n'); saveState(); toast('Taper + signs added to notes'); }
 // ---- Work-zone end / expiration (from Start date + # weeks) ----
-function wzEndDate(){ const start=v('schedStart'),weeks=parseInt(v('schedWeeks')||'0',10); if(!start||!weeks)return null; const e=new Date(start+'T00:00'); e.setDate(e.getDate()+weeks*7); return e.toISOString(); }
+function wzEndDate(){ const b=(typeof segSpan==='function')?segSpan():null; if(b) return new Date(b.end).toISOString();
+  const dt=v('endDT'); return dt?new Date(dt).toISOString():null; }
 function wzEndLabel(){ const iso=wzEndDate(); return iso?new Date(iso).toDateString():''; }
 // ---- Auto-suggest a detour AROUND the closure ----
 // True if a candidate detour actually runs along the CLOSED roadway (so it's really the same route).
@@ -1049,7 +1137,7 @@ function updateClearAlter(){ const box=el('clearAlterBox'); if(!box)return;
   else box.style.display='none'; }
 function checkReadiness(){ const miss=missingFields(); const b=el('readyBox');
   if(clearanceAltering() && !window.__nbiNear) miss.push('Bridge clearance — this work can alter clearance; scan NBI + update the posted value');
-  if(!wzEndDate()) miss.push('Scheduled end — set Start date + # weeks (sets the request’s expiration)');
+  if(!wzEndDate()) miss.push('Scheduled end — add a schedule segment (sets the request’s expiration)');
   updateClearAlter();
   const conflicts=(window.__iaConflicts||[]);
   const conflictHtml=conflicts.length?(`<br><b style="color:#b91c1c">⚠️ Overlaps ${conflicts.length} existing Iowa DOT closure(s):</b><br>`+conflicts.slice(0,4).map(c=>'• '+(c.street||'')+' — '+(c.laneimpact||'')+' ('+fmtRange(c.start,c.end)+')').join('<br>')+'<br><span style="font-size:11px">Confirm this isn’t a duplicate, or coordinate timing.</span>'):'';
@@ -1151,7 +1239,7 @@ function toWZDx(){ const now=new Date().toISOString(); const coords=geometryCoor
   const projectId=baseName+'-project';
   const mkFeature=(dirName,geom,suffix,opts)=>{ opts=opts||{};
     const props={core_details:{event_type:'work-zone',data_source_id:'cars511-ia',road_names:[routeVal()].filter(Boolean),direction:dirName,name:baseName+suffix,description:v('description')||undefined,update_date:now},
-    start_date:v('schedStart')||now,end_date:wzEndDate(),vehicle_impact:opts.impact||baseImpact||'unknown',
+    start_date:(v('beginDT')||now),end_date:wzEndDate(),vehicle_impact:opts.impact||baseImpact||'unknown',
     beginning_cross_street:v('beginLoc')||undefined,ending_cross_street:v('endLoc')||undefined,
     is_start_position_verified:false,is_end_position_verified:false};
     if(opts.relationship)props.core_details.relationship=opts.relationship;
@@ -1223,20 +1311,136 @@ async function submitToDatabase(){ const ep=v('dbEndpoint'), st=el('dbStatus'); 
   catch(e){ st.style.color='#b91c1c'; st.textContent=`Submit failed: ${e.message} — likely CORS or endpoint unreachable. Use “Download JSON” as a fallback.`; } }
 
 // ---- schedule build-out ----
-function buildWeeks(){ const pattern=v('schedPattern'), start=v('schedStart'), weeks=parseInt(v('schedWeeks')||'0',10), from=v('schedFrom'), to=v('schedTo');
-  if(!start||!weeks){ toast('Set a start date and # of weeks'); return; }
-  const s=new Date(start+'T00:00'); const totalDays=weeks*7; schedule=[];
-  if(pattern==='Continuous'){ const e=new Date(s); e.setDate(e.getDate()+totalDays);
-    schedule.push({label:`${s.toDateString()} → ${e.toDateString()} (continuous)`}); }
-  else { const dow = pattern==='Weekdays'?[1,2,3,4,5] : pattern==='Weekends'?[0,6] : [0,1,2,3,4,5,6];
-    for(let d=0; d<totalDays; d++){ const day=new Date(s); day.setDate(s.getDate()+d);
-      if(dow.includes(day.getDay())) schedule.push({label:`${day.toDateString()}${(from&&to)?`  ${from}–${to}`:''}`}); } }
-  const box=el('schedList'); box.style.display='block';
-  box.innerHTML=`<b>${schedule.length} occurrence(s):</b><br>`+schedule.slice(0,80).map(o=>o.label).join('<br>')+(schedule.length>80?'<br>…':'');
-  // span begin/end date-time
-  if(!v('beginDT')) el('beginDT').value = start+'T'+(from||'00:00');
-  const end=new Date(s); end.setDate(s.getDate()+totalDays); el('endDT').value = end.toISOString().slice(0,10)+'T'+(to||'23:59');
-  saveState(); toast(`Built ${schedule.length} occurrences`); }
+// ---- Schedule segments (OpenTMS Timing & Recurrences model) ------------------
+// The TMC enters a closure as one or more SEGMENTS. A segment is a date span, a
+// daily time window, and optionally a weekly recurrence on named days. Two
+// segments are needed whenever one day runs different hours — the Sunday-starts-
+// at-9 case — which is exactly how it goes into OpenTMS, so the request should
+// arrive already broken up that way instead of buried in a notes field.
+const DOW_LONG=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const DOW_SHORT=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+let segEditIdx=-1;                      // -1 = adding, >=0 = updating that segment
+
+function segDayBoxes(){ return [...document.querySelectorAll('#segDays input[type=checkbox]')]; }
+function pickDays(which){ segDayBoxes().forEach(b=>{ const d=+b.dataset.dow;
+  b.checked = which==='all' ? true : which==='none' ? false : which==='week' ? (d>=1&&d<=5) : (d===0||d===6); }); }
+function onRecurToggle(){ el('segRecurBox').style.display = el('segRecur').checked ? 'block' : 'none'; }
+// A window whose end time is at or before its start time runs past midnight.
+function segCrossesMidnight(s){ return !!(s.fromTime && s.untilTime && s.untilTime <= s.fromTime); }
+function hhmm(t){ if(!t) return ''; const [h,m]=t.split(':').map(Number); const ap=h<12?'am':'pm';
+  const hr=h%12===0?12:h%12; return `${hr}:${String(m).padStart(2,'0')} ${ap}`; }
+function dstr(d){ if(!d) return ''; const [y,m,day]=d.split('-'); return `${m}/${day}/${y}`; }
+
+function readSegForm(){
+  return { fromDate:v('segFromDate'), untilDate:v('segUntilDate'), fromTime:v('segFromTime'), untilTime:v('segUntilTime'),
+    recur: el('segRecur').checked, every: Math.max(1, parseInt(v('segEvery')||'1',10)), unit:'Week(s)',
+    days: segDayBoxes().filter(b=>b.checked).map(b=>+b.dataset.dow).sort() };
+}
+function writeSegForm(s){
+  el('segFromDate').value=s.fromDate||''; el('segUntilDate').value=s.untilDate||'';
+  el('segFromTime').value=s.fromTime||''; el('segUntilTime').value=s.untilTime||'';
+  el('segRecur').checked=!!s.recur; el('segEvery').value=s.every||1;
+  segDayBoxes().forEach(b=> b.checked = (s.days||[]).includes(+b.dataset.dow));
+  onRecurToggle(); updateSegHints();
+}
+function clearSegForm(){ segEditIdx=-1; writeSegForm({every:1,days:[]});
+  el('segSaveBtn').textContent='💾 Save segment'; renderSegments(); }
+function updateSegHints(){ const s=readSegForm();
+  el('segOvernight').style.display = segCrossesMidnight(s) ? 'block' : 'none'; }
+
+// "Runs every 1 week(s) on Monday, Tuesday, Wednesday, Thursday" — OpenTMS's own phrasing,
+// so the TMC reads the request in the words their tool already uses.
+function segLabel(s){
+  if(!s.recur || !s.days.length) return 'Continuous';
+  const names=s.days.slice().sort((a,b)=>((a+6)%7)-((b+6)%7)).map(d=>DOW_LONG[d]);
+  return `Runs every ${s.every} week(s) on ${names.join(', ')}`;
+}
+// Expand a segment into individual work nights/days for the request summary.
+function segOccurrences(s, cap=400){
+  const out=[]; if(!s.fromDate||!s.untilDate) return out;
+  const start=new Date(s.fromDate+'T00:00'), end=new Date(s.untilDate+'T00:00');
+  if(isNaN(start)||isNaN(end)||end<start) return out;
+  if(!s.recur || !s.days.length){
+    out.push({ date:s.fromDate, label:`${start.toDateString()} ${hhmm(s.fromTime)} → ${end.toDateString()} ${hhmm(s.untilTime)} (continuous)` });
+    return out;
+  }
+  const wk0=new Date(start); wk0.setDate(wk0.getDate()-((wk0.getDay()+6)%7)); // Monday of week 1
+  for(let d=new Date(start); d<=end && out.length<cap; d.setDate(d.getDate()+1)){
+    if(!s.days.includes(d.getDay())) continue;
+    const wkIdx=Math.floor((d-wk0)/(7*864e5));
+    if(wkIdx % s.every !== 0) continue;
+    const iso=d.toISOString().slice(0,10);
+    const tail = segCrossesMidnight(s)
+      ? `${hhmm(s.fromTime)} → ${hhmm(s.untilTime)} next day`
+      : `${hhmm(s.fromTime)}–${hhmm(s.untilTime)}`;
+    out.push({ date:iso, label:`${d.toDateString()}  ${tail}` });
+  }
+  return out;
+}
+
+function saveSegment(){
+  const s=readSegForm();
+  const miss=[]; if(!s.fromDate)miss.push('from date'); if(!s.untilDate)miss.push('until date');
+  if(!s.fromTime)miss.push('from time'); if(!s.untilTime)miss.push('until time');
+  if(miss.length){ toast('Missing '+miss.join(', ')); return; }
+  if(new Date(s.untilDate) < new Date(s.fromDate)){ toast('Until date is before the from date'); return; }
+  if(s.recur && !s.days.length){ toast('Pick at least one day, or untick recurring'); return; }
+  if(segEditIdx>=0) schedSegments[segEditIdx]=s; else schedSegments.push(s);
+  clearSegForm(); syncSchedule(); saveState();
+  toast(segEditIdx>=0?'Segment updated':'Segment added');
+}
+function editSegment(i){ segEditIdx=i; writeSegForm(schedSegments[i]);
+  el('segSaveBtn').textContent='💾 Update segment'; renderSegments();
+  el('segFromDate').scrollIntoView({block:'nearest'}); }
+function deleteSegment(i){ schedSegments.splice(i,1); if(segEditIdx===i) clearSegForm();
+  else { if(segEditIdx>i) segEditIdx--; renderSegments(); } syncSchedule(); saveState(); }
+
+function renderSegments(){
+  const wrap=el('segTableWrap'), tbl=el('segTable'); if(!wrap||!tbl) return;
+  if(!schedSegments.length){ wrap.style.display='none'; tbl.innerHTML=''; return; }
+  wrap.style.display='block';
+  tbl.innerHTML='<thead><tr><th>Schedule segment</th><th>Start</th><th>End</th><th>Time</th><th></th></tr></thead><tbody>'+
+    schedSegments.map((s,i)=>{
+      const t = segCrossesMidnight(s) ? `${hhmm(s.fromTime)} → ${hhmm(s.untilTime)}<sup>+1</sup>` : `${hhmm(s.fromTime)}–${hhmm(s.untilTime)}`;
+      return `<tr class="${i===segEditIdx?'editing':''}"><td>${segLabel(s)}</td>`+
+        `<td class="segWhen">${dstr(s.fromDate)}</td><td class="segWhen">${dstr(s.untilDate)}</td>`+
+        `<td class="segWhen">${t}</td>`+
+        `<td class="segAct"><button type="button" onclick="editSegment(${i})">Edit</button>`+
+        `<button type="button" onclick="deleteSegment(${i})">Delete</button></td></tr>`;
+    }).join('')+'</tbody>';
+  const occ=schedule.length;
+  el('segSummary').innerHTML=`${schedSegments.length} segment(s) · ${occ} work period(s) total`+
+    (schedSegments.some(segCrossesMidnight)?' · <sup>+1</sup> ends the following morning':'');
+}
+
+// Rebuild the flat occurrence list the summary/PDF/email use, and span Begin/End.
+function syncSchedule(){
+  schedule=[]; schedSegments.forEach(s=> schedule.push(...segOccurrences(s)) );
+  schedule.sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+  const b=segSpan();
+  if(b){ if(el('beginDT')) el('beginDT').value=b.begin; if(el('endDT')) el('endDT').value=b.end; }
+  renderSegments();
+}
+// Earliest start and latest end across every segment — the project's overall window.
+// A recurring segment ends when its LAST occurrence ends, which is usually before the
+// until-date: Mon–Thu nights inside a Sun–Fri span finish Friday morning, not Saturday.
+function segEnd(s){
+  if(!s.fromDate||!s.untilDate) return null;
+  let day=s.untilDate;
+  if(s.recur && (s.days||[]).length){
+    const occ=segOccurrences(s); if(!occ.length) return null;
+    day=occ[occ.length-1].date;
+    if(segCrossesMidnight(s)){ const n=new Date(day+'T00:00'); n.setDate(n.getDate()+1); day=n.toISOString().slice(0,10); }
+  }
+  return day+'T'+(s.untilTime||'23:59');
+}
+function segSpan(){
+  const withDates=schedSegments.filter(s=>s.fromDate&&s.untilDate); if(!withDates.length) return null;
+  const begin=withDates.map(s=>s.fromDate+'T'+(s.fromTime||'00:00')).sort()[0];
+  const ends=withDates.map(segEnd).filter(Boolean).sort();
+  if(!ends.length) return null;
+  return { begin, end: ends[ends.length-1] };
+}
 
 // ---- outputs ----
 const fmtDT = s => s ? new Date(s).toLocaleString() : '—';
@@ -1246,12 +1450,29 @@ function fields(){ const seg=(beginPt&&endPt)?`${dirLabel(bearing(beginPt,endPt)
   return [ ['Route',routeVal()],['Direction',v('direction')],['Selected segment',seg],['DOT project #',v('project')],
     ['Intelligent Work Zone',v('iwz')],['Description',v('description')],['Begin location',v('beginLoc')],['End location',v('endLoc')],
     ['County/counties',v('counties')],['DOT requestor',v('requestor')],['Requestor email',v('email')],['24-hr contact',v('contact24')],
-    ['Traffic impact',v('impact')],['Schedule pattern',v('schedPattern')],['Begin',fmtDT(v('beginDT'))],['End',fmtDT(v('endDT'))],
+    ['Traffic impact',v('impact')],['Continuous',scheduleIsContinuous()?'yes':'no'],['Times of closure',timesOfClosure()],['Begin',fmtDT(v('beginDT'))],['End',fmtDT(v('endDT'))],
     ['Width restriction',v('rWidth')],['Height restriction',v('rHeight')],['Weight restriction',v('rWeight')],['Length restriction',v('rLength')],['Normal speed (mph)',v('normalSpeed')],['Reduced work-zone speed (mph)',v('reducedSpeed')],
     ['Lanes',laneSummary()],['Restriction timing',v('rTiming')],['Scheduled end (expiration)',wzEndLabel()],['Marked detour',v('detour')],['Oversize allowed',v('oversize')],['Detour notes',v('detourNotes')],
     ['Traffic technician',v('techContact')],['DMS request',v('dms')],['Additional info / notes',v('addlNotes')],
     ['Submit to (TMC)',v('tmcEmail')||'IowaDOT.Traffic@iowadot.us'],['RCE (cc)',v('rce')] ]; }
-function scheduleText(){ return schedule.length ? '\n\nSCHEDULE ('+schedule.length+' occurrences):\n'+schedule.map(o=>'  • '+o.label).join('\n') : ''; }
+function segLine(s){ const t=segCrossesMidnight(s)?`${hhmm(s.fromTime)} \u2192 ${hhmm(s.untilTime)} (next day)`:`${hhmm(s.fromTime)}\u2013${hhmm(s.untilTime)}`;
+  return `${segLabel(s)} | ${dstr(s.fromDate)} \u2192 ${dstr(s.untilDate)} | ${t}`; }
+// Segments first — that is the unit the TMC re-keys into OpenTMS — then the expanded work periods.
+function scheduleText(){ if(!schedSegments.length) return '';
+  let t='\n\nSCHEDULE SEGMENTS ('+schedSegments.length+'):\n'+schedSegments.map((x,i)=>`  ${i+1}. ${segLine(x)}`).join('\n');
+  if(v('schedNotes')) t+='\n  Notes: '+v('schedNotes');
+  if(schedule.length) t+='\n\nWORK PERIODS ('+schedule.length+'):\n'+schedule.slice(0,120).map(o=>'  \u2022 '+o.label).join('\n')+(schedule.length>120?'\n  \u2026':'');
+  return t; }
+// A request is 'continuous' only when nothing recurs — the form's Continuous yes/no.
+function scheduleIsContinuous(){ return schedSegments.length>0 && schedSegments.every(s=>!s.recur||!s.days.length); }
+// The form's free-text 'Times of closure'.
+function timesOfClosure(){ if(!schedSegments.length) return '';
+  if(scheduleIsContinuous()) return '24hr a day';
+  const uniq=[...new Set(schedSegments.map(s=>`${hhmm(s.fromTime)}-${hhmm(s.untilTime)}`))];
+  return uniq.length===1 ? uniq[0] : schedSegments.map(s=>{
+    const d=(s.days||[]).map(x=>DOW_SHORT[x]).join('/')||'daily';
+    return `${d} ${hhmm(s.fromTime)}-${hhmm(s.untilTime)}`; }).join('; '); }
+
 function detourText(){ return detourPts.length>=2 ? `\n\nDETOUR: ${detourPts.length} points, ~${detourMiles().toFixed(1)} mi\n  Map: ${gmapsDetour()}` : ''; }
 function summaryText(){ return 'IOWA DOT — CARS 511 WORK-ZONE REQUEST\n'+'='.repeat(42)+'\n'+
   fields().map(([k,val])=>`${k}: ${val||'—'}`).join('\n')+scheduleText()+routeMapText()+detourText()+'\n\n(Built with the CARS 511 Request Builder — review before submitting.)'; }
@@ -1302,7 +1523,8 @@ function resetAll(){ if(!confirm('Start a NEW request? Clears the segment, detou
   projFeats=[]; if(el('projBox'))el('projBox').style.display='none';
   if(eventLayer){eventLayer.remove();eventLayer=null;} dupFeats=[];
   ['dupWarn','readyBox','dbStatus','laneHint'].forEach(id=>{ if(el(id))el(id).style.display='none'; });
-  el('schedList').style.display='none'; el('selinfo').textContent='No segment selected yet — click the map to place the begin point.';
+  schedSegments=[]; schedule=[]; if(typeof clearSegForm==='function') clearSegForm();
+  el('selinfo').textContent='No segment selected yet — click the map to place the begin point.';
   onRouteChange(); setMode('begin'); saveState(); }
 
 // ---- NBI bridge clearances on the selected segment ----
@@ -1409,8 +1631,10 @@ function prefillFromClosure(i){ const a=(window.__iaClosureRecs||[])[i]; if(!a){
       if(opt){ el('route').value=opt.value; onRouteChange(); } else { el('route').value='__other'; onRouteChange(); el('routeOther').value=rt; } }
     else { el('route').value='__other'; onRouteChange(); el('routeOther').value=rt; } }
   const desc=[a.reason,a.laneimpact,a.street,a.description].filter(Boolean).join(' — '); if(desc)el('description').value=desc;
-  if(a.starttime && el('schedStart')){ const s=new Date(+a.starttime); el('schedStart').value=new Date(s.getTime()-s.getTimezoneOffset()*60000).toISOString().slice(0,10);
-    if(a.endtime && el('schedWeeks')){ const days=Math.max(1,Math.round((+a.endtime-+a.starttime)/86400000)); el('schedWeeks').value=Math.max(1,Math.ceil(days/7)); } }
+  const localDay=ms=>{ const d=new Date(ms); return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10); };
+  const localTime=ms=>{ const d=new Date(ms); return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(11,16); };
+  if(a.starttime && el('segFromDate')){ el('segFromDate').value=localDay(+a.starttime); el('segFromTime').value=localTime(+a.starttime);
+    if(a.endtime){ el('segUntilDate').value=localDay(+a.endtime); el('segUntilTime').value=localTime(+a.endtime); } updateSegHints(); }
   saveState(); toast('Prefilled from Iowa DOT closure — set the lane impact + review'); }
 async function scanBridges(){ if(!beginPt||!endPt){ toast('Select a road segment (A→B) first'); return; }
   toast('Scanning NBI clearances (route + detour)…');
@@ -1435,7 +1659,9 @@ async function scanBridges(){ if(!beginPt||!endPt){ toast('Select a road segment
   tag.forEach(b=>{ b.rel=(wk&&roadHas(b.crosses,wk))?'under':(wk&&roadHas(b.carries,wk))?'over':'unknown'; });
   const routeB=tag.filter(b=>b.on==='route'), detourB=tag.filter(b=>b.on==='detour');
   const relevant=b=>b.rel!=='over'; const routeR=routeB.filter(relevant), detourR=detourB.filter(relevant);
-  window.__nbiNear=routeR; window.__nbiDetour=detourR; if(typeof updateClearAlter==='function')updateClearAlter();
+  window.__nbiNear=routeR; window.__nbiDetour=detourR; window.__hasDetour=!!detourPath;
+  window.__nbiGov = detourPath ? detourR : routeR;   // detour governs when present — that's where traffic is
+  if(typeof updateClearAlter==='function')updateClearAlter();
   if(bridgeLayer) bridgeLayer.remove(); bridgeLayer=L.layerGroup().addTo(map); setOverlay('🌉 Bridges', bridgeLayer);
   const relTag=b=>b.rel==='under'?'your route passes UNDER':b.rel==='over'?'carries your route OVER — n/a to you':'over/under unverified';
   tag.forEach(b=>{ const na=b.rel==='over', low=b.clr<15&&!na, det=b.on==='detour';
@@ -1446,13 +1672,21 @@ async function scanBridges(){ if(!beginPt||!endPt){ toast('Select a road segment
   const box=el('nbiBox'); box.style.display='block';
   if(!routeR.length&&!detourR.length){ box.innerHTML='No overhead structures restrict this route'+(detourPath?' or detour':'')+' — nearby NBI bridges carry the route over other features (their clearance is for the traffic below).'; toast('No restricting structures'); return; }
   const lowR=routeR[0], lowD=detourR[0];
-  const widthsR=routeR.map(b=>+b.width_feet).filter(w=>Number.isFinite(w)&&w>0); const minWR=widthsR.length?Math.min(...widthsR):null;
+  const gov = detourPath ? detourR : routeR;         // detour governs when present — traffic is on the detour
+  const lowG = gov[0];
+  const widthsG=gov.map(b=>+b.width_feet).filter(w=>Number.isFinite(w)&&w>0); const minWG=widthsG.length?Math.min(...widthsG):null;
   const line=(label,b)=>b?`<b>${label}: ${ftIn(b.clr)}</b>${b.clr<15?' ⚠️':''} — ${((b.carries||'?')+' over '+(b.crosses||'?')).slice(0,42)}${b.rel==='unknown'?' <i>(verify over/under)</i>':''}${b.recorded?` <span style="color:#64748b">· rec. ${b.recorded}</span>`:''}`:`${label}: none found`;
-  let h=`<b>NBI clearances</b> <span style="color:#6b7280">(${src})</span> — only structures your route passes UNDER restrict it. ${routeR.length} on route`+(detourPath?`, ${detourR.length} on detour`:'')+`:<br>`;
-  h+='🌉 '+line('Lowest on ROUTE', lowR)+'<br>';
-  if(detourPath) h+='↩ '+line('Lowest on DETOUR', lowD)+'<br>';
-  h+=routeR.slice(0,5).map(b=>`${b.clr<15?'⚠️ ':''}${ftIn(b.clr)}${b.width_feet?` × ${ftIn(+b.width_feet)} w`:''} — ${((b.carries||'?')+' over '+(b.crosses||'?')).slice(0,40)}`).join('<br>');
-  if(lowR) h+=`<br><button style="margin-top:6px;padding:6px 10px;border:1px solid #b45309;background:#fff7ed;color:#b45309;border-radius:6px;cursor:pointer;font-weight:600" onclick="applyNBI()">Apply route restrictions (H ${ftIn(lowR.clr)}${minWR!=null?` · W ${ftIn(minWR)}`:''})</button>`;
+  const rows=b=>b.slice(0,5).map(x=>`${x.clr<15?'⚠️ ':''}${ftIn(x.clr)}${x.width_feet?` × ${ftIn(+x.width_feet)} w`:''} — ${((x.carries||'?')+' over '+(x.crosses||'?')).slice(0,40)}`).join('<br>');
+  let h=`<b>NBI clearances</b> <span style="color:#6b7280">(${src})</span> — only structures your path passes UNDER restrict it.<br>`;
+  if(detourPath){
+    h+=`<span style="color:#6d28d9;font-weight:700">↩ Detour governs</span> — during the closure traffic is on the detour, so its clearances are the ones that bind.<br>`;
+    h+='↩ '+line('Lowest on DETOUR (governs)', lowD)+'<br>';
+    h+='🌉 '+line('Lowest on ROUTE (closed · reference)', lowR)+'<br>';
+    h+=rows(detourR);
+  } else {
+    h+=`${routeR.length} on route:<br>🌉 `+line('Lowest on ROUTE', lowR)+'<br>'+rows(routeR);
+  }
+  if(lowG) h+=`<br><button style="margin-top:6px;padding:6px 10px;border:1px solid ${detourPath?'#6d28d9':'#b45309'};background:${detourPath?'#f5f3ff':'#fff7ed'};color:${detourPath?'#6d28d9':'#b45309'};border-radius:6px;cursor:pointer;font-weight:600" onclick="applyNBI()">Apply ${detourPath?'DETOUR':'route'} restrictions (H ${ftIn(lowG.clr)}${minWG!=null?` · W ${ftIn(minWG)}`:''})</button>`;
   // Iowa DOT posted restrictions (Bridge_Posting) near the route/detour — fresh, weight/height postings
   try{ const posts=await fetchPostings(bb);
     const nearPosts=posts.filter(p=>minDistToPath({lat:p.latitude,lng:p.longitude},routePath)<=TH || (detourPath&&minDistToPath({lat:p.latitude,lng:p.longitude},detourPath)<=TH));
@@ -1480,7 +1714,7 @@ function applyWeight(){ const tons=window.__nbiLowTons, posted=window.__nbiPoste
   if(posted&&posted.length){ const note='Weight-posted bridges: '+posted.map(b=>(b.name||'Bridge')+(b.opTons!=null?(' ('+b.opTons+'t)'):'')).join('; ');
     const cur=(v('addlNotes')||'').replace(/(^|\n)Weight-posted bridges:[^\n]*/g,'').trim(); el('addlNotes').value=[cur,note].filter(Boolean).join('\n'); }
   saveState(); toast('Weight capacity noted'); }
-function applyNBI(){ const near=window.__nbiNear||[]; if(!near.length)return;
+function applyNBI(){ const near=window.__nbiGov||window.__nbiNear||[]; if(!near.length)return;
   const clr=near[0].clr; el('rHeight').value=ftIn(clr);
   const widths=near.map(b=>+b.width_feet).filter(w=>Number.isFinite(w)&&w>0);
   if(widths.length) el('rWidth').value=ftIn(Math.min(...widths));
@@ -1603,8 +1837,11 @@ async function fillOfficial(){
     if(v('oversize')&&v('oversize')!=='N/A') addl.push('Oversize: '+v('oversize'));
     putWrap('addlInfo', addl.join('   ·   '), { maxLines: 4 });
     put('beginDT',fmtMDY(v('beginDT'))); put('endDT',fmtMDY(v('endDT')));
-    const tp=v('schedPattern'); if(tp==='Continuous')X('cont'); if(tp==='Weekdays')X('wkdy'); if(tp==='Nights')X('nights');
-    if(v('schedFrom')&&v('schedTo')) put('closureTimes',`${v('schedFrom')} - ${v('schedTo')}`);
+    if(scheduleIsContinuous()) X('cont');
+    else { const dset=new Set(); schedSegments.forEach(s=>(s.days||[]).forEach(d=>dset.add(d)));
+      const only=a=>a.every(d=>dset.has(d)) && dset.size===a.length;
+      if(only([1,2,3,4,5])) X('wkdy'); else if(schedSegments.some(segCrossesMidnight)) X('nights'); }
+    put('closureTimes', timesOfClosure());
     (['rWidth','rHeight','rWeight','rLength'].some(id=>v(id)))?X('restrYes'):X('restrNo');
     (v('detour')==='Yes')?X('detourYes'):X('detourNo');
     (v('dms'))?X('dmsYes'):X('dmsNo');
@@ -1618,7 +1855,7 @@ async function fillOfficial(){
 // ---- SeamlessDocs auto-fill bookmarklet (runs ON their page = same-origin there) ----
 function seamlessFill(){
   const c=v('contact24').split('/'); const tc=v('techContact').split('/');
-  const times=(v('schedFrom')&&v('schedTo'))?`${v('schedFrom')} - ${v('schedTo')}`:'';
+  const times=timesOfClosure();
   // Human copy/paste rows (form order) — covers text AND which Yes/No / dropdown to pick.
   const esc=s=>String(s).replace(/[&<>"]/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[x]));
   const rows=[
@@ -1711,6 +1948,7 @@ el('rce').addEventListener('change', ()=>{ setRceOffice(v('rce')); saveState(); 
 el('rceEmail').addEventListener('input', saveRceEmail);
 FIELD_IDS.forEach(id=>{ if(el(id)) el(id).addEventListener('input', saveState); });
 if(!prefillFromURL())loadState(); renderProjects(); onRouteChange(); loadIntegration(); loadCsvProjects(); updateClearAlter(); onImpactChange();
+onRecurToggle(); updateSegHints(); renderSegments();
 // Demo mode (?demo=1): pure "show the functionality" showcase — hide the submit-to-database endpoint/auth/
 // submit controls (nothing is POSTed anywhere) but KEEP client-side WZDx/JSON export + the 511 PDF fill.
 (function(){try{if(new URLSearchParams(location.search).get('demo')!=='1')return;
