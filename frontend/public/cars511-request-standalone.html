@@ -1250,6 +1250,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             <input type="file" id="projCsv" accept=".csv,text/csv" style="display:none" onchange="loadProjectsCSV(event)" />
           </div></div>
         <div><label>Intelligent Work Zone?</label><select id="iwz"><option>No</option><option>Yes</option></select></div>
+        <div><label>Temporary signals?</label><select id="tempSignals"><option>No</option><option>Yes</option></select></div>
       </div>
       <div class="schedList" id="projBox" style="display:none"></div>
       <label>Project description</label>
@@ -1263,7 +1264,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         <div><label>DOT requestor</label><input id="requestor" /></div>
         <div><label>Requestor email</label><input id="email" type="email" /></div>
       </div>
-      <label>24-hour contact (name / phone)</label><input id="contact24" />
+      <div class="row">
+        <div><label>24-hr contact — name <span class="req">*</span></label><input id="contact24" placeholder="e.g. Devon Jepsen" /></div>
+        <div><label>24-hr contact — phone</label><input id="contact24Phone" placeholder="e.g. 712-371-3194" /></div>
+      </div>
       <label>Traffic impact <span style="color:#94a3b8;font-weight:400">(official CARS 511 choices)</span></label>
       <select id="impact" onchange="onImpactChange()">
         <option>Choose one</option>
@@ -1324,6 +1328,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <div class="row">
         <div><label>Marked detour?</label><select id="detour"><option>No</option><option>Yes</option></select></div>
         <div><label>Oversize allowed?</label><select id="oversize"><option>N/A</option><option>Yes</option><option>No</option></select></div>
+        <div><label>Detour map attached?</label><select id="detourMap"><option>No</option><option>Yes</option></select></div>
       </div>
       <label>Detour restrictions / notes</label><textarea id="detourNotes"></textarea>
     </fieldset>
@@ -1349,8 +1354,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       </div>
       <button class="ghost" style="width:100%;margin:2px 0 0;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="calcTaper()">🚧 Taper + advance-warning signs (MUTCD)</button>
       <div class="schedList" id="taperBox" style="display:none;margin:6px 0"></div>
-      <label>Restriction timing</label>
-      <select id="rTiming"><option>24 hours</option><option>Limited hours</option><option>None</option></select>
+      <div class="row">
+        <div><label>Width restriction — entire length?</label><select id="rWidthFull"><option>N/A</option><option>Yes</option><option>No</option></select></div>
+        <div><label>Restriction timing</label><select id="rTiming"><option>24 hours</option><option>Limited hours</option><option>None</option></select></div>
+      </div>
       <label>Temporary overhead signals? (15′ standard height reference)</label>
       <select id="overhead"><option>No</option><option>Yes</option></select>
     </fieldset>
@@ -1361,10 +1368,18 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <div class="schedList" id="dmsBox" style="display:none;margin-bottom:8px"></div>
       <button class="ghost" style="width:100%;margin:0 0 8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanCameras()">📷 Attach nearby traffic cameras</button>
       <div class="schedList" id="camBox" style="display:none;margin-bottom:8px"></div>
-      <label>Dynamic Message Sign (DMS) request</label><textarea id="dms" placeholder="Requested DMS message / location"></textarea>
+      <div class="row">
+        <div><label>Permanent DMS request?</label><select id="dms"><option>No</option><option>Yes</option></select></div>
+        <div><label>Maintenance garage</label><input id="maintGarage" placeholder="e.g. Onawa" /></div>
+      </div>
+      <div class="hint">The TMC composes the sign text to the statewide MUTCD format — describe the work above and they
+        will word it. Ask for a board here; don't write the message.</div>
       <label>Additional project information / notes <span style="color:#94a3b8;font-weight:400">(pilot car, flagger, connected devices — goes in the form's Additional info box)</span></label>
       <textarea id="addlNotes" placeholder="Selected connected arrow boards are added here automatically; add any other notes."></textarea>
-      <label>Traffic technician contact</label><input id="techContact" />
+      <div class="row">
+        <div><label>District tech — name</label><input id="techContact" /></div>
+        <div><label>District tech — number</label><input id="techPhone" /></div>
+      </div>
     </fieldset>
 
     <fieldset>
@@ -1571,7 +1586,8 @@ async function osrmRoute(lonlat){ try{
 
 const FIELD_IDS = ['route','routeOther','direction','project','iwz','description','beginLoc','endLoc','counties',
   'requestor','email','contact24','impact','beginDT','endDT','timing','rWidth','rHeight','rWeight','rLength','normalSpeed','reducedSpeed','rTiming',
-  'detour','oversize','detourNotes','techContact','dms','addlNotes','rce','rceEmail','tmcEmail','overhead','schedNotes'];
+  'detour','oversize','detourNotes','techContact','dms','addlNotes','rce','rceEmail','tmcEmail','overhead','schedNotes',
+  'contact24Phone','tempSignals','rWidthFull','detourMap','maintGarage','techPhone'];
 const el = id => document.getElementById(id);
 const v = id => (el(id) && el(id).value || '').trim();
 const toast = m => { const t=el('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); };
@@ -2531,11 +2547,11 @@ function onRouteChange(){ el('routeOther').style.display = v('route')==='__other
 function fields(){ const seg=(beginPt&&endPt)?`${dirLabel(bearing(beginPt,endPt))}, ~${miles(beginPt,endPt).toFixed(1)} mi  [${beginPt.lat.toFixed(4)},${beginPt.lng.toFixed(4)} → ${endPt.lat.toFixed(4)},${endPt.lng.toFixed(4)}]`:'(not set)';
   return [ ['Route',routeVal()],['Direction',v('direction')],['Selected segment',seg],['DOT project #',v('project')],
     ['Intelligent Work Zone',v('iwz')],['Description',v('description')],['Begin location',v('beginLoc')],['End location',v('endLoc')],
-    ['County/counties',v('counties')],['DOT requestor',v('requestor')],['Requestor email',v('email')],['24-hr contact',v('contact24')],
+    ['County/counties',v('counties')],['DOT requestor',v('requestor')],['Requestor email',v('email')],['24-hr contact',[v('contact24'),v('contact24Phone')].filter(Boolean).join(' / ')],
     ['Traffic impact',v('impact')],['Continuous',scheduleIsContinuous()?'yes':'no'],['Times of closure',timesOfClosure()],['Begin',fmtDT(v('beginDT'))],['End',fmtDT(v('endDT'))],
     ['Width restriction',v('rWidth')],['Height restriction',v('rHeight')],['Weight restriction',v('rWeight')],['Length restriction',v('rLength')],['Normal speed (mph)',v('normalSpeed')],['Reduced work-zone speed (mph)',v('reducedSpeed')],
     ['Lanes',laneSummary()],['Restriction timing',v('rTiming')],['Scheduled end (expiration)',wzEndLabel()],['Marked detour',v('detour')],['Oversize allowed',v('oversize')],['Detour notes',v('detourNotes')],
-    ['Traffic technician',v('techContact')],['DMS request',v('dms')],['Additional info / notes',v('addlNotes')],
+    ['District tech',[v('techContact'),v('techPhone')].filter(Boolean).join(' / ')],['Permanent DMS request',v('dms')],['Additional info / notes',v('addlNotes')],
     ['Submit to (TMC)',v('tmcEmail')||'IowaDOT.Traffic@iowadot.us'],['RCE (cc)',v('rce')] ]; }
 function segLine(s){ const t=segCrossesMidnight(s)?`${hhmm(s.fromTime)} \u2192 ${hhmm(s.untilTime)} (next day)`:`${hhmm(s.fromTime)}\u2013${hhmm(s.untilTime)}`;
   return `${segLabel(s)} | ${dstr(s.fromDate)} \u2192 ${dstr(s.untilDate)} | ${t}`; }
@@ -2555,8 +2571,87 @@ function timesOfClosure(){ if(!schedSegments.length) return '';
     const d=(s.days||[]).map(x=>DOW_SHORT[x]).join('/')||'daily';
     return `${d} ${hhmm(s.fromTime)}-${hhmm(s.untilTime)}`; }).join('; '); }
 function detourText(){ return detourPts.length>=2 ? `\n\nDETOUR: ${detourPts.length} points, ~${detourMiles().toFixed(1)} mi\n  Map: ${gmapsDetour()}` : ''; }
-function summaryText(){ return 'IOWA DOT — CARS 511 WORK-ZONE REQUEST\n'+'='.repeat(42)+'\n'+
-  fields().map(([k,val])=>`${k}: ${val||'—'}`).join('\n')+scheduleText()+routeMapText()+detourText()+'\n\n(Built with the CARS 511 Request Builder — review before submitting.)'; }
+// ---- Request email in the TMC's own format -----------------------------------
+// The TMC receives these as a flat "Label: value" list produced by the SeamlessDocs
+// 511 form, and Stephanie re-keys them into OpenTMS. Two real submissions (Aug 18 and
+// Aug 27 2026) fix the wording and the order: 21 fields always, then a restriction
+// block only when there are restrictions, then a detour block only when there is a
+// detour, and Permanent DMS Request last. Matching it exactly is what lets this drop
+// into the existing workflow — and what would let the dashboard parse it later.
+function yn(x){ return /^y/i.test(String(x||'')) ? 'yes' : 'no'; }
+function fmtFormDT(dt){ if(!dt) return ''; const d=new Date(dt); if(isNaN(d)) return '';
+  const p=n=>String(n).padStart(2,'0'); let h=d.getHours(); const ap=h<12?'am':'pm'; h=h%12===0?12:h%12;
+  return `${p(d.getMonth()+1)}/${p(d.getDate())}/${d.getFullYear()} ${p(h)}:${p(d.getMinutes())} ${ap}`; }
+function routeLine(){ const r=routeVal(); const d=v('direction'); return d?`${r} - ${d}`:r; }
+function anyRestriction(){ return ['rWidth','rHeight','rWeight','rLength'].some(id=>v(id)); }
+// Free-text description of the drawn detour, so "Detour Route" is words, not just a line on a map.
+function detourRouteText(){
+  if(detourPts.length<2) return v('detourNotes')||'';
+  const named=(typeof detourRoute!=='undefined' && detourRoute && detourRoute.name)?detourRoute.name:'';
+  const miles=detourMiles().toFixed(1);
+  return (named?named+' — ':'')+`${detourPts.length} points, ~${miles} mi (see map image / link below)`;
+}
+function formFields(){
+  const F=[];
+  const push=(k,val)=>F.push([k, val==null?'':String(val)]);
+  push('Requestor', v('requestor'));
+  push('Email', v('email'));
+  push('Intelligent Work Zones', v('iwz'));
+  push('Responsible Office', v('rce'));
+  push('Other', 'List office name');
+  push('Route', routeLine());
+  push('DOT project number', v('project'));
+  push('Project description', v('description'));
+  push('Project begin location', v('beginLoc'));
+  push('Project end location', v('endLoc'));
+  push('County/Counties', v('counties'));
+  push('24hr Contact: Name', v('contact24'));
+  push('24hr Contact: Phone Number', v('contact24Phone'));
+  push('Describe the impact on traffic', v('impact'));
+  push('Additional Project Information', v('addlNotes'));
+  push('Temporary Signals', v('tempSignals')||'No');
+  push('Project begin date', fmtFormDT(v('beginDT')));
+  push('Project end date', fmtFormDT(v('endDT')));
+  push('Continuous', scheduleIsContinuous()?'yes':'no');
+  push('Times of closure', timesOfClosure()||'NA');
+  const restr=anyRestriction();
+  push('Are there Restrictions?', restr?'Yes':'No');
+  if(restr){
+    push('Width Restrictions?', yn(v('rWidth')?'yes':'no'));
+    if(v('rWidth')){
+      push('Width Restriction Entire Length?', yn(v('rWidthFull')));
+      if(/^y/i.test(v('rWidthFull'))) push('Full Length Width Restriction', v('rWidth'));
+      else push('Width Restriction', v('rWidth'));
+    }
+    push('Height Restrictions?', v('rHeight')?'yes':'no');
+    if(v('rHeight')) push('Height Restriction', v('rHeight'));
+    push('Weight Restrictions?', v('rWeight')?'yes':'no');
+    if(v('rWeight')) push('Weight Restriction', v('rWeight'));
+    push('Length Restrictions?', v('rLength')?'yes':'no');
+    if(v('rLength')) push('Length Restriction', v('rLength'));
+    push('24hour Restrictions', /24/.test(v('rTiming'))?'Yes':'No');
+  }
+  push('Marked Detour?', v('detour')||'No');
+  if(/^y/i.test(v('detour'))){
+    push('Oversize Loads Allowed?', (v('oversize')==='N/A'?'':v('oversize').toLowerCase()));
+    push('Oversize message', v('detourNotes'));
+    push('Detour Map?', yn(v('detourMap')));
+    push('Detour Route', detourRouteText());
+  }
+  // The form drops these three when they're blank — Jared's 8/27 submission has no such
+  // lines at all, Bethany's has all three. Emitting them empty would not match either.
+  if(v('techContact')) push('District Tech Name', v('techContact'));
+  if(v('techPhone')) push('District Tech Number', v('techPhone'));
+  if(v('maintGarage')) push('Maintenance Garage', v('maintGarage'));
+  push('Permanent DMS Request', v('dms')||'No');
+  return F;
+}
+// The email body the TMC gets: their format first, then the extras this tool adds.
+function summaryText(){
+  const body=formFields().map(([k,val])=>`${k}: ${val}`).join('\n');
+  return body + scheduleText() + routeMapText() + detourText() +
+    '\n\n---\n(Built with the CARS 511 Request Builder — mileposts from Iowa DOT RAMS. Review before submitting.)';
+}
 function copySummary(){ navigator.clipboard.writeText(summaryText()).then(()=>toast('Summary copied')); }
 function emailRCE(){ const _m=missingFields(); if(_m.length){ checkReadiness(); if(!confirm(`${_m.length} required field(s) missing:\n${_m.join(', ')}\n\nEmail anyway?`)) return; }
   const to=v('tmcEmail')||'IowaDOT.Traffic@iowadot.us'; const cc=v('rceEmail');
