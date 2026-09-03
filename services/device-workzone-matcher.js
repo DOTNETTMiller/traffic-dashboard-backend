@@ -253,6 +253,17 @@ function matchDevices(devices, events, opts) {
       connector: (device.coordinates && best.ref) ? [device.coordinates, best.ref] : null,
       event: best.event
     };
+    // An ASSET-INVENTORY record (a GIS layer listing where signs exist, with no message
+    // and no timestamp — PennDOT TSAMS, MaineDOT) carries no telemetry in either
+    // direction. It cannot confirm a zone, and critically it must not DENY one: such a
+    // device is permanently `off`, and annotateEvents reads off-but-near devices out of
+    // the review bucket to mark a zone 'suspect-inactive'. Letting inventory rows through
+    // would flag live work zones as stale on the strength of a static map layer. They
+    // stay in the roster for coverage reporting, but are never adjudicated.
+    if (device.inventory) {
+      unmatched.push({ device, reason: 'asset-inventory record (no live telemetry) — not evidence', best: rec });
+      continue;
+    }
     // Auto-link only a high-confidence link that is also ON (if required) and not far;
     // off/far links still surface, but in the review queue for a human to confirm.
     const blockedFromAuto = (cfg.requireOnForAuto && best.off) || best.far;
@@ -338,17 +349,34 @@ function selftest() {
       msgtext: '', EditDate: now } }
   ].map(deviceFromFeature);
 
+  // An asset-INVENTORY row in the same spot as the winning board: it would otherwise
+  // score well, be permanently `off`, and make annotateEvents call this live zone
+  // 'suspect-inactive'. It must be excluded from BOTH links and review.
+  boards.push({ ...deviceFromFeature({ properties: {
+    DeviceName: '0xI1 PennDOT TSAMS asset', Route: 'I 80', Direction: 'e',
+    long_: '-93.9045', lat_: '41.5998', msgtext: '' } }), inventory: true });
+
   const res = matchDevices(boards, [zone]);
   console.log('SELFTEST links:', res.links.map(l => `${l.device} -> ${l.road_event_id} @ ${l.confidence}% [${l.reasons.join(', ')}]`));
   console.log('SELFTEST review:', res.review.map(r => `${r.device} (${r.far ? 'far' : ''}${r.on ? '' : ' off'})`));
   console.log('SELFTEST unmatched:', res.unmatched.map(u => u.device.id));
   // Exactly one auto-link (0xAA: on, close, upstream). The far (0xEE) and off (0xFF)
   // boards match but are held for review, not auto-linked.
+  // An inventory row must never be adjudicated: not auto-linked, and not in review
+  // (where annotateEvents would read it as an off device and flag the zone stale).
+  const inv = res.unmatched.find(u => u.device.id.includes('0xI1'));
+  const annotated = annotateEvents([{ ...zone }], { links: [], review: res.review });
   const ok = res.links.length === 1
     && res.links[0].device.includes('0xAA')
     && res.links[0].confidence >= DEFAULTS.autoThreshold
     && res.review.some(r => r.device.includes('0xEE') && r.far)
-    && res.review.some(r => r.device.includes('0xFF') && !r.on);
+    && res.review.some(r => r.device.includes('0xFF') && !r.on)
+    && !!inv && /asset-inventory/.test(inv.reason)
+    && !res.links.some(l => l.device.includes('0xI1'))
+    && !res.review.some(r => r.device.includes('0xI1'))
+    // the off board 0xFF legitimately still marks the zone suspect-inactive; the point
+    // is that the inventory row is not what put it there.
+    && annotated[0].x_offline_devices.every(d => !String(d.device_id).includes('0xI1'));
   console.log(ok ? '✅ selftest PASS' : '❌ selftest FAIL');
   return ok;
 }

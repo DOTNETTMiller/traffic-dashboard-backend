@@ -54,7 +54,12 @@ function normalize(o, state) {
     direction: matcher.normalizeDir(o.direction) || (o.direction ? firstDir(o.direction) : null),
     coordinates: [lon, lat],
     mode: { displaying: !!msg && !/^blank$|^off$|^none$/i.test(msg), pattern: msg || null },
-    updated: o.updated || null
+    updated: o.updated || null,
+    // true when the source layer is a static ASSET INVENTORY (no live message, no
+    // timestamp) rather than device telemetry. Such a record says a sign exists at a
+    // location, never that one is deployed and working right now — so it is not
+    // evidence for validation and must not be adjudicated as if it were.
+    inventory: !!o.inventory
   };
 }
 
@@ -80,7 +85,8 @@ async function arcgis(cfg) {
       message: cfg.messageField ? a[cfg.messageField] : null,
       signType: cfg.signTypeField ? a[cfg.signTypeField] : null,
       portable: cfg.isPortable ? cfg.isPortable(a) : null,
-      updated: cfg.updatedField ? a[cfg.updatedField] : null
+      updated: cfg.updatedField ? a[cfg.updatedField] : null,
+      inventory: !!cfg.inventoryOnly
     }, cfg.state);
     if (rec) out.push(rec);
   }
@@ -224,12 +230,21 @@ const ADAPTERS = {
   // ---- Portable / arrow-board capable, no key (the priority set) ----
   wa: { name: 'Washington', portable: true, key: false, run: () => wzdxDevice({ state: 'WA', url: 'https://wzdx.wsdot.wa.gov/api/v4/DeviceFeed' }) },
   ok: { name: 'Oklahoma', portable: true, key: false, run: () => oklahoma({}) },
+  // PennDOT's TSAMS layer is an ASSET INVENTORY, not live status: every record is
+  // ITS_DEVICE_TYPE 'DMS' with no message and no timestamp. It also carries devices that
+  // do not exist yet — of 1040 records, 185 are 'Planned', 83 'Programmed' and 20 'Down';
+  // only 752 are 'Existing/Standby'. Ingesting the other 288 asserted the presence of
+  // hardware that is not in the field, so the where-clause now filters them out.
   pa: { name: 'Pennsylvania', portable: true, key: false, run: () => arcgis({
     state: 'PA', url: 'https://gis.penndot.gov/arcgis/rest/services/tsams/tsams/MapServer/17/query',
+    where: "DEVICE_STATUS = 'Existing/Standby'", inventoryOnly: true,
     routeField: 'STATE_ROUTE', dirField: 'DIRECTION', signTypeField: 'STRUCTURE_TYPE',
     isPortable: (a) => /trailer|type\s*[ab]/i.test(a.STRUCTURE_TYPE || '') }) },
+  // MaineDOT's layer is likewise an ASSET INVENTORY: all 101 records are Ver-Mac
+  // 'Trailer Mounted' / 'Changable Message Sign' assets with no message and no timestamp.
   me: { name: 'Maine', portable: true, key: false, run: () => arcgis({
     state: 'ME', url: 'https://arcgisserver.maine.gov/arcgis/rest/services/mdot/MaineDOT_Dynamic/MapServer/111/query',
+    inventoryOnly: true,
     routeField: 'rt_code', dirField: 'travel_direction', signTypeField: 'installation_type',
     isPortable: (a) => /trailer/i.test(a.installation_type || '') }) },
 
@@ -239,6 +254,7 @@ const ADAPTERS = {
     routeField: 'highway', dirField: 'direction', latField: 'latitude', lonField: 'longitude', messageField: 'message', updatedField: 'timestamp' }) },
   ky: { name: 'Kentucky', portable: false, key: false, run: () => arcgis({
     state: 'KY', url: 'https://services2.arcgis.com/CcI36Pduqd0OR4W9/arcgis/rest/services/dmsSigns_2020/FeatureServer/0/query',
+    where: "dmsStatus = 'Online'",
     routeField: 'dmsHighway', dirFrom: (a) => a.dmsLocation, latField: 'dmsLatitude', lonField: 'dmsLongitude',
     messageField: 'kytcMessage', signTypeField: 'dmsStatus', updatedField: 'updateTS' }) },
   md: { name: 'Maryland', portable: false, key: false, run: () => arcgis({
