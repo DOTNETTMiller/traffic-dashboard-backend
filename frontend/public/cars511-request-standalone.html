@@ -2389,7 +2389,13 @@ function requestPayload(){ const o={}; FIELD_IDS.forEach(id=>{ if(el(id)) o[id]=
     : (wzCoords ? {type:'LineString',coordinates:wzCoords} : null);
   // keep o.detour as the Yes/No field; detour geometry gets its own key
   o.detour_geometry=(detourPts.length>=2)?{type:'LineString',coordinates:(detourRoute&&detourRoute.length?detourRoute:detourPts.map(p=>[p.lat,p.lng])).map(c=>[c[1],c[0]])}:null;
+  // The segments are what the TMC re-keys into OpenTMS, so send them as structured data;
+  // `schedule` stays as the flat human-readable expansion for anything already reading it.
+  o.scheduleSegments=schedSegments.map(s=>({from_date:s.fromDate,until_date:s.untilDate,
+    from_time:s.fromTime,until_time:s.untilTime,recurs:!!s.recur,every_weeks:s.every,
+    days_of_week:s.days,crosses_midnight:segCrossesMidnight(s),description:segLabel(s)}));
   o.schedule=schedule.map(s=>s.label);
+  o.scheduleNotes=v('schedNotes')||undefined;
   o.devices={ dms:Object.keys(selDMS), arrowBoards:Object.keys(selAB), streetSmartIWZ:Object.keys(selSS) };
   o.maps={ route:gmapsRoute()||null, detour:(detourPts.length>=2)?gmapsDetour():null };
   o.submitTo=v('tmcEmail')||'IowaDOT.Traffic@iowadot.us'; o.rceCc=v('rceEmail')||null;

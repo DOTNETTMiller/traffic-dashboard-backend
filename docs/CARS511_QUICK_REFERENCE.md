@@ -12,11 +12,16 @@ A one-page guide for field/RCE staff. Open **`cars511-request-standalone.html`**
    - **🏗️ Find DOT project #** — programmed (5-year) + letting projects near the segment → tap a number to fill it.
    - **🌉 Scan NBI clearances (route + detour)** — lowest bridge clearance on the route *and* the detour, plus posted restrictions → **Apply** fills height/width.
    - **🔶 Scan DMS, arrow boards & Street Smart (IWZ)** — tap devices to add; a **Street Smart (SS/SSR)** unit marks it an **Intelligent Work Zone**.
-   - **📷 Attach nearby traffic cameras** — adds camera links so the TMC/RCE can see the zone.
    - The **lane hint** under "Traffic impact" tells you how many lanes exist that direction — pick the matching impact.
-4. **Set the schedule.** Enter dates/times, or use **Build weeks** for recurring patterns. Draw a **detour** if there is one.
-5. **Review readiness.** Press **✓ Check readiness** — it flags any required field still empty before you submit.
-6. **Submit.** Choose one:
+4. **Set the schedule.** Built the way the TMC enters it in OpenTMS. Each **segment** is a date span, a
+   daily time window, and — if it repeats — the days of the week it runs on. Add one segment per pattern:
+   a closure that starts later on Sunday nights is its own segment, because that is how it goes into 511.
+   A **single day** or a **single overnight** is just one segment with recurring left unticked; there is no
+   week count to invent. Overnight windows are detected and marked as ending the following morning.
+5. **Detour.** Answer **Does this closure have a detour?** — the section only opens if you say yes. You can
+   save **more than one**, named by route and direction (e.g. *I-80 eastbound detour*).
+6. **Review readiness.** Press **✓ Check readiness** — it flags any required field still empty before you submit.
+7. **Submit.** Choose one:
    - **📝 Fill official 511 PDF** — downloads the filled Iowa 511 form.
    - **📋 Fill 511 site (copy fields)** — opens the SeamlessDocs form + per-field copy buttons.
    - **✉️ Email TMC (cc RCE)** — drafts the email (text auto-copied; Gmail fallback link if no mail app).
@@ -34,10 +39,14 @@ A one-page guide for field/RCE staff. Open **`cars511-request-standalone.html`**
 - **Find DOT project #** from the 5-Year Program + letting/bid layers.
 - **NBI clearances on route *and* detour** — now from the **live federal NBI** (statewide, fresher) + Iowa **posted restrictions**.
 - **DMS / arrow boards / Street Smart (IWZ)** device scan — correct IWZ meaning (Street Smart deployment, not arrow boards).
-- **📷 Nearby cameras** attach for visual verification.
 - **Full 26-choice traffic-impact dropdown** (matches the official form) + a **lanes-available** hint.
-- **Additional info / notes** field that consolidates devices, cameras, and your notes into the form's Additional-info box.
+- **Additional info / notes** field that consolidates devices and your notes into the form's Additional-info box.
 - **Readiness check** before submitting; **Share route/detour maps**; **Database submit** + JSON export.
+- The request email now arrives in the **same field order and wording as the SeamlessDocs 511 form**, so the
+  TMC reads it exactly where they expect each value.
+- Basemap is **OpenStreetMap** (Esri's still showed IA 401, decommissioned in 1991); Esri stays selectable.
+- **Cameras were removed** at the TMC's request — they were never used to fill the request.
+- The **DMS field is a yes/no request**: the TMC composes sign text to the statewide MUTCD format.
 
 ---
 
@@ -52,7 +61,6 @@ All are **read-only GET** requests and (except where noted) **CORS-open**, so th
 | `Reference_Post_View` | Posted mileposts, route & direction |
 | `CARS511_Iowa_View` | Live 511 events — **Load from live feed** + **duplicate check** |
 | `DMS_View` | DMS signs, arrow boards, Street Smart (IWZ) devices |
-| `Traffic_Cameras_View` | Nearby traffic-camera snapshots |
 | `Leg17Bridges` | Posted bridge restrictions (`Bridge_Posting`) |
 | `Resident_Construction_Office_view` | Nearest RCE office auto-detect |
 | `Iowa_DOT_Five_Year_Program_Project_Data_V2_Public_VIEW` | 5-Year Program project codes |

@@ -46,20 +46,26 @@ A single JSON object via `POST`, `Content-Type: application/json`. Example:
   "detourNotes": "",
   "contact24": "John Doe / 515-555-0100",
   "techContact": "Jane Roe / 515-555-0111",
-  "dms": "Requesting messaging on: SS1626 - US 20 EB @ MM 16",
-  "addlNotes": "Intelligent Work Zone (Street Smart) devices: SS1626 …\nNearby cameras: DQ - US 20 @ MM 297.2 (https://…)",
+  "dms": "Yes",
+  "addlNotes": "Intelligent Work Zone (Street Smart) devices: SS1626 …",
   "rce": "District 1 (Ames)",
   "overhead": "No",
-  "schedPattern": "Continuous",
   "segment": { "begin": [-93.61, 41.60], "end": [-93.62, 41.03], "miles": 41.2 },
   "geometry": { "type": "LineString", "coordinates": [[-93.61,41.60], [-93.62,41.03]] },
   "detour_geometry": null,
-  "schedule": ["Mon Sep 01 2026 → Wed Sep 30 2026 (continuous)"],
+  "scheduleSegments": [
+    { "from_date": "2026-09-06", "until_date": "2026-09-11",
+      "from_time": "20:00", "until_time": "06:00",
+      "recurs": true, "every_weeks": 1, "days_of_week": [1,2,3,4],
+      "crosses_midnight": true,
+      "description": "Runs every 1 week(s) on Monday, Tuesday, Wednesday, Thursday" }
+  ],
+  "scheduleNotes": "no work over the holiday weekend",
+  "schedule": ["Mon Sep 07 2026  8:00 pm → 6:00 am next day"],
   "devices": {
     "dms": ["I-35 SB @ Corp Woods"],
     "arrowBoards": ["QTC-24 - I-35 NB Ramp"],
-    "streetSmartIWZ": ["SS1626 - US 20 EB @ MM 16"],
-    "cameras": ["DQ - US 20 @ MM 297.2 (JFK Rd - West)"]
+    "streetSmartIWZ": ["SS1626 - US 20 EB @ MM 16"]
   },
   "maps": { "route": "https://www.google.com/maps/dir/…", "detour": null },
   "submitTo": "IowaDOT.Traffic@iowadot.us",
@@ -87,12 +93,15 @@ A single JSON object via `POST`, `Content-Type: application/json`. Example:
 | `rWidth`,`rHeight`,`rWeight`,`rLength`,`rTiming` | Restrictions | `restr_*` |
 | `detour` (string) / `detour` (object) | Yes/No / GeoJSON line | `has_detour`, `detour_geom` |
 | `oversize`, `detourNotes` | Oversize allowed, detour notes | `oversize`, `detour_notes` |
-| `contact24`, `techContact` | Contacts ("Name / Phone") | split into name+phone |
-| `dms`, `addlNotes` | DMS request, additional info | `dms_request`, `additional_info` |
+| `contact24`, `contact24Phone` | 24-hr contact, name and phone separately | `contact_name`, `contact_phone` |
+| `techContact`, `techPhone` | District tech, name and phone separately | `tech_name`, `tech_phone` |
+| `dms`, `addlNotes` | Permanent DMS request (Yes/No), additional info | `dms_request`, `additional_info` |
 | `rce` | Responsible RCE office | `rce_office` |
 | `overhead` | Temp overhead signals Yes/No | `overhead_signals` |
 | `segment`, `geometry` | Coords + WGS84 line | `geom` (PostGIS `geometry(LineString,4326)`) |
-| `schedule` | Built occurrences | `schedule` (jsonb) |
+| `scheduleSegments` | **The unit the TMC re-keys into OpenTMS** — date span, daily window, and weekly recurrence per segment. A closure running different hours on one day is a separate segment. | `schedule_segments` (jsonb) |
+| `schedule` | Flat human-readable expansion of the segments | `schedule` (jsonb) |
+| `scheduleNotes` | Free text the segments do not capture | `schedule_notes` |
 | `devices` | Associated field devices by type | `devices` (jsonb) |
 | `maps` | Google Maps route/detour links | `route_map_url`, `detour_map_url` |
 | `generatedAt`, `source` | Provenance | `created_at`, `source` |
@@ -219,7 +228,7 @@ CREATE TABLE cars511_requests (
   rce_office    text, requestor_name text, requestor_email text,
   dms_request   text, additional_info text,
   geom          geometry(LineString, 4326),
-  devices       jsonb, schedule jsonb,
+  devices       jsonb, schedule jsonb, schedule_segments jsonb, schedule_notes text,
   raw_payload   jsonb NOT NULL,               -- keep the whole thing
   source        text, created_at timestamptz DEFAULT now()
 );
