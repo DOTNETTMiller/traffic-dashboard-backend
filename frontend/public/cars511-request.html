@@ -554,9 +554,11 @@ function renderContacts(){ const dl=el('contactList'); if(!dl) return;
   dl.innerHTML=contactBook().map(c=>`<option value="${String(c.name).replace(/"/g,'&quot;')}">${c.phone||''}</option>`).join(''); }
 function rememberContact(){ const name=v('contact24'); if(!name) return;
   const book=contactBook(); const hit=book.find(c=>c.name.toLowerCase()===name.toLowerCase());
-  // Picking a remembered name fills its number; typing a new pair saves it.
-  if(hit && !v('contact24Phone') && hit.phone) el('contact24Phone').value=hit.phone;
-  const phone=v('contact24Phone');
+  // Picking a remembered name fills its number; typing a new pair saves it. Some builders keep
+  // name and phone in one box, so the phone field is optional.
+  const ph=el('contact24Phone');
+  if(hit && ph && !ph.value.trim() && hit.phone) ph.value=hit.phone;
+  const phone=ph?ph.value.trim():'';
   const next=book.filter(c=>c.name.toLowerCase()!==name.toLowerCase());
   next.unshift({name, phone});
   localStorage.setItem('cars511_contacts', JSON.stringify(next.slice(0,200)));
