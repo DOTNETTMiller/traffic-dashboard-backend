@@ -1107,17 +1107,40 @@ https://github.com/nodeca/pako/blob/master/LICENSE
   .form{width:430px;max-width:46vw;overflow:auto;padding:12px 14px 60px;background:#fff;border-right:1px solid #dde3ea}
   #map{position:absolute;inset:0;height:100%;width:100%}
   .maphint{position:absolute;top:10px;left:10px;z-index:1000;background:rgba(255,255,255,.95);padding:6px 10px;border-radius:6px;font-size:12px;box-shadow:0 1px 6px rgba(0,0,0,.2)}
-  fieldset{border:1px solid #dde3ea;border-radius:10px;margin:0 0 12px;padding:10px 12px}
+  fieldset{border:1px solid #dde3ea;border-radius:10px;margin:0 0 12px;padding:10px 12px;min-width:0}
   legend{font-weight:700;color:var(--brand);font-size:13px;padding:0 6px}
   label{display:block;font-size:12px;font-weight:600;margin:8px 0 2px;color:#334}
   input,select,textarea{width:100%;padding:7px 8px;border:1px solid #cdd6df;border-radius:6px;font-size:13px;font-family:inherit}
   textarea{min-height:52px;resize:vertical}
-  .row{display:flex;gap:8px} .row>div{flex:1}
+  .row{display:flex;gap:8px} .row>div{flex:1;min-width:0}
   .bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
   button{border:1px solid var(--brand2);background:#fff;color:var(--brand2);border-radius:6px;padding:7px 10px;font-size:13px;font-weight:600;cursor:pointer}
   button.primary{background:var(--brand2);color:#fff} button.active{background:var(--brand);color:#fff;border-color:var(--brand)}
   .mapbtns{display:flex;gap:6px} .mapbtns button{flex:1}
   .selinfo{font-size:12px;background:#eef3fb;border:1px solid #d3e0f5;border-radius:6px;padding:7px 9px;margin-top:8px;color:#22344a}
+  /* Schedule segments — mirrors the OpenTMS Timing & Recurrences panel the TMC enters closures in. */
+  .segEditor { background:#f8fafc; border:1px solid var(--line); border-radius:8px; padding:8px 10px 10px; }
+  .segHead { font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--sub);
+    background:#eef2f7; border-radius:4px; padding:3px 7px; margin:10px 0 4px; }
+  .segEditor .segHead:first-child { margin-top:0; }
+  .req { color:#b91c1c; font-weight:700; }
+  .dayPicks { display:flex; flex-wrap:wrap; gap:4px 10px; }
+  .dayPicks .chk { margin-top:2px; min-width:62px; }
+  .segTable { width:100%; border-collapse:collapse; font-size:11.5px; }
+  .segTable th { text-align:left; font-weight:600; color:var(--sub); font-size:10px; text-transform:uppercase;
+    letter-spacing:.4px; padding:4px 5px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  .segTable td { padding:4px 5px; border-bottom:1px solid #eef2f7; vertical-align:top; }
+  .segTable tr:last-child td { border-bottom:0; }
+  .segTable tr.editing td { background:var(--accent-soft); }
+  .segTable .segWhen { font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .segTable .segTime { font-variant-numeric:tabular-nums; }
+  .segTable .segAct { white-space:nowrap; text-align:right; }
+  .segTable .segAct button { padding:2px 7px; font-size:12px; line-height:1.2; border:1px solid var(--line);
+    background:#fff; border-radius:4px; cursor:pointer; margin-left:3px; }
+  .segTable .segAct button:hover { border-color:var(--accent); color:var(--accent); }
+  /* Needs to outrank `.mapbtns button`, which is more specific and would otherwise repaint
+     the background white and leave this button's white label invisible on it. */
+  .mapbtns button.primarySm, button.primarySm { background:var(--accent); color:#fff; border-color:var(--accent); }
   .box{font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:7px 9px;margin-top:8px;white-space:normal}
   .hint{font-size:11px;color:#64748b;margin-top:4px}
   .actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
@@ -1218,7 +1241,7 @@ https://github.com/nodeca/pako/blob/master/LICENSE
         <div><label>Requestor</label><input id="requestor" /></div>
         <div><label>Requestor email</label><input id="email" type="email" /></div>
       </div>
-      <label>24-hour contact (name / phone)</label><input id="contact24" />
+      <label>24-hour contact (name / phone)</label><input id="contact24" list="contactList" autocomplete="off" onchange="rememberContact()" /><datalist id="contactList"></datalist>
       <label>Vehicle impact <span class="hint" style="display:inline">(WZDx standard)</span></label>
       <select id="impact" onchange="updateClearReminder();saveState()">
         <option value="">— select —</option>
@@ -1299,18 +1322,70 @@ https://github.com/nodeca/pako/blob/master/LICENSE
     </fieldset>
 
     <fieldset>
-      <legend>Step 5 · Schedule — build out weeks</legend>
-      <div class="row">
-        <div><label>Pattern</label><select id="schedPattern"><option>Continuous</option><option>Weekdays</option><option>Nights</option><option>Weekends</option></select></div>
-        <div><label># weeks</label><input id="schedWeeks" type="number" min="1" max="52" placeholder="3" /></div>
+      <legend>Step 5 · Schedule</legend>
+      <div class="hint" style="margin:0 0 8px">Built the way the TMC enters it in OpenTMS. A closure that runs different hours on
+        one day (say Sunday nights start later) is a <b>separate segment</b> — add as many as the job needs.</div>
+
+      <div class="segEditor">
+        <div class="segHead">Dates of occurrence</div>
+        <div class="row">
+          <div><label>From date <span class="req">*</span></label><input id="segFromDate" type="date" /></div>
+          <div><label>Until date <span class="req">*</span></label><input id="segUntilDate" type="date" /></div>
+        </div>
+        <div class="segHead">Times of occurrence</div>
+        <div class="row">
+          <div><label>From time <span class="req">*</span></label><input id="segFromTime" type="time" oninput="updateSegHints()" /></div>
+          <div><label>Until time <span class="req">*</span></label><input id="segUntilTime" type="time" oninput="updateSegHints()" /></div>
+        </div>
+        <div class="hint" id="segOvernight" style="display:none;margin:2px 0 0">Crosses midnight — each occurrence ends the following morning.</div>
+
+        <div class="segHead">Recurring</div>
+        <label class="chk"><input type="checkbox" id="segRecur" onchange="onRecurToggle()" /> This scheduled item will recur</label>
+        <div id="segRecurBox" style="display:none;margin-top:6px">
+          <div class="row" style="align-items:end">
+            <div style="max-width:90px"><label>Every</label><input id="segEvery" type="number" min="1" max="12" value="1" /></div>
+            <div><label>&nbsp;</label><select id="segUnit"><option>Week(s)</option></select></div>
+          </div>
+          <label style="margin-top:6px">On the following days</label>
+          <div class="dayPicks" id="segDays">
+            <label class="chk"><input type="checkbox" data-dow="1" /> Mon</label>
+            <label class="chk"><input type="checkbox" data-dow="2" /> Tue</label>
+            <label class="chk"><input type="checkbox" data-dow="3" /> Wed</label>
+            <label class="chk"><input type="checkbox" data-dow="4" /> Thu</label>
+            <label class="chk"><input type="checkbox" data-dow="5" /> Fri</label>
+            <label class="chk"><input type="checkbox" data-dow="6" /> Sat</label>
+            <label class="chk"><input type="checkbox" data-dow="0" /> Sun</label>
+          </div>
+          <div class="mapbtns" style="margin-top:6px">
+            <button type="button" onclick="pickDays('week')">Week days</button>
+            <button type="button" onclick="pickDays('end')">Week ends</button>
+            <button type="button" onclick="pickDays('all')">All</button>
+            <button type="button" onclick="pickDays('none')">None</button>
+          </div>
+        </div>
+
+        <div class="mapbtns" style="margin-top:10px">
+          <button type="button" class="primarySm" onclick="saveSegment()" id="segSaveBtn">💾 Save segment</button>
+          <button type="button" onclick="clearSegForm()">✕ Cancel</button>
+        </div>
       </div>
-      <div class="row">
-        <div><label>Start date</label><input id="schedStart" type="date" /></div>
-        <div><label>Daily from</label><input id="schedFrom" type="time" /></div>
-        <div><label>Daily to</label><input id="schedTo" type="time" /></div>
+
+      <div id="segTableWrap" style="display:none;margin-top:10px">
+        <div class="segHead" style="margin-top:0">Schedule segments</div>
+        <div style="overflow-x:auto"><table class="segTable" id="segTable"></table></div>
+        <div class="hint" id="segSummary" style="margin-top:4px"></div>
       </div>
-      <button style="width:100%;margin-top:8px" onclick="buildWeeks()">📅 Build weeks → occurrences</button>
-      <div class="box" id="schedList" style="display:none"></div>
+
+      <div class="segHead">Project window</div>
+      <div class="row">
+        <div><label>Project begin date <span class="req">*</span></label><input id="beginDT" type="datetime-local" oninput="saveState()" /></div>
+        <div><label>Project end date <span class="req">*</span></label><input id="endDT" type="datetime-local" oninput="saveState()" /></div>
+      </div>
+      <div class="hint">Set from the segments above — the earliest start and the end of the last work period. Edit if the
+        project window is wider than the work itself.</div>
+
+      <label style="margin-top:10px">Schedule notes <span style="color:#94a3b8;font-weight:400">(anything the segments don't capture)</span></label>
+      <textarea id="schedNotes" placeholder="e.g. no work over the holiday weekend; paving crew may finish early" oninput="saveState()"></textarea>
     </fieldset>
 
     <fieldset>
@@ -1347,18 +1422,19 @@ https://github.com/nodeca/pako/blob/master/LICENSE
 const el=id=>document.getElementById(id);
 const v=id=>{const e=el(id);return e?String(e.value||'').trim():'';};
 function toast(m){const t=el('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),3200);}
-const FIELD_IDS=['route','routeOther','direction','project','description','beginLoc','endLoc','counties','requestor','email','contact24','impact','rWidth','rHeight','rWeight','rLength','normalSpeed','reducedSpeed','rTiming','clearStatus','detour','oversize','dms','addlNotes','tmcEmail','schedPattern','schedWeeks','schedStart','schedFrom','schedTo'];
+const FIELD_IDS=['route','routeOther','direction','project','description','beginLoc','endLoc','counties','requestor','email','contact24','impact','rWidth','rHeight','rWeight','rLength','normalSpeed','reducedSpeed','rTiming','clearStatus','detour','oversize','dms','addlNotes','tmcEmail','schedNotes'];
 
 // ---- map ----
 const map=L.map('map',{zoomControl:true}).setView([38.5,-92.5],7); // Missouri
 // Esri basemap tiles: no API key, no Referer required (OSM's public tiles 403 when opened from file://).
-const baseStreet=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles © Esri',crossOrigin:true,errorTileUrl:'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='}).addTo(map);
+const baseStreet=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors',crossOrigin:true,errorTileUrl:'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='}).addTo(map);
 const baseSat=L.layerGroup([
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri'}),
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19})
 ]);
 L.control.layers({'Street':baseStreet,'Satellite':baseSat},{},{position:'topright'}).addTo(map);
 setTimeout(()=>map.invalidateSize(),200); window.addEventListener('resize',()=>map.invalidateSize());
+let schedSegments=[];
 let mode='begin',beginPt=null,endPt=null,beginMk=null,endMk=null,line=null,wzRoute=null,schedule=[],laneData=[];
 // SELF_CONTAINED: the emailable standalone build flips this to true → the tool makes NO calls to our
 // servers at all. Cameras then come only from the state's own GIS (CAM) or a file the user loads; the
@@ -1650,10 +1726,137 @@ function applyNBI(){const routeB=window.__nbiNear||[],detB=window.__nbiDetour||[
   saveState();toast('Height set to '+ftIn(gov.clr)+' ('+(useDet?'detour':'route')+' governs)');}
 
 // ---- schedule ----
-function buildWeeks(){const pattern=v('schedPattern'),start=v('schedStart'),weeks=parseInt(v('schedWeeks')||'0',10),from=v('schedFrom'),to=v('schedTo');if(!start||!weeks){toast('Set a start date and # of weeks');return;}const s=new Date(start+'T00:00'),totalDays=weeks*7;schedule=[];if(pattern==='Continuous'){const e=new Date(s);e.setDate(e.getDate()+totalDays);schedule.push({label:s.toDateString()+' → '+e.toDateString()+' (continuous)'});}else{const dow=pattern==='Weekdays'?[1,2,3,4,5]:pattern==='Weekends'?[0,6]:[0,1,2,3,4,5,6];for(let d=0;d<totalDays;d++){const day=new Date(s);day.setDate(s.getDate()+d);if(dow.includes(day.getDay()))schedule.push({label:day.toDateString()+((from&&to)?('  '+from+'–'+to):'')});}}const box=el('schedList');box.style.display='block';box.innerHTML='<b>'+schedule.length+' occurrence(s):</b><br>'+schedule.slice(0,60).map(o=>o.label).join('<br>')+(schedule.length>60?'<br>…':'');saveState();toast('Built '+schedule.length+' occurrences');}
+// ---- Schedule segments (OpenTMS Timing & Recurrences model) ------------------
+// The TMC enters a closure as one or more SEGMENTS. A segment is a date span, a
+// daily time window, and optionally a weekly recurrence on named days. Two
+// segments are needed whenever one day runs different hours — the Sunday-starts-
+// at-9 case — which is exactly how it goes into OpenTMS, so the request should
+// arrive already broken up that way instead of buried in a notes field.
+const DOW_LONG=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const DOW_SHORT=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+let segEditIdx=-1;                      // -1 = adding, >=0 = updating that segment
 
-// ---- project autocomplete via CSV (offline; NV live layers are not CORS-open) ----
-const projIndex={};
+function segDayBoxes(){ return [...document.querySelectorAll('#segDays input[type=checkbox]')]; }
+function pickDays(which){ segDayBoxes().forEach(b=>{ const d=+b.dataset.dow;
+  b.checked = which==='all' ? true : which==='none' ? false : which==='week' ? (d>=1&&d<=5) : (d===0||d===6); }); }
+function onRecurToggle(){ el('segRecurBox').style.display = el('segRecur').checked ? 'block' : 'none'; }
+// A window whose end time is at or before its start time runs past midnight.
+function segCrossesMidnight(s){ return !!(s.fromTime && s.untilTime && s.untilTime <= s.fromTime); }
+function hhmm(t){ if(!t) return ''; const [h,m]=t.split(':').map(Number); const ap=h<12?'am':'pm';
+  const hr=h%12===0?12:h%12; return `${hr}:${String(m).padStart(2,'0')} ${ap}`; }
+function dstr(d){ if(!d) return ''; const [y,m,day]=d.split('-'); return `${m}/${day}/${y}`; }
+
+function readSegForm(){
+  return { fromDate:v('segFromDate'), untilDate:v('segUntilDate'), fromTime:v('segFromTime'), untilTime:v('segUntilTime'),
+    recur: el('segRecur').checked, every: Math.max(1, parseInt(v('segEvery')||'1',10)), unit:'Week(s)',
+    days: segDayBoxes().filter(b=>b.checked).map(b=>+b.dataset.dow).sort() };
+}
+function writeSegForm(s){
+  el('segFromDate').value=s.fromDate||''; el('segUntilDate').value=s.untilDate||'';
+  el('segFromTime').value=s.fromTime||''; el('segUntilTime').value=s.untilTime||'';
+  el('segRecur').checked=!!s.recur; el('segEvery').value=s.every||1;
+  segDayBoxes().forEach(b=> b.checked = (s.days||[]).includes(+b.dataset.dow));
+  onRecurToggle(); updateSegHints();
+}
+function clearSegForm(){ segEditIdx=-1; writeSegForm({every:1,days:[]});
+  el('segSaveBtn').textContent='💾 Save segment'; renderSegments(); }
+function updateSegHints(){ const s=readSegForm();
+  el('segOvernight').style.display = segCrossesMidnight(s) ? 'block' : 'none'; }
+
+// "Runs every 1 week(s) on Monday, Tuesday, Wednesday, Thursday" — OpenTMS's own phrasing,
+// so the TMC reads the request in the words their tool already uses.
+function segLabel(s){
+  if(!s.recur || !s.days.length) return 'Continuous';
+  const names=s.days.slice().sort((a,b)=>((a+6)%7)-((b+6)%7)).map(d=>DOW_LONG[d]);
+  return `Runs every ${s.every} week(s) on ${names.join(', ')}`;
+}
+// Expand a segment into individual work nights/days for the request summary.
+function segOccurrences(s, cap=400){
+  const out=[]; if(!s.fromDate||!s.untilDate) return out;
+  const start=new Date(s.fromDate+'T00:00'), end=new Date(s.untilDate+'T00:00');
+  if(isNaN(start)||isNaN(end)||end<start) return out;
+  if(!s.recur || !s.days.length){
+    out.push({ date:s.fromDate, label:`${start.toDateString()} ${hhmm(s.fromTime)} → ${end.toDateString()} ${hhmm(s.untilTime)} (continuous)` });
+    return out;
+  }
+  const wk0=new Date(start); wk0.setDate(wk0.getDate()-((wk0.getDay()+6)%7)); // Monday of week 1
+  for(let d=new Date(start); d<=end && out.length<cap; d.setDate(d.getDate()+1)){
+    if(!s.days.includes(d.getDay())) continue;
+    const wkIdx=Math.floor((d-wk0)/(7*864e5));
+    if(wkIdx % s.every !== 0) continue;
+    const iso=d.toISOString().slice(0,10);
+    const tail = segCrossesMidnight(s)
+      ? `${hhmm(s.fromTime)} → ${hhmm(s.untilTime)} next day`
+      : `${hhmm(s.fromTime)}–${hhmm(s.untilTime)}`;
+    out.push({ date:iso, label:`${d.toDateString()}  ${tail}` });
+  }
+  return out;
+}
+
+function saveSegment(){
+  const s=readSegForm();
+  const miss=[]; if(!s.fromDate)miss.push('from date'); if(!s.untilDate)miss.push('until date');
+  if(!s.fromTime)miss.push('from time'); if(!s.untilTime)miss.push('until time');
+  if(miss.length){ toast('Missing '+miss.join(', ')); return; }
+  if(new Date(s.untilDate) < new Date(s.fromDate)){ toast('Until date is before the from date'); return; }
+  if(s.recur && !s.days.length){ toast('Pick at least one day, or untick recurring'); return; }
+  if(segEditIdx>=0) schedSegments[segEditIdx]=s; else schedSegments.push(s);
+  clearSegForm(); syncSchedule(); saveState();
+  toast(segEditIdx>=0?'Segment updated':'Segment added');
+}
+function editSegment(i){ segEditIdx=i; writeSegForm(schedSegments[i]);
+  el('segSaveBtn').textContent='💾 Update segment'; renderSegments();
+  el('segFromDate').scrollIntoView({block:'nearest'}); }
+function deleteSegment(i){ schedSegments.splice(i,1); if(segEditIdx===i) clearSegForm();
+  else { if(segEditIdx>i) segEditIdx--; renderSegments(); } syncSchedule(); saveState(); }
+
+function renderSegments(){
+  const wrap=el('segTableWrap'), tbl=el('segTable'); if(!wrap||!tbl) return;
+  if(!schedSegments.length){ wrap.style.display='none'; tbl.innerHTML=''; return; }
+  wrap.style.display='block';
+  tbl.innerHTML='<thead><tr><th>Schedule segment</th><th>Dates</th><th>Time</th><th></th></tr></thead><tbody>'+
+    schedSegments.map((s,i)=>{
+      const t = segCrossesMidnight(s) ? `${hhmm(s.fromTime)} → ${hhmm(s.untilTime)}<sup>+1</sup>` : `${hhmm(s.fromTime)}–${hhmm(s.untilTime)}`;
+      const dates=`${dstr(s.fromDate)}<br>\u2192 ${dstr(s.untilDate)}`;
+      return `<tr class="${i===segEditIdx?'editing':''}"><td>${segLabel(s)}</td>`+
+        `<td class="segWhen">${dates}</td><td class="segTime">${t}</td>`+
+        `<td class="segAct"><button type="button" title="Edit" onclick="editSegment(${i})">\u270e</button>`+
+        `<button type="button" title="Delete" onclick="deleteSegment(${i})">\u2715</button></td></tr>`;
+    }).join('')+'</tbody>';
+  const occ=schedule.length;
+  el('segSummary').innerHTML=`${schedSegments.length} segment(s) · ${occ} work period(s) total`+
+    (schedSegments.some(segCrossesMidnight)?' · <sup>+1</sup> ends the following morning':'');
+}
+
+// Rebuild the flat occurrence list the summary/PDF/email use, and span Begin/End.
+function syncSchedule(){
+  schedule=[]; schedSegments.forEach(s=> schedule.push(...segOccurrences(s)) );
+  schedule.sort((a,b)=> (a.date||'').localeCompare(b.date||''));
+  const b=segSpan();
+  if(b){ if(el('beginDT')) el('beginDT').value=b.begin; if(el('endDT')) el('endDT').value=b.end; }
+  renderSegments();
+}
+// Earliest start and latest end across every segment — the project's overall window.
+// A recurring segment ends when its LAST occurrence ends, which is usually before the
+// until-date: Mon–Thu nights inside a Sun–Fri span finish Friday morning, not Saturday.
+function segEnd(s){
+  if(!s.fromDate||!s.untilDate) return null;
+  let day=s.untilDate;
+  if(s.recur && (s.days||[]).length){
+    const occ=segOccurrences(s); if(!occ.length) return null;
+    day=occ[occ.length-1].date;
+    if(segCrossesMidnight(s)){ const n=new Date(day+'T00:00'); n.setDate(n.getDate()+1); day=n.toISOString().slice(0,10); }
+  }
+  return day+'T'+(s.untilTime||'23:59');
+}
+function segSpan(){
+  const withDates=schedSegments.filter(s=>s.fromDate&&s.untilDate); if(!withDates.length) return null;
+  const begin=withDates.map(s=>s.fromDate+'T'+(s.fromTime||'00:00')).sort()[0];
+  const ends=withDates.map(segEnd).filter(Boolean).sort();
+  if(!ends.length) return null;
+  return { begin, end: ends[ends.length-1] };
+}
+
 function rebuildProjDatalist(){const esc=s=>String(s).replace(/"/g,'').replace(/[<>]/g,'');el('projList').innerHTML=Object.keys(projIndex).sort().map(n=>'<option value="'+esc(n)+'">'+esc((projIndex[n].desc||'').slice(0,40))+'</option>').join('');}
 function onProjectPick(){const p=projIndex[v('project')];if(p&&!v('description')&&p.desc)el('description').value=p.desc;saveState();}
 function parseCSV(text){const rows=[];let row=[],cur='',q=false;for(let i=0;i<text.length;i++){const c=text[i];if(q){if(c==='"'){if(text[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=c;}else if(c==='"')q=true;else if(c===','){row.push(cur);cur='';}else if(c==='\n'||c==='\r'){if(cur!==''||row.length){row.push(cur);rows.push(row);row=[];cur='';}if(c==='\r'&&text[i+1]==='\n')i++;}else cur+=c;}if(cur!==''||row.length){row.push(cur);rows.push(row);}return rows.filter(r=>r.some(x=>String(x).trim()!==''));}
@@ -1736,8 +1939,10 @@ function prefillFromClosure(i){ const info=(window.__closRecs||[])[i]; if(!info)
   if(info.desc && el('description'))el('description').value=String(info.desc).slice(0,300);
   if(info.impact && el('impact')){ const o=[...el('impact').options].find(x=>x.value===info.impact); if(o){ el('impact').value=info.impact; } }
   const sm=closToMs(info.start), em=closToMs(info.end);
-  if(sm && el('schedStart')){ const s=new Date(sm); el('schedStart').value=new Date(s.getTime()-s.getTimezoneOffset()*60000).toISOString().slice(0,10);
-    if(em && el('schedWeeks')){ const days=Math.max(1,Math.round((em-sm)/86400000)); el('schedWeeks').value=Math.max(1,Math.ceil(days/7)); } }
+  if(sm && el('segFromDate')){ const d=new Date(sm), off=x=>new Date(x.getTime()-x.getTimezoneOffset()*60000);
+    el('segFromDate').value=off(d).toISOString().slice(0,10); el('segFromTime').value=off(d).toISOString().slice(11,16);
+    if(em){ const e2=new Date(em); el('segUntilDate').value=off(e2).toISOString().slice(0,10); el('segUntilTime').value=off(e2).toISOString().slice(11,16); }
+    if(typeof updateSegHints==='function') updateSegHints(); }
   updateClearReminder(); saveState(); toast('Prefilled from existing closure — review'); }
 // Work that physically CHANGES the vertical clearance (raises/lowers the deck or the road grade under
 // a structure) — the posted/NBI clearance is now wrong and must be re-measured. Read from description.
@@ -1768,7 +1973,7 @@ async function suggestLanes(){ const hint=el('laneHint'); if(!hint||(!beginPt&&!
   }catch(e){ hint.style.display='none'; } }
 // Work-zone end/expiration derived from Start date + # weeks — sets the WZDx end_date so the zone
 // can't linger stale (a request with no end never expires downstream).
-function wzEndDate(){const start=v('schedStart'),weeks=parseInt(v('schedWeeks')||'0',10);if(!start||!weeks)return null;const e=new Date(start+'T00:00');e.setDate(e.getDate()+weeks*7);return e.toISOString();}
+function wzEndDate(){ const b=(typeof segSpan==='function')?segSpan():null; if(b) return new Date(b.end).toISOString(); const dt=v('endDT'); return dt?new Date(dt).toISOString():null; }
 function wzEndLabel(){const iso=wzEndDate();return iso?new Date(iso).toDateString():'';}
 // ---- MUTCD taper length + advance-warning sign spacing (Tables 6C-1/6C-4) ----
 function calcTaper(){ const box=el('taperBox'); box.style.display='block';
@@ -1827,7 +2032,7 @@ function toWZDx(){const now=new Date().toISOString();const coords=geometryCoords
   if(v('rLength'))restr.push({type:'reduced-length',value:v('rLength')});
   const baseName=v('project')||('MoDOT-'+Date.now().toString(36));
   const mkFeature=(dirName,geom,suffix)=>{const props={core_details:{event_type:'work-zone',data_source_id:'modot-wz-builder',road_names:[routeVal()].filter(Boolean),direction:dirName,name:baseName+suffix,description:v('description')||undefined,update_date:now},
-    start_date:v('schedStart')||now,end_date:wzEndDate(),x_review_by:wzEndDate()||undefined,vehicle_impact:v('impact')||'unknown',
+    start_date:(v('beginDT')||now),end_date:wzEndDate(),x_review_by:wzEndDate()||undefined,vehicle_impact:v('impact')||'unknown',
     beginning_cross_street:v('beginLoc')||undefined,ending_cross_street:v('endLoc')||undefined,
     is_start_position_verified:false,is_end_position_verified:false};
     if(restr.length)props.restrictions=restr.slice();
@@ -1947,8 +2152,26 @@ async function submitToDatabase(){const ep=v('dbEndpoint'),st=el('dbStatus');st.
 
 // ---- persistence ----
 function onRouteChange(){el('routeOther').style.display=v('route')==='__other'?'block':'none';}
-function saveState(){const s={pts:{beginPt,endPt,detourPts},lanes:laneData};FIELD_IDS.forEach(id=>{if(el(id))s[id]=el(id).value;});localStorage.setItem('modot_state',JSON.stringify(s));}
-function loadState(){try{const s=JSON.parse(localStorage.getItem('modot_state')||'{}');FIELD_IDS.forEach(id=>{if(el(id)&&s[id]!=null)el(id).value=s[id];});if(s.pts&&s.pts.beginPt){beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng);if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng);redraw();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ();setMode('locked');}}if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng));drawDetour();snapDetour();}if(Array.isArray(s.lanes)){laneData=s.lanes;if(el('laneCount'))el('laneCount').value=laneData.length||'';renderLanes();}}catch(e){}}
+// ---- 24-hr contact book -------------------------------------------------------
+// Castelline: "there is a handful… there's a lot of them" — 2,007 in OpenTMS. Until that
+// list can be preloaded, the builder remembers the ones this user has actually typed, so
+// the same names stop being re-keyed. Local to the browser; nothing is uploaded.
+function contactBook(){ try{ return JSON.parse(localStorage.getItem('cars511_contacts')||'[]'); }catch(e){ return []; } }
+function renderContacts(){ const dl=el('contactList'); if(!dl) return;
+  dl.innerHTML=contactBook().map(c=>`<option value="${String(c.name).replace(/"/g,'&quot;')}">${c.phone||''}</option>`).join(''); }
+function rememberContact(){ const name=v('contact24'); if(!name) return;
+  const book=contactBook(); const hit=book.find(c=>c.name.toLowerCase()===name.toLowerCase());
+  // Picking a remembered name fills its number; typing a new pair saves it. Some builders keep
+  // name and phone in one box, so the phone field is optional.
+  const ph=el('contact24Phone');
+  if(hit && ph && !ph.value.trim() && hit.phone) ph.value=hit.phone;
+  const phone=ph?ph.value.trim():'';
+  const next=book.filter(c=>c.name.toLowerCase()!==name.toLowerCase());
+  next.unshift({name, phone});
+  localStorage.setItem('cars511_contacts', JSON.stringify(next.slice(0,200)));
+  renderContacts(); saveState(); }
+function saveState(){const s={pts:{beginPt,endPt,detourPts},lanes:laneData,segs:schedSegments};FIELD_IDS.forEach(id=>{if(el(id))s[id]=el(id).value;});localStorage.setItem('modot_state',JSON.stringify(s));}
+function loadState(){try{const s=JSON.parse(localStorage.getItem('modot_state')||'{}');FIELD_IDS.forEach(id=>{if(el(id)&&s[id]!=null)el(id).value=s[id];});if(s.pts&&s.pts.beginPt){beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng);if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng);redraw();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ();setMode('locked');}}if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng));drawDetour();snapDetour();}if(Array.isArray(s.lanes)){laneData=s.lanes;if(el('laneCount'))el('laneCount').value=laneData.length||'';renderLanes();}}catch(e){}} if(Array.isArray(s.segs)){schedSegments=s.segs;syncSchedule();}
 const PERSIST=['requestor','email','contact24','tmcEmail'];
 function resetAll(){if(!confirm('Start a NEW request? Clears the segment, detour, and scans — your name/contact/email are kept.'))return;FIELD_IDS.forEach(id=>{if(el(id)&&!PERSIST.includes(id))el(id).value=el(id).tagName==='SELECT'?el(id).options[0].value:'';});[beginMk,endMk,line,line2].forEach(x=>x&&x.remove());beginPt=endPt=beginMk=endMk=line=line2=null;wzRoute=null;wzRoute2=null;schedule=[];detourPts=[];detourRoute=null;detourMeters=null;drawDetour();laneData=[];if(el('laneCount'))el('laneCount').value='';renderLanes();if(bridgeLayer){bridgeLayer.remove();bridgeLayer=null;}if(closuresLayer){closuresLayer.remove();closuresLayer=null;}window.__closConflicts=null;window.__closRecs=null;['nbiBox','schedList','detourInfo','readyBox','dbStatus','clearReminder','closuresBox'].forEach(id=>{if(el(id))el(id).style.display='none';});el('selinfo').textContent='No segment yet — click the road for the begin point, then the end point.';onRouteChange();setMode('begin');updateClearReminder();saveState();}
 function projectList(){try{return JSON.parse(localStorage.getItem('modot_projects')||'[]');}catch(e){return[];}}
