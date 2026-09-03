@@ -142,6 +142,9 @@ async function cars511(cfg) {
 
 // ---- custom fetchers --------------------------------------------------------
 
+// ODOT deviceTypeNames id for the towable-board class (see /api/DeviceTypeNames).
+const TRAILER_TYPE_ID = 9;
+
 async function oklahoma(cfg) {
   const base = 'https://oktraffic.org/api';
   const [devs, statuses] = await Promise.all([
@@ -154,12 +157,22 @@ async function oklahoma(cfg) {
     const addr = d.address || {};
     let msg = msgById.get(d.id);
     if (msg) msg = String(msg).replace(/\[[^\]]*\]/g, ' ').replace(/\s+/g, ' ').trim(); // strip NTCIP MULTI
+    // ODOT's taxonomy (/api/DeviceTypeNames) groups the DMS family under deviceTypeId 1
+    // (Permanent / Portable / Lane Control / WeighStation). "Trailer" is deviceTypeNameId 9,
+    // its own deviceTypeId 4 — a distinct non-DMS field-device class, and none of them appear
+    // in /DmsStatuses (they carry no sign text). Those are the towable boards, so they're
+    // portable field devices, not signs. Previously they were typed 'dms' and not even counted
+    // as portable, so every one of them was invisible to the matcher.
+    const isTrailer = d.deviceTypeNameId === TRAILER_TYPE_ID ||
+      /trailer/i.test((d.deviceTypeName && d.deviceTypeName.name) || '');
     const rec = normalize({
       id: d.id != null ? `OK-${d.id}` : null,
+      deviceType: isTrailer ? 'arrow-board' : 'dms',
       route: d.name || (d.deviceStatusEvents && d.deviceStatusEvents[0] && d.deviceStatusEvents[0].name),
       direction: addr.direction, lon: addr.longitude, lat: addr.latitude,
       message: msg, signType: d.deviceTypeName && d.deviceTypeName.name,
-      portable: d.deviceTypeNameId === 2 || /portable/i.test((d.deviceTypeName && d.deviceTypeName.name) || '')
+      portable: isTrailer || d.deviceTypeNameId === 2 ||
+        /portable/i.test((d.deviceTypeName && d.deviceTypeName.name) || '')
     }, 'OK');
     if (rec) out.push(rec);
   }
