@@ -1111,12 +1111,15 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   .wrap { flex:1; display:flex; min-height:0; }
   .form { width:460px; max-width:48vw; overflow-y:auto; background:var(--panel); border-right:1px solid var(--line); padding:14px 16px; }
   #map { position:absolute; inset:0; height:100%; width:100%; }
-  fieldset { border:1px solid var(--line); border-radius:8px; margin:0 0 12px; padding:10px 12px; }
+  /* min-width:0 — a fieldset defaults to min-width:min-content, so it refuses to shrink below
+     the intrinsic width of a date/time input and pushes the whole form panel into horizontal
+     overflow. Same reason for the flex children and the inputs themselves. */
+  fieldset { border:1px solid var(--line); border-radius:8px; margin:0 0 12px; padding:10px 12px; min-width:0; }
   legend { font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.4px; color:var(--accent); padding:0 4px; }
   label { display:block; font-size:12px; color:var(--sub); margin:8px 0 2px; }
-  input, select, textarea { width:100%; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-size:13px; font-family:inherit; background:#fff; }
+  input, select, textarea { width:100%; min-width:0; padding:6px 8px; border:1px solid var(--line); border-radius:6px; font-size:13px; font-family:inherit; background:#fff; }
   textarea { resize:vertical; min-height:40px; }
-  .row { display:flex; gap:8px; } .row > div { flex:1; }
+  .row { display:flex; gap:8px; } .row > div { flex:1; min-width:0; }
   .hint { font-size:11px; color:var(--sub); margin-top:3px; }
   .chk { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink); margin-top:6px; }
   .chk input { width:auto; }
@@ -1137,14 +1140,19 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   .dayPicks .chk { margin-top:2px; min-width:62px; }
   .segTable { width:100%; border-collapse:collapse; font-size:11.5px; }
   .segTable th { text-align:left; font-weight:600; color:var(--sub); font-size:10px; text-transform:uppercase;
-    letter-spacing:.4px; padding:4px 6px; border-bottom:1px solid var(--line); white-space:nowrap; }
-  .segTable td { padding:5px 6px; border-bottom:1px solid #eef2f7; vertical-align:top; }
+    letter-spacing:.4px; padding:4px 5px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  .segTable td { padding:4px 5px; border-bottom:1px solid #eef2f7; vertical-align:top; }
   .segTable tr:last-child td { border-bottom:0; }
   .segTable tr.editing td { background:var(--accent-soft); }
   .segTable .segWhen { font-variant-numeric:tabular-nums; white-space:nowrap; }
-  .segTable .segAct button { padding:2px 6px; font-size:10.5px; border:1px solid var(--line); background:#fff;
-    border-radius:4px; cursor:pointer; margin-right:3px; }
-  .primarySm { background:var(--accent); color:#fff; border-color:var(--accent)!important; }
+  .segTable .segTime { font-variant-numeric:tabular-nums; }
+  .segTable .segAct { white-space:nowrap; text-align:right; }
+  .segTable .segAct button { padding:2px 7px; font-size:12px; line-height:1.2; border:1px solid var(--line);
+    background:#fff; border-radius:4px; cursor:pointer; margin-left:3px; }
+  .segTable .segAct button:hover { border-color:var(--accent); color:var(--accent); }
+  /* Needs to outrank `.mapbtns button`, which is more specific and would otherwise repaint
+     the background white and leave this button's white label invisible on it. */
+  .mapbtns button.primarySm, button.primarySm { background:var(--accent); color:#fff; border-color:var(--accent); }
   .actions { position:sticky; bottom:0; background:var(--panel); border-top:1px solid var(--line); padding:10px 0 2px; display:flex; gap:8px; flex-wrap:wrap; }
   .actions button { flex:1; min-width:110px; padding:9px; border-radius:7px; border:none; cursor:pointer; font-weight:700; font-size:13px; }
   .primary { background:var(--accent); color:#fff; }
@@ -1383,7 +1391,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     </fieldset>
 
     <fieldset>
-      <legend>Step 5 · Devices, cameras &amp; DMS</legend>
+      <legend>Step 5 · Devices &amp; DMS</legend>
       <button class="ghost" style="width:100%;margin:0 0 8px;padding:8px;border-radius:6px;cursor:pointer;font-weight:600" onclick="scanDevices()" id="btnScanDevices">🔶 Scan DMS, arrow boards &amp; Street Smart (IWZ) devices near segment</button>
       <div class="schedList" id="dmsBox" style="display:none;margin-bottom:8px"></div>
       <div class="row">
@@ -1942,11 +1950,11 @@ function detourLenMi(d){ return d.meters!=null ? d.meters/1609.34
 function renderDetours(){ const wrap=el('detourListWrap'), tbl=el('detourTable'); if(!wrap||!tbl) return;
   if(!detours.length){ wrap.style.display='none'; tbl.innerHTML=''; return; }
   wrap.style.display='block';
-  tbl.innerHTML='<thead><tr><th>Detour</th><th>Length</th><th>Points</th><th></th></tr></thead><tbody>'+
+  tbl.innerHTML='<thead><tr><th>Detour</th><th>Length</th><th>Pts</th><th></th></tr></thead><tbody>'+
     detours.map((d,i)=>`<tr class="${i===activeDetour?'editing':''}"><td>${d.name}</td>`+
       `<td class="segWhen">${detourLenMi(d).toFixed(1)} mi</td><td class="segWhen">${d.pts.length}</td>`+
-      `<td class="segAct"><button type="button" onclick="editDetour(${i})">Edit</button>`+
-      `<button type="button" onclick="deleteDetour(${i})">Delete</button></td></tr>`).join('')+'</tbody>'; }
+      `<td class="segAct"><button type="button" title="Edit" onclick="editDetour(${i})">\u270e</button>`+
+      `<button type="button" title="Delete" onclick="deleteDetour(${i})">\u2715</button></td></tr>`).join('')+'</tbody>'; }
 // All detours on the request — saved ones plus anything still being drawn.
 function allDetours(){ const out=detours.slice();
   if(detourPts.length>=2 && activeDetour<0) out.push({ name: v('detourName')||defaultDetourName(),
@@ -2593,14 +2601,14 @@ function renderSegments(){
   const wrap=el('segTableWrap'), tbl=el('segTable'); if(!wrap||!tbl) return;
   if(!schedSegments.length){ wrap.style.display='none'; tbl.innerHTML=''; return; }
   wrap.style.display='block';
-  tbl.innerHTML='<thead><tr><th>Schedule segment</th><th>Start</th><th>End</th><th>Time</th><th></th></tr></thead><tbody>'+
+  tbl.innerHTML='<thead><tr><th>Schedule segment</th><th>Dates</th><th>Time</th><th></th></tr></thead><tbody>'+
     schedSegments.map((s,i)=>{
       const t = segCrossesMidnight(s) ? `${hhmm(s.fromTime)} → ${hhmm(s.untilTime)}<sup>+1</sup>` : `${hhmm(s.fromTime)}–${hhmm(s.untilTime)}`;
+      const dates=`${dstr(s.fromDate)}<br>\u2192 ${dstr(s.untilDate)}`;
       return `<tr class="${i===segEditIdx?'editing':''}"><td>${segLabel(s)}</td>`+
-        `<td class="segWhen">${dstr(s.fromDate)}</td><td class="segWhen">${dstr(s.untilDate)}</td>`+
-        `<td class="segWhen">${t}</td>`+
-        `<td class="segAct"><button type="button" onclick="editSegment(${i})">Edit</button>`+
-        `<button type="button" onclick="deleteSegment(${i})">Delete</button></td></tr>`;
+        `<td class="segWhen">${dates}</td><td class="segTime">${t}</td>`+
+        `<td class="segAct"><button type="button" title="Edit" onclick="editSegment(${i})">\u270e</button>`+
+        `<button type="button" title="Delete" onclick="deleteSegment(${i})">\u2715</button></td></tr>`;
     }).join('')+'</tbody>';
   const occ=schedule.length;
   el('segSummary').innerHTML=`${schedSegments.length} segment(s) · ${occ} work period(s) total`+
