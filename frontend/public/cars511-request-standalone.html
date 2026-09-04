@@ -1909,7 +1909,14 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
       '<br><span style="color:#8a5a00">This is <b>'+(road.name||'a local road')+'</b> — not a posted state route, '+
       'so it has no mileposts. Enter the <b>cross streets</b> for begin and end.</span>');
   }
-  flagMultiRoute(rpA&&rpA.route, rpB&&rpB.route);
+  // Two routes in one selection. Comparing the two reference posts stopped working once the
+  // end post was constrained to the start's route — they now always agree by construction.
+  // Ask the road network what is under each end instead, which is what actually differs.
+  (async()=>{ try{
+    const roadB=await iowaRoadAt(endPt);
+    const nameOf=(r,rp)=>((rp&&rp.route)||(r&&r.name)||'').trim();
+    flagMultiRoute(nameOf(road,rpA), nameOf(roadB,rpB));
+  }catch(e){} })();
   let mi=null, usedIowa=false;
   let routeId=(rpA&&rpA.routeId)||(rpB&&rpB.routeId)||(!onLocal&&road?road.routeId:null);
   if(routeId){ const suf=(String(routeId).match(/([NSEW])$/)||[])[1];
@@ -2186,10 +2193,24 @@ let detours=[], activeDetour=-1;
 function onDetourToggle(){ renderDetourFor(); const on=/^y/i.test(v('detour'));
   const body=el('detourBody'); if(body) body.style.display=on?'block':'none';
   if(!on && mode==='detour') setMode('locked'); saveState(); }
-function defaultDetourName(){ const T=detourTarget();
-  if(T && !(beginPt&&endPt)){ const m=T.label.replace(/^\d+\.\s*/,''); if(m) return m+' detour'; }
-  const r=routeVal(), d=v('direction');
-  return (r&&r!=='route') ? `${r}${d?' '+d.toLowerCase():''} detour` : 'Detour'; }
+function defaultDetourName(){
+  // Stolle asked that detours be named so you can tell them apart — "eastbound detour,
+  // westbound detour". The direction that distinguishes them is the DETOUR's own heading, not
+  // the closure's: two detours serving one closure run opposite ways round it, so naming both
+  // after the closure gave them the same name.
+  const T=detourTarget();
+  const road=(T ? T.label.replace(/^\d+\.\s*/,'').replace(/\s+(north|south|east|west)bound$/i,'')
+                : (routeVal()!=='route'?routeVal():'')) || '';
+  let dir='';
+  if(detourPts.length>=2) dir=dirLabel(bearing(detourPts[0],detourPts[detourPts.length-1]))||'';
+  else if(!T) dir=v('direction')||'';
+  let name=[road,dir?dir.toLowerCase():'','detour'].filter(Boolean).join(' ');
+  // Two detours can still share a heading; number them rather than hand back a duplicate.
+  if(detours.some((d,i)=>i!==activeDetour && d.name===name)){
+    let n=2; while(detours.some((d,i)=>i!==activeDetour && d.name===name+' '+n)) n++;
+    name=name+' '+n;
+  }
+  return name; }
 function saveDetour(){
   if(detourPts.length<2){ toast('Draw or suggest a detour first'); return; }
   const rec={ name: v('detourName')||defaultDetourName(),
