@@ -2401,6 +2401,81 @@ async function officialBytes(){ if(window.__CARS511_PDF_B64) return b64ToBytes(w
   const r=await fetch('cars511-official.pdf'); if(!r.ok) throw new Error('official PDF not found'); return new Uint8Array(await r.arrayBuffer()); }
 const p2=n=>String(n).padStart(2,'0');
 const fmtMDY=s=>{ const t=Date.parse(s); if(!Number.isFinite(t))return ''; const d=new Date(t); return `${p2(d.getMonth()+1)}/${p2(d.getDate())}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+// ---- Map image for the request ------------------------------------------------
+// Castelline asked for the map alongside the mileposts — "that way we can confirm that's what
+// they intended." A mailto: link cannot carry an attachment, so the picture rides on the
+// official 511 PDF they already download and send.
+//
+// Built by compositing OSM tiles onto a canvas rather than screenshotting the live map: it has
+// to work headless of the current viewport, at a fixed size, showing EVERY closure and detour
+// on the request. OSM serves tiles with access-control-allow-origin:*, so the canvas stays
+// untainted and can be exported.
+function lon2x(lon,z){ return (lon+180)/360*Math.pow(2,z); }
+function lat2y(lat,z){ const r=lat*Math.PI/180;
+  return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*Math.pow(2,z); }
+function mapGeometry(){
+  const shapes=[];
+  allWzSegments().forEach((w,i)=>{
+    const p=(w.path&&w.path.length>=2)?w.path:[[w.begin.lat,w.begin.lng],[w.end.lat,w.end.lng]];
+    shapes.push({pts:p,color:'#dc2626',width:5,label:String(i+1),at:p[0]});
+    if(w.path2&&w.path2.length>=2) shapes.push({pts:w.path2,color:'#dc2626',width:5});
+  });
+  allDetours().forEach(d=>{
+    const p=(d.route&&d.route.length>=2)?d.route:d.pts.map(x=>[x.lat,x.lng]);
+    shapes.push({pts:p,color:'#7c3aed',width:4,dash:[10,7]});
+  });
+  return shapes;
+}
+async function renderMapPNG(W,H){
+  const shapes=mapGeometry(); if(!shapes.length) return null;
+  let mnLa=90,mxLa=-90,mnLo=180,mxLo=-180;
+  shapes.forEach(s=>s.pts.forEach(p=>{ if(p[0]<mnLa)mnLa=p[0]; if(p[0]>mxLa)mxLa=p[0];
+    if(p[1]<mnLo)mnLo=p[1]; if(p[1]>mxLo)mxLo=p[1]; }));
+  const padLa=Math.max((mxLa-mnLa)*0.15,0.002), padLo=Math.max((mxLo-mnLo)*0.15,0.002);
+  mnLa-=padLa; mxLa+=padLa; mnLo-=padLo; mxLo+=padLo;
+  let z=18;
+  for(; z>3; z--){
+    const w=(lon2x(mxLo,z)-lon2x(mnLo,z))*256, h=(lat2y(mnLa,z)-lat2y(mxLa,z))*256;
+    if(w<=W && h<=H) break;
+  }
+  const cx=(lon2x(mnLo,z)+lon2x(mxLo,z))/2, cy=(lat2y(mxLa,z)+lat2y(mnLa,z))/2;
+  const originX=cx*256-W/2, originY=cy*256-H/2;
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const g=cv.getContext('2d');
+  g.fillStyle='#eef1f4'; g.fillRect(0,0,W,H);
+  const x0=Math.floor(originX/256), x1=Math.floor((originX+W)/256);
+  const y0=Math.floor(originY/256), y1=Math.floor((originY+H)/256);
+  const jobs=[];
+  for(let tx=x0;tx<=x1;tx++) for(let ty=y0;ty<=y1;ty++){
+    const n=Math.pow(2,z); if(ty<0||ty>=n) continue;
+    const wx=((tx%n)+n)%n;
+    jobs.push(new Promise(res=>{
+      const img=new Image(); img.crossOrigin='anonymous';
+      img.onload=()=>{ try{ g.drawImage(img, tx*256-originX, ty*256-originY); }catch(e){} res(); };
+      img.onerror=()=>res();
+      img.src=`https://tile.openstreetmap.org/${z}/${wx}/${ty}.png`;
+    }));
+  }
+  await Promise.all(jobs);
+  const px=(lat,lon)=>[lon2x(lon,z)*256-originX, lat2y(lat,z)*256-originY];
+  shapes.forEach(s=>{
+    g.beginPath(); g.lineWidth=s.width; g.strokeStyle=s.color; g.lineJoin='round'; g.lineCap='round';
+    g.setLineDash(s.dash||[]);
+    s.pts.forEach((p,i)=>{ const [x,y]=px(p[0],p[1]); i?g.lineTo(x,y):g.moveTo(x,y); });
+    g.stroke(); g.setLineDash([]);
+  });
+  shapes.filter(s=>s.label).forEach(s=>{
+    const [x,y]=px(s.at[0],s.at[1]);
+    g.beginPath(); g.arc(x,y,11,0,Math.PI*2); g.fillStyle='#dc2626'; g.fill();
+    g.lineWidth=2.5; g.strokeStyle='#fff'; g.stroke();
+    g.fillStyle='#fff'; g.font='bold 13px system-ui,sans-serif'; g.textAlign='center'; g.textBaseline='middle';
+    g.fillText(s.label,x,y);
+  });
+  g.fillStyle='rgba(255,255,255,.82)'; g.fillRect(0,H-16,W,16);
+  g.fillStyle='#334155'; g.font='11px system-ui,sans-serif'; g.textAlign='left'; g.textBaseline='middle';
+  g.fillText('© OpenStreetMap contributors',6,H-8);
+  try{ return cv.toDataURL('image/png'); }catch(e){ return null; }   // tainted canvas → skip the page
+}
 async function fillOfficial(){
   const _m=missingFields(); if(_m.length){ checkReadiness(); if(!confirm(`${_m.length} required field(s) missing:\n${_m.join(', ')}\n\nFill the PDF anyway?`)) return; }
   try{
@@ -2441,6 +2516,24 @@ async function fillOfficial(){
     (['rWidth','rHeight','rWeight','rLength'].some(id=>v(id)))?X('restrYes'):X('restrNo');
     (v('detour')==='Yes')?X('detourYes'):X('detourNo');
     (v('dms'))?X('dmsYes'):X('dmsNo');
+    // Append the map so the TMC can confirm the closure is where the mileposts say.
+    try{
+      const png=await renderMapPNG(1000,700);
+      if(png){
+        const img=await doc.embedPng(png);
+        const mp=doc.addPage([612,792]);
+        mp.drawText('Work-zone location map',{x:44,y:748,size:13,font,color:rgb(0,0,0.6)});
+        let cy=732;
+        allWzSegments().forEach((w,i)=>{
+          const ref=[w.beginLoc,w.endLoc].filter(Boolean).join(' → ');
+          mp.drawText(`${i+1}. ${w.route||'route'}${w.direction?' '+w.direction:''}${ref?'  '+ref:''}`,
+            {x:44,y:cy,size:9,font,color:rgb(0.2,0.2,0.2)});
+          cy-=12;
+        });
+        const maxW=524, scale=Math.min(maxW/img.width,(cy-60)/img.height);
+        mp.drawImage(img,{x:44,y:cy-10-img.height*scale,width:img.width*scale,height:img.height*scale});
+      }
+    }catch(e){ /* map is a bonus — never block the form */ }
     const blob=new Blob([await doc.save()],{type:'application/pdf'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
     a.download=`CARS511_official_${(routeVal()||'route').replace(/\W+/g,'')}_${(v('project')||'wz')}.pdf`; a.click();
