@@ -1172,11 +1172,15 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   #drawerTab { display:none; position:fixed; top:74px; right:0; z-index:1300; background:var(--accent); color:#fff; border:none; border-radius:8px 0 0 8px; padding:10px 12px; font-size:13px; font-weight:700; box-shadow:0 2px 10px rgba(0,0,0,.3); align-items:center; gap:6px; cursor:pointer; min-height:44px; }
   @media (max-width:860px) {
     header { position:sticky; top:0; z-index:1200; }
+    header .sub { display:none; }   /* the 3-line instruction wraps to ~80px on a phone; the map needs that space */
     .wrap { position:relative; display:block; height:calc(100vh - 66px); height:calc(100dvh - 66px); }
     #mapwrap { position:absolute!important; inset:0; height:auto!important; min-height:0; }
     .form { position:absolute; top:0; left:0; bottom:0; width:90%; max-width:400px; z-index:1100; overflow-y:auto; border-right:1px solid var(--line); border-bottom:none; box-shadow:2px 0 18px rgba(0,0,0,.28); transition:transform .3s ease; will-change:transform; }
     body.mapview .form { transform:translateX(-102%); }
-    #drawerTab { display:inline-flex; }
+    /* bottom-right keeps the tab clear of Leaflet's zoom (top-left) and basemap picker (top-right),
+       and puts it in the thumb zone on a phone */
+    #drawerTab { display:inline-flex; top:auto; bottom:34px; border-radius:8px 0 0 8px; }
+    .leaflet-top { margin-top:95px; }   /* map runs full-bleed under the sticky header; keep zoom + basemap controls below it */
     input, select, textarea { font-size:16px; }          /* prevents iOS auto-zoom on focus */
     .mapbtns button, .bar button, .bar select, .actions button { min-height:44px; }  /* WCAG touch target */
   }
