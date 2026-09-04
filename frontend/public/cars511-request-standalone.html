@@ -2127,6 +2127,30 @@ function extraClosuresText(){
     `Describe the impact on traffic: ${w.impact&&w.impact!=='Choose one'?w.impact:''}`
   ).join('\n\n');
 }
+// The segment the "scan near here" tools work from.
+//
+// Saving a closure clears the live A/B pins, so every tool that guarded on `beginPt && endPt`
+// silently stopped working once the closures were saved — NBI clearances, the project search,
+// the conflict check, the device scan and the route map link all refused. This returns the
+// closure being drawn when there is one, otherwise the closure selected in the detour picker,
+// otherwise the first saved one, so those tools keep working on a finished request.
+function workSegment(){
+  if(beginPt&&endPt) return { begin:beginPt, end:endPt, path:(wzRoute&&wzRoute.length)?wzRoute:null, live:true };
+  if(!wzSegments.length) return null;
+  const sel=el('detourFor'); let i=sel?(+sel.value||0):0;
+  // the picker lists the live closure first when there is one; with none, index maps straight through
+  if(i>=wzSegments.length) i=0;
+  const w=wzSegments[i]||wzSegments[0];
+  return { begin:L.latLng(w.begin.lat,w.begin.lng), end:L.latLng(w.end.lat,w.end.lng), path:w.path||null, live:false, seg:w };
+}
+// Every closure's roadway, for scans that should cover the whole request (bridge clearances
+// apply to any closure, not just the one on screen).
+function allWorkPaths(){
+  const out=[];
+  if(beginPt&&endPt) out.push((wzRoute&&wzRoute.length)?wzRoute:[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]]);
+  wzSegments.forEach(w=>out.push((w.path&&w.path.length)?w.path:[[w.begin.lat,w.begin.lng],[w.end.lat,w.end.lng]]));
+  return out;
+}
 // Which closure is a detour routed around?
 //
 // Suggest/Draw used the live A/B pins, but saving a closure clears those — so on a request
@@ -2215,12 +2239,29 @@ async function snapDetour(){ if(detourPts.length<2){detourRoute=null;detourMeter
 function detourMiles(){ let mi=0; for(let i=1;i<detourPts.length;i++) mi+=miles(detourPts[i-1],detourPts[i]); return mi; }
 function gmapsDetour(){ return 'https://www.google.com/maps/dir/'+detourPts.map(p=>`${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join('/'); }
 // Shareable Google Maps link for the WORK-ZONE route (sampled waypoints so it follows the road the TMC sees)
-function gmapsRoute(){ if(!(beginPt&&endPt)) return '';
-  let pts=[[beginPt.lat,beginPt.lng]];
-  if(wzRoute&&wzRoute.length>2){ const step=Math.max(1,Math.floor(wzRoute.length/6)); for(let i=step;i<wzRoute.length-1;i+=step) pts.push(wzRoute[i]); }
-  pts.push([endPt.lat,endPt.lng]);
+function gmapsRoute(){ const W=workSegment(); if(!W) return '';
+  const path=W.path;
+  let pts=[[W.begin.lat,W.begin.lng]];
+  if(path&&path.length>2){ const step=Math.max(1,Math.floor(path.length/6)); for(let i=step;i<path.length-1;i+=step) pts.push(path[i]); }
+  pts.push([W.end.lat,W.end.lng]);
   return 'https://www.google.com/maps/dir/'+pts.map(p=>p[0].toFixed(5)+','+p[1].toFixed(5)).join('/'); }
-function routeMapText(){ return (beginPt&&endPt) ? `\n\nWORK-ZONE ROUTE MAP (Google Maps): ${gmapsRoute()}` : ''; }
+// One map link per closure — the TMC confirms each against the mileposts, and a request with
+// two closures needs both. Guarded on the live pins before, so a finished request whose
+// closures were all saved reached the TMC with no map link at all.
+function routeMapText(){
+  const all=(typeof allWzSegments==='function')?allWzSegments():[];
+  if(all.length>1){
+    return '\n\nWORK-ZONE ROUTE MAPS (Google Maps):\n'+all.map((w,i)=>{
+      const path=(w.path&&w.path.length>2)?w.path:null;
+      let pts=[[w.begin.lat,w.begin.lng]];
+      if(path){ const step=Math.max(1,Math.floor(path.length/6)); for(let j=step;j<path.length-1;j+=step) pts.push(path[j]); }
+      pts.push([w.end.lat,w.end.lng]);
+      const url='https://www.google.com/maps/dir/'+pts.map(p=>p[0].toFixed(5)+','+p[1].toFixed(5)).join('/');
+      return `  ${i+1}. ${wzLabel(w)}: ${url}`; }).join('\n');
+  }
+  const u=gmapsRoute();
+  return u ? `\n\nWORK-ZONE ROUTE MAP (Google Maps): ${u}` : '';
+}
 function exportDetour(){ const fc={type:'FeatureCollection',features:[]};
   if(beginPt&&endPt) fc.features.push({type:'Feature',properties:{role:'work-zone',route:routeVal(),direction:v('direction')},geometry:{type:'LineString',coordinates:(wzRoute&&wzRoute.length?wzRoute:[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]]).map(c=>[c[1],c[0]])}});
   allDetours().forEach(d=>fc.features.push({type:'Feature',properties:{role:'detour',name:d.name,length_mi:+detourLenMi(d).toFixed(1)},
@@ -2374,9 +2415,12 @@ function renderDups(){
   if(!dupFeats.length) return;
   dupLayer=L.layerGroup().addTo(map);
   if(typeof setOverlay==='function') setOverlay('🚧 Existing 511 closures', dupLayer);
+  // Distance is measured against the closure being worked on — read it here rather than from
+  // the globals, which are null once every closure has been saved.
+  const W=workSegment(); if(!W) return;
   dupFeats.forEach((f,i)=>{
     const p=evPt(f); if(!p) return; const a=f.attributes||{};
-    const away=(distToSegM({lat:p[1],lng:p[0]},beginPt,endPt)/1609.34).toFixed(2);
+    const away=(distToSegM({lat:p[1],lng:p[0]},W.begin,W.end)/1609.34).toFixed(2);
     const when=[a.StartTime?('starts '+a.StartTime):'', a.ExpireDT?('expires '+new Date(a.ExpireDT).toLocaleDateString()):'']
       .filter(Boolean).join(' · ');
     const html=`<div style="font:12px/1.45 system-ui;max-width:250px">`+
@@ -2407,6 +2451,7 @@ function flagMultiRoute(ra, rb){
     `one where ${a} meets ${b}, then start a second for ${b}.</span>`;
 }
 async function checkDuplicate(explicit){ const warn=el('dupWarn');
+  const W=workSegment(); const beginPt=W?W.begin:null, endPt=W?W.end:null;
   if(!beginPt||!endPt){ if(explicit){ dupStyle(warn,'info'); warn.innerHTML='Set a <b>begin</b> and <b>end</b> point first — then I’ll check the live Iowa 511 feed for existing closures here.'; } else warn.style.display='none'; return; }
   if(explicit){ dupStyle(warn,'info'); warn.innerHTML='Checking the live Iowa 511 feed for existing closures…'; toast('Checking Iowa 511 for existing closures…'); }
   const route=interstate(routeVal());
@@ -2431,7 +2476,9 @@ function loadDup(i){ const f=dupFeats[i]; if(f){ fillFromIowaEvent(f); toast('Lo
 
 // ---- Find DOT project number near the segment: 5-Year Program + letting/bid schedule ----
 let projFeats=[];
-async function scanProjects(){ if(!beginPt||!endPt){ toast('Select a road segment (A→B) first'); return; }
+async function scanProjects(){ const W=workSegment();
+  if(!W){ toast('Mark a closure first'); return; }
+  const beginPt=W.begin, endPt=W.end;
   toast('Finding Iowa DOT projects near the segment…');
   const pad=0.06; const bb=[Math.min(beginPt.lng,endPt.lng)-pad,Math.min(beginPt.lat,endPt.lat)-pad,Math.max(beginPt.lng,endPt.lng)+pad,Math.max(beginPt.lat,endPt.lat)+pad].join(',');
   const base='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/';
@@ -3201,7 +3248,9 @@ let closuresLayer=null;
 function fmtRange(s,e){ const f=t=>t?new Date(t).toLocaleDateString():'?'; return f(s)+' → '+f(e); }
 function iaClosQuery(layer,bb){ return IA_CLOS_BASE+'/'+layer+'/query?where=1%3D1&geometry='+encodeURIComponent(bb)
   +'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=*&returnGeometry=true&outSR=4326&resultRecordCount=250&f=json'; }
-async function scanClosures(){ if(!beginPt||!endPt){ toast('Select a road segment (A→B) first'); return; }
+async function scanClosures(){ const W=workSegment();
+  if(!W){ toast('Mark a closure first'); return; }
+  const beginPt=W.begin, endPt=W.end;
   const box=el('closuresBox'); box.style.display='block'; box.textContent='Loading nearby Iowa DOT closures + detours…';
   const lats=[beginPt.lat,endPt.lat], lons=[beginPt.lng,endPt.lng], pad=0.05;
   const bb=[Math.min(...lons)-pad,Math.min(...lats)-pad,Math.max(...lons)+pad,Math.max(...lats)+pad].join(',');
@@ -3248,9 +3297,13 @@ function prefillFromClosure(i){ const a=(window.__iaClosureRecs||[])[i]; if(!a){
   if(a.starttime && el('segFromDate')){ el('segFromDate').value=localDay(+a.starttime); el('segFromTime').value=localTime(+a.starttime);
     if(a.endtime){ el('segUntilDate').value=localDay(+a.endtime); el('segUntilTime').value=localTime(+a.endtime); } updateSegHints(); }
   saveState(); toast('Prefilled from Iowa DOT closure — set the lane impact + review'); }
-async function scanBridges(){ if(!beginPt||!endPt){ toast('Select a road segment (A→B) first'); return; }
+async function scanBridges(){ const W=workSegment();
+  if(!W){ toast('Mark a closure first'); return; }
   toast('Scanning NBI clearances (route + detour)…');
-  const routePath=(wzRoute&&wzRoute.length>=2)?wzRoute:[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]];
+  // Scan every closure on the request, not just the one on screen — a low bridge on the
+  // second closure restricts the job just as much as one on the first.
+  const paths=allWorkPaths();
+  const routePath=paths.length?paths.flat():[[W.begin.lat,W.begin.lng],[W.end.lat,W.end.lng]];
   const detourPath=(detourRoute&&detourRoute.length>=2)?detourRoute:(detourPts.length>=2?detourPts.map(p=>[p.lat,p.lng]):null);
   // combined bbox over route + detour → query live NBI (statewide/fresh); fall back to static corridor set
   const allPts=routePath.concat(detourPath||[]); let mnLa=90,mxLa=-90,mnLo=180,mxLo=-180;
@@ -3362,7 +3415,9 @@ function hideDevices(){ if(deviceLayer){ deviceLayer.remove(); deviceLayer=null;
   const btn=el('btnScanDevices'); if(btn) btn.classList.remove('active');
   toast('Devices hidden'); }
 async function scanDevices(){ if(devicesShown()){ hideDevices(); return; }
-  if(!beginPt||!endPt){ toast('Select a road segment (A→B) first'); return; }
+  const W=workSegment();
+  if(!W){ toast('Mark a closure first'); return; }
+  const beginPt=W.begin, endPt=W.end;
   toast('Scanning Iowa DMS & work-zone devices…'); const route=interstate(routeVal());
   const pad=0.08; // ~5 mi around the segment — devices close to the zone
   const bb=[Math.min(beginPt.lng,endPt.lng)-pad, Math.min(beginPt.lat,endPt.lat)-pad, Math.max(beginPt.lng,endPt.lng)+pad, Math.max(beginPt.lat,endPt.lat)+pad].join(',');
