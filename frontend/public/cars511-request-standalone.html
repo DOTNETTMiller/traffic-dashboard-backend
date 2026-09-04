@@ -2725,6 +2725,13 @@ function linearRef(id, stored){
   if(txt) return { cross: txt };
   return Number.isFinite(stored) ? { mp: stored } : {};
 }
+// Linear references for a SAVED closure, from its own stored location boxes.
+function linearRefsFor(w){
+  const o={}, a=MP_RE.exec(w.beginLoc||''), b=MP_RE.exec(w.endLoc||'');
+  if(a) o.beginning_milepost=parseFloat(a[1]); else if(w.beginLoc) o.beginning_cross_street=w.beginLoc;
+  if(b) o.ending_milepost=parseFloat(b[1]);    else if(w.endLoc)   o.ending_cross_street=w.endLoc;
+  return o;
+}
 function wzLinearRefs(){
   const a=linearRef('beginLoc', wzMP.a), b=linearRef('endLoc', wzMP.b), o={};
   if(a.mp!=null) o.beginning_milepost=a.mp; if(a.cross) o.beginning_cross_street=a.cross;
@@ -2732,9 +2739,16 @@ function wzLinearRefs(){
   return o;
 }
   const mkFeature=(dirName,geom,suffix,opts)=>{ opts=opts||{};
-    const props={core_details:{event_type:'work-zone',data_source_id:'cars511-ia',road_names:[routeVal()].filter(Boolean),direction:dirName,name:baseName+suffix,description:v('description')||undefined,update_date:now},
-    start_date:(v('beginDT')||now),end_date:wzEndDate(),vehicle_impact:opts.impact||baseImpact||'unknown',
-    ...wzLinearRefs(),
+    // ctx lets a SAVED closure supply its own route, impact and linear references. The TMC has
+    // to file each closure as its own 511/ATMS entry, so each has to come through as its own
+    // WZDx feature with its own road name and mileposts — not just the one being drawn.
+    const ctx=opts.ctx||null;
+    const props={core_details:{event_type:'work-zone',data_source_id:'cars511-ia',
+      road_names:[ctx?ctx.route:routeVal()].filter(Boolean),direction:dirName,name:baseName+suffix,
+      description:v('description')||undefined,update_date:now},
+    start_date:(v('beginDT')||now),end_date:wzEndDate(),
+    vehicle_impact:opts.impact||(ctx?impactToWZDx(ctx.impact):baseImpact)||'unknown',
+    ...(ctx?linearRefsFor(ctx):wzLinearRefs()),
     is_start_position_verified:false,is_end_position_verified:false};
     if(opts.relationship)props.core_details.relationship=opts.relationship;
     const rs=restr.slice().concat(opts.extraRestr||[]); if(rs.length)props.restrictions=rs;
@@ -2773,8 +2787,19 @@ function wzLinearRefs(){
       features=[mkFeature(primary,coords,'-'+primary,{}),mkFeature(opp,g2,'-'+opp,{})];
     } else features=[mkFeature(primary,coords,'',{})];
   }
+  // Every OTHER closure on this request becomes its own feature, so an ATMS consuming the feed
+  // gets one entry per closure exactly as the TMC has to key them in.
+  wzSegments.forEach((w,i)=>{
+    if(activeWz===i) return;                         // that one is the live geometry above
+    const path=(w.path&&w.path.length>=2)?w.path:[[w.begin.lat,w.begin.lng],[w.end.lat,w.end.lng]];
+    const g=path.map(c=>[c[1],c[0]]);
+    const dir=dmap[String(w.direction||'').trim().charAt(0).toUpperCase()]||'unknown';
+    features.push(mkFeature(dir,g,'-closure'+(i+1),{ctx:w}));
+    if(w.path2&&w.path2.length>=2)
+      features.push(mkFeature(oppOf[dir]||'unknown',w.path2.map(c=>[c[1],c[0]]),'-closure'+(i+1)+'-opp',{ctx:w}));
+  });
   return {feed_info:{update_date:now,version:'4.2',x_cwz_profile:'CWZ 1.0',x_dataset_tier:'field-request',update_frequency:0,data_sources:[{data_source_id:'cars511-ia',organization_name:'Iowa DOT (field builder)'}]},type:'FeatureCollection',features}; }
-function downloadWZDx(){ if(!(beginPt&&endPt)){toast('Mark a segment first');return;} const blob=new Blob([JSON.stringify(toWZDx(),null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='cars511_wzdx_'+(routeVal()||'route').replace(/\W+/g,'')+'.geojson'; a.click(); toast('WZDx feature exported'); }
+function downloadWZDx(){ if(!(beginPt&&endPt) && !wzSegments.length){toast('Mark a closure first');return;} const blob=new Blob([JSON.stringify(toWZDx(),null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='cars511_wzdx_'+(routeVal()||'route').replace(/\W+/g,'')+'.geojson'; a.click(); toast('WZDx feature exported'); }
 // Round-trip: a ?rt=1&route=&blat=&blng=&… deep link from the Fix Queue opens this builder pre-filled (overrides saved state).
 function prefillFromURL(){ try{
   const q=new URLSearchParams(location.search); if(q.get('rt')!=='1')return false;
