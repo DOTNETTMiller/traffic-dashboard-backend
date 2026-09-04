@@ -1349,6 +1349,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <select id="detour" onchange="onDetourToggle()"><option>No</option><option>Yes</option></select>
 
       <div id="detourBody" style="display:none;margin-top:8px">
+        <div id="detourForWrap" style="display:none">
+          <label>Detour around which closure?</label>
+          <select id="detourFor" onchange="saveState()"></select>
+        </div>
         <div class="row">
           <div><label>Detour name</label><input id="detourName" placeholder="e.g. I-80 eastbound detour" /></div>
           <div style="max-width:120px"><label>&nbsp;</label>
@@ -2090,6 +2094,7 @@ function renderWzSegments(){
   if(!wzSegments.length){ wrap.style.display='none'; tbl.innerHTML=''; drawSavedClosures(); return; }
   wrap.style.display='block';
   drawSavedClosures();
+  renderDetourFor();
   tbl.innerHTML='<thead><tr><th>Closure</th><th>Extent</th><th>Impact</th><th></th></tr></thead><tbody>'+
     wzSegments.map((w,i)=>`<tr class="${i===activeWz?'editing':''}">`+
       `<td>${wzLabel(w)}</td>`+
@@ -2122,15 +2127,44 @@ function extraClosuresText(){
     `Describe the impact on traffic: ${w.impact&&w.impact!=='Choose one'?w.impact:''}`
   ).join('\n\n');
 }
+// Which closure is a detour routed around?
+//
+// Suggest/Draw used the live A/B pins, but saving a closure clears those — so on a request
+// with two closures, by the time you reached the detour step there was nothing to route
+// around and Suggest simply refused. A detour also belongs to a particular closure: on the
+// James-St case the mainline detour and the cross-street detour are different roads.
+function detourTargets(){
+  const out=[];
+  if(beginPt&&endPt) out.push({ label:'the closure being marked'+(v('route')?' ('+v('route')+')':''),
+    begin:beginPt, end:endPt, path:(wzRoute&&wzRoute.length)?wzRoute:null });
+  wzSegments.forEach((w,i)=>out.push({ label:(i+1)+'. '+wzLabel(w),
+    begin:L.latLng(w.begin.lat,w.begin.lng), end:L.latLng(w.end.lat,w.end.lng), path:w.path||null }));
+  return out;
+}
+function renderDetourFor(){
+  const sel=el('detourFor'); if(!sel) return;
+  const t=detourTargets();
+  const wrap=el('detourForWrap'); if(wrap) wrap.style.display = t.length>1 ? 'block' : 'none';
+  const keep=sel.value;
+  sel.innerHTML=t.map((x,i)=>`<option value="${i}">${x.label}</option>`).join('');
+  if(keep && +keep<t.length) sel.value=keep;
+}
+function detourTarget(){
+  const t=detourTargets(); if(!t.length) return null;
+  const sel=el('detourFor'); const i=sel?Math.min(+sel.value||0,t.length-1):0;
+  return t[i];
+}
 // ---- Multiple named detours ---------------------------------------------------
 // Stolle: a closure often needs one detour per direction, "eastbound detour, westbound
 // detour". detourPts / detourRoute stay the ACTIVE drawing so every existing draw, undo,
 // snap and suggest path is untouched; saved detours accumulate in `detours`.
 let detours=[], activeDetour=-1;
-function onDetourToggle(){ const on=/^y/i.test(v('detour'));
+function onDetourToggle(){ renderDetourFor(); const on=/^y/i.test(v('detour'));
   const body=el('detourBody'); if(body) body.style.display=on?'block':'none';
   if(!on && mode==='detour') setMode('locked'); saveState(); }
-function defaultDetourName(){ const r=routeVal(), d=v('direction');
+function defaultDetourName(){ const T=detourTarget();
+  if(T && !(beginPt&&endPt)){ const m=T.label.replace(/^\d+\.\s*/,''); if(m) return m+' detour'; }
+  const r=routeVal(), d=v('direction');
   return (r&&r!=='route') ? `${r}${d?' '+d.toLowerCase():''} detour` : 'Detour'; }
 function saveDetour(){
   if(detourPts.length<2){ toast('Draw or suggest a detour first'); return; }
@@ -2516,21 +2550,42 @@ function wzEndLabel(){ const iso=wzEndDate(); return iso?new Date(iso).toDateStr
 // True if a candidate detour actually runs along the CLOSED roadway (so it's really the same route).
 // Checks the closure's interior (drops the ends, where any detour necessarily touches A/B) at a tight
 // 50 m tolerance — on-the-closed-road vertices sit ~0 m away; a real parallel detour clears 60 m+.
-function routeUsesClosure(cand){
-  const closed=(wzRoute&&wzRoute.length>=2)?wzRoute:[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]];
+// How much of the CLOSED roadway a candidate detour reuses, 0..1.
+//
+// This used to be a yes/no test that tripped on ANY overlap, which rejected every suggestion
+// and left auto-detour permanently answering "no automatic detour found". Overlap is a matter
+// of degree: the public OSRM server has no way to be told a road is shut, so it will happily
+// drive the length of the closure to reach the via point — those come back at 100% and are
+// genuinely useless. But a real detour still has to use the closed road briefly at each end
+// to reach the first crossroad, and that is fine.
+function closureOverlap(cand, T){
+  T=T||detourTarget(); if(!T) return 1;
+  const closed=(T.path&&T.path.length>=2)?T.path:[[T.begin.lat,T.begin.lng],[T.end.lat,T.end.lng]];
   const n=closed.length, interior=closed.filter((_,i)=> i>=n*0.2 && i<=n*0.8);
-  const samp=interior.length?interior:[[(beginPt.lat+endPt.lat)/2,(beginPt.lng+endPt.lng)/2]];
-  return samp.some(pt=> minDistToPath({lat:pt[0],lng:pt[1]}, cand) < 50);
+  const samp=interior.length?interior:[[(T.begin.lat+T.end.lat)/2,(T.begin.lng+T.end.lng)/2]];
+  const on=samp.filter(pt=> minDistToPath({lat:pt[0],lng:pt[1]}, cand) < 50).length;
+  return on/samp.length;
 }
-async function suggestDetour(){ if(!beginPt||!endPt){ toast('Mark the closure (A→B) first'); return; } const info=el('detourInfo'); if(info){info.style.display='block';info.textContent='Suggesting a detour…';}
+// Above this share of the closure reused, it is the closed road with a loop on the end, not a
+// detour around it.
+const MAX_CLOSURE_REUSE=0.40;
+function routeUsesClosure(cand, T){ return closureOverlap(cand, T) > MAX_CLOSURE_REUSE; }
+async function suggestDetour(){ const T=detourTarget();
+  if(!T){ toast('Mark a closure first — or save one, then come back'); return; }
+  // Route around the SELECTED closure, saved or live — these shadow the globals on purpose.
+  const beginPt=T.begin, endPt=T.end;
+  const info=el('detourInfo'); if(info){info.style.display='block';info.textContent='Suggesting a detour…';}
   const midLat=(beginPt.lat+endPt.lat)/2, midLng=(beginPt.lng+endPt.lng)/2, perp=(bearing(beginPt,endPt)+90)*Math.PI/180, cosL=Math.cos(midLat*Math.PI/180)||1e-6; let best=null;
-  for(const off of [0.7,1.3,2.0]){ for(const side of [1,-1]){
+  for(const off of [0.7,1.3,2.0,3.0]){ for(const side of [1,-1]){
     const vlat=midLat+side*Math.cos(perp)*(off/69), vlng=midLng+side*Math.sin(perp)*(off/(69*cosL)); let via=null;
     try{ const nj=await(await fetch('https://router.project-osrm.org/nearest/v1/driving/'+vlng+','+vlat+'?number=1')).json(); if(nj.code==='Ok'&&nj.waypoints&&nj.waypoints[0])via=nj.waypoints[0].location; }catch(e){}
     if(!via)continue; const r=await osrmRoute([[beginPt.lng,beginPt.lat],via,[endPt.lng,endPt.lat]]); if(!r||!r.latlngs||r.latlngs.length<2)continue;
-    if(routeUsesClosure(r.latlngs))continue;                          // reject a "detour" that runs back along the closed road
+    const reuse=closureOverlap(r.latlngs, T);
+    if(reuse > MAX_CLOSURE_REUSE)continue;                           // mostly the closed road — not a detour
     if(r.meters < miles(beginPt,endPt)*1609.34*1.03)continue;        // barely longer than driving straight through → not a real detour
-    if(!best||r.meters<best.meters)best={latlngs:r.latlngs,meters:r.meters}; }}
+    // Prefer the candidate that reuses the LEAST of the closure; shortest only breaks a tie.
+    if(!best || reuse < best.reuse - 0.05 || (Math.abs(reuse-best.reuse)<=0.05 && r.meters<best.meters))
+      best={latlngs:r.latlngs,meters:r.meters,reuse}; }}
   if(!best){ if(info)info.textContent='No automatic detour found — trace it manually with ✏️ Draw detour.'; toast('No auto detour — trace manually'); return; }
   detourPts=[beginPt,endPt]; detourRoute=best.latlngs; detourMeters=best.meters; if(v('detour')!=='Yes')el('detour').value='Yes'; drawDetour(); saveState(); toast('Suggested detour '+(best.meters/1609.34).toFixed(1)+' mi — review & adjust'); }
 // ---- Closure undo / clear ----
@@ -3490,7 +3545,7 @@ el('rce').addEventListener('change', ()=>{ setRceOffice(v('rce')); saveState(); 
 el('rceEmail').addEventListener('input', saveRceEmail);
 FIELD_IDS.forEach(id=>{ if(el(id)) el(id).addEventListener('input', saveState); });
 if(!prefillFromURL())loadState(); renderProjects(); onRouteChange(); loadIntegration(); loadCsvProjects(); updateClearAlter(); onImpactChange();
-onRecurToggle(); updateSegHints(); renderSegments(); renderContacts(); onDetourToggle(); renderDetours(); renderWzSegments();
+onRecurToggle(); updateSegHints(); renderSegments(); renderContacts(); onDetourToggle(); renderDetours(); renderWzSegments(); renderDetourFor();
 // Demo mode (?demo=1): pure "show the functionality" showcase — hide the submit-to-database endpoint/auth/
 // submit controls (nothing is POSTed anywhere) but KEEP client-side WZDx/JSON export + the 511 PDF fill.
 (function(){try{if(new URLSearchParams(location.search).get('demo')!=='1')return;
