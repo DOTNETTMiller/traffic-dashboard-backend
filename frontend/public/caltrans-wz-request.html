@@ -51,7 +51,14 @@
     #mapwrap{position:absolute!important;inset:0;height:auto!important;min-height:0}
     .form{position:absolute;top:0;left:0;bottom:0;width:90%;max-width:400px;z-index:1100;overflow-y:auto;border-right:1px solid #dde3ea;border-bottom:none;box-shadow:2px 0 18px rgba(0,0,0,.28);transition:transform .3s ease;will-change:transform}
     body.mapview .form{transform:translateX(-102%)}
-    #drawerTab{display:inline-flex}
+    header .sub{display:none}
+    header{gap:8px}
+    header>*{min-width:0}
+    header .logo{flex:0 0 auto}
+    header .logo img{height:26px;max-width:130px;object-fit:contain}
+    header h1{font-size:14px;overflow-wrap:anywhere}
+    #drawerTab{display:inline-flex;top:auto;bottom:34px}
+    .leaflet-top{margin-top:95px}
     input,select,textarea{font-size:16px}                 /* prevents iOS auto-zoom */
     .mapbtns button,.bar button,.bar select,.actions button{min-height:44px}
     header{position:sticky;top:0;z-index:1200}
