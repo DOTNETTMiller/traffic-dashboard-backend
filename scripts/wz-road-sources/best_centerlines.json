@@ -1,0 +1,141 @@
+{
+ "adot": {
+  "status": "candidate",
+  "url": "https://services1.arcgis.com/XAiBIVuto7zeZj1B/arcgis/rest/services/Intersect_of_State_Highway_System_and_Maintenance_Units/FeatureServer/0/query",
+  "layer": "Intersect_of_State_Highway_System_and_Maintenance_Units",
+  "on": 1.0,
+  "off": 0.17
+ },
+ "akdot": {
+  "status": "no markers"
+ },
+ "caltrans": {
+  "status": "candidate",
+  "url": "https://caltrans-gis.dot.ca.gov/arcgis/rest/services/CHhighway/All_Roads/FeatureServer/0/query",
+  "layer": "All Roads",
+  "on": 1.0,
+  "off": 0.17
+ },
+ "cdot": {
+  "status": "candidate",
+  "url": "https://dtdapps.codot.gov/server/rest/services/LRS/Routes_webmerc/MapServer/0/query",
+  "layer": "Routes",
+  "on": 1.0,
+  "off": 0.0
+ },
+ "ctdot": {
+  "status": "no markers"
+ },
+ "hidot": {
+  "status": "no working layer found"
+ },
+ "idot": {
+  "status": "no working layer found"
+ },
+ "indot": {
+  "status": "no working layer found"
+ },
+ "itd": {
+  "status": "candidate",
+  "url": "https://gisp.itd.idaho.gov/server/rest/services/GDWarehouse/RoadNetwork_Primary_SHS_Shields/FeatureServer/6/query",
+  "layer": "State Highway System (SHS) Primary",
+  "on": 1.0,
+  "off": 0.0
+ },
+ "mainedot": {
+  "status": "candidate",
+  "url": "https://services1.arcgis.com/RbMX0mRVOFNTdLzd/arcgis/rest/services/MaineDOT_Roadway_Network_for_Conflation_Analysis/FeatureServer/35/query",
+  "layer": "TOM_TOM_PRIRTESYS",
+  "on": 1.0,
+  "off": 0.17
+ },
+ "massdot": {
+  "status": "no working layer found"
+ },
+ "mdotsha": {
+  "status": "no markers"
+ },
+ "mdt": {
+  "status": "candidate",
+  "url": "https://services1.arcgis.com/dKlvxNSUvl36IGMp/arcgis/rest/services/MT_State_Maintained_Routes/FeatureServer/0/query",
+  "layer": "MT Statewide Routes",
+  "on": 1.0,
+  "off": 0.17
+ },
+ "midot": {
+  "status": "no working layer found"
+ },
+ "mndot": {
+  "status": "candidate",
+  "url": "https://webgis.dot.state.mn.us/65agsf1/rest/services/sdw_trans/ROUTES_PRIMARY_MEASURES/FeatureServer/0/query",
+  "layer": "ROUTES_PRIMARY_MEASURES",
+  "on": 1.0,
+  "off": 0.33
+ },
+ "ncdot": {
+  "status": "no markers"
+ },
+ "nddot": {
+  "status": "no markers"
+ },
+ "nedot": {
+  "status": "candidate",
+  "url": "https://gis.ne.gov/Enterprise/rest/services/Highways/FeatureServer/0/query",
+  "layer": "Highways",
+  "on": 1.0,
+  "off": 0.33
+ },
+ "njdot": {
+  "status": "candidate",
+  "url": "https://services.arcgis.com/HggmsDF7UJsNN1FK/arcgis/rest/services/New_Jersey_DOT_Roadway_Network/FeatureServer/0/query",
+  "layer": "NJ Roadway Network",
+  "on": 1.0,
+  "off": 0.33
+ },
+ "nmdot": {
+  "status": "candidate",
+  "url": "https://services.arcgis.com/hOpd7wfnKm16p9D9/arcgis/rest/services/NM911_Road_Centerlines/FeatureServer/0/query",
+  "layer": "NM911 Road Centerlines",
+  "on": 1.0,
+  "off": 0.17
+ },
+ "nvdot": {
+  "status": "candidate",
+  "url": "https://services1.arcgis.com/9Y4hSlLf13E9S0Eo/arcgis/rest/services/StatewideRoutes/FeatureServer/0/query",
+  "layer": "Statewide Routes",
+  "on": 1.0,
+  "off": 0.5
+ },
+ "ordot": {
+  "status": "candidate",
+  "url": "https://services.arcgis.com/uUvqNMGPm7axC2dD/arcgis/rest/services/Highways_INVV_SEQ/FeatureServer/0/query",
+  "layer": "Highways_INVV_SEQ",
+  "on": 1.0,
+  "off": 0.0
+ },
+ "penndot": {
+  "status": "no working layer found"
+ },
+ "tdot": {
+  "status": "candidate",
+  "url": "https://services2.arcgis.com/nf3p7v7Zy4fTOh6M/arcgis/rest/services/TDOT_Roadway_Network/FeatureServer/0/query",
+  "layer": "TDOT County Log Network (State Routes & Interstates)",
+  "on": 1.0,
+  "off": 0.0
+ },
+ "txdot": {
+  "status": "no working layer found"
+ },
+ "udot": {
+  "status": "no working layer found"
+ },
+ "wisdot": {
+  "status": "no working layer found"
+ },
+ "wsdot": {
+  "status": "no markers"
+ },
+ "wydot": {
+  "status": "no markers"
+ }
+}

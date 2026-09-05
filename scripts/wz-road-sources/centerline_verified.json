@@ -1,0 +1,534 @@
+{
+ "adot": {
+  "err": null,
+  "tested": [
+   {
+    "svc": "https://services1.arcgis.com/XAiBIVuto7zeZj1B/arcgis/rest/services/Intersect_of_State_Highway_System_and_Maintenance_Units/FeatureServer",
+    "layer": 0,
+    "name": "Intersect_of_State_Highway_System_and_Maintenance_Units",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.17,
+    "medianOn": 0.6
+   },
+   {
+    "svc": "https://services1.arcgis.com/XAiBIVuto7zeZj1B/arcgis/rest/services/SHS/FeatureServer",
+    "layer": 1,
+    "name": "SHS",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.17,
+    "medianOn": 0.0
+   },
+   {
+    "svc": "https://services1.arcgis.com/XAiBIVuto7zeZj1B/arcgis/rest/services/StateHighwaySystem_Mainline/FeatureServer",
+    "layer": 0,
+    "name": "StateHighwaySystem_Mainline",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.17,
+    "medianOn": 0.0
+   }
+  ]
+ },
+ "akdot": {
+  "err": "no markers"
+ },
+ "caltrans": {
+  "err": null,
+  "tested": [
+   {
+    "svc": "https://caltrans-gis.dot.ca.gov/arcgis/rest/services/CHhighway/All_Roads/FeatureServer",
+    "layer": 0,
+    "name": "All Roads",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.17,
+    "medianOn": 0.0
+   },
+   {
+    "svc": "https://caltrans-gis.dot.ca.gov/arcgis/rest/services/CHrailroad/Rail_Interstate_Routes/FeatureServer",
+    "layer": 0,
+    "name": "Rail Interstate Routes",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1000000000.0
+   }
+  ]
+ },
+ "cdot": {
+  "err": null,
+  "tested": [
+   {
+    "svc": "https://dtdapps.codot.gov/server/rest/services/LRS/Routes_RunLength/MapServer",
+    "layer": 0,
+    "name": "Routes",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.17,
+    "medianOn": 0.0
+   },
+   {
+    "svc": "https://dtdapps.codot.gov/server/rest/services/LRS/Routes_webmerc/MapServer",
+    "layer": 0,
+    "name": "Routes",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 0.0
+   },
+   {
+    "svc": "https://dtdapps.codot.gov/server/rest/services/LRS/Routes_withDEC/MapServer",
+    "layer": 0,
+    "name": "Routes",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 0.0
+   },
+   {
+    "svc": "https://dtdapps.codot.gov/server/rest/services/LRS/Routes/MapServer",
+    "layer": 0,
+    "name": "Routes",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 0.0
+   }
+  ]
+ },
+ "ctdot": {
+  "err": "no markers"
+ },
+ "hidot": {
+  "err": null,
+  "tested": []
+ },
+ "idot": {
+  "err": null,
+  "tested": []
+ },
+ "indot": {
+  "err": null,
+  "tested": []
+ },
+ "itd": {
+  "err": null,
+  "tested": [
+   {
+    "svc": "https://gisp.itd.idaho.gov/server/rest/services/GDWarehouse/RoadNetwork_Other/FeatureServer",
+    "layer": 0,
+    "name": "Future Facility",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1000000000.0
+   },
+   {
+    "svc": "https://gisp.itd.idaho.gov/server/rest/services/GDWarehouse/RoadNetwork_Other/FeatureServer",
+    "layer": 1,
+    "name": "Interchanges",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1000000000.0
+   },
+   {
+    "svc": "https://gisp.itd.idaho.gov/server/rest/services/GDWarehouse/RoadNetwork_Primary_SHS_Shields/FeatureServer",
+    "layer": 6,
+    "name": "State Highway System (SHS) Primary",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 0.0
+   },
+   {
+    "svc": "https://gisp.itd.idaho.gov/server/rest/services/GDWarehouse/RoadNetwork_Primary_SHS_Shields/FeatureServer",
+    "layer": 7,
+    "name": "Road Network Primary",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 0.0
+   },
+   {
+    "svc": "https://gisp.itd.idaho.gov/server/rest/services/GDWarehouse/RoadNetwork_Primary/FeatureServer",
+    "layer": 6,
+    "name": "State Highway System (SHS) Primary",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 0.0
+   },
+   {
+    "svc": "https://gisp.itd.idaho.gov/server/rest/services/GDWarehouse/RoadNetwork_Primary/FeatureServer",
+    "layer": 7,
+    "name": "Road Network Primary",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 0.0
+   }
+  ]
+ },
+ "mainedot": {
+  "err": null,
+  "tested": [
+   {
+    "svc": "https://services1.arcgis.com/RbMX0mRVOFNTdLzd/arcgis/rest/services/MaineDOT_Roadway_Network_for_Conflation_Analysis/FeatureServer",
+    "layer": 35,
+    "name": "TOM_TOM_PRIRTESYS",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.17,
+    "medianOn": 0.4
+   },
+   {
+    "svc": "https://services1.arcgis.com/RbMX0mRVOFNTdLzd/arcgis/rest/services/NECEC_Centerline/FeatureServer",
+    "layer": 0,
+    "name": "NECECCenterline",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1000000000.0
+   }
+  ]
+ },
+ "massdot": {
+  "err": null,
+  "tested": [
+   {
+    "svc": "https://gis.massdot.state.ma.us/arcgis/rest/services/Roads/Highway_Access_Patrol/FeatureServer",
+    "layer": 0,
+    "name": " Highway_Access_Patrol",
+    "onRouteHitRate": 0.33,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1000000000.0
+   }
+  ]
+ },
+ "mdotsha": {
+  "err": "no markers"
+ },
+ "mdt": {
+  "err": null,
+  "tested": [
+   {
+    "svc": "https://services1.arcgis.com/dKlvxNSUvl36IGMp/arcgis/rest/services/MDT_State_Maintained_Frontage_Roads/FeatureServer",
+    "layer": 0,
+    "name": "Frontage_Rds",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1000000000.0
+   },
+   {
+    "svc": "https://services1.arcgis.com/dKlvxNSUvl36IGMp/arcgis/rest/services/MT_State_Maintained_Routes/FeatureServer",
+    "layer": 0,
+    "name": "MT Statewide Routes",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.17,
+    "medianOn": 0.2
+   },
+   {
+    "svc": "https://services1.arcgis.com/dKlvxNSUvl36IGMp/arcgis/rest/services/MT_Statewide_Routes/FeatureServer",
+    "layer": 0,
+    "name": "MT Statewide Routes",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.17,
+    "medianOn": 0.2
+   }
+  ]
+ },
+ "midot": {
+  "err": null,
+  "tested": []
+ },
+ "mndot": {
+  "err": null,
+  "tested": [
+   {
+    "svc": "https://webgis.dot.state.mn.us/65agsf1/rest/services/sdw_trans/ROUTES_PRIMARY_MEASURES/FeatureServer",
+    "layer": 0,
+    "name": "ROUTES_PRIMARY_MEASURES",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.33,
+    "medianOn": 0.0
+   },
+   {
+    "svc": "https://webgis.dot.state.mn.us/65agsf1/rest/services/sdw_trans/ROUTES_PRIMARY/FeatureServer",
+    "layer": 0,
+    "name": "ROUTES_PRIMARY",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.33,
+    "medianOn": 0.0
+   },
+   {
+    "svc": "https://webgis.dot.state.mn.us/65agsf1/rest/services/sdw_trans/ROUTES_STATE_AID/FeatureServer",
+    "layer": 0,
+    "name": "ROUTES_STATE_AID",
+    "onRouteHitRate": 0.33,
+    "offRouteHitRate": 0.0,
+    "medianOn": 401.2
+   }
+  ]
+ },
+ "ncdot": {
+  "err": "no markers"
+ },
+ "nddot": {
+  "err": "no markers"
+ },
+ "nedot": {
+  "err": null,
+  "tested": [
+   {
+    "svc": "https://gis.ne.gov/Enterprise/rest/services/Highways_DOT_NE/FeatureServer",
+    "layer": 0,
+    "name": "Interstate",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1000000000.0
+   },
+   {
+    "svc": "https://gis.ne.gov/Enterprise/rest/services/Highways_DOT_NE/FeatureServer",
+    "layer": 1,
+    "name": "Spur",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1000000000.0
+   },
+   {
+    "svc": "https://gis.ne.gov/Enterprise/rest/services/Highways/FeatureServer",
+    "layer": 0,
+    "name": "Highways",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.33,
+    "medianOn": 0.0
+   },
+   {
+    "svc": "https://gis.ne.gov/Enterprise/rest/services/Street_Centerlines/FeatureServer",
+    "layer": 0,
+    "name": "StreetCenterline",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.5,
+    "medianOn": 2.6
+   }
+  ]
+ },
+ "njdot": {
+  "err": null,
+  "tested": [
+   {
+    "svc": "https://services.arcgis.com/HggmsDF7UJsNN1FK/arcgis/rest/services/New_Jersey_DOT_Roadway_Network/FeatureServer",
+    "layer": 0,
+    "name": "NJ Roadway Network",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.33,
+    "medianOn": 0.0
+   },
+   {
+    "svc": "https://services.arcgis.com/HggmsDF7UJsNN1FK/arcgis/rest/services/New_Jersey_DOT_Roadway_Network/FeatureServer",
+    "layer": 1,
+    "name": "Major Routes",
+    "onRouteHitRate": 0.5,
+    "offRouteHitRate": 0.17,
+    "medianOn": 86.2
+   },
+   {
+    "svc": "https://services.arcgis.com/HggmsDF7UJsNN1FK/arcgis/rest/services/NJDOT_Roadway_Network/FeatureServer",
+    "layer": 0,
+    "name": "NJ Roadway Network",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.33,
+    "medianOn": 0.0
+   },
+   {
+    "svc": "https://services.arcgis.com/HggmsDF7UJsNN1FK/arcgis/rest/services/NJDOT_Roadway_Network/FeatureServer",
+    "layer": 1,
+    "name": "Major Routes",
+    "onRouteHitRate": 0.5,
+    "offRouteHitRate": 0.17,
+    "medianOn": 86.2
+   },
+   {
+    "svc": "https://services.arcgis.com/HggmsDF7UJsNN1FK/arcgis/rest/services/NJRailRoadNetworkOpenData/FeatureServer",
+    "layer": 4,
+    "name": "Light Rail Line",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1000000000.0
+   },
+   {
+    "svc": "https://services.arcgis.com/HggmsDF7UJsNN1FK/arcgis/rest/services/NJRailRoadNetworkOpenData/FeatureServer",
+    "layer": 5,
+    "name": "Patco Rail Line",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1000000000.0
+   },
+   {
+    "svc": "https://services.arcgis.com/HggmsDF7UJsNN1FK/arcgis/rest/services/RAIL_ROAD_NETWORK/FeatureServer",
+    "layer": 0,
+    "name": "Rail_Road_Seg",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1320.4
+   },
+   {
+    "svc": "https://services.arcgis.com/HggmsDF7UJsNN1FK/arcgis/rest/services/RAIL_ROAD_NETWORK/FeatureServer",
+    "layer": 1,
+    "name": "Active_Seg",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1329.5
+   }
+  ]
+ },
+ "nmdot": {
+  "err": null,
+  "tested": [
+   {
+    "svc": "https://services.arcgis.com/hOpd7wfnKm16p9D9/arcgis/rest/services/NMDOT_State_Highway_System/FeatureServer",
+    "layer": 0,
+    "name": "NMDOT State Highway System",
+    "onRouteHitRate": 0.67,
+    "offRouteHitRate": 0.17,
+    "medianOn": 15.0
+   },
+   {
+    "svc": "https://services.arcgis.com/hOpd7wfnKm16p9D9/arcgis/rest/services/Highway_V1/FeatureServer",
+    "layer": 0,
+    "name": "Highway",
+    "onRouteHitRate": 0.17,
+    "offRouteHitRate": 0.0,
+    "medianOn": 367.7
+   },
+   {
+    "svc": "https://services.arcgis.com/hOpd7wfnKm16p9D9/arcgis/rest/services/NM911_Road_Centerlines/FeatureServer",
+    "layer": 0,
+    "name": "NM911 Road Centerlines",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.17,
+    "medianOn": 2.3
+   }
+  ]
+ },
+ "nvdot": {
+  "err": null,
+  "tested": [
+   {
+    "svc": "https://services1.arcgis.com/9Y4hSlLf13E9S0Eo/arcgis/rest/services/StatewideRoutes/FeatureServer",
+    "layer": 0,
+    "name": "Statewide Routes",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.5,
+    "medianOn": 0.0
+   }
+  ]
+ },
+ "ordot": {
+  "err": null,
+  "tested": [
+   {
+    "svc": "https://services.arcgis.com/uUvqNMGPm7axC2dD/arcgis/rest/services/Highways_INVV_SEQ/FeatureServer",
+    "layer": 0,
+    "name": "Highways_INVV_SEQ",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 0.0
+   },
+   {
+    "svc": "https://services.arcgis.com/uUvqNMGPm7axC2dD/arcgis/rest/services/Routes_Combined/FeatureServer",
+    "layer": 2,
+    "name": "Routes_Combined",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1.6
+   },
+   {
+    "svc": "https://services.arcgis.com/uUvqNMGPm7axC2dD/arcgis/rest/services/Routes_to_Optimal_Wind_Farm_Sites_(Points)/FeatureServer",
+    "layer": 1,
+    "name": "Routes_to_Optimal_Wind_Farm_Sites_(Points)",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1000000000.0
+   }
+  ]
+ },
+ "penndot": {
+  "err": null,
+  "tested": []
+ },
+ "tdot": {
+  "err": null,
+  "tested": [
+   {
+    "svc": "https://services2.arcgis.com/nf3p7v7Zy4fTOh6M/arcgis/rest/services/TDOT_Roadway_Network/FeatureServer",
+    "layer": 0,
+    "name": "TDOT County Log Network (State Routes & Interstates)",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 0.0
+   },
+   {
+    "svc": "https://services2.arcgis.com/nf3p7v7Zy4fTOh6M/arcgis/rest/services/PBMI_Centerlines_DataView_Public_R4_PBMC/FeatureServer",
+    "layer": 0,
+    "name": "PBMI Centerlines",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1000000000.0
+   },
+   {
+    "svc": "https://services2.arcgis.com/nf3p7v7Zy4fTOh6M/arcgis/rest/services/PBMI_Prod_Centerlines_DataView_Public/FeatureServer",
+    "layer": 0,
+    "name": "PBMI Centerlines",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1000000000.0
+   },
+   {
+    "svc": "https://services2.arcgis.com/nf3p7v7Zy4fTOh6M/arcgis/rest/services/TEST_TDOT_Roadway_Network/FeatureServer",
+    "layer": 0,
+    "name": "TDOT County Log Network (State Routes & Interstates)",
+    "onRouteHitRate": 1.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 0.0
+   }
+  ]
+ },
+ "txdot": {
+  "err": null,
+  "tested": [
+   {
+    "svc": "https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/State_Highway_System_Bicycling_Access_Control/FeatureServer",
+    "layer": 9,
+    "name": "State Highway System Bicycling Access Control",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1000000000.0
+   },
+   {
+    "svc": "https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/Bryan_Road_Network/FeatureServer",
+    "layer": 13,
+    "name": "TxDOT Bryan Road Network ",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1000000000.0
+   },
+   {
+    "svc": "https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/Pharr_Road_Network/FeatureServer",
+    "layer": 4,
+    "name": "TxDOT Pharr Road Network",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1000000000.0
+   },
+   {
+    "svc": "https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Roadway_Network_Edits_History/FeatureServer",
+    "layer": 0,
+    "name": "TxDOT_Roadway_Network_Edits_History",
+    "onRouteHitRate": 0.0,
+    "offRouteHitRate": 0.0,
+    "medianOn": 1465.2
+   }
+  ]
+ },
+ "udot": {
+  "err": null,
+  "tested": []
+ },
+ "wisdot": {
+  "err": null,
+  "tested": []
+ },
+ "wsdot": {
+  "err": "no markers"
+ },
+ "wydot": {
+  "err": "no markers"
+ }
+}
