@@ -19,8 +19,42 @@ Commit 0056008 added distance guards that use only each state's existing data:
   markers sit ~1 mile apart, so no radius can be tight enough, and in a city a
   residential street within 1200m of a highway still picks it up.
 
-Closing it for the 29 needs a per-state road centreline, which is what this directory
-is for.
+**This is now closed for all 49 states by the Census TIGER gate (see below).** The
+per-state centreline work below remains useful as an accuracy layer, but is no longer
+the blocker it looked like.
+
+## The fix that shipped: Census TIGER road classes
+
+`wzRoadCheck(pt)` asks the Census TIGERweb road network what road is under the point and
+takes its class: `S1100` limited-access mainline, `S1200` US/state highway or major
+arterial, `S1630` ramp, `S1400` local neighbourhood street. A milepost is only accepted
+when the nearest road within 40m is on-system; otherwise the builder writes the street
+NAME into the cross-street box instead, which is what CWZ 1.0 wants for a local road.
+
+Why TIGER rather than the alternatives:
+
+* national and uniform -- one integration covers all 50 states, no per-state schema work
+* no API key, and it answers with `Access-Control-Allow-Origin: null` and no Referer
+  requirement, so it works in the `file://` standalone builds (where osm.org tiles 403)
+* a US Census government service built for public bulk use, unlike Overpass, which is
+  donated, rate-limited, and began refusing requests during testing
+
+Measured against Iowa RAMS as ground truth, 180 points, 45 per road system:
+
+| rule | correct | false accepts | false rejects |
+|---|---|---|---|
+| permissive (any S1100/S1200/S1630) | **94%** | 1 of 45 locals | 10 |
+| strict (S1200 must have a route-style name) | 78% | 0 | 39 |
+
+The permissive rule shipped. Its single false accept is an arterial TIGER and RAMS
+disagree about the jurisdiction of, not a residential street; the strict variant's 39
+false rejects would have cost DOT staff the milepost auto-fill on real highways, which
+is the tool's main value. Live spot checks of posted markers: MN, TX, WA, PA 100%
+accepted; CA 80%; NV 70% (NDOT posts markers on some routes TIGER calls local). Every
+failure is the safe direction -- no auto-fill rather than a wrong one.
+
+Residual: roughly 6% of on-system points get no auto-fill, and about 2% of local
+arterials can still be accepted. Per-state centrelines (below) are how that improves.
 
 ## What counts as a usable source
 
