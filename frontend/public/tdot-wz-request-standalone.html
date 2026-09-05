@@ -1636,7 +1636,7 @@ async function wzRoadCheck(pt){
   }catch(e){ return null; }
 }
 const AUTOLOC={};
-async function snapWZ(){if(!(beginPt&&endPt))return;drawWZLine();const dir=dirLabel(bearing(beginPt,endPt));if(!v('direction'))el('direction').value=dir[0];
+async function snapWZ(opts){if(!(beginPt&&endPt))return;drawWZLine();const dir=dirLabel(bearing(beginPt,endPt));if(!v('direction'))el('direction').value=dir[0];
   const r=await osrmRoute([[beginPt.lng,beginPt.lat],[endPt.lng,endPt.lat]]);let mi=miles(beginPt,endPt);if(r){wzRoute=r.latlngs;mi=r.meters/1609.34;}
   // Both-direction closure: route ALONG the opposing carriageway (follows the road); fall back to a
   // parallel offset if routing wraps/fails.
@@ -1652,6 +1652,11 @@ async function snapWZ(){if(!(beginPt&&endPt))return;drawWZLine();const dir=dirLa
   const autoMP=id=>{const cur=v(id);return !cur||/^MP\s*[\d.]+$/i.test(cur)||cur===AUTOLOC[id];};
   const setLoc=(id,val)=>{el(id).value=val;AUTOLOC[id]=val;};
   let mpTxt='';
+  // Restoring saved work on page load must not re-run the lookups: the milepost, route and
+  // cross-street values were already saved to localStorage, so re-deriving them would spend
+  // 2 milepost queries + 6 TIGER requests on every refresh to reproduce what we already have.
+  // Everything else here (route drawing, direction, lane hints) still runs.
+  if(!(opts&&opts.restore))
   try{ const [a,b,ra,rb]=await Promise.all([wzMilepost(beginPt),wzMilepost(endPt),wzRoadCheck(beginPt),wzRoadCheck(endPt)]);
     const okA=!ra||ra.onSystem, okB=!rb||rb.onSystem;   // null = TIGER unreachable, so don't block
     if(a&&okA&&autoMP('beginLoc'))setLoc('beginLoc','MP '+a.mp); if(b&&okB&&autoMP('endLoc'))setLoc('endLoc','MP '+b.mp);
@@ -2274,7 +2279,7 @@ function rememberContact(){ const name=v('contact24'); if(!name) return;
   localStorage.setItem('cars511_contacts', JSON.stringify(next.slice(0,200)));
   renderContacts(); saveState(); }
 function saveState(){const s={pts:{beginPt,endPt,detourPts},lanes:laneData,segs:schedSegments};FIELD_IDS.forEach(id=>{if(el(id))s[id]=el(id).value;});localStorage.setItem('tdot_state',JSON.stringify(s));}
-function loadState(){try{const s=JSON.parse(localStorage.getItem('tdot_state')||'{}');FIELD_IDS.forEach(id=>{if(el(id)&&s[id]!=null)el(id).value=s[id];});if(s.pts&&s.pts.beginPt){beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng);if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng);redraw();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ();setMode('locked');}}if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng));drawDetour();snapDetour();}if(Array.isArray(s.lanes)){laneData=s.lanes;if(el('laneCount'))el('laneCount').value=laneData.length||'';renderLanes();}}catch(e){}} if(Array.isArray(s.segs)){schedSegments=s.segs;syncSchedule();}
+function loadState(){try{const s=JSON.parse(localStorage.getItem('tdot_state')||'{}');FIELD_IDS.forEach(id=>{if(el(id)&&s[id]!=null)el(id).value=s[id];});if(s.pts&&s.pts.beginPt){beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng);if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng);redraw();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ({restore:true});setMode('locked');}}if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng));drawDetour();snapDetour();}if(Array.isArray(s.lanes)){laneData=s.lanes;if(el('laneCount'))el('laneCount').value=laneData.length||'';renderLanes();}}catch(e){}} if(Array.isArray(s.segs)){schedSegments=s.segs;syncSchedule();}
 const PERSIST=['requestor','email','contact24','tmcEmail'];
 function resetAll(){if(!confirm('Start a NEW request? Clears the segment, detour, and scans — your name/contact/email are kept.'))return;FIELD_IDS.forEach(id=>{if(el(id)&&!PERSIST.includes(id))el(id).value=el(id).tagName==='SELECT'?el(id).options[0].value:'';});[beginMk,endMk,line,line2].forEach(x=>x&&x.remove());beginPt=endPt=beginMk=endMk=line=line2=null;wzRoute=null;wzRoute2=null;schedule=[];detourPts=[];detourRoute=null;detourMeters=null;drawDetour();laneData=[];if(el('laneCount'))el('laneCount').value='';renderLanes();if(bridgeLayer){bridgeLayer.remove();bridgeLayer=null;}if(closuresLayer){closuresLayer.remove();closuresLayer=null;}window.__closConflicts=null;window.__closRecs=null;['nbiBox','schedList','detourInfo','readyBox','dbStatus','clearReminder','closuresBox'].forEach(id=>{if(el(id))el(id).style.display='none';});el('selinfo').textContent='No segment yet — click the road for the begin point, then the end point.';onRouteChange();setMode('begin');updateClearReminder();saveState();}
 function projectList(){try{return JSON.parse(localStorage.getItem('tdot_projects')||'[]');}catch(e){return[];}}
