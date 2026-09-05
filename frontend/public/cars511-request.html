@@ -178,7 +178,8 @@
             &nbsp;·&nbsp; <a href="#" onclick="document.getElementById('projCsv').click();return false" style="color:var(--accent);font-weight:600">＋ import CSV</a>
             &nbsp;·&nbsp; <a href="#" onclick="clearCsvProjects();return false" style="color:#94a3b8">clear imported</a>
             <input type="file" id="projCsv" accept=".csv,text/csv" style="display:none" onchange="loadProjectsCSV(event)" />
-          </div></div>
+          </div>
+          <div id="projWhere" style="display:none;font-size:11px;margin-top:3px;padding:4px 6px;background:#fdf2f8;border-left:3px solid #db2777;border-radius:3px;color:#334155"></div></div>
         <div><label>Intelligent Work Zone?</label><select id="iwz"><option>No</option><option>Yes</option></select></div>
         <div><label>Temporary signals?</label><select id="tempSignals"><option>No</option><option>Yes</option></select></div>
       </div>
@@ -1444,19 +1445,78 @@ async function scanProjects(){ const W=workSegment();
   const nearOf=f=>{ let m=Infinity; geomVerts(f.geometry).forEach(pt=>{ const d=distToSegM({lat:pt[1],lng:pt[0]},beginPt,endPt); if(d<m)m=d; }); return m; };
   const list=[], seen=new Set();
   bid.forEach(f=>{ const d=nearOf(f); if(d<=TH){ const a=f.attributes; const num=a.PROJECT_NUMBER; if(num&&seen.has(num))return; if(num)seen.add(num);
-    list.push({num, desc:a.WORK_DESC||a.CONTRACT_DESCRIPTION, loc:a.LOCATION, extra:'letting FY'+(a.LETTING_FISCAL_YEAR||'?'), src:'letting', d}); } });
+    list.push({num, desc:a.WORK_DESC||a.CONTRACT_DESCRIPTION, loc:a.LOCATION, extra:'letting FY'+(a.LETTING_FISCAL_YEAR||'?'), src:'letting', d, geom:f.geometry}); } });
   const fyMax=new Date().getFullYear()+1;   // exclude 5-yr projects 2+ years out
   fy.forEach(f=>{ const d=nearOf(f); if(d<=TH){ const a=f.attributes; const y=parseInt(a.Year2); if(Number.isFinite(y)&&y>fyMax)return;
-    list.push({num:a.Project_Code, desc:a.Work_Type, loc:a.Project_Location, extra:(a.Year2||'')+' program', src:'5-year', d}); } });
+    list.push({num:a.Project_Code, desc:a.Work_Type, loc:a.Project_Location, extra:(a.Year2||'')+' program', src:'5-year', d, geom:f.geometry}); } });
   list.sort((a,b)=>a.d-b.d); projFeats=list;
   const box=el('projBox'); box.style.display='block';
   if(!list.length){ box.innerHTML='No Iowa DOT letting or 5-Year Program projects found near this segment.'; toast('No projects found nearby'); return; }
   box.innerHTML=`<b>${list.length} project(s) near this segment</b> — tap a number to use it:<br>`+
     list.slice(0,10).map((p,i)=>`• <a href="#" onclick="useProject(${i});return false" style="color:#1d4ed8;font-weight:700">${p.num||'(no #)'}</a> <span style="color:#64748b">[${p.src} · ${p.extra}] ${(p.desc||'').slice(0,26)}${p.loc?(' — '+(p.loc).slice(0,30)):''}</span>`).join('<br>');
   toast(list.length+' project(s) nearby — tap a number to use it'); }
+// --- Where is the selected project? -----------------------------------------
+// scanProjects already pulls geometry to measure distance, so tapping a result
+// can draw it straight away. A typed pick has none: the datalist is built with
+// returnGeometry=false over 2000+ rows, so that path fetches the one project on
+// demand instead of dragging every footprint into the page.
+let projLayer=null;
+const PROJ_COLOR='#db2777';   // distinct from closure red, detour purple, saved teal
+function htmlEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function clearProjectOnMap(){ if(projLayer){ try{projLayer.remove();}catch(e){} projLayer=null; } setOverlay('🏗️ Project', null); }
+function projNote(html){ const n=el('projWhere'); if(!n) return; n.innerHTML=html||''; n.style.display=html?'block':'none'; }
+function showProjectOnMap(geom, label){
+  clearProjectOnMap();
+  if(!geom) return false;
+  const lay=L.layerGroup(), bounds=[];
+  const style={color:PROJ_COLOR,weight:5,opacity:.9,dashArray:'6,4'};
+  const tip=t=>({sticky:true});
+  (geom.paths||[]).forEach(p=>{ const ll=p.map(pt=>[pt[1],pt[0]]); ll.forEach(x=>bounds.push(x));
+    L.polyline(ll,style).bindTooltip(label,tip()).addTo(lay); });
+  (geom.rings||[]).forEach(r=>{ const ll=r.map(pt=>[pt[1],pt[0]]); ll.forEach(x=>bounds.push(x));
+    L.polygon(ll,{color:PROJ_COLOR,weight:3,opacity:.9,fillColor:PROJ_COLOR,fillOpacity:.12}).bindTooltip(label,tip()).addTo(lay); });
+  const pts=[]; if(geom.x!=null) pts.push([geom.y,geom.x]);
+  (geom.points||[]).forEach(pt=>pts.push([pt[1],pt[0]]));
+  pts.forEach(ll=>{ bounds.push(ll);
+    L.circleMarker(ll,{radius:8,color:PROJ_COLOR,weight:3,fillColor:'#fff',fillOpacity:1}).bindTooltip(label,tip()).addTo(lay); });
+  if(!bounds.length) return false;
+  projLayer=lay.addTo(map); setOverlay('🏗️ Project', projLayer);
+  try{ map.fitBounds(bounds,{padding:[70,70],maxZoom:14}); }catch(e){}
+  if(typeof isMobile==='function' && isMobile()) showMap(true);
+  return true;
+}
+// Geometry for ONE project number, merged across the four bid geometry views and
+// the 5-year program view so a multi-part project shows all of its pieces.
+async function locateProject(num){
+  const base='https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/';
+  const esc=String(num).replace(/'/g,"''");
+  const q=(svc,fields,field)=>base+svc+'/FeatureServer/0/query?where='+encodeURIComponent(field+"='"+esc+"'")+
+    '&outFields='+fields+'&returnGeometry=true&outSR=4326&resultRecordCount=50&f=json';
+  const go=u=>fetch(u).then(r=>r.json()).then(j=>j.features||[]).catch(()=>[]);
+  const BIDF='PROJECT_NUMBER,LOCATION,WORK_DESC';
+  const res=await Promise.all([
+    ...['Line','Point','Polygon','Multipoint'].map(t=>go(q('Project_Scheduling_Public_Bid_'+t+'_View',BIDF,'PROJECT_NUMBER'))),
+    go(q('Iowa_DOT_Five_Year_Program_Project_Data_V2_Public_VIEW','Project_Code,Project_Location,Work_Type','Project_Code'))
+  ]);
+  const feats=res.flat().filter(f=>f.geometry);
+  if(!feats.length) return null;
+  const merged={paths:[],rings:[],points:[]};
+  feats.forEach(f=>{ const g=f.geometry;
+    (g.paths||[]).forEach(p=>merged.paths.push(p));
+    (g.rings||[]).forEach(r=>merged.rings.push(r));
+    if(g.x!=null) merged.points.push([g.x,g.y]);
+    (g.points||[]).forEach(pt=>merged.points.push(pt)); });
+  const a=feats[0].attributes||{};
+  return {geom:merged, loc:a.LOCATION||a.Project_Location||''};
+}
+const PROJ_HIDE=' · <a href="#" onclick="clearProjectOnMap();projNote(\'\');return false" style="color:#64748b">hide</a>';
 function useProject(i){ const p=projFeats[i]; if(!p)return;
   if(p.num) el('project').value=p.num;
   if(!v('description') && p.desc) el('description').value=p.desc;
+  const shown=showProjectOnMap(p.geom, (p.num||'project')+(p.desc?' — '+p.desc:''));
+  const bits=[]; if(p.loc) bits.push(htmlEsc(p.loc));
+  if(Number.isFinite(p.d)) bits.push(Math.round(p.d)+' m from your closure');
+  projNote('📍 '+(bits.join(' · ')||'located')+(shown?PROJ_HIDE:' — no map geometry published'));
   saveState(); toast('Project number set: '+(p.num||'(none)')); }
 // Autocomplete: load ALL project numbers statewide (last 3 yrs let + programmed) into the datalist,
 // so projects with no map geometry are still selectable by typing.
@@ -1472,17 +1532,28 @@ async function loadProjectList(){ if(projListLoaded) return; projListLoaded=true
   const fyF=fetchFeats(qs('Iowa_DOT_Five_Year_Program_Project_Data_V2_Public_VIEW','Project_Code,Work_Type,Project_Location,Year2','Year2 >= '+minFY+' OR Year2 IS NULL'));
   const res=await Promise.all([...views,fyF]); const fy=res.pop(); const bid=res.flat();
   bid.forEach(f=>{ const a=f.attributes, num=a.PROJECT_NUMBER; if(!num||projIndex[num])return;
-    projIndex[num]={desc:a.WORK_DESC||a.CONTRACT_DESCRIPTION||'', extra:'letting FY'+(a.LETTING_FISCAL_YEAR||'?'), src:'letting'}; });
+    projIndex[num]={desc:a.WORK_DESC||a.CONTRACT_DESCRIPTION||'', loc:a.LOCATION||'', extra:'letting FY'+(a.LETTING_FISCAL_YEAR||'?'), src:'letting'}; });
   const fyMax=yr+1;   // exclude 5-yr projects 2+ years out
   fy.forEach(f=>{ const a=f.attributes, num=a.Project_Code; if(!num||projIndex[num])return;
     const y=parseInt(a.Year2); if(Number.isFinite(y)&&y>fyMax)return;
-    projIndex[num]={desc:a.Work_Type||'', extra:(a.Year2||'')+' program', src:'5-year'}; });
+    projIndex[num]={desc:a.Work_Type||'', loc:a.Project_Location||'', extra:(a.Year2||'')+' program', src:'5-year'}; });
   rebuildProjDatalist();
   const n=Object.keys(projIndex).length; if(n) toast(n+' project numbers loaded — type to search'); }
 function rebuildProjDatalist(){ const esc=s=>String(s).replace(/"/g,'').replace(/[<>]/g,'');
   el('projList').innerHTML=Object.keys(projIndex).sort().map(n=>{ const p=projIndex[n];
     return `<option value="${esc(n)}">${esc((p.desc||'').slice(0,40)+' ['+p.src+(p.extra?' '+p.extra:'')+']')}</option>`; }).join(''); }
-function onProjectPick(){ const p=projIndex[v('project')]; if(p && !v('description') && p.desc) el('description').value=p.desc; saveState(); }
+async function onProjectPick(){ const num=v('project'); const p=projIndex[num];
+  if(p && !v('description') && p.desc) el('description').value=p.desc;
+  saveState();
+  if(!num){ clearProjectOnMap(); projNote(''); return; }
+  projNote('\u23f3 locating '+htmlEsc(num)+'\u2026');
+  const r=await locateProject(num);
+  if(v('project')!==num) return;   // the user moved on while the query was in flight
+  const where=(r&&r.loc)||(p&&p.loc)||'';
+  if(!r){ projNote('\ud83d\udccd '+(where?htmlEsc(where)+' \u2014 ':'')+'no map geometry published for this project'); return; }
+  const shown=showProjectOnMap(r.geom, num+(p&&p.desc?' \u2014 '+p.desc:''));
+  projNote('\ud83d\udccd '+(where?htmlEsc(where)+' \u2014 ':'')+(shown?'shown on map'+PROJ_HIDE:'no map geometry published'));
+}
 // Import a project list from a CSV the office maintains (works offline; persists on this device).
 // Detects a project-number column + optional description; falls back to col0=number, col1=description.
 function parseCSV(text){ const rows=[]; let row=[],cur='',q=false;
@@ -2120,7 +2191,7 @@ function resetAll(){ if(!confirm('Start a NEW request? Clears the segment, detou
   if(bridgeLayer){bridgeLayer.remove();bridgeLayer=null;} window.__nbiNear=null; window.__nbiDetour=null; if(el('nbiBox'))el('nbiBox').style.display='none';
   if(closuresLayer){closuresLayer.remove();closuresLayer=null;} window.__iaClosures=null; window.__iaConflicts=null; if(el('closuresBox'))el('closuresBox').style.display='none';
   // projects + live-event pins + result banners
-  projFeats=[]; if(el('projBox'))el('projBox').style.display='none';
+  projFeats=[]; if(el('projBox'))el('projBox').style.display='none'; clearProjectOnMap(); projNote('');
   if(eventLayer){eventLayer.remove();eventLayer=null;} dupFeats=[];
   ['dupWarn','readyBox','dbStatus','laneHint','multiRouteWarn'].forEach(id=>{ if(el(id))el(id).style.display='none'; });
   schedSegments=[]; schedule=[]; if(typeof clearSegForm==='function') clearSegForm();
