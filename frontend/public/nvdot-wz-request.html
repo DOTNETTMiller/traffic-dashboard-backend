@@ -387,7 +387,12 @@ async function wzMilepost(pt){ if(!MP||!MP.url) return null; const k=Math.cos(pt
           let t=((px-ax)*dx+(py-ay)*dy)/l2; t=Math.max(0,Math.min(1,t));
           const fx=ax+t*dx,fy=ay+t*dy,dist=Math.hypot(px-fx,py-fy);
           if(dist<best.d){ const mA=A[2]==null?0:A[2], mB=B[2]==null?0:B[2]; best={d:dist,m:mA+t*(mB-mA),attr:feat.attributes,feat:feat,pi:pi,si:i,t:t}; } } }); });
-      if(!best.attr || best.d*111320>500) return null;
+      // Off-centreline distance decides whether the click is on THIS route at all.
+      // A divided highway's carriageway sits ~10-25m from the centreline, so 60m covers
+      // the real geometry; beyond that the point is on some other road (often a local
+      // street) and must not inherit this route's milepost. Was 500m, which reached
+      // several blocks and is how residential streets got stamped with a highway MP.
+      if(!best.attr || best.d*111320>60) return null;
       let mval=best.m||0;
       if(MP.segmentBased){ // non-M LRS: interpolate MP_START..MP_END by fractional length along the matched segment feature
         const mp0=parseFloat(best.attr[MP.mpField]),mp1=parseFloat(best.attr[MP.mpEndField]);
@@ -414,6 +419,12 @@ async function wzMilepost(pt){ if(!MP||!MP.url) return null; const k=Math.cos(pt
     feats.forEach(function(f){ f._d=Math.hypot((f._xy[0]-pt.lng)*k,(f._xy[1]-pt.lat)); });
     feats.sort(function(a,b){ return a._d-b._d; });
     const near=feats[0];
+    // Posted markers sit ~1 mile apart, so a point actually ON the route is within about
+    // 800m of one. The query box is ~3.3km, and with no distance test the nearest marker
+    // anywhere in it was accepted -- which is how a residential street got labelled with
+    // the nearest highway's route and milepost. Reject anything beyond 1200m.
+    { const k2=Math.cos(pt.lat*Math.PI/180)*111320;
+      if(Math.hypot((near._xy[0]-pt.lng)*k2,(near._xy[1]-pt.lat)*110540)>1200) return null; }
     // routeCols (a point layer whose signed route is split across class columns, e.g. OR I_RTE/US_RTE_1/OR_RTE_1):
     // pick the first populated column (with optional prefix) for BOTH the route label and the interpolation grouping.
     const pickCol=function(attr){ if(!MP.routeCols)return null; for(var i=0;i<MP.routeCols.length;i++){var c=MP.routeCols[i],vv=attr[c.f];if(vv!=null&&String(vv).trim()!=='')return (c.p||'')+String(vv).trim();} return null; };
