@@ -1955,9 +1955,86 @@ function routeVal(){const r=v('route');return r==='__other'?(v('routeOther')||'r
 function fmtDT(s){return s?new Date(s).toLocaleString():'—';}
 function fields(){const seg=(beginPt&&endPt)?dirLabel(bearing(beginPt,endPt))+', ~'+miles(beginPt,endPt).toFixed(1)+' mi':'(not set)';
   return [['Route',routeVal()],['Direction',v('direction')],['Segment',seg],['Project #',v('project')],['Description',v('description')],['Begin',v('beginLoc')],['End',v('endLoc')],['County',v('counties')],['Requestor',v('requestor')],['Email',v('email')],['24-hr contact',v('contact24')],['Vehicle impact',v('impact')],['Lanes',laneSummary()],['Width',v('rWidth')],['Height',v('rHeight')],['Weight',v('rWeight')],['Length',v('rLength')],['Normal speed (mph)',v('normalSpeed')],['Reduced work-zone speed (mph)',v('reducedSpeed')],['Restriction timing',v('rTiming')],['Scheduled end (expiration)',wzEndLabel()],['Bridge clearance check',clearLabel()],['Marked detour',v('detour')],['Oversize',v('oversize')],['DMS request',v('dms')],['Additional notes',v('addlNotes')],['Submit to',v('tmcEmail')]];}
-function summaryText(){let t='NEVADA DOT — WORK-ZONE REQUEST\n'+'='.repeat(38)+'\n'+fields().map(r=>r[0]+': '+(r[1]||'—')).join('\n');
+// ---- Map image for the request ------------------------------------------------------
+// The reviewer needs to see WHERE the closure is, not just its mileposts. A mailto: link
+// cannot carry an attachment, so the picture rides on the summary PDF they download.
+// Built by compositing OSM tiles onto a canvas rather than screenshotting the live map, so
+// it works independently of the current viewport and always frames the whole request.
+// OSM serves tiles with access-control-allow-origin:*, so the canvas stays untainted.
+function lon2x(lon,z){ return (lon+180)/360*Math.pow(2,z); }
+function lat2y(lat,z){ const r=lat*Math.PI/180;
+  return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*Math.pow(2,z); }
+function mapShapes(){
+  const out=[];
+  const wz=(wzRoute&&wzRoute.length)?wzRoute.map(c=>[c[0],c[1]]):((beginPt&&endPt)?[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]]:null);
+  if(wz) out.push({pts:wz,color:'#dc2626',width:6});
+  if(wzRoute2&&wzRoute2.length) out.push({pts:wzRoute2.map(c=>[c[0],c[1]]),color:'#dc2626',width:6});
+  const dr=(detourRoute&&detourRoute.length)?detourRoute.map(c=>[c[0],c[1]])
+          :(detourPts.length>=2?detourPts.map(p=>[p.lat,p.lng]):null);
+  if(dr) out.push({pts:dr,color:'#7c3aed',width:4,dash:[8,6]});
+  if(beginPt) out.push({pts:[[beginPt.lat,beginPt.lng]],label:'A',at:[beginPt.lat,beginPt.lng],color:'#dc2626',width:0});
+  if(endPt) out.push({pts:[[endPt.lat,endPt.lng]],label:'B',at:[endPt.lat,endPt.lng],color:'#dc2626',width:0});
+  return out;
+}
+async function renderMapPNG(W,H,fmt,q){
+  const shapes=mapShapes(); if(!shapes.length) return null;
+  let mnLa=90,mxLa=-90,mnLo=180,mxLo=-180;
+  shapes.forEach(s=>s.pts.forEach(p=>{ if(p[0]<mnLa)mnLa=p[0]; if(p[0]>mxLa)mxLa=p[0];
+    if(p[1]<mnLo)mnLo=p[1]; if(p[1]>mxLo)mxLo=p[1]; }));
+  const padLa=Math.max((mxLa-mnLa)*0.15,0.002), padLo=Math.max((mxLo-mnLo)*0.15,0.002);
+  mnLa-=padLa; mxLa+=padLa; mnLo-=padLo; mxLo+=padLo;
+  let z=18;
+  for(; z>3; z--){ const w=(lon2x(mxLo,z)-lon2x(mnLo,z))*256, h=(lat2y(mnLa,z)-lat2y(mxLa,z))*256;
+    if(w<=W && h<=H) break; }
+  const cx=(lon2x(mnLo,z)+lon2x(mxLo,z))/2, cy=(lat2y(mxLa,z)+lat2y(mnLa,z))/2;
+  const originX=cx*256-W/2, originY=cy*256-H/2;
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const g=cv.getContext('2d'); g.fillStyle='#eef1f4'; g.fillRect(0,0,W,H);
+  const x0=Math.floor(originX/256), x1=Math.floor((originX+W)/256);
+  const y0=Math.floor(originY/256), y1=Math.floor((originY+H)/256);
+  const jobs=[];
+  for(let tx=x0;tx<=x1;tx++) for(let ty=y0;ty<=y1;ty++){
+    const n=Math.pow(2,z); if(ty<0||ty>=n) continue;
+    const wx=((tx%n)+n)%n;
+    jobs.push(new Promise(res=>{ const img=new Image(); img.crossOrigin='anonymous';
+      img.onload=()=>{ try{ g.drawImage(img, tx*256-originX, ty*256-originY); }catch(e){} res(); };
+      img.onerror=()=>res();
+      img.src='https://tile.openstreetmap.org/'+z+'/'+wx+'/'+ty+'.png'; }));
+  }
+  await Promise.all(jobs);
+  const px=(lat,lon)=>[lon2x(lon,z)*256-originX, lat2y(lat,z)*256-originY];
+  shapes.filter(s=>s.width>0).forEach(s=>{
+    g.beginPath(); g.lineWidth=s.width; g.strokeStyle=s.color; g.lineJoin='round'; g.lineCap='round';
+    g.setLineDash(s.dash||[]);
+    s.pts.forEach((p,i)=>{ const xy=px(p[0],p[1]); i?g.lineTo(xy[0],xy[1]):g.moveTo(xy[0],xy[1]); });
+    g.stroke(); g.setLineDash([]);
+  });
+  shapes.filter(s=>s.label).forEach(s=>{
+    const xy=px(s.at[0],s.at[1]);
+    g.beginPath(); g.arc(xy[0],xy[1],11,0,Math.PI*2); g.fillStyle=s.color; g.fill();
+    g.lineWidth=2.5; g.strokeStyle='#fff'; g.stroke();
+    g.fillStyle='#fff'; g.font='bold 13px system-ui,sans-serif'; g.textAlign='center'; g.textBaseline='middle';
+    g.fillText(s.label,xy[0],xy[1]);
+  });
+  g.fillStyle='rgba(255,255,255,.82)'; g.fillRect(0,H-16,W,16);
+  g.fillStyle='#333'; g.font='11px system-ui,sans-serif'; g.textAlign='left'; g.textBaseline='middle';
+  g.fillText('© OpenStreetMap contributors',6,H-8);
+  // JPEG by default: this is a raster of map tiles, and jsPDF stores a PNG uncompressed --
+  // 2.7MB of PDF for one map page is a poor thing to email a DOT. JPEG is ~10x smaller
+  // and the softening is invisible on tiles.
+  try{ return cv.toDataURL(fmt||'image/jpeg', q||0.82); }catch(e){ return null; }   // tainted canvas -> skip the page
+}
+// A mailto: link cannot carry an attachment, so the map rides on the PDF -- which only works
+// if the requester is actually told to attach it.
+function attachNote(){
+  if(!(beginPt&&endPt)) return '';
+  return '\n\nATTACH: the summary PDF from the builder — its last page is the work-zone '
+       + 'location map showing the closure and any detour.';
+}
+function summaryText(){let t='FLORIDA DEPARTMENT OF TRANSPORTATION \u2014 WORK-ZONE REQUEST\n'+'='.repeat(58)+'\n'+fields().map(r=>r[0]+': '+(r[1]||'—')).join('\n');
   if(schedule.length)t+='\n\nSCHEDULE ('+schedule.length+'):\n'+schedule.map(o=>'  • '+o.label).join('\n');
   if(beginPt&&endPt)t+='\n\nROUTE MAP: '+gmapsRoute();if(detourPts.length>=2)t+='\nDETOUR MAP: '+gmapsDetour();
+  t+=attachNote();
   return t+'\n\n(Built with the FDOT Work-Zone Request Builder — review before submitting.)';}
 function copySummary(){navigator.clipboard.writeText(summaryText()).then(()=>toast('Summary copied'));}
 const REQUIRED=[['requestor','Requestor'],['email','Email'],['route','Route'],['direction','Direction'],['beginLoc','Begin location'],['endLoc','End location'],['counties','County'],['description','Description'],['impact','Vehicle impact']];
@@ -2171,19 +2248,33 @@ function wzLinearRefs(){
   return {feed_info:{update_date:now,version:'4.2',x_cwz_profile:'CWZ 1.0',x_dataset_tier:'field-request',update_frequency:0,data_sources:[{data_source_id:'fdot-wz-builder',organization_name:'Florida DOT (field builder)'}]},type:'FeatureCollection',features};}
 function downloadWZDx(){if(!(beginPt&&endPt)){toast('Mark a segment first');return;}const blob=new Blob([JSON.stringify(toWZDx(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='fdot_wzdx_'+(routeVal()||'route').replace(/\W+/g,'')+'.geojson';a.click();toast('WZDx feature exported');}
 
-function emailAgency(){const _m=missingFields();if(_m.length){checkReadiness();if(!confirm(_m.length+' required field(s) missing:\n'+_m.join(', ')+'\n\nEmail anyway?'))return;}
+async function emailAgency(){const _m=missingFields();if(_m.length){checkReadiness();if(!confirm(_m.length+' required field(s) missing:\n'+_m.join(', ')+'\n\nEmail anyway?'))return;}
   const to=v('tmcEmail');if(!to){toast('Set an FDOT recipient email first');checkReadiness();return;}
+  // Build the PDF FIRST so the file is already in Downloads when the draft opens and
+  // they go to attach it. A PDF failure must not stop the email.
+  let pdfOK=false; try{ await genPDF(); pdfOK=true; }catch(e){ pdfOK=false; }
   const body=summaryText();if(navigator.clipboard)navigator.clipboard.writeText(body).catch(()=>{});
   const subj='FDOT Work-Zone Request — '+routeVal()+' '+v('direction')+' — '+(v('project')||'work zone');
   const mailto='mailto:'+to+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body);
   try{const a=document.createElement('a');a.href=mailto;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();}catch(e){}
-  toast('Draft opened + text copied to clipboard');}
+  toast(pdfOK ? 'PDF downloaded + draft opened — attach the PDF before sending'
+              : 'Draft opened + text copied (PDF did not build — attach it separately)');}
 
-function genPDF(){const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'pt',format:'letter'});const M=48;let y=54;
+async function genPDF(){const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'pt',format:'letter'});const M=48;let y=54;
   doc.setFillColor(0,45,98);doc.rect(0,0,612,34,'F');doc.setFillColor(162,170,173);doc.rect(0,34,612,3,'F');doc.setTextColor(255);doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text('Florida Department of Transportation — Work-Zone Request',M,22);
   doc.setTextColor(20);y=64;doc.setFontSize(10);
   fields().forEach(r=>{if(y>740){doc.addPage();y=54;}doc.setFont('helvetica','bold');doc.text(r[0]+':',M,y);doc.setFont('helvetica','normal');const lines=doc.splitTextToSize(String(r[1]||'—'),360);doc.text(lines,M+150,y);y+=Math.max(15,lines.length*13);});
   if(schedule.length){if(y>700){doc.addPage();y=54;}y+=6;doc.setFont('helvetica','bold');doc.text('Schedule ('+schedule.length+'):',M,y);y+=15;doc.setFont('helvetica','normal');schedule.forEach(o=>{if(y>750){doc.addPage();y=54;}doc.text('• '+o.label,M+8,y);y+=13;});}
+  // the location map, so the reviewer can confirm this is the road they think it is
+  try{ const png=await renderMapPNG(1000,700);
+    if(png){ doc.addPage(); doc.setFont('helvetica','bold'); doc.setFontSize(13);
+      doc.text('Work-zone location map',M,54);
+      doc.setFont('helvetica','normal'); doc.setFontSize(9);
+      const ref=[v('beginLoc'),v('endLoc')].filter(Boolean).join(' to ');
+      doc.text((routeVal()||'route')+(v('direction')?' '+v('direction'):'')+(ref?'   '+ref:''),M,70);
+      const iw=1000, ih=700, maxW=612-2*M, sc=Math.min(maxW/iw,(760-84)/ih);
+      doc.addImage(png,'JPEG',M,84,iw*sc,ih*sc); }
+  }catch(e){ /* the map is a bonus - never block the PDF */ }
   doc.save('FDOT_WZ_'+(routeVal()||'route').replace(/\W+/g,'')+'.pdf');toast('Summary PDF generated');}
 
 // ---- database submit ----
