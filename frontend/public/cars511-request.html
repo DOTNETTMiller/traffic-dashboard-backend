@@ -2160,15 +2160,29 @@ function formFields(){
   return F;
 }
 // The email body the TMC gets: their format first, then the extras this tool adds.
+// A mailto: link cannot carry an attachment, so the location map rides on the official 511
+// PDF. The workflow only works if the requester is told to attach it -- the map links below
+// are a convenience, not a substitute for the picture the TMC asked to see.
+function attachNote(){
+  const n=(typeof allWzSegments==='function')?allWzSegments().length:0;
+  if(!n) return '';
+  return '\n\nATTACH: the official 511 PDF from the builder — its last page is the work-zone '
+       + 'location map showing '+(n>1?('all '+n+' closures'):'the closure')+' and any detour.';
+}
 function summaryText(){
   const body=formFields().map(([k,val])=>`${k}: ${val}`).join('\n');
-  return body + extraClosuresText() + scheduleText() + routeMapText() + detourText() +
+  return body + extraClosuresText() + scheduleText() + routeMapText() + detourText() + attachNote() +
     '\n\n---\n(Built with the CARS 511 Request Builder — mileposts from Iowa DOT RAMS. Review before submitting.)';
 }
 function copySummary(){ navigator.clipboard.writeText(summaryText()).then(()=>toast('Summary copied')); }
-function emailRCE(){ const _m=missingFields(); if(_m.length){ checkReadiness(); if(!confirm(`${_m.length} required field(s) missing:\n${_m.join(', ')}\n\nEmail anyway?`)) return; }
+async function emailRCE(){ const _m=missingFields(); if(_m.length){ checkReadiness(); if(!confirm(`${_m.length} required field(s) missing:\n${_m.join(', ')}\n\nEmail anyway?`)) return; }
+  // Build the PDF FIRST so it is already in Downloads when the draft opens and they go to
+  // attach it. Doing it the other way round means writing the mail, then hunting for a file
+  // that does not exist yet. A PDF failure must not stop the email.
+  let pdfOK=false;
+  try{ pdfOK=await fillOfficial({skipCheck:true}); }catch(e){ pdfOK=false; }
   const to=v('tmcEmail')||'IowaDOT.Traffic@iowadot.us'; const cc=v('rceEmail');
-  const subj=`CARS 511 Request — ${routeVal()} ${v('direction')} — ${v('project')||'work zone'}`;
+  const subj=`CARS 511 Request — ${routeValEff()} ${wzField('direction')} — ${v('project')||'work zone'}`;
   const body=summaryText();
   // Copy the full text first so it's always available even if no mail app is set up.
   if(navigator.clipboard) navigator.clipboard.writeText(body).catch(()=>{});
@@ -2182,7 +2196,8 @@ function emailRCE(){ const _m=missingFields(); if(_m.length){ checkReadiness(); 
   if(alt){ alt.style.display='block';
     alt.innerHTML=`<b>Mail app didn’t open?</b> The request text is <b>already copied</b> — paste it into a new email to <b>${to}</b>${cc?` (cc ${cc})`:''}. `+
       `Or <a href="${gmail}" target="_blank" rel="noopener">open a Gmail draft ↗</a>.`; }
-  toast('Draft opened + request text copied to clipboard'); }
+  toast(pdfOK ? 'PDF downloaded + draft opened — attach the PDF before sending'
+              : 'Draft opened + request text copied (PDF did not build — attach it separately)'); }
 function genPDF(){ const {jsPDF}=window.jspdf; const doc=new jsPDF({unit:'pt',format:'letter'}); const M=48; let y=54;
   doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.text('Iowa DOT — CARS 511 Work-Zone Request',M,y); y+=8;
   doc.setDrawColor(200); doc.line(M,y,564,y); y+=20; doc.setFontSize(10);
@@ -2589,8 +2604,10 @@ async function renderMapPNG(W,H){
   g.fillText('© OpenStreetMap contributors',6,H-8);
   try{ return cv.toDataURL('image/png'); }catch(e){ return null; }   // tainted canvas → skip the page
 }
-async function fillOfficial(){
-  const _m=missingFields(); if(_m.length){ checkReadiness(); if(!confirm(`${_m.length} required field(s) missing:\n${_m.join(', ')}\n\nFill the PDF anyway?`)) return; }
+async function fillOfficial(opts){
+  // opts.skipCheck: the caller (emailRCE) already asked about missing fields; asking twice
+  // for one click reads like the tool is broken.
+  if(!(opts&&opts.skipCheck)){ const _m=missingFields(); if(_m.length){ checkReadiness(); if(!confirm(`${_m.length} required field(s) missing:\n${_m.join(', ')}\n\nFill the PDF anyway?`)) return false; } }
   try{
     if(!window.PDFLib){ toast('PDF library not loaded (need internet once)'); return; }
     const {PDFDocument,StandardFonts,rgb}=window.PDFLib;
@@ -2658,7 +2675,8 @@ async function fillOfficial(){
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
     a.download=`CARS511_official_${(routeValEff()||'route').replace(/\W+/g,'')}_${(v('project')||'wz')}.pdf`; a.click();
     toast('Official 511 PDF filled — review before submitting');
-  }catch(e){ toast('Fill failed — use “Summary PDF”, or the app-served version'); console.error(e); }
+    return true;
+  }catch(e){ toast('Fill failed — use “Summary PDF”, or the app-served version'); console.error(e); return false; }
 }
 
 // ---- SeamlessDocs auto-fill bookmarklet (runs ON their page = same-origin there) ----
