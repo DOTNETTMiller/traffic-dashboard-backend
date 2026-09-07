@@ -2666,7 +2666,24 @@ function clearCsvProjects(){ Object.keys(projIndex).forEach(n=>{ if(projIndex[n]
 const REQUIRED=[['requestor','DOT requestor'],['email','Requestor email'],['route','Route'],['direction','Direction'],
   ['beginLoc','Begin location'],['endLoc','End location'],['counties','County/counties'],['description','Description'],
   ['impact','Traffic impact'],['beginDT','Begin date/time'],['endDT','End date/time'],['rce','RCE office'],['contact24','24-hr contact']];
-function missingFields(){ return REQUIRED.filter(([id])=>!v(id)).map(([,label])=>label); }
+// Filing a closure clears the live boxes so the next one can be marked, which left the
+// primary 511 entry's own values reachable only through wzSegments[0]. Everything that
+// reads the form for OUTPUT has to see through to it, or the request reports Route /
+// Begin location / End location as missing when they are in fact set -- which is what
+// made "fill the official PDF" open a "required field(s) missing" prompt whose Cancel
+// looked like the PDF silently refusing to save.
+function wzField(id){
+  // The official PDF and the TMC email describe CLOSURE 1; any others are listed for
+  // separate filing. So once closures are filed, closure 1 wins over the live box --
+  // that box is scratch space for the next closure and can still hold the last one's
+  // route, which otherwise ends up on the form describing the wrong road.
+  if(WZ_FIELDS.indexOf(id)>=0 && wzSegments.length){
+    const w=wzSegments[0]; if(w && w[id]) return w[id];
+  }
+  return v(id)||'';
+}
+function routeValEff(){ const r=wzField('route'); return r||'route'; }
+function missingFields(){ return REQUIRED.filter(([id])=>!wzField(id)).map(([,label])=>label); }
 // ---- Lanes (WZDx lanes[]) ----
 const LANE_STATUS=['open','closed','shift-left','shift-right','merge-left','merge-right','alternating-flow'];
 const LANE_TYPE=['general','shoulder','exit-lane','entrance-lane','hov-lane'];
@@ -3162,7 +3179,7 @@ function yn(x){ return /^y/i.test(String(x||'')) ? 'yes' : 'no'; }
 function fmtFormDT(dt){ if(!dt) return ''; const d=new Date(dt); if(isNaN(d)) return '';
   const p=n=>String(n).padStart(2,'0'); let h=d.getHours(); const ap=h<12?'am':'pm'; h=h%12===0?12:h%12;
   return `${p(d.getMonth()+1)}/${p(d.getDate())}/${d.getFullYear()} ${p(h)}:${p(d.getMinutes())} ${ap}`; }
-function routeLine(){ const r=routeVal(); const d=v('direction'); return d?`${r} - ${d}`:r; }
+function routeLine(){ const r=routeValEff(); const d=wzField('direction'); return d?`${r} - ${d}`:r; }
 function anyRestriction(){ return ['rWidth','rHeight','rWeight','rLength'].some(id=>v(id)); }
 // Free-text description of the drawn detour, so "Detour Route" is words, not just a line on a map.
 function detourRouteText(){ const ds=allDetours();
@@ -3179,9 +3196,9 @@ function formFields(){
   push('Route', routeLine());
   push('DOT project number', v('project'));
   push('Project description', v('description'));
-  push('Project begin location', v('beginLoc'));
-  push('Project end location', v('endLoc'));
-  push('County/Counties', v('counties'));
+  push('Project begin location', wzField('beginLoc'));
+  push('Project end location', wzField('endLoc'));
+  push('County/Counties', wzField('counties'));
   push('24hr Contact: Name', v('contact24'));
   push('24hr Contact: Phone Number', v('contact24Phone'));
   push('Describe the impact on traffic', v('impact'));
@@ -3673,10 +3690,10 @@ async function fillOfficial(){
     put('requestor',v('requestor')); put('email',v('email'));
     (v('iwz')==='Yes')?X('iwzYes'):X('iwzNo');
     mask(0,452,478); put('rce',v('rce'));
-    put('routeDir',(routeVal()+' '+v('direction')).trim()); put('project',v('project'));
-    put('description',v('description')); put('beginLoc',v('beginLoc')); put('endLoc',v('endLoc')); put('counties',v('counties'));
+    put('routeDir',(routeValEff()+' '+wzField('direction')).trim()); put('project',v('project'));
+    put('description',v('description')); put('beginLoc',wzField('beginLoc')); put('endLoc',wzField('endLoc')); put('counties',wzField('counties'));
     const c=v('contact24'); if(c){ const parts=c.split('/'); put('contactName',parts[0].trim()); if(parts[1])put('phone',parts[1].trim()); }
-    mask(1,185,211); put('impact',v('impact')); (v('overhead')==='Yes')?X('ohYes'):X('ohNo');
+    mask(1,185,211); put('impact',wzField('impact')); (v('overhead')==='Yes')?X('ohYes'):X('ohNo');
     // Official form has no field to list specific DMS signs → put them (and detour/oversize notes) in "Additional project information"
     const addl=[];
     if(v('addlNotes')) addl.push(v('addlNotes').replace(/\n+/g,' · '));
@@ -3713,7 +3730,7 @@ async function fillOfficial(){
     }catch(e){ /* map is a bonus — never block the form */ }
     const blob=new Blob([await doc.save()],{type:'application/pdf'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-    a.download=`CARS511_official_${(routeVal()||'route').replace(/\W+/g,'')}_${(v('project')||'wz')}.pdf`; a.click();
+    a.download=`CARS511_official_${(routeValEff()||'route').replace(/\W+/g,'')}_${(v('project')||'wz')}.pdf`; a.click();
     toast('Official 511 PDF filled — review before submitting');
   }catch(e){ toast('Fill failed — use “Summary PDF”, or the app-served version'); console.error(e); }
 }
