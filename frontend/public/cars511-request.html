@@ -2596,16 +2596,23 @@ async function fillOfficial(){
     const {PDFDocument,StandardFonts,rgb}=window.PDFLib;
     const doc=await PDFDocument.load(await officialBytes());
     const font=await doc.embedFont(StandardFonts.Helvetica); const pages=doc.getPages(); const H=pages[0].getHeight();
-    const put=(k,t,size=9)=>{ const m=PDF_MAP[k]; if(!m||t==null||t==='')return; pages[m.p].drawText(String(t),{x:m.x,y:H-m.top,size:m.size||size,font,color:rgb(0,0,0.6)}); };
+    // Helvetica here is WinAnsi-encoded: pdf-lib THROWS on any character it cannot encode,
+    // and one throw loses the whole PDF. The builder's own labels use "->" and the user can
+    // paste anything, so every string is folded to Latin-1 before it reaches drawText.
+    const PDF_SUB={'\u2192':'->','\u2190':'<-','\u2194':'<->','\u21d2':'=>','\u2013':'-','\u2014':'-',
+      '\u2018':"'",'\u2019':"'",'\u201c':'"','\u201d':'"','\u2026':'...','\u2022':'*','\u2032':"'",
+      '\u00a0':' ','\u2212':'-','\u00b0':' deg','\u2264':'<=','\u2265':'>='};
+    const pdfSafe=t=>String(t==null?'':t).replace(/[^\x20-\xFF\n]/g,c=>PDF_SUB[c]!==undefined?PDF_SUB[c]:'?');
+    const put=(k,t,size=9)=>{ const m=PDF_MAP[k]; if(!m||t==null||t==='')return; pages[m.p].drawText(pdfSafe(t),{x:m.x,y:H-m.top,size:m.size||size,font,color:rgb(0,0,0.6)}); };
     const X=k=>put(k,'X',11);
     // white-out a flat placeholder band (dropdowns bake "Choose an…" text into the page)
     const mask=(p,t1,t2,x=40,w=402)=>pages[p].drawRectangle({x,y:H-t2,width:w,height:t2-t1,color:rgb(1,1,1)});
     // word-wrap for the multi-line "Additional project information" box
-    const wrap=(txt,size,maxW)=>{ const out=[]; let ln=''; for(const w of String(txt).split(/\s+/)){ const t=ln?ln+' '+w:w;
+    const wrap=(txt,size,maxW)=>{ const out=[]; let ln=''; for(const w of pdfSafe(txt).split(/\s+/)){ const t=ln?ln+' '+w:w;
       if(font.widthOfTextAtSize(t,size)>maxW&&ln){ out.push(ln); ln=w; } else ln=t; } if(ln)out.push(ln); return out; };
     const putWrap=(k,t,{size=8,maxW=392,lh=10,maxLines=3}={})=>{ const m=PDF_MAP[k]; if(!m||!t)return;
       let lines=wrap(t,size,maxW); if(lines.length>maxLines){ lines=lines.slice(0,maxLines); lines[maxLines-1]=lines[maxLines-1].replace(/.{0,2}$/,'…'); }
-      lines.forEach((line,i)=>pages[m.p].drawText(line,{x:m.x,y:H-m.top-i*lh,size,font,color:rgb(0,0,0.6)})); };
+      lines.forEach((line,i)=>pages[m.p].drawText(pdfSafe(line),{x:m.x,y:H-m.top-i*lh,size,font,color:rgb(0,0,0.6)})); };
     put('requestor',v('requestor')); put('email',v('email'));
     (v('iwz')==='Yes')?X('iwzYes'):X('iwzNo');
     mask(0,452,478); put('rce',v('rce'));
@@ -2638,8 +2645,8 @@ async function fillOfficial(){
         mp.drawText('Work-zone location map',{x:44,y:748,size:13,font,color:rgb(0,0,0.6)});
         let cy=732;
         allWzSegments().forEach((w,i)=>{
-          const ref=[w.beginLoc,w.endLoc].filter(Boolean).join(' → ');
-          mp.drawText(`${i+1}. ${w.route||'route'}${w.direction?' '+w.direction:''}${ref?'  '+ref:''}`,
+          const ref=[w.beginLoc,w.endLoc].filter(Boolean).join(' to ');
+          mp.drawText(pdfSafe(`${i+1}. ${w.route||'route'}${w.direction?' '+w.direction:''}${ref?'  '+ref:''}`),
             {x:44,y:cy,size:9,font,color:rgb(0.2,0.2,0.2)});
           cy-=12;
         });
