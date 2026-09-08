@@ -401,6 +401,7 @@
         <div><label>Project begin date <span class="req">*</span></label><input id="beginDT" type="datetime-local" oninput="saveState()" /></div>
         <div><label>Project end date <span class="req">*</span></label><input id="endDT" type="datetime-local" oninput="saveState()" /></div>
       </div>
+      <div class="hint" id="projWindowNote" style="display:none">↑ Taken from the schedule above — change the segments to change these.</div>
       <div class="hint">Set from the segments above — the earliest start and the end of the last work period. Edit if the
         project window is wider than the work itself.</div>
 
@@ -2015,6 +2016,17 @@ function syncSchedule(){
   schedule.sort((a,b)=> (a.date||'').localeCompare(b.date||''));
   const b=segSpan();
   if(b){ if(el('beginDT')) el('beginDT').value=b.begin; if(el('endDT')) el('endDT').value=b.end; }
+  // The project window IS the span of the schedule, so once there are segments these two
+  // boxes are a second copy of dates already entered above. Show them as derived rather
+  // than asking for the same dates twice; they stay editable when there is no schedule,
+  // for a simple window with no segments to build.
+  const derived=schedSegments.length>0;
+  ['beginDT','endDT'].forEach(function(id){ const e=el(id); if(!e) return;
+    e.readOnly=derived;
+    e.title=derived?'Set by the schedule above — edit the segments to change it':'';
+    e.style.background=derived?'#f1f5f9':'';
+    e.style.color=derived?'#475569':''; });
+  const pw=el('projWindowNote'); if(pw) pw.style.display=derived?'block':'none';
   renderSegments();
 }
 // Earliest start and latest end across every segment — the project's overall window.

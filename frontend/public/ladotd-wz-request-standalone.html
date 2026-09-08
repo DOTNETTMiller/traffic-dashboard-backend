@@ -1277,16 +1277,20 @@ https://github.com/nodeca/pako/blob/master/LICENSE
 
     <fieldset>
       <legend>Step 3 · Detour &amp; notes</legend>
-      <div class="mapbtns">
-        <button onclick="suggestDetour()">✨ Suggest detour</button>
-        <button id="btnDetour" onclick="setMode('detour')">✏️ Draw detour</button>
-        <button onclick="undoDetour()">↶ Undo</button>
-        <button onclick="clearDetour()">✕ Clear</button>
-      </div>
-      <div class="box" id="detourInfo" style="display:none"></div>
       <div class="row">
-        <div><label>Marked detour?</label><select id="detour" onchange="updateClearReminder();saveState()"><option>No</option><option>Yes</option></select></div>
+        <div><label>Marked detour?</label><select id="detour" onchange="onDetourToggle()"><option>No</option><option>Yes</option></select></div>
         <div><label>Oversize allowed?</label><select id="oversize" onchange="updateClearReminder();saveState()"><option>N/A</option><option>Yes</option><option>No</option></select></div>
+      </div>
+      <!-- the drawing tools only mean something once a detour is actually being marked, so
+           they stay out of the way until the question above is answered Yes -->
+      <div id="detourBody" style="display:none;margin-top:8px">
+        <div class="mapbtns">
+          <button onclick="suggestDetour()">✨ Suggest detour</button>
+          <button id="btnDetour" onclick="setMode('detour')">✏️ Draw detour</button>
+          <button onclick="undoDetour()">↶ Undo</button>
+          <button onclick="clearDetour()">✕ Clear</button>
+        </div>
+        <div class="box" id="detourInfo" style="display:none"></div>
       </div>
       <label>DMS / message-sign request</label><textarea id="dms" placeholder="Requested message / location"></textarea>
       <label>Additional notes</label><textarea id="addlNotes" placeholder="Pilot car, flagger, devices, etc."></textarea>
@@ -1392,6 +1396,7 @@ https://github.com/nodeca/pako/blob/master/LICENSE
         <div><label>Project begin date <span class="req">*</span></label><input id="beginDT" type="datetime-local" oninput="saveState()" /></div>
         <div><label>Project end date <span class="req">*</span></label><input id="endDT" type="datetime-local" oninput="saveState()" /></div>
       </div>
+      <div class="hint" id="projWindowNote" style="display:none">↑ Taken from the schedule above — change the segments to change these.</div>
       <div class="hint">Set from the segments above — the earliest start and the end of the last work period. Edit if the
         project window is wider than the work itself.</div>
 
@@ -1924,6 +1929,17 @@ function syncSchedule(){
   schedule.sort((a,b)=> (a.date||'').localeCompare(b.date||''));
   const b=segSpan();
   if(b){ if(el('beginDT')) el('beginDT').value=b.begin; if(el('endDT')) el('endDT').value=b.end; }
+  // The project window IS the span of the schedule, so once there are segments these two
+  // boxes are a second copy of dates already entered above. Show them as derived rather
+  // than asking for the same dates twice; they stay editable when there is no schedule,
+  // for a simple window with no segments to build.
+  const derived=schedSegments.length>0;
+  ['beginDT','endDT'].forEach(function(id){ const e=el(id); if(!e) return;
+    e.readOnly=derived;
+    e.title=derived?'Set by the schedule above — edit the segments to change it':'';
+    e.style.background=derived?'#f1f5f9':'';
+    e.style.color=derived?'#475569':''; });
+  const pw=el('projWindowNote'); if(pw) pw.style.display=derived?'block':'none';
   renderSegments();
 }
 // Earliest start and latest end across every segment — the project's overall window.
@@ -2253,6 +2269,10 @@ function calcTaper(){ const box=el('taperBox'); box.style.display='block';
 function addTaperNote(){ const t=window.__taper; if(!t)return;
   const note='TTC (MUTCD, '+t.S+' mph): merging taper '+t.Lmerge+' ft; advance-warning sign spacing '+t.A+'/'+t.B+'/'+t.C+' ft ('+t.road+').';
   const cur=(v('addlNotes')||'').replace(/(^|\n)TTC \(MUTCD[^\n]*/g,'').trim(); el('addlNotes').value=[cur,note].filter(Boolean).join('\n'); saveState(); toast('Taper + signs added to notes'); }
+function onDetourToggle(){ const on=/^y/i.test(v('detour'));
+  const b=el('detourBody'); if(b) b.style.display=on?'block':'none';
+  if(!on && mode==='detour') setMode('locked');
+  updateClearReminder(); saveState(); }
 function updateClearReminder(){const box=el('clearReminder');if(!box)return;const st=v('clearStatus');
   if(clearanceRelevant()&&st!=='checked'&&st!=='not-needed'){box.style.display='block';
     box.innerHTML=clearanceAltering()
@@ -2492,7 +2512,7 @@ function prefillFromURL(){try{
   const info=el('selinfo'); if(info) info.insertAdjacentHTML('afterbegin','<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:6px 8px;margin-bottom:6px;font-size:12px">↩ <b>Pre-filled from a Corridor Communicator finding</b>'+(q.get('exkind')?' — '+q.get('exkind'):'')+'. Review, correct, then re-export WZDx / submit.</div>');
   return true;
 }catch(e){return false;}}
-if(!prefillFromURL())loadState();renderProjects();onRouteChange();loadIntegration();loadCsvProjects();updateClearReminder();if(CLOSURES&&el('closuresRow'))el('closuresRow').style.display='block';
+if(!prefillFromURL())loadState();renderProjects();onRouteChange();loadIntegration();loadCsvProjects();updateClearReminder();onDetourToggle();if(CLOSURES&&el('closuresRow'))el('closuresRow').style.display='block';
 // Demo mode (?demo=1): a pure "show the functionality" showcase — hide the submit-to-database endpoint/
 // auth/submit controls (nothing is ever POSTed anywhere) but KEEP the client-side WZDx/JSON export, and
 // show a banner. Everything else (draw, milepost, clearance, lanes, taper, detour) works normally.
