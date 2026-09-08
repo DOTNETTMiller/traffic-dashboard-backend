@@ -2886,15 +2886,37 @@ async function initializeDatabase() {
 // deploy, and no socket open on $PORT -- every request timed out at the edge with nothing
 // in the logs to say why. Optional data preparation must never be able to take the site
 // down. Seeding now runs after we are already serving, and its failure is logged, not fatal.
-initializeDatabase()
+// The listener must start whether or not the database cooperates. initializeDatabase()
+// awaits five Postgres round trips (db.init, getAllStates, importWZDxRegistry,
+// migrateTexas, loadStatesFromDatabase); when Postgres stalls, any one of them hangs
+// forever and app.listen() is never reached -- a live process, a SUCCESS deploy, and
+// nothing on $PORT. Moving vendor seeding after listen was not enough, because this ran
+// before it.
+//
+// So: wait for init, but only up to a bound. Past that, serve anyway and let init finish
+// behind the open port. A site with degraded data beats a site that answers nothing.
+const DB_INIT_MAX_MS = 60000;
+let started = false;
+const startOnce = (why) => {
+  if (started) return;
+  started = true;
+  if (why) console.error(`⚠️  ${why} — starting the HTTP server anyway`);
+  startServer();
+};
+const initDone = initializeDatabase();
+const initCap = setTimeout(() => startOnce(`database init exceeded ${DB_INIT_MAX_MS / 1000}s`), DB_INIT_MAX_MS);
+initDone
   .then(() => {
-    startServer();
+    clearTimeout(initCap);
+    startOnce(null);
     initVendorData().catch(err =>
       console.error('⚠️  Vendor seeding failed (server is already serving):', err.message));
   })
   .catch(err => {
-    console.error('❌ Failed to initialize database:', err);
-    process.exit(1);
+    clearTimeout(initCap);
+    console.error('❌ Failed to initialize database:', err && err.message);
+    // Do not exit: serve with degraded data rather than leaving the site dark.
+    startOnce('database initialization failed');
   });
 
 // Helper function to parse XML
