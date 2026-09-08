@@ -2878,14 +2878,19 @@ async function initializeDatabase() {
   }
 }
 
-// Initialize database then start server
+// Initialize database then start server.
+//
+// The listener starts BEFORE vendor seeding, and that ordering is load-bearing. Seeding
+// talks to Postgres; when Postgres was unreachable the awaited seed never returned, so
+// startServer() was never called and the service sat there with a live process, a healthy
+// deploy, and no socket open on $PORT -- every request timed out at the edge with nothing
+// in the logs to say why. Optional data preparation must never be able to take the site
+// down. Seeding now runs after we are already serving, and its failure is logged, not fatal.
 initializeDatabase()
-  .then(async () => {
-    // Initialize vendor data in PostgreSQL (if needed)
-    await initVendorData();
-
-    // Start server after database is ready
+  .then(() => {
     startServer();
+    initVendorData().catch(err =>
+      console.error('⚠️  Vendor seeding failed (server is already serving):', err.message));
   })
   .catch(err => {
     console.error('❌ Failed to initialize database:', err);
@@ -38888,10 +38893,15 @@ async function initVendorData() {
   try {
     console.log('\n🌱 Seeding TETC vendor data in PostgreSQL...');
 
-    const { execSync } = require('child_process');
-    execSync('node scripts/seed_vendor_data.js', {
-      stdio: 'inherit',
-      env: process.env
+    // execSync blocked the event loop for as long as the child ran, and had no timeout, so
+    // a Postgres stall froze the whole process indefinitely. Async + a hard cap instead.
+    await new Promise((resolve, reject) => {
+      const { execFile } = require('child_process');
+      const child = execFile('node', ['scripts/seed_vendor_data.js'],
+        { env: process.env, timeout: 120000, killSignal: 'SIGKILL' },
+        (err) => err ? reject(err) : resolve());
+      child.stdout && child.stdout.on('data', d => process.stdout.write(d));
+      child.stderr && child.stderr.on('data', d => process.stderr.write(d));
     });
 
     console.log('✅ Vendor data seeding completed\n');
