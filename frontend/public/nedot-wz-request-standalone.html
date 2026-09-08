@@ -1206,6 +1206,10 @@ https://github.com/nodeca/pako/blob/master/LICENSE
         <button onclick="undoSeg()">↶ Undo point</button>
         <button onclick="clearSeg()">✕ Clear segment</button>
       </div>
+      <div class="mapbtns" style="margin-top:6px">
+        <button id="wzSaveBtn" onclick="saveWzSegment()">➕ Save closure &amp; add another</button>
+      </div>
+      <div id="wzList" style="display:none;font-size:12px;margin-top:6px;padding:6px 8px;background:#f1f5f9;border-left:3px solid #0f766e;border-radius:3px;line-height:1.6"></div>
       <label class="chk"><input type="checkbox" id="autofill" checked /> Auto-fill county from the map (uses internet)</label>
       <details style="margin-top:8px">
         <summary style="cursor:pointer;font-size:12px;color:var(--brand2);font-weight:600">⌨ Enter coordinates instead (keyboard-accessible)</summary>
@@ -1955,6 +1959,90 @@ function routeVal(){const r=v('route');return r==='__other'?(v('routeOther')||'r
 function fmtDT(s){return s?new Date(s).toLocaleString():'—';}
 function fields(){const seg=(beginPt&&endPt)?dirLabel(bearing(beginPt,endPt))+', ~'+miles(beginPt,endPt).toFixed(1)+' mi':'(not set)';
   return [['Route',routeVal()],['Direction',v('direction')],['Segment',seg],['Project #',v('project')],['Description',v('description')],['Begin',v('beginLoc')],['End',v('endLoc')],['County',v('counties')],['Requestor',v('requestor')],['Email',v('email')],['24-hr contact',v('contact24')],['Vehicle impact',v('impact')],['Lanes',laneSummary()],['Width',v('rWidth')],['Height',v('rHeight')],['Weight',v('rWeight')],['Length',v('rLength')],['Normal speed (mph)',v('normalSpeed')],['Reduced work-zone speed (mph)',v('reducedSpeed')],['Restriction timing',v('rTiming')],['Scheduled end (expiration)',wzEndLabel()],['Bridge clearance check',clearLabel()],['Marked detour',v('detour')],['Oversize',v('oversize')],['DMS request',v('dms')],['Additional notes',v('addlNotes')],['Submit to',v('tmcEmail')]];}
+// ---- More than one closure on a request ---------------------------------------------
+// A job often closes more than one stretch of road. Filing each separately loses the fact
+// that they are the same work, so closures are collected here: the form describes CLOSURE 1
+// and the rest ride along -- listed in the request text and drawn on the PDF's map page.
+const WZ_FIELDS=['route','routeOther','direction','beginLoc','endLoc','counties','impact'];
+let wzSegments=[], activeWz=-1, savedWzLayer=null;
+function wzEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+// Once closures are filed the live boxes are scratch space for the NEXT one, so closure 1
+// wins for anything that describes the request as a whole -- otherwise the summary, the
+// subject line and the required-field check all read the half-typed next closure.
+function wzField(id){
+  if(WZ_FIELDS.indexOf(id)>=0 && wzSegments.length){ const w=wzSegments[0]; if(w&&w[id]) return w[id]; }
+  return v(id)||'';
+}
+function routeValEff(){ const r=wzField('route'); return r==='__other'?(wzField('routeOther')||'route'):(r||'route'); }
+function wzRouteName(w){ return w.route==='__other'?(w.routeOther||'route'):(w.route||'route'); }
+function wzLabel(w){ const ref=[w.beginLoc,w.endLoc].filter(Boolean).join(' to ');
+  return wzRouteName(w)+(w.direction?' '+w.direction:'')+(ref?'  '+ref:''); }
+function liveWz(){
+  if(!(beginPt&&endPt)) return null;
+  const o={ begin:{lat:beginPt.lat,lng:beginPt.lng}, end:{lat:endPt.lat,lng:endPt.lng},
+    miles:+miles(beginPt,endPt).toFixed(1), live:true,
+    path:(wzRoute&&wzRoute.length)?wzRoute.map(c=>[c[0],c[1]]):null,
+    path2:(wzRoute2&&wzRoute2.length)?wzRoute2.map(c=>[c[0],c[1]]):null };
+  WZ_FIELDS.forEach(f=>o[f]=v(f));
+  return o;
+}
+function allWzSegments(){ const out=wzSegments.slice(); const l=liveWz(); if(l) out.push(l); return out; }
+function saveWzSegment(){
+  if(!(beginPt&&endPt)){ toast('Mark a begin and end point first'); return; }
+  if(!v('route')){ toast('No route yet — let the map fill it, or pick one'); return; }
+  const rec=liveWz(); delete rec.live;
+  if(activeWz>=0) wzSegments[activeWz]=rec; else wzSegments.push(rec);
+  activeWz=-1;
+  const b=el('wzSaveBtn'); if(b) b.textContent='➕ Save closure & add another';
+  clearSeg();                                  // clears pins + the live drawing, as saving a detour does
+  renderWzList(); drawSavedClosures(); saveState();
+  toast('Closure '+wzSegments.length+' saved — mark the next one, or send the request');
+}
+function editWzSegment(i){ const w=wzSegments[i]; if(!w) return;
+  activeWz=i; WZ_FIELDS.forEach(f=>{ if(el(f)) el(f).value=w[f]||''; });
+  if(typeof onRouteChange==='function') onRouteChange();
+  beginPt=L.latLng(w.begin.lat,w.begin.lng); endPt=L.latLng(w.end.lat,w.end.lng);
+  redraw(); setMode('locked');
+  const b=el('wzSaveBtn'); if(b) b.textContent='💾 Update closure '+(i+1);
+  renderWzList(); drawSavedClosures();
+  toast('Editing closure '+(i+1)+' — Update to save it back'); }
+function deleteWzSegment(i){ wzSegments.splice(i,1); if(activeWz===i){ activeWz=-1;
+    const b=el('wzSaveBtn'); if(b) b.textContent='➕ Save closure & add another'; }
+  renderWzList(); drawSavedClosures(); saveState(); toast('Closure removed'); }
+function renderWzList(){ const box=el('wzList'); if(!box) return;
+  if(!wzSegments.length){ box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display='block';
+  box.innerHTML='<b>'+wzSegments.length+' closure'+(wzSegments.length>1?'s':'')+' saved</b> '+
+    '<span style="color:#64748b">— the form describes closure 1; the others ride along</span><br>'+
+    wzSegments.map((w,i)=>'<b>'+(i+1)+'.</b> '+wzEsc(wzLabel(w))+
+      ' <a href="#" onclick="editWzSegment('+i+');return false">edit</a> '+
+      '<a href="#" onclick="deleteWzSegment('+i+');return false" style="color:#b91c1c">remove</a>').join('<br>');
+}
+function drawSavedClosures(){
+  if(savedWzLayer){ try{ savedWzLayer.remove(); }catch(e){} savedWzLayer=null; }
+  if(!wzSegments.length) return;
+  savedWzLayer=L.layerGroup().addTo(map);
+  wzSegments.forEach((w,i)=>{
+    const p=(w.path&&w.path.length>1)?w.path:[[w.begin.lat,w.begin.lng],[w.end.lat,w.end.lng]];
+    L.polyline(p,{color:'#0f766e',weight:5,opacity:.75,dashArray:'10,6'}).addTo(savedWzLayer);
+    if(w.path2&&w.path2.length>1) L.polyline(w.path2,{color:'#0f766e',weight:5,opacity:.6,dashArray:'10,6'}).addTo(savedWzLayer);
+    L.marker([w.begin.lat,w.begin.lng],{icon:L.divIcon({className:'',iconSize:[22,22],iconAnchor:[11,11],
+      html:'<div style="background:#0f766e;color:#fff;border:2px solid #fff;border-radius:50%;width:22px;height:22px;line-height:19px;text-align:center;font:700 12px system-ui;box-shadow:0 1px 4px rgba(0,0,0,.4)">'+(i+1)+'</div>'})})
+      .bindTooltip('Closure '+(i+1)+': '+wzLabel(w)).addTo(savedWzLayer);
+  });
+}
+// The agency files one entry per closure, so spell the extras out rather than hiding them
+// behind a count.
+function extraClosuresText(){
+  const all=allWzSegments(); if(all.length<2) return '';
+  return '\n\n'+all.slice(1).map((w,i)=>
+    '--- CLOSURE '+(i+2)+' OF '+all.length+' — file as its own entry ---\n'+
+    '  Route: '+wzRouteName(w)+(w.direction?' '+w.direction:'')+'\n'+
+    '  Begin: '+(w.beginLoc||'—')+'\n'+
+    '  End: '+(w.endLoc||'—')+
+    (w.counties?('\n  County: '+w.counties):'')+
+    (w.impact?('\n  Impact: '+w.impact):'')).join('\n\n');
+}
 // ---- Map image for the request ------------------------------------------------------
 // The reviewer needs to see WHERE the closure is, not just its mileposts. A mailto: link
 // cannot carry an attachment, so the picture rides on the summary PDF they download.
@@ -1966,14 +2054,20 @@ function lat2y(lat,z){ const r=lat*Math.PI/180;
   return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*Math.pow(2,z); }
 function mapShapes(){
   const out=[];
+  wzSegments.forEach((w,i)=>{
+    const p=(w.path&&w.path.length>1)?w.path:[[w.begin.lat,w.begin.lng],[w.end.lat,w.end.lng]];
+    out.push({pts:p,color:'#dc2626',width:6});
+    if(w.path2&&w.path2.length>1) out.push({pts:w.path2,color:'#dc2626',width:6});
+    out.push({pts:[[w.begin.lat,w.begin.lng]],label:String(i+1),at:[w.begin.lat,w.begin.lng],color:'#dc2626',width:0});
+  });
   const wz=(wzRoute&&wzRoute.length)?wzRoute.map(c=>[c[0],c[1]]):((beginPt&&endPt)?[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]]:null);
   if(wz) out.push({pts:wz,color:'#dc2626',width:6});
   if(wzRoute2&&wzRoute2.length) out.push({pts:wzRoute2.map(c=>[c[0],c[1]]),color:'#dc2626',width:6});
   const dr=(detourRoute&&detourRoute.length)?detourRoute.map(c=>[c[0],c[1]])
           :(detourPts.length>=2?detourPts.map(p=>[p.lat,p.lng]):null);
   if(dr) out.push({pts:dr,color:'#7c3aed',width:4,dash:[8,6]});
-  if(beginPt) out.push({pts:[[beginPt.lat,beginPt.lng]],label:'A',at:[beginPt.lat,beginPt.lng],color:'#dc2626',width:0});
-  if(endPt) out.push({pts:[[endPt.lat,endPt.lng]],label:'B',at:[endPt.lat,endPt.lng],color:'#dc2626',width:0});
+  if(beginPt) out.push({pts:[[beginPt.lat,beginPt.lng]],label:wzSegments.length?String(wzSegments.length+1):'A',at:[beginPt.lat,beginPt.lng],color:'#dc2626',width:0});
+  if(endPt&&!wzSegments.length) out.push({pts:[[endPt.lat,endPt.lng]],label:'B',at:[endPt.lat,endPt.lng],color:'#dc2626',width:0});
   return out;
 }
 async function renderMapPNG(W,H,fmt,q){
@@ -2027,18 +2121,19 @@ async function renderMapPNG(W,H,fmt,q){
 // A mailto: link cannot carry an attachment, so the map rides on the PDF -- which only works
 // if the requester is actually told to attach it.
 function attachNote(){
-  if(!(beginPt&&endPt)) return '';
+  const n=allWzSegments().length; if(!n) return '';
   return '\n\nATTACH: the summary PDF from the builder — its last page is the work-zone '
-       + 'location map showing the closure and any detour.';
+       + 'location map showing '+(n>1?('all '+n+' closures'):'the closure')+' and any detour.';
 }
 function summaryText(){let t='NEBRASKA DEPARTMENT OF TRANSPORTATION \u2014 WORK-ZONE REQUEST\n'+'='.repeat(59)+'\n'+fields().map(r=>r[0]+': '+(r[1]||'—')).join('\n');
   if(schedule.length)t+='\n\nSCHEDULE ('+schedule.length+'):\n'+schedule.map(o=>'  • '+o.label).join('\n');
   if(beginPt&&endPt)t+='\n\nROUTE MAP: '+gmapsRoute();if(detourPts.length>=2)t+='\nDETOUR MAP: '+gmapsDetour();
+  t+=extraClosuresText();
   t+=attachNote();
   return t+'\n\n(Built with the Nebraska DOT Work-Zone Request Builder — review before submitting.)';}
 function copySummary(){navigator.clipboard.writeText(summaryText()).then(()=>toast('Summary copied'));}
 const REQUIRED=[['requestor','Requestor'],['email','Email'],['route','Route'],['direction','Direction'],['beginLoc','Begin location'],['endLoc','End location'],['counties','County'],['description','Description'],['impact','Vehicle impact']];
-function missingFields(){return REQUIRED.filter(r=>!v(r[0])||(v(r[0])==='__other'&&!v('routeOther'))).map(r=>r[1]);}
+function missingFields(){return REQUIRED.filter(r=>!wzField(r[0])||(wzField(r[0])==='__other'&&!wzField('routeOther'))).map(r=>r[1]);}
 // ---- Existing closures conflict check (WZDx feed OR ArcGIS layer, per CLOSURES config) ----
 function closToMs(x){ if(x==null||x==='')return null;
   if(typeof x==='string'&&/^\d{8}$/.test(x)) return Date.parse(x.slice(0,4)+'-'+x.slice(4,6)+'-'+x.slice(6,8)+'T00:00');   // YYYYMMDD string (CARS511)
@@ -2254,7 +2349,7 @@ async function emailAgency(){const _m=missingFields();if(_m.length){checkReadine
   // they go to attach it. A PDF failure must not stop the email.
   let pdfOK=false; try{ await genPDF(); pdfOK=true; }catch(e){ pdfOK=false; }
   const body=summaryText();if(navigator.clipboard)navigator.clipboard.writeText(body).catch(()=>{});
-  const subj='Nebraska DOT Work-Zone Request — '+routeVal()+' '+v('direction')+' — '+(v('project')||'work zone');
+  const subj='Nebraska DOT Work-Zone Request — '+routeValEff()+' '+wzField('direction')+' — '+(v('project')||'work zone');
   const mailto='mailto:'+to+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(body);
   try{const a=document.createElement('a');a.href=mailto;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();}catch(e){}
   toast(pdfOK ? 'PDF downloaded + draft opened — attach the PDF before sending'
@@ -2270,12 +2365,11 @@ async function genPDF(){const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'pt
     if(png){ doc.addPage(); doc.setFont('helvetica','bold'); doc.setFontSize(13);
       doc.text('Work-zone location map',M,54);
       doc.setFont('helvetica','normal'); doc.setFontSize(9);
-      const ref=[v('beginLoc'),v('endLoc')].filter(Boolean).join(' to ');
-      doc.text((routeVal()||'route')+(v('direction')?' '+v('direction'):'')+(ref?'   '+ref:''),M,70);
-      const iw=1000, ih=700, maxW=612-2*M, sc=Math.min(maxW/iw,(760-84)/ih);
-      doc.addImage(png,'JPEG',M,84,iw*sc,ih*sc); }
+      let my=70; allWzSegments().forEach((w,i)=>{ doc.text((i+1)+'. '+wzLabel(w),M,my); my+=12; });
+      const iw=1000, ih=700, maxW=612-2*M, sc=Math.min(maxW/iw,(760-(my+14))/ih);
+      doc.addImage(png,'JPEG',M,my+14,iw*sc,ih*sc); }
   }catch(e){ /* the map is a bonus - never block the PDF */ }
-  doc.save('NEDOT_WZ_'+(routeVal()||'route').replace(/\W+/g,'')+'.pdf');toast('Summary PDF generated');}
+  doc.save('NEDOT_WZ_'+(routeValEff()||'route').replace(/\W+/g,'')+'.pdf');toast('Summary PDF generated');}
 
 // ---- database submit ----
 function saveIntegration(){localStorage.setItem('nedot_integration',JSON.stringify({endpoint:v('dbEndpoint'),auth:v('dbAuth')}));}
@@ -2369,10 +2463,10 @@ function rememberContact(){ const name=v('contact24'); if(!name) return;
   next.unshift({name, phone});
   localStorage.setItem('cars511_contacts', JSON.stringify(next.slice(0,200)));
   renderContacts(); saveState(); }
-function saveState(){const s={pts:{beginPt,endPt,detourPts},lanes:laneData,segs:schedSegments};FIELD_IDS.forEach(id=>{if(el(id))s[id]=el(id).value;});localStorage.setItem('nedot_state',JSON.stringify(s));}
-function loadState(){try{const s=JSON.parse(localStorage.getItem('nedot_state')||'{}');FIELD_IDS.forEach(id=>{if(el(id)&&s[id]!=null)el(id).value=s[id];});if(s.pts&&s.pts.beginPt){beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng);if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng);redraw();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ({restore:true});setMode('locked');}}if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng));drawDetour();snapDetour();}if(Array.isArray(s.lanes)){laneData=s.lanes;if(el('laneCount'))el('laneCount').value=laneData.length||'';renderLanes();}}catch(e){}} if(Array.isArray(s.segs)){schedSegments=s.segs;syncSchedule();}
+function saveState(){const s={pts:{beginPt,endPt,detourPts},lanes:laneData,segs:schedSegments,wz:wzSegments};FIELD_IDS.forEach(id=>{if(el(id))s[id]=el(id).value;});localStorage.setItem('nedot_state',JSON.stringify(s));}
+function loadState(){try{const s=JSON.parse(localStorage.getItem('nedot_state')||'{}');FIELD_IDS.forEach(id=>{if(el(id)&&s[id]!=null)el(id).value=s[id];});if(Array.isArray(s.wz)){wzSegments=s.wz;renderWzList();drawSavedClosures();}if(s.pts&&s.pts.beginPt){beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng);if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng);redraw();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ({restore:true});setMode('locked');}}if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng));drawDetour();snapDetour();}if(Array.isArray(s.lanes)){laneData=s.lanes;if(el('laneCount'))el('laneCount').value=laneData.length||'';renderLanes();} if(Array.isArray(s.segs)){schedSegments=s.segs;syncSchedule();}}catch(e){}}
 const PERSIST=['requestor','email','contact24','tmcEmail'];
-function resetAll(){if(!confirm('Start a NEW request? Clears the segment, detour, and scans — your name/contact/email are kept.'))return;FIELD_IDS.forEach(id=>{if(el(id)&&!PERSIST.includes(id))el(id).value=el(id).tagName==='SELECT'?el(id).options[0].value:'';});[beginMk,endMk,line,line2].forEach(x=>x&&x.remove());beginPt=endPt=beginMk=endMk=line=line2=null;wzRoute=null;wzRoute2=null;schedule=[];detourPts=[];detourRoute=null;detourMeters=null;drawDetour();laneData=[];if(el('laneCount'))el('laneCount').value='';renderLanes();if(bridgeLayer){bridgeLayer.remove();bridgeLayer=null;}if(closuresLayer){closuresLayer.remove();closuresLayer=null;}window.__closConflicts=null;window.__closRecs=null;['nbiBox','schedList','detourInfo','readyBox','dbStatus','clearReminder','closuresBox'].forEach(id=>{if(el(id))el(id).style.display='none';});el('selinfo').textContent='No segment yet — click the road for the begin point, then the end point.';onRouteChange();setMode('begin');updateClearReminder();saveState();}
+function resetAll(){if(!confirm('Start a NEW request? Clears the segment, detour, and scans — your name/contact/email are kept.'))return;wzSegments=[];activeWz=-1;renderWzList();drawSavedClosures();FIELD_IDS.forEach(id=>{if(el(id)&&!PERSIST.includes(id))el(id).value=el(id).tagName==='SELECT'?el(id).options[0].value:'';});[beginMk,endMk,line,line2].forEach(x=>x&&x.remove());beginPt=endPt=beginMk=endMk=line=line2=null;wzRoute=null;wzRoute2=null;schedule=[];detourPts=[];detourRoute=null;detourMeters=null;drawDetour();laneData=[];if(el('laneCount'))el('laneCount').value='';renderLanes();if(bridgeLayer){bridgeLayer.remove();bridgeLayer=null;}if(closuresLayer){closuresLayer.remove();closuresLayer=null;}window.__closConflicts=null;window.__closRecs=null;['nbiBox','schedList','detourInfo','readyBox','dbStatus','clearReminder','closuresBox'].forEach(id=>{if(el(id))el(id).style.display='none';});el('selinfo').textContent='No segment yet — click the road for the begin point, then the end point.';onRouteChange();setMode('begin');updateClearReminder();saveState();}
 function projectList(){try{return JSON.parse(localStorage.getItem('nedot_projects')||'[]');}catch(e){return[];}}
 function renderProjects(){const list=projectList();el('projPicker').innerHTML='<option value="">↺ Saved projects…</option>'+list.map((p,i)=>'<option value="'+i+'">'+(p.name||'#'+i)+'</option>').join('');}
 function saveProject(){const name=prompt('Name this project:');if(!name)return;const list=projectList();const data={};FIELD_IDS.forEach(id=>{if(el(id))data[id]=el(id).value;});list.push({name,data,beginPt,endPt,detourPts,lanes:laneData});localStorage.setItem('nedot_projects',JSON.stringify(list));renderProjects();toast('Saved');}
