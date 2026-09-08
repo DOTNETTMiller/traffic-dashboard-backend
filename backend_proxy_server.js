@@ -6476,6 +6476,17 @@ app.get('/api/cwz/events', async (req, res) => {
       const signs = await dmsCorr.fetchSigns();
       if (signs.length) dmsCorr.corroborate(events, signs);
     } catch (_) { /* dms corroboration optional */ }
+    // Independent secondary corroboration: HaulHub worker presence. The signal comes from
+    // the CONTRACTOR's crew check-in and heavy-equipment telematics, so it is a different
+    // operational chain from the DOT feed being validated — and it is the only source that
+    // reports people on the ground rather than inferring work from traffic, a sign, or a
+    // camera frame. Free (one CORS-open document, cached 5 min) + lazy.
+    try {
+      const events = eventsCache.data?.events || [];
+      const hh = require('./services/haulhub-worker-presence');
+      const presence = await hh.fetchPresence();
+      if (presence.length) hh.corroborate(events, presence);
+    } catch (_) { /* worker-presence corroboration optional */ }
     // Sticky, positive-only accumulation for TomTom / DMS / device: once a zone is corroborated
     // by any of these it STAYS corroborated across refreshes and (for TomTom) the credit
     // cooldown — the validation accumulates and is never demoted. Cameras are excluded on
@@ -6490,19 +6501,26 @@ app.get('/api/cwz/events', async (req, res) => {
         if (e.x_tomtom_corroborated) vl.add('tomtom', id, { id: e.x_tomtom_id || null });
         if (e.x_dms_corroborated)    vl.add('dms', id, { msg: e.x_dms_message || null });
         if (e.x_cwz_connected)       vl.add('device', id, {});
+        if (e.x_workers_present)     vl.add('haulhub', id, { at: e.x_worker_presence_confirmed_at || null, conf: e.x_worker_presence_confidence || null });
         if (!e.x_tomtom_corroborated && vl.has('tomtom', id)) { e.x_tomtom_corroborated = true; e.x_tomtom_sticky = true; }
         if (!e.x_dms_corroborated && vl.has('dms', id)) {
           e.x_dms_corroborated = true; e.x_dms_sticky = true;
           const m = vl.metaOf('dms', id); if (m && m.msg && !e.x_dms_message) e.x_dms_message = m.msg;
         }
         if (!e.x_cwz_connected && vl.has('device', id)) { e.x_cwz_connected = true; e.x_device_sticky = true; }
+        if (!e.x_workers_present && vl.has('haulhub', id)) {
+          e.x_workers_present = true; e.x_haulhub_sticky = true; e.x_worker_presence_source = 'haulhub';
+          const m = vl.metaOf('haulhub', id);
+          if (m && m.at && !e.x_worker_presence_confirmed_at) e.x_worker_presence_confirmed_at = m.at;
+          if (m && m.conf && !e.x_worker_presence_confidence) e.x_worker_presence_confidence = m.conf;
+        }
       }
     } catch (_) { /* sticky accumulation optional */ }
     // Elevated = device-verified (connected board) OR camera-verified (a camera saw the zone)
     // OR independently corroborated by TomTom (commercial probe) or a DMS message (operator-posted).
     // Confidence filter: ?confidence=multi (or ?min_sources=N) returns only zones corroborated by N+
     // INDEPENDENT sources — a "highest-confidence" view. Default N=1 (any single corroboration).
-    const sourceCount = e => (e.x_cwz_connected ? 1 : 0) + (e.x_camera_verified ? 1 : 0) + (e.x_tomtom_corroborated ? 1 : 0) + (e.x_dms_corroborated ? 1 : 0);
+    const sourceCount = e => (e.x_cwz_connected ? 1 : 0) + (e.x_camera_verified ? 1 : 0) + (e.x_tomtom_corroborated ? 1 : 0) + (e.x_dms_corroborated ? 1 : 0) + (e.x_workers_present ? 1 : 0);
     let minSources = 1;
     if (String(req.query.confidence || '').toLowerCase() === 'multi') minSources = 2;
     const ms = parseInt(req.query.min_sources, 10);

@@ -26,8 +26,11 @@ function execSql(sql) {
   return db.db.exec(sql);
 }
 
-const SOURCES = ['tomtom', 'dms', 'device'];
-const mem = { tomtom: new Map(), dms: new Map(), device: new Map() }; // event_id -> meta
+const SOURCES = ['tomtom', 'dms', 'device', 'haulhub'];
+// haulhub = contractor worker presence. Safe to make sticky for the same reason as the
+// others: its feed only ever publishes are_workers_present=true, so it can confirm a zone
+// but can never observe that one has finished.
+const mem = { tomtom: new Map(), dms: new Map(), device: new Map(), haulhub: new Map() }; // event_id -> meta
 let ready = false, hydrated = false;
 
 async function ensure() {
