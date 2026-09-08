@@ -64,6 +64,7 @@ function buildFeed(events, opts = {}) {
     if (ev.x_camera_verified) src.push('camera');
     if (ev.x_tomtom_corroborated) src.push('tomtom');
     if (ev.x_dms_corroborated) src.push('dms');
+    if (ev.x_workers_present) src.push('worker-presence');
     const props = {
       core_details: core,
       vehicle_impact: vehicleImpact(ev),
@@ -82,6 +83,34 @@ function buildFeed(events, opts = {}) {
       x_connected_confidence: ev.x_connected_confidence,
       x_connected_devices: ev.x_connected_devices || []
     };
+    // WZDx worker_presence. This is the whole point of ingesting HaulHub: the publishing
+    // DOT's own feed leaves this field empty (Iowa: 1096 zones, zero worker_presence), so
+    // we COMPLETE it from the contractor's crew check-in and equipment telematics rather
+    // than only using it internally to score confidence.
+    //
+    // Emitted per the spec, not as an x_ extension, so ordinary WZDx consumers get it:
+    //   are_workers_present            - only ever true; the source never asserts absence
+    //   worker_presence_last_confirmed_date - when the contractor last confirmed it
+    //   confidence                     - carried through from the source
+    //   method                         - what the observation was made with. The source
+    //                                    leaves this empty, and the honest value for
+    //                                    equipment/crew telematics is the spec's
+    //                                    "wearables-or-mobile-devices"; omitted rather than
+    //                                    guessed when the source says nothing.
+    if (ev.x_workers_present) {
+      const wp = { are_workers_present: true };
+      if (ev.x_worker_presence_confirmed_at) wp.worker_presence_last_confirmed_date = ev.x_worker_presence_confirmed_at;
+      if (ev.x_worker_presence_confidence) wp.confidence = ev.x_worker_presence_confidence;
+      if (Array.isArray(ev.x_worker_presence_method) && ev.x_worker_presence_method.length) {
+        wp.method = ev.x_worker_presence_method;
+      }
+      props.worker_presence = wp;
+      // Provenance: this did NOT come from the DOT that published the zone, and a consumer
+      // deciding whether to trust it needs to know that.
+      props.x_worker_presence_source = ev.x_worker_presence_source || 'haulhub';
+      if (ev.x_haulhub_distance_m != null) props.x_worker_presence_match_m = ev.x_haulhub_distance_m;
+      if (ev.x_haulhub_id) props.x_worker_presence_ref = ev.x_haulhub_id;
+    }
     if (ev.x_camera_verified) {
       props.x_camera_verified = true;
       props.x_camera_detected = ev.x_camera_detected || [];
