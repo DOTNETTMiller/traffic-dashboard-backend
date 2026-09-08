@@ -2121,7 +2121,9 @@ function allWzSegments(){
   const out=wzSegments.slice();
   if(beginPt&&endPt&&v('route')&&activeWz<0){
     const rec={ begin:{lat:beginPt.lat,lng:beginPt.lng}, end:{lat:endPt.lat,lng:endPt.lng},
-      miles:+miles(beginPt,endPt).toFixed(1) };
+      miles:+miles(beginPt,endPt).toFixed(1),
+      // carry the snapped roadway so overlap tests follow the road, not a straight A->B line
+      path:(wzRoute&&wzRoute.length)?wzRoute.map(function(c){return [c[0],c[1]];}):null };
     WZ_FIELDS.forEach(f=>rec[f]=v(f));
     out.push(rec);
   }
@@ -2250,6 +2252,39 @@ function allDetours(){ const out=detours.slice();
     pts: detourPts.map(p=>({lat:p.lat,lng:p.lng})), route: detourRoute, meters: detourMeters });
   return out; }
 function gmapsFor(pts){ return 'https://www.google.com/maps/dir/'+pts.map(p=>`${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join('/'); }
+// A detour that runs along a closure on this SAME request is not a detour -- it routes
+// traffic into a road the request is closing. With several closures on one request that is
+// easy to do by accident, so every closure is checked, not just the one being detoured
+// around. Reuses the same 50m/interior-sample test the auto-suggester uses to reject
+// candidates that are really the closed road with a loop on the end.
+function detourEscHtml(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+  return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+function detourClosureHits(){
+  const cand=(typeof detourRoute!=='undefined'&&detourRoute&&detourRoute.length>=2)
+      ? detourRoute.map(function(c){return [c[0],c[1]];})
+      : (detourPts.length>=2 ? detourPts.map(function(p){return [p.lat,p.lng];}) : null);
+  if(!cand) return [];
+  const hits=[];
+  allWzSegments().forEach(function(w,i){
+    if(!w||!w.begin||!w.end) return;
+    const closed=(w.path&&w.path.length>=2)?w.path:[[w.begin.lat,w.begin.lng],[w.end.lat,w.end.lng]];
+    const n=closed.length;
+    const interior=closed.filter(function(_,j){ return j>=n*0.2 && j<=n*0.8; });
+    const samp=interior.length?interior:[closed[Math.floor(n/2)]];
+    const on=samp.filter(function(pt){ return minDistToPath({lat:pt[0],lng:pt[1]}, cand)<50; }).length;
+    const frac=on/samp.length;
+    if(frac>0.15) hits.push({n:i+1, pct:Math.round(frac*100), label:wzLabel(w)});
+  });
+  return hits;
+}
+function detourConflictHTML(){
+  const h=detourClosureHits(); if(!h.length) return '';
+  return '<div style="margin-top:6px;padding:5px 7px;background:#fef2f2;border-left:3px solid #dc2626;'
+    + 'border-radius:3px;color:#991b1b;font-weight:600">'
+    + '⚠ This detour runs along '+(h.length>1?(h.length+' closures'):'a closure')+' on this request:<br>'
+    + h.map(function(x){ return '&nbsp;&nbsp;Closure '+x.n+' — '+detourEscHtml(x.label)+' ('+x.pct+'% of it)'; }).join('<br>')
+    + '<br><span style="font-weight:400">Traffic would be sent into a road this request closes.</span></div>';
+}
 function drawDetour(){ if(detourLine){detourLine.remove();detourLine=null;} detourMks.forEach(x=>x.remove()); detourMks=[];
   detourPts.forEach((p,i)=>detourMks.push(L.circleMarker(p,{radius:4,color:'#7c3aed',weight:2,fillColor:'#fff',fillOpacity:1}).bindTooltip(String(i+1),{permanent:false}).addTo(map)));
   const pl=(detourRoute&&detourRoute.length)?detourRoute:detourPts.map(p=>[p.lat,p.lng]);
@@ -2259,7 +2294,7 @@ function drawDetour(){ if(detourLine){detourLine.remove();detourLine=null;} deto
   if(!detourPts.length){ info.style.display='none'; return; }
   info.style.display='block';
   info.innerHTML=`<b>Detour:</b> ${detourPts.length} pts, ${mi.toFixed(1)} mi${detourRoute?' (follows road)':''}`+
-    (detourPts.length>=2?` &nbsp; <a href="#" onclick="exportDetour();return false">⬇ GeoJSON</a> &nbsp; <a href="${gmapsDetour()}" target="_blank" rel="noopener">🗺 Google Maps</a>`:''); }
+    (detourPts.length>=2?` &nbsp; <a href="#" onclick="exportDetour();return false">⬇ GeoJSON</a> &nbsp; <a href="${gmapsDetour()}" target="_blank" rel="noopener">🗺 Google Maps</a>`:'')+detourConflictHTML(); }
 function undoDetour(){ detourPts.pop(); detourRoute=null; detourMeters=null; drawDetour(); saveState(); snapDetour(); }
 function clearDetour(){ detourPts=[]; detourRoute=null; detourMeters=null; drawDetour(); saveState(); }
 async function snapDetour(){ if(detourPts.length<2){detourRoute=null;detourMeters=null;drawDetour();return;} const r=await osrmRoute(detourPts.map(p=>[p.lng,p.lat])); detourRoute=r?r.latlngs:null; detourMeters=r?r.meters:null; drawDetour(); saveState(); }
