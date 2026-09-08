@@ -42,26 +42,58 @@ function interstate(s) {
   return m ? `I-${parseInt(m[1], 10)}` : null;
 }
 
-// Per-publisher feeds, found by probing the URL pattern rather than assuming it: HaulHub
-// uses TWO shapes -- "{state}_dot_feed" and "{agency}_feed" -- so the name is recorded per
-// entry instead of being derived. Adding a publisher is a line here, not a code change.
+// Every HaulHub publisher, found by probing rather than assuming. Three things this cost
+// me that are worth not rediscovering:
+//   1. The file name is NOT derivable. HaulHub uses "{2-letter}_dot_feed", "{2-letter}_feed",
+//      "{state}_dot_feed" AND "{agency}_feed" with no rule connecting them, so every URL is
+//      recorded literally.
+//   2. "la_dot_feed" is the CITY OF LOS ANGELES, not Louisiana. Louisiana publishes nothing.
+//      Keying this by state code would have silently filed LA's crews under Louisiana.
+//   3. Ohio has two separate publishers: oh_dot_feed is Ohio DOT (the largest feed of all,
+//      134 records) and ohio_feed is the county engineers, a different data_source_id.
+// Delaware has no feed under any variant tried.
 //
-// Probed 2026-09-08 (49 state names x 2 patterns x 2 spec versions). Empty is normal and
-// not a dead feed: an event is a 2h activity window, so a feed reads empty whenever no
+// Counts in brackets are what each returned on 2026-09-08; 18 of the 37 were publishing.
+// Empty is not dead -- an event is a 2h activity window, so a feed reads empty whenever no
 // covered contractor is on site at that moment.
-//   iowa  84 features   Iowa Department of Transportation
-//   kytc  30 features   Kentucky Transportation Cabinet
-//   maine  0            Maine Department of Transportation
-//   mdt    0            Montana Department of Transportation
-//   itd    0            Idaho Transportation Department
-//   ohio   0            Ohio County Engineer's  (county publisher, not the state DOT)
 const FEEDS = {
-  ia: 'https://wzdx.e-dot.com/iowa_dot_feed_wzdx_v4.1.geojson',
-  ky: 'https://wzdx.e-dot.com/kytc_feed_wzdx_v4.1.geojson',
-  me: 'https://wzdx.e-dot.com/maine_dot_feed_wzdx_v4.1.geojson',
-  mt: 'https://wzdx.e-dot.com/mdt_feed_wzdx_v4.1.geojson',
-  id: 'https://wzdx.e-dot.com/itd_feed_wzdx_v4.1.geojson',
-  oh: 'https://wzdx.e-dot.com/ohio_feed_wzdx_v4.1.geojson'
+  oh:        'https://wzdx.e-dot.com/oh_dot_feed_wzdx_v4.1.geojson',  // Ohio Department of Transportation  [134]
+  ia:        'https://wzdx.e-dot.com/iowa_dot_feed_wzdx_v4.1.geojson',  // Iowa Department of Transportation  [84]
+  ks:        'https://wzdx.e-dot.com/ks_dot_feed_wzdx_v4.1.geojson',  // Kansas Department of Transportation  [31]
+  ky:        'https://wzdx.e-dot.com/kytc_feed_wzdx_v4.1.geojson',  // Kentucky Transportation Cabinet  [28]
+  ri:        'https://wzdx.e-dot.com/ri_feed_wzdx_v4.1.geojson',  // Rhode Island Department of Transportation  [13]
+  md:        'https://wzdx.e-dot.com/md_dot_feed_wzdx_v4.1.geojson',  // Maryland State Highway Administration  [11]
+  mo:        'https://wzdx.e-dot.com/mo_dot_feed_wzdx_v4.1.geojson',  // Missouri Department of Transportation  [7]
+  mi:        'https://wzdx.e-dot.com/mi_dot_feed_wzdx_v4.1.geojson',  // Michigan Department of Transportation  [4]
+  sc:        'https://wzdx.e-dot.com/sc_dot_feed_wzdx_v4.1.geojson',  // South Carolina Department of Transportation  [4]
+  al:        'https://wzdx.e-dot.com/al_dot_feed_wzdx_v4.1.geojson',  // Alabama Department of Transportation  [3]
+  ga:        'https://wzdx.e-dot.com/ga_feed_wzdx_v4.1.geojson',  // Georgia Department of Transportation  [3]
+  ok:        'https://wzdx.e-dot.com/ok_dot_feed_wzdx_v4.1.geojson',  // Oklahoma Department of Transportation  [2]
+  va:        'https://wzdx.e-dot.com/va_feed_wzdx_v4.1.geojson',  // Virginia Department of Transportation  [2]
+  ar:        'https://wzdx.e-dot.com/ar_dot_feed_wzdx_v4.1.geojson',  // Arkansas Department of Transportation  [1]
+  in:        'https://wzdx.e-dot.com/in_feed_wzdx_v4.1.geojson',  // Indiana Department of Transportation  [1]
+  nd:        'https://wzdx.e-dot.com/nd_dot_feed_wzdx_v4.1.geojson',  // North Dakota Department of Transportation  [1]
+  tn:        'https://wzdx.e-dot.com/tn_feed_wzdx_v4.1.geojson',  // Tennessee Department of Transportation  [1]
+  wv:        'https://wzdx.e-dot.com/wv_dot_feed_wzdx_v4.1.geojson',  // West Virginia Department of Transportation  [1]
+  ct:        'https://wzdx.e-dot.com/ct_dot_feed_wzdx_v4.1.geojson',  // Connecticut Department of Transportation
+  il:        'https://wzdx.e-dot.com/il_feed_wzdx_v4.1.geojson',  // Illinois Department of Transportation
+  id:        'https://wzdx.e-dot.com/itd_feed_wzdx_v4.1.geojson',  // Idaho Transportation Department
+  me:        'https://wzdx.e-dot.com/maine_dot_feed_wzdx_v4.1.geojson',  // Maine Department of Transportation
+  mt:        'https://wzdx.e-dot.com/mdt_feed_wzdx_v4.1.geojson',  // Montana Department of Transportation
+  mn:        'https://wzdx.e-dot.com/mn_dot_feed_wzdx_v4.1.geojson',  // Minnesota Department of Transportation
+  ms:        'https://wzdx.e-dot.com/ms_dot_feed_wzdx_v4.1.geojson',  // Mississippi Department of Transportation
+  nc:        'https://wzdx.e-dot.com/nc_dot_feed_wzdx_v4.1.geojson',  // North Carolina Department of Transportation
+  ne:        'https://wzdx.e-dot.com/ne_dot_feed_wzdx_v4.1.geojson',  // Nebraska Department of Transportation
+  nh:        'https://wzdx.e-dot.com/nh_dot_feed_wzdx_v4.1.geojson',  // New Hampshire Department of Transportation
+  nj:        'https://wzdx.e-dot.com/nj_dot_feed_wzdx_v4.1.geojson',  // New Jersey Department of Transportation
+  nm:        'https://wzdx.e-dot.com/nm_dot_feed_wzdx_v4.1.geojson',  // New Mexico Department of Transportation
+  nv:        'https://wzdx.e-dot.com/nv_dot_feed_wzdx_v4.1.geojson',  // Nevada Department of Transportation
+  or:        'https://wzdx.e-dot.com/or_dot_feed_wzdx_v4.1.geojson',  // Oregon Department of Transportation
+  tx:        'https://wzdx.e-dot.com/tx_dot_feed_wzdx_v4.1.geojson',  // Texas Department of Transportation
+  wa:        'https://wzdx.e-dot.com/wa_feed_wzdx_v4.1.geojson',  // Washington State Department of Transportation
+  wy:        'https://wzdx.e-dot.com/wy_dot_feed_wzdx_v4.1.geojson',  // Wyoming Department of Transportation
+  oh_county: 'https://wzdx.e-dot.com/ohio_feed_wzdx_v4.1.geojson',  // Ohio County Engineer's (county, not the state)
+  la_city:   'https://wzdx.e-dot.com/la_dot_feed_wzdx_v4.1.geojson'  // City of Los Angeles (NOT Louisiana)
 };
 
 // Checked once a day, and lazily: nothing here runs until a corroboration pass asks for it,
