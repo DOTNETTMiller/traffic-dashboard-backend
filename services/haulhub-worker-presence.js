@@ -42,16 +42,38 @@ function interstate(s) {
   return m ? `I-${parseInt(m[1], 10)}` : null;
 }
 
-// Per-state feeds. HaulHub publishes one document per publishing DOT; only Iowa is known
-// live today. Adding a state is a line here, not a code change.
+// Per-publisher feeds, found by probing the URL pattern rather than assuming it: HaulHub
+// uses TWO shapes -- "{state}_dot_feed" and "{agency}_feed" -- so the name is recorded per
+// entry instead of being derived. Adding a publisher is a line here, not a code change.
+//
+// Probed 2026-09-08 (49 state names x 2 patterns x 2 spec versions). Empty is normal and
+// not a dead feed: an event is a 2h activity window, so a feed reads empty whenever no
+// covered contractor is on site at that moment.
+//   iowa  84 features   Iowa Department of Transportation
+//   kytc  30 features   Kentucky Transportation Cabinet
+//   maine  0            Maine Department of Transportation
+//   mdt    0            Montana Department of Transportation
+//   itd    0            Idaho Transportation Department
+//   ohio   0            Ohio County Engineer's  (county publisher, not the state DOT)
 const FEEDS = {
-  ia: 'https://wzdx.e-dot.com/iowa_dot_feed_wzdx_v4.1.geojson'
+  ia: 'https://wzdx.e-dot.com/iowa_dot_feed_wzdx_v4.1.geojson',
+  ky: 'https://wzdx.e-dot.com/kytc_feed_wzdx_v4.1.geojson',
+  me: 'https://wzdx.e-dot.com/maine_dot_feed_wzdx_v4.1.geojson',
+  mt: 'https://wzdx.e-dot.com/mdt_feed_wzdx_v4.1.geojson',
+  id: 'https://wzdx.e-dot.com/itd_feed_wzdx_v4.1.geojson',
+  oh: 'https://wzdx.e-dot.com/ohio_feed_wzdx_v4.1.geojson'
 };
 
-// The feed's own events are 2h windows refreshed continuously. Cache for 5 minutes: long
-// enough that a page refresh costs nothing, short enough that "workers are on site right
-// now" stays true. Lazy — nothing here runs until a caller asks.
-const TTL_MS = 5 * 60 * 1000;
+// Checked once a day, and lazily: nothing here runs until a corroboration pass asks for it,
+// and the first ask of the day is the only fetch.
+//
+// The tradeoff is deliberate and worth stating: an event in this feed is a 2h activity
+// window, so one daily read samples a slice of the day rather than watching it. Same-day
+// coverage is therefore sparse by design. What makes that acceptable is the sticky
+// validation ledger -- a zone corroborated on any day STAYS corroborated -- so coverage
+// accumulates across days instead of being re-won each refresh. Raise the cadence here if
+// same-day presence ever matters more than the request cost.
+const TTL_MS = 24 * 60 * 60 * 1000;
 const cache = new Map();   // state -> { at, rows }
 
 function httpsGetJSON(url, timeoutMs = 15000) {
@@ -187,4 +209,30 @@ function corroborate(events, presence, opts = {}) {
   return n;
 }
 
-module.exports = { fetchPresence, corroborate, toRow, FEEDS, TTL_MS };
+/**
+ * Every configured publisher's presence rows in one call, each tagged with its feed key.
+ * Publishers are independent documents, so one being down or empty never blocks the rest.
+ * @returns {Promise<Array>}
+ */
+async function fetchAllPresence(opts = {}) {
+  const keys = opts.states || Object.keys(FEEDS);
+  const out = [];
+  const results = await Promise.all(keys.map(k =>
+    fetchPresence(Object.assign({}, opts, { state: k })).catch(() => [])));
+  results.forEach((rows, i) => {
+    for (const r of rows) { r.feed = keys[i]; out.push(r); }
+  });
+  return out;
+}
+
+/** Diagnostics: what each publisher last returned, and when it was last read. */
+function stats() {
+  const out = {};
+  for (const k of Object.keys(FEEDS)) {
+    const hit = cache.get(k);
+    out[k] = hit ? { rows: hit.rows.length, ageMin: Math.round((Date.now() - hit.at) / 60000) } : null;
+  }
+  return out;
+}
+
+module.exports = { fetchPresence, fetchAllPresence, corroborate, toRow, stats, FEEDS, TTL_MS };

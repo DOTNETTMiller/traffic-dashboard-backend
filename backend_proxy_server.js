@@ -6484,7 +6484,7 @@ app.get('/api/cwz/events', async (req, res) => {
     try {
       const events = eventsCache.data?.events || [];
       const hh = require('./services/haulhub-worker-presence');
-      const presence = await hh.fetchPresence();
+      const presence = await hh.fetchAllPresence();
       if (presence.length) hh.corroborate(events, presence);
     } catch (_) { /* worker-presence corroboration optional */ }
     // Sticky, positive-only accumulation for TomTom / DMS / device: once a zone is corroborated
