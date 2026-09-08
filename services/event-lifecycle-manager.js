@@ -89,7 +89,7 @@ class EventLifecycleManager extends EventEmitter {
         // Check if we need to extend end time
         if (this.shouldExtendEndTime(tracking, event, now)) {
           const newEndTime = this.extendEndTime(tracking.currentEndTime, now);
-          console.log(`⏰ Extending end time for ${event.id}: ${tracking.currentEndTime} → ${newEndTime} (still in feed)`);
+          // summarised after the loop rather than logged per event (see above)
 
           tracking.currentEndTime = newEndTime;
           tracking.extensionCount++;
@@ -104,13 +104,17 @@ class EventLifecycleManager extends EventEmitter {
     }
 
     // Check for events that may have ended (not in current feed)
+    const removedIds = [];
     for (const [eventId, tracking] of this.eventTracking.entries()) {
       if (tracking.source === source && !currentEventIds.has(eventId)) {
         const minutesSinceLastSeen = (now - tracking.lastSeen) / 1000 / 60;
 
         if (minutesSinceLastSeen >= this.removalDelayMinutes) {
           // Event hasn't been seen for long enough - mark for removal
-          console.log(`🗑️  Event ${eventId} not seen for ${minutesSinceLastSeen.toFixed(1)} min - removing from tracking`);
+          // Was one line PER EVENT. With thousands of events this wrote thousands of lines
+          // to a blocking stdout pipe on every refresh, which is what starved the event loop
+          // and made the site return 502. Counted here, summarised once below.
+          removedIds.push(eventId);
           this.eventTracking.delete(eventId);
           results.removed++;
 
@@ -131,6 +135,13 @@ class EventLifecycleManager extends EventEmitter {
     // Schedule database save
     this.scheduleSave();
 
+    // One line per refresh instead of one per event.
+    if (results.removed || results.endTimeExtended) {
+      const sample = removedIds.slice(0, 3).join(', ');
+      console.log(`♻️  lifecycle[${source}]: ${results.new} new, ${results.stillActive} active, ` +
+        `${results.endTimeExtended} end-times extended, ${results.removed} removed` +
+        (sample ? ` (e.g. ${sample}${removedIds.length > 3 ? ', …' : ''})` : ''));
+    }
     return results;
   }
 
@@ -245,7 +256,8 @@ class EventLifecycleManager extends EventEmitter {
    * @returns {Array} - Filtered events (only active ones)
    */
   filterActiveEvents(events, now = new Date()) {
-    return events.filter(event => {
+    let filteredOut = 0;
+    const kept = events.filter(event => {
       const tracking = this.eventTracking.get(event.id);
 
       // If not tracked, include it (will be tracked on next refresh)
@@ -255,12 +267,15 @@ class EventLifecycleManager extends EventEmitter {
       const minutesSinceLastSeen = (now - tracking.lastSeen) / 1000 / 60;
 
       if (minutesSinceLastSeen > this.removalDelayMinutes) {
-        console.log(`🚫 Filtering out event ${event.id} (not seen for ${minutesSinceLastSeen.toFixed(1)} min)`);
+        filteredOut++;
         return false;
       }
 
       return true;
     });
+    // one line, not one per event (see processFeedRefresh)
+    if (filteredOut) console.log(`🚫 lifecycle: filtered out ${filteredOut} event(s) missing from the feed`);
+    return kept;
   }
 
   /**
