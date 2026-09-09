@@ -7308,6 +7308,54 @@ app.get('/api/rail/crossings-ahead', async (req, res) => {
   }
 });
 
+/**
+ * Predicted grade-crossing impacts — the public-facing rail product.
+ *
+ * Deliberately returns crossings and ETAs, not train positions: that is what a motorist,
+ * 511 or a dispatcher can act on, and it is the form a railroad-derived source could be
+ * published in without objection.
+ *
+ * Sources are stacked, not switched. RailState (freight) joins as soon as RAILSTATE_TOKEN
+ * exists; until then Amtrak alone drives it, so the endpoint is useful today rather than
+ * dormant. Both arrive as the same rail_movement shape, so the engine never branches.
+ */
+app.get('/api/rail/crossing-impacts', async (req, res) => {
+  try {
+    const impact = require('./services/rail-crossing-impact');
+    const movements = [];
+    const sources = [];
+
+    // Freight, when credentialed.
+    const rs = await require('./services/railstate-adapter').fetchMovements();
+    if (rs.available) {
+      movements.push(...rs.movements);
+      sources.push({ source: 'railstate', ...rs.counts });
+    } else {
+      sources.push({ source: 'railstate', available: false, reason: rs.reason });
+    }
+
+    // Passenger, always.
+    try {
+      const { source, trains } = await fetchLiveTrains();
+      const conv = trains.filter(t => t.trainState === 'Active')
+        .map(t => impact.fromAmtrakTrain(t)).filter(Boolean);
+      movements.push(...conv);
+      sources.push({ source, active: conv.length });
+    } catch (e) {
+      sources.push({ source: 'amtrak', available: false, reason: e.message });
+    }
+
+    const out = await impact.impactsForAll(movements, {
+      lookaheadMi: Math.min(+req.query.miles || 12, 40),
+      limit: Math.min(+req.query.limit || 25, 60)
+    });
+    res.set('Cache-Control', 'public, max-age=60');
+    res.json({ success: true, sources, ...out });
+  } catch (e) {
+    res.status(502).json({ success: false, error: e.message });
+  }
+});
+
 // Crossings that are chronically blocked, from FRA's incident reports. ?state=IA
 app.get('/api/rail/hotspots', async (req, res) => {
   try {

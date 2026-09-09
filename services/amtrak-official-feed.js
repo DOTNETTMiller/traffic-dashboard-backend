@@ -122,10 +122,22 @@ async function fetchTrains(opts = {}) {
       if (m[7]) { const pm = m[7].toUpperCase() === 'PM'; if (pm && h < 12) h += 12; if (!pm && h === 12) h = 0; }
       return Date.UTC(+m[3], +m[1] - 1, +m[2], h, +m[5], +m[6]);   // zone-free reference clock
     };
+    // The reference must come from trains that have actually been OBSERVED. A Predeparture
+    // train carries its scheduled departure as LastValTS, which is in the future -- taking
+    // the feed-wide maximum let a train that has not moved yet set "now" and silently added
+    // its lead time (measured at ~3 min) to every real train's age. Active only.
     let feedNow = 0;
     for (const f of feats) {
-      const t = stampMs(f.properties && f.properties.LastValTS);
+      const p = f.properties || {};
+      if (p.TrainState !== 'Active') continue;
+      const t = stampMs(p.LastValTS);
       if (t && t > feedNow) feedNow = t;
+    }
+    if (!feedNow) {                                   // nothing active: fall back to any stamp
+      for (const f of feats) {
+        const t = stampMs(f.properties && f.properties.LastValTS);
+        if (t && t > feedNow) feedNow = t;
+      }
     }
     const trains = feats.map(f => {
       const p = f.properties || {};
