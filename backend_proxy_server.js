@@ -7405,32 +7405,45 @@ app.get('/api/rail/hotspots', async (req, res) => {
   }
 });
 
-app.get('/api/health', (req, res) => {
-  console.log('✅ /api/health endpoint hit!');
-
-  // Check if GDAL is available
-  let gdalAvailable = false;
-  try {
-    const { execSync } = require('child_process');
-    execSync('which ogr2ogr', { stdio: 'ignore' });
-    gdalAvailable = true;
-  } catch (e) {
-    gdalAvailable = false;
+// Whether GDAL is installed is a property of the IMAGE, not of the request. This was an
+// execSync('which ogr2ogr') on every single /api/health call -- a synchronous fork that
+// blocks the event loop, on the one endpoint uptime checks hit most often. Resolved once.
+let gdalAvailable = null;
+function hasGdal() {
+  if (gdalAvailable === null) {
+    try { require('child_process').execSync('which ogr2ogr', { stdio: 'ignore' }); gdalAvailable = true; }
+    catch (e) { gdalAvailable = false; }
   }
+  return gdalAvailable;
+}
+
+app.get('/api/health', (req, res) => {
+  const mem = process.memoryUsage();
+  const mb = v => Math.round(v / 1048576);
+  const heapPct = Math.round((mem.heapUsed / mem.heapTotal) * 100);
 
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
+    uptimeS: Math.round(process.uptime()),
+    // Memory is reported because this service has twice become unresponsive WITHOUT
+    // crashing -- no logs, no HTTP, no restart (the policy is ON_FAILURE, and a wedged
+    // process never fails). Heap pressure is the leading explanation and this is how it
+    // gets confirmed or ruled out rather than argued about.
+    memory: { rssMB: mb(mem.rss), heapUsedMB: mb(mem.heapUsed), heapTotalMB: mb(mem.heapTotal), heapPct, externalMB: mb(mem.external) },
+    cache: { events: (eventsCache.data && eventsCache.data.events && eventsCache.data.events.length) || 0,
+             ageS: eventsCache.timestamp ? Math.round((Date.now() - eventsCache.timestamp) / 1000) : null,
+             devices: (devicesCache && devicesCache.devices && devicesCache.devices.length) || 0 },
     states: getAllStateKeys().length,
     version: '1.2.0-004b0bd-iowa-enrichment',
-    gdal: gdalAvailable,
+    gdal: hasGdal(),
     database: {
       postgresConnected: !!pgPool,
       databaseUrl: process.env.DATABASE_URL ? 'SET' : 'NOT SET',
       interstateGeometryEnabled: !!pgPool
     },
     features: {
-      gisUpload: gdalAvailable ? 'Full support (.gdb, .shp, .geojson, .kml, .csv)' : 'Limited (.shp, .geojson, .kml, .csv)'
+      gisUpload: hasGdal() ? 'Full support (.gdb, .shp, .geojson, .kml, .csv)' : 'Limited (.shp, .geojson, .kml, .csv)'
     }
   });
 });
