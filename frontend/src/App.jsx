@@ -114,6 +114,8 @@ function App() {
   const [showAerialOverlays, setShowAerialOverlays] = useState(false);
   const [showWeatherAlerts, setShowWeatherAlerts] = useState(false);
   const [showBorderWaitTimes, setShowBorderWaitTimes] = useState(false);
+  const [showRailCrossings, setShowRailCrossings] = useState(false);
+  const [showRailTrains, setShowRailTrains] = useState(false);
   const [showMaastoParking, setShowMaastoParking] = useState(false);
   const [showHistoricalCrashes, setShowHistoricalCrashes] = useState(false);
   const [availableRoutes, setAvailableRoutes] = useState([]);
@@ -840,6 +842,8 @@ function App() {
           showAerialOverlays,
           showWeatherAlerts,
           showBorderWaitTimes,
+          showRailCrossings,
+          showRailTrains,
           showMaastoParking,
           showHistoricalCrashes,
           interstateOnly
@@ -878,6 +882,9 @@ function App() {
           'toggle-aerial-overlays':    () => { setView('map'); setShowAerialOverlays(p => !p); },
           'toggle-weather-alerts':     () => { setView('map'); setShowWeatherAlerts(p => !p); },
           'toggle-border-wait-times':  () => { setView('map'); setShowBorderWaitTimes(p => !p); },
+          'toggle-rail-crossings':     () => { setView('map'); setShowRailCrossings(p => !p); },
+          // Turning trains on implies the layer itself, otherwise the toggle looks broken.
+          'toggle-rail-trains':        () => { setView('map'); setShowRailTrains(p => { const nx = !p; if (nx) setShowRailCrossings(true); return nx; }); },
           'toggle-maasto-parking':     () => { setView('map'); setShowMaastoParking(p => !p); },
           'toggle-historical-crashes': () => { setView('map'); setShowHistoricalCrashes(p => !p); },
           'open-aerial-overlays':      () => setView('aerialOverlays'),
@@ -1228,6 +1235,8 @@ function App() {
                   showAerialOverlays={showAerialOverlays}
                   showWeatherAlerts={showWeatherAlerts}
                   showBorderWaitTimes={showBorderWaitTimes}
+                  showRailCrossings={showRailCrossings}
+                  showRailTrains={showRailTrains}
                   showMaastoParking={showMaastoParking}
                   showHistoricalCrashes={showHistoricalCrashes}
                   interstateOnly={interstateOnly}

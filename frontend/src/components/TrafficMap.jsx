@@ -58,6 +58,7 @@ import DiversionRoutesLayer from './DiversionRoutesLayer';
 import AerialOverlaysLayer from './AerialOverlaysLayer';
 import WeatherAlertsLayer from './WeatherAlertsLayer';
 import BorderWaitTimesLayer from './BorderWaitTimesLayer';
+import RailCrossingLayer from './RailCrossingLayer';
 import MaastoParkingLayer from './MaastoParkingLayer';
 import HistoricalCrashesLayer from './HistoricalCrashesLayer';
 import MajorEventsLayer from './MajorEventsLayer';
@@ -448,6 +449,9 @@ export default function TrafficMap({
   showAerialOverlays = false,
   showWeatherAlerts = false,
   showBorderWaitTimes = false,
+  showRailCrossings = false,
+  showRailTrains = false,
+  railCrossingState = 'IA',
   showMaastoParking = false,
   showHistoricalCrashes = false,
   showMajorEvents = false,
@@ -1332,6 +1336,15 @@ export default function TrafficMap({
 
         {/* CBP Border Wait Times — port-of-entry markers with truck-lane delay */}
         <BorderWaitTimesLayer visible={showBorderWaitTimes} />
+
+        {/* Rail grade crossings — chronic blockage from FRA reports, plus live Amtrak
+            positions on request. Hotspots are historical and always safe to show; trains
+            are passenger-only, so an empty map is not evidence the tracks are clear. */}
+        <RailCrossingLayer
+          visible={showRailCrossings}
+          state={railCrossingState}
+          showTrains={showRailTrains}
+        />
 
         {/* MAASTO TPIMS — real-time truck parking across IL/KY/MN public feeds */}
         <MaastoParkingLayer visible={showMaastoParking} />

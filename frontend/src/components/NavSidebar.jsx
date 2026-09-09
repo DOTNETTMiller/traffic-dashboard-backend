@@ -36,6 +36,8 @@ const NAV = [
       { actionKey: 'toggle-interstate-only',  toggleProp: 'interstateOnly',          icon: '🛣️', label: 'Interstate Only' },
       { actionKey: 'toggle-weather-alerts',   toggleProp: 'showWeatherAlerts',       icon: '🌩️', label: 'Weather Alerts' },
       { actionKey: 'toggle-border-wait-times', toggleProp: 'showBorderWaitTimes',    icon: '🛂', label: 'Border Wait Times' },
+      { actionKey: 'toggle-rail-crossings',   toggleProp: 'showRailCrossings',       icon: '🚧', label: 'Blocked Rail Crossings' },
+      { actionKey: 'toggle-rail-trains',      toggleProp: 'showRailTrains',          icon: '🚆', label: 'Live Amtrak Trains' },
       { actionKey: 'toggle-parking',          toggleProp: 'showParking',             icon: '🅿️', label: 'Truck Parking' },
       { actionKey: 'toggle-maasto-parking',   toggleProp: 'showMaastoParking',       icon: '🚛', label: 'MAASTO Parking (live)' },
       { actionKey: 'toggle-historical-crashes', toggleProp: 'showHistoricalCrashes', icon: '💥', label: 'Historical Crashes (FARS)' },
