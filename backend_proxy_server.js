@@ -6289,7 +6289,9 @@ app.get('/api/devices', async (req, res) => {
   if (!eventsCache.data && startupCachePromise) {
     try { await startupCachePromise; } catch (_) { /* serve whatever we have */ }
   }
-  await ensureDeviceMatch(); // experimental: match runs on open, not on the shared refresh
+  // Serve-stale: never block a response on the expensive match when a result exists.
+  if (devicesCache && devicesCache.timestamp) ensureDeviceMatch();
+  else await withDeadline(ensureDeviceMatch(), 20000, 'device match (cold)');
   const slimLink = (l) => ({
     device: l.device, deviceType: l.deviceType, road_event_id: l.road_event_id,
     corridor: l.corridor, confidence: l.confidence, distanceM: l.distanceM,
@@ -6328,7 +6330,9 @@ app.get('/api/devices/health', async (req, res) => {
   if (!eventsCache.data && startupCachePromise) {
     try { await startupCachePromise; } catch (_) { /* serve whatever we have */ }
   }
-  await ensureDeviceMatch(); // experimental: match runs on open, not on the shared refresh
+  // Serve-stale: never block a response on the expensive match when a result exists.
+  if (devicesCache && devicesCache.timestamp) ensureDeviceMatch();
+  else await withDeadline(ensureDeviceMatch(), 20000, 'device match (cold)');
   // Trend comes from the DB (survives restarts); fall back to the in-memory copy.
   let trend = [];
   try { trend = require('./services/device-health-store').trend(288); } catch (_) { /* fall back */ }
@@ -6468,11 +6472,41 @@ app.get('/api/cameras/scan', async (req, res) => {
 
 // CWZ 1.0 / WZDx RoadEvent Feed — the elevated (connected) work zones: events
 // that have a confirmed connected field device present.
+/**
+ * A corroboration step must never be able to take the service down.
+ *
+ * /api/cwz/events awaited six external or CPU-bound steps in series with no time limit on
+ * any of them: device matching, the camera ledger, TomTom, DMS signs, HaulHub worker
+ * presence and the validation ledger. Any one of them stalling took the whole PROCESS with
+ * it, not just this route -- Node is single-threaded, so a wedged await here means
+ * /api/health stops answering too. That is what "the site is down" looked like.
+ *
+ * Every step is optional by design: each is a secondary corroboration on top of the DOT
+ * feed. So each gets a deadline, and a step that misses it is simply skipped -- the feed
+ * goes out with fewer corroborations rather than not at all.
+ */
+function withDeadline(promise, ms, label) {
+  let timer;
+  return Promise.race([
+    Promise.resolve(promise).catch(e => { console.error(`   [cwz] ${label} failed: ${e.message}`); return null; }),
+    new Promise(resolve => { timer = setTimeout(() => { console.error(`   [cwz] ${label} exceeded ${ms}ms — skipped`); resolve(null); }, ms); })
+  ]).finally(() => clearTimeout(timer));
+}
+
 app.get('/api/cwz/events', async (req, res) => {
   if (!eventsCache.data && startupCachePromise) {
-    try { await startupCachePromise; } catch (_) { /* serve whatever we have */ }
+    await withDeadline(startupCachePromise, 25000, 'startup cache');
   }
-  await ensureDeviceMatch(); // experimental: elevate events on open, not on the shared refresh
+  // Device matching is EXPENSIVE and synchronous in part (measured at 3.1 s for 2,076
+  // devices against 5,910 events, during which nothing else in the process runs). Never
+  // block a response on it when a previous result exists: serve what we have and let the
+  // refresh happen behind the response. Only a genuinely cold cache waits, and then only
+  // briefly. Same serve-stale-and-refresh shape /api/events already uses.
+  if (devicesCache && devicesCache.timestamp) {
+    ensureDeviceMatch();                                   // warm: refresh behind the response
+  } else {
+    await withDeadline(ensureDeviceMatch(), 20000, 'device match (cold)');
+  }
   try {
     const cwz = require('./services/cwz-roadevent-feed');
     // Re-stamp camera-verified from the durable ledger. The x_camera_* flags live on the
@@ -6518,7 +6552,7 @@ app.get('/api/cwz/events', async (req, res) => {
                              + (tomtomCache.data?.incidents?.length || 0) > 0;
       if (zoneStale && !tomtomZoneCache.isRefreshing) {
         if (!haveAnyIncidents) {
-          await refreshTomTomForZones(pts);      // cold: fill once so this load is corroborated
+          await withDeadline(refreshTomTomForZones(pts), 12000, 'tomtom zones');   // cold: fill once, but never indefinitely
         } else {
           refreshTomTomForZones(pts);            // warm: refresh in background, use cache now
         }
@@ -6537,7 +6571,7 @@ app.get('/api/cwz/events', async (req, res) => {
     try {
       const events = eventsCache.data?.events || [];
       const dmsCorr = require('./services/dms-corroboration');
-      const signs = await dmsCorr.fetchSigns();
+      const signs = await withDeadline(dmsCorr.fetchSigns(), 10000, 'dms signs') || [];
       if (signs.length) dmsCorr.corroborate(events, signs);
     } catch (_) { /* dms corroboration optional */ }
     // Independent secondary corroboration: HaulHub worker presence. The signal comes from
@@ -6548,7 +6582,7 @@ app.get('/api/cwz/events', async (req, res) => {
     try {
       const events = eventsCache.data?.events || [];
       const hh = require('./services/haulhub-worker-presence');
-      const presence = await hh.fetchAllPresence();
+      const presence = await withDeadline(hh.fetchAllPresence(), 12000, 'haulhub presence') || [];
       if (presence.length) hh.corroborate(events, presence);
     } catch (_) { /* worker-presence corroboration optional */ }
     // Sticky, positive-only accumulation for TomTom / DMS / device: once a zone is corroborated
@@ -6558,7 +6592,7 @@ app.get('/api/cwz/events', async (req, res) => {
     // zone is finished), so they must not be made permanently sticky here.
     try {
       const vl = require('./services/validation-ledger');
-      await vl.hydrate();
+      await withDeadline(vl.hydrate(), 5000, 'validation ledger');
       for (const e of (eventsCache.data?.events || [])) {
         const id = e.id || e.road_event_id;
         if (!id) continue;
@@ -6603,7 +6637,9 @@ app.get('/api/cwz/devices', async (req, res) => {
   if (!eventsCache.data && startupCachePromise) {
     try { await startupCachePromise; } catch (_) { /* serve whatever we have */ }
   }
-  await ensureDeviceMatch(); // experimental: match runs on open, not on the shared refresh
+  // Serve-stale: never block a response on the expensive match when a result exists.
+  if (devicesCache && devicesCache.timestamp) ensureDeviceMatch();
+  else await withDeadline(ensureDeviceMatch(), 20000, 'device match (cold)');
   try {
     const cwz = require('./services/cwz-device-feed');
     res.set('Content-Type', 'application/json');
