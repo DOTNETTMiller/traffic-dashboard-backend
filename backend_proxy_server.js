@@ -39591,12 +39591,25 @@ app.get('*', (req, res) => {
 
 // Prevent crashes from unhandled errors
 process.on('uncaughtException', (err) => {
-  console.error('⚠️ Uncaught Exception:', err.message);
-  console.error(err.stack);
+  console.error('⚠️ Uncaught Exception:', err && err.message);
+  console.error(err && err.stack);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('⚠️ Unhandled Rejection:', reason);
+// Printing the whole rejection object dumps ~15 lines per occurrence (a pg error carries
+// severity, code, position, table, schema, routine, and a stack). When a query fails in a
+// loop that is thousands of lines a minute into a BLOCKING container stdout pipe, which is
+// enough on its own to starve the event loop and make the platform return 502. Log the
+// message, and collapse repeats of the same one.
+const __rejSeen = new Map();
+process.on('unhandledRejection', (reason) => {
+  const msg = (reason && reason.message) ? reason.message : String(reason);
+  const now = Date.now();
+  const prev = __rejSeen.get(msg);
+  if (prev && now - prev.at < 60000) { prev.n++; return; }          // same error within a minute: count it
+  const repeated = prev && prev.n > 1 ? ` (x${prev.n} in the last minute)` : '';
+  __rejSeen.set(msg, { at: now, n: 1 });
+  console.error('⚠️ Unhandled Rejection:', msg + repeated);
+  if (__rejSeen.size > 200) __rejSeen.clear();
 });
 
 // Start server function - called after database initialization

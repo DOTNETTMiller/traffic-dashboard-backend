@@ -661,6 +661,42 @@ class StateDatabase {
       CREATE INDEX IF NOT EXISTS idx_calendar_action_items_owner ON calendar_action_items(owner_email);
       CREATE INDEX IF NOT EXISTS idx_calendar_action_items_due_date ON calendar_action_items(due_date);
     `);
+
+    await this.reconcileColumns();
+  }
+
+  /**
+   * CREATE TABLE IF NOT EXISTS never alters a table that already exists, so any column
+   * added to the schema above AFTER a database was first created never reaches it. That is
+   * not theoretical: production's truck_parking_facilities predated the `address` column,
+   * so every facility upsert failed with 42703 ("column \"address\" ... does not exist"),
+   * no parking facility could be written, and the failing insert retried in a loop that
+   * flooded stdout hard enough to starve the event loop and take the site down.
+   *
+   * These are additive and idempotent -- ADD COLUMN IF NOT EXISTS touches no existing row
+   * and is a no-op on a database that already has the column. Add a line here whenever a
+   * column is added to a CREATE TABLE above.
+   */
+  async reconcileColumns() {
+    const wanted = [
+      ['truck_parking_facilities', 'address', 'TEXT'],
+      ['truck_parking_facilities', 'amenities', 'TEXT'],
+      ['truck_parking_facilities', 'facility_type', "TEXT DEFAULT 'Rest Area'"],
+      ['truck_parking_facilities', 'truck_spaces', 'INTEGER'],
+      ['truck_parking_facilities', 'total_spaces', 'INTEGER']
+    ];
+    let added = 0;
+    for (const [table, column, type] of wanted) {
+      try {
+        await this.db.execAsync(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${column} ${type};`);
+        added++;
+      } catch (e) {
+        // A missing table is fine here -- the CREATE above will have made it, or this
+        // deployment does not use it. Never let schema reconciliation stop startup.
+        console.error(`⚠️  reconcileColumns ${table}.${column}: ${e.message}`);
+      }
+    }
+    if (added) console.log(`🔧 Schema reconciled: ${added} column check(s) applied`);
   }
 
   // Run database migrations for schema updates
@@ -3378,6 +3414,141 @@ class StateDatabase {
       console.error('Error getting bridge clearances:', error);
       return [];
     }
+  }
+
+  // Ensure the columns measurement imports rely on. `source` may already exist
+  // (the NBI ingest script adds it); `source_record_id` lets re-imports from
+  // BridgeCheck AR / Clearance Hub upsert instead of duplicating. Safe no-op
+  // when already present.
+  async ensureBridgeImportColumns() {
+    if (this._bridgeImportColumnsReady) return;
+    for (const col of ['source TEXT', 'source_record_id TEXT']) {
+      try {
+        if (this.isPostgres) {
+          await this.db.query(`ALTER TABLE bridge_clearances ADD COLUMN IF NOT EXISTS ${col}`);
+        } else {
+          const name = col.split(' ')[0];
+          const cols = this.db.prepare('PRAGMA table_info(bridge_clearances)').all();
+          if (!cols.some(c => c.name === name)) {
+            this.db.prepare(`ALTER TABLE bridge_clearances ADD COLUMN ${col}`).run();
+          }
+        }
+      } catch (error) {
+        console.warn('bridge import column note:', error.message);
+      }
+    }
+    this._bridgeImportColumnsReady = true;
+  }
+
+  // Import one measured clearance (BridgeCheck AR push or Clearance Hub sync).
+  // Conservative merge: a LOWER clearance always applies immediately (safety-
+  // critical — trucks route against these numbers); a HIGHER one is held for
+  // review unless allowRaise, so a bad measurement can never silently relax a
+  // restriction. Returns { action: 'inserted'|'lowered'|'raised'|'raise_held'|'verified', id }.
+  async importBridgeClearance(rec, { allowRaise = false } = {}) {
+    await this.ensureBridgeImportColumns();
+
+    // Find an existing row: by the measuring system's record id first, then by
+    // the same route in the same state within ~50 m (re-measured bridge).
+    let existing = null;
+    if (this.isPostgres) {
+      if (rec.source_record_id) {
+        const r = await this.db.query(
+          'SELECT * FROM bridge_clearances WHERE source_record_id = $1', [rec.source_record_id]);
+        existing = r.rows[0];
+      }
+      if (!existing) {
+        const r = await this.db.query(
+          `SELECT * FROM bridge_clearances
+           WHERE state_key = $1 AND route = $2
+             AND ABS(latitude - $3) < 0.0005 AND ABS(longitude - $4) < 0.0005
+           ORDER BY id LIMIT 1`,
+          [rec.state_key, rec.route, rec.latitude, rec.longitude]);
+        existing = r.rows[0];
+      }
+    } else {
+      if (rec.source_record_id) {
+        existing = this.db.prepare(
+          'SELECT * FROM bridge_clearances WHERE source_record_id = ?').get(rec.source_record_id);
+      }
+      if (!existing) {
+        existing = this.db.prepare(
+          `SELECT * FROM bridge_clearances
+           WHERE state_key = ? AND route = ?
+             AND ABS(latitude - ?) < 0.0005 AND ABS(longitude - ?) < 0.0005
+           ORDER BY id LIMIT 1`).get(rec.state_key, rec.route, rec.latitude, rec.longitude);
+      }
+    }
+
+    if (!existing) {
+      if (this.isPostgres) {
+        const r = await this.db.query(
+          `INSERT INTO bridge_clearances
+             (bridge_name, route, state_key, latitude, longitude, clearance_feet,
+              clearance_meters, direction, restriction_type, watch_radius_km,
+              warning_message, active, last_verified, source, source_record_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,true,CURRENT_TIMESTAMP,$12,$13)
+           RETURNING id`,
+          [rec.bridge_name, rec.route, rec.state_key, rec.latitude, rec.longitude,
+           rec.clearance_feet, rec.clearance_meters, rec.direction, rec.restriction_type,
+           rec.watch_radius_km, rec.warning_message, rec.source, rec.source_record_id]);
+        return { action: 'inserted', id: r.rows[0].id };
+      }
+      const r = this.db.prepare(
+        `INSERT INTO bridge_clearances
+           (bridge_name, route, state_key, latitude, longitude, clearance_feet,
+            clearance_meters, direction, restriction_type, watch_radius_km,
+            warning_message, active, last_verified, source, source_record_id)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,1,CURRENT_TIMESTAMP,?,?)`).run(
+        rec.bridge_name, rec.route, rec.state_key, rec.latitude, rec.longitude,
+        rec.clearance_feet, rec.clearance_meters, rec.direction, rec.restriction_type,
+        rec.watch_radius_km, rec.warning_message, rec.source, rec.source_record_id);
+      return { action: 'inserted', id: r.lastInsertRowid };
+    }
+
+    const ONE_INCH_FT = 1 / 12;
+    const diff = rec.clearance_feet - Number(existing.clearance_feet);
+
+    // Same number (within an inch): just refresh verification provenance.
+    if (Math.abs(diff) <= ONE_INCH_FT) {
+      if (this.isPostgres) {
+        await this.db.query(
+          `UPDATE bridge_clearances SET last_verified = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP, source = $2, source_record_id = COALESCE($3, source_record_id)
+           WHERE id = $1`, [existing.id, rec.source, rec.source_record_id]);
+      } else {
+        this.db.prepare(
+          `UPDATE bridge_clearances SET last_verified = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP, source = ?, source_record_id = COALESCE(?, source_record_id)
+           WHERE id = ?`).run(rec.source, rec.source_record_id, existing.id);
+      }
+      return { action: 'verified', id: existing.id };
+    }
+
+    if (diff > 0 && !allowRaise) {
+      return { action: 'raise_held', id: existing.id };
+    }
+
+    if (this.isPostgres) {
+      await this.db.query(
+        `UPDATE bridge_clearances SET clearance_feet = $2, clearance_meters = $3,
+           watch_radius_km = $4, warning_message = $5, active = true,
+           last_verified = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP,
+           source = $6, source_record_id = COALESCE($7, source_record_id)
+         WHERE id = $1`,
+        [existing.id, rec.clearance_feet, rec.clearance_meters, rec.watch_radius_km,
+         rec.warning_message, rec.source, rec.source_record_id]);
+    } else {
+      this.db.prepare(
+        `UPDATE bridge_clearances SET clearance_feet = ?, clearance_meters = ?,
+           watch_radius_km = ?, warning_message = ?, active = 1,
+           last_verified = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP,
+           source = ?, source_record_id = COALESCE(?, source_record_id)
+         WHERE id = ?`).run(
+        rec.clearance_feet, rec.clearance_meters, rec.watch_radius_km,
+        rec.warning_message, rec.source, rec.source_record_id, existing.id);
+    }
+    return { action: diff < 0 ? 'lowered' : 'raised', id: existing.id };
   }
 
   async getCorridorRegulations(corridor = null) {
