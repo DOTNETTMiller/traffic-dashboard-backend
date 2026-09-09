@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { CircleMarker, Marker, Popup, Tooltip } from 'react-leaflet';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { CircleMarker, Marker, Polyline, Popup, Tooltip, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import api from '../services/api';
 
@@ -17,6 +17,15 @@ import api from '../services/api';
  *   TRAINS (opt-in) — live Amtrak positions with the crossings ahead of each. Useful, but
  *   passenger only: freight causes most blockages and publishes no positions, so an empty
  *   map here does NOT mean the tracks are clear.
+ *
+ *   TRACK — the rail network itself, from BTS/NTAD. Added because the other two are hard
+ *   to read without it: a train marker on a road map gives no sense of where it can go, and
+ *   a crossing is just a dot until you can see the line it sits on. Main line is drawn
+ *   solid and heavier; yard and industrial track is thin, so a junction does not read as
+ *   six mainlines.
+ *
+ * Track is bbox-scoped and only loads once zoomed in past MIN_TRACK_ZOOM — the national
+ * network is ~302,000 segments, which is neither sendable nor readable at country zoom.
  *
  * Sizing is by blocked HOURS rather than incident count on purpose: a crossing blocked
  * twice for six hours matters more to a detour than one blocked twenty times for ten
@@ -59,6 +68,35 @@ const trainIcon = (t) => {
   });
 };
 
+// Track loads in two tiers. At corridor zoom the full network is readable and useful; a
+// step out shows MAIN LINE ONLY, which is far fewer features and still tells you where the
+// railroads run; below that the whole country is on screen and none of it is legible, so
+// nothing is fetched. Without the middle tier the layer looked broken at the default
+// national view -- you had to know to zoom before anything appeared.
+const FULL_TRACK_ZOOM = 9;
+const MAIN_ONLY_ZOOM = 7;
+
+// Main line carries through movements and is what a crossing impact is projected along, so
+// it reads first. Everything else is present for context, not emphasis.
+const TRACK_STYLE = {
+  main:       { color: '#334155', weight: 2.5, opacity: 0.9 },
+  siding:     { color: '#64748b', weight: 1.6, opacity: 0.75 },
+  yard:       { color: '#94a3b8', weight: 1.1, opacity: 0.6, dashArray: '3,3' },
+  industrial: { color: '#94a3b8', weight: 1.1, opacity: 0.6, dashArray: '3,3' },
+  other:      { color: '#94a3b8', weight: 1.1, opacity: 0.55, dashArray: '2,4' },
+  abandoned:  { color: '#cbd5e1', weight: 1, opacity: 0.4, dashArray: '1,5' }
+};
+
+/** Watches the map and reports bounds/zoom, so track loads only for what is on screen. */
+function MapWatcher({ onChange }) {
+  const map = useMapEvents({
+    moveend: () => onChange(map.getBounds(), map.getZoom()),
+    zoomend: () => onChange(map.getBounds(), map.getZoom())
+  });
+  useEffect(() => { onChange(map.getBounds(), map.getZoom()); }, []);   // initial view
+  return null;
+}
+
 export default function RailCrossingLayer({
   visible = false,
   state = 'IA',
@@ -68,7 +106,25 @@ export default function RailCrossingLayer({
   const [hotspots, setHotspots] = useState([]);
   const [trains, setTrains] = useState([]);
   const [ahead, setAhead] = useState({});      // trainNum -> crossings ahead
+  const [track, setTrack] = useState([]);
   const [error, setError] = useState(null);
+
+  // Track for the current viewport. Keyed by rounded bounds so panning a little does not
+  // refetch; the backend caches on the same key, and track geometry is static.
+  const lastTrackKey = useRef(null);
+  const onMapChange = useCallback((bounds, zoom) => {
+    if (!visible) return;
+    if (zoom < MAIN_ONLY_ZOOM) { setTrack([]); lastTrackKey.current = null; return; }
+    const mainOnly = zoom < FULL_TRACK_ZOOM;
+    const sw = bounds.getSouthWest(), ne = bounds.getNorthEast();
+    const bbox = [sw.lng, sw.lat, ne.lng, ne.lat];
+    const key = bbox.map(v => v.toFixed(2)).join(',') + '|' + (mainOnly ? 'm' : 'f');
+    if (key === lastTrackKey.current) return;
+    lastTrackKey.current = key;
+    api.client.get(`/api/rail/lines?bbox=${bbox.join(',')}${mainOnly ? '&main=1' : ''}`)
+      .then(r => setTrack(r.data?.features || []))
+      .catch(() => { /* track is context; crossings and trains still render */ });
+  }, [visible]);
 
   // Hotspots are historical: fetch once when the layer is switched on, never poll.
   useEffect(() => {
@@ -101,6 +157,24 @@ export default function RailCrossingLayer({
 
   return (
     <>
+      <MapWatcher onChange={onMapChange} />
+
+      {track.map((f, i) => {
+        const p = f.properties || {};
+        const style = TRACK_STYLE[p.netLabel] || TRACK_STYLE.other;
+        const pts = (f.geometry?.coordinates || []).map(c => [c[1], c[0]]);
+        if (pts.length < 2) return null;
+        return (
+          <Polyline key={`tk-${i}`} positions={pts} pathOptions={style}>
+            <Tooltip sticky>
+              <b>{p.owner || 'Rail'}</b>{p.shared ? ` + ${p.owner2}` : ''} — {p.netLabel}
+              {p.subdivision ? <> · {p.subdivision} Sub</> : null}
+              {p.tracks ? <> · {p.tracks} track{p.tracks === 1 ? '' : 's'}</> : null}
+            </Tooltip>
+          </Polyline>
+        );
+      })}
+
       {hotspots.map(h => {
         if (!Number.isFinite(h.latitude) || !Number.isFinite(h.longitude)) return null;
         const tier = tierFor(h.blockedHours);

@@ -7392,6 +7392,35 @@ app.get('/api/rail/crossing-impacts', async (req, res) => {
   }
 });
 
+/**
+ * Rail track geometry for the map. ?bbox=minLon,minLat,maxLon,maxLat
+ *
+ * Strictly bbox-scoped: the national network is ~302,000 features and the client only asks
+ * once it is zoomed into a corridor. Track does not move, so this caches hard.
+ */
+app.get('/api/rail/lines', async (req, res) => {
+  const parts = String(req.query.bbox || '').split(',').map(Number);
+  if (parts.length !== 4 || parts.some(v => !Number.isFinite(v))) {
+    return res.status(400).json({ success: false, error: 'pass ?bbox=minLon,minLat,maxLon,maxLat' });
+  }
+  const [minLon, minLat, maxLon, maxLat] = parts;
+  // Guard against a request for the whole continent, which would be a huge query for
+  // something the user could not read at that zoom anyway.
+  if ((maxLon - minLon) > 12 || (maxLat - minLat) > 12) {
+    return res.json({ type: 'FeatureCollection', features: [], note: 'zoom in to load track' });
+  }
+  try {
+    const out = await require('./services/rail-lines').fetchLines(
+      { minLon, minLat, maxLon, maxLat },
+      { limit: Math.min(+req.query.limit || 1200, 2000), mainOnly: req.query.main === '1' }
+    );
+    res.set('Cache-Control', 'public, max-age=21600');   // 6h: track geometry is static
+    res.json(out);
+  } catch (e) {
+    res.status(502).json({ success: false, error: e.message });
+  }
+});
+
 // Crossings that are chronically blocked, from FRA's incident reports. ?state=IA
 app.get('/api/rail/hotspots', async (req, res) => {
   try {
