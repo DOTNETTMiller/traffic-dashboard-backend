@@ -6592,7 +6592,7 @@ app.get('/api/cwz/events', async (req, res) => {
     try {
       const wrs = require('./services/winter-road-service');
       const cams = await withDeadline(wrs.fetchPlowCams(), 8000, 'fleet cams') || [];
-      if (cams.length) wrs.corroborate(eventsCache.data?.events || [], cams, { radiusM: 400, maxAgeMin: 120 });
+      if (cams.length) wrs.corroborate(eventsCache.data?.events || [], cams, { radiusM: 400, maxAgeMin: 360 });
     } catch (_) { /* fleet imagery optional */ }
     // Sticky, positive-only accumulation for TomTom / DMS / device: once a zone is corroborated
     // by any of these it STAYS corroborated across refreshes and (for TomTom) the credit

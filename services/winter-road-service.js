@@ -372,7 +372,12 @@ function camCandidates(events, cams, opts = {}) {
  */
 function corroborate(events, cams, opts = {}) {
   const radiusM = opts.radiusM || 400;
-  const maxAgeMin = opts.maxAgeMin || 120;
+  // Six hours, not one. The fleet feed goes quiet as trucks come off shift -- observed frame
+  // ages ran 8 minutes at midday and 129-153 minutes by early evening -- so a tight window
+  // silently stamps nothing exactly when you look. A photograph is evidence with a timestamp
+  // on it, not a real-time claim: an image from this afternoon still shows what the zone
+  // looked like, and the popup states when it was taken. Freshness is presented, not enforced.
+  const maxAgeMin = opts.maxAgeMin || 360;
   const now = Date.now();
   const fresh = (cams || []).filter(c => {
     if (!c.takenAt || !Number.isFinite(c.lat) || !Number.isFinite(c.lon)) return false;
