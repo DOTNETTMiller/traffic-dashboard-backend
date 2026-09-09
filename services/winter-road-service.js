@@ -354,6 +354,32 @@ function camCandidates(events, cams, opts = {}) {
 }
 
 /**
+ * Was this closure in effect at the moment the photo was taken?
+ *
+ * A frame from before the work started, or after it finished, cannot show it however close
+ * the truck was. Frame age alone does not cover this: the median closure in the feed lasts
+ * about half a day, so a six-hour-old photo routinely falls outside a short closure's window
+ * entirely.
+ *
+ * Returns true / false, or null when the window is unknown -- and null is treated as "do not
+ * claim", never as "probably fine".
+ *
+ * A caveat worth stating rather than hiding: about a tenth of these events carry spans of a
+ * year or more. For those, "the photo is inside the window" is a weak statement — it means
+ * the project exists, not that anyone was working that afternoon. spanDays is returned so a
+ * caller can weigh it, and the vision gate uses it to rank.
+ */
+function activeAt(ev, ms) {
+  const s = Date.parse(ev.startTime || ev.startDate || ev.start_date || '');
+  const e = Date.parse(ev.endTime || ev.endDate || ev.end_date || '');
+  if (!Number.isFinite(s)) return { active: null, spanDays: null };
+  if (ms < s) return { active: false, reason: 'photo predates the closure', spanDays: null };
+  if (Number.isFinite(e) && ms > e) return { active: false, reason: 'photo is after the closure ended', spanDays: null };
+  const spanDays = Number.isFinite(e) ? (e - s) / 86400000 : null;
+  return { active: true, spanDays };
+}
+
+/**
  * Attach the nearest recent fleet photo to each event it plausibly shows.
  *
  * NOT counted as a validating source, on purpose. A maintenance truck driving past proves
@@ -393,7 +419,10 @@ function corroborate(events, cams, opts = {}) {
     if (!Array.isArray(p) || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) continue;
     const hits = near(idx, p[1], p[0], radiusM);
     if (!hits.length) continue;
-    const h = hits[0];
+    // Only frames taken while the closure was actually in effect. A picture of that stretch
+    // of road from before the work began is a picture of nothing.
+    const h = hits.find(x => activeAt(ev, Date.parse(x.point.takenAt)).active === true);
+    if (!h) continue;
     // Keep the closest frame, and do not replace a closer one already stamped this pass.
     if (ev.x_fleet_camera_distance_m != null && ev.x_fleet_camera_distance_m <= h.distanceM) continue;
     ev.x_fleet_camera_url = h.point.imageUrl;
@@ -404,6 +433,7 @@ function corroborate(events, cams, opts = {}) {
     ev.x_fleet_camera_state = h.point.state || null;
     ev.x_fleet_truck = h.point.truck || null;
     ev.x_fleet_frames_nearby = hits.length;
+    ev.x_fleet_camera_in_window = true;      // taken while the closure was in effect
     n++;
   }
   return n;
@@ -460,6 +490,9 @@ function visionCandidates(events, cams, opts = {}) {
 
     for (const h of near(idx, lat, lon, maxM)) {
       const c = h.point;
+      // THIRD GATE: the closure has to have been in effect when the shutter fired.
+      const when = activeAt(ev, Date.parse(c.takenAt));
+      if (when.active !== true) continue;
       const hdg = Number.isFinite(c.heading) ? c.heading : null;
       let bearingOff = null;
       if (h.distanceM <= closeEnoughM) {
@@ -486,9 +519,14 @@ function visionCandidates(events, cams, opts = {}) {
         route: c.route, milepost: c.milepost, state: c.state, truck: c.truck,
         takenAt: c.takenAt,
         ageMinutes: Math.round((now - Date.parse(c.takenAt)) / 60000),
+        inClosureWindow: true,
+        closureSpanDays: when.spanDays === null ? null : +when.spanDays.toFixed(1),
         // Closest and most head-on first, so a capped run spends its budget on the frames
         // most likely to show something.
-        score: h.distanceM + (bearingOff || 0) * 2
+        // Closest and most head-on first. A very long closure is nudged down: "inside a
+        // 400-day window" says the project exists, not that work was happening that hour,
+        // so a short closure's frame is the better spend.
+        score: h.distanceM + (bearingOff || 0) * 2 + (when.spanDays > 30 ? 60 : 0)
       });
       break;                                   // one best frame per event
     }
@@ -499,6 +537,6 @@ function visionCandidates(events, cams, opts = {}) {
 
 module.exports = {
   fetchPlowAVL, fetchConditions, fetchPlowCams,
-  treatmentNear, camCandidates, corroborate, visionCandidates, buildIndex, near,
+  treatmentNear, camCandidates, corroborate, visionCandidates, activeAt, buildIndex, near,
   LAYERS
 };

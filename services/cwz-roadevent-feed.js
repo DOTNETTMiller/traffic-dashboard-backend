@@ -129,6 +129,8 @@ function buildFeed(events, opts = {}) {
       props.x_fleet_camera_route = ev.x_fleet_camera_route || null;
       props.x_fleet_camera_milepost = ev.x_fleet_camera_milepost ?? null;
       props.x_fleet_truck = ev.x_fleet_truck || null;
+      // The photo was taken while this closure was in effect — otherwise it is not attached.
+      props.x_fleet_camera_in_window = ev.x_fleet_camera_in_window === true;
     }
     if (ev.x_tomtom_corroborated) {
       props.x_tomtom_corroborated = true;
