@@ -5345,6 +5345,11 @@ async function fetchAndCacheEvents() {
         })))
       );
       allResults.push(...batchResults);
+      // Hand the event loop back between batches. Without this the rebuild holds the loop
+      // for its whole duration and every other request queues behind it -- which is why
+      // /api/events answered 000/502 while a refresh was running even though the process
+      // was healthy. setImmediate costs nothing; it just lets pending requests through.
+      await new Promise(resolve => setImmediate(resolve));
     }
 
     const allEvents = [];
@@ -5356,8 +5361,13 @@ async function fetchAndCacheEvents() {
       totalEndTimeExtended: 0
     };
 
-    // Process each state's events through lifecycle manager
-    allResults.forEach(result => {
+    // Process each state's events through lifecycle manager.
+    // Sequential + yielding rather than forEach: normalising thousands of events per state
+    // is synchronous CPU work, and doing all of it in one uninterrupted pass is what
+    // starved the loop. Same total work, just interruptible.
+    for (const result of allResults) {
+      await new Promise(resolve => setImmediate(resolve));
+      ((result) => {
       const stateKey = result.state.split(' ')[0].toUpperCase(); // Extract state key
       const stateSource = stateKey;
 
@@ -5373,7 +5383,8 @@ async function fetchAndCacheEvents() {
       if (result.errors.length > 0) {
         allErrors.push({ state: result.state, errors: result.errors });
       }
-    });
+    })(result);
+    }
 
     // Add Ohio API events
     try {
