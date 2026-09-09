@@ -7393,6 +7393,98 @@ app.get('/api/rail/crossing-impacts', async (req, res) => {
 });
 
 /**
+ * Road-service activity — plow AVL, multi-state winter conditions, and the mobile plow-cam
+ * fleet. All free public sources; all lazy, so nothing here costs anything until opened.
+ *
+ * Motivated by PennDOT's friction study: road-service operations (plow activity, treatment
+ * material, time since last service) beat every weather variable as a predictor of what the
+ * road surface does next.
+ */
+app.get('/api/winter/plows', async (req, res) => {
+  try {
+    const w = require('./services/winter-road-service');
+    const plows = await w.fetchPlowAVL();
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json({
+      success: true,
+      counts: { total: plows.length, treating: plows.filter(p => p.treating).length, plowDown: plows.filter(p => p.plowDown).length },
+      // Outside winter only a few trucks report. That is "no treatment happening", not
+      // "no data", and the note says so rather than leaving an empty array to be misread.
+      note: plows.length < 25 ? 'Low vehicle count is normal outside winter operations' : null,
+      plows
+    });
+  } catch (e) { res.status(502).json({ success: false, error: e.message }); }
+});
+
+// Winter road conditions across the Midwest. ?state=Iowa%20DOT&bbox=...
+app.get('/api/winter/conditions', async (req, res) => {
+  try {
+    const w = require('./services/winter-road-service');
+    const bbox = String(req.query.bbox || '').split(',').map(Number);
+    const rows = await w.fetchConditions({
+      source: req.query.state || null,
+      bbox: bbox.length === 4 && bbox.every(Number.isFinite) ? bbox : null,
+      geometry: req.query.geometry !== '0',
+      activeOnly: req.query.all !== '1'
+    });
+    const byState = {};
+    for (const r of rows) byState[r.state] = (byState[r.state] || 0) + 1;
+    res.set('Cache-Control', 'public, max-age=900');
+    res.json({ success: true, counts: { total: rows.length, current: rows.filter(r => r.current).length }, byState, conditions: rows });
+  } catch (e) { res.status(502).json({ success: false, error: e.message }); }
+});
+
+// Geotagged frames from the plow/maintenance fleet (IA/MN/NE). ?states=IA&maxAgeMin=60
+app.get('/api/winter/cams', async (req, res) => {
+  try {
+    const w = require('./services/winter-road-service');
+    const cams = await w.fetchPlowCams({ states: req.query.states || null });
+    const maxAgeMin = Math.min(+req.query.maxAgeMin || 60, 1440);
+    const now = Date.now();
+    const fresh = cams.filter(c => c.takenAt && (now - Date.parse(c.takenAt)) <= maxAgeMin * 60000);
+    const byState = {};
+    for (const c of fresh) byState[c.state] = (byState[c.state] || 0) + 1;
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json({ success: true, counts: { returned: fresh.length, allAges: cams.length }, byState, maxAgeMin, cams: fresh });
+  } catch (e) { res.status(502).json({ success: false, error: e.message }); }
+});
+
+// Time since a plow last treated near a point. ?lat=&lon=&radiusM=
+app.get('/api/winter/treatment', async (req, res) => {
+  const lat = Number(req.query.lat), lon = Number(req.query.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return res.status(400).json({ success: false, error: 'pass ?lat=&lon=' });
+  }
+  try {
+    const w = require('./services/winter-road-service');
+    const avl = await w.fetchPlowAVL();
+    res.json({ success: true, ...w.treatmentNear(avl, lat, lon, { radiusM: Math.min(+req.query.radiusM || 3000, 20000) }) });
+  } catch (e) { res.status(502).json({ success: false, error: e.message }); }
+});
+
+/**
+ * Active work zones that a maintenance truck drove past recently, with the frame it took.
+ *
+ * CANDIDATES ONLY — no vision is run here, because that costs money and this is a shared
+ * path. The value over the fixed-camera validation already running is coverage: fixed
+ * cameras see only where one is mounted, while the fleet drives the whole network.
+ */
+app.get('/api/winter/zone-cams', async (req, res) => {
+  try {
+    const w = require('./services/winter-road-service');
+    const cvv = require('./services/camera-validation');
+    const events = ((eventsCache.data && eventsCache.data.events) || []).filter(e => cvv.isActiveNow(e) === true);
+    const cams = await w.fetchPlowCams({ states: req.query.states || null });
+    const out = w.camCandidates(events, cams, {
+      radiusM: Math.min(+req.query.radiusM || 400, 2000),
+      maxAgeMin: Math.min(+req.query.maxAgeMin || 60, 1440)
+    });
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json({ success: true, activeZones: events.length, frames: cams.length, matched: out.length, candidates: out.slice(0, Math.min(+req.query.limit || 100, 500)) });
+  } catch (e) { res.status(502).json({ success: false, error: e.message }); }
+});
+
+/**
  * Rail track geometry for the map. ?bbox=minLon,minLat,maxLon,maxLat
  *
  * Strictly bbox-scoped: the national network is ~302,000 features and the client only asks
