@@ -105,7 +105,10 @@ function toRailMovement(s, sensorsById = {}, now = Date.now(), tiers = DEFAULT_T
     event_type: 'rail_movement',
     source: 'railstate',
     train_id: s.train_trip_id || s.trip_id || s.id || null,
+    // operator = who runs the train. track_owner = whose track it is on, which only the
+    // network snap can answer; a tenant's operator says nothing about crossing ownership.
     operator: s.railroad || s.operator || null,
+    track_owner: null,
     observed_at: observedAt,
     // A sighting is a point observation at a sensor, not a continuous position. Naming the
     // sensor keeps that visible to anything downstream.

@@ -33,6 +33,22 @@ const IA_CROSSINGS =
 const IA_RAIL_LINES =
   'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Rail_Line_Active_View/FeatureServer/0/query';
 
+const railNet = require('./rail-network');
+
+// The rail network is effectively static, and one movement's walk covers the same ground as
+// its neighbours'. Cached by rounded centre so a feed of 25 trains does not refetch it 25
+// times; TTL is long because track does not move.
+const NET_TTL_MS = 6 * 60 * 60 * 1000;
+const netCache = new Map();
+async function loadNetworkCached(lat, lon, radiusM) {
+  const key = `${lat.toFixed(1)},${lon.toFixed(1)},${Math.round(radiusM / 1000)}`;
+  const hit = netCache.get(key);
+  if (hit && (Date.now() - hit.at) < NET_TTL_MS) return hit.net;
+  const net = await railNet.loadNetwork(lat, lon, radiusM);
+  netCache.set(key, { at: Date.now(), net });
+  return net;
+}
+
 // Iowa stores RAILROAD as a coded-value domain, so the raw attribute is an integer and a
 // popup built on it would read "[11]". Resolved from the layer's own domain definition and
 // inlined because it is a stable lookup not worth a second HTTP round trip.
@@ -122,114 +138,125 @@ async function crossingsNear(lat, lon, radiusM) {
 }
 
 /**
- * Crossing impacts for one rail movement.
+ * Crossing impacts for one rail movement, projected ALONG THE TRACK.
  *
- * @param {Object} movement  a rail_movement event (see railstate-adapter)
- * @param {Object} opts      lookaheadMi, coneDeg, clearanceAssumptionS
+ * The movement is snapped to a specific rail line, then the network is walked forward from
+ * that point. Everything the walk passes is ahead of the train by construction, so parallel
+ * tracks, yards, diamonds and closely spaced railroads fall out geometrically. There is no
+ * owner-matching heuristic any more and no bearing cone: both were proxies for track
+ * identity, and this resolves track identity directly.
+ *
+ * If the movement cannot be put on a track, NOTHING is emitted. A position that is not near
+ * rail is a position we cannot reason about, and guessing from a bearing is how a crossing
+ * on the wrong railroad ends up in an operational feed.
  */
 async function impactsFor(movement, opts = {}) {
   const lookaheadMi = opts.lookaheadMi || 12;
-  const coneDeg = opts.coneDeg || 60;
   const lat = movement && movement.location && Number(movement.location.lat);
   const lon = movement && movement.location && Number(movement.location.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return { error: 'movement has no position' };
 
   const hdg = headingDeg(movement.direction);
-  const mph = Number(movement.speed_mph) || 0;
   const ageS = Number(movement.freshness_seconds) || 0;
+  const lookaheadM = lookaheadMi * MI_TO_M;
 
-  // How far the train may have travelled since it was OBSERVED. For a sighting network this
-  // is the dominant error term, not a rounding detail: 25 minutes at 40 mph is 16 miles.
+  // Observed along-track speed, where two sightings allow it, beats the reported figure --
+  // it is measured over the real geometry rather than taken on trust. Falls back cleanly.
+  const mph = Number(movement.observed_speed_mph) || Number(movement.speed_mph) || 0;
+  const speedMethod = Number(movement.observed_speed_mph) ? 'observed-along-track' : 'reported';
+
+  // How far the train may have moved since it was OBSERVED. For a sighting network this is
+  // the dominant error term, not a rounding detail: 25 min at 40 mph is 16 miles.
   const driftMi = mph > 0 ? (mph * ageS / 3600) : null;
 
-  const all = await crossingsNear(lat, lon, lookaheadMi * MI_TO_M);
-  const here = { lat, lon };
+  const net = await loadNetworkCached(lat, lon, lookaheadM + 5000);
+  const snap = railNet.snapToNetwork(net, { lat, lon }, {
+    headingDeg: hdg, maxSnapM: opts.maxSnapM || 300
+  });
+  if (!snap) {
+    return {
+      movement_id: movement.train_id || null,
+      source: movement.source || null,
+      operator: normRR(movement.operator),
+      track_owner: null,
+      snapped: false,
+      reason: `position is not within ${opts.maxSnapM || 300} m of active rail`,
+      impacts: []
+    };
+  }
 
-  // Prefer Iowa's linear referencing where the movement can be tied to a route: comparing
-  // measures on one ROUTE_ID beats inferring "ahead" from a bearing. Falls back to the cone
-  // when the movement carries no route (a raw sighting usually will not).
-  const onRoute = movement.route_id || null;
+  const walk = railNet.traverse(net, snap, { maxDistM: lookaheadM });
+  const crossings = await crossingsNear(lat, lon, lookaheadM + 2000);
+  const hits = railNet.crossingsAlongPath(net, walk, crossings, { bufferM: opts.bufferM || 30 });
 
-  // Proximity is not the same as being on the same track: a UP manifest at Boone sits a few
-  // hundred metres from the Boone & Scenic Valley tourist line, and without a guard it gets
-  // reported as blocking a heritage railroad's crossings.
-  //
-  // But the obvious guard -- operator must equal the crossing's railroad -- is wrong for
-  // TENANTS. Iowa codes each crossing to the railroad that OWNS it, and Amtrak owns almost
-  // no track outside the Northeast Corridor; it runs on UP, BNSF and IAIS rail. Applied
-  // naively the guard threw away 66 of 68 crossings around a live Southwest Chief.
-  //
-  // So the guard is self-limiting: it only engages when the operator actually appears among
-  // the nearby crossings, i.e. when the operator demonstrably describes track ownership
-  // here. For a tenant it matches nothing, and the engine falls back to pure geometry.
-  //
-  // Known limitation: freight railroads hold trackage rights over one another, so a UP train
-  // on BNSF rail would be over-filtered. Snapping to Rail_Line_Active_View would settle it
-  // outright; until then the guard errs toward dropping rather than inventing impacts.
-  const myRR = normRR(movement.operator);
-  const ownsTrackHere = myRR && all.some(c => c.railroad === myRR);
-  let crossRailroadSkipped = 0;
+  const lengthFt = Number(movement.train_length_ft) || null;
+  // Blockage duration follows from consist length and speed, both of which a sighting source
+  // reports. No length -> no duration, rather than an invented number.
+  const clearS = (lengthFt && mph > 0) ? (lengthFt / 5280) / mph * 3600 : null;
 
-  const out = [];
-  for (const c of all) {
-    if (ownsTrackHere && c.railroad && c.railroad !== myRR) { crossRailroadSkipped++; continue; }
-    const d = distM(here, { lat: c.lat, lon: c.lon });
-    const mi = d / MI_TO_M;
-    if (mi > lookaheadMi) continue;
-
-    let ahead = true;
-    if (onRoute && c.routeId === onRoute && c.measure !== null && movement.measure != null) {
-      const delta = c.measure - movement.measure;
-      ahead = /S|W/i.test(String(movement.direction || '')) ? delta < 0 : delta > 0;
-    } else if (hdg !== undefined) {
-      ahead = angleDelta(hdg, bearingDeg(here, { lat: c.lat, lon: c.lon })) <= coneDeg;
-    }
-    if (!ahead) continue;
-
+  const out = hits.map(h => {
+    const mi = h.alongTrackM / MI_TO_M;
     const etaMin = mph > 0 ? (mi / mph) * 60 : null;
-    // Blockage duration is a function of train length and speed, both of which a sighting
-    // source gives us. No length -> no duration, rather than a made-up number.
-    const lengthFt = Number(movement.train_length_ft) || null;
-    const clearS = (lengthFt && mph > 0) ? (lengthFt / 5280) / mph * 3600 : null;
-
-    out.push({
+    return {
       event_type: 'crossing_impact',
-      crossing_id: c.crossingId,
-      street: c.street,
-      railroad: c.railroad,
-      location: { lat: c.lat, lon: c.lon },
+      crossing_id: h.crossing.crossingId,
+      street: h.crossing.street,
+      railroad: h.crossing.railroad,
+      location: { lat: h.crossing.lat, lon: h.crossing.lon },
       distance_mi: +mi.toFixed(2),
-      // Status is deliberately never "BLOCKED": nothing here observes occupancy.
+      // Never "BLOCKED": nothing in this pipeline observes occupancy.
       status: etaMin !== null && driftMi !== null && mi <= driftMi ? 'POSSIBLY_PASSED'
         : etaMin !== null && etaMin <= 10 ? 'APPROACHING'
         : 'PREDICTED',
+      eta_seconds: etaMin === null ? null : Math.round(etaMin * 60),
       eta_minutes: etaMin === null ? null : +etaMin.toFixed(1),
       estimated_blockage_seconds: clearS === null ? null : Math.round(clearS),
-      source: movement.source || null,
-      operator: movement.operator || null,
-      train_type: movement.train_type || null,
-      observed_at: movement.observed_at || null,
-      observation_age_seconds: ageS || null,
-      // The error band, stated rather than implied. An ETA under this is inside the noise.
-      uncertainty_mi: driftMi === null ? null : +driftMi.toFixed(2),
-      confidence: movement.confidence ?? null,
-      freshness_tier: movement.freshness_tier || null
-    });
-  }
-  out.sort((a, b) => a.distance_mi - b.distance_mi);
+      // Everything needed to audit this number after the fact. It matters more than the
+      // number itself once somebody routes traffic on it.
+      derivation: {
+        movement_source: movement.source || null,
+        operator: normRR(movement.operator),
+        track_owner: h.trackOwner,
+        track_type: h.trackType,
+        position_observed_at: movement.observed_at || null,
+        position_age_seconds: ageS || null,
+        freshness_tier: movement.freshness_tier || null,
+        rail_snap_method: 'active-rail-line',
+        rail_snap_distance_m: snap.snapDistanceM,
+        rail_snap_confidence: snap.confidence,
+        parallel_track_candidates: snap.candidates,
+        runner_up_distance_m: snap.runnerUpDistanceM,
+        direction_method: 'along-track',
+        crossing_offset_m: h.offTrackM,
+        speed_method: speedMethod,
+        speed_mph: mph || null,
+        uncertainty_mi: driftMi === null ? null : +driftMi.toFixed(2),
+        confidence: +(snap.confidence * (driftMi !== null && mi <= driftMi ? 0.5 : 1)).toFixed(3)
+      }
+    };
+  });
+
   return {
     movement_id: movement.train_id || null,
     source: movement.source || null,
-    operator: myRR,
-    operator_filter_applied: !!ownsTrackHere,
-    crossings_scanned: all.length,
-    crossings_other_railroad: crossRailroadSkipped,
+    operator: normRR(movement.operator),          // who is running the train
+    track_owner: snap.trackOwner,                 // whose track it is on
+    track_type: snap.trackType,
+    snapped: true,
+    snap_distance_m: snap.snapDistanceM,
+    snap_confidence: snap.confidence,
+    projected_mi: +(walk.reachedM / MI_TO_M).toFixed(2),
+    segments_walked: walk.path.length,
+    crossings_scanned: crossings.length,
     uncertainty_mi: driftMi === null ? null : +driftMi.toFixed(2),
     impacts: out
   };
 }
 
-/** Impacts for many movements, with stale ones excluded unless explicitly asked for. */
+/**
+ * Impacts for many movements. Stale ones are refused unless explicitly asked for -- a stale
+ * train carried forward on a plausible-looking projection is more dangerous than no train.
+ */
 async function impactsForAll(movements, opts = {}) {
   const usable = (movements || []).filter(m => opts.includeStale ? true : m.operational !== false);
   const results = [];
@@ -237,11 +264,15 @@ async function impactsForAll(movements, opts = {}) {
     try { results.push(await impactsFor(m, opts)); } catch (_) { /* one bad movement must not stop the rest */ }
   }
   const impacts = results.flatMap(r => r.impacts || []);
+  const snapped = results.filter(r => r.snapped);
   return {
     movements: usable.length,
+    withheld_stale: (movements || []).length - usable.length,
+    snapped: snapped.length,
+    not_on_track: results.length - snapped.length,
     impacts_total: impacts.length,
     approaching: impacts.filter(i => i.status === 'APPROACHING').length,
-    caveat: 'Predicted from observed movements. Nothing here observes occupancy — no impact means no movement was seen, not that a crossing is clear.',
+    caveat: 'Predicted from observed movements projected along track. Nothing here observes occupancy \u2014 no impact means no movement was seen, not that a crossing is clear.',
     results
   };
 }
@@ -263,6 +294,11 @@ function fromAmtrakTrain(t, now = Date.now()) {
     source: t.source || 'amtrak',
     train_id: t.trainNum ? String(t.trainNum) : null,
     operator: 'AMTRAK',
+    // operator answers WHO RUNS THE TRAIN; track_owner answers WHOSE TRACK AND CROSSINGS
+    // apply. They are different questions and conflating them is what broke the first cut:
+    // Amtrak owns almost no track outside the Northeast Corridor. Left null here because
+    // only the snap can answer it, and the snap fills it in.
+    track_owner: null,
     observed_at: t.updatedAt || null,
     location: { lat: t.lat, lon: t.lon },
     direction: t.heading || null,
@@ -279,7 +315,67 @@ function fromAmtrakTrain(t, now = Date.now()) {
   };
 }
 
+/**
+ * Along-track speed measured from two consecutive sightings of the same train.
+ *
+ * The reported speed is a spot reading and the reported heading is a compass bearing; over a
+ * curve, neither describes what the train actually did between two points. Walking the
+ * network from the earlier sighting to the later one gives real distance over real track,
+ * divided by real elapsed time. It also cross-checks the source: if the observed speed and
+ * the reported speed disagree badly, one of them is wrong and the ETA should be trusted less.
+ *
+ * @returns {Promise<Object|null>} null when the two sightings cannot be connected on track
+ */
+async function observedVelocity(prev, curr, opts = {}) {
+  if (!prev || !curr) return null;
+  const t0 = Date.parse(prev.observed_at), t1 = Date.parse(curr.observed_at);
+  if (!Number.isFinite(t0) || !Number.isFinite(t1) || t1 <= t0) return null;
+  const dtS = (t1 - t0) / 1000;
+  if (dtS < 20 || dtS > 3 * 3600) return null;        // too short to be signal, too long to be one run
+
+  const a = prev.location, b = curr.location;
+  if (!a || !b) return null;
+  const net = await loadNetworkCached(a.lat, a.lon, (opts.maxSearchM || 60000));
+  const straightM = distM(a, b);
+
+  // Walk from the earlier position in each direction; whichever pass comes closest to the
+  // later position is the direction the train actually went, and the along-track distance at
+  // that point is how far it travelled.
+  let best = null;
+  for (const headingDeg of [undefined, 0, 90, 180, 270]) {
+    const snap = railNet.snapToNetwork(net, a, { headingDeg, maxSnapM: opts.maxSnapM || 300 });
+    if (!snap) continue;
+    for (const forward of [true, false]) {
+      const walk = railNet.traverse(net, { ...snap, forward }, { maxDistM: Math.max(straightM * 3, 5000) });
+      const hit = railNet.crossingsAlongPath(net, walk,
+        [{ crossingId: '__target__', lat: b.lat, lon: b.lon }], { bufferM: opts.bufferM || 60 });
+      if (!hit.length) continue;
+      const cand = { alongM: hit[0].alongTrackM, snap, offM: hit[0].offTrackM };
+      if (!best || cand.offM < best.offM) best = cand;
+    }
+  }
+  if (!best) return null;
+
+  const mph = (best.alongM / 1609.344) / (dtS / 3600);
+  if (!Number.isFinite(mph) || mph < 0 || mph > 120) return null;   // implausible: reject
+  const reported = Number(curr.speed_mph) || null;
+  return {
+    observed_speed_mph: +mph.toFixed(1),
+    along_track_m: Math.round(best.alongM),
+    straight_line_m: Math.round(straightM),
+    // Track is never straighter than the crow flies; a ratio near 1 means tangent track,
+    // well above 1 means the straight-line estimate would have understated the distance.
+    sinuosity: +(best.alongM / Math.max(straightM, 1)).toFixed(2),
+    elapsed_s: Math.round(dtS),
+    reported_speed_mph: reported,
+    // Second independent check on the source.
+    agrees_with_reported: reported === null ? null : Math.abs(mph - reported) <= Math.max(5, reported * 0.25),
+    track_owner: best.snap.trackOwner,
+    method: 'two-sighting-along-track'
+  };
+}
+
 module.exports = {
-  impactsFor, impactsForAll, crossingsNear, fromAmtrakTrain,
+  impactsFor, impactsForAll, crossingsNear, fromAmtrakTrain, observedVelocity,
   normRR, RAILROAD_CODES, IA_CROSSINGS, IA_RAIL_LINES
 };
