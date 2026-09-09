@@ -39,6 +39,24 @@ const ARNOLD_YEAR = '2019';
 
 class ArnoldGeometryService {
   /**
+   * Per-run counters, in place of per-event logging.
+   *
+   * This service ran one console.log PER EVENT (up to eight of them), and Node's stdout to a
+   * container pipe is a BLOCKING write. With a few thousand events the process spends its
+   * time in write() instead of serving requests: the socket still accepts connections, so the
+   * platform sees an open port while every HTTP request times out. That is what took the
+   * dashboard down -- it was not a crash, and the logs are the cause rather than a clue.
+   *
+   * Counters here, one summary line at the end of the batch, and a couple of sampled examples
+   * so a real problem is still diagnosable.
+   */
+  bump(key, sample) {
+    if (!this.tally) this.tally = { samples: {} };
+    this.tally[key] = (this.tally[key] || 0) + 1;
+    if (sample && !this.tally.samples[key]) this.tally.samples[key] = sample;
+  }
+
+  /**
    * Calculate distance between two points using Haversine formula
    */
   calculateDistance(lat1, lon1, lat2, lon2) {
@@ -239,7 +257,7 @@ class ArnoldGeometryService {
    */
   findBestMatchingSegment(geometry, arnoldFeatures, event) {
     if (!arnoldFeatures || arnoldFeatures.length === 0) {
-      console.log(`   [ARNOLD] No features to match`);
+      this.bump('noFeatures');
       return null;
     }
 
@@ -284,18 +302,18 @@ class ArnoldGeometryService {
     }
 
     if (nearbySegments.length === 0) {
-      console.log(`   [ARNOLD] No segments within 100km threshold`);
+      this.bump('noNearbySegment');
       return null;
     }
 
     // Sort by score
     nearbySegments.sort((a, b) => a.score - b.score);
 
-    console.log(`   [ARNOLD] Found ${nearbySegments.length} nearby segments (best score: ${nearbySegments[0].score.toFixed(2)}km)`);
+    this.bump('nearbyFound');
 
     // If we have multiple short segments, try to stitch them together
     if (nearbySegments.length > 1 && nearbySegments[0].coords <= 5) {
-      console.log(`   [ARNOLD] Attempting to stitch ${nearbySegments.length} segments...`);
+      this.bump('stitchAttempted');
       const stitched = this.stitchSegments(
         nearbySegments.map(s => s.feature),
         [startLon, startLat],
@@ -303,15 +321,15 @@ class ArnoldGeometryService {
       );
 
       if (stitched && stitched.coordinates && stitched.coordinates.length > nearbySegments[0].coords) {
-        console.log(`   [ARNOLD] ✅ Stitched ${stitched.stitchedFrom} segments into ${stitched.geometry.coordinates.length} points`);
+        this.bump('stitched');
         return stitched;
       } else {
-        console.log(`   [ARNOLD] ⚠️  Stitching failed, using best single segment`);
+        this.bump('stitchFailed');
       }
     }
 
     // Return best single segment
-    console.log(`   [ARNOLD] Using single best segment (${nearbySegments[0].coords} points)`);
+    this.bump('singleSegment');
     return nearbySegments[0].feature;
   }
 
@@ -378,31 +396,31 @@ class ArnoldGeometryService {
    */
   async enrichEventGeometry(event, stateKey) {
     if (!event || !event.geometry) {
-      console.log(`   [ARNOLD] Event ${event?.id} has no geometry`);
+      this.bump('noGeometry');
       return event; // Return unchanged if no geometry
     }
 
     const routeId = this.extractRouteId(event.corridor);
     if (!routeId) {
-      console.log(`   [ARNOLD] Event ${event.id}: Cannot extract route ID from corridor "${event.corridor}"`);
+      this.bump('noRouteId', String(event.corridor));
       return event; // Can't enrich without route info
     }
 
-    console.log(`   [ARNOLD] Event ${event.id}: ${event.corridor} (route_id=${routeId}) direction=${event.direction}`);
+    this.bump('attempted');
 
     try {
       const geometry = typeof event.geometry === 'string' ? JSON.parse(event.geometry) : event.geometry;
 
       // Use first and last coordinates regardless of how many points
       if (!geometry.coordinates || geometry.coordinates.length < 2) {
-        console.log(`   [ARNOLD] Event ${event.id}: Insufficient coordinates (${geometry.coordinates?.length || 0} points)`);
+        this.bump('insufficientCoords');
         return event; // Need at least start and end point
       }
 
       const [startLon, startLat] = geometry.coordinates[0];
       const [endLon, endLat] = geometry.coordinates[geometry.coordinates.length - 1];
 
-      console.log(`   [ARNOLD] Event ${event.id}: Start [${startLon.toFixed(4)}, ${startLat.toFixed(4)}], End [${endLon.toFixed(4)}, ${endLat.toFixed(4)}]`);
+      // (per-event start/end trace removed: see bump())
 
       const bbox = {
         minLat: Math.min(startLat, endLat) - 0.15,
@@ -414,11 +432,11 @@ class ArnoldGeometryService {
       const arnoldData = await this.queryArnold(stateKey, routeId, bbox);
 
       if (!arnoldData || !arnoldData.features || arnoldData.features.length === 0) {
-        console.log(`   [ARNOLD] Event ${event.id}: No ARNOLD features returned from API`);
+        this.bump('apiNoFeatures');
         // No ARNOLD geometry - apply bidirectional offset to original geometry if direction=Both
         if (event.direction && event.direction.toLowerCase().includes('both')) {
           const offsetGeometry = this.applyBidirectionalOffset(geometry.coordinates, event.corridor);
-          console.log(`   [ARNOLD] Event ${event.id}: Applied bidirectional offset to original geometry`);
+          this.bump('offsetApplied');
           return {
             ...event,
             geometry: {
@@ -430,16 +448,16 @@ class ArnoldGeometryService {
         return event;
       }
 
-      console.log(`   [ARNOLD] Event ${event.id}: ARNOLD API returned ${arnoldData.features.length} features`);
+      this.bump('apiFeatures');
 
       const bestMatch = this.findBestMatchingSegment(geometry, arnoldData.features, event);
 
       if (!bestMatch) {
-        console.log(`   [ARNOLD] Event ${event.id}: No suitable match found`);
+        this.bump('noMatch');
         // No matching segment - apply bidirectional offset to original geometry if direction=Both
         if (event.direction && event.direction.toLowerCase().includes('both')) {
           const offsetGeometry = this.applyBidirectionalOffset(geometry.coordinates, event.corridor);
-          console.log(`   [ARNOLD] Event ${event.id}: Applied bidirectional offset to original geometry`);
+          this.bump('offsetApplied');
           return {
             ...event,
             geometry: {
@@ -456,12 +474,12 @@ class ArnoldGeometryService {
         coordinates: bestMatch.geometry.coordinates
       };
 
-      console.log(`   [ARNOLD] Event ${event.id}: ✅ Matched! Enriched from ${geometry.coordinates.length} to ${finalGeometry.coordinates.length} points`);
+      this.bump('enriched');
 
       // Apply bidirectional rendering for "Both" direction
       if (event.direction && event.direction.toLowerCase().includes('both')) {
         finalGeometry = this.applyBidirectionalOffset(finalGeometry.coordinates, event.corridor);
-        console.log(`   [ARNOLD] Event ${event.id}: Applied bidirectional offset`);
+        this.bump('offsetApplied');
       }
 
       // Return event with enriched geometry
@@ -491,9 +509,33 @@ class ArnoldGeometryService {
       return events; // State not supported, return unchanged
     }
 
-    const enrichedEvents = await Promise.all(
-      events.map(event => this.enrichEventGeometry(event, stateKey))
-    );
+    this.tally = { samples: {} };
+
+    // Bounded concurrency. This was Promise.all over EVERY event, so a few thousand events
+    // opened a few thousand simultaneous ARNOLD requests -- which is its own way to stall the
+    // loop and a good way to get rate-limited. Ten at a time keeps it quick without the pile-up.
+    const enrichedEvents = new Array(events.length);
+    const CONCURRENCY = 10;
+    let cursor = 0;
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, events.length) }, async () => {
+      while (cursor < events.length) {
+        const i = cursor++;
+        try {
+          enrichedEvents[i] = await this.enrichEventGeometry(events[i], stateKey);
+        } catch (e) {
+          this.bump('errored', e.message);
+          enrichedEvents[i] = events[i];
+        }
+      }
+    }));
+
+    // ONE line for the whole batch, whatever its size.
+    const t = this.tally;
+    const parts = Object.keys(t).filter(k => k !== 'samples' && t[k]).map(k => `${k}=${t[k]}`);
+    if (parts.length) {
+      const eg = t.samples.noRouteId ? ` (e.g. corridor "${t.samples.noRouteId}")` : '';
+      console.log(`   [ARNOLD] ${stateKey}: ${events.length} events — ${parts.join(' ')}${eg}`);
+    }
 
     return enrichedEvents;
   }
