@@ -211,8 +211,22 @@ async function crossingsAhead(train, opts = {}) {
     });
   }
   ahead.sort((a, b) => a.distanceMi - b.distanceMi);
+  // Independent check: does this train agree with its own published schedule? A live fix
+  // that disagrees with Amtrak's GTFS route by kilometres should not be projected onto
+  // crossings as if it were reliable. 'unknown' (GTFS unreachable) is not a failure.
+  let schedule = null;
+  if (opts.validate !== false) {
+    try { schedule = await require('./amtrak-schedule-validator').validateTrain(train); }
+    catch (_) { schedule = null; }
+  }
+
   return {
     train: train.trainNum || null,
+    scheduleCheck: schedule,
+    confidence: !schedule ? 'unverified'
+      : schedule.status === 'on-route' ? 'schedule-corroborated'
+      : schedule.status === 'off-route' ? 'position-disputed'
+      : 'unverified',
     route: train.routeName || null,
     speedMph: Math.round(mph),
     heading: train.heading,

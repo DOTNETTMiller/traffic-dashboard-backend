@@ -7229,6 +7229,84 @@ app.get('/api/documentation/:docName', (req, res) => {
 });
 
 // Health check endpoint
+// ---- Rail: trains, crossing projection, chronic blockage --------------------------
+// None of this was reachable before -- it existed only as service modules. Read-only,
+// lazy (nothing fetches until asked), and cached, so it costs nothing when unused.
+
+// Live Amtrak trains, each with an independent verdict on whether its position agrees
+// with Amtrak's own published GTFS route.
+app.get('/api/rail/trains', async (req, res) => {
+  try {
+    const https = require('https');
+    const j = await new Promise((resolve, reject) => {
+      https.get('https://api-v3.amtraker.com/v3/trains', r => {
+        let b = ''; r.setEncoding('utf8');
+        r.on('data', d => { b += d; });
+        r.on('end', () => { try { resolve(JSON.parse(b)); } catch (e) { reject(e); } });
+      }).on('error', reject);
+    });
+    const live = [];
+    for (const k of Object.keys(j)) for (const t of j[k]) if (t.lat && t.lon) live.push(t);
+    const active = live.filter(t => t.trainState === 'Active');
+    const v = await require('./services/amtrak-schedule-validator').validateAll(active);
+    const byNum = new Map(v.results.map(r => [r.trainNum, r]));
+    res.set('Cache-Control', 'public, max-age=60');
+    res.json({
+      success: true,
+      counts: { total: live.length, active: active.length },
+      validation: v.summary,
+      trains: active.map(t => ({
+        trainNum: t.trainNum, route: t.routeName, lat: t.lat, lon: t.lon,
+        heading: t.heading, speedMph: Math.round(t.velocity || 0),
+        updatedAt: t.updatedAt, origin: t.origName, destination: t.destName,
+        scheduleCheck: byNum.get(String(t.trainNum)) || null
+      }))
+    });
+  } catch (e) {
+    res.status(502).json({ success: false, error: 'live train feed unavailable: ' + e.message });
+  }
+});
+
+// Grade crossings ahead of one train, with ETAs. ?train=5
+app.get('/api/rail/crossings-ahead', async (req, res) => {
+  const wanted = String(req.query.train || '').trim();
+  if (!wanted) return res.status(400).json({ success: false, error: 'pass ?train=<number>' });
+  try {
+    const https = require('https');
+    const j = await new Promise((resolve, reject) => {
+      https.get('https://api-v3.amtraker.com/v3/trains', r => {
+        let b = ''; r.setEncoding('utf8');
+        r.on('data', d => { b += d; });
+        r.on('end', () => { try { resolve(JSON.parse(b)); } catch (e) { reject(e); } });
+      }).on('error', reject);
+    });
+    let train = null;
+    for (const k of Object.keys(j)) for (const t of j[k]) {
+      if (String(t.trainNum) === wanted && t.trainState === 'Active') { train = t; break; }
+    }
+    if (!train) return res.status(404).json({ success: false, error: `train ${wanted} not active` });
+    const out = await require('./services/rail-crossing-projection')
+      .crossingsAhead(train, { lookaheadMi: Math.min(+req.query.miles || 15, 50) });
+    res.set('Cache-Control', 'public, max-age=60');
+    res.json({ success: true, ...out });
+  } catch (e) {
+    res.status(502).json({ success: false, error: e.message });
+  }
+});
+
+// Crossings that are chronically blocked, from FRA's incident reports. ?state=IA
+app.get('/api/rail/hotspots', async (req, res) => {
+  try {
+    const state = String(req.query.state || 'IA').toUpperCase().slice(0, 2);
+    const out = await require('./services/crossing-hotspots')
+      .hotspots(state, { limit: Math.min(+req.query.limit || 25, 200) });
+    res.set('Cache-Control', 'public, max-age=3600');   // history: an hour is plenty
+    res.json({ success: true, ...out });
+  } catch (e) {
+    res.status(502).json({ success: false, error: e.message });
+  }
+});
+
 app.get('/api/health', (req, res) => {
   console.log('✅ /api/health endpoint hit!');
 
