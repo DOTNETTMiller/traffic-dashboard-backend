@@ -2911,6 +2911,16 @@ initDone
     startOnce(null);
     initVendorData().catch(err =>
       console.error('⚠️  Vendor seeding failed (server is already serving):', err.message));
+    // Seed truck parking facilities from Iowa DOT open data. Nothing ever populated
+    // truck_parking_facilities -- it is only written by the POST endpoint -- so it was
+    // empty, and until the `address` column drift was fixed every write to it failed.
+    // One ArcGIS query, ~33 rows, upsert-on-conflict, after we are already serving.
+    require('./services/iowa-rest-areas').seedIowaRestAreas(db)
+      .then(r => {
+        if (r.error) console.error('⚠️  Iowa rest-area seeding failed:', r.error);
+        else console.log(`🅿️  Iowa rest areas seeded: ${r.written}/${r.fetched} facilities, ${r.withTruckSpaces} with truck parking`);
+      })
+      .catch(err => console.error('⚠️  Iowa rest-area seeding failed:', err.message));
   })
   .catch(err => {
     clearTimeout(initCap);
