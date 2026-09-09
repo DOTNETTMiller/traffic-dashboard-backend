@@ -41,8 +41,17 @@ const LAYERS = {
   // Geotagged imagery from the trucks themselves.
   camsIA: `${AGOL}/AVL_Images_Past_1HR_View/FeatureServer/0/query`,
   camsMN: `${AGOL}/AVL_Plow_Cam_Images_Minnesota_View/FeatureServer/0/query`,
-  camsNE: `${AGOL}/AVL_Plow_Cam_Images_Nebraska_View/FeatureServer/0/query`
+  camsNE: `${AGOL}/AVL_Plow_Cam_Images_Nebraska_View/FeatureServer/0/query`,
+  // Utah publishes its whole plow fleet openly, no key. Positions, speed and a movement
+  // status, but no blade state or material -- so those stay null rather than false, because
+  // "not reported" and "not treating" are different facts.
+  avlUT: 'https://services.arcgis.com/pA2nEVnB6tquxgOW/arcgis/rest/services/SnowPlow_AVL_Public/FeatureServer/0/query'
 };
+
+// PennDOT publishes winter road conditions as one layer per severity class, no key. Empty
+// outside winter, which is the correct answer rather than a missing one.
+const PA_WINTER = 'https://gis.penndot.gov/arcgis/rest/services/winterconditions/winterconditions/MapServer';
+const PA_LAYERS = [[0, 'impassable'], [1, 'icy'], [2, 'snow packed'], [3, 'snow/slush'], [4, 'wet/freezing']];
 
 const TTL = { avl: 5 * 60 * 1000, conditions: 15 * 60 * 1000, cams: 5 * 60 * 1000 };
 const cache = new Map();
@@ -131,7 +140,58 @@ async function fetchPlowAVL(opts = {}) {
         });
       }
     } catch (_) { /* local feed optional */ }
+    try {
+      const j = await httpsGetJSON(q(LAYERS.avlUT, {
+        where: '1=1', outFields: 'vehicleid,servicetype,speedmph,heading,location_timestamp',
+        returnGeometry: 'true', outSR: '4326', resultRecordCount: '2000', f: 'json'
+      }));
+      for (const f of (j.features || [])) {
+        const a = f.attributes || {}, g = f.geometry || {};
+        const lon = num(g.x), lat = num(g.y);
+        if (lat === null || lon === null) continue;
+        out.push({
+          id: a.vehicleid || a.objectid, source: 'UT', kind: 'avl',
+          lat, lon, heading: num(a.heading), speedMph: num(a.speedmph),
+          // Utah reports movement state, not treatment state. Saying "not treating" here
+          // would be inventing a fact the feed does not carry.
+          status: a.servicetype || null,
+          plowDown: null, treating: null, material: null,
+          roadTempF: null, airTempF: null,
+          observedAt: iso(a.location_timestamp)
+        });
+      }
+    } catch (_) { /* Utah feed optional */ }
     return out;
+  });
+}
+
+/** PennDOT winter road conditions, one layer per severity class. */
+async function fetchPAConditions(opts = {}) {
+  return cached('pa-cond', TTL.conditions, async () => {
+    const rows = [];
+    await Promise.all(PA_LAYERS.map(async ([id, label]) => {
+      try {
+        const j = await httpsGetJSON(q(`${PA_WINTER}/${id}/query`, {
+          where: '1=1', outFields: 'ST_RT_NO,COUNTY_NAME,ROAD_SECTION_ID',
+          returnGeometry: opts.geometry === false ? 'false' : 'true',
+          outSR: '4326', resultRecordCount: '2000', f: 'json'
+        }));
+        for (const f of (j.features || [])) {
+          const a = f.attributes || {};
+          rows.push({
+            route: a.ST_RT_NO ? `SR ${a.ST_RT_NO}` : null,
+            segment: a.ROAD_SECTION_ID || null,
+            state: 'Pennsylvania DOT',
+            headline: label,
+            description: a.COUNTY_NAME ? `${a.COUNTY_NAME} County` : null,
+            condition: label, status: 'ACTIVE-CURRENT', current: true,
+            updatedAt: null, lat: null, lon: null, link: null,
+            geometry: f.geometry ? { type: 'LineString', coordinates: (f.geometry.paths || [])[0] || [] } : null
+          });
+        }
+      } catch (_) { /* one class failing must not lose the others */ }
+    }));
+    return rows;
   });
 }
 
@@ -190,6 +250,11 @@ async function fetchConditions(opts = {}) {
         link: a.SOURCE_LINK || null,
         geometry: f.geometry ? { type: 'LineString', coordinates: (f.geometry.paths || [])[0] || [] } : null
       });
+    }
+    // PennDOT is a separate publisher on its own server, merged here so callers see one
+    // multi-state condition set rather than having to know the plumbing.
+    if (!opts.source || /pennsylvania/i.test(opts.source)) {
+      try { rows.push(...await fetchPAConditions(opts)); } catch (_) { /* optional */ }
     }
     return rows;
   });
@@ -536,7 +601,7 @@ function visionCandidates(events, cams, opts = {}) {
 }
 
 module.exports = {
-  fetchPlowAVL, fetchConditions, fetchPlowCams,
+  fetchPlowAVL, fetchConditions, fetchPAConditions, fetchPlowCams,
   treatmentNear, camCandidates, corroborate, visionCandidates, activeAt, buildIndex, near,
   LAYERS
 };
