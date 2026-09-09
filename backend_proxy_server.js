@@ -7484,12 +7484,26 @@ app.get('/api/winter/zone-cams', async (req, res) => {
     const cvv = require('./services/camera-validation');
     const events = ((eventsCache.data && eventsCache.data.events) || []).filter(e => cvv.isActiveNow(e) === true);
     const cams = await w.fetchPlowCams({ states: req.query.states || null });
-    const out = w.camCandidates(events, cams, {
-      radiusM: Math.min(+req.query.radiusM || 400, 2000),
-      maxAgeMin: Math.min(+req.query.maxAgeMin || 60, 1440)
-    });
+    // ?vision=1 applies the STRICT gate used before spending a vision call: tight radius
+    // AND the zone must be ahead of a forward-facing lens. Without it, this is the looser
+    // "a truck was near this zone" view.
+    const strict = req.query.vision === '1';
+    const out = strict
+      ? w.visionCandidates(events, cams, {
+        maxM: Math.min(+req.query.maxM || 150, 300),
+        coneDeg: Math.min(+req.query.coneDeg || 50, 90),
+        maxAgeMin: Math.min(+req.query.maxAgeMin || 360, 1440)
+      })
+      : w.camCandidates(events, cams, {
+        radiusM: Math.min(+req.query.radiusM || 400, 2000),
+        maxAgeMin: Math.min(+req.query.maxAgeMin || 360, 1440)
+      });
     res.set('Cache-Control', 'public, max-age=300');
-    res.json({ success: true, activeZones: events.length, frames: cams.length, matched: out.length, candidates: out.slice(0, Math.min(+req.query.limit || 100, 500)) });
+    res.json({
+      success: true, gate: strict ? 'vision-ready (close + facing the zone)' : 'proximity only',
+      activeZones: events.length, frames: cams.length, matched: out.length,
+      candidates: out.slice(0, Math.min(+req.query.limit || 100, 500))
+    });
   } catch (e) { res.status(502).json({ success: false, error: e.message }); }
 });
 

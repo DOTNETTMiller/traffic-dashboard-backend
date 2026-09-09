@@ -118,6 +118,18 @@ function buildFeed(events, opts = {}) {
       props.x_camera_url = ev.x_camera_url || null;   // live snapshot of the zone
       props.x_camera_id = ev.x_camera_id || null;
     }
+    // A photograph taken by a passing maintenance truck. Carried as EVIDENCE, never as a
+    // validating source -- it is not counted in x_verification and does not make a zone
+    // "validated". A truck driving past proves an image of that place exists; only something
+    // that looks at the image can say what is in it.
+    if (ev.x_fleet_camera_url) {
+      props.x_fleet_camera_url = ev.x_fleet_camera_url;
+      props.x_fleet_camera_at = ev.x_fleet_camera_at || null;
+      props.x_fleet_camera_distance_m = ev.x_fleet_camera_distance_m ?? null;
+      props.x_fleet_camera_route = ev.x_fleet_camera_route || null;
+      props.x_fleet_camera_milepost = ev.x_fleet_camera_milepost ?? null;
+      props.x_fleet_truck = ev.x_fleet_truck || null;
+    }
     if (ev.x_tomtom_corroborated) {
       props.x_tomtom_corroborated = true;
       props.x_tomtom_category = ev.x_tomtom_category || null;   // Road works / Lane closed / Road closed

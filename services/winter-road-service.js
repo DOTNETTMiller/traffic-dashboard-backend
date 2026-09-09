@@ -409,8 +409,96 @@ function corroborate(events, cams, opts = {}) {
   return n;
 }
 
+/**
+ * The gate that must be passed before an image is worth sending to a vision model.
+ *
+ * Vision costs money per image, and the fleet produces a thousand frames an hour, so the
+ * question is not "is there a photo near this zone" but "could this photo actually SHOW the
+ * zone". Two conditions, and proximity alone is not enough:
+ *
+ *   1. CLOSE. Default 150 m, hard-capped at 300 m. The earlier 400 m used for attaching a
+ *      photo to an event is fine for "a truck was here"; it is too loose to spend a vision
+ *      call on, because at 400 m a work zone is a few pixels.
+ *
+ *   2. AHEAD OF THE CAMERA. These are forward-facing dashcams, so a frame taken 100 m PAST
+ *      the zone does not contain it, however close it is. The frame's own heading is
+ *      compared against the bearing to the zone, and anything outside the lens's forward
+ *      cone is rejected. This is the condition proximity-only filtering misses, and it is
+ *      what stops us paying to look at pictures of empty road behind the work.
+ *
+ * Frames with no heading are kept only when very close, where the zone is likely in shot
+ * whichever way the truck was pointing.
+ *
+ * Returns candidates ranked best-first with the reasoning attached, and NEVER calls vision
+ * itself -- the caller decides how many to spend.
+ */
+function visionCandidates(events, cams, opts = {}) {
+  const maxM = Math.min(opts.maxM || 150, 300);
+  const coneDeg = opts.coneDeg || 50;          // forward field of view, half-angle
+  // Inside this range the bearing test is switched off deliberately. A work zone is hundreds
+  // of metres long but is reported as a single point, so at 45 m the truck is effectively IN
+  // the zone and the bearing to that one point is dominated by noise -- it will happily
+  // reject a frame that plainly shows the work. Close enough is close enough.
+  const closeEnoughM = opts.closeEnoughM || 75;
+  const noHeadingMaxM = opts.noHeadingMaxM || 75;
+  const maxAgeMin = opts.maxAgeMin || 360;
+  const now = Date.now();
+
+  const fresh = (cams || []).filter(c => {
+    if (!c.takenAt || !Number.isFinite(c.lat) || !Number.isFinite(c.lon) || !c.imageUrl) return false;
+    const t = Date.parse(c.takenAt);
+    return Number.isFinite(t) && (now - t) <= maxAgeMin * 60000;
+  });
+  if (!fresh.length) return [];
+
+  const idx = buildIndex(fresh, maxM);
+  const out = [];
+  for (const ev of (events || [])) {
+    const p = ev.coordinates || (ev.longitude != null ? [ev.longitude, ev.latitude] : null);
+    if (!Array.isArray(p) || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) continue;
+    const [lon, lat] = p;
+
+    for (const h of near(idx, lat, lon, maxM)) {
+      const c = h.point;
+      const hdg = Number.isFinite(c.heading) ? c.heading : null;
+      let bearingOff = null;
+      if (h.distanceM <= closeEnoughM) {
+        // Practically on top of it: accept without a bearing test.
+      } else if (hdg === null) {
+        // No heading and not close: cannot tell whether the zone was in shot.
+        if (h.distanceM > noHeadingMaxM) continue;
+      } else {
+        const y = Math.sin(rad(lon - c.lon)) * Math.cos(rad(lat));
+        const x = Math.cos(rad(c.lat)) * Math.sin(rad(lat)) -
+          Math.sin(rad(c.lat)) * Math.cos(rad(lat)) * Math.cos(rad(lon - c.lon));
+        const toZone = ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+        const d = Math.abs(hdg - toZone) % 360;
+        bearingOff = d > 180 ? 360 - d : d;
+        if (bearingOff > coneDeg) continue;    // the zone was behind or beside the lens
+      }
+      out.push({
+        eventId: ev.id || ev.road_event_id,
+        corridor: ev.corridor || null,
+        imageUrl: c.imageUrl,
+        distanceM: h.distanceM,
+        bearingOffDeg: bearingOff === null ? null : Math.round(bearingOff),
+        headingKnown: hdg !== null,
+        route: c.route, milepost: c.milepost, state: c.state, truck: c.truck,
+        takenAt: c.takenAt,
+        ageMinutes: Math.round((now - Date.parse(c.takenAt)) / 60000),
+        // Closest and most head-on first, so a capped run spends its budget on the frames
+        // most likely to show something.
+        score: h.distanceM + (bearingOff || 0) * 2
+      });
+      break;                                   // one best frame per event
+    }
+  }
+  out.sort((a, b) => a.score - b.score);
+  return out;
+}
+
 module.exports = {
   fetchPlowAVL, fetchConditions, fetchPlowCams,
-  treatmentNear, camCandidates, corroborate, buildIndex, near,
+  treatmentNear, camCandidates, corroborate, visionCandidates, buildIndex, near,
   LAYERS
 };
