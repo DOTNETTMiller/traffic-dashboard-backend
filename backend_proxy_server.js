@@ -5750,9 +5750,25 @@ app.get('/api/events', async (req, res) => {
     });
   }
 
-  // Cache is empty or too stale, fetch synchronously
-  console.log('⚠️  Cache empty or too stale, fetching synchronously...');
-  const data = await fetchAndCacheEvents();
+  // Stale data beats a hung request. A full rebuild walks every state's feed and takes
+  // long enough that the caller times out (measured: 90s and no bytes, against 1.0s once
+  // warm) -- and because the rebuild is heavy synchronous work, blocking here also stalls
+  // every OTHER request behind it. So if we hold ANY previous data, serve it and refresh
+  // behind the response. Only a completely cold cache waits, which is the one case where
+  // there is nothing else to send.
+  //
+  // This costs nothing extra: it is the same single refresh, just not on the request path,
+  // and the isRefreshing guard stops a queue of callers each kicking off their own rebuild.
+  if (eventsCache.data && eventsCache.data.events) {
+    console.log('⚠️  Cache stale (age ' + Math.round(cacheAge / 1000) + 's) — serving stale, refreshing in the background');
+    if (!eventsCache.isRefreshing) {
+      fetchAndCacheEvents().catch(err => console.error('Background refresh error:', err.message));
+    }
+    res.set('X-Cache', 'stale');
+  }
+  const data = (eventsCache.data && eventsCache.data.events)
+    ? eventsCache.data
+    : await fetchAndCacheEvents();
 
   // Filter by state if requested
   const stateFilter = req.query.state;
