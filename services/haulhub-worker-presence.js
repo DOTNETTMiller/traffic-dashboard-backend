@@ -169,21 +169,49 @@ async function fetchPresence(opts = {}) {
   }
 }
 
-/** Metres from a point to the nearest vertex/segment of a presence LineString. */
-function distToRow(evPt, row) {
-  if (row.coords.length === 1) {
-    return turf.distance(turf.point(evPt), turf.point(row.coords[0]), { units: 'meters' });
+/**
+ * Metres from a point to a presence geometry.
+ *
+ * Deliberately allocation-free. The turf version of this (turf.pointToLineDistance on a
+ * freshly built turf.lineString, per pair) was called once per event per row -- about 2
+ * million times on a full national event set -- and each call rebuilt GeoJSON objects and
+ * walked the whole line. Measured at production scale that was 497 SECONDS of synchronous
+ * CPU, which is not slowness: it is the entire process wedged, because Node runs this on
+ * the same thread as every request, timer and log write. The service went unresponsive with
+ * no logs and no crash, and since the restart policy is ON_FAILURE, nothing brought it back.
+ *
+ * Equirectangular metres are exact enough here -- the comparison radius is 500 m.
+ */
+function distToRowFast(lon, lat, row) {
+  const kx = Math.cos(lat * Math.PI / 180) * 111320, ky = 110540;
+  const c = row.coords;
+  if (c.length === 1) return Math.hypot((c[0][0] - lon) * kx, (c[0][1] - lat) * ky);
+  let best = Infinity;
+  for (let i = 0; i < c.length - 1; i++) {
+    const ax = (c[i][0] - lon) * kx, ay = (c[i][1] - lat) * ky;
+    const bx = (c[i + 1][0] - lon) * kx, by = (c[i + 1][1] - lat) * ky;
+    const vx = bx - ax, vy = by - ay;
+    const L2 = vx * vx + vy * vy;
+    let t = L2 ? -(ax * vx + ay * vy) / L2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const d = Math.hypot(ax + t * vx, ay + t * vy);
+    if (d < best) { best = d; if (best === 0) return 0; }
   }
-  try {
-    return turf.pointToLineDistance(turf.point(evPt), turf.lineString(row.coords), { units: 'meters' });
-  } catch (_) {
-    let best = Infinity;
-    for (const c of row.coords) {
-      const d = turf.distance(turf.point(evPt), turf.point(c), { units: 'meters' });
-      if (d < best) best = d;
-    }
-    return best;
+  return best;
+}
+
+/** Bounding box of a row's coordinates, cached on the row. */
+function rowBBox(row) {
+  if (row._bbox) return row._bbox;
+  let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
+  for (const c of row.coords) {
+    if (c[0] < minLon) minLon = c[0];
+    if (c[0] > maxLon) maxLon = c[0];
+    if (c[1] < minLat) minLat = c[1];
+    if (c[1] > maxLat) maxLat = c[1];
   }
+  row._bbox = { minLon, minLat, maxLon, maxLat };
+  return row._bbox;
 }
 
 /**
@@ -193,6 +221,10 @@ function distToRow(evPt, row) {
  * maxM defaults to 500 rather than TomTom's 1500: these are equipment/crew positions with
  * verified start positions, not a traffic-model incident dropped on the nearest link, so a
  * loose radius would hand out credit for work happening on the next road over.
+ *
+ * Candidate rows come from a grid index rather than a full scan. Only rows whose bounding
+ * box is already within maxM of the event are measured precisely, which is behaviour-
+ * preserving: a row further than maxM could never have been stamped anyway.
  *
  * @returns {number} count corroborated
  */
@@ -210,20 +242,49 @@ function corroborate(events, presence, opts = {}) {
   });
   if (!fresh.length) return 0;
 
+  // Grid index. Cell is ~maxM across, so an event only ever has to look at its own cell and
+  // the eight around it. A row spanning a lot of cells (a long corridor geometry) goes in a
+  // catch-all list instead of being written into thousands of buckets.
+  const CELL_DEG = Math.max(maxM / 111320, 0.001);
+  const MAX_CELLS_PER_ROW = 400;
+  const grid = new Map();
+  const sprawling = [];
+  const key = (cx, cy) => cx + ':' + cy;
+  for (const r of fresh) {
+    const b = rowBBox(r);
+    const pad = CELL_DEG;
+    const x0 = Math.floor((b.minLon - pad) / CELL_DEG), x1 = Math.floor((b.maxLon + pad) / CELL_DEG);
+    const y0 = Math.floor((b.minLat - pad) / CELL_DEG), y1 = Math.floor((b.maxLat + pad) / CELL_DEG);
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > MAX_CELLS_PER_ROW) { sprawling.push(r); continue; }
+    for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
+      const k = key(x, y);
+      let bucket = grid.get(k);
+      if (!bucket) grid.set(k, bucket = []);
+      bucket.push(r);
+    }
+  }
+
   let n = 0;
   for (const ev of (events || [])) {
     if (isActiveNow(ev) !== true) continue;   // only zones WZDx currently claims are active
     const evPt = ev.coordinates || (ev.longitude != null ? [ev.longitude, ev.latitude] : null);
     if (!Array.isArray(evPt) || !Number.isFinite(evPt[0]) || !Number.isFinite(evPt[1])) continue;
+    const [lon, lat] = evPt;
+
+    const cand = grid.get(key(Math.floor(lon / CELL_DEG), Math.floor(lat / CELL_DEG)));
+    if (!cand && !sprawling.length) continue;
 
     const evRoute = interstate(ev.road || ev.corridor || ev.route || ev.location);
     let best = null, bestD = Infinity;
-    for (const r of fresh) {
+    const consider = (r) => {
       const rRoute = interstate((r.roadNames || []).join(' '));
-      if (evRoute && rRoute && rRoute !== evRoute) continue;   // different interstate: not this zone
-      const d = distToRow(evPt, r);
+      if (evRoute && rRoute && rRoute !== evRoute) return;     // different interstate: not this zone
+      const d = distToRowFast(lon, lat, r);
       if (d < bestD) { bestD = d; best = r; }
-    }
+    };
+    if (cand) for (const r of cand) consider(r);
+    for (const r of sprawling) consider(r);
+
     if (best && bestD <= maxM) {
       ev.x_workers_present = true;
       ev.x_worker_presence_source = 'haulhub';
