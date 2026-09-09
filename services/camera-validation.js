@@ -106,7 +106,7 @@ function parseJsonBlock(txt) {
 }
 
 // --- provider: Anthropic (Claude vision) ---
-function callAnthropic(base64, apiKey, timeoutMs = 20000) {
+function callAnthropic(base64, apiKey, timeoutMs = 20000, prompt = DETECT_PROMPT) {
   const body = JSON.stringify({
     model: VISION_MODEL,
     max_tokens: 200,
@@ -114,7 +114,7 @@ function callAnthropic(base64, apiKey, timeoutMs = 20000) {
       role: 'user',
       content: [
         { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
-        { type: 'text', text: DETECT_PROMPT }
+        { type: 'text', text: prompt }
       ]
     }]
   });
@@ -152,14 +152,14 @@ function openaiClientFrom(apiKey) {
   if (!_lazyOpenAI) { const { OpenAI } = require('openai'); _lazyOpenAI = new OpenAI({ apiKey }); }
   return _lazyOpenAI;
 }
-async function callOpenAI(base64, client) {
+async function callOpenAI(base64, client, prompt = DETECT_PROMPT) {
   const r = await client.chat.completions.create({
     model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
     max_tokens: 200,
     messages: [{
       role: 'user',
       content: [
-        { type: 'text', text: DETECT_PROMPT },
+        { type: 'text', text: prompt },
         { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${base64}`, detail: 'low' } }
       ]
     }]
@@ -257,4 +257,30 @@ async function detect(camera, opts = {}) {
   }
 }
 
-module.exports = { matchCamera, detect, interstate, isActiveNow, VISION_MODEL, VISION_PROVIDER };
+/**
+ * Ask the configured vision provider an arbitrary question about a camera still.
+ *
+ * detect() above is specifically about work-zone devices. Grade-crossing detection needs a
+ * different question of the same image pipeline, so the fetch + provider dispatch + JSON
+ * parsing is exposed here rather than copied. Returns the raw parsed object; the caller
+ * decides what the fields mean.
+ */
+async function askVision(imageUrl, prompt, opts = {}) {
+  const provider = resolveProvider(opts);
+  if (provider === 'none') return { available: false, reason: 'vision disabled (no provider key configured)' };
+  if (!imageUrl) return { available: false, reason: 'no snapshot url' };
+  const openaiKey = opts.openaiKey || process.env.OPENAI_API_KEY;
+  const oaClient = opts.openaiClient || openaiClientFrom(openaiKey);
+  const apiKey = opts.apiKey || process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+  try {
+    const buf = await fetchBuffer(imageUrl);
+    const out = provider === 'openai'
+      ? await callOpenAI(buf.toString('base64'), oaClient, prompt)
+      : await callAnthropic(buf.toString('base64'), apiKey, opts.timeoutMs, prompt);
+    return { available: true, provider, ...out };
+  } catch (e) {
+    return { available: false, reason: e.message };
+  }
+}
+
+module.exports = { matchCamera, detect, askVision, interstate, isActiveNow, VISION_MODEL, VISION_PROVIDER };
