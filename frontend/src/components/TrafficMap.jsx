@@ -59,6 +59,7 @@ import AerialOverlaysLayer from './AerialOverlaysLayer';
 import WeatherAlertsLayer from './WeatherAlertsLayer';
 import BorderWaitTimesLayer from './BorderWaitTimesLayer';
 import RailCrossingLayer from './RailCrossingLayer';
+import WinterRoadLayer from './WinterRoadLayer';
 import MaastoParkingLayer from './MaastoParkingLayer';
 import HistoricalCrashesLayer from './HistoricalCrashesLayer';
 import MajorEventsLayer from './MajorEventsLayer';
@@ -451,6 +452,7 @@ export default function TrafficMap({
   showBorderWaitTimes = false,
   showRailCrossings = false,
   showRailTrains = false,
+  showWinterRoads = false,
   railCrossingState = 'IA',
   showMaastoParking = false,
   showHistoricalCrashes = false,
@@ -1340,6 +1342,8 @@ export default function TrafficMap({
         {/* Rail grade crossings — chronic blockage from FRA reports, plus live Amtrak
             positions on request. Hotspots are historical and always safe to show; trains
             are passenger-only, so an empty map is not evidence the tracks are clear. */}
+        <WinterRoadLayer visible={showWinterRoads} />
+
         <RailCrossingLayer
           visible={showRailCrossings}
           state={railCrossingState}

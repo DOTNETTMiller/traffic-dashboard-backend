@@ -353,8 +353,59 @@ function camCandidates(events, cams, opts = {}) {
   return out;
 }
 
+/**
+ * Attach the nearest recent fleet photo to each event it plausibly shows.
+ *
+ * NOT counted as a validating source, on purpose. A maintenance truck driving past proves
+ * that a photograph of that place exists; it does not prove the work zone is active. That
+ * is the difference between evidence and verification, and this project has been careful
+ * about it everywhere else. The frame is stamped as available evidence -- something a person
+ * (or, on request, the existing vision pipeline) can look at -- and x_camera_verified stays
+ * untouched unless something actually looks at the image.
+ *
+ * The photo URL is worth keeping once stamped: it is a dated path in Iowa DOT's cloud
+ * storage, so it stays fetchable long after the frame drops out of the one-hour feed. That
+ * makes it a durable photographic record of the zone at a known time, which is more than
+ * the live fixed-camera URLs give (those always show "now").
+ *
+ * @returns {number} events stamped
+ */
+function corroborate(events, cams, opts = {}) {
+  const radiusM = opts.radiusM || 400;
+  const maxAgeMin = opts.maxAgeMin || 120;
+  const now = Date.now();
+  const fresh = (cams || []).filter(c => {
+    if (!c.takenAt || !Number.isFinite(c.lat) || !Number.isFinite(c.lon)) return false;
+    const t = Date.parse(c.takenAt);
+    return Number.isFinite(t) && (now - t) <= maxAgeMin * 60000;
+  });
+  if (!fresh.length) return 0;
+
+  const idx = buildIndex(fresh, radiusM);
+  let n = 0;
+  for (const ev of (events || [])) {
+    const p = ev.coordinates || (ev.longitude != null ? [ev.longitude, ev.latitude] : null);
+    if (!Array.isArray(p) || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) continue;
+    const hits = near(idx, p[1], p[0], radiusM);
+    if (!hits.length) continue;
+    const h = hits[0];
+    // Keep the closest frame, and do not replace a closer one already stamped this pass.
+    if (ev.x_fleet_camera_distance_m != null && ev.x_fleet_camera_distance_m <= h.distanceM) continue;
+    ev.x_fleet_camera_url = h.point.imageUrl;
+    ev.x_fleet_camera_at = h.point.takenAt;
+    ev.x_fleet_camera_distance_m = h.distanceM;
+    ev.x_fleet_camera_route = h.point.route || null;
+    ev.x_fleet_camera_milepost = h.point.milepost ?? null;
+    ev.x_fleet_camera_state = h.point.state || null;
+    ev.x_fleet_truck = h.point.truck || null;
+    ev.x_fleet_frames_nearby = hits.length;
+    n++;
+  }
+  return n;
+}
+
 module.exports = {
   fetchPlowAVL, fetchConditions, fetchPlowCams,
-  treatmentNear, camCandidates, buildIndex, near,
+  treatmentNear, camCandidates, corroborate, buildIndex, near,
   LAYERS
 };

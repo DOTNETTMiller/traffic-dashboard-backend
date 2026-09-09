@@ -116,6 +116,7 @@ function App() {
   const [showBorderWaitTimes, setShowBorderWaitTimes] = useState(false);
   const [showRailCrossings, setShowRailCrossings] = useState(false);
   const [showRailTrains, setShowRailTrains] = useState(false);
+  const [showWinterRoads, setShowWinterRoads] = useState(false);
   const [showMaastoParking, setShowMaastoParking] = useState(false);
   const [showHistoricalCrashes, setShowHistoricalCrashes] = useState(false);
   const [availableRoutes, setAvailableRoutes] = useState([]);
@@ -844,6 +845,7 @@ function App() {
           showBorderWaitTimes,
           showRailCrossings,
           showRailTrains,
+          showWinterRoads,
           showMaastoParking,
           showHistoricalCrashes,
           interstateOnly
@@ -882,6 +884,7 @@ function App() {
           'toggle-aerial-overlays':    () => { setView('map'); setShowAerialOverlays(p => !p); },
           'toggle-weather-alerts':     () => { setView('map'); setShowWeatherAlerts(p => !p); },
           'toggle-border-wait-times':  () => { setView('map'); setShowBorderWaitTimes(p => !p); },
+          'toggle-winter-roads':       () => { setView('map'); setShowWinterRoads(p => !p); },
           'toggle-rail-crossings':     () => { setView('map'); setShowRailCrossings(p => !p); },
           // Turning trains on implies the layer itself, otherwise the toggle looks broken.
           'toggle-rail-trains':        () => { setView('map'); setShowRailTrains(p => { const nx = !p; if (nx) setShowRailCrossings(true); return nx; }); },
@@ -1237,6 +1240,7 @@ function App() {
                   showBorderWaitTimes={showBorderWaitTimes}
                   showRailCrossings={showRailCrossings}
                   showRailTrains={showRailTrains}
+                  showWinterRoads={showWinterRoads}
                   showMaastoParking={showMaastoParking}
                   showHistoricalCrashes={showHistoricalCrashes}
                   interstateOnly={interstateOnly}

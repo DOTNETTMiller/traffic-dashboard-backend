@@ -6585,6 +6585,15 @@ app.get('/api/cwz/events', async (req, res) => {
       const presence = await withDeadline(hh.fetchAllPresence(), 12000, 'haulhub presence') || [];
       if (presence.length) hh.corroborate(events, presence);
     } catch (_) { /* worker-presence corroboration optional */ }
+    // The maintenance fleet photographs the network as it drives it, so a work zone can have
+    // a recent picture even where no fixed camera exists. Attached as EVIDENCE, not as a
+    // validating source -- a truck passing proves a photo exists, not that the zone is
+    // active. Cheap (grid-indexed, ~12 ms over 6,288 events) and deadlined like the rest.
+    try {
+      const wrs = require('./services/winter-road-service');
+      const cams = await withDeadline(wrs.fetchPlowCams(), 8000, 'fleet cams') || [];
+      if (cams.length) wrs.corroborate(eventsCache.data?.events || [], cams, { radiusM: 400, maxAgeMin: 120 });
+    } catch (_) { /* fleet imagery optional */ }
     // Sticky, positive-only accumulation for TomTom / DMS / device: once a zone is corroborated
     // by any of these it STAYS corroborated across refreshes and (for TomTom) the credit
     // cooldown — the validation accumulates and is never demoted. Cameras are excluded on
