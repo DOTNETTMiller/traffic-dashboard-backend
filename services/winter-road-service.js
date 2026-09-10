@@ -206,7 +206,10 @@ async function fetchPAConditions(opts = {}) {
  * Optionally filtered to a state or a bounding box.
  */
 async function fetchConditions(opts = {}) {
-  const key = `cond:${opts.source || 'all'}:${opts.bbox ? opts.bbox.join(',') : 'all'}:${opts.activeOnly !== false}`;
+  // The geometry flag MUST be in the key. It was not, so the first caller decided the shape
+  // for everyone: ask for geometry once and a later geometry=0 request got the full 41 MB
+  // payload back from cache.
+  const key = `cond:${opts.source || 'all'}:${opts.bbox ? opts.bbox.join(',') : 'all'}:${opts.activeOnly !== false}:${opts.geometry === false ? 'nogeom' : 'geom'}:${opts.simplify || 0}`;
   return cached(key, TTL.conditions, async () => {
     const params = {
       where: opts.source ? `SOURCE='${String(opts.source).replace(/'/g, "''")}'` : '1=1',
@@ -214,6 +217,10 @@ async function fetchConditions(opts = {}) {
       returnGeometry: opts.geometry === false ? 'false' : 'true',
       outSR: '4326', f: 'json'
     };
+    // Vertex-thinning at the source. These are condition reports drawn as lines on a map,
+    // not survey geometry, so full density is wasted bytes — and bytes are the cost driver
+    // on this service. ~100 m tolerance is invisible at the zooms this layer is read at.
+    if (opts.geometry !== false) params.maxAllowableOffset = String(opts.simplify || 0.001);
     if (opts.bbox) {
       params.geometry = opts.bbox.join(',');
       params.geometryType = 'esriGeometryEnvelope';

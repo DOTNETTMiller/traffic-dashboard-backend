@@ -76,14 +76,10 @@ export default function WinterRoadLayer({ visible = false, showPhotos = true, ma
   const [zoomedEnough, setZoomedEnough] = useState(false);
   const lastKey = useRef(null);
 
-  // Conditions and plows are statewide and small; fetch once when the layer opens, never
-  // poll. Photos follow the viewport because there are far more of them.
+  // Plows are a small statewide set — fetch once when the layer opens, never poll.
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
-    api.client.get('/api/winter/conditions?geometry=1')
-      .then(r => { if (!cancelled) setConditions(r.data?.conditions || []); })
-      .catch(() => {});
     api.client.get('/api/winter/plows')
       .then(r => { if (!cancelled) setPlows(r.data?.plows || []); })
       .catch(() => {});
@@ -103,13 +99,29 @@ export default function WinterRoadLayer({ visible = false, showPhotos = true, ma
       .catch(() => {});
   }, [visible, showPhotos, maxAgeMin]);
 
+  // Conditions follow the VIEWPORT. Fetching all nine states at once returned a 41 MB
+  // response — on a service where egress, not compute, is the cost. Bounded to what is on
+  // screen and re-fetched only when the view actually moves to new ground.
+  const lastCondKey = useRef(null);
+  const onCondChange = useCallback((bounds, zoom) => {
+    if (!visible) return;
+    const sw = bounds.getSouthWest(), ne = bounds.getNorthEast();
+    const bbox = [sw.lng, sw.lat, ne.lng, ne.lat];
+    const key = bbox.map(v => v.toFixed(1)).join(',');
+    if (key === lastCondKey.current) return;
+    lastCondKey.current = key;
+    api.client.get(`/api/winter/conditions?geometry=1&bbox=${bbox.join(',')}`)
+      .then(r => setConditions(r.data?.conditions || []))
+      .catch(() => {});
+  }, [visible]);
+
   if (!visible) return null;
 
   const inView = zoomedEnough ? photos : [];
 
   return (
     <>
-      <MapWatcher onChange={onMapChange} />
+      <MapWatcher onChange={(b, z) => { onMapChange(b, z); onCondChange(b, z); }} />
 
       {conditions.map((c, i) => {
         const coords = c.geometry?.coordinates || [];
