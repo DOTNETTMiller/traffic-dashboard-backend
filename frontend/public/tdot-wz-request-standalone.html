@@ -2465,7 +2465,7 @@ async function genPDF(){const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'pt
     const allc=allWzSegments();
     if(allc.length>1){
       for(let i=0;i<allc.length;i++){
-        const one=await renderMapPNG(1000,700,'JPEG',0.72,i);
+        const one=await renderMapPNG(1000,700,'image/jpeg',0.72,i);
         if(!one) continue;
         const w=allc[i];
         doc.addPage(); doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(150,0,0);
