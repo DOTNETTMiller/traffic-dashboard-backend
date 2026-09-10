@@ -164,7 +164,23 @@ function rank(incidents, opts = {}) {
 }
 
 /** Convenience: fetch + rank for a state. */
+// FRA's blocked-crossing reports are a historical archive that changes slowly, but this was
+// re-fetching and re-ranking the whole set on EVERY call -- about 3 seconds and one external
+// request each time the layer is opened. Cached per state/options; the layer loads once and
+// never polls, so this makes a repeat open effectively free.
+const hotspotCache = new Map();
+const HOTSPOT_TTL_MS = 6 * 60 * 60 * 1000;
+
 async function hotspots(state, opts = {}) {
+  const ck = `${state}|${opts.limit || ''}|${opts.sinceDays || ''}`;
+  const hit = hotspotCache.get(ck);
+  if (hit && (Date.now() - hit.at) < HOTSPOT_TTL_MS) return hit.val;
+  const val = await hotspotsUncached(state, opts);
+  hotspotCache.set(ck, { at: Date.now(), val });
+  return val;
+}
+
+async function hotspotsUncached(state, opts = {}) {
   const { incidents, reportedTotal } = await fetchIncidents(state, opts);
   const ranked = rank(incidents, opts);
   return {
