@@ -2738,7 +2738,11 @@ function calcTaper(){ const box=el('taperBox'); box.style.display='block'; let S
   window.__taper={Lm,Ls,Lsh,A,B,C,S,road};
   box.innerHTML='<b>🚧 MUTCD TTC</b> — S='+S+' mph, 12-ft offset<br>Merging taper <b>'+Lm+' ft</b> · Shifting '+Ls+' ft · Shoulder '+Lsh+' ft<br>Advance-warning signs ('+road+'): <b>'+A+' / '+B+' / '+C+' ft</b><br><span style="font-size:11px;color:#64748b">MUTCD Tables 6C-1/6C-4 — verify vs your standard drawings.</span><br><button style="padding:5px 9px;margin-top:6px" onclick="addTaperNote()">Add to notes</button>'; }
 function addTaperNote(){ const t=window.__taper; if(!t)return; const note='TTC (MUTCD, '+t.S+' mph): merging taper '+t.Lm+' ft; advance-warning sign spacing '+t.A+'/'+t.B+'/'+t.C+' ft ('+t.road+').'; const cur=(v('addlNotes')||'').replace(/(^|\n)TTC \(MUTCD[^\n]*/g,'').trim(); el('addlNotes').value=[cur,note].filter(Boolean).join('\n'); saveState(); toast('Taper + signs added to notes'); }
-// ---- Work-zone end / expiration (from Start date + # weeks) ----
+// ---- Work-zone end / expiration (from the schedule segments) ----
+// The "# weeks" field this used to read was removed after the 9/3 TMC review — Castelline:
+// "sometimes they're just continuous for one day and they're not daily... you wouldn't want
+// to put number of weeks." Expiration now comes from the segment span, matching how OpenTMS
+// holds it: a definitive start and end date, with times and days of the week inside that.
 function wzEndDate(){ const b=(typeof segSpan==='function')?segSpan():null; if(b) return new Date(b.end).toISOString();
   const dt=v('endDT'); return dt?new Date(dt).toISOString():null; }
 function wzEndLabel(){ const iso=wzEndDate(); return iso?new Date(iso).toDateString():''; }
@@ -2796,7 +2800,7 @@ function updateClearAlter(){ const box=el('clearAlterBox'); if(!box)return;
   else box.style.display='none'; }
 function checkReadiness(){ const miss=missingFields(); const b=el('readyBox');
   if(clearanceAltering() && !window.__nbiNear) miss.push('Bridge clearance — this work can alter clearance; scan NBI + update the posted value');
-  if(!wzEndDate()) miss.push('Scheduled end — set Start date + # weeks (sets the request’s expiration)');
+  if(!wzEndDate()) miss.push('Scheduled end — add a schedule segment with a start and end date (sets the request’s expiration)');
   updateClearAlter();
   const conflicts=(window.__iaConflicts||[]);
   const conflictHtml=conflicts.length?(`<br><b style="color:#b91c1c">⚠️ Overlaps ${conflicts.length} existing Iowa DOT closure(s):</b><br>`+conflicts.slice(0,4).map(c=>'• '+(c.street||'')+' — '+(c.laneimpact||'')+' ('+fmtRange(c.start,c.end)+')').join('<br>')+'<br><span style="font-size:11px">Confirm this isn’t a duplicate, or coordinate timing.</span>'):'';

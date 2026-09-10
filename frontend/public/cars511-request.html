@@ -1656,7 +1656,11 @@ function calcTaper(){ const box=el('taperBox'); box.style.display='block'; let S
   window.__taper={Lm,Ls,Lsh,A,B,C,S,road};
   box.innerHTML='<b>🚧 MUTCD TTC</b> — S='+S+' mph, 12-ft offset<br>Merging taper <b>'+Lm+' ft</b> · Shifting '+Ls+' ft · Shoulder '+Lsh+' ft<br>Advance-warning signs ('+road+'): <b>'+A+' / '+B+' / '+C+' ft</b><br><span style="font-size:11px;color:#64748b">MUTCD Tables 6C-1/6C-4 — verify vs your standard drawings.</span><br><button style="padding:5px 9px;margin-top:6px" onclick="addTaperNote()">Add to notes</button>'; }
 function addTaperNote(){ const t=window.__taper; if(!t)return; const note='TTC (MUTCD, '+t.S+' mph): merging taper '+t.Lm+' ft; advance-warning sign spacing '+t.A+'/'+t.B+'/'+t.C+' ft ('+t.road+').'; const cur=(v('addlNotes')||'').replace(/(^|\n)TTC \(MUTCD[^\n]*/g,'').trim(); el('addlNotes').value=[cur,note].filter(Boolean).join('\n'); saveState(); toast('Taper + signs added to notes'); }
-// ---- Work-zone end / expiration (from Start date + # weeks) ----
+// ---- Work-zone end / expiration (from the schedule segments) ----
+// The "# weeks" field this used to read was removed after the 9/3 TMC review — Castelline:
+// "sometimes they're just continuous for one day and they're not daily... you wouldn't want
+// to put number of weeks." Expiration now comes from the segment span, matching how OpenTMS
+// holds it: a definitive start and end date, with times and days of the week inside that.
 function wzEndDate(){ const b=(typeof segSpan==='function')?segSpan():null; if(b) return new Date(b.end).toISOString();
   const dt=v('endDT'); return dt?new Date(dt).toISOString():null; }
 function wzEndLabel(){ const iso=wzEndDate(); return iso?new Date(iso).toDateString():''; }
