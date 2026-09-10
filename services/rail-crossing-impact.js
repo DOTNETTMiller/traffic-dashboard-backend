@@ -135,7 +135,23 @@ function httpsGetJSON(url, timeoutMs = 40000) {
  * those, so including them would invent impacts at bridges. Around one Chicago sample, four
  * of five nearby records were separations.
  */
+// Crossing inventory is static — the same rounded area is asked for repeatedly as trains
+// move through it and as users click. Uncached, every click re-fetched from NTAD: measured
+// at ~6 s on a repeat call that should have been free.
+const CROSSINGS_TTL_MS = 12 * 60 * 60 * 1000;
+const crossingsCache = new Map();
+
 async function crossingsNear(lat, lon, radiusM) {
+  const ck = `${lat.toFixed(2)},${lon.toFixed(2)},${Math.round(radiusM / 1000)}`;
+  const hit = crossingsCache.get(ck);
+  if (hit && (Date.now() - hit.at) < CROSSINGS_TTL_MS) return hit.val;
+  const val = await crossingsNearUncached(lat, lon, radiusM);
+  crossingsCache.set(ck, { at: Date.now(), val });
+  if (crossingsCache.size > 200) crossingsCache.delete(crossingsCache.keys().next().value);
+  return val;
+}
+
+async function crossingsNearUncached(lat, lon, radiusM) {
   const dLat = (radiusM / R_EARTH_M) * 180 / Math.PI;
   const dLon = dLat / Math.max(Math.cos(rad(lat)), 1e-6);
   const bb = [lon - dLon, lat - dLat, lon + dLon, lat + dLat].join(',');
