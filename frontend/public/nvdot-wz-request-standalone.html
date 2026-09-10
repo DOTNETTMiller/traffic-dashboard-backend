@@ -1964,12 +1964,21 @@ function renderSegments(){
   const wrap=el('segTableWrap'), tbl=el('segTable'); if(!wrap||!tbl) return;
   if(!schedSegments.length){ wrap.style.display='none'; tbl.innerHTML=''; return; }
   wrap.style.display='block';
-  tbl.innerHTML='<thead><tr><th>Schedule segment</th><th>Dates</th><th>Time</th><th></th></tr></thead><tbody>'+
+  // Columns mirror the OpenTMS "Timing & Recurrences" grid the TMC keys these into:
+  // Schedule Segment | Start Date | End Date | Start Time | End Time. It used to combine
+  // dates into one cell and times into another, so the operator had to split them by eye
+  // while transcribing. One column here per column there.
+  //
+  // Times are shown HH:MM:SS to match that grid too — it renders 20:00:00, not 8:00 pm.
+  // The +1 marker stays, because OpenTMS shows an end time of 06:00:00 with no indication
+  // it lands the next morning and the operator has to know that; here it says so.
+  const t2=(v)=>{ if(!v) return ''; const p=String(v).split(':'); return `${(p[0]||'00').padStart(2,'0')}:${(p[1]||'00').padStart(2,'0')}:00`; };
+  tbl.innerHTML='<thead><tr><th>Schedule Segment</th><th>Start Date</th><th>End Date</th><th>Start Time</th><th>End Time</th><th></th></tr></thead><tbody>'+
     schedSegments.map((s,i)=>{
-      const t = segCrossesMidnight(s) ? `${hhmm(s.fromTime)} → ${hhmm(s.untilTime)}<sup>+1</sup>` : `${hhmm(s.fromTime)}–${hhmm(s.untilTime)}`;
-      const dates=`${dstr(s.fromDate)}<br>\u2192 ${dstr(s.untilDate)}`;
+      const endT = segCrossesMidnight(s) ? `${t2(s.untilTime)}<sup>+1</sup>` : t2(s.untilTime);
       return `<tr class="${i===segEditIdx?'editing':''}"><td>${segLabel(s)}</td>`+
-        `<td class="segWhen">${dates}</td><td class="segTime">${t}</td>`+
+        `<td class="segWhen">${dstr(s.fromDate)}</td><td class="segWhen">${dstr(s.untilDate)}</td>`+
+        `<td class="segTime">${t2(s.fromTime)}</td><td class="segTime">${endT}</td>`+
         `<td class="segAct"><button type="button" title="Edit" onclick="editSegment(${i})">\u270e</button>`+
         `<button type="button" title="Delete" onclick="deleteSegment(${i})">\u2715</button></td></tr>`;
     }).join('')+'</tbody>';
