@@ -7506,7 +7506,8 @@ app.get('/api/winter/zone-cams', async (req, res) => {
       ? w.visionCandidates(events, cams, {
         maxM: Math.min(+req.query.maxM || 150, 300),
         coneDeg: Math.min(+req.query.coneDeg || 50, 90),
-        maxAgeMin: Math.min(+req.query.maxAgeMin || 360, 1440)
+        maxAgeMin: Math.min(+req.query.maxAgeMin || 360, 1440),
+        maxPerZone: Math.min(+req.query.maxPerZone || 3, 5)
       })
       : w.camCandidates(events, cams, {
         radiusM: Math.min(+req.query.radiusM || 400, 2000),

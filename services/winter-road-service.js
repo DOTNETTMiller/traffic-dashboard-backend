@@ -541,6 +541,11 @@ function visionCandidates(events, cams, opts = {}) {
   // the zone and the bearing to that one point is dominated by noise -- it will happily
   // reject a frame that plainly shows the work. Close enough is close enough.
   const closeEnoughM = opts.closeEnoughM || 75;
+  // At most this many frames per work zone. One frame can miss -- a truck passing at the
+  // wrong instant, a vehicle blocking the view -- but the cost of looking is per image, so
+  // this is capped low deliberately. Two or three passes give a second chance without the
+  // bill scaling with how busy a corridor happens to be.
+  const maxPerZone = Math.max(1, Math.min(opts.maxPerZone || 3, 5));
   const noHeadingMaxM = opts.noHeadingMaxM || 75;
   const maxAgeMin = opts.maxAgeMin || 360;
   const now = Date.now();
@@ -559,7 +564,9 @@ function visionCandidates(events, cams, opts = {}) {
     if (!Array.isArray(p) || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) continue;
     const [lon, lat] = p;
 
+    let kept = 0;
     for (const h of near(idx, lat, lon, maxM)) {
+      if (kept >= maxPerZone) break;
       const c = h.point;
       // THIRD GATE: the closure has to have been in effect when the shutter fired.
       const when = activeAt(ev, Date.parse(c.takenAt));
@@ -580,6 +587,7 @@ function visionCandidates(events, cams, opts = {}) {
         bearingOff = d > 180 ? 360 - d : d;
         if (bearingOff > coneDeg) continue;    // the zone was behind or beside the lens
       }
+      kept++;
       out.push({
         eventId: ev.id || ev.road_event_id,
         corridor: ev.corridor || null,
@@ -599,7 +607,6 @@ function visionCandidates(events, cams, opts = {}) {
         // so a short closure's frame is the better spend.
         score: h.distanceM + (bearingOff || 0) * 2 + (when.spanDays > 30 ? 60 : 0)
       });
-      break;                                   // one best frame per event
     }
   }
   out.sort((a, b) => a.score - b.score);
