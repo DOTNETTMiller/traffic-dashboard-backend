@@ -2521,7 +2521,20 @@ function requestPayload(){const o={};FIELD_IDS.forEach(id=>{if(el(id))o[id]=v(id
   o.both_directions=v('direction')==='Both';if(o.both_directions)o.directions=nvAxis().map(d=>({N:'northbound',S:'southbound',E:'eastbound',W:'westbound'}[d]));
   const g1=geometryCoords();
   o.geometry=(o.both_directions&&wzRoute2&&wzRoute2.length&&g1)?{type:'MultiLineString',coordinates:[g1,wzRoute2.map(c=>[c[1],c[0]])]}:(g1?{type:'LineString',coordinates:g1}:null);
-  o.detour_geometry=(detourPts.length>=2)?{type:'LineString',coordinates:(detourRoute&&detourRoute.length?detourRoute:detourPts.map(p=>[p.lat,p.lng])).map(c=>[c[1],c[0]])}:null;o.schedule=schedule.map(s=>s.label);
+  o.detour_geometry=(detourPts.length>=2)?{type:'LineString',coordinates:(detourRoute&&detourRoute.length?detourRoute:detourPts.map(p=>[p.lat,p.lng])).map(c=>[c[1],c[0]])}:null;
+  // Every closure on the request, each with its own LINE GEOMETRY. o.geometry above is only
+  // the one being drawn, and o.wzdx carries the rest but a consumer should not have to parse
+  // WZDx to get the shapes. Begin/end points alone are not enough: on a curved route or a
+  // divided highway the path between them cannot be inferred.
+  o.closures=allWzSegments().map(function(w){
+    var p=(w.path&&w.path.length>=2)?w.path:[[w.begin.lat,w.begin.lng],[w.end.lat,w.end.lng]];
+    return {route:w.route,direction:w.direction,begin_location:w.beginLoc,end_location:w.endLoc,
+      counties:w.counties,impact:w.impact,miles:w.miles,
+      begin:[w.begin.lng,w.begin.lat],end:[w.end.lng,w.end.lat],
+      geometry:{type:'LineString',coordinates:p.map(function(c){return [c[1],c[0]];})},
+      geometry2:(w.path2&&w.path2.length>=2)?{type:'LineString',coordinates:w.path2.map(function(c){return [c[1],c[0]];})}:null};
+  });
+  o.schedule=schedule.map(s=>s.label);
   const wz=toWZDx();o.wzdx=wz.features.length>1?wz.features:(wz.features[0]||null);o.maps={route:gmapsRoute()||null,detour:detourPts.length>=2?gmapsDetour():null};o.generatedAt=new Date().toISOString();o.source='DelDOT Work-Zone Request Builder';return o;}
 function downloadPayload(){const blob=new Blob([JSON.stringify(requestPayload(),null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='deldot_wz_'+(routeVal()||'route').replace(/\W+/g,'')+'.json';a.click();toast('JSON downloaded');}
 async function submitToDatabase(){const ep=v('dbEndpoint'),st=el('dbStatus');st.style.display='block';if(!ep){st.style.color='#b91c1c';st.textContent='Set an endpoint URL first.';return;}const miss=missingFields();if(miss.length&&!confirm(miss.length+' required field(s) missing:\n'+miss.join(', ')+'\n\nSubmit anyway?'))return;st.style.color='#475569';st.textContent='Submitting…';try{const headers={'Content-Type':'application/json'};if(v('dbAuth'))headers['Authorization']=v('dbAuth');const r=await fetch(ep,{method:'POST',headers,body:JSON.stringify(requestPayload())});if(r.ok){let id='';try{const j=await r.json();id=j.id||j.recordId||'';}catch(_){}st.style.color='#15803d';st.textContent='✓ Submitted (HTTP '+r.status+')'+(id?' — record '+id:'');}else{st.style.color='#b91c1c';st.textContent='Server returned '+r.status+' '+(r.statusText||'');}}catch(e){st.style.color='#b91c1c';st.textContent='Submit failed: '+e.message+' — likely CORS or endpoint unreachable. Use Download JSON.';}}
