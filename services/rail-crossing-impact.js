@@ -28,6 +28,11 @@
  * such rather than dressed up as precision.
  */
 
+// National grade-crossing inventory (BTS/NTAD), 242,108 records.
+const NTAD_CROSSINGS =
+  'https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/NTAD_Railroad_Grade_Crossings/FeatureServer/0/query';
+// Iowa's own layer is richer where it applies, but stops at the state line. Kept for
+// reference; the engine runs on the national inventory.
 const IA_CROSSINGS =
   'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Rail_Crossing_View/FeatureServer/0/query';
 const IA_RAIL_LINES =
@@ -112,26 +117,46 @@ function httpsGetJSON(url, timeoutMs = 40000) {
   });
 }
 
-/** Crossings within a box, carrying Iowa's LRS reference so measures can be compared. */
+/**
+ * Crossings within a box — NATIONAL.
+ *
+ * This used Iowa's Rail_Crossing_View, which made the whole impact engine stop at the state
+ * line while everything around it was already national: trains come from Amtrak's own feed,
+ * track from NARN, and FRA blocked-crossing hotspots answer for any state (Texas alone has
+ * 25,000 reports across 2,030 crossings). The crossings were the one Iowa-shaped piece, and
+ * a corridor tool that silently returns nothing outside one state is worse than one that
+ * says so.
+ *
+ * NTAD's Railroad Grade Crossings is the national inventory: 242,108 records with
+ * CrossingID, STREET, RailroadCode and position.
+ *
+ * ONLY AT-GRADE CROSSINGS COUNT. The inventory also carries "RR Over" and "RR Under" —
+ * grade separations, where the track flies over or under the road. A train cannot block
+ * those, so including them would invent impacts at bridges. Around one Chicago sample, four
+ * of five nearby records were separations.
+ */
 async function crossingsNear(lat, lon, radiusM) {
   const dLat = (radiusM / R_EARTH_M) * 180 / Math.PI;
   const dLon = dLat / Math.max(Math.cos(rad(lat)), 1e-6);
   const bb = [lon - dLon, lat - dLat, lon + dLon, lat + dLat].join(',');
-  const url = IA_CROSSINGS +
-    '?where=1%3D1&geometry=' + encodeURIComponent(bb) +
+  const url = NTAD_CROSSINGS +
+    '?where=' + encodeURIComponent("CrossingPosition='At Grade'") +
+    '&geometry=' + encodeURIComponent(bb) +
     '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects' +
-    '&outFields=' + encodeURIComponent('CROSSINGID,RAILROAD,STREET,HIGHWAY,ROUTE_ID,MEASURE,CITYCD') +
+    '&outFields=' + encodeURIComponent('CrossingID,STREET,RailroadCode,ParentRailroadCode,STATENAME,RailroadSubdivision') +
     '&returnGeometry=true&outSR=4326&resultRecordCount=1000&f=json';
   const j = await httpsGetJSON(url);
   return ((j && j.features) || []).map(f => {
     const a = f.attributes || {}, g = f.geometry || {};
     return {
-      crossingId: a.CROSSINGID || null,
-      railroad: normRR(a.RAILROAD),
+      crossingId: a.CrossingID || null,
+      // RailroadCode is the operating railroad's reporting mark, already in the same
+      // vocabulary the track layer uses — no numeric domain to decode as Iowa needed.
+      railroad: normRR(a.RailroadCode),
+      parentRailroad: normRR(a.ParentRailroadCode),
       street: a.STREET || null,
-      highway: a.HIGHWAY || null,
-      routeId: a.ROUTE_ID || null,
-      measure: typeof a.MEASURE === 'number' ? a.MEASURE : null,
+      subdivision: a.RailroadSubdivision || null,
+      state: a.STATENAME || null,
       lat: g.y, lon: g.x
     };
   }).filter(c => Number.isFinite(c.lat) && Number.isFinite(c.lon));
@@ -192,11 +217,17 @@ async function impactsFor(movement, opts = {}) {
   const lengthFt = Number(movement.train_length_ft) || null;
   // Blockage duration follows from consist length and speed, both of which a sighting source
   // reports. No length -> no duration, rather than an invented number.
-  const clearS = (lengthFt && mph > 0) ? (lengthFt / 5280) / mph * 3600 : null;
+  const clearS = (lengthFt && moving) ? (lengthFt / 5280) / mph * 3600 : null;
+
+  // A train doing 0.007 mph is stopped, not crawling. Dividing by it produced ETAs of
+  // 6,000+ minutes that read as real numbers -- a station stop or a signal hold turning into
+  // "this crossing will be blocked in four days". Below this, no ETA is claimed at all.
+  const MIN_ETA_MPH = 3;
+  const moving = mph >= MIN_ETA_MPH;
 
   const out = hits.map(h => {
     const mi = h.alongTrackM / MI_TO_M;
-    const etaMin = mph > 0 ? (mi / mph) * 60 : null;
+    const etaMin = moving ? (mi / mph) * 60 : null;
     return {
       event_type: 'crossing_impact',
       crossing_id: h.crossing.crossingId,
@@ -205,12 +236,15 @@ async function impactsFor(movement, opts = {}) {
       location: { lat: h.crossing.lat, lon: h.crossing.lon },
       distance_mi: +mi.toFixed(2),
       // Never "BLOCKED": nothing in this pipeline observes occupancy.
-      status: etaMin !== null && driftMi !== null && mi <= driftMi ? 'POSSIBLY_PASSED'
+      status: !moving ? 'STOPPED'
+        : etaMin !== null && driftMi !== null && mi <= driftMi ? 'POSSIBLY_PASSED'
         : etaMin !== null && etaMin <= 10 ? 'APPROACHING'
         : 'PREDICTED',
       eta_seconds: etaMin === null ? null : Math.round(etaMin * 60),
       eta_minutes: etaMin === null ? null : +etaMin.toFixed(1),
       estimated_blockage_seconds: clearS === null ? null : Math.round(clearS),
+      // Said plainly so a stopped train is not mistaken for a missing reading.
+      note: moving ? null : 'train is stopped — no arrival time claimed',
       // Everything needed to audit this number after the fact. It matters more than the
       // number itself once somebody routes traffic on it.
       derivation: {
@@ -377,5 +411,5 @@ async function observedVelocity(prev, curr, opts = {}) {
 
 module.exports = {
   impactsFor, impactsForAll, crossingsNear, fromAmtrakTrain, observedVelocity,
-  normRR, RAILROAD_CODES, IA_CROSSINGS, IA_RAIL_LINES
+  normRR, RAILROAD_CODES, NTAD_CROSSINGS, IA_CROSSINGS, IA_RAIL_LINES
 };

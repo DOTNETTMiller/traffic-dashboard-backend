@@ -31,8 +31,19 @@
  *     layer says "BSV". Compared naively that reads as two railroads. Canonicalised below.
  */
 
+// NATIONAL. This was Iowa's Rail_Line_Active_View, which quietly made the whole projection
+// engine stop at the state line: a train outside Iowa found no track to snap to, so it
+// produced no impacts at all -- indistinguishable from "no crossings ahead". Measured before
+// the switch: 0 of 22 active trains snapped nationwide.
+//
+// NARN covers North America. Iowa's layer is richer where it applies (a real TRACK_TYPE
+// field, a cleaner owner) but a corridor tool cannot be state-shaped.
 const LINES_URL =
-  'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Rail_Line_Active_View/FeatureServer/0/query';
+  'https://services.arcgis.com/xOi1kZaI0eWDREZv/arcgis/rest/services/NTAD_North_American_Rail_Network_Lines/FeatureServer/0/query';
+
+// NARN's NET code -> the track classes the traversal ranks by. Main line carries through
+// movements; yard and industrial track exists to be avoided when choosing a continuation.
+const NET_TO_TRACK = { M: 'Main', S: 'Siding', Y: 'Yard', I: 'Industrial', O: 'Other', A: 'Abandoned' };
 
 // Same railroad, different reporting mark depending on which layer you ask.
 const OWNER_CANON = {
@@ -47,8 +58,13 @@ const canonOwner = v => {
 
 // A through movement follows main line. Yard and industrial track exist to be avoided when
 // choosing how a train continues through a junction.
-const TRACK_RANK = { Main: 0, Siding: 1, Spur: 2, Turnout: 3, Yard: 4 };
-const trackRank = t => (TRACK_RANK[t] === undefined ? 5 : TRACK_RANK[t]);
+// Ordered by how plausibly a through movement continues onto it. Abandoned track is last by
+// a wide margin: NARN carries it, and nothing should ever be projected down a line that is
+// not there any more.
+const TRACK_RANK = {
+  Main: 0, Siding: 1, Spur: 2, Turnout: 3, Industrial: 4, Yard: 5, Other: 6, Abandoned: 20
+};
+const trackRank = t => (TRACK_RANK[t] === undefined ? 6 : TRACK_RANK[t]);
 
 const R_EARTH_M = 6371008.8;
 const rad = d => d * Math.PI / 180;
@@ -92,7 +108,7 @@ async function loadNetwork(lat, lon, radiusM) {
   const url = LINES_URL +
     '?where=1%3D1&geometry=' + encodeURIComponent(bb) +
     '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects' +
-    '&outFields=' + encodeURIComponent('OBJECTID,OWNER_ABBR,PRIMARY_OPER,TRACK_TYPE,NUMBER_OF_MAINS,LENGTH_MILE') +
+    '&outFields=' + encodeURIComponent('OBJECTID,RROWNER1,RROWNER2,RROWNER3,TRACKS,NET,SUBDIV,MILES,STATEAB') +
     '&returnGeometry=true&outSR=4326&resultRecordCount=2000&f=json';
   const j = await httpsGetJSON(url);
 
@@ -111,11 +127,16 @@ async function loadNetwork(lat, lon, radiusM) {
       const edge = {
         id: edges.length,
         objectId: a.OBJECTID,
-        owner: canonOwner(a.OWNER_ABBR),
-        ownerRaw: a.OWNER_ABBR || null,
-        operator: a.PRIMARY_OPER || null,
-        trackType: a.TRACK_TYPE || null,
-        mains: a.NUMBER_OF_MAINS ?? null,
+        owner: canonOwner(a.RROWNER1),
+        ownerRaw: a.RROWNER1 || null,
+        // NARN names up to three owners on a segment, which is how it represents trackage
+        // rights -- the case that makes "whose track is this" more than one string, and the
+        // limitation flagged when the old owner heuristic was removed.
+        owners: [a.RROWNER1, a.RROWNER2, a.RROWNER3].filter(Boolean).map(canonOwner),
+        operator: a.SUBDIV || null,
+        trackType: NET_TO_TRACK[a.NET] || 'Other',
+        mains: a.TRACKS ?? null,
+        state: a.STATEAB || null,
         pts, cum, lengthM: cum[cum.length - 1]
       };
       if (edge.lengthM <= 0) continue;
