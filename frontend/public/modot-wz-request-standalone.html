@@ -1363,19 +1363,13 @@ https://github.com/nodeca/pako/blob/master/LICENSE
           </div>
           <label style="margin-top:6px">On the following days</label>
           <div class="dayPicks" id="segDays">
-            <!-- Sunday FIRST, to match the OpenTMS/ATMS screen the TMC reads these off.
-                 Castelline demonstrated it as "Sunday, Monday, Tuesday, Wednesday, Thursday"
-                 and noted twice that night work "usually they start Sunday overnight". With
-                 Monday first, Sunday sat past Saturday at the far end — the most commonly
-                 picked day in the least expected slot, on a form whose whole job is to be
-                 transcribed into that screen. Values are unchanged (0=Sunday). -->
-            <label class="chk"><input type="checkbox" data-dow="0" /> Sun</label>
             <label class="chk"><input type="checkbox" data-dow="1" /> Mon</label>
             <label class="chk"><input type="checkbox" data-dow="2" /> Tue</label>
             <label class="chk"><input type="checkbox" data-dow="3" /> Wed</label>
             <label class="chk"><input type="checkbox" data-dow="4" /> Thu</label>
             <label class="chk"><input type="checkbox" data-dow="5" /> Fri</label>
             <label class="chk"><input type="checkbox" data-dow="6" /> Sat</label>
+            <label class="chk"><input type="checkbox" data-dow="0" /> Sun</label>
           </div>
           <div class="mapbtns" style="margin-top:6px">
             <button type="button" onclick="pickDays('week')">Week days</button>
