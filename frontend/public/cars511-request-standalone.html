@@ -2517,9 +2517,87 @@ function flagMultiRoute(ra, rb){
   box.style.display='block';
   box.innerHTML=`⚠️ <b>This selection spans two routes — ${a} and ${b}.</b> The TMC has to enter each `+
     `route as its own 511 entry, and the mileposts above are measured on different routes, so they `+
-    `won't read correctly together.<br><span style="color:#6b7280">File one request per route: end this `+
-    `one where ${a} meets ${b}, then start a second for ${b}.</span>`;
+    `won't read correctly together.<br><button type="button" onclick="splitAtRouteBoundary()" `+
+    `style="margin-top:6px;padding:6px 10px;border-radius:6px;border:none;background:#991b1b;color:#fff;`+
+    `font-weight:700;cursor:pointer">\u2702 Split into two closures at the boundary</button>`+
+    `<span style="color:#6b7280;display:block;margin-top:4px">Finds where ${a} meets ${b} and files `+
+    `each side as its own closure, with mileposts measured on its own route.</span>`;
 }
+/**
+ * Split a selection that crosses a route boundary into two closures, each on its own route
+ * with its own mileposts.
+ *
+ * Castelline, 9/3: "we would need that transferred into two separate entries... it would
+ * break each segment down into separate entries. That's the way we have to enter it into 511
+ * or OpenTMS." Warning about it was the honest minimum; this actually does it.
+ *
+ * FINDING THE BOUNDARY. The drawn line already follows the road, and RAMS will name the route
+ * under any point on it, so the transition is found by BINARY SEARCH rather than by sampling
+ * the whole line: the route differs at the two ends, so bisect until the change is pinned to
+ * within a tenth of a mile. That is ~11 lookups instead of one per sample point, and it runs
+ * only when the operator asks for it.
+ *
+ * Each half then gets its own mileposts, measured on ITS OWN route — which is the entire
+ * point. Mileposts from two different routes in one entry do not read as an extent.
+ */
+async function splitAtRouteBoundary(){
+  if(!multiRouteState){ toast('No route change detected on this selection'); return; }
+  const path=(wzRoute&&wzRoute.length>=2)?wzRoute:null;
+  if(!path){ toast('Need the snapped road line first — re-drop the end point'); return; }
+  const c=cumMiles(path), tot=c[c.length-1];
+  if(!(tot>0.05)){ toast('Selection too short to split'); return; }
+
+  toast('Finding where the route changes…');
+  const routeAt=async(s)=>{ const p=pointAtS(path,s); const r=await iowaRoadAt({lat:p[0],lng:p[1]});
+    return r&&r.routeId?String(r.routeId):null; };
+  const idA=await routeAt(0), idB=await routeAt(tot);
+  if(!idA||!idB||idA===idB){ toast('Could not resolve two distinct routes — split manually'); return; }
+
+  // Bisect to a tenth of a mile. Each step halves the uncertainty, so a 10-mile selection
+  // pins the boundary in ~7 steps; the cap keeps a pathological case bounded.
+  let lo=0, hi=tot, steps=0;
+  while(hi-lo>0.1 && steps<12){ const mid=(lo+hi)/2; const r=await routeAt(mid);
+    if(r===idA) lo=mid; else hi=mid; steps++; }
+  const sB=(lo+hi)/2;
+  if(sB<0.05 || sB>tot-0.05){ toast('Route change sits at the very end — split manually'); return; }
+
+  const toLatLng=(coords)=>coords?coords.map(c=>[c[1],c[0]]):null;   // sliceAlong emits [lng,lat]
+  const pA=toLatLng(sliceAlong(path,0,sB)), pB=toLatLng(sliceAlong(path,sB,tot));
+  if(!pA||!pB){ toast('Could not cut the line — split manually'); return; }
+
+  const dLetter=String(v('direction')||'').trim().charAt(0).toUpperCase()||null;
+  const mpText=async(pt,routeId)=>{ const rp=await iowaRefPost({lat:pt[0],lng:pt[1]},dLetter,routeId);
+    return rp&&rp.mp!=null ? {loc:'MP '+rp.mp, route:rp.route||null} : {loc:'', route:null}; };
+
+  const [a1,a2,b1,b2]=await Promise.all([
+    mpText(pA[0],idA), mpText(pA[pA.length-1],idA),
+    mpText(pB[0],idB), mpText(pB[pB.length-1],idB)
+  ]);
+
+  const base={}; WZ_FIELDS.forEach(f=>base[f]=v(f));
+  const mk=(pts,fromMP,toMP,routeName)=>{
+    const rec=Object.assign({},base,{
+      begin:{lat:pts[0][0],lng:pts[0][1]}, end:{lat:pts[pts.length-1][0],lng:pts[pts.length-1][1]},
+      miles:+cumMiles(pts)[pts.length-1].toFixed(1),
+      path:pts.map(x=>[x[0],x[1]]), path2:null });
+    if(routeName) rec.route=routeName;
+    rec.beginLoc=fromMP.loc||''; rec.endLoc=toMP.loc||'';
+    return rec; };
+
+  wzSegments.push(mk(pA,a1,a2,a1.route||a2.route||multiRouteState.a));
+  wzSegments.push(mk(pB,b1,b2,b1.route||b2.route||multiRouteState.b));
+
+  // The live selection has become those two saved closures; leaving it drawn would count it
+  // a third time in allWzSegments().
+  [beginMk,endMk,line,line2].forEach(x=>x&&x.remove());
+  beginPt=endPt=beginMk=endMk=line=line2=null; wzRoute=null; wzRoute2=null;
+  activeWz=-1; multiRouteState=null;
+  const box=el('multiRouteWarn'); if(box) box.style.display='none';
+  if(el('selinfo')) el('selinfo').textContent='Split into two closures — check the mileposts on each.';
+  setMode('begin'); renderWzSegments(); saveState();
+  toast('Split into 2 closures at the route boundary — review each');
+}
+
 async function checkDuplicate(explicit){ const warn=el('dupWarn');
   const W=workSegment(); const beginPt=W?W.begin:null, endPt=W?W.end:null;
   if(!beginPt||!endPt){ if(explicit){ dupStyle(warn,'info'); warn.innerHTML='Set a <b>begin</b> and <b>end</b> point first — then I’ll check the live Iowa 511 feed for existing closures here.'; } else warn.style.display='none'; return; }
