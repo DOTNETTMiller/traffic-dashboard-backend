@@ -7425,6 +7425,20 @@ app.get('/api/winter/plows', async (req, res) => {
   } catch (e) { res.status(502).json({ success: false, error: e.message }); }
 });
 
+/**
+ * Which 511 states actually serve plows, and do any attach imagery?
+ *
+ * Cannot be answered from outside without a key -- these gateways return "Invalid Key" for
+ * every path, real or invented, so probing proves nothing. This settles it: run once keys
+ * are set and it reports per state.
+ */
+app.get('/api/winter/plows/probe', async (req, res) => {
+  try {
+    const out = await require('./services/plow-adapters').probeStates();
+    res.json({ success: true, ...out });
+  } catch (e) { res.status(502).json({ success: false, error: e.message }); }
+});
+
 // Winter road conditions across the Midwest. ?state=Iowa%20DOT&bbox=...
 app.get('/api/winter/conditions', async (req, res) => {
   try {

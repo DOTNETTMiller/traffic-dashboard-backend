@@ -161,6 +161,12 @@ async function fetchPlowAVL(opts = {}) {
         });
       }
     } catch (_) { /* Utah feed optional */ }
+    // CARS/OneStop 511 states, each behind its own free key. Every one without a key is
+    // skipped silently, so this costs nothing until keys exist.
+    try {
+      const { plows } = await require('./plow-adapters').fetchAll();
+      out.push(...plows);
+    } catch (_) { /* 511 plows optional */ }
     return out;
   });
 }
