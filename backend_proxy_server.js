@@ -7455,6 +7455,33 @@ app.get('/api/winter/plows', async (req, res) => {
 });
 
 /**
+ * Validate work zones from the maintenance fleet's dashcams. ?detect=1 to actually look.
+ *
+ * Without detect=1 this is a DRY RUN: it resolves which frames pass the three gates and
+ * reports what it would check, costing nothing. Vision is billed per image, so looking is
+ * always an explicit act and is capped (?limit=, default 6, hard max 25).
+ *
+ * A confirmation lands in the same ledger the fixed-camera validator writes to, so it flows
+ * into x_camera_verified through the existing path — the fleet is simply another camera,
+ * one that drives past zones no fixed camera can see.
+ */
+app.get('/api/winter/validate-zones', async (req, res) => {
+  try {
+    const fcv = require('./services/fleet-camera-validate');
+    const cvv = require('./services/camera-validation');
+    const events = ((eventsCache.data && eventsCache.data.events) || []).filter(e => cvv.isActiveNow(e) === true);
+    const out = await fcv.detectAtZones(events, {
+      dryRun: req.query.detect !== '1',
+      limit: Math.min(+req.query.limit || 6, 25),
+      maxPerZone: Math.min(+req.query.maxPerZone || 2, 5),
+      maxM: Math.min(+req.query.maxM || 150, 300),
+      maxAgeMin: Math.min(+req.query.maxAgeMin || 360, 1440)
+    });
+    res.json({ success: true, activeZones: events.length, ...out });
+  } catch (e) { res.status(502).json({ success: false, error: e.message }); }
+});
+
+/**
  * Which 511 states actually serve plows, and do any attach imagery?
  *
  * Cannot be answered from outside without a key -- these gateways return "Invalid Key" for

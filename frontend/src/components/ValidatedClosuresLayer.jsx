@@ -17,9 +17,14 @@ const SOURCE_META = {
   device: { glyph: '🔗', label: 'device', color: '#2563eb' },  // blue — hardware on site
   camera: { glyph: '📷', label: 'camera', color: '#16a34a' },  // green — visual truth
   tomtom: { glyph: '🚗', label: 'TomTom', color: '#d97706' },  // amber — independent probe
-  dms:    { glyph: '🔶', label: 'DMS msg', color: '#7c3aed' }  // purple — operator-posted sign text
+  dms:    { glyph: '🔶', label: 'DMS msg', color: '#7c3aed' }, // purple — operator-posted sign text
+  // People on the ground, from the contractor's own crew check-in and equipment telematics —
+  // a different operational chain from the DOT feed being validated. The feed has emitted this
+  // since HaulHub was added; the popup had no block for it, so a zone could be validated by it
+  // and show no reason why.
+  'worker-presence': { glyph: '👷', label: 'crew on site', color: '#0891b2' }
 };
-const PRIORITY = ['device', 'camera', 'tomtom', 'dms'];
+const PRIORITY = ['device', 'camera', 'worker-presence', 'tomtom', 'dms'];
 const primarySource = (sources) => PRIORITY.find(s => sources.includes(s)) || 'camera';
 
 function verifiedIcon(sources) {
@@ -191,6 +196,27 @@ export default function ValidatedClosuresLayer({ visible = false, sources: enabl
                       {p.x_tomtom_delay_s != null && (
                         <div style={{ color: '#b45309' }}>traffic delay {Math.round(p.x_tomtom_delay_s / 60)} min</div>
                       )}
+                    </div>
+                  )}
+
+                  {sources.includes('worker-presence') && (
+                    <div style={{ background: '#ecfeff', borderRadius: 6, padding: '5px 8px', marginBottom: 5 }}>
+                      <div style={{ fontWeight: 700, fontSize: 12 }}>👷 Crew reported on site</div>
+                      <div style={{ color: '#334155' }}>
+                        Contractor crew check-in / equipment telematics
+                        {p.x_worker_presence_match_m != null ? ` · ${fmtDist(p.x_worker_presence_match_m)} away` : ''}
+                      </div>
+                      {p.x_worker_presence_confirmed_at && (
+                        <div style={{ color: '#0e7490', fontSize: 11 }}>
+                          confirmed {new Date(p.x_worker_presence_confirmed_at).toLocaleString()}
+                        </div>
+                      )}
+                      {/* The only validator that reports PEOPLE on the ground rather than
+                          inferring work from traffic, a sign, or a camera frame. */}
+                      <div style={{ color: '#64748b', fontSize: 11 }}>
+                        source: {p.x_worker_presence_source || 'haulhub'}
+                        {p.x_worker_presence_ref ? ` · ${p.x_worker_presence_ref}` : ''}
+                      </div>
                     </div>
                   )}
 
