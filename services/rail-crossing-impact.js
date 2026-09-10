@@ -45,12 +45,21 @@ const railNet = require('./rail-network');
 // times; TTL is long because track does not move.
 const NET_TTL_MS = 6 * 60 * 60 * 1000;
 const netCache = new Map();
+// A loaded network holds every vertex of every segment in the area -- thousands of edges in
+// a metro -- so these are among the largest objects this process keeps. Unbounded, the cache
+// grew to 930 MB heap / 1.3 GB RSS as trains moved through new areas, which is the same
+// territory in which this service became unresponsive earlier. Bounded, oldest evicted first.
+const NET_CACHE_MAX = 12;
 async function loadNetworkCached(lat, lon, radiusM) {
   const key = `${lat.toFixed(1)},${lon.toFixed(1)},${Math.round(radiusM / 1000)}`;
   const hit = netCache.get(key);
-  if (hit && (Date.now() - hit.at) < NET_TTL_MS) return hit.net;
+  if (hit && (Date.now() - hit.at) < NET_TTL_MS) {
+    netCache.delete(key); netCache.set(key, hit);      // refresh recency
+    return hit.net;
+  }
   const net = await railNet.loadNetwork(lat, lon, radiusM);
   netCache.set(key, { at: Date.now(), net });
+  while (netCache.size > NET_CACHE_MAX) netCache.delete(netCache.keys().next().value);
   return net;
 }
 
@@ -147,7 +156,7 @@ async function crossingsNear(lat, lon, radiusM) {
   if (hit && (Date.now() - hit.at) < CROSSINGS_TTL_MS) return hit.val;
   const val = await crossingsNearUncached(lat, lon, radiusM);
   crossingsCache.set(ck, { at: Date.now(), val });
-  if (crossingsCache.size > 200) crossingsCache.delete(crossingsCache.keys().next().value);
+  while (crossingsCache.size > 60) crossingsCache.delete(crossingsCache.keys().next().value);
   return val;
 }
 
