@@ -1421,10 +1421,17 @@ function renderDups(){
 // markers… we would need that transferred into two separate entries. That's the way we
 // have to enter it into 511 or OpenTMS." The builder can't file two requests at once, so
 // it says so plainly rather than sending one entry with mileposts off two different routes.
+// Remembered so the DELIVERY can carry it, not just the screen. A warning the operator sees
+// while drawing is gone by the time the email lands on the TMC's desk — and what lands there
+// is one entry whose two mileposts were measured on different routes, which is precisely the
+// thing Castelline said has to arrive already broken up.
+let multiRouteState=null;
 function flagMultiRoute(ra, rb){
-  const box=el('multiRouteWarn'); if(!box) return;
+  const box=el('multiRouteWarn');
   const a=(ra||'').trim(), b=(rb||'').trim();
-  if(!a || !b || a===b){ box.style.display='none'; return; }
+  multiRouteState = (a && b && a!==b) ? {a,b} : null;
+  if(!box) return;
+  if(!multiRouteState){ box.style.display='none'; return; }
   box.style.display='block';
   box.innerHTML=`⚠️ <b>This selection spans two routes — ${a} and ${b}.</b> The TMC has to enter each `+
     `route as its own 511 entry, and the mileposts above are measured on different routes, so they `+
@@ -2248,9 +2255,24 @@ function attachNote(){
               : ' showing the closure')
        + ' and any detour.';
 }
+// Carried into the email/summary, immediately after the fields it contradicts.
+//
+// Castelline, 9/3: "you can go from one highway to another... that'll give you strange mile
+// markers... we would need that transferred into two separate entries. That's the way we have
+// to enter it into 511 or OpenTMS." The builder cannot file two requests at once, so the
+// least it can do is refuse to let the request arrive looking sound.
+function multiRouteText(){
+  if(!multiRouteState) return '';
+  const {a,b}=multiRouteState;
+  return `\n\n*** THIS SELECTION SPANS TWO ROUTES — ${a} AND ${b} ***\n`+
+    `The begin and end mileposts above are measured on DIFFERENT routes and do not read as one\n`+
+    `extent. This needs to be entered as SEPARATE 511 entries, one per route — split it where\n`+
+    `${a} meets ${b}.\n`+
+    `(Re-file as two closures in the builder to get correct mileposts and a map for each.)`;
+}
 function summaryText(){
   const body=formFields().map(([k,val])=>`${k}: ${val}`).join('\n');
-  return body + extraClosuresText() + scheduleText() + routeMapText() + detourText() + attachNote() +
+  return body + multiRouteText() + extraClosuresText() + scheduleText() + routeMapText() + detourText() + attachNote() +
     '\n\n---\n(Built with the CARS 511 Request Builder — mileposts from Iowa DOT RAMS. Review before submitting.)';
 }
 function copySummary(){ navigator.clipboard.writeText(summaryText()).then(()=>toast('Summary copied')); }

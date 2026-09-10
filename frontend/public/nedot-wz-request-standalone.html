@@ -1676,7 +1676,14 @@ async function snapWZ(opts){if(!(beginPt&&endPt))return;drawWZLine();const dir=d
     wzMP={a:(a&&okA)?a.mp:null,b:(b&&okB)?b.mp:null};   // keep the numbers for the WZDx milepost fields
     // auto-fill Route from the posted route code (only when not already set, and only when
     // the point is genuinely on a state-system road)
-    const rc=(okA&&a&&a.route)||(okB&&b&&b.route)||null;
+    // Two posted routes under one selection. The line below takes whichever route resolves
+    // first, which quietly labels the whole extent with one of them while the two mileposts
+    // were measured on different routes. The TMC has to enter those as SEPARATE 511 entries
+    // (Castelline, 9/3: "we would need that transferred into two separate entries"), so the
+    // mismatch is recorded and carried into the emailed request rather than lost on screen.
+    const rA=(okA&&a&&a.route)||null, rB=(okB&&b&&b.route)||null;
+    multiRouteState = (rA && rB && String(rA)!==String(rB)) ? {a:wzRouteFriendly(rA)||rA, b:wzRouteFriendly(rB)||rB} : null;
+    const rc=rA||rB||null;
     if(rc && !v('route')){ const fr=wzRouteFriendly(rc);
       if(fr){ const opt=[...el('route').options].find(o=>o.value===fr);
         if(opt){ el('route').value=fr; } else { el('route').value='__other'; onRouteChange(); el('routeOther').value=fr; } saveState(); } }
@@ -2192,9 +2199,22 @@ function attachNote(){
   return '\n\nATTACH: the summary PDF from the builder — its last page is the work-zone '
        + 'location map showing '+(n>1?('all '+n+' closures'):'the closure')+' and any detour.';
 }
+// A selection that crosses from one posted route to another has to become two 511 entries.
+// The builder cannot file two at once, so it states the problem in the request itself instead
+// of letting one entry arrive carrying mileposts measured on two different routes.
+let multiRouteState=null;
+function multiRouteText(){
+  if(!multiRouteState) return '';
+  const a=multiRouteState.a, b=multiRouteState.b;
+  return '\n\n*** THIS SELECTION SPANS TWO ROUTES \u2014 '+a+' AND '+b+' ***\n'+
+    'The begin and end mileposts above are measured on DIFFERENT routes and do not read as one\n'+
+    'extent. Enter as SEPARATE entries, one per route \u2014 split it where '+a+' meets '+b+'.\n'+
+    '(Re-file as two closures in the builder to get correct mileposts and a map for each.)';
+}
 function summaryText(){let t='NEBRASKA DEPARTMENT OF TRANSPORTATION \u2014 WORK-ZONE REQUEST\n'+'='.repeat(59)+'\n'+fields().map(r=>r[0]+': '+(r[1]||'—')).join('\n');
   if(schedule.length)t+='\n\nSCHEDULE ('+schedule.length+'):\n'+schedule.map(o=>'  • '+o.label).join('\n');
   if(beginPt&&endPt)t+='\n\nROUTE MAP: '+gmapsRoute();if(detourPts.length>=2)t+='\nDETOUR MAP: '+gmapsDetour();
+  t+=multiRouteText();
   t+=extraClosuresText();
   t+=attachNote();
   return t+'\n\n(Built with the Nebraska DOT Work-Zone Request Builder — review before submitting.)';}
