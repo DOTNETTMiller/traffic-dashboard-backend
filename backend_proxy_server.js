@@ -7344,10 +7344,34 @@ app.get('/api/rail/crossings-ahead', async (req, res) => {
     const { trains: live } = await fetchLiveTrains();
     const train = live.find(t => String(t.trainNum) === wanted && t.trainState === 'Active') || null;
     if (!train) return res.status(404).json({ success: false, error: `train ${wanted} not active` });
-    const out = await require('./services/rail-crossing-projection')
-      .crossingsAhead(train, { lookaheadMi: Math.min(+req.query.miles || 15, 50) });
+    // Uses the SNAPPING engine, not the older bearing cone. The cone could not tell parallel
+    // tracks apart, so it answered with everything in a wedge ahead of the train — 134
+    // "crossings ahead" for one train, most of them on other railroads it will never touch.
+    // Snapping puts the train on a specific line and walks it: same question, an answer that
+    // is actually about this train's route.
+    const impact = require('./services/rail-crossing-impact');
+    const movement = impact.fromAmtrakTrain(train);
+    const out = await impact.impactsFor(movement, { lookaheadMi: Math.min(+req.query.miles || 15, 50) });
     res.set('Cache-Control', 'public, max-age=60');
-    res.json({ success: true, ...out });
+    // Response shape kept as the map already consumes it.
+    res.json({
+      success: true,
+      trainNum: wanted,
+      snapped: out.snapped,
+      trackOwner: out.track_owner || null,
+      trackType: out.track_type || null,
+      reason: out.reason || null,
+      driftMi: out.uncertainty_mi ?? null,
+      positionAgeS: movement.freshness_seconds ?? null,
+      ahead: (out.impacts || []).map(i => ({
+        crossingId: i.crossing_id,
+        street: i.street,
+        city: i.railroad || null,
+        distanceMi: i.distance_mi,
+        etaMin: i.eta_minutes,
+        status: i.status
+      }))
+    });
   } catch (e) {
     res.status(502).json({ success: false, error: e.message });
   }
