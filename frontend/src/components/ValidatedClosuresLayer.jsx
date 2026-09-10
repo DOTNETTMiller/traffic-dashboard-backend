@@ -182,33 +182,6 @@ export default function ValidatedClosuresLayer({ visible = false, sources: enabl
                     </div>
                   )}
 
-                  {p.x_fleet_camera_url && (
-                    <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, padding: '5px 8px', marginBottom: 5 }}>
-                      <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 3 }}>
-                        🚛 A maintenance truck drove past
-                      </div>
-                      <img src={p.x_fleet_camera_url} alt="view from a passing maintenance truck"
-                        style={{ width: '100%', borderRadius: 6, display: 'block' }}
-                        onError={(e) => { e.target.style.display = 'none'; }} />
-                      <div style={{ color: '#7c2d12', fontSize: 11, marginTop: 3 }}>
-                        {p.x_fleet_camera_route ? `${p.x_fleet_camera_route}` : 'fleet camera'}
-                        {p.x_fleet_camera_milepost != null ? ` MP ${p.x_fleet_camera_milepost}` : ''}
-                        {p.x_fleet_camera_distance_m != null ? ` · ${fmtDist(p.x_fleet_camera_distance_m)} from the zone` : ''}
-                      </div>
-                      {p.x_fleet_camera_at && (
-                        <div style={{ color: '#999', fontSize: 11 }}>
-                          taken {new Date(p.x_fleet_camera_at).toLocaleString()}
-                          {p.x_fleet_truck ? ` · truck ${p.x_fleet_truck}` : ''}
-                        </div>
-                      )}
-                      {/* Said plainly: this is a photograph, not a verdict. Nothing has
-                          looked at it, so it must not read as confirmation. */}
-                      <div style={{ color: '#9a3412', fontSize: 10, marginTop: 3, fontStyle: 'italic' }}>
-                        Photo evidence — not an automated verification
-                      </div>
-                    </div>
-                  )}
-
                   {sources.includes('tomtom') && (
                     <div style={{ background: '#fefce8', borderRadius: 6, padding: '5px 8px', marginBottom: 5 }}>
                       <div style={{ fontWeight: 700, fontSize: 12 }}>🚗 Independent TomTom report</div>
@@ -230,6 +203,39 @@ export default function ValidatedClosuresLayer({ visible = false, sources: enabl
                       <div style={{ color: '#6d28d9', fontSize: 11 }}>
                         {p.x_dms_name || 'DMS'}{p.x_dms_distance_m != null ? ` · ${fmtDist(p.x_dms_distance_m)} away` : ''}
                       </div>
+                    </div>
+                  )}
+
+                  {/* OUTSIDE the "Validated by" list on purpose.
+                      A maintenance truck driving past produces a photograph of that place; it
+                      is not one of the independent validators and is not counted in
+                      x_verification. Sitting it among them — which it did — read as a fifth
+                      source no matter what the caption said. Its own heading keeps the
+                      distinction visible rather than merely stated. */}
+                  {p.x_fleet_camera_url && (
+                    <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px dashed #d4d4d8' }}>
+                      <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4, color: '#7c2d12' }}>
+                        Additional imagery — not a validator
+                      </div>
+                      <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, padding: '5px 8px', marginBottom: 5 }}>
+                        <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 3 }}>
+                          🚛 A maintenance truck drove past
+                        </div>
+                        <img src={p.x_fleet_camera_url} alt="view from a passing maintenance truck"
+                          style={{ width: '100%', borderRadius: 6, display: 'block' }}
+                          onError={(e) => { e.target.style.display = 'none'; }} />
+                        <div style={{ color: '#7c2d12', fontSize: 11, marginTop: 3 }}>
+                          {p.x_fleet_camera_route ? `${p.x_fleet_camera_route}` : 'fleet camera'}
+                          {p.x_fleet_camera_milepost != null ? ` MP ${p.x_fleet_camera_milepost}` : ''}
+                          {p.x_fleet_camera_distance_m != null ? ` · ${fmtDist(p.x_fleet_camera_distance_m)} from the zone` : ''}
+                        </div>
+                        {p.x_fleet_camera_at && (
+                          <div style={{ color: '#999', fontSize: 11 }}>
+                            taken {new Date(p.x_fleet_camera_at).toLocaleString()}
+                            {p.x_fleet_truck ? ` · truck ${p.x_fleet_truck}` : ''}
+                          </div>
+                      )}
+                    </div>
                     </div>
                   )}
                 </div>
