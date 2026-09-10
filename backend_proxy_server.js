@@ -4891,6 +4891,11 @@ const slimEvent = (event) => {
   const slim = { ...event };
   delete slim.rawFields;
   delete slim._rawFields;
+  // Internal bookkeeping the map never reads. _lifecycle alone is 10.3% of the feed —
+  // about 1 MB raw across 6,678 events — spent shipping the server's own end-time
+  // reasoning to a client that has no use for it. Verified unused in frontend/src.
+  delete slim._lifecycle;
+  delete slim._extensionReason;
 
   // Encode geometry coordinates as a polyline string instead of full arrays.
   // ~6x smaller, preserves full precision (~1m), no downsampling needed.
