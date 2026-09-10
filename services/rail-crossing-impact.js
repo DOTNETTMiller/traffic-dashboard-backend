@@ -293,10 +293,24 @@ async function impactsFor(movement, opts = {}) {
  */
 async function impactsForAll(movements, opts = {}) {
   const usable = (movements || []).filter(m => opts.includeStale ? true : m.operational !== false);
-  const results = [];
-  for (const m of usable.slice(0, opts.limit || 25)) {
-    try { results.push(await impactsFor(m, opts)); } catch (_) { /* one bad movement must not stop the rest */ }
-  }
+  const batch = usable.slice(0, opts.limit || 25);
+
+  // Bounded concurrency. This ran strictly sequentially, and each movement costs a network
+  // fetch plus a crossings fetch, so 25 trains meant 25 round-trips end to end -- measured at
+  // 109 s once the network fetch started paging. Six at a time keeps the external services
+  // comfortable while cutting the wall-clock to a fraction of that. Order is preserved so the
+  // response is stable between calls.
+  const results = new Array(batch.length);
+  const CONCURRENCY = 6;
+  let cursor = 0;
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, batch.length) }, async () => {
+    while (cursor < batch.length) {
+      const i = cursor++;
+      try { results[i] = await impactsFor(batch[i], opts); }
+      catch (_) { results[i] = null; }     // one bad movement must not stop the rest
+    }
+  }));
+  for (let i = results.length - 1; i >= 0; i--) if (!results[i]) results.splice(i, 1);
   const impacts = results.flatMap(r => r.impacts || []);
   const snapped = results.filter(r => r.snapped);
   return {
