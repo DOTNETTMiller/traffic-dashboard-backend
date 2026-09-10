@@ -2101,26 +2101,35 @@ function extraClosuresText(){
 function lon2x(lon,z){ return (lon+180)/360*Math.pow(2,z); }
 function lat2y(lat,z){ const r=lat*Math.PI/180;
   return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*Math.pow(2,z); }
-function mapShapes(){
+// `only` — draw a SINGLE closure instead of the whole request.
+//
+// A multi-closure request is filed as one 511 entry PER CLOSURE, so whoever enters closure 3
+// needs a map of closure 3, not a combined picture of all of them. Index matches
+// allWzSegments(): saved closures first, the one still being drawn last. Detours are drawn on
+// every closure map, since a detour is not recorded against a particular closure.
+function mapShapes(only){
   const out=[];
+  const liveIdx=wzSegments.length;
   wzSegments.forEach((w,i)=>{
+    if(only!=null && i!==only) return;
     const p=(w.path&&w.path.length>1)?w.path:[[w.begin.lat,w.begin.lng],[w.end.lat,w.end.lng]];
     out.push({pts:p,color:'#dc2626',width:6});
     if(w.path2&&w.path2.length>1) out.push({pts:w.path2,color:'#dc2626',width:6});
     out.push({pts:[[w.begin.lat,w.begin.lng]],label:String(i+1),at:[w.begin.lat,w.begin.lng],color:'#dc2626',width:0});
   });
-  const wz=(wzRoute&&wzRoute.length)?wzRoute.map(c=>[c[0],c[1]]):((beginPt&&endPt)?[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]]:null);
+  const showLive = (only==null || only===liveIdx);
+  const wz=!showLive?null:((wzRoute&&wzRoute.length)?wzRoute.map(c=>[c[0],c[1]]):((beginPt&&endPt)?[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]]:null));
   if(wz) out.push({pts:wz,color:'#dc2626',width:6});
-  if(wzRoute2&&wzRoute2.length) out.push({pts:wzRoute2.map(c=>[c[0],c[1]]),color:'#dc2626',width:6});
+  if(showLive && wzRoute2&&wzRoute2.length) out.push({pts:wzRoute2.map(c=>[c[0],c[1]]),color:'#dc2626',width:6});
   const dr=(detourRoute&&detourRoute.length)?detourRoute.map(c=>[c[0],c[1]])
           :(detourPts.length>=2?detourPts.map(p=>[p.lat,p.lng]):null);
   if(dr) out.push({pts:dr,color:'#7c3aed',width:4,dash:[8,6]});
-  if(beginPt) out.push({pts:[[beginPt.lat,beginPt.lng]],label:wzSegments.length?String(wzSegments.length+1):'A',at:[beginPt.lat,beginPt.lng],color:'#dc2626',width:0});
-  if(endPt&&!wzSegments.length) out.push({pts:[[endPt.lat,endPt.lng]],label:'B',at:[endPt.lat,endPt.lng],color:'#dc2626',width:0});
+  if(showLive && beginPt) out.push({pts:[[beginPt.lat,beginPt.lng]],label:wzSegments.length?String(wzSegments.length+1):'A',at:[beginPt.lat,beginPt.lng],color:'#dc2626',width:0});
+  if(showLive && endPt&&!wzSegments.length) out.push({pts:[[endPt.lat,endPt.lng]],label:'B',at:[endPt.lat,endPt.lng],color:'#dc2626',width:0});
   return out;
 }
-async function renderMapPNG(W,H,fmt,q){
-  const shapes=mapShapes(); if(!shapes.length) return null;
+async function renderMapPNG(W,H,fmt,q,only){
+  const shapes=mapShapes(only); if(!shapes.length) return null;
   let mnLa=90,mxLa=-90,mnLo=180,mxLo=-180;
   shapes.forEach(s=>s.pts.forEach(p=>{ if(p[0]<mnLa)mnLa=p[0]; if(p[0]>mxLa)mxLa=p[0];
     if(p[1]<mnLo)mnLo=p[1]; if(p[1]>mxLo)mxLo=p[1]; }));
@@ -2421,6 +2430,27 @@ async function genPDF(){const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'pt
       let my=70; allWzSegments().forEach((w,i)=>{ doc.text((i+1)+'. '+wzLabel(w),M,my); my+=12; });
       const iw=1000, ih=700, maxW=612-2*M, sc=Math.min(maxW/iw,(760-(my+14))/ih);
       doc.addImage(png,'JPEG',M,my+14,iw*sc,ih*sc); }
+    // One page PER CLOSURE when the request carries more than one. Each closure is filed as
+    // its own entry, so the page that goes with closure 3 carries closure 3's own map and its
+    // own mileposts — nothing to cross-reference back to the overview.
+    const allc=allWzSegments();
+    if(allc.length>1){
+      for(let i=0;i<allc.length;i++){
+        const one=await renderMapPNG(1000,700,'JPEG',0.72,i);
+        if(!one) continue;
+        const w=allc[i];
+        doc.addPage(); doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(150,0,0);
+        doc.text('Closure '+(i+1)+' of '+allc.length+' - file as its own entry',M,54);
+        doc.setTextColor(20); doc.setFont('helvetica','normal'); doc.setFontSize(9);
+        let cy2=72;
+        const ln=t=>{ if(!t) return; doc.text(String(t),M,cy2); cy2+=12; };
+        ln(wzLabel(w));
+        if(w.counties) ln('County/Counties: '+w.counties);
+        if(w.impact && w.impact!=='Choose one') ln('Impact on traffic: '+w.impact);
+        const s2=Math.min((612-2*M)/1000,(760-(cy2+14))/700);
+        doc.addImage(one,'JPEG',M,cy2+14,1000*s2,700*s2);
+      }
+    }
   }catch(e){ /* the map is a bonus - never block the PDF */ }
   doc.save('NJDOT_WZ_'+(routeValEff()||'route').replace(/\W+/g,'')+'.pdf');toast('Summary PDF generated');}
 

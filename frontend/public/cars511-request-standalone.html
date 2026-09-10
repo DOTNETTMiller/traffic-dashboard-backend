@@ -2135,6 +2135,7 @@ function extraClosuresText(){
   const all=allWzSegments(); if(all.length<2) return '';
   return '\n\n'+all.slice(1).map((w,i)=>
     `--- CLOSURE ${i+2} OF ${all.length} — file as its own 511 entry ---\n`+
+    `(map: see the "Closure ${i+2} of ${all.length}" page in the attached PDF)\n`+
     `Route: ${w.route}${w.direction?' - '+w.direction:''}\n`+
     `Project begin location: ${w.beginLoc||''}\n`+
     `Project end location: ${w.endLoc||''}\n`+
@@ -3298,8 +3299,12 @@ function formFields(){
 function attachNote(){
   const n=(typeof allWzSegments==='function')?allWzSegments().length:0;
   if(!n) return '';
-  return '\n\nATTACH: the official 511 PDF from the builder — its last page is the work-zone '
-       + 'location map showing '+(n>1?('all '+n+' closures'):'the closure')+' and any detour.';
+  return '\n\nATTACH: the official 511 PDF from the builder — after the form it carries a '
+       + 'work-zone location map'
+       + (n>1 ? (' showing all '+n+' closures together, then one page per closure ('
+                + 'each with its own map and mileposts) so each can be filed as its own 511 entry')
+              : ' showing the closure')
+       + ' and any detour.';
 }
 function summaryText(){
   const body=formFields().map(([k,val])=>`${k}: ${val}`).join('\n');
@@ -3673,9 +3678,20 @@ const fmtMDY=s=>{ const t=Date.parse(s); if(!Number.isFinite(t))return ''; const
 function lon2x(lon,z){ return (lon+180)/360*Math.pow(2,z); }
 function lat2y(lat,z){ const r=lat*Math.PI/180;
   return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*Math.pow(2,z); }
-function mapGeometry(){
+// `only` — draw a SINGLE closure instead of the whole request.
+//
+// Each closure on a multi-closure request has to be filed as its own 511 entry (Castelline:
+// "we would need that transferred into two separate entries"), and whoever enters it needs a
+// map of THAT closure, not a combined picture of all of them. The overview page still shows
+// everything together; the per-closure pages use this.
+//
+// Detours are drawn on every closure map: a detour is not recorded against a particular
+// closure, and one detour often serves the whole request, so hiding it would be worse than
+// repeating it.
+function mapGeometry(only){
   const shapes=[];
   allWzSegments().forEach((w,i)=>{
+    if(only!=null && i!==only) return;
     const p=(w.path&&w.path.length>=2)?w.path:[[w.begin.lat,w.begin.lng],[w.end.lat,w.end.lng]];
     shapes.push({pts:p,color:'#dc2626',width:5,label:String(i+1),at:p[0]});
     if(w.path2&&w.path2.length>=2) shapes.push({pts:w.path2,color:'#dc2626',width:5});
@@ -3686,8 +3702,8 @@ function mapGeometry(){
   });
   return shapes;
 }
-async function renderMapPNG(W,H){
-  const shapes=mapGeometry(); if(!shapes.length) return null;
+async function renderMapPNG(W,H,only){
+  const shapes=mapGeometry(only); if(!shapes.length) return null;
   let mnLa=90,mxLa=-90,mnLo=180,mxLo=-180;
   shapes.forEach(s=>s.pts.forEach(p=>{ if(p[0]<mnLa)mnLa=p[0]; if(p[0]>mxLa)mxLa=p[0];
     if(p[1]<mnLo)mnLo=p[1]; if(p[1]>mxLo)mxLo=p[1]; }));
@@ -3801,6 +3817,34 @@ async function fillOfficial(opts){
         });
         const maxW=524, scale=Math.min(maxW/img.width,(cy-60)/img.height);
         mp.drawImage(img,{x:44,y:cy-10-img.height*scale,width:img.width*scale,height:img.height*scale});
+      }
+      // One page PER CLOSURE when the request carries more than one.
+      //
+      // The TMC files each closure as its own 511 entry, so the person entering closure 3
+      // needs closure 3's map and closure 3's mileposts on one page — not a combined picture
+      // they have to pick apart. Stephanie: "image of the map would be fine... in addition to
+      // the milepost, we can get it pretty close that way." Each page repeats the fields that
+      // go into the entry so nothing has to be cross-referenced back to page 1.
+      const all=allWzSegments();
+      if(all.length>1){
+        for(let i=0;i<all.length;i++){
+          const w=all[i];
+          const one=await renderMapPNG(1000,700,i);
+          if(!one) continue;
+          const oimg=await doc.embedPng(one);
+          const pg=doc.addPage([612,792]);
+          pg.drawText(pdfSafe(`Closure ${i+1} of ${all.length} — file as its own 511 entry`),
+            {x:44,y:748,size:13,font,color:rgb(0.6,0,0)});
+          let y=730;
+          const line=(t)=>{ if(!t) return; pg.drawText(pdfSafe(String(t)),{x:44,y,size:9,font,color:rgb(0.2,0.2,0.2)}); y-=12; };
+          line(`Route: ${w.route||''}${w.direction?' - '+w.direction:''}`);
+          line(`Begin: ${w.beginLoc||''}`);
+          line(`End: ${w.endLoc||''}`);
+          line(`County/Counties: ${w.counties||''}`);
+          if(w.impact && w.impact!=='Choose one') line(`Impact on traffic: ${w.impact}`);
+          const sc=Math.min(524/oimg.width,(y-60)/oimg.height);
+          pg.drawImage(oimg,{x:44,y:y-10-oimg.height*sc,width:oimg.width*sc,height:oimg.height*sc});
+        }
       }
     }catch(e){ /* map is a bonus — never block the form */ }
     const blob=new Blob([await doc.save()],{type:'application/pdf'});
