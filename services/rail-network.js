@@ -105,18 +105,34 @@ async function loadNetwork(lat, lon, radiusM) {
   const dLat = (radiusM / R_EARTH_M) * 180 / Math.PI;
   const dLon = dLat / Math.max(Math.cos(rad(lat)), 1e-6);
   const bb = [lon - dLon, lat - dLat, lon + dLon, lat + dLat].join(',');
-  const url = LINES_URL +
-    '?where=1%3D1&geometry=' + encodeURIComponent(bb) +
-    '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects' +
-    '&outFields=' + encodeURIComponent('OBJECTID,RROWNER1,RROWNER2,RROWNER3,TRACKS,NET,SUBDIV,MILES,STATEAB') +
-    '&returnGeometry=true&outSR=4326&resultRecordCount=2000&f=json';
-  const j = await httpsGetJSON(url);
+  // PAGE IT. The service caps a response at 2,000 features and returns them in OBJECTID
+  // order, so in a dense metro the cap silently drops track — including, in one observed
+  // case, the very line the train was sitting on. Train 5 in Oakland failed to snap with
+  // "not within 300 m of active rail" while the nearest rail was 2 METRES away, purely
+  // because that segment fell past the cap. A truncated network does not just lose detail;
+  // it produces a confident wrong answer.
+  const PAGE = 2000;
+  const MAX_FEATURES = 8000;        // enough for the densest junctions seen; bounded on purpose
+  const feats = [];
+  let truncated = false;
+  for (let offset = 0; offset < MAX_FEATURES; offset += PAGE) {
+    const url = LINES_URL +
+      '?where=1%3D1&geometry=' + encodeURIComponent(bb) +
+      '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects' +
+      '&outFields=' + encodeURIComponent('OBJECTID,RROWNER1,RROWNER2,RROWNER3,TRACKS,NET,SUBDIV,MILES,STATEAB') +
+      '&returnGeometry=true&outSR=4326&resultRecordCount=' + PAGE + '&resultOffset=' + offset + '&f=json';
+    const page = await httpsGetJSON(url);
+    const got = (page && page.features) || [];
+    feats.push(...got);
+    if (got.length < PAGE) break;
+    if (offset + PAGE >= MAX_FEATURES) { truncated = true; break; }
+  }
 
   const proj = projector(lat);
   const edges = [];
   const nodes = new Map();
 
-  for (const f of (j.features || [])) {
+  for (const f of feats) {
     const a = f.attributes || {};
     for (const path of ((f.geometry && f.geometry.paths) || [])) {
       const pts = path.map(p => ({ lon: p[0], lat: p[1] })).filter(p => Number.isFinite(p.lon) && Number.isFinite(p.lat));
@@ -150,7 +166,7 @@ async function loadNetwork(lat, lon, radiusM) {
       edge.nodeB = nodeKey(pts[pts.length - 1].lon, pts[pts.length - 1].lat);
     }
   }
-  return { edges, nodes, proj, truncated: !!j.exceededTransferLimit };
+  return { edges, nodes, proj, truncated };
 }
 
 /** Closest point on one edge to p: {distM, alongM, index, t}. */
