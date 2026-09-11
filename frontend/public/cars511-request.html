@@ -1658,8 +1658,38 @@ async function scanProjects(){ const W=workSegment();
   const box=el('projBox'); box.style.display='block';
   if(!list.length){ box.innerHTML='No Iowa DOT letting or 5-Year Program projects found near this segment.'; toast('No projects found nearby'); return; }
   box.innerHTML=`<b>${list.length} project(s) near this segment</b> — tap a number to use it:<br>`+
-    list.slice(0,10).map((p,i)=>`• <a href="#" onclick="useProject(${i});return false" style="color:#1d4ed8;font-weight:700">${p.num||'(no #)'}</a> <span style="color:#64748b">[${p.src} · ${p.extra}] ${(p.desc||'').slice(0,26)}${p.loc?(' — '+(p.loc).slice(0,30)):''}</span>`).join('<br>');
-  toast(list.length+' project(s) nearby — tap a number to use it'); }
+    list.slice(0,10).map((p,i)=>`• <a href="#" onclick="useProject(${i});return false" style="color:#1d4ed8;font-weight:700">${p.num||'(no #)'}</a> `+
+      `<span style="color:#64748b">[${p.src} · ${p.extra}] ${(p.desc||'').slice(0,26)}${p.loc?(' — '+(p.loc).slice(0,30)):''}</span>`+
+      `<span style="color:#db2777;font-weight:600"> · ${Math.round(p.d)} m</span>`).join('<br>');
+  // Draw them ALL, now, rather than only after one is chosen.
+  //
+  // Knickerbocker's suggestion in the 9/3 review: "if I can actually put these on the map, that
+  // might make that a little easier to grab." The geometry is already in hand — scanProjects
+  // fetched it to measure distance — so the operator can see which candidate sits on their
+  // closure before picking, instead of choosing a number and then finding out.
+  showProjectCandidates(list);
+  toast(list.length+' project(s) nearby — tap a number, or a shape on the map'); }
+
+// Every nearby candidate, faint, with the distance on the label. The chosen one is drawn
+// separately and solid by showProjectOnMap, so picking one makes it stand out from the rest.
+let projCandLayer=null;
+function clearProjectCandidates(){ if(projCandLayer){ try{projCandLayer.remove();}catch(e){} projCandLayer=null; setOverlay('🏗️ Nearby projects', null); } }
+function showProjectCandidates(list){
+  clearProjectCandidates();
+  if(!list||!list.length) return;
+  const lay=L.layerGroup();
+  const style={color:PROJ_COLOR,weight:3,opacity:.55,dashArray:'4,5'};
+  list.slice(0,10).forEach((p,i)=>{
+    const g=p.geom; if(!g) return;
+    const label=(p.num||'project')+' · '+Math.round(p.d)+' m'+(p.desc?(' — '+String(p.desc).slice(0,40)):'');
+    const bind=o=>o.bindTooltip(label,{sticky:true}).on('click',()=>useProject(i)).addTo(lay);
+    (g.paths||[]).forEach(pa=>bind(L.polyline(pa.map(pt=>[pt[1],pt[0]]),style)));
+    (g.rings||[]).forEach(r=>bind(L.polygon(r.map(pt=>[pt[1],pt[0]]),{color:PROJ_COLOR,weight:2,opacity:.55,fillColor:PROJ_COLOR,fillOpacity:.07})));
+    const pts=[]; if(g.x!=null) pts.push([g.y,g.x]); (g.points||[]).forEach(pt=>pts.push([pt[1],pt[0]]));
+    pts.forEach(ll=>bind(L.circleMarker(ll,{radius:6,color:PROJ_COLOR,weight:2,opacity:.7,fillColor:'#fff',fillOpacity:.9})));
+  });
+  projCandLayer=lay.addTo(map); setOverlay('🏗️ Nearby projects', projCandLayer);
+}
 // --- Where is the selected project? -----------------------------------------
 // scanProjects already pulls geometry to measure distance, so tapping a result
 // can draw it straight away. A typed pick has none: the datalist is built with
@@ -1714,7 +1744,7 @@ async function locateProject(num){
   const a=feats[0].attributes||{};
   return {geom:merged, loc:a.LOCATION||a.Project_Location||''};
 }
-const PROJ_HIDE=' · <a href="#" onclick="clearProjectOnMap();projNote(\'\');return false" style="color:#64748b">hide</a>';
+const PROJ_HIDE=' · <a href="#" onclick="clearProjectOnMap();clearProjectCandidates();projNote(\'\');return false" style="color:#64748b">hide</a>';
 function useProject(i){ const p=projFeats[i]; if(!p)return;
   if(p.num) el('project').value=p.num;
   if(!v('description') && p.desc) el('description').value=p.desc;
@@ -2485,7 +2515,7 @@ function resetAll(){ if(!confirm('Start a NEW request? Clears the segment, detou
   if(bridgeLayer){bridgeLayer.remove();bridgeLayer=null;} window.__nbiNear=null; window.__nbiDetour=null; if(el('nbiBox'))el('nbiBox').style.display='none';
   if(closuresLayer){closuresLayer.remove();closuresLayer=null;} window.__iaClosures=null; window.__iaConflicts=null; if(el('closuresBox'))el('closuresBox').style.display='none';
   // projects + live-event pins + result banners
-  projFeats=[]; if(el('projBox'))el('projBox').style.display='none'; clearProjectOnMap(); projNote('');
+  projFeats=[]; if(el('projBox'))el('projBox').style.display='none'; clearProjectOnMap(); clearProjectCandidates(); projNote('');
   if(eventLayer){eventLayer.remove();eventLayer=null;} dupFeats=[];
   ['dupWarn','readyBox','dbStatus','laneHint','multiRouteWarn'].forEach(id=>{ if(el(id))el(id).style.display='none'; });
   schedSegments=[]; schedule=[]; if(typeof clearSegForm==='function') clearSegForm();
