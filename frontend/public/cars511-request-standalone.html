@@ -1773,15 +1773,22 @@ async function iaQuery(layer,params){ try{ const r=await fetch(IADOT+'/'+layer+'
 // lookup which route to measure along.
 function titleCase(s){ return String(s||'').toLowerCase()
   .replace(/\b([a-z])/g,(m,c)=>c.toUpperCase()).replace(/\b(Ne|Nw|Se|Sw|Us|Ia)\b/g,m=>m.toUpperCase()); }
-async function iowaRoadAt(pt){
-  const pad=0.004;   // ~440 m — enough to catch the road under the pin, small enough to stay quick
+async function iowaRoadAt(pt,padOverride){
+  // ~440 m normally: enough to catch the road under the pin, small enough to stay quick.
+  // WIDENS ONCE if that finds nothing. A point that is merely NEAR a road — the straight-line
+  // midpoint of a closure that bends, a pin dropped a little wide — returned null at 440 m and
+  // the caller then fell back to whatever else it had. Measured at the Ogden midpoint: 0
+  // features at 440 m, US 169 at 880 m. The nearest-road choice below is unchanged, so a wider
+  // box only adds candidates it can already rank.
+  const pad=padOverride||0.004;
   const bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
   try{
     const j=await iaQuery('Road_Network_View','where=1%3D1&geometry='+bb+
       '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'+
       '&outFields=ROAD_SYSTEM_DESC,SHORT_COMMON_NAME_1,COUNTY_SIGNED_ROUTE_1,ROUTEID'+
       '&returnGeometry=true&outSR=4326&resultRecordCount=2000');
-    const f=(j&&j.features)||[]; if(!f.length) return null;
+    const f=(j&&j.features)||[];
+    if(!f.length) return padOverride ? null : iowaRoadAt(pt, 0.012);   // one widened retry
     let best=null, bestM=Infinity;
     for(const x of f){
       for(const path of ((x.geometry&&x.geometry.paths)||[])){
