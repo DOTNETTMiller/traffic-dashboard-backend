@@ -1239,19 +1239,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <legend>Step 2 · Location &amp; details</legend>
       <div class="row">
         <div><label>Route</label>
-          <input id="route" list="routeList" placeholder="auto from map — e.g. I-80, US 71, IA 37"
+          <input id="route" placeholder="auto from map — fills itself once A and B are set"
                  oninput="saveState()" autocomplete="off" />
-          <datalist id="routeList">
-            <option>I-80</option><option>I-35</option><option>I-29</option><option>I-235</option>
-            <option>I-380</option><option>I-280</option><option>I-680</option><option>I-129</option>
-            <option>US 6</option><option>US 18</option><option>US 20</option><option>US 30</option>
-            <option>US 34</option><option>US 52</option><option>US 61</option><option>US 63</option>
-            <option>US 65</option><option>US 67</option><option>US 69</option><option>US 71</option>
-            <option>US 75</option><option>US 151</option><option>US 169</option><option>US 218</option>
-            <option>IA 1</option><option>IA 2</option><option>IA 9</option><option>IA 14</option>
-            <option>IA 21</option><option>IA 28</option><option>IA 37</option><option>IA 38</option>
-            <option>IA 92</option><option>IA 141</option><option>IA 163</option><option>IA 175</option>
-          </datalist>
         </div>
         <div><label>Direction</label><input id="direction" placeholder="auto from map" />
           <label style="font-weight:400;font-size:12px;display:flex;align-items:center;gap:5px;margin-top:4px;color:#334155">
@@ -1768,6 +1757,26 @@ async function iaQuery(layer,params){ try{ const r=await fetch(IADOT+'/'+layer+'
 // lookup which route to measure along.
 function titleCase(s){ return String(s||'').toLowerCase()
   .replace(/\b([a-z])/g,(m,c)=>c.toUpperCase()).replace(/\b(Ne|Nw|Se|Sw|Us|Ia)\b/g,m=>m.toUpperCase()); }
+// Iowa names a road in several fields and only one of them is clean:
+//   SHORT_COMMON_NAME_1    "US 169, N"   "E 23, E"   "590TH AVENUE, N"
+//   COUNTY_SIGNED_ROUTE_1  "STATE OF IOWA, E 23, E"
+// The signed, secondary and municipal fields are OWNER-prefixed. This used to read
+// COUNTY_SIGNED_ROUTE_1 first and take the text before the first comma, which yields the
+// OWNER rather than the road -- county road E 23 in Story County autofilled as "State Of
+// Iowa", and a road with no signed route and no short name autofilled as nothing at all.
+// Prefer the short name; strip the owner prefix off anything else before using it.
+const OWNER_PREFIX=/^(STATE OF IOWA|COUNTY OF [A-Z' .-]+|CITY OF [A-Z' .-]+)\s*,\s*/i;
+function roadName(a){
+  for(const raw of [a.SHORT_COMMON_NAME_1, a.COUNTY_SIGNED_ROUTE_1, a.SECONDARY_ROUTE_NAME_1,
+                    a.MUNICIPAL_ROUTE_NAME_1, a.COMMON_NAME_1]){
+    let s=String(raw||'').trim(); if(!s) continue;
+    s=s.replace(OWNER_PREFIX,'');
+    // A trailing ", N" / ", E" is the route's cardinal direction, not part of its name.
+    s=s.replace(/\s*,\s*[NSEW]\s*$/i,'').split(',')[0].trim();
+    if(s) return titleCase(s);
+  }
+  return '';
+}
 async function iowaRoadAt(pt,padOverride){
   // ~440 m normally: enough to catch the road under the pin, small enough to stay quick.
   // WIDENS ONCE if that finds nothing. A point that is merely NEAR a road — the straight-line
@@ -1780,7 +1789,7 @@ async function iowaRoadAt(pt,padOverride){
   try{
     const j=await iaQuery('Road_Network_View','where=1%3D1&geometry='+bb+
       '&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'+
-      '&outFields=ROAD_SYSTEM_DESC,SHORT_COMMON_NAME_1,COUNTY_SIGNED_ROUTE_1,ROUTEID'+
+      '&outFields=ROAD_SYSTEM_DESC,SHORT_COMMON_NAME_1,COMMON_NAME_1,COUNTY_SIGNED_ROUTE_1,SECONDARY_ROUTE_NAME_1,MUNICIPAL_ROUTE_NAME_1,ROUTEID'+
       '&returnGeometry=true&outSR=4326&resultRecordCount=2000');
     const f=(j&&j.features)||[];
     if(!f.length) return padOverride ? null : iowaRoadAt(pt, 0.012);   // one widened retry
@@ -1795,8 +1804,7 @@ async function iowaRoadAt(pt,padOverride){
     if(!best) return null;
     const sys=String(best.ROAD_SYSTEM_DESC||'').toUpperCase();
     const local = sys==='LOCAL';
-    return { local, system:sys, routeId:best.ROUTEID||null, metres:bestM,
-      name: titleCase(String(best.COUNTY_SIGNED_ROUTE_1||best.SHORT_COMMON_NAME_1||'').split(',')[0].trim()) };
+    return { local, system:sys, routeId:best.ROUTEID||null, metres:bestM, name: roadName(best) };
   }catch(e){ return null; }
 }
 async function iowaRefPost(pt,dirLetter,routeId){
@@ -1951,7 +1959,16 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
   // to nothing (a sharp curve can put a straight-line midpoint off the pavement).
   const midPt={lat:(beginPt.lat+endPt.lat)/2, lng:(beginPt.lng+endPt.lng)/2};
   const [roadBegin, roadMid]=await Promise.all([iowaRoadAt(beginPt), iowaRoadAt(midPt)]);
-  const road=(roadMid&&roadMid.routeId)?roadMid:roadBegin;
+  // Prefer the midpoint, but never let a LOCAL road at the midpoint outrank a state route
+  // under the begin pin. A closure on a highway that bends puts its straight-line midpoint
+  // on whatever driveway or side street happens to be nearest, and naming the request after
+  // a driveway is a worse failure than the junction case the midpoint exists to solve.
+  // Observed: a selection along IA 141 named "180th Street" because the midpoint sat off the
+  // curve; the begin pin was on IA 141 the whole time.
+  const road = (!roadMid || !roadMid.routeId) ? roadBegin
+             : (!roadBegin || !roadBegin.routeId) ? roadMid
+             : (roadMid.local && !roadBegin.local) ? roadBegin
+             : roadMid;
   const onLocal = !!(road && road.local);
   const rpA=onLocal?null:await iowaRefPost(beginPt,dLetter, road&&road.routeId);
   const rpB=onLocal?null:await iowaRefPost(endPt,dLetter, (rpA&&rpA.routeId)||(road&&road.routeId));
@@ -1960,15 +1977,21 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
   // County and speed used to fill once and never move again, so dragging A/B onto a different
   // route left the old county and the old speed limit sitting there. Treat them like the
   // mileposts: refresh whatever the map put there, keep anything the user typed.
-  if(rpA){ mpA=rpA.mp; if(autoMP(v('beginLoc'))) el('beginLoc').value='MP '+rpA.mp;
-    // setAuto, not a bare assignment: the value has to be recorded as map-filled, or a later
-    // move onto a local road cannot replace it and the old highway name sticks.
-    if(rpA.route) setAuto('route', rpA.route); }
+  if(rpA){ mpA=rpA.mp; if(autoMP(v('beginLoc'))) el('beginLoc').value='MP '+rpA.mp; }
   if(rpB){ mpB=rpB.mp; if(autoMP(v('endLoc'))) el('endLoc').value='MP '+rpB.mp; }
+  // ONE route assignment, covering every road the map can land on. It used to be set only
+  // from the reference post, and posts exist only on posted state routes -- so a closure on
+  // a county road or a city street, or on a state route with no post within reach of the
+  // begin pin, left the box empty for the operator to type by hand. The road network knows
+  // the name in all of those cases; the posted name simply wins when there is one.
+  //
+  // setAuto, not a bare assignment: the value has to be recorded as map-filled, or a later
+  // move onto a different road cannot replace it and the old name sticks.
+  const routeName=(rpA&&rpA.route)||(road&&road.name)||'';
+  if(routeName && autoFilled('route')) setAuto('route', routeName);
   if(onLocal){
     // A city or county road: name it properly and leave the mileposts alone — there are none
     // to post. The form asks for "cross-street / MP" precisely because this case exists.
-    if(road.name && autoFilled('route')) setAuto('route', road.name);
     if(autoMP(v('beginLoc'))) setAuto('beginLoc','');
     if(autoMP(v('endLoc'))) setAuto('endLoc','');
     const hint=el('selinfo');
