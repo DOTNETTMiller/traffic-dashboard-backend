@@ -774,6 +774,41 @@ async function iowaRCEOffice(pt){
   let best=null,bd=Infinity; for(const x of f){ const g=x.geometry; if(!g)continue; const d=d2(pt,g.y,g.x); if(d<bd){bd=d;best=x;} }
   return best?best.attributes:null;
 }
+/**
+ * Nearest maintenance garage to the work zone.
+ *
+ * The 511 form asks for it (Waltersdorf's 8/18 submission: "Maintenance Garage: Onawa") and it
+ * was the last map-derivable field still being typed by hand. 100 garages statewide, so the
+ * whole set is fetched once and the nearest taken — same shape as the RCE office lookup above.
+ *
+ * NEAREST_CITY is the label, not GARAGE_DESCRIPTION: the description reads "Maint Garage - 15
+ * Stall", which identifies the building rather than the garage. The city is what staff call it
+ * and what the TMC expects to read.
+ */
+let GARAGES=null;
+async function iowaGarage(pt){
+  if(!GARAGES){
+    const j=await iaQuery('Maintenance_Garage_View','where=1%3D1&outFields=GARAGE_DESCRIPTION,NEAREST_CITY,PHONE_NUMBER,MAINT_DISTRICT,SUPERVISOR&returnGeometry=true&outSR=4326&resultRecordCount=400');
+    GARAGES=(j&&j.features)||[];
+  }
+  let best=null,bd=Infinity;
+  for(const x of GARAGES){ const g=x.geometry; if(!g)continue; const d=d2(pt,g.y,g.x); if(d<bd){bd=d;best=x;} }
+  if(!best) return null;
+  const a=best.attributes;
+  return { name:(a.NEAREST_CITY||a.GARAGE_DESCRIPTION||'').trim(), phone:a.PHONE_NUMBER||null,
+           district:a.MAINT_DISTRICT!=null?String(a.MAINT_DISTRICT):null, supervisor:a.SUPERVISOR||null };
+}
+// A district tech is tied to a garage, so remember them per garage rather than globally —
+// the same treatment the RCE cc address already gets per office. Local to this browser.
+function techBook(){ try{ return JSON.parse(localStorage.getItem('cars511_tech_book')||'{}'); }catch(e){ return {}; } }
+function saveTechForGarage(){ const g=window.__maintGarage; if(!g) return;
+  const b=techBook(); const n=v('techContact'), p=v('techPhone');
+  if(n||p) b[g]={name:n||null,phone:p||null}; else delete b[g];
+  localStorage.setItem('cars511_tech_book', JSON.stringify(b)); }
+function applyTechForGarage(g){ const rec=techBook()[g]; if(!rec) return;
+  if(rec.name && autoFilled('techContact')) setAuto('techContact', rec.name);
+  if(rec.phone && autoFilled('techPhone')) setAuto('techPhone', rec.phone); }
+
 // Distance (miles) along a polyline to the closest point to pt; also the perpendicular offset.
 function measureAlong(path, pt){ let cum=0, best={d:Infinity,s:0}; const k=Math.cos(pt.lat*Math.PI/180);
   for(let i=1;i<path.length;i++){ const a=path[i-1], b=path[i];
@@ -798,6 +833,16 @@ async function iowaMPCalib(routeId, path){
   const seen=new Set(), out=[]; calib.sort((a,b)=>a.s-b.s).forEach(c=>{ if(seen.has(c.mp))return; seen.add(c.mp); out.push(c); }); return out; }
 async function snapWZ(){ if(!(beginPt&&endPt))return;
   const dir=dirLabel(bearing(beginPt,endPt)); const dLetter=dir[0];
+  // Maintenance garage + the district tech who works out of it.
+  iowaGarage(beginPt).then(g=>{ if(!g||!g.name) return;
+    window.__maintGarage=g.name;
+    if(autoFilled('maintGarage')) setAuto('maintGarage', g.name);
+    applyTechForGarage(g.name);
+    // The garage's own number is a reasonable default for the district tech phone when nothing
+    // has been remembered for it yet — better than an empty box the operator has to go and find.
+    if(g.phone && autoFilled('techPhone')) setAuto('techPhone', String(g.phone).replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3'));
+    saveState();
+  }).catch(()=>{});
   iowaRCEOffice(beginPt).then(rce=>{ if(!rce)return;
     const opt=[...el('rce').options].find(o=>o.value.indexOf('District '+rce.District)===0); if(opt) el('rce').value=opt.value;
     setRceOffice(rce.City||('District '+rce.District));   // auto-fills the saved cc email for this office
@@ -3018,6 +3063,9 @@ function saveRceEmail(){ const key=window.__rceOffice; if(!key) return; const b=
 el('route').addEventListener('change', ()=>{ onRouteChange(); saveState(); });
 el('rce').addEventListener('change', ()=>{ setRceOffice(v('rce')); saveState(); });
 el('rceEmail').addEventListener('input', saveRceEmail);
+// Remember the district tech against the garage they work out of, so the next request from
+// that garage fills them in. Same treatment the RCE cc address already gets per office.
+['techContact','techPhone'].forEach(id=>{ if(el(id)) el(id).addEventListener('input', saveTechForGarage); });
 FIELD_IDS.forEach(id=>{ if(el(id)) el(id).addEventListener('input', saveState); });
 if(!prefillFromURL())loadState(); renderProjects(); onRouteChange(); loadIntegration(); loadCsvProjects(); updateClearAlter(); onImpactChange();
 onRecurToggle(); updateSegHints(); renderSegments(); renderContacts(); onDetourToggle(); renderDetours(); renderWzSegments(); renderDetourFor();
