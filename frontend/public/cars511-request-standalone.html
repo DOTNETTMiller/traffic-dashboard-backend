@@ -1888,9 +1888,23 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
     saveState();
   }).catch(()=>{});
   reverseFill(beginPt,'begin');   // county follows the begin pin on every re-snap, not just the first click
-  // Identify the road under the pin FIRST, then read mileposts along THAT route — rather than
-  // grabbing the nearest post and hoping it belongs to this road.
-  const road=await iowaRoadAt(beginPt);
+  // Identify the road the SEGMENT runs along, then read mileposts along THAT route — rather
+  // than grabbing the nearest post and hoping it belongs to this road.
+  //
+  // The anchor is the MIDPOINT, not the begin pin. A closure very often starts at an
+  // intersection, and a pin dropped in a junction sits on the cross street as readily as on
+  // the road being closed — so the begin pin named the wrong route and every milepost was
+  // then read along it. Observed live at the US 30 / US 169 junction in Ogden: a 2.42-mile
+  // closure running south on US 169 came back labelled "US 30", MP 126.7 to 126.3, because
+  // the begin pin sat in the junction. Sampling the line afterwards showed 98.4% of it on
+  // US 169; only the first 0.038 mi was US 30.
+  //
+  // The midpoint of a closure is on the closure's own road in all but pathological cases, and
+  // it costs one extra lookup. The begin pin remains the fallback when the midpoint resolves
+  // to nothing (a sharp curve can put a straight-line midpoint off the pavement).
+  const midPt={lat:(beginPt.lat+endPt.lat)/2, lng:(beginPt.lng+endPt.lng)/2};
+  const [roadBegin, roadMid]=await Promise.all([iowaRoadAt(beginPt), iowaRoadAt(midPt)]);
+  const road=(roadMid&&roadMid.routeId)?roadMid:roadBegin;
   const onLocal = !!(road && road.local);
   const rpA=onLocal?null:await iowaRefPost(beginPt,dLetter, road&&road.routeId);
   const rpB=onLocal?null:await iowaRefPost(endPt,dLetter, (rpA&&rpA.routeId)||(road&&road.routeId));
