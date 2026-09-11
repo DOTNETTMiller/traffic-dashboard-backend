@@ -40,12 +40,13 @@ function verifiedIcon(sources) {
   const color = (SOURCE_META[primarySource(sources)] || {}).color || '#16a34a';
   return L.divIcon({
     className: 'validated-closure-icon',
-    html: `<div style="display:flex;align-items:center;gap:2px;
+    html: `<div style="position:absolute;transform:translate(-50%,-50%);
+      display:inline-flex;align-items:center;gap:2px;
       background:${color};color:#fff;
-      border:2px solid ${strong ? '#fde047' : '#fff'};border-radius:12px;padding:1px 5px;font-size:11px;font-weight:700;
+      border:2px solid ${strong ? '#fde047' : '#fff'};border-radius:12px;padding:1px 6px;font-size:11px;font-weight:700;
       box-shadow:0 1px 4px rgba(0,0,0,.4);white-space:nowrap;">✓ ${glyphs || '✔'}</div>`,
-    iconSize: [48, 20],
-    iconAnchor: [24, 10]
+    iconSize: [0, 0],
+    iconAnchor: [0, 0]
   });
 }
 
