@@ -49,7 +49,7 @@ import OSWRegulationsLayer from './OSWRegulationsLayer';
 import StateOSWRegulationsLayer from './StateOSWRegulationsLayer';
 import ITSEquipmentLayer from './ITSEquipmentLayer';
 import ConnectedDevicesLayer from './ConnectedDevicesLayer';
-import ValidatedClosuresLayer from './ValidatedClosuresLayer';
+import ValidatedClosuresLayer, { SOURCE_META, SOURCE_ORDER } from './ValidatedClosuresLayer';
 import NetworkTopologyLayer from './NetworkTopologyLayer';
 import TETCCorridorsLayer from './TETCCorridorsLayer';
 import CADDElementsLayer from './CADDElementsLayer';
@@ -474,7 +474,10 @@ export default function TrafficMap({
   // On-map filter state for the historical crash layer (client-side only).
   const [crashCorridor, setCrashCorridor] = useState('Both');
   // Validated Work Zones: per-source filter + live counts for the legend.
-  const [validatedSources, setValidatedSources] = useState({ device: true, camera: true, tomtom: true, dms: true });
+  // Every validator starts enabled. Built from SOURCE_ORDER so a new one cannot be
+  // missing here and silently filtered out of the map.
+  const [validatedSources, setValidatedSources] = useState(
+    () => Object.fromEntries(SOURCE_ORDER.map(k => [k, true])));
   const [validatedCounts, setValidatedCounts] = useState(null);
   const [tomtomStatus, setTomtomStatus] = useState(null);
   // TomTom breaker status for the legend chip. Fetched once when the layer opens (no polling);
@@ -1385,12 +1388,9 @@ export default function TrafficMap({
           <div style={{ fontWeight: 700, color: '#374151', marginBottom: '6px' }}>
             ✓ Validated by{validatedCounts ? ` (${validatedCounts.total})` : ''}
           </div>
-          {[
-            ['device', '🔗', 'Device on site', '#2563eb'],
-            ['camera', '📷', 'Camera', '#16a34a'],
-            ['tomtom', '🚗', 'TomTom (independent)', '#d97706'],
-            ['dms', '🔶', 'DMS message', '#7c3aed']
-          ].map(([k, glyph, label, color]) => (
+          {SOURCE_ORDER.map((k) => {
+            const { glyph, menuLabel: label, color } = SOURCE_META[k];
+            return (
             <label key={k} style={{
               display: 'flex', alignItems: 'center', gap: '7px', cursor: 'pointer',
               padding: '3px 0', opacity: validatedSources[k] ? 1 : 0.45
@@ -1401,7 +1401,8 @@ export default function TrafficMap({
               <span>{glyph} {label}</span>
               {validatedCounts && <span style={{ color: '#94a3b8', marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{validatedCounts[k] || 0}</span>}
             </label>
-          ))}
+            );
+          })}
           {tomtomStatus && tomtomStatus.status && tomtomStatus.status !== 'ok' && (
             <div style={{
               marginTop: '6px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px',

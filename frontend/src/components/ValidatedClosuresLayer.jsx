@@ -13,18 +13,25 @@ import api from '../services/api';
 
 // Per-source color + priority. When a zone has multiple sources it's drawn in its
 // strongest source's color (device > camera > TomTom) with a gold border to flag "multi".
-const SOURCE_META = {
-  device: { glyph: '🔗', label: 'device', color: '#2563eb' },  // blue — hardware on site
-  camera: { glyph: '📷', label: 'camera', color: '#16a34a' },  // green — visual truth
-  tomtom: { glyph: '🚗', label: 'TomTom', color: '#d97706' },  // amber — independent probe
-  dms:    { glyph: '🔶', label: 'DMS msg', color: '#7c3aed' }, // purple — operator-posted sign text
+// EXPORTED, and the only place a validator is declared. The filter menu, its per-source
+// totals and its initial state are all derived from this object. They used to be three
+// hand-maintained lists, and adding worker-presence to this one did not add it to the other
+// three: it was absent from the counts (no total), absent from the menu (no checkbox), and
+// absent from the enabled-sources state — which meant `sources.some(s => enabled[s])` was
+// false for a zone validated ONLY by crew presence, so the map dropped it with no way to
+// switch it back on. Derived lists cannot drift like that.
+export const SOURCE_META = {
+  device: { glyph: '🔗', label: 'device', menuLabel: 'Device on site', color: '#2563eb' },  // blue — hardware on site
+  camera: { glyph: '📷', label: 'camera', menuLabel: 'Camera', color: '#16a34a' },  // green — visual truth
   // People on the ground, from the contractor's own crew check-in and equipment telematics —
-  // a different operational chain from the DOT feed being validated. The feed has emitted this
-  // since HaulHub was added; the popup had no block for it, so a zone could be validated by it
-  // and show no reason why.
-  'worker-presence': { glyph: '👷', label: 'crew on site', color: '#0891b2' }
+  // a different operational chain from the DOT feed being validated.
+  'worker-presence': { glyph: '👷', label: 'crew on site', menuLabel: 'Crew on site', color: '#0891b2' },
+  tomtom: { glyph: '🚗', label: 'TomTom', menuLabel: 'TomTom (independent)', color: '#d97706' },  // amber — independent probe
+  dms:    { glyph: '🔶', label: 'DMS msg', menuLabel: 'DMS message', color: '#7c3aed' } // purple — operator-posted sign text
 };
-const PRIORITY = ['device', 'camera', 'worker-presence', 'tomtom', 'dms'];
+// Strongest validator first: this both picks a zone's colour and orders the filter menu.
+export const SOURCE_ORDER = ['device', 'camera', 'worker-presence', 'tomtom', 'dms'];
+const PRIORITY = SOURCE_ORDER;
 const primarySource = (sources) => PRIORITY.find(s => sources.includes(s)) || 'camera';
 
 function verifiedIcon(sources) {
@@ -86,7 +93,8 @@ export default function ValidatedClosuresLayer({ visible = false, sources: enabl
         const feats = (res && res.data && res.data.features) || [];
         setFeatures(feats);
         if (onCounts) {
-          const counts = { device: 0, camera: 0, tomtom: 0, dms: 0, total: feats.length };
+          const counts = { total: feats.length };
+          SOURCE_ORDER.forEach(k => { counts[k] = 0; });
           feats.forEach(f => (f.properties?.x_verification || []).forEach(s => { if (counts[s] != null) counts[s]++; }));
           onCounts(counts);
         }
