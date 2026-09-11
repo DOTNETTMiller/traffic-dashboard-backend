@@ -37,6 +37,8 @@ function isActiveNow(event, now = Date.now()) {
   return true;
 }
 
+const geo = require('./event-geometry');
+
 // ---- 1) matching (free) -----------------------------------------------------
 
 /**
@@ -45,15 +47,27 @@ function isActiveNow(event, now = Date.now()) {
  */
 function matchCamera(event, cameras, opts = {}) {
   const maxM = opts.maxM || 1500;
-  const evPt = event.coordinates || (event.longitude != null ? [event.longitude, event.latitude] : null);
-  if (!evPt || !Array.isArray(cameras)) return null;
+  if (!Array.isArray(cameras)) return null;
+  // Measure to the CLOSURE, not to its centroid. This used to read event.coordinates, a field
+  // present on only 1,505 of 6,226 events, and return null for the rest before it looked at a
+  // single camera -- so most closures were unmatchable for want of a point, not for want of a
+  // camera. Sampling is finer than the match radius, so no camera inside maxM can fall between
+  // two samples, and the result is cached per event.
+  const pts = geo.samplePoints(event, { spacingM: Math.max(100, Math.round(maxM / 3)), maxPts: 120 });
+  if (!pts.length) return null;
   const evRoute = interstate(event.corridor || event.route || event.location);
   let best = null, bestD = Infinity;
   for (const c of cameras) {
     if (!c || !Array.isArray(c.coordinates)) continue;
     if (evRoute && c.route && interstate(c.route) !== evRoute) continue; // same interstate only
-    const d = turf.distance(turf.point(evPt), turf.point(c.coordinates), { units: 'meters' });
-    if (d < bestD) { bestD = d; best = c; }
+    const [clon, clat] = c.coordinates;
+    if (!Number.isFinite(+clon) || !Number.isFinite(+clat)) continue;
+    // Plain arithmetic rather than a turf call per pair: this runs cameras x samples times,
+    // and per-pair turf calls are what previously turned a scan into an 8-minute stall.
+    for (const p of pts) {
+      const d = geo.metres(+clon, +clat, p[0], p[1]);
+      if (d < bestD) { bestD = d; best = c; }
+    }
   }
   if (!best || bestD > maxM) return null;
   return { camera: best, distanceM: Math.round(bestD) };

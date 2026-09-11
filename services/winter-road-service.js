@@ -27,6 +27,8 @@
  * the whole service down. Nothing in this file scans O(n*m).
  */
 
+const geo = require('./event-geometry');
+
 const AGOL = 'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services';
 
 const LAYERS = {
@@ -493,9 +495,20 @@ function corroborate(events, cams, opts = {}) {
   const idx = buildIndex(fresh, radiusM);
   let n = 0;
   for (const ev of (events || [])) {
-    const p = ev.coordinates || (ev.longitude != null ? [ev.longitude, ev.latitude] : null);
-    if (!Array.isArray(p) || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) continue;
-    const hits = near(idx, p[1], p[0], radiusM);
+    // Evidence attaches to the closure, not to its midpoint -- a photo taken beside a long
+    // zone is a photo of that zone. Coarser sampling than the vision gate uses, because this
+    // only has to decide "near it or not", and it runs over every event rather than the
+    // active few.
+    const zonePts = geo.samplePoints(ev, { spacingM: Math.max(100, Math.round(radiusM / 2)), maxPts: 80 });
+    if (!zonePts.length) continue;
+    const seenUrl = new Map();
+    for (const zp of zonePts) {
+      for (const h of near(idx, zp[1], zp[0], radiusM)) {
+        const prev = seenUrl.get(h.point.imageUrl);
+        if (!prev || h.distanceM < prev.distanceM) seenUrl.set(h.point.imageUrl, h);
+      }
+    }
+    const hits = [...seenUrl.values()].sort((a, b) => a.distanceM - b.distanceM);
     if (!hits.length) continue;
     // Only frames taken while the closure was actually in effect. A picture of that stretch
     // of road from before the work began is a picture of nothing.
@@ -567,14 +580,26 @@ function visionCandidates(events, cams, opts = {}) {
   const idx = buildIndex(fresh, maxM);
   const out = [];
   for (const ev of (events || [])) {
-    const p = ev.coordinates || (ev.longitude != null ? [ev.longitude, ev.latitude] : null);
-    if (!Array.isArray(p) || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) continue;
-    const [lon, lat] = p;
+    // The closure is a LINE. Query the index from points along it, not from one coordinate:
+    // a truck beside a mile-long zone is near the zone even when it is nowhere near the
+    // midpoint. Sampling finer than maxM means nothing inside the radius falls between samples.
+    const zonePts = geo.samplePoints(ev, { spacingM: Math.max(50, Math.round(maxM / 2)), maxPts: 160 });
+    if (!zonePts.length) continue;
+    const hits = new Map();                    // imageUrl -> closest hit, deduped across samples
+    for (const zp of zonePts) {
+      for (const h of near(idx, zp[1], zp[0], maxM)) {
+        const prev = hits.get(h.point.imageUrl);
+        // Keep the sample the truck is actually closest to; that is the part of the closure
+        // the lens is nearest, and the bearing below is taken to THAT point.
+        if (!prev || h.distanceM < prev.distanceM) hits.set(h.point.imageUrl, { ...h, zonePoint: zp });
+      }
+    }
 
     let kept = 0;
-    for (const h of near(idx, lat, lon, maxM)) {
+    for (const h of [...hits.values()].sort((a, b) => a.distanceM - b.distanceM)) {
       if (kept >= maxPerZone) break;
       const c = h.point;
+      const [lon, lat] = h.zonePoint;
       // THIRD GATE: the closure has to have been in effect when the shutter fired.
       const when = activeAt(ev, Date.parse(c.takenAt));
       if (when.active !== true) continue;
