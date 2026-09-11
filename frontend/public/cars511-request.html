@@ -832,8 +832,25 @@ async function snapWZ(){ if(!(beginPt&&endPt))return;
   // Ask the road network what is under each end instead, which is what actually differs.
   (async()=>{ try{
     const roadB=await iowaRoadAt(endPt);
-    const nameOf=(r,rp)=>((rp&&rp.route)||(r&&r.name)||'').trim();
-    flagMultiRoute(nameOf(road,rpA), nameOf(roadB,rpB));
+    // Compare the INDEPENDENT road-network lookups, not the reference posts.
+    //
+    // rpB is deliberately locked to rpA's ROUTE_ID above, so that the end milepost is read
+    // along the same route as the begin. That made this comparison structurally incapable of
+    // ever firing: nameOf preferred rp.route, and rpB.route is rpA.route by construction, so
+    // the two sides were always equal. Observed live — a selection running from US 30 at the
+    // Ogden junction south down US 169 reported route "US 30" with mileposts 126.7 to 126.3,
+    // a 0.4-mile reading across a 2.4-mile segment, and raised no warning at all.
+    //
+    // Direction suffixes are stripped before comparing, so the two carriageways of one road
+    // (…0030E vs …0030W) are not mistaken for two routes.
+    const baseRoute=(id)=>String(id||'').replace(/[NSEW]\d*$/,'');
+    const idA=(road&&road.routeId)||null, idB=(roadB&&roadB.routeId)||null;
+    const differs = !!(idA && idB && baseRoute(idA)!==baseRoute(idB));
+    const nameOf=(r,rp)=>((r&&r.name)||(rp&&rp.route)||'').trim();
+    flagMultiRoute(
+      differs ? (nameOf(road,rpA)||idA) : '',
+      differs ? (nameOf(roadB,null)||idB) : ''
+    );
   }catch(e){} })();
   let mi=null, usedIowa=false;
   let routeId=(rpA&&rpA.routeId)||(rpB&&rpB.routeId)||(!onLocal&&road?road.routeId:null);

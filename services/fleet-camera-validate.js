@@ -102,6 +102,7 @@ async function detectAtZones(events, opts = {}) {
       eventId: c.eventId, corridor: c.corridor, route: c.route, milepost: c.milepost,
       truck: c.truck, imageUrl: c.imageUrl, takenAt: c.takenAt,
       distanceM: c.distanceM, bearingOffDeg: c.bearingOffDeg, closureSpanDays: c.closureSpanDays,
+      ageMinutes: c.ageMinutes,        // carried through; the result read "undefinedmin old" without it
       verdict: seen ? 'work-zone-confirmed' : (v.staged_only ? 'devices-staged-only' : 'no-devices-seen'),
       devices: v.devices || [], confidence: v.confidence ?? null
     });
@@ -116,7 +117,9 @@ async function detectAtZones(events, opts = {}) {
     // before setup or after teardown, the devices may be beyond the frame, or the zone may
     // simply be further along than the shot reaches.
     caveat: 'A confirmation is strong: devices were deployed in the roadway when the truck passed. '
-          + 'A negative is weak — it means this frame showed none, not that the zone is absent.',
+          + 'A negative is weak — it means this frame showed none, not that the zone is absent. '
+          + 'Low sun straight down the carriageway washes out a forward dashcam, so negatives '
+          + 'around sunrise and sunset deserve less weight than negatives at midday.',
     results
   };
 }
