@@ -181,8 +181,21 @@ export default function ValidatedClosuresLayer({ visible = false, sources: enabl
                   {sources.includes('camera') && (
                     <div style={{ background: '#f0fdf4', borderRadius: 6, padding: '5px 8px', marginBottom: 5 }}>
                       <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 3 }}>
-                        📷 Camera {cameraSeen.length ? `saw: ${cameraSeen.join(', ')}` : 'view'}
+                        {p.x_camera_source === 'fleet' ? '🚛' : '📷'} Camera{' '}
+                        {cameraSeen.length ? `saw: ${cameraSeen.join(', ')}` : 'view'}
                       </div>
+                      {/* Where no roadside camera exists, the frame comes from a maintenance
+                          truck that drove past. Same model, same question -- but a photograph
+                          from a passing vehicle, so it is labelled as one rather than left to
+                          read as a fixed camera trained on the zone. */}
+                      {p.x_camera_source === 'fleet' && (
+                        <div style={{ color: '#3f6212', fontSize: 11, marginBottom: 3 }}>
+                          from a maintenance truck passing the zone
+                          {p.x_camera_truck ? ` (${p.x_camera_truck})` : ''}
+                          {p.x_camera_distance_m != null ? ` · ${p.x_camera_distance_m} m away` : ''}
+                          {' '}— no roadside camera covers this location
+                        </div>
+                      )}
                       {p.x_camera_url && (
                         <img src={p.x_camera_url} alt="camera view of work zone"
                           style={{ width: '100%', borderRadius: 6, display: 'block' }}
@@ -190,7 +203,8 @@ export default function ValidatedClosuresLayer({ visible = false, sources: enabl
                       )}
                       {p.x_camera_checked_at && (
                         <div style={{ color: '#999', fontSize: 11, marginTop: 3 }}>
-                          checked {new Date(p.x_camera_checked_at).toLocaleString()}
+                          {p.x_camera_source === 'fleet' ? 'photographed' : 'checked'}{' '}
+                          {new Date(p.x_camera_checked_at).toLocaleString()}
                         </div>
                       )}
                     </div>

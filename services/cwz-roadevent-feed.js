@@ -115,8 +115,14 @@ function buildFeed(events, opts = {}) {
       props.x_camera_verified = true;
       props.x_camera_detected = ev.x_camera_detected || [];
       props.x_camera_checked_at = ev.x_camera_checked_at;
-      props.x_camera_url = ev.x_camera_url || null;   // live snapshot of the zone
+      props.x_camera_url = ev.x_camera_url || null;   // the frame the verdict was read from
       props.x_camera_id = ev.x_camera_id || null;
+      // 'fixed' = a roadside camera looking at that spot; 'fleet' = a photograph taken by a
+      // maintenance truck as it drove past. Both are read by the same model and both validate,
+      // but they are different kinds of evidence and the popup has to be able to say which.
+      props.x_camera_source = ev.x_camera_source || (String(ev.x_camera_id || '').startsWith('fleet:') ? 'fleet' : 'fixed');
+      if (ev.x_camera_truck) props.x_camera_truck = ev.x_camera_truck;
+      if (ev.x_camera_distance_m != null) props.x_camera_distance_m = ev.x_camera_distance_m;
     }
     // A photograph taken by a passing maintenance truck. Carried as EVIDENCE, never as a
     // validating source -- it is not counted in x_verification and does not make a zone
