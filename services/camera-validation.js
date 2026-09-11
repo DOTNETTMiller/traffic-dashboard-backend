@@ -39,6 +39,35 @@ function isActiveNow(event, now = Date.now()) {
 
 const geo = require('./event-geometry');
 
+/**
+ * Could this closure be active right now, as far as the feed can say?
+ *
+ * isActiveNow() asks the feed to ASSERT that a zone is active, and returns null when it
+ * cannot. That is the right question for reporting and the wrong one for deciding whether to
+ * look at a picture, because 408 of 6,039 events carry no start date at all -- seven state
+ * DOTs publish them with neither start nor end, and the end date on those is one this service
+ * invented and has extended a median of 28 times. Requiring the feed to already know the
+ * answer means the camera can never be asked about exactly the zones whose status is unknown.
+ *
+ * So this inverts the test: a zone is eligible unless the feed POSITIVELY CONTRADICTS it --
+ * a published start still in the future, or a publisher's own end date already past. A
+ * missing date excludes nothing, because a missing date is not evidence of absence. The
+ * camera then supplies the answer the feed could not.
+ *
+ * An ESTIMATED end date is never treated as a contradiction. It is our own placeholder, and
+ * letting it veto a check would mean this service silently vetoing itself.
+ */
+function couldBeActive(event, now = Date.now()) {
+  const s = Date.parse(event.startTime || event.startDate || event.start_date || '');
+  if (Number.isFinite(s) && now < s) return false;          // published start is still ahead
+  const lc = event._lifecycle || {};
+  // hasNativeEndTime === false means the end we hold is estimated, so it says nothing.
+  if (lc.hasNativeEndTime === false || lc.isEstimated === true) return true;
+  const e = Date.parse(event.endTime || event.endDate || event.end_date || '');
+  if (Number.isFinite(e) && now > e) return false;          // the publisher says it is over
+  return true;
+}
+
 // ---- 1) matching (free) -----------------------------------------------------
 
 /**
@@ -297,4 +326,4 @@ async function askVision(imageUrl, prompt, opts = {}) {
   }
 }
 
-module.exports = { matchCamera, detect, askVision, interstate, isActiveNow, VISION_MODEL, VISION_PROVIDER };
+module.exports = { matchCamera, detect, askVision, interstate, isActiveNow, couldBeActive, VISION_MODEL, VISION_PROVIDER };

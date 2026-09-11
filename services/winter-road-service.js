@@ -28,6 +28,7 @@
  */
 
 const geo = require('./event-geometry');
+const cv = require('./camera-validation');
 
 const AGOL = 'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services';
 
@@ -568,6 +569,20 @@ function visionCandidates(events, cams, opts = {}) {
   const maxPerZone = Math.max(1, Math.min(opts.maxPerZone || 3, 5));
   const noHeadingMaxM = opts.noHeadingMaxM || 75;
   const maxAgeMin = opts.maxAgeMin || 360;
+  // How recent a frame has to be to count as evidence about activity. Separate from
+  // maxAgeMin, which only decides what is worth holding in memory.
+  //
+  // Set from what the fleet actually delivers, not from what would be ideal. A truck
+  // photographs a given zone when it happens to drive past it, which for any one zone is
+  // roughly once a shift: measured across the 22 frames sitting within 150 m of a closure,
+  // ages ran 218 to 361 minutes, and a 90-minute window admitted none of them. Three hours
+  // is the compromise -- traffic control that was deployed three hours ago is very probably
+  // still deployed, whereas a six-hour-old frame is a statement about this morning.
+  //
+  // This is why the verdict is always carried WITH its timestamp: for a fleet frame the
+  // honest claim is "active as of 14:05", not "active now". A fixed camera is the one that
+  // can answer "now", because its snapshot is live.
+  const nowWindowMs = (opts.activeNowMin || parseInt(process.env.FLEET_ACTIVE_NOW_MIN, 10) || 180) * 60000;
   const now = Date.now();
 
   const fresh = (cams || []).filter(c => {
@@ -600,9 +615,23 @@ function visionCandidates(events, cams, opts = {}) {
       if (kept >= maxPerZone) break;
       const c = h.point;
       const [lon, lat] = h.zonePoint;
-      // THIRD GATE: the closure has to have been in effect when the shutter fired.
-      const when = activeAt(ev, Date.parse(c.takenAt));
-      if (when.active !== true) continue;
+      // THIRD GATE: the frame has to be able to speak about NOW, and the feed must not
+      // positively contradict the zone being open.
+      //
+      // This used to require activeAt(...) === true -- the feed asserting the zone was in
+      // effect when the shutter fired. That made the check impossible for exactly the zones
+      // worth checking: 408 events carry no start date, so activeAt returns null forever and
+      // no photograph, however clear, could ever be considered. Measured on live data, 17 of
+      // 22 frames within 150 m of a closure were thrown away for this reason alone, including
+      // frames at 10, 17 and 19 metres.
+      //
+      // What actually matters for "is it active NOW" is that the photograph is RECENT. An
+      // in-effect six-hour-old frame says nothing about now; a fresh frame does, whatever the
+      // feed's dates look like.
+      const shotMs = Date.parse(c.takenAt);
+      if (!Number.isFinite(shotMs) || (now - shotMs) > nowWindowMs) continue;
+      const when = activeAt(ev, shotMs);
+      if (!cv.couldBeActive(ev, shotMs)) continue;
       const hdg = Number.isFinite(c.heading) ? c.heading : null;
       let bearingOff = null;
       if (h.distanceM <= closeEnoughM) {
@@ -630,7 +659,11 @@ function visionCandidates(events, cams, opts = {}) {
         route: c.route, milepost: c.milepost, state: c.state, truck: c.truck,
         takenAt: c.takenAt,
         ageMinutes: Math.round((now - Date.parse(c.takenAt)) / 60000),
-        inClosureWindow: true,
+        // Whether the FEED thought the zone was in effect. Kept for context, no longer a
+        // precondition -- null means the feed has no dates to judge by, which is the case
+        // the camera exists to settle.
+        inClosureWindow: when.active,
+        feedSaysActive: when.active,
         closureSpanDays: when.spanDays === null ? null : +when.spanDays.toFixed(1),
         // Closest and most head-on first, so a capped run spends its budget on the frames
         // most likely to show something.

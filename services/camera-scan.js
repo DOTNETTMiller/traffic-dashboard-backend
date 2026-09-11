@@ -37,6 +37,12 @@ function isMultiDay(ev, now) {
   const e = Date.parse(ev.endTime || ev.endDate || '');
   if (Number.isFinite(s) && Number.isFinite(e)) return (e - s) > MULTIDAY_MS;
   if (Number.isFinite(s)) return (now - s) > MULTIDAY_MS;
+  // No start date: fall back to how long this event has been in the feed. These run to a
+  // median of 21 days and a maximum of 69, so they are emphatically multi-day -- and without
+  // this they were classed single-day and never entered the daily re-check that detects a
+  // zone whose traffic control has come down.
+  const seen = Date.parse((ev._lifecycle || {}).firstSeen || '');
+  if (Number.isFinite(seen)) return (now - seen) > MULTIDAY_MS;
   return false;
 }
 
@@ -68,7 +74,10 @@ async function scanActive(events, opts = {}) {
   }
 
   for (const ev of (events || [])) {
-    if (cv.isActiveNow(ev) !== true) continue;               // WZDx says active now
+    // Eligible unless the feed positively says otherwise. Requiring the feed to ASSERT the
+    // zone is active excluded the 408 events that carry no start date -- the very zones whose
+    // status nothing else can establish. See couldBeActive().
+    if (!cv.couldBeActive(ev, now)) continue;
     const id = ev.id || ev.road_event_id;
     if (!id) continue;
     const led = await ledger.get(id);
@@ -144,6 +153,12 @@ async function scanActive(events, opts = {}) {
     if (fc) fleetChecked++;
     const seen = !!det.work_zone;
     await ledger.record(id, { phase, seen, camera: camId, cameraUrl: camUrl, devices: det.devices, stagedOnly: det.staged_only, detectedAt: det.checkedAt });
+    // The verdict is a statement about the zone's CURRENT activity, from a look at it rather
+    // than from the feed's dates. Recorded on every check, positive or negative, so a zone
+    // whose status the feed never gave still ends up with an answer and a timestamp for it.
+    ev.x_activity_checked_at = det.checkedAt;
+    ev.x_activity_source = m ? 'fixed-camera' : 'fleet-camera';
+    ev.x_activity_verdict = seen ? 'active' : (det.staged_only ? 'devices-staged-only' : 'no-devices-seen');
     if (seen) {
       ev.x_camera_verified = true;
       ev.x_camera_detected = det.devices;
