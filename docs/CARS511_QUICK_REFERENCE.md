@@ -6,10 +6,12 @@ A one-page guide for field/RCE staff. Open **`cars511-request-standalone.html`**
 
 ## Build a request in 6 steps
 
-1. **Mark the work zone.** Click the road for the **begin** point, then the **end** point — the segment snaps to the Iowa DOT centerline and auto-fills the **posted mileposts**, county, and nearest RCE office. *(In the field, tap **📍 Use my location** instead of clicking.)*
+1. **Mark the work zone.** Click the road for the **begin** point, then the **end** point — the segment snaps to the Iowa DOT centerline and auto-fills the **route**, direction, **posted mileposts**, county, speed limit, nearest **RCE office**, and the **maintenance garage** with its phone. *(In the field, tap **📍 Use my location** instead of clicking.)*
+   - The route is read from the **middle** of the segment, not the first pin, so a closure that starts at an intersection is not labelled with the cross street.
+   - If the selection crosses from one route onto another it says so, and offers **✂ Split into two closures at the boundary** — each side then carries mileposts measured on its own route. The TMC has to file one 511 entry per route, so the request should arrive already split.
 2. **Check it's not already filed.** Press **🔁 Check for existing closures / duplicates**. Green = clear to file. Red = an existing 511 closure is here — tap **load & extend** to update it instead of filing a duplicate.
 3. **Pull in the details** (each is a button; results are tappable):
-   - **🏗️ Find DOT project #** — programmed (5-year) + letting projects near the segment → tap a number to fill it.
+   - **🏗️ Find DOT project #** — programmed (5-year) + letting projects within ~1 mile → each is **drawn on the map** with its distance, so you can see which one sits on your closure before picking. Tap the number or the shape.
    - **🌉 Scan NBI clearances (route + detour)** — lowest bridge clearance on the route *and* the detour, plus posted restrictions → **Apply** fills height/width.
    - **🔶 Scan DMS, arrow boards & Street Smart (IWZ)** — tap devices to add; a **Street Smart (SS/SSR)** unit marks it an **Intelligent Work Zone**.
    - The **lane hint** under "Traffic impact" tells you how many lanes exist that direction — pick the matching impact.
@@ -19,8 +21,17 @@ A one-page guide for field/RCE staff. Open **`cars511-request-standalone.html`**
    A **single day** or a **single overnight** is just one segment with recurring left unticked; there is no
    week count to invent. Overnight windows are detected and marked as ending the following morning.
 5. **Detour.** Answer **Does this closure have a detour?** — the section only opens if you say yes. You can
-   save **more than one**, named by route and direction (e.g. *I-80 eastbound detour*).
+   save **more than one**, named by route and direction (e.g. *I-80 eastbound detour*). If a detour you draw
+   runs along one of your own closures, it says so rather than routing traffic into a road you are closing.
 6. **Review readiness.** Press **✓ Check readiness** — it flags any required field still empty before you submit.
+**It remembers between requests.** Your name and email, the 24-hr contact (as a growing dropdown — pick a
+name and its number fills in), the RCE cc address **per office**, and the district tech **per garage**.
+Anything you type is never overwritten by a later map move.
+
+**More than one closure on a request?** Save each with **➕ Save closure & add another**. The PDF then carries
+the overview map plus **one page per closure** — its own map and its own mileposts — because each is filed as
+its own 511 entry.
+
 7. **Submit.** Choose one:
    - **📝 Fill official 511 PDF** — downloads the filled Iowa 511 form.
    - **📋 Fill 511 site (copy fields)** — opens the SeamlessDocs form + per-field copy buttons.
