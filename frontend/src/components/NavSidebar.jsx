@@ -37,6 +37,7 @@ const NAV = [
       { actionKey: 'toggle-weather-alerts',   toggleProp: 'showWeatherAlerts',       icon: '🌩️', label: 'Weather Alerts' },
       { actionKey: 'toggle-border-wait-times', toggleProp: 'showBorderWaitTimes',    icon: '🛂', label: 'Border Wait Times' },
       { actionKey: 'toggle-winter-roads',     toggleProp: 'showWinterRoads',         icon: '🚛', label: 'Road Service & Conditions' },
+      { actionKey: 'toggle-field-escort',      toggleProp: 'showFieldEscort',        icon: '🚜', label: 'Farm Equipment on Road' },
       { actionKey: 'toggle-rail-crossings',   toggleProp: 'showRailCrossings',       icon: '🚧', label: 'Blocked Rail Crossings' },
       { actionKey: 'toggle-rail-trains',      toggleProp: 'showRailTrains',          icon: '🚆', label: 'Live Amtrak Trains' },
       { actionKey: 'toggle-parking',          toggleProp: 'showParking',             icon: '🅿️', label: 'Truck Parking' },

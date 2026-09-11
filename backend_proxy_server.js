@@ -7455,6 +7455,32 @@ app.get('/api/winter/plows', async (req, res) => {
 });
 
 /**
+ * Slow-moving farm equipment on public roads, from the Field Escort WZDx feed.
+ *
+ * ON DEMAND ONLY. Nothing calls this on a schedule; it runs when someone opens the layer.
+ * The service caches for the feed's own 60s publish interval, so a second viewer in the same
+ * minute costs no upstream read, and an idle dashboard costs nothing at all.
+ *
+ * Proxied rather than read by the browser because the publisher's feed endpoint omits
+ * Access-Control-Allow-Origin — and proxying lets us halve the bytes, which is what actually
+ * costs money here.
+ */
+app.get('/api/field-escort/tractors', async (req, res) => {
+  try {
+    const fe = require('./services/field-escort');
+    const out = await withDeadline(fe.fetchTractors(), 9000, 'field-escort') || {
+      available: false, reason: 'upstream slow', tractors: [], counts: { onRoad: 0 }
+    };
+    // Matches the publisher's own max-age: a shorter cache would re-fetch bytes that cannot
+    // have changed, and a longer one would show a machine where it no longer is.
+    res.set('Cache-Control', 'public, max-age=60');
+    res.json({ success: true, ...out });
+  } catch (e) {
+    res.status(502).json({ success: false, reason: e.message, tractors: [], counts: { onRoad: 0 } });
+  }
+});
+
+/**
  * Validate work zones from the maintenance fleet's dashcams. ?detect=1 to actually look.
  *
  * Without detect=1 this is a DRY RUN: it resolves which frames pass the three gates and
