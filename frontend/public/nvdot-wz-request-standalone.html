@@ -1359,30 +1359,25 @@ https://github.com/nodeca/pako/blob/master/LICENSE
         </div>
         <div class="hint" id="segOvernight" style="display:none;margin:2px 0 0">Crosses midnight — each occurrence ends the following morning.</div>
 
-        <div class="segHead">Recurring</div>
-        <label class="chk"><input type="checkbox" id="segRecur" onchange="onRecurToggle()" /> This scheduled item will recur</label>
-        <div id="segRecurBox" style="display:none;margin-top:6px">
-          <div class="row" style="align-items:end">
-            <div style="max-width:90px"><label>Every</label><input id="segEvery" type="number" min="1" max="12" value="1" /></div>
-            <div><label>&nbsp;</label><select id="segUnit"><option>Week(s)</option></select></div>
-          </div>
-          <label style="margin-top:6px">On the following days</label>
-          <div class="dayPicks" id="segDays">
-            <label class="chk"><input type="checkbox" data-dow="1" /> Mon</label>
-            <label class="chk"><input type="checkbox" data-dow="2" /> Tue</label>
-            <label class="chk"><input type="checkbox" data-dow="3" /> Wed</label>
-            <label class="chk"><input type="checkbox" data-dow="4" /> Thu</label>
-            <label class="chk"><input type="checkbox" data-dow="5" /> Fri</label>
-            <label class="chk"><input type="checkbox" data-dow="6" /> Sat</label>
-            <label class="chk"><input type="checkbox" data-dow="0" /> Sun</label>
-          </div>
-          <div class="mapbtns" style="margin-top:6px">
-            <button type="button" onclick="pickDays('week')">Week days</button>
-            <button type="button" onclick="pickDays('end')">Week ends</button>
-            <button type="button" onclick="pickDays('all')">All</button>
-            <button type="button" onclick="pickDays('none')">None</button>
-          </div>
+        <div class="segHead">Days of the week</div>
+        <div class="dayPicks" id="segDays">
+          <label class="chk"><input type="checkbox" data-dow="1" onchange="updateSegHints()" /> Mon</label>
+          <label class="chk"><input type="checkbox" data-dow="2" onchange="updateSegHints()" /> Tue</label>
+          <label class="chk"><input type="checkbox" data-dow="3" onchange="updateSegHints()" /> Wed</label>
+          <label class="chk"><input type="checkbox" data-dow="4" onchange="updateSegHints()" /> Thu</label>
+          <label class="chk"><input type="checkbox" data-dow="5" onchange="updateSegHints()" /> Fri</label>
+          <label class="chk"><input type="checkbox" data-dow="6" onchange="updateSegHints()" /> Sat</label>
+          <label class="chk"><input type="checkbox" data-dow="0" onchange="updateSegHints()" /> Sun</label>
         </div>
+        <div class="mapbtns" style="margin-top:6px">
+          <button type="button" onclick="pickDays('night')">Mon&ndash;Thu nights</button>
+          <button type="button" onclick="pickDays('week')">Week days</button>
+          <button type="button" onclick="pickDays('end')">Week ends</button>
+          <button type="button" onclick="pickDays('all')">All</button>
+          <button type="button" onclick="pickDays('none')">None</button>
+        </div>
+        <div class="hint" id="segDayNote" style="margin:6px 0 0">Tick the days this segment actually works. Leave every day unticked for a straight-through closure that never lifts.</div>
+        <label class="chk" style="margin-top:8px"><input type="checkbox" id="segEveryOther" onchange="updateSegHints()" /> Skip weeks &mdash; repeat every <input id="segEvery" type="number" min="1" max="12" value="1" style="width:52px;margin:0 4px" onchange="updateSegHints()" /> week(s)</label>
 
         <div class="mapbtns" style="margin-top:10px">
           <button type="button" class="primarySm" onclick="saveSegment()" id="segSaveBtn">💾 Save segment</button>
@@ -1895,8 +1890,8 @@ let segEditIdx=-1;                      // -1 = adding, >=0 = updating that segm
 
 function segDayBoxes(){ return [...document.querySelectorAll('#segDays input[type=checkbox]')]; }
 function pickDays(which){ segDayBoxes().forEach(b=>{ const d=+b.dataset.dow;
-  b.checked = which==='all' ? true : which==='none' ? false : which==='week' ? (d>=1&&d<=5) : (d===0||d===6); }); }
-function onRecurToggle(){ el('segRecurBox').style.display = el('segRecur').checked ? 'block' : 'none'; }
+  b.checked = which==='all' ? true : which==='none' ? false : which==='week' ? (d>=1&&d<=5)
+    : which==='night' ? (d>=1&&d<=4) : (d===0||d===6); }); updateSegHints(); }
 // A window whose end time is at or before its start time runs past midnight.
 function segCrossesMidnight(s){ return !!(s.fromTime && s.untilTime && s.untilTime <= s.fromTime); }
 function hhmm(t){ if(!t) return ''; const [h,m]=t.split(':').map(Number); const ap=h<12?'am':'pm';
@@ -1905,27 +1900,34 @@ function dstr(d){ if(!d) return ''; const [y,m,day]=d.split('-'); return `${m}/$
 
 function readSegForm(){
   return { fromDate:v('segFromDate'), untilDate:v('segUntilDate'), fromTime:v('segFromTime'), untilTime:v('segUntilTime'),
-    recur: el('segRecur').checked, every: Math.max(1, parseInt(v('segEvery')||'1',10)), unit:'Week(s)',
+    recur: segDayBoxes().some(b=>b.checked),
+    every: el('segEveryOther').checked ? Math.max(1, parseInt(v('segEvery')||'1',10)) : 1, unit:'Week(s)',
     days: segDayBoxes().filter(b=>b.checked).map(b=>+b.dataset.dow).sort() };
 }
 function writeSegForm(s){
   el('segFromDate').value=s.fromDate||''; el('segUntilDate').value=s.untilDate||'';
   el('segFromTime').value=s.fromTime||''; el('segUntilTime').value=s.untilTime||'';
-  el('segRecur').checked=!!s.recur; el('segEvery').value=s.every||1;
+  el('segEvery').value=s.every||1; el('segEveryOther').checked=(s.every||1)>1;
   segDayBoxes().forEach(b=> b.checked = (s.days||[]).includes(+b.dataset.dow));
-  onRecurToggle(); updateSegHints();
+  updateSegHints();
 }
 function clearSegForm(){ segEditIdx=-1; writeSegForm({every:1,days:[]});
   el('segSaveBtn').textContent='💾 Save segment'; renderSegments(); }
 function updateSegHints(){ const s=readSegForm();
-  el('segOvernight').style.display = segCrossesMidnight(s) ? 'block' : 'none'; }
+  const night=segCrossesMidnight(s);
+  el('segOvernight').style.display = night ? 'block' : 'none';
+  const note=el('segDayNote');
+  if(note) note.innerHTML = night
+    ? 'Overnight work &mdash; a ticked day is the night that <b>starts</b> that day. Tick Mon for the shift that begins Monday evening and clears Tuesday morning.'
+    : 'Tick the days this segment actually works. Leave every day unticked for a straight-through closure that never lifts.';
+  const eb=el('segEvery'); if(eb) eb.disabled = !el('segEveryOther').checked; }
 
 // "Runs every 1 week(s) on Monday, Tuesday, Wednesday, Thursday" — OpenTMS's own phrasing,
 // so the TMC reads the request in the words their tool already uses.
 function segLabel(s){
   if(!s.recur || !s.days.length) return 'Continuous';
   const names=s.days.slice().sort((a,b)=>((a+6)%7)-((b+6)%7)).map(d=>DOW_LONG[d]);
-  return `Runs every ${s.every} week(s) on ${names.join(', ')}`;
+  return `Runs every ${s.every} week(s) on ${names.join(', ')}`+(segCrossesMidnight(s)?' (nights)':'');
 }
 // Expand a segment into individual work nights/days for the request summary.
 function segOccurrences(s, cap=400){
@@ -1956,7 +1958,6 @@ function saveSegment(){
   if(!s.fromTime)miss.push('from time'); if(!s.untilTime)miss.push('until time');
   if(miss.length){ toast('Missing '+miss.join(', ')); return; }
   if(new Date(s.untilDate) < new Date(s.fromDate)){ toast('Until date is before the from date'); return; }
-  if(s.recur && !s.days.length){ toast('Pick at least one day, or untick recurring'); return; }
   if(segEditIdx>=0) schedSegments[segEditIdx]=s; else schedSegments.push(s);
   clearSegForm(); syncSchedule(); saveState();
   toast(segEditIdx>=0?'Segment updated':'Segment added');
