@@ -15,6 +15,7 @@ an implementer can build from scratch, and each stamps WZDx-compatible `x_*` ver
 | **`probe-validation`** | Commercial traffic-incident provider (e.g. TomTom v5) corroboration, with metered-API safety controls. |
 | **`dms-validation`** | Operator-posted dynamic message sign text; two-gate accept/reject classification. |
 | **`geometry-correction`** | Data quality, not validation: turns 2-point crow-flies work-zone geometry into road-following polylines via state LRS → ARNOLD → OSRM. |
+| **`cwz-conformance`** | Audits an aggregated feed against CWZ 1.0 / WZDx 4.1+, attributes each defect to its source adapter, and normalizes structure without inventing content. |
 
 ## Format
 
@@ -33,6 +34,9 @@ content is portable as-is.
 - **Geometry correction is upstream of validation.** A zone whose shape is a straight line between two
   points cannot be matched to a camera, device, or incident by distance. Fix geometry first (state LRS
   before the national fallback before a router), then validate.
+- **Normalize structure, never invent content.** In an aggregated feed most defects are inherited from
+  the publishers, so they can be fixed deterministically at assembly — but a field the publisher never
+  sent (worker presence, a zone's extent) must be escalated, never filled with a plausible guess.
 
 Full feed schema, endpoints, and integration guidance: `VALIDATED_WORK_ZONES_DEV_SPEC.md`.
 
