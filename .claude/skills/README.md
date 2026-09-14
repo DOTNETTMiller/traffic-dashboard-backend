@@ -14,6 +14,7 @@ an implementer can build from scratch, and each stamps WZDx-compatible `x_*` ver
 | **`device-validation`** | Connected field device (arrow board / DMS / sensor) on the zone by route + chainage. |
 | **`probe-validation`** | Commercial traffic-incident provider (e.g. TomTom v5) corroboration, with metered-API safety controls. |
 | **`dms-validation`** | Operator-posted dynamic message sign text; two-gate accept/reject classification. |
+| **`geometry-correction`** | Data quality, not validation: turns 2-point crow-flies work-zone geometry into road-following polylines via state LRS → ARNOLD → OSRM. |
 
 ## Format
 
@@ -29,6 +30,9 @@ content is portable as-is.
 - **Positive-only**, with exactly one demotion: camera's daily re-check can mark a zone finished.
 - **Sticky accumulation** for device/probe/dms (persist, never demote); camera stays daily-recheckable.
 - **Confidence** = number of agreeing sources (`≥2` = strong).
+- **Geometry correction is upstream of validation.** A zone whose shape is a straight line between two
+  points cannot be matched to a camera, device, or incident by distance. Fix geometry first (state LRS
+  before the national fallback before a router), then validate.
 
 Full feed schema, endpoints, and integration guidance: `VALIDATED_WORK_ZONES_DEV_SPEC.md`.
 
