@@ -17,6 +17,9 @@ Rejection rules (each one exists because the naive version was wrong):
      producer behaviour). Only a PREFIX PAIR -- one tail that is a prefix
      of another on the same stem -- is a FINDING.
   5. A feed whose ids cannot be located reports NO IDS AT ALL, never clean.
+  6. A feed that cannot be PARSED says so too. An HTTP 200 carrying an HTML
+     error page is not a feed, and must not crash (a traceback in a sweep
+     reads as noise) nor exit 0 (which reads as a pass).
 
 stdlib only. usage: id_stability.py <file.json|url> [label]
 """
@@ -26,13 +29,30 @@ TS = re.compile(r'[-_.](19|20)\d{2}([-_.]\d{1,2}){2,5}$')
 DELIM = re.compile(r'[-_.]')
 WORD = re.compile(r'^[A-Za-z]+$')
 
+class Unevaluable(Exception):
+    """The input is not a feed we can read. Never a pass, never a crash."""
+
 def load(src):
-    if src.startswith('http'):
-        req = urllib.request.Request(src, headers={'User-Agent': 'id-stability/1.0'})
-        with urllib.request.urlopen(req, timeout=60) as r:
-            return json.load(r)
-    with open(src) as f:
-        return json.load(f)
+    try:
+        if src.startswith('http'):
+            req = urllib.request.Request(src, headers={'User-Agent': 'id-stability/1.0'})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                raw = r.read()
+        else:
+            raw = open(src, 'rb').read()
+    except Exception as e:
+        raise Unevaluable(f"could not fetch: {e}")
+    head = raw.lstrip()[:200].decode('utf-8', 'replace')
+    if head[:1] in ('<',):
+        raise Unevaluable("payload is markup, not JSON -- an error page served as a feed"
+                          f" (starts: {head[:60]!r})")
+    try:
+        doc = json.loads(raw)
+    except Exception as e:
+        raise Unevaluable(f"payload is not valid JSON: {e} (starts: {head[:60]!r})")
+    if not isinstance(doc, dict) or 'features' not in doc:
+        raise Unevaluable(f"payload is JSON but not a FeatureCollection (starts: {head[:60]!r})")
+    return doc
 
 def get_id(feat):
     for v in (feat.get('id'),
@@ -60,7 +80,13 @@ def stem_of(rid):
     return stem, tail
 
 def run(src, label):
-    doc = load(src)
+    print(f"\n=== {label}")
+    try:
+        doc = load(src)
+    except Unevaluable as e:
+        print(f"COULD NOT BE EVALUATED -- {e}")
+        print("THIS RESULT IS NOT CLEAN. It is unknown.")
+        return 3
     feats = doc.get('features') or []
     ids, anon = [], 0
     for f in feats:
@@ -68,7 +94,6 @@ def run(src, label):
         if rid: ids.append(rid)
         else:   anon += 1
 
-    print(f"\n=== {label}")
     print(f"road events: {len(feats)}   ids found: {len(ids)}   no identifier: {anon}")
 
     if not ids:
