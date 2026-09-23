@@ -240,7 +240,7 @@ CREATE TABLE cars511_requests (
 
 The tool runs in a browser, so the endpoint must return the right CORS headers or the browser blocks the POST. Two clean options:
 
-1. **Host the HTML on the same origin as the API** (e.g. serve `cars511-request.html` from the same site/domain as `/api/cars511`) → no CORS config needed.
+1. **Host the HTML on the same origin as the API** (e.g. serve `iadot-wz-request.html` from the same site/domain as `/api/cars511`) → no CORS config needed.
 2. **Allow the tool's origin** in the endpoint (`Access-Control-Allow-Origin`). If operators open the file locally (`file://`), browsers send `Origin: null` — allow `*` on an internal, token-protected endpoint, or (better) host the HTML on the intranet.
 
 Also handle the preflight `OPTIONS` request (the examples above do).

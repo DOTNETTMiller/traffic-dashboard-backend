@@ -16,17 +16,18 @@
 // 2-letter state → builder file prefix (Iowa is the hand-built cars511 tool; everyone else is generated).
 const STATE_BUILDER = {
   al:'aldot', ak:'akdot', az:'adot', ar:'ardot', ca:'caltrans', co:'cdot', ct:'ctdot', de:'deldot',
-  fl:'fdot', ga:'gdot', hi:'hidot', id:'itd', il:'idot', in:'indot', ia:'cars511', ks:'ksdot',
+  fl:'fdot', ga:'gdot', hi:'hidot', id:'itd', il:'idot', in:'indot', ia:'iadot', ks:'ksdot',
   ky:'kytc', la:'ladotd', me:'mainedot', md:'mdotsha', ma:'massdot', mi:'midot', mn:'mndot', ms:'msdot',
   mo:'modot', mt:'mdt', ne:'nedot', nv:'nvdot', nh:'nhdot', nj:'njdot', nm:'nmdot', ny:'nysdot',
   nc:'ncdot', nd:'nddot', oh:'ohdot', ok:'okdot', or:'ordot', pa:'penndot', ri:'ridot', sc:'scdot',
-  sd:'sddot', tn:'tdot', tx:'txdot', ut:'udot', vt:'vtrans', va:'vdot', wa:'wsdot', wv:'wvdot', wi:'wisdot', wy:'wydot'
+  sd:'sddot', tn:'tdot', tx:'txdot', ut:'udot', vt:'vtrans', va:'vdot', wa:'wsdot', wv:'wvdot', wi:'wisdot', wy:'wydot', dc:'ddot'
 };
 
 // Approximate [W,S,E,N] bounding boxes — used only to resolve which state a nav-only (tomtomOnly)
 // incident sits in, since those have no DOT state tag. First containing box wins (good enough to route
 // a "create this zone" link to the right builder; the steward confirms on the map anyway).
 const STATE_BBOX = {
+  dc:[-77.120,38.790,-76.909,38.996],   // before md/va: DC falls inside both
   al:[-88.5,30.1,-84.9,35.1], ak:[-179,51,-129,71.5], az:[-114.9,31.3,-109,37.1], ar:[-94.7,33,-89.6,36.6],
   ca:[-124.5,32.5,-114.1,42.1], co:[-109.1,36.9,-102,41.1], ct:[-73.8,40.9,-71.7,42.1], de:[-75.8,38.4,-75,39.9],
   fl:[-87.7,24.4,-79.9,31.1], ga:[-85.7,30.3,-80.8,35.1], hi:[-160.3,18.8,-154.7,22.3], id:[-117.3,41.9,-111,49.1],
@@ -83,7 +84,7 @@ function builderLink(base, ab, z, exId, kind) {
   if (z.description) p.set('description', String(z.description).slice(0, 300));
   if (z.county) p.set('counties', String(z.county));
   p.set('ex', exId); p.set('exkind', kind);
-  const file = idprefix === 'cars511' ? 'cars511-request.html' : idprefix + '-wz-request.html';
+  const file = idprefix + '-wz-request.html';
   return base.replace(/\/$/, '') + '/' + file + '?' + p.toString();
 }
 
