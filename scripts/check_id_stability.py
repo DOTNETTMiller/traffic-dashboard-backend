@@ -54,10 +54,26 @@ def load(src):
     try:
         if src.startswith('http'):
             req = urllib.request.Request(src, headers={'User-Agent': 'id-stability/1.0'})
-            with urllib.request.urlopen(req, timeout=60) as r:
-                raw = r.read()
+            try:
+                with urllib.request.urlopen(req, timeout=60) as r:
+                    raw = r.read()
+            except urllib.error.URLError as e:
+                # Several DOT hosts serve a chain missing its intermediate. curl
+                # completes it from the system store where Python's bundle cannot,
+                # so fall back rather than report a live feed unevaluable.
+                if 'CERTIFICATE_VERIFY_FAILED' not in str(e): raise
+                import subprocess
+                pr = subprocess.run(['curl', '-sS', '--max-time', '60',
+                                     '-A', 'id-stability/1.0', src],
+                                    capture_output=True)
+                if pr.returncode != 0:
+                    raise Unevaluable('could not fetch: python TLS verify failed and '
+                                      f'curl fallback failed: {pr.stderr.decode()[:160].strip()}')
+                raw = pr.stdout
         else:
             raw = open(src, 'rb').read()
+    except Unevaluable:
+        raise
     except Exception as e:
         raise Unevaluable(f"could not fetch: {e}")
     head = raw.lstrip()[:200].decode('utf-8', 'replace')
