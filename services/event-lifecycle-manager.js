@@ -11,6 +11,15 @@
  */
 
 const EventEmitter = require('events');
+const { subjectKey } = require('./stable-event-key');
+
+// Iowa's ids carry the event's current segmentation, so re-segmenting a zone replaces every
+// id naming it (6 events / 39 ids in an 18-hour sample). Tracked by raw id, that reads as one
+// zone ending and fourteen starting, and `removalDelayMinutes` then retires a zone that never
+// went anywhere. Tracked by subject it is what it is: the same zone, sliced differently.
+// Off by default -- it changes which events this service considers the same one.
+const USE_SUBJECT_KEY = process.env.STABLE_EVENT_KEY === 'true';
+const trackKey = (id) => (USE_SUBJECT_KEY ? subjectKey(id) : id);
 
 class EventLifecycleManager extends EventEmitter {
   constructor(pgPool = null) {
@@ -44,7 +53,7 @@ class EventLifecycleManager extends EventEmitter {
    */
   processFeedRefresh(freshEvents, source) {
     const now = new Date();
-    const currentEventIds = new Set(freshEvents.map(e => e.id));
+    const currentEventIds = new Set(freshEvents.map(e => trackKey(e.id)));
     const results = {
       new: 0,
       updated: 0,
@@ -64,12 +73,14 @@ class EventLifecycleManager extends EventEmitter {
 
     // Process events from current feed
     for (const event of freshEvents) {
-      const tracking = this.eventTracking.get(event.id);
+      const key = trackKey(event.id);
+      const tracking = this.eventTracking.get(key);
 
       if (!tracking) {
         // New event - first time we've seen it
-        this.eventTracking.set(event.id, {
+        this.eventTracking.set(key, {
           id: event.id,
+          key,
           source,
           firstSeen: now,
           lastSeen: now,
@@ -228,7 +239,7 @@ class EventLifecycleManager extends EventEmitter {
    */
   enrichEvents(events) {
     return events.map(event => {
-      const tracking = this.eventTracking.get(event.id);
+      const tracking = this.eventTracking.get(trackKey(event.id));
 
       if (!tracking) {
         return event; // Not tracked yet
@@ -258,7 +269,7 @@ class EventLifecycleManager extends EventEmitter {
   filterActiveEvents(events, now = new Date()) {
     let filteredOut = 0;
     const kept = events.filter(event => {
-      const tracking = this.eventTracking.get(event.id);
+      const tracking = this.eventTracking.get(trackKey(event.id));
 
       // If not tracked, include it (will be tracked on next refresh)
       if (!tracking) return true;
