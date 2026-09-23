@@ -9,7 +9,7 @@ STAGE="$(mktemp -d)"
 PKG="$STAGE/CARS511_Package"
 mkdir -p "$PKG/docs"
 
-cp "$ROOT/frontend/public/cars511-request-standalone.html" "$PKG/CARS511-Request-Builder.html"
+cp "$ROOT/frontend/public/iadot-wz-request-standalone.html" "$PKG/CARS511-Request-Builder.html"
 cp "$ROOT/docs/CARS511_PACKAGE_README.txt"                 "$PKG/README.txt"
 for f in CARS511_QUICK_REFERENCE.md CARS511_DATABASE_INTEGRATION.md \
          CARS511_project_list_TEMPLATE.csv NV_NE_WORKZONE_IMPROVEMENT_BRIEFING.md; do
