@@ -269,7 +269,27 @@ elevated feed even while the source WZDx feed still lists it. This is the platfo
    high-assurance use cases; single-source for broader coverage.
 4. **Respect positive-only semantics.** Do not infer "no work zone" from the absence of a validator;
    only the camera `x_tc_removed` signal is an affirmative "removed."
-5. **Stable identity.** `id` / `core_details.name` is stable across refreshes — safe as an exchange key.
+5. **Identity is stable only as far as the publisher makes it stable — measure, don't assume.**
+   `id` / `core_details.name` is stable across refreshes *for the sources verified with
+   `scripts/check_id_stability.py`*. For unverified upstreams the property is inherited from the
+   publisher and is **not guaranteed**, because WZDx requires an `id` to be unique within a feed but
+   says nothing testable about it being opaque or immutable.
+
+   **Measured counter-example, 2026-09-23.** Iowa's own feed — our primary source — re-identified 6
+   of ~1,050 events in an 18-hour window, destroying 39 ids belonging to zones that never left the
+   feed. Three events went from one unsegmented id to 12–14 segmented ones (`X` → `X-1`…`X-14`) and
+   three went the other way. The id embeds the event's *current segmentation*, so re-segmenting a
+   zone re-identifies it. Each transition is one-way and persistent, not flapping.
+
+   **Consequence for a consumer, including this platform.** §5.1's ledger is keyed on `event_id` and
+   is never demoted, and nothing removes a row when its id leaves the feed (rows expire only on the
+   180-day `last_at` prune). So a re-identification produces two faults at once: the accumulated
+   device/DMS/TomTom evidence stays attached to a dead id as a **validated zone with no corresponding
+   road event**, and the same physical zone reappears under new ids carrying **no evidence at all**
+   and reads as unvalidated. Neither is signalled. An exchange keying on `id` inherits both.
+
+   Run `check_id_stability.py <feed> --save dir/` on a schedule and `compare dir/` before trusting
+   `id` as an exchange key for any new upstream.
 6. **Health.** Poll `GET /api/tomtom/status` (free) if you need to know whether the `tomtom` signal is
    currently live vs. in cooldown.
 
