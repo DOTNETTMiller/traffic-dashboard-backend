@@ -1438,7 +1438,7 @@ const FIELD_IDS=['route','routeOther','direction','project','description','begin
 // ---- map ----
 const map=L.map('map',{zoomControl:true}).setView([37.8,-78.8],7); // Virginia
 // Esri basemap tiles: no API key, no Referer required (OSM's public tiles 403 when opened from file://).
-const baseStreet=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors',crossOrigin:true,errorTileUrl:'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='}).addTo(map);
+const baseStreet=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, USGS, &copy; OpenStreetMap contributors',crossOrigin:true,errorTileUrl:'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='}).addTo(map);
 const baseSat=L.layerGroup([
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri'}),
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19})
@@ -2168,7 +2168,7 @@ async function renderMapPNG(W,H,fmt,q,only){
     jobs.push(new Promise(res=>{ const img=new Image(); img.crossOrigin='anonymous';
       img.onload=()=>{ try{ g.drawImage(img, tx*256-originX, ty*256-originY); }catch(e){} res(); };
       img.onerror=()=>res();
-      img.src='https://tile.openstreetmap.org/'+z+'/'+wx+'/'+ty+'.png'; }));
+      img.src='https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/'+z+'/'+ty+'/'+wx; }));
   }
   await Promise.all(jobs);
   const px=(lat,lon)=>[lon2x(lon,z)*256-originX, lat2y(lat,z)*256-originY];
