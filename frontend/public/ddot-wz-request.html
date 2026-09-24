@@ -344,20 +344,31 @@ function offsetPt(lat,lng,dl,meters){const t={N:0,E:90,S:180,W:270},br=t[dl]!=nu
 async function osrmRoute(coords){try{const c=coords.map(p=>p[0]+','+p[1]).join(';');const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+c+'?overview=full&geometries=geojson');const j=await r.json();const rt=j.routes&&j.routes[0];if(!rt)return null;return{latlngs:rt.geometry.coordinates.map(c=>[c[1],c[0]]),meters:rt.distance};}catch(e){return null;}}
 function drawWZLine(){if(line){line.remove();line=null;}if(line2){line2.remove();line2=null;}const pts=(wzRoute&&wzRoute.length)?wzRoute:((beginPt&&endPt)?[[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]]:null);if(pts)line=L.polyline(pts,{color:'#dc2626',weight:6,opacity:.85}).addTo(map);if(wzRoute2&&wzRoute2.length&&beginPt&&endPt)line2=L.polyline(wzRoute2,{color:'#dc2626',weight:6,opacity:.85}).addTo(map);}
 /* ==MP_CONFIG_START== */
-const MP=null;
-function wzRouteFriendly(x){return x?String(x):null;}
+const MP={"line":true,"url":"https://maps2.dcgis.dc.gov/dcgis/rest/services/DCGIS_DATA/Transportation_WebMercator/MapServer/163/query","routeField":"ROUTENAME","where":"ROUTENAME IS NOT NULL","pad":0.0035,"count":400,"noMP":true};
+// DDOT's own Roadway Block centreline. DC has no mileposts -- it is block-and-quadrant
+// addressing -- so this resolves the ROUTE only and the milepost stays absent, which is the
+// honest answer here rather than a number borrowed from somewhere it does not apply.
+function wzRouteFriendly(x){ if(!x) return x;
+  // "GEORGIA AVE NW" -> "Georgia Ave NW" so it matches the route list; quadrant stays upper.
+  return String(x).toLowerCase().replace(/\b[a-z]/g,function(c){return c.toUpperCase();})
+    .replace(/\b(Nw|Ne|Sw|Se)\b/g,function(q){return q.toUpperCase();})
+    .replace(/\b(\d+)(St|Nd|Rd|Th)\b/g,function(m,n,s){return n+s.toLowerCase();});
+}
 /* ==MP_CONFIG_END== */
 // Generic milepost resolver (shared, config-driven). Point sources: nearest posted marker + tenths
 // interpolation between the two nearest posts on the same route. LRS-line sources (MP.line): project
 // the click onto the nearest M-enabled centerline and read the interpolated M-value.
 async function wzMilepost(pt){ if(!MP||!MP.url) return null; const k=Math.cos(pt.lat*Math.PI/180);
   try{
-    if(MP.line){ const pad=0.02, bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
+    // pad/count are config-driven: a fixed 0.02 box with 80 records is fine on a sparse state
+    // network, but in DC it returns 80 blocks ordered by id from a 2 km square and the street
+    // under the pin is simply not among them, so the lookup answers null on a working service.
+    if(MP.line){ const pad=MP.pad||0.02, bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
       const parts=(MP.routeCols?MP.routeCols.map(function(rc){return rc.f;}):(MP.routeParts||[MP.routeField])).filter(Boolean);
       const of=parts.concat(MP.countyField?[MP.countyField]:[]).concat(MP.segmentBased?[MP.mpField,MP.mpEndField]:[]).join(',');
       const url=MP.url+'?where='+encodeURIComponent(MP.where||'1=1')+'&geometry='+encodeURIComponent(bb)
         +'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'
-        +'&outFields='+encodeURIComponent(of)+'&returnGeometry=true&returnM=true&outSR=4326&resultRecordCount=80&f=json';
+        +'&outFields='+encodeURIComponent(of)+'&returnGeometry=true&returnM=true&outSR=4326&resultRecordCount='+(MP.count||80)+'&f=json';
       const jl=await(await fetch(url)).json(); const px=pt.lng*k, py=pt.lat; let best={d:Infinity,m:null,attr:null,feat:null,pi:0,si:1,t:0};
       (jl.features||[]).forEach(function(feat){ ((feat.geometry&&feat.geometry.paths)||[]).forEach(function(path,pi){
         for(let i=1;i<path.length;i++){ const A=path[i-1],B=path[i];
@@ -384,7 +395,10 @@ async function wzMilepost(pt){ if(!MP||!MP.url) return null; const k=Math.cos(pt
       const route=MP.routeCols?(function(){for(var i=0;i<MP.routeCols.length;i++){var rc=MP.routeCols[i],val=best.attr[rc.f];if(val!=null&&String(val).trim()!=='')return rc.p+String(val).trim();}return null;})()
         :MP.routeParts?MP.routeParts.map(function(f){return best.attr[f];}).filter(function(v){return v!=null&&v!=='';}).join(' '):(best.attr[MP.routeField]||null);
       const county=MP.countyField?(best.attr[MP.countyField]||null):null;
-      return {mp:Math.round((mval||0)*10)/10, route:route, county:county}; }
+      // noMP: the source carries M-values that are not mileposts. DC's centreline is
+      // measured in its own linear reference, so returnM hands back 1364.2 for a street
+      // with no mileposts at all -- a number a reviewer would read as a location.
+      return {mp:(MP.noMP?null:Math.round((mval||0)*10)/10), route:route, county:county}; }
     const pad=0.03, bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
     const of=[MP.mpField,MP.routeField,MP.nameField,MP.countyField].filter(Boolean).concat(MP.routeCols?MP.routeCols.map(function(c){return c.f;}):[]).join(',');
     const url=MP.url+'?where='+encodeURIComponent(MP.where||'1=1')+'&geometry='+encodeURIComponent(bb)
@@ -535,7 +549,9 @@ async function snapWZ(opts){if(!(beginPt&&endPt))return;drawWZLine();const dir=d
   drawWZLine();
   // a location box counts as auto-filled if it is empty, holds a milepost, or still holds
   // exactly what we last wrote there -- so re-marking updates it but typing is never clobbered
-  const autoMP=id=>{const cur=v(id);return !cur||/^MP\s*[\d.]+$/i.test(cur)||cur===AUTOLOC[id];};
+  // Recognise every shape this tool writes, not just the bare milepost: once the cross street
+  // was appended, "MP 12.4 (at K St NW)" stopped matching and the field froze after one fill.
+  const autoMP=id=>{const cur=v(id);return !cur||/^MP\s*[\d.]+(\s*\(at .+\))?$/i.test(cur)||cur===AUTOLOC[id];};
   const setLoc=(id,val)=>{el(id).value=val;AUTOLOC[id]=val;};
   let mpTxt='';
   // Restoring saved work on page load must not re-run the lookups: the milepost, route and
@@ -1093,8 +1109,8 @@ async function submitToDatabase(){const ep=v('dbEndpoint'),st=el('dbStatus');st.
 
 // ---- persistence ----
 function onRouteChange(){el('routeOther').style.display=v('route')==='__other'?'block':'none';}
-function saveState(){const s={pts:{beginPt,endPt,detourPts},lanes:laneData};FIELD_IDS.forEach(id=>{if(el(id))s[id]=el(id).value;});localStorage.setItem('ddot_state',JSON.stringify(s));}
-function loadState(){try{const s=JSON.parse(localStorage.getItem('ddot_state')||'{}');FIELD_IDS.forEach(id=>{if(el(id)&&s[id]!=null)el(id).value=s[id];});if(s.pts&&s.pts.beginPt){beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng);if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng);redraw();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ({restore:true});setMode('locked');}}if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng));drawDetour();snapDetour();}if(Array.isArray(s.lanes)){laneData=s.lanes;if(el('laneCount'))el('laneCount').value=laneData.length||'';renderLanes();}}catch(e){}}
+function saveState(){const s={pts:{beginPt,endPt,detourPts},lanes:laneData,autoloc:AUTOLOC};FIELD_IDS.forEach(id=>{if(el(id))s[id]=el(id).value;});localStorage.setItem('ddot_state',JSON.stringify(s));}
+function loadState(){try{const s=JSON.parse(localStorage.getItem('ddot_state')||'{}');FIELD_IDS.forEach(id=>{if(el(id)&&s[id]!=null)el(id).value=s[id];});if(s.autoloc)Object.assign(AUTOLOC,s.autoloc);if(s.pts&&s.pts.beginPt){beginPt=L.latLng(s.pts.beginPt.lat,s.pts.beginPt.lng);if(s.pts.endPt)endPt=L.latLng(s.pts.endPt.lat,s.pts.endPt.lng);redraw();if(beginPt&&endPt){try{map.fitBounds([[beginPt.lat,beginPt.lng],[endPt.lat,endPt.lng]],{padding:[50,50],maxZoom:13});}catch(e){}snapWZ({restore:true});setMode('locked');}}if(s.pts&&Array.isArray(s.pts.detourPts)&&s.pts.detourPts.length){detourPts=s.pts.detourPts.map(p=>L.latLng(p.lat,p.lng));drawDetour();snapDetour();}if(Array.isArray(s.lanes)){laneData=s.lanes;if(el('laneCount'))el('laneCount').value=laneData.length||'';renderLanes();}}catch(e){}}
 const PERSIST=['requestor','email','contact24','tmcEmail'];
 function resetAll(){if(!confirm('Start a NEW request? Clears the segment, detour, and scans — your name/contact/email are kept.'))return;FIELD_IDS.forEach(id=>{if(el(id)&&!PERSIST.includes(id))el(id).value=el(id).tagName==='SELECT'?el(id).options[0].value:'';});[beginMk,endMk,line,line2].forEach(x=>x&&x.remove());beginPt=endPt=beginMk=endMk=line=line2=null;wzRoute=null;wzRoute2=null;schedule=[];detourPts=[];detourRoute=null;detourMeters=null;drawDetour();laneData=[];if(el('laneCount'))el('laneCount').value='';renderLanes();if(bridgeLayer){bridgeLayer.remove();bridgeLayer=null;}if(closuresLayer){closuresLayer.remove();closuresLayer=null;}window.__closConflicts=null;window.__closRecs=null;['nbiBox','schedList','detourInfo','readyBox','dbStatus','clearReminder','closuresBox'].forEach(id=>{if(el(id))el(id).style.display='none';});el('selinfo').textContent='No segment yet — click the road for the begin point, then the end point.';onRouteChange();setMode('begin');updateClearReminder();saveState();}
 function projectList(){try{return JSON.parse(localStorage.getItem('ddot_projects')||'[]');}catch(e){return[];}}
