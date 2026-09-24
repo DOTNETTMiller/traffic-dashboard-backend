@@ -5,9 +5,13 @@
 # byte-identical to the sources, so the site cannot drift behind the tool.
 #
 # Mapping (verified against what is deployed today):
-#   <state>-wz-request-standalone.html  ->  wz/<state>-wz-request.html
-#     The site serves the SELF_CONTAINED standalone build under the hosted
-#     name; there is no thin hosted variant on the dashboard.
+#   <state>-wz-request-standalone.html  ->  wz/<state>-wz-request.html          (opened)
+#                                       ->  wz/<state>-wz-request-standalone.html (downloaded)
+#     Both, and both are the same file. The index links the first to open in a
+#     browser and the second behind its download arrow. Syncing only the hosted
+#     one -- which is what this script did until 2026-09-24 -- leaves every
+#     download on the site a generation behind: 49 of them were still serving
+#     the OpenStreetMap basemap after it had stopped drawing.
 #     Iowa is iadot and goes through the same rule as every other state; it
 #     used to be cars511-request*.html and carried its own branch here.
 #
@@ -28,12 +32,16 @@ WZ="$DASH/public/wz"
 n=0
 for f in "$SRC"/*-wz-request-standalone.html; do
   base="$(basename "$f" -wz-request-standalone.html)"
-  cp "$f" "$WZ/$base-wz-request.html"; n=$((n+1))
+  cp "$f" "$WZ/$base-wz-request.html"              # opened in the browser
+  cp "$f" "$WZ/$base-wz-request-standalone.html"   # saved by the download arrow
+  n=$((n+1))
 done
 
 # Redirect stubs for Iowa's pre-rename URLs. Relative target, so they work
 # wherever wz/ is mounted.
-for old in cars511-request cars511-request-standalone; do
+cp "$SRC/iadot-wz-request-standalone.html" "$WZ/cars511-request-standalone.html"
+
+for old in cars511-request; do
   cat > "$WZ/$old.html" <<'HTML'
 <!doctype html>
 <html lang="en">
@@ -51,5 +59,15 @@ HTML
 done
 
 echo "Synced $n builders (49 states + Iowa + DC) -> $WZ"
-echo "Left redirects at cars511-request.html and cars511-request-standalone.html"
+echo "Legacy: cars511-request.html redirects; cars511-request-standalone.html stays a real copy"
 [ "$n" -eq 51 ] || { echo "expected 51 builders, synced $n" >&2; exit 1; }
+
+# The index is hand-maintained in the dashboard repo, so it can fall behind a
+# new jurisdiction silently -- DC shipped and never appeared on the site.
+missing=0
+for f in "$SRC"/*-wz-request-standalone.html; do
+  base="$(basename "$f" -wz-request-standalone.html)"
+  grep -q "$base-wz-request.html" "$WZ/index.html" || { echo "index.html does not link $base" >&2; missing=$((missing+1)); }
+done
+[ "$missing" -eq 0 ] || { echo "$missing builder(s) synced but absent from wz/index.html" >&2; exit 1; }
+echo "index.html links all $n builders"
