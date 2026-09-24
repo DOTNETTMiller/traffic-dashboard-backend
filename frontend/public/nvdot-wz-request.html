@@ -473,24 +473,74 @@ async function wzRoadCheck(pt){
     const res=await Promise.all(qs);
     if(res.every(function(r){return !r;})) return null;      // network down -> unknown
     const k=Math.cos(pt.lat*Math.PI/180)*111320, k2=110540;
-    let bd=Infinity, bmt=null, bnm=null;
-    res.forEach(function(j){
-      ((j&&j.features)||[]).forEach(function(f){
-        const a=f.attributes||{};
-        (((f.geometry||{}).paths)||[]).forEach(function(pa){
-          for(let i=1;i<pa.length;i++){
-            const ax=(pa[i-1][0]-pt.lng)*k, ay=(pa[i-1][1]-pt.lat)*k2;
-            const bx=(pa[i][0]-pt.lng)*k,   by=(pa[i][1]-pt.lat)*k2;
-            const dx=bx-ax, dy=by-ay, l2=dx*dx+dy*dy||1e-9;
-            let t=-(ax*dx+ay*dy)/l2; t=t<0?0:(t>1?1:t);
-            const dd=Math.hypot(ax+t*dx, ay+t*dy);
-            if(dd<bd){ bd=dd; bmt=a.MTFCC; bnm=a.NAME||null; }
-          }
-        });
-      });
-    });
-    if(bd>40) return {onSystem:false,name:null,mtfcc:null,metres:null};
-    return {onSystem:!!TIGER_ONSYS[bmt], name:bnm, mtfcc:bmt, metres:Math.round(bd)};
+    // metres from a point in the local flat frame to a polyline. (0,0) is the click.
+    function distTo(pa,x,y){ let m=Infinity;
+      for(let i=1;i<pa.length;i++){
+        const ax=(pa[i-1][0]-pt.lng)*k-x, ay=(pa[i-1][1]-pt.lat)*k2-y;
+        const bx=(pa[i][0]-pt.lng)*k-x,   by=(pa[i][1]-pt.lat)*k2-y;
+        const dx=bx-ax, dy=by-ay, l2=dx*dx+dy*dy||1e-9;
+        let t=-(ax*dx+ay*dy)/l2; t=t<0?0:(t>1?1:t);
+        const dd=Math.hypot(ax+t*dx, ay+t*dy); if(dd<m) m=dd;
+      } return m; }
+    const feats=[];
+    res.forEach(function(j){ ((j&&j.features)||[]).forEach(function(f){
+      const a=f.attributes||{}, ps=((f.geometry||{}).paths)||[];
+      if(!ps.length) return;
+      let dmin=Infinity; ps.forEach(function(pa){ const dd=distTo(pa,0,0); if(dd<dmin) dmin=dd; });
+      feats.push({name:a.NAME||null, mtfcc:a.MTFCC, paths:ps, d:dmin});
+    }); });
+    if(!feats.length) return {onSystem:false,name:null,mtfcc:null,metres:null,cross:null};
+    feats.sort(function(x,y){ return x.d-y.d; });
+    const on=feats[0];
+    if(on.d>40) return {onSystem:false,name:null,mtfcc:null,metres:null,cross:null};
+    // Cross street: the nearest differently-named road that actually CROSSES the one we are on.
+    // Two traps, both hit in testing on 14th St NW:
+    //   1. Nearest-different-name alone returns the parallel street one block over whenever the
+    //      click lands mid-block. Requiring the candidate within 20 m of the road under the
+    //      click makes it an intersection rather than a neighbour.
+    //   2. TIGER carries the same roadway twice, once under its local name and once under its
+    //      route alias ("K St NW" and "US Hwy 29"), so the alias passes the proximity test and
+    //      gets reported as the cross street. Requiring the two to meet at an angle rejects it:
+    //      an alias runs alongside, a cross street cuts across.
+    const ANG=0.42;                                   // sin of ~25 degrees
+    function segAt(pa,x,y){ let m=Infinity,ux=0,uy=0;
+      for(let i=1;i<pa.length;i++){
+        const ax=(pa[i-1][0]-pt.lng)*k-x, ay=(pa[i-1][1]-pt.lat)*k2-y;
+        const bx=(pa[i][0]-pt.lng)*k-x,   by=(pa[i][1]-pt.lat)*k2-y;
+        const dx=bx-ax, dy=by-ay, l2=dx*dx+dy*dy||1e-9;
+        let t=-(ax*dx+ay*dy)/l2; t=t<0?0:(t>1?1:t);
+        const dd=Math.hypot(ax+t*dx, ay+t*dy);
+        if(dd<m){ m=dd; const L=Math.hypot(dx,dy)||1e-9; ux=dx/L; uy=dy/L; }
+      } return {d:m,ux:ux,uy:uy}; }
+    let onDir={d:Infinity,ux:1,uy:0};
+    on.paths.forEach(function(pa){ const s=segAt(pa,0,0); if(s.d<onDir.d) onDir=s; });
+    const same=function(n){ return on.name && n && String(n).toUpperCase()===String(on.name).toUpperCase(); };
+    // Only a road someone could be directed to. TIGER's nearest crossing feature is often an
+    // alley, a service drive or a parking aisle -- "at Green Ct NW" is true and useless on a
+    // request. S1100 primary, S1200 secondary, S1400 local street; everything else is scenery.
+    const XOK={S1100:1,S1200:1,S1400:1};
+    const hits=[];
+    for(let i=0;i<feats.length;i++){ const f=feats[i];
+      if(!f.name || same(f.name) || f.d>200 || !XOK[f.mtfcc]) continue;
+      let ok=false;
+      for(let p=0;p<f.paths.length && !ok;p++){ const pa=f.paths[p];
+        for(let v=0;v<pa.length && !ok;v++){
+          const vx=(pa[v][0]-pt.lng)*k, vy=(pa[v][1]-pt.lat)*k2;
+          let meets=false;
+          for(let q=0;q<on.paths.length && !meets;q++){ if(segAt(on.paths[q],vx,vy).d<20) meets=true; }
+          if(!meets) continue;
+          const s=segAt(pa,0,0);                       // candidate's own bearing near the click
+          if(Math.abs(onDir.ux*s.uy - onDir.uy*s.ux) >= ANG) ok=true;
+        } }
+      if(ok) hits.push(f);
+    }
+    // Nearest is not always most useful: a minor street can cross closer than the arterial
+    // everyone actually navigates by. Take a primary or secondary road when one crosses within
+    // 120 m; otherwise the nearest crossing street.
+    let cross=null;
+    for(let i=0;i<hits.length && !cross;i++){ if(hits[i].mtfcc!=='S1400' && hits[i].d<=120) cross=hits[i].name; }
+    if(!cross && hits.length) cross=hits[0].name;
+    return {onSystem:!!TIGER_ONSYS[on.mtfcc], name:on.name, mtfcc:on.mtfcc, metres:Math.round(on.d), cross:cross};
   }catch(e){ return null; }
 }
 const AUTOLOC={};
@@ -517,11 +567,19 @@ async function snapWZ(opts){if(!(beginPt&&endPt))return;drawWZLine();const dir=d
   if(!(opts&&opts.restore))
   try{ const [a,b,ra,rb]=await Promise.all([wzMilepost(beginPt),wzMilepost(endPt),wzRoadCheck(beginPt),wzRoadCheck(endPt)]);
     const okA=!ra||ra.onSystem, okB=!rb||rb.onSystem;   // null = TIGER unreachable, so don't block
-    if(a&&okA&&autoMP('beginLoc'))setLoc('beginLoc','MP '+a.mp); if(b&&okB&&autoMP('endLoc'))setLoc('endLoc','MP '+b.mp);
-    // Off-system: a local street carries no posted milepost, so its NAME is the correct
-    // CWZ 1.0 cross-street value rather than a milepost borrowed from the nearest highway.
-    if(!okA&&ra&&ra.name&&autoMP('beginLoc'))setLoc('beginLoc',ra.name);
-    if(!okB&&rb&&rb.name&&autoMP('endLoc'))setLoc('endLoc',rb.name);
+    // The label on these fields promises "cross-street / MP". A milepost is what a TMC wants on
+    // a numbered route; a cross street is what anyone wants on a street, and until now the
+    // off-system branch filled in the name of the road you were already on, which told the
+    // reader nothing. Give both when both exist: "MP 12.4 (at K ST NW)" locates a zone faster
+    // than either alone.
+    const locText=function(mp,rc){ const x=(rc&&rc.cross)?('at '+rc.cross):null;
+      if(mp!=null&&x) return 'MP '+mp+' ('+x+')';
+      if(mp!=null) return 'MP '+mp;
+      if(x) return x;
+      return (rc&&rc.name)||null; };
+    const la=locText((a&&okA)?a.mp:null,ra), lb=locText((b&&okB)?b.mp:null,rb);
+    if(la&&autoMP('beginLoc'))setLoc('beginLoc',la);
+    if(lb&&autoMP('endLoc'))setLoc('endLoc',lb);
     // auto-fill Route from the posted route code (only when not already set, and only when
     // the point is genuinely on a state-system road)
     const rc=(okA&&a&&a.route)||(okB&&b&&b.route)||null;
