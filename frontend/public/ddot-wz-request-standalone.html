@@ -1226,11 +1226,11 @@ https://github.com/nodeca/pako/blob/master/LICENSE
       <legend>Step 2 · Location &amp; details</legend>
       <div class="row">
         <div><label>Route</label>
-          <select id="route"><option value="">— select —</option><option>I-395</option><option>I-295</option><option>I-695</option><option>I-66</option><option>DC-295</option><option>US-1</option><option>US-29</option><option>US-50</option><option>Pennsylvania Ave</option><option>Massachusetts Ave</option><option>Connecticut Ave</option><option>Wisconsin Ave</option><option>Georgia Ave</option><option>16th St NW</option><option>New York Ave NE</option><option>Rhode Island Ave NE</option><option>Benning Rd NE</option><option>Minnesota Ave NE</option><option>South Capitol St</option><option>Constitution Ave</option><option>Independence Ave</option><option>Canal Rd NW</option><option>MacArthur Blvd NW</option><option>Rock Creek &amp; Potomac Pkwy</option><option>Suitland Pkwy</option><option value="__other">Other (type below)</option></select></div>
+          <select id="route"><option value="">— select —</option><option>I-395</option><option>I-295</option><option>I-695</option><option>I-66</option><option>DC-295</option><option>US-1</option><option>US-29</option><option>US-50</option><option>Pennsylvania Ave NW</option><option>Pennsylvania Ave SE</option><option>Massachusetts Ave NW</option><option>Massachusetts Ave NE</option><option>Massachusetts Ave SE</option><option>Connecticut Ave NW</option><option>Wisconsin Ave NW</option><option>Georgia Ave NW</option><option>16th St NW</option><option>14th St NW</option><option>14th St SE</option><option>New York Ave NW</option><option>New York Ave NE</option><option>Rhode Island Ave NW</option><option>Rhode Island Ave NE</option><option>Florida Ave NW</option><option>Florida Ave NE</option><option>Constitution Ave NW</option><option>Constitution Ave NE</option><option>Independence Ave SW</option><option>Independence Ave SE</option><option>North Capitol St BN</option><option>South Capitol St BN</option><option>East Capitol St BN</option><option>East Capitol St NE</option><option>East Capitol St SE</option><option>Benning Rd NE</option><option>Bladensburg Rd NE</option><option>Minnesota Ave NE</option><option>Minnesota Ave SE</option><option>Martin Luther King Jr Ave SE</option><option>Alabama Ave SE</option><option>Nannie Helen Burroughs Ave NE</option><option>Suitland Pkwy SE</option><option>Columbia Rd NW</option><option>Michigan Ave NW</option><option>Canal Rd NW</option><option>MacArthur Blvd NW</option><option>K St NW</option><option>K St SE</option><option>M St NW</option><option>H St NW</option><option>H St NE</option><option value="__other">Other (type below)</option></select></div>
         <div><label>Direction</label>
           <select id="direction" onchange="if(beginPt&&endPt){snapWZ();}else{wzRoute2=null;drawWZLine();}saveState();"><option value="">—</option><option>N</option><option>S</option><option>E</option><option>W</option><option>Both</option></select></div>
       </div>
-      <input id="routeOther" placeholder="e.g. Pennsylvania Ave NW, 16th St NW" style="margin-top:6px;display:none" />
+      <input id="routeOther" placeholder="e.g. Quincy St NW, Good Hope Rd SE" style="margin-top:6px;display:none" />
       <div class="row">
         <div><label>Project # <span class="hint" style="display:inline">(type to search — import your list)</span></label>
           <input id="project" list="projList" autocomplete="off" onchange="onProjectPick()" placeholder="start typing…" />
@@ -1519,7 +1519,7 @@ const MP={"line":true,"url":"https://maps2.dcgis.dc.gov/dcgis/rest/services/DCGI
 function wzRouteFriendly(x){ if(!x) return x;
   // "GEORGIA AVE NW" -> "Georgia Ave NW" so it matches the route list; quadrant stays upper.
   return String(x).toLowerCase().replace(/\b[a-z]/g,function(c){return c.toUpperCase();})
-    .replace(/\b(Nw|Ne|Sw|Se)\b/g,function(q){return q.toUpperCase();})
+    .replace(/\b(Nw|Ne|Sw|Se|Bn)\b/g,function(q){return q.toUpperCase();})
     .replace(/\b(\d+)(St|Nd|Rd|Th)\b/g,function(m,n,s){return n+s.toLowerCase();});
 }
 /* ==MP_CONFIG_END== */
