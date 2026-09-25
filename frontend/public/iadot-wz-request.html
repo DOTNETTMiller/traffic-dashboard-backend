@@ -69,7 +69,11 @@
   .actions button { flex:1; min-width:110px; padding:9px; border-radius:7px; border:none; cursor:pointer; font-weight:700; font-size:13px; }
   .primary { background:var(--accent); color:#fff; }
   .ghost { background:#f1f5f9; color:var(--ink); border:1px solid var(--line)!important; }
-  .maphint { position:absolute; z-index:500; top:10px; left:50px; background:rgba(255,255,255,.94); border:1px solid var(--line);
+  .mapsearch{position:absolute;top:10px;left:50px;z-index:501;display:flex;gap:4px;background:rgba(255,255,255,.95);padding:4px;border-radius:6px;box-shadow:0 1px 6px rgba(0,0,0,.2)}
+  .mapsearch input{width:min(46vw,280px);border:1px solid var(--line);border-radius:4px;padding:5px 8px;font-size:12px}
+  .mapsearch button{padding:5px 10px;font-size:12px;min-height:0}
+  .needs{border-color:#d97706!important;box-shadow:0 0 0 2px rgba(217,119,6,.22)!important}
+  .maphint { position:absolute; z-index:500; top:52px; left:50px; background:rgba(255,255,255,.94); border:1px solid var(--line);
     border-radius:8px; padding:6px 10px; font-size:12px; box-shadow:0 2px 8px rgba(0,0,0,.12); }
   .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--good); color:#fff;
     padding:9px 16px; border-radius:8px; font-size:13px; opacity:0; transition:opacity .2s; z-index:1000; }
@@ -359,7 +363,7 @@
           <label class="chk"><input type="checkbox" data-dow="0" onchange="updateSegHints()" /> Sun</label>
         </div>
         <div class="mapbtns" style="margin-top:6px">
-          <button type="button" onclick="pickDays('night')">Mon&ndash;Thu nights</button>
+          <button type="button" onclick="pickDays('night')">Sun&ndash;Thu nights</button>
           <button type="button" onclick="pickDays('week')">Week days</button>
           <button type="button" onclick="pickDays('end')">Week ends</button>
           <button type="button" onclick="pickDays('all')">All</button>
@@ -434,7 +438,8 @@
     </fieldset>
   </main>
   <div id="mapwrap" style="flex:1;position:relative">
-    <div class="maphint" id="maphint" role="status" aria-live="polite">Click the road to set the <b>begin</b> point</div>
+    <div class="mapsearch"><input id="mapq" type="search" placeholder="City, route + milepost, or two cross streets" aria-label="Find a place on the map" onkeydown="if(event.key==='Enter'){event.preventDefault();wzSearch();}" /><button type="button" onclick="wzSearch()">Find</button></div>
+  <div class="maphint" id="maphint" role="status" aria-live="polite">Click the road to set the <b>begin</b> point</div>
     <div id="map" role="application" aria-label="Map — click the road to mark the work zone. Keyboard users can enter coordinates in Step 1."></div>
   </div>
 </div>
@@ -696,6 +701,112 @@ function roadName(a){
 const TIGER='https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Transportation/MapServer';
 const TIGER_LAYERS=[2,6,8];              // primary, secondary (full detail), local
 const TIGER_ONSYS={S1100:1,S1200:1,S1630:1};
+
+// ---- Find a place without an address -----------------------------------------------
+// Not everyone has a street address for a work zone. They have a town, or a route and a
+// milepost off the plan sheet, or the two streets that cross where the work starts. All
+// three are answerable from sources already open to this page, so all three are accepted:
+//   "Madison"                 -> incorporated place or CDP in this state (Census TIGERweb)
+//   "I-94 MP 308"             -> the state's own milepost service
+//   "University Ave & Park St" -> where two named TIGER roads actually meet
+const WZ_FIPS='19';
+const PLACES='https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Places_CouSub_ConCity_SubMCD/MapServer';
+const Q_MP=/^\s*(.+?)[\s,]*(?:mp|milepost|mile\s*marker|mm)[\s.]*([\d.]+)\s*$/i;
+const Q_X=/^\s*(.+?)\s+(?:&|and|at|\/|x)\s+(.+?)\s*$/i;
+const norm=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+// States do not spell their own routes the way anyone types them: Wisconsin stores "IH 43",
+// Texas "IH0035", the plan sheet says "I-43" and the user types "i94". Reduce both sides to a
+// family letter plus the number so they can be compared at all.
+function routeKey(s){
+  const t=String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,' ').trim();
+  const m=t.match(/^([A-Z]*)\s*0*(\d+)\s*([A-Z]?)$/);
+  if(!m) return t.replace(/\s+/g,'');
+  const p=m[1]||'', n=m[2], sfx=m[3]||'';
+  const fam = /^(IH|I|INTERSTATE)$/.test(p) ? 'I'
+            : /^(US|USH|USHWY|USH WY)$/.test(p) ? 'US'
+            : /^(STH|SH|SR|STATE|WIS|WI|HWY|TH)$/.test(p) ? 'S'
+            : /^(CTH|CR|CO|COUNTY)$/.test(p) ? 'C' : p;
+  return fam+n+sfx;
+}
+// A match needs the numbers to agree; the family only has to agree when both sides state one.
+function routeMatches(a,b){
+  const ka=routeKey(a), kb=routeKey(b); if(!ka||!kb) return false;
+  if(ka===kb) return true;
+  const na=(ka.match(/\d+/)||[])[0], nb=(kb.match(/\d+/)||[])[0];
+  if(!na||!nb||na!==nb) return false;
+  const fa=ka.replace(/\d.*$/,''), fb=kb.replace(/\d.*$/,'');
+  return !fa || !fb || fa===fb;
+}
+
+async function wzGeoJson(url){ const r=await fetch(url); return r.json(); }
+
+// route + milepost, against whatever milepost service this state was configured with
+async function wzFindMP(q){
+  const m=Q_MP.exec(q);
+  const cfg=(typeof MP!=='undefined'&&MP)?MP:null;   // Iowa resolves routes through RAMS and has none
+  if(!m||!cfg||!cfg.url||cfg.line) return null;
+  const want=norm(m[1]), mp=parseFloat(m[2]);
+  const of=[cfg.mpField,cfg.routeField].concat(cfg.routeCols?cfg.routeCols.map(c=>c.f):[]).filter(Boolean).join(',');
+  const j=await wzGeoJson(cfg.url+'?where='+encodeURIComponent(cfg.mpField+'='+mp)
+    +'&outFields='+encodeURIComponent(of)+'&returnGeometry=true&outSR=4326&resultRecordCount=400&f=json');
+  const hits=(j.features||[]).filter(f=>routeMatches(f.attributes[cfg.routeField], m[1]));
+  const f=hits[0]||null; if(!f||!f.geometry) return null;
+  return {latlng:L.latLng(f.geometry.y,f.geometry.x), zoom:15,
+          label:(f.attributes[cfg.routeField]||'')+' MP '+mp};
+}
+
+// two named roads -> the point where they come closest, which is the intersection
+async function wzFindCross(q){
+  const m=Q_X.exec(q); if(!m) return null;
+  const b=map.getBounds(), bb=[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].join(',');
+  const grab=async name=>{
+    const where="UPPER(NAME) LIKE '%"+String(name).toUpperCase().replace(/'/g,"''")+"%'";
+    const all=await Promise.all(TIGER_LAYERS.map(lid=>wzGeoJson(TIGER+'/'+lid+'/query?where='+encodeURIComponent(where)
+      +'&geometry='+encodeURIComponent(bb)+'&geometryType=esriGeometryEnvelope&inSR=4326'
+      +'&spatialRel=esriSpatialRelIntersects&outFields=NAME&returnGeometry=true&outSR=4326'
+      +'&resultRecordCount=200&f=json').catch(()=>null)));
+    const pts=[]; all.forEach(j=>((j&&j.features)||[]).forEach(f=>((f.geometry||{}).paths||[]).forEach(pa=>pa.forEach(c=>pts.push(c)))));
+    return pts; };
+  const [A,B]=await Promise.all([grab(m[1]),grab(m[2])]);
+  if(!A.length||!B.length) return null;
+  let best=null,bd=Infinity;
+  const k=Math.cos(map.getCenter().lat*Math.PI/180);
+  for(const a of A) for(const b2 of B){ const dx=(a[0]-b2[0])*k, dy=a[1]-b2[1]; const d=dx*dx+dy*dy;
+    if(d<bd){ bd=d; best=a; } }
+  if(!best || Math.sqrt(bd)*111320>150) return null;      // they never actually meet in view
+  return {latlng:L.latLng(best[1],best[0]), zoom:17, label:m[1]+' & '+m[2]};
+}
+
+// a town, borough or CDP inside this state
+async function wzFindPlace(q){
+  const t=String(q).split(',')[0].trim().toUpperCase().replace(/'/g,"''");
+  if(!t) return null;
+  for(const lyr of [4,5]){
+    const where="UPPER(BASENAME) LIKE '"+t+"%' AND STATE='"+WZ_FIPS+"'";
+    const j=await wzGeoJson(PLACES+'/'+lyr+'/query?where='+encodeURIComponent(where)
+      +'&outFields=BASENAME,NAME&returnGeometry=true&outSR=4326&resultRecordCount=5&f=json').catch(()=>null);
+    const f=((j&&j.features)||[])[0]; if(!f) continue;
+    const rings=(f.geometry||{}).rings||[]; if(!rings.length) continue;
+    let x=0,y=0,n=0; rings[0].forEach(c=>{x+=c[0];y+=c[1];n++;});
+    if(!n) continue;
+    return {latlng:L.latLng(y/n,x/n), zoom:12, label:f.attributes.NAME||f.attributes.BASENAME};
+  }
+  return null;
+}
+
+async function wzSearch(){
+  const box=el('mapq'); const q=(box&&box.value||'').trim(); if(!q) return;
+  const hint=el('maphint'); const prev=hint?hint.innerHTML:'';
+  if(hint) hint.textContent='Searching…';
+  try{
+    const hit = (await wzFindMP(q)) || (await wzFindCross(q)) || (await wzFindPlace(q));
+    if(!hit){ if(hint) hint.innerHTML=prev;
+      toast('No match for "'+q+'" — try a city, "I-94 MP 308", or "Main St & 2nd St"'); return; }
+    map.setView(hit.latlng, hit.zoom);
+    if(hint) hint.innerHTML=prev;
+    toast('Found '+hit.label);
+  }catch(e){ if(hint) hint.innerHTML=prev; toast('Search could not reach its source'); }
+}
 async function wzRoadCheck(pt){
   try{
     const d=0.006, bb=(pt.lng-d)+','+(pt.lat-d)+','+(pt.lng+d)+','+(pt.lat+d);
@@ -775,7 +886,11 @@ async function wzRoadCheck(pt){
     let cross=null;
     for(let i=0;i<hits.length && !cross;i++){ if(hits[i].mtfcc!=='S1400' && hits[i].d<=120) cross=hits[i].name; }
     if(!cross && hits.length) cross=hits[0].name;
-    return {onSystem:!!TIGER_ONSYS[on.mtfcc], name:on.name, mtfcc:on.mtfcc, metres:Math.round(on.d), cross:cross};
+    // TIGER title-cases everything, including route letters: "Co Hwy Ms" is county highway MS.
+    // Put the designation back in capitals so a reviewer reads it as a route, not a surname.
+    const tidy=s=>String(s||'').replace(/\b(Co|Cr|Cth|St|Us|Sr|Fm|Rm)\s+Hwy\s+([A-Za-z]{1,3})\b/g,
+      (m0,a,b)=>a+' Hwy '+b.toUpperCase());   // the designation, not the word 'Co'
+    return {onSystem:!!TIGER_ONSYS[on.mtfcc], name:tidy(on.name), mtfcc:on.mtfcc, metres:Math.round(on.d), cross:tidy(cross)};
   }catch(e){ return null; }
 }
 
@@ -1954,7 +2069,7 @@ function wzField(id){
   return v(id)||'';
 }
 function routeValEff(){ const r=wzField('route'); return r||'route'; }
-function missingFields(){ return REQUIRED.filter(([id])=>!wzField(id)).map(([,label])=>label); }
+function missingFields(){ return REQUIRED.filter(([id])=>!wzField(id)).map(([id,label])=>[id,label]); }
 // ---- Lanes (WZDx lanes[]) ----
 const LANE_STATUS=['open','closed','shift-left','shift-right','merge-left','merge-right','alternating-flow'];
 const LANE_TYPE=['general','shoulder','exit-lane','entrance-lane','hov-lane'];
@@ -2033,9 +2148,28 @@ function updateClearAlter(){ const box=el('clearAlterBox'); if(!box)return;
   if(clearanceAltering() && !window.__nbiNear){ box.style.display='block';
     box.innerHTML='⚠️ This work can <b>change the vertical clearance</b> (deck overlay / milling / paving) — <b>scan NBI clearances above, measure the new clearance, and update the posted value</b>.'; }
   else box.style.display='none'; }
+
+// A list of what is missing is only half an answer on a long form; the other half is getting
+// there. Each item links to its own field and the field stays outlined until it is filled.
+function wzFocusField(id){ const e=el(id); if(!e) return false;
+  // Focus first with preventScroll, then scroll instantly. A smooth scroll raced the focus and
+  // the field ended up focused but still 1,800px off screen -- which is worse than not moving.
+  try{ e.focus({preventScroll:true}); }catch(_){ try{ e.focus(); }catch(__){} }
+  try{ e.scrollIntoView({block:'center'}); }catch(_){ }
+  return false; }
+function wzMarkMissing(ids){
+  document.querySelectorAll('.needs').forEach(function(x){ x.classList.remove('needs'); });
+  ids.forEach(function(id){ const e=el(id); if(!e) return; e.classList.add('needs');
+    const clear=function(){ e.classList.remove('needs'); };
+    e.addEventListener('input',clear,{once:true}); e.addEventListener('change',clear,{once:true}); });
+}
+function wzMissItem(x){
+  const id=Array.isArray(x)?x[0]:null, label=Array.isArray(x)?x[1]:x;
+  return (id&&el(id)) ? '• <a href="#" onclick="return wzFocusField(\''+id+'\')">'+label+'</a>' : '• '+label;
+}
 function checkReadiness(){ const miss=missingFields(); const b=el('readyBox');
-  if(clearanceAltering() && !window.__nbiNear) miss.push('Bridge clearance — this work can alter clearance; scan NBI + update the posted value');
-  if(!wzEndDate()) miss.push('Scheduled end — add a schedule segment (sets the request’s expiration)');
+  if(clearanceAltering() && !window.__nbiNear) miss.push(['clearStatus','Bridge clearance — this work can alter clearance; scan NBI + update the posted value');
+  if(!wzEndDate()) miss.push(['segFrom','Scheduled end — add a schedule segment (sets the request’s expiration)');
   updateClearAlter();
   const conflicts=(window.__iaConflicts||[]);
   const conflictHtml=conflicts.length?(`<br><b style="color:#b91c1c">⚠️ Overlaps ${conflicts.length} existing Iowa DOT closure(s):</b><br>`+conflicts.slice(0,4).map(c=>'• '+(c.street||'')+' — '+(c.laneimpact||'')+' ('+fmtRange(c.start,c.end)+')').join('<br>')+'<br><span style="font-size:11px">Confirm this isn’t a duplicate, or coordinate timing.</span>'):'';
@@ -2044,7 +2178,7 @@ function checkReadiness(){ const miss=missingFields(); const b=el('readyBox');
       else { b.style.background='#ecfdf5'; b.style.borderColor='#a7f3d0'; b.style.color='#065f46'; b.innerHTML='✓ Ready — all required fields are filled.'; } }
     toast(conflicts.length?'Ready — but overlaps an existing closure':'✓ Ready to submit'); return true; }
   if(b){ b.style.display='block'; b.style.background='#fff7ed'; b.style.borderColor='#fed7aa'; b.style.color='#9a3412';
-    b.innerHTML=`⚠️ <b>${miss.length} required field(s) still empty</b> — the TMC may bounce it back:<br>`+miss.map(m=>'• '+m).join('<br>')+conflictHtml; }
+    b.innerHTML=`⚠️ <b>${miss.length} required field(s) still empty</b> — the TMC may bounce it back:<br>`+miss.map(wzMissItem).join('<br>')+conflictHtml;wzMarkMissing(miss.filter(Array.isArray).map(x=>x[0])); }
   toast(`${miss.length} required field(s) missing`); return false; }
 
 // ---- Database integration: POST the request as structured JSON to a configurable endpoint ----
@@ -2308,7 +2442,7 @@ let segEditIdx=-1;                      // -1 = adding, >=0 = updating that segm
 function segDayBoxes(){ return [...document.querySelectorAll('#segDays input[type=checkbox]')]; }
 function pickDays(which){ segDayBoxes().forEach(b=>{ const d=+b.dataset.dow;
   b.checked = which==='all' ? true : which==='none' ? false : which==='week' ? (d>=1&&d<=5)
-    : which==='night' ? (d>=1&&d<=4) : (d===0||d===6); }); updateSegHints(); }
+    : which==='night' ? (d<=4) : (d===0||d===6); }); updateSegHints(); }
 // A window whose end time is at or before its start time runs past midnight.
 function segCrossesMidnight(s){ return !!(s.fromTime && s.untilTime && s.untilTime <= s.fromTime); }
 function hhmm(t){ if(!t) return ''; const [h,m]=t.split(':').map(Number); const ap=h<12?'am':'pm';
@@ -2435,7 +2569,7 @@ function syncSchedule(){
 }
 // Earliest start and latest end across every segment — the project's overall window.
 // A recurring segment ends when its LAST occurrence ends, which is usually before the
-// until-date: Mon–Thu nights inside a Sun–Fri span finish Friday morning, not Saturday.
+// until-date: Sun–Thu nights inside a Sun–Fri span finish Friday morning, not Saturday.
 function segEnd(s){
   if(!s.fromDate||!s.untilDate) return null;
   let day=s.untilDate;
