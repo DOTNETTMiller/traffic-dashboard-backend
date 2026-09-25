@@ -2450,10 +2450,21 @@ function toWZDx(){const now=new Date().toISOString();const coords=geometryCoords
 // naturally produce a cross street and no milepost, which is correct rather than a
 // special case.
 const MP_RE=/^\s*MP\s*([\d.]+)\s*$/i;
+// The location box now also carries the cross street, on its own ("at K St NW") or after the
+// milepost ("MP 12.4 (at K St NW)"). Both have to be taken apart again here or the prose ends
+// up in the feed: the combined form matched neither pattern, so a state with mileposts emitted
+// no milepost at all and a cross street reading "MP 12.4 (at K St NW)" -- the same defect the
+// note above describes, wearing different clothes.
+const MP_X_RE=/^\s*MP\s*([\d.]+)\s*\(\s*at\s+(.+?)\s*\)\s*$/i;
+const AT_RE=/^\s*at\s+(.+?)\s*$/i;
 function linearRef(id, stored){
   const txt=v(id);
-  const m=MP_RE.exec(txt);
+  let m=MP_X_RE.exec(txt);
+  if(m) return { mp: parseFloat(m[1]), cross: m[2] };
+  m=MP_RE.exec(txt);
   if(m) return { mp: parseFloat(m[1]) };
+  m=AT_RE.exec(txt);
+  if(m) return { cross: m[1] };
   if(txt) return { cross: txt };
   return Number.isFinite(stored) ? { mp: stored } : {};
 }

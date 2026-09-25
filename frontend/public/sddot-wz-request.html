@@ -960,9 +960,30 @@ function toWZDx(){const now=new Date().toISOString();const coords=geometryCoords
   if(v('rWeight'))restr.push({type:'reduced-weight',value:v('rWeight')});
   if(v('rLength'))restr.push({type:'reduced-length',value:v('rLength')});
   const baseName=v('project')||('SDDOT-'+Date.now().toString(36));
+// WZDx v4.2 carries beginning_milepost / ending_milepost (numbers) AND
+// beginning_cross_street / ending_cross_street (text) as separate fields. This variant was
+// putting the whole location box into the cross-street field, so a state highway claimed a
+// cross street of "MP 125.3" and emitted no milepost -- and once the box also carried the
+// cross street the text became "MP 125.3 (at K St NW)". Take it apart properly.
+const MP_RE=/^\s*MP\s*([\d.]+)\s*$/i;
+const MP_X_RE=/^\s*MP\s*([\d.]+)\s*\(\s*at\s+(.+?)\s*\)\s*$/i;
+const AT_RE=/^\s*at\s+(.+?)\s*$/i;
+function linearRef(id){
+  const txt=v(id);
+  let m=MP_X_RE.exec(txt); if(m) return { mp: parseFloat(m[1]), cross: m[2] };
+  m=MP_RE.exec(txt);       if(m) return { mp: parseFloat(m[1]) };
+  m=AT_RE.exec(txt);       if(m) return { cross: m[1] };
+  return txt ? { cross: txt } : {};
+}
+function wzLinearRefs(){
+  const a=linearRef('beginLoc'), b=linearRef('endLoc'), o={};
+  if(a.mp!=null) o.beginning_milepost=a.mp; if(a.cross) o.beginning_cross_street=a.cross;
+  if(b.mp!=null) o.ending_milepost=b.mp;    if(b.cross) o.ending_cross_street=b.cross;
+  return o;
+}
   const mkFeature=(dirName,geom,suffix)=>{const props={core_details:{event_type:'work-zone',data_source_id:'sddot-wz-builder',road_names:[routeVal()].filter(Boolean),direction:dirName,name:baseName+suffix,description:v('description')||undefined,update_date:now},
     start_date:v('schedStart')||now,end_date:wzEndDate(),x_review_by:wzEndDate()||undefined,vehicle_impact:v('impact')||'unknown',
-    beginning_cross_street:v('beginLoc')||undefined,ending_cross_street:v('endLoc')||undefined,
+    ...wzLinearRefs(),
     is_start_position_verified:false,is_end_position_verified:false};
     if(restr.length)props.restrictions=restr.slice();
     if(v('reducedSpeed'))props.reduced_speed_limit_kph=Math.round(parseFloat(v('reducedSpeed'))*1.60934);  // WZDx standard (mph→kph)
