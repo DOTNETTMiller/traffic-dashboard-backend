@@ -40,6 +40,9 @@ Do not weaken, shorten, or reword these. They are the hardest-won parts of the p
 
 ## MUST FIX — in this order
 
+Items 1 and 2 are corrections. Items 3 and 4 are the larger problem: **the page under-represents
+what actually flows through the platform**, and a member reading it will undervalue membership.
+
 ### 1. Resolve the contradiction in "Compare quality across members"
 
 The Cross-member catalog box currently offers "Compare quality across members." That is in
@@ -88,7 +91,56 @@ pre-planned diversion-route registry that auto-checks against live events and re
 explicit activation step, and a message-sign template system with a formal approval workflow
 before a template may be used.
 
-### 3. Rename stage 2 from "Preserve" to "Identify"
+### 3. The page shows one kind of data. The platform carries many.
+
+As drawn, a reader concludes this is a work-zone data exchange. It is a **corridor data**
+exchange, and every consumer group on the right depends on that being true. This is the change
+that most affects how a member values membership, so it belongs in the spine, not in a caption.
+
+**3a — Replace the source list with data domains.** In "Publish + author", show a compact grid
+rather than a sentence. The domains the platform actually carries:
+
+> work zones and closures · incidents · **truck parking (real-time availability and forecast)** ·
+> weather and road conditions · **winter operations and plow activity** · **rail movements and
+> grade-crossing blockage** · **bridge and structure clearance** · ITS asset health ·
+> **crash history** · special events and demand surge · freight and commercial vehicle ·
+> border wait times
+
+**3b — Add clearance as a named safety output, not a data type.** It has a rule worth stating
+because getting it backwards is the common error:
+
+> **Structure clearance.** A structure restricts your route only when your route passes *under*
+> it. A structure that carries your route *over* something has an underclearance that belongs to
+> the traffic below, not to you. Clearance is attached to a zone regardless of whether the source
+> feed carried it.
+
+**3c — Show rail as its own class with its own method.** It is the clearest demonstration that
+this is not a work-zone tool, and its method differs from every road source:
+
+> **Rail and grade crossings.** Freight publishes nothing openly, so blockage is *observed*
+> rather than inferred. Movements are snapped to track and walked forward along it — a raw
+> position carries roughly two miles of uncertainty, and a circle that wide overlaps dozens of
+> unrelated crossings. The output is a **crossing impact**, not a train position: what every
+> consumer needs, and the version a railroad will not object to.
+
+### 4. "Deliver → rights-gated APIs" badly understates delivery
+
+An API is one channel. The platform emits **operational messages into other people's systems**,
+each with its own standard and its own consequence. Replace the single APIs bullet with the
+channel classes:
+
+> **APIs and subscriptions** — query, subscribe, replay history, rights-gated and rate-limited.
+> **Navigation** — WZDx and CIFS into consumer navigation.
+> **Connected vehicle** — SAE J2735 TIM via RSU and the SDX pathway.
+> **Roadside** — dynamic message signs, from approved templates with recorded activations.
+> **Public alerting** — IPAWS / WEA for qualifying events, with CAP formatting, geofence
+> targeting and an audit record of who sent what.
+
+Public alerting especially must appear. A platform that can push a Wireless Emergency Alert is
+making a far heavier claim on member trust than one that publishes a feed, and the governance
+questions a reviewer will ask about it are different in kind.
+
+### 5. Rename stage 2 from "Preserve" to "Identify"
 
 Identity is the single most important thing this revision added, and "Preserve" reads as
 archival storage, which buries it. The box already does the right work ("normalize + identify",
@@ -98,7 +150,7 @@ undersells it.
 Rename the stage **Identify**, keep the subtitle "Normalize + preserve originals", and keep
 every existing bullet.
 
-### 4. Move geometry repair out of "Bounded cost + safe repair"
+### 6. Move geometry repair out of "Bounded cost + safe repair"
 
 That box couples two unrelated disciplines because both happen to be operational. Split it:
 
@@ -112,7 +164,7 @@ Keep every word of the repair content; only its placement changes.
 
 ## SHOULD FIX
 
-### 5. Rights brokerage needs agreement lifecycle
+### 7. Rights brokerage needs agreement lifecycle
 
 The box currently says permissions are brokered. Agreements also **expire**, and an expired
 agreement that nobody noticed is a compliance incident, not a data problem. Add one line:
@@ -122,7 +174,7 @@ agreement that nobody noticed is a compliance incident, not a data problem. Add 
 
 Grounding: the reference implementation maintains a contract registry with expiration alerting.
 
-### 6. Show how a source or member gets in
+### 8. Show how a source or member gets in
 
 The page shows members publishing but never shows **onboarding**. That is a governance function
 and reviewers will ask about it. Add a small element on the member-owned side:
@@ -133,7 +185,7 @@ and reviewers will ask about it. Add a small element on the member-owned side:
 Grounding: the reference implementation has feed submission with stored test results, a
 contribution intake with pending/approved status, and gap prioritisation voting.
 
-### 7. Add the second measurement loop
+### 9. Add the second measurement loop
 
 "Delivery observatory — did it actually reach the consumer or driver?" answers *did it arrive*.
 It does not answer *were we right*. Those are different loops and both belong. Add beside the
@@ -146,7 +198,7 @@ observatory:
 Grounding: the reference implementation stores ground-truth observations and prediction-accuracy
 history for its derived products, and calibrates against them.
 
-### 8. Fix "Independent witnesses" sitting in the member-owned column
+### 10. Fix "Independent witnesses" sitting in the member-owned column
 
 Devices and cameras are typically member-owned; **commercial probe data is not** — it is vendor
 data the member procured. The column header implies ownership of all four and a vendor will
@@ -155,7 +207,7 @@ notice.
 Either re-title the column **"Member-owned and member-procured"**, or move the commercial/probe
 line out of that box and attach it to "Own procurement." The first is simpler.
 
-### 9. Stop the phase bar fighting its own correction
+### 11. Stop the phase bar fighting its own correction
 
 "ONE SHARED PLATFORM — permanent across every phase" is the right fix and should stay. But the
 headline arrow still reads left-to-right as *iNODE → hardened → Corridor Connect*, so a skimmer
@@ -168,16 +220,64 @@ what*.
 
 ## IF SPACE ALLOWS
 
-### 10. Show the data domains, not just work zones
+### 12. Deepen Verify — say what the witnesses are and how evidence behaves over time
 
-The page reads as a work-zone exchange. The corridor problem is broader, and the reference
-implementation spans work zones, incidents, truck parking, weather, winter operations, rail and
-grade crossings, bridge clearance, asset health, crash history and connected-vehicle messaging.
+"Independent evidence" is right but abstract. Two additions, both short:
 
-In the "Publish + author" box, replace the current list with a compact grid of **domains**, so a
-reader sees this is corridor data, not one feed type.
+**12a — Name the witness classes**, so a reader can judge independence for themselves:
 
-### 11. Name the proving ground
+> A device physically on the zone · a visual observation · a human operator writing on a
+> different system · a commercial probe network. Evidence from a different operational chain
+> than the claim.
+
+**12b — State how evidence behaves over time.** This is a governance property and currently
+absent:
+
+> Presence evidence **accumulates and is never demoted**, because most witnesses can confirm
+> presence and none can prove absence. **Exactly one class may demote** — the one that can
+> actually observe a zone is finished. A live observation is distinguishable from an
+> accumulated one.
+
+### 13. Name the standards the platform is accountable to, and its place in the ITS architecture
+
+Two things a federal reviewer will look for and cannot currently find.
+
+**13a — Standards.** Put a compact strip in the shared foundation row:
+
+> **WZDx v4.x / CWZ 1.0** · **TMDD and ngTMDD** · **SAE J2735** (TIM, connected vehicle) ·
+> **NTCIP 1203/1218** (signs and field devices) · **ITIS** codes · **CAP** (public alerting) ·
+> **buildingSMART IFC 4.3 / IDS** (infrastructure models)
+>
+> Conformance is *scored*, not claimed — per source, against the published rubric.
+
+**13b — Position it against the national ITS architecture.** One line under the title, where the
+positioning statement belongs:
+
+> iNODE makes the **enterprise view of the national ITS architecture operational**. ARC-IT has
+> described inter-agency information exchange agreements for years; this is the machinery that
+> executes them.
+
+That sentence does more for a federal audience than any box on the page. It says iNODE is not a
+new institution competing with the architecture — it is the missing implementation of one.
+
+### 14. Design-time data, not only operational data (if space)
+
+The platform also carries **infrastructure models**, and this is a genuinely different data
+class the diagram has no room for at all: not what the road is doing now, but what was built and
+what a future asset must carry.
+
+> **Models and asset requirements.** Infrastructure models are checked for the properties an
+> operational system will later need — mapping model elements to ITS applications, V2X use cases
+> and automated-vehicle requirements — and the gaps are exported as a machine-checkable
+> **buildingSMART IDS** specification.
+>
+> The exchange can tell a designer what to model so the asset is usable in operations after it
+> is built.
+
+If nothing else fits, this is the one to leave out — but it is the strongest single argument
+that the platform spans the asset lifecycle rather than the traffic day.
+
+### 15. Name the proving ground
 
 Nothing shows where a verification method is validated before the exchange runs it at member
 scale. One line near Verify:
@@ -187,7 +287,8 @@ scale. One line near Verify:
 
 ## Do NOT add
 
-- Vendor or product names of any kind.
+- Vendor or product names of any kind. Standards names (WZDx, J2735, TMDD, IFC/IDS, CAP,
+  NTCIP) are not product names — those belong on the page.
 - New technology choices (clouds, databases, message brokers). This is a logical architecture.
 - More than the items above. The page is already dense; if something must give to fit items 1
   and 2, cut detail from the bottom utility row rather than dropping a named component.
