@@ -106,39 +106,103 @@ rather than a sentence. The domains the platform actually carries:
 > **crash history** · special events and demand surge · freight and commercial vehicle ·
 > border wait times
 
-**3b — Add clearance as a named safety output, not a data type.** It has a rule worth stating
-because getting it backwards is the common error:
+**3b — Draw clearance as a two-way loop, not a data type.** The interesting thing is not that
+the platform holds clearance data; it is that clearance and work zones inform each other:
 
-> **Structure clearance.** A structure restricts your route only when your route passes *under*
-> it. A structure that carries your route *over* something has an underclearance that belongs to
-> the traffic below, not to you. Clearance is attached to a zone regardless of whether the source
-> feed carried it.
+> **Structure clearance ↔ work zones.** Clearance informs routing decisions made on work-zone
+> data — which structures actually restrict a route, and therefore which detours are legal for a
+> tall or heavy load. And the reverse: a work zone on or under a structure is a **reason to
+> re-check that clearance**, because the work may have changed it. Resurfacing raises a deck;
+> staged construction narrows or lowers what is passable.
+>
+> Today clearance is a periodic inventory. Driving re-checks from live event data is the path to
+> **clearance that reflects the road as it is now** rather than as it was last inspected.
 
-**3c — Show rail as its own class with its own method.** It is the clearest demonstration that
-this is not a work-zone tool, and its method differs from every road source:
+Draw this as a small bidirectional pair between the work-zone domain and clearance, not as a
+bullet. The loop is the point — a static inventory is not worth a box on this page, and a
+self-refreshing one is.
 
-> **Rail and grade crossings.** Freight publishes nothing openly, so blockage is *observed*
-> rather than inferred. Movements are snapped to track and walked forward along it — a raw
-> position carries roughly two miles of uncertainty, and a circle that wide overlaps dozens of
-> unrelated crossings. The output is a **crossing impact**, not a train position: what every
-> consumer needs, and the version a railroad will not object to.
+**3c — Show rail as a trust problem the architecture solves, not as another feed.**
 
-### 4. "Deliver → rights-gated APIs" badly understates delivery
+The consumer is **emergency services** — a blocked crossing is a response-time problem, and
+nobody currently tells a dispatcher that the route is about to be cut. The obstacle is that
+**freight railroads are reluctant to share operational data**, and reasonably so: train
+positions are commercially and operationally sensitive.
 
-An API is one channel. The platform emits **operational messages into other people's systems**,
-each with its own standard and its own consequence. Replace the single APIs bullet with the
-channel classes:
+The architecture answers that directly, and the page should say so:
+
+> **Grade crossings — the output is crossing state, never train position.** Movements are
+> snapped to track and walked forward along it, and what leaves the platform is
+> "**this crossing is closed, or closing shortly, for about this long**". A railroad's
+> operational data never leaves its own control.
+>
+> Passenger rail, which does publish openly, is where this pattern is **demonstrated** —
+> proving the privacy-preserving shape works end to end before asking a freight railroad to
+> trust it.
+
+This is one of the strongest arguments on the page: it shows the exchange can deliver a public
+safety outcome **without** requiring a reluctant private party to expose what it does not want
+exposed. Draw the boundary explicitly — what enters, what never leaves.
+
+### 4. Correct what the platform delivers — and be explicit about what it does *not* do
+
+Two problems. Delivery is drawn as one channel, and the previous brief wrongly implied the
+platform broadcasts connected-vehicle messages. **It does not, and it must not appear to.**
+
+**4a — This platform produces feeds, not broadcasts. Say so on the page.**
+
+The platform's product is a **better source feed in existing FHWA formats** — verified,
+geometrically corrected, identity-stable, ITIS-coded work-zone and corridor data in
+**CWZ 1.0 / WZDx v4.2**, with **ngTMDD** where a member needs it. It does not mint SAE J2735
+messages, does not operate roadside units, and does not distribute to vehicles.
+
+Add a short, prominent panel — this is a commercial-positioning statement, not a caveat:
+
+> **What this is not.** Not a message broadcaster. Not a roadside-unit operator. Not a
+> replacement for connected-vehicle distribution.
+>
+> **The platform makes existing distribution work better.** SDX and commercial distributors
+> already reach vehicles; what they have never had is input that is verified, geometrically
+> correct, identity-stable and current. Better source data makes their product more effective,
+> not less necessary.
+
+Draw the connected-vehicle world as a **downstream partner receiving the feed**, with the
+handoff labelled — not as a channel the platform operates. Anyone whose business is
+distribution should be able to look at this page and see their role intact and strengthened.
+
+**4b — Then show the channels the platform genuinely does operate:**
 
 > **APIs and subscriptions** — query, subscribe, replay history, rights-gated and rate-limited.
-> **Navigation** — WZDx and CIFS into consumer navigation.
-> **Connected vehicle** — SAE J2735 TIM via RSU and the SDX pathway.
-> **Roadside** — dynamic message signs, from approved templates with recorded activations.
+> **Navigation** — WZDx and CIFS into consumer navigation and mapping partners.
+> **Roadside signs** — from approved templates, with recorded activations (see 4c).
 > **Public alerting** — IPAWS / WEA for qualifying events, with CAP formatting, geofence
 > targeting and an audit record of who sent what.
+>
+> **Feeds to distributors** — CWZ 1.0 / WZDx / ngTMDD to SDX and other distribution partners,
+> who convert and broadcast on their own terms.
 
 Public alerting especially must appear. A platform that can push a Wireless Emergency Alert is
 making a far heavier claim on member trust than one that publishes a feed, and the governance
-questions a reviewer will ask about it are different in kind.
+questions a reviewer asks about it differ in kind.
+
+**4c — Geofenced sign activation from moving assets. This is genuinely novel — give it a box.**
+
+Sign activation today is event-driven: an event matches a rule, a template fills, the nearest
+sign lights. The distinctive move is to drive activation from a **moving asset's own position**:
+
+> **Geofence activation from AVL.** A tracked asset — slow-moving equipment, a maintenance
+> vehicle, a work convoy — crossing a geofence activates the appropriate sign automatically,
+> from an approved template, with the activation recorded.
+>
+> This turns any AVL or telematics stream into driver-facing warning at scale, without an
+> operator watching a map. The pattern is **extensible to any fleet that already reports
+> position**, and the reference implementation of the feed side is being **released openly** so
+> others adopt the pattern rather than rebuild it — which is how it reaches scale beyond the
+> members of this exchange.
+
+Say plainly on the page that this is not common practice elsewhere. It is one of the few
+elements here that is genuinely new rather than better-executed, and a reviewer should not have
+to infer that.
 
 ### 5. Rename stage 2 from "Preserve" to "Identify"
 
@@ -150,17 +214,32 @@ undersells it.
 Rename the stage **Identify**, keep the subtitle "Normalize + preserve originals", and keep
 every existing bullet.
 
-### 6. Move geometry repair out of "Bounded cost + safe repair"
+### 6. Give geometry its own box next to Verify — it is a product, not a repair utility
 
-That box couples two unrelated disciplines because both happen to be operational. Split it:
+"Bounded cost + safe repair" couples two unrelated disciplines because both happen to be
+operational. Split them, and promote geometry: it is one of the most consequential things the
+platform produces, and burying it in a cost box badly undersells it.
 
 - **Bounded cost** stays in the cross-cutting row: own budget, circuit breaker, cache; only
   requested or due work; repeat safely without duplicating changes.
-- **Safe repair** — the LRS cascade, the length/endpoint/bearing gates, and "all fail?
-  unchanged" — moves next to **Verify**, because repair is something done *to a record*, not a
-  platform-wide utility.
+- **Geometry** becomes its own component beside **Verify**:
 
-Keep every word of the repair content; only its placement changes.
+> **Corrected geometry.** A closure arrives as two points and a straight line between them.
+> It leaves as road-following linework snapped to the centreline, covering the **full length of
+> the closure**, and as **both carriageways when both are closed** rather than one line standing
+> in for two.
+>
+> Cascade: the member's own LRS first, national LRS second, a router last. Every tier's output
+> is a proposal that must clear length, endpoint and bearing gates. **All fail? Emit unchanged** —
+> a wrong polyline is worse than an honest straight line, because the straight line advertises
+> that it is an approximation.
+
+Then state what it is *for*, because that is the part a reviewer will care about:
+
+> Correct geometry is what makes the rest usable: it decides which structures and restrictions a
+> zone actually interacts with, it is what a validation check is run against, and it is what
+> **mapping and navigation partners need to place a closure correctly and to suggest a sensible
+> alternative route**. A zone drawn as a straight line across a river routes traffic into it.
 
 ## SHOULD FIX
 
@@ -244,11 +323,17 @@ Two things a federal reviewer will look for and cannot currently find.
 
 **13a — Standards.** Put a compact strip in the shared foundation row:
 
-> **WZDx v4.x / CWZ 1.0** · **TMDD and ngTMDD** · **SAE J2735** (TIM, connected vehicle) ·
-> **NTCIP 1203/1218** (signs and field devices) · **ITIS** codes · **CAP** (public alerting) ·
-> **buildingSMART IFC 4.3 / IDS** (infrastructure models)
+> **Produces:** WZDx v4.x / **CWZ 1.0** · **ngTMDD** where a member needs it · **ITIS** coding ·
+> **CAP** for public alerting.
+> **Consumes and scores against:** WZDx, TMDD / ngTMDD, **NTCIP 1203/1218** (signs and field
+> devices), **buildingSMART IFC 4.3 / IDS** (infrastructure models).
+> **Codes to, but does not emit:** **SAE J2735** vocabulary — ITIS codes carry through so a
+> downstream distributor can build messages without re-deriving them.
 >
 > Conformance is *scored*, not claimed — per source, against the published rubric.
+
+Keep the produces / consumes / codes-to distinction visible. It is exactly what prevents a
+distribution partner reading this page as an encroachment.
 
 **13b — Position it against the national ITS architecture.** One line under the title, where the
 positioning statement belongs:
@@ -294,6 +379,11 @@ scale. One line near Verify:
   and 2, cut detail from the bottom utility row rather than dropping a named component.
 - Any implication that the exchange authors, owns, corrects or invalidates member data. The
   exchange **coordinates**; the member **edits**; the exchange **rechecks**.
+- **Any implication that the platform broadcasts to vehicles or replaces a distribution
+  provider.** No roadside units, no J2735 message emission, no vehicle-facing delivery. This is
+  the single most commercially sensitive line on the page: distribution partners must read it
+  and see their role strengthened, not threatened. If a box could be misread that way, relabel
+  it or draw the handoff.
 
 ## Output requirements
 
