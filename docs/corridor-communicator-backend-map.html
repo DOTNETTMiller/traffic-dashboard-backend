@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  html{color-scheme:light dark}
+  body{margin:0}
+  img{max-width:100%}
+  [hidden]{display:none!important}
+</style>
+<title>Corridor Communicator Backend Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ground:#E7EAEE; --panel:#FFFFFF; --panel2:#F3F5F8;
+    --ink:#0E141B; --slate:#54617A; --faint:#7C8697;
+    --steel:#1E3A5C; --zone:#B44F17; --zone-soft:#F7E6D9; --zone-ink:#8A3B10;
+    --rule:#C9D1DB; --rule-soft:#E2E7ED;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+    --ground:#10151B; --panel:#171E26; --panel2:#1C242E;
+    --ink:#E6EBF1; --slate:#9FADC0; --faint:#77839A;
+    --steel:#8FB3DC; --zone:#E08B52; --zone-soft:#3A2416; --zone-ink:#F2AE7C;
+    --rule:#2A3542; --rule-soft:#212B36;
+  }}
+  :root[data-theme="dark"]{
+    --ground:#10151B; --panel:#171E26; --panel2:#1C242E;
+    --ink:#E6EBF1; --slate:#9FADC0; --faint:#77839A;
+    --steel:#8FB3DC; --zone:#E08B52; --zone-soft:#3A2416; --zone-ink:#F2AE7C;
+    --rule:#2A3542; --rule-soft:#212B36;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--ground);color:var(--ink);margin:0;
+       font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.5}
+  .wrap{max-width:1360px;margin:0 auto;padding-inline:20px;padding-block:44px 80px}
+  h1,h2,.num{font-family:Overpass,"IBM Plex Sans",sans-serif;letter-spacing:-.01em}
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--zone);margin:0 0 8px}
+  h1{font-size:clamp(29px,5vw,46px);font-weight:800;line-height:1.05;margin:0;text-wrap:balance}
+  .lede{max-width:72ch;color:var(--slate);font-size:16px;margin:12px 0 0}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:1px;
+         background:var(--rule);border:1px solid var(--rule);margin-top:24px}
+  .stat{background:var(--panel);padding:12px 13px}
+  .num{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1;color:var(--steel)}
+  .num.hot{color:var(--zone)}
+  .cap{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-top:3px}
+
+  section{margin-top:44px}
+  .head{display:flex;align-items:baseline;gap:13px;flex-wrap:wrap;border-bottom:2px solid var(--steel);padding-bottom:7px}
+  .step{font-family:var(--mono);font-size:11.5px;color:var(--zone);border:1px solid var(--zone);
+        border-radius:2px;padding:1px 7px;flex-shrink:0}
+  h2{font-size:21px;font-weight:700;margin:0;color:var(--steel)}
+  .sub{font-size:12px;color:var(--faint);font-family:var(--mono);margin-left:auto}
+  .note{font-size:13.5px;color:var(--slate);max-width:86ch;margin:10px 0 0}
+  .note b{color:var(--ink);font-weight:600}
+
+  .chart{background:var(--panel);border:1px solid var(--rule);border-radius:3px;
+         margin-top:14px;padding:16px 10px;overflow-x:auto}
+  .chart pre.mermaid{margin:0;min-width:560px;text-align:center;background:transparent}
+
+  .rule-note{background:var(--zone-soft);border-left:3px solid var(--zone);border-radius:2px;padding:10px 12px;margin-top:13px}
+  .rule-note b{color:var(--zone-ink)}
+  .rule-note p{color:var(--zone-ink);font-size:12.5px;margin:3px 0 0;line-height:1.45}
+
+  .tablewrap{overflow-x:auto;margin-top:13px;border:1px solid var(--rule);background:var(--panel)}
+  table{border-collapse:collapse;width:100%;font-size:12.5px;min-width:600px}
+  thead th{text-align:left;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+           color:var(--faint);padding:9px 12px;border-bottom:1px solid var(--rule);background:var(--panel)}
+  td{padding:8px 12px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+  tbody tr:last-child td{border-bottom:0}
+  td.m{font-family:var(--mono);font-size:11px;color:var(--steel);white-space:nowrap}
+  td.s{color:var(--slate)}
+  td .n{font-family:var(--mono);font-size:10.5px;color:var(--zone)}
+
+  footer{margin-top:52px;padding-top:15px;border-top:1px solid var(--rule);font-size:12px;color:var(--faint);max-width:84ch}
+  @media (max-width:640px){ .wrap{padding-block:30px 56px} }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+
+  <p class="eyebrow">DOT Corridor Communicator</p>
+  <h1>Backend flow map</h1>
+  <p class="lede">What the practice looked like before, and every path through the platform that replaced it —
+  from the 254 external endpoints it reads to the feeds, signs and alerts it emits. Eleven flows: the
+  problem, the spine, then each subsystem that hangs off it.</p>
+
+  <div class="stats">
+    <div class="stat"><div class="num">71</div><div class="cap">Services</div></div>
+    <div class="stat"><div class="num">504</div><div class="cap">Endpoints</div></div>
+    <div class="stat"><div class="num">87</div><div class="cap">API groups</div></div>
+    <div class="stat"><div class="num">65</div><div class="cap">Tables</div></div>
+    <div class="stat"><div class="num hot">254</div><div class="cap">External sources</div></div>
+    <div class="stat"><div class="num">43</div><div class="cap">WZ feeds</div></div>
+    <div class="stat"><div class="num">37</div><div class="cap">States</div></div>
+    <div class="stat"><div class="num">132</div><div class="cap">UI components</div></div>
+  </div>
+
+
+  <!-- ───────── 00 BEFORE ───────── -->
+  <section>
+    <div class="head"><span class="step">00</span><h2>How it worked before</h2><span class="sub">the problem this is answering</span></div>
+    <p class="note">Every state a closed loop: its own 511, its own ATMS, its own TMC, its own format.
+    Nothing checked whether a reported zone was real, geometry was a straight line between two points, and
+    what reached a driver was late, partial, or never arrived. The figures below are measured on the live
+    public feeds, not asserted.</p>
+
+    <div class="chart"><pre class="mermaid">
+flowchart LR
+  subgraph ST["Each state, separately"]
+    direction TB
+    A1["State A<br/>ATMS → TMC → 511"]
+    A2["State B<br/>ATMS → TMC → 511"]
+    A3["State C<br/>ATMS → TMC → 511"]
+    A4["~17 states<br/>nothing public at all"]
+  end
+  F1["WZDx 3.1"]
+  F2["WZDx 4.0 / 4.1 / 4.2"]
+  F3["TMDD / CARS XML"]
+  F4["RCRS · ArcGIS · proprietary"]
+  G["Geometry<br/>2 points, straight line<br/>76% with no usable centroid"]
+  ID["Identifiers<br/>change without notice"]
+  EN["End dates<br/>pass, zone stays active"]
+  NOV(["No verification<br/>the feed asserts; nobody checks"])
+  MAN["Arrow boards<br/>manually linked by TMC staff"]
+  CAM["Cameras<br/>a person watching a wall"]
+  CON["Downstream<br/>navigation · fleets · CAV"]
+  DROP(["Dropped, late,<br/>or never ingested"])
+
+  A1 --> F1
+  A1 --> F3
+  A2 --> F2
+  A3 --> F4
+  A4 -.-> DROP
+  F1 --> G
+  F2 --> G
+  F3 --> G
+  F4 --> G
+  G --> ID --> EN --> CON
+  NOV -.-> G
+  MAN -.-> NOV
+  CAM -.-> NOV
+  EN --> DROP
+  CON --> LIM(["Limited adoption<br/>partial, unverifiable,<br/>not worth integrating"])
+
+  classDef st fill:#eef2f7,stroke:#8fa6c0,color:#1E3A5C
+  classDef fmt fill:#ffffff,stroke:#8fa6c0,color:#1E3A5C
+  classDef bad fill:#ffffff,stroke:#B44F17,color:#B44F17,stroke-dasharray: 4 3
+  classDef flaw fill:#B44F17,stroke:#B44F17,color:#ffffff
+  class A1,A2,A3 st
+  class A4,NOV,DROP,LIM bad
+  class F1,F2,F3,F4,CON fmt
+  class G,ID,EN,MAN,CAM flaw
+    </pre></div>
+
+    <div class="tablewrap"><table>
+      <thead><tr><th>What was true</th><th>Measured</th><th>What changed</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="m">No location on most events</td>
+          <td class="s">A usable coordinate existed on <b>1,505 of 6,226 events</b>. Camera matching returned null for the other 76% before it ever looked for a camera.</td>
+          <td class="s">Matching runs against the zone's whole line, not a centroid it may not have.</td>
+        </tr>
+        <tr>
+          <td class="m">Geometry was a straight line</td>
+          <td class="s">Two points and the line between them — across rivers, through interchanges, on the wrong carriageway.</td>
+          <td class="s">Road-following linework, full length, both carriageways when both are closed. Gated; unchanged if every tier fails.</td>
+        </tr>
+        <tr>
+          <td class="m">Nothing verified a zone was real</td>
+          <td class="s">The feed asserted it; the only check was a person looking at a camera. Fixed cameras capped verification at <b>52 closures</b>.</td>
+          <td class="s">Five independent witnesses, plus the maintenance fleet's own dashcams covering roads no fixed camera sees.</td>
+        </tr>
+        <tr>
+          <td class="m">Devices were linked by hand</td>
+          <td class="s">Connected arrow boards were <b>manually associated by TMC staff</b> with 511 events, one at a time.</td>
+          <td class="s">Automatic multi-signal association on route, direction and along-road chainage.</td>
+        </tr>
+        <tr>
+          <td class="m">Identifiers moved silently</td>
+          <td class="s">One federally-registered feed re-identified <b>6 of ~1,050 events in 18 hours</b>, destroying 39 ids of zones that never left.</td>
+          <td class="s">Continuity keyed on the observed-stable core, with the drift monitored rather than assumed away.</td>
+        </tr>
+        <tr>
+          <td class="m">A published feed could be empty</td>
+          <td class="s">A state's registered endpoint answering <b>HTTP 200 with an HTML error page</b> — healthy to any status-code check.</td>
+          <td class="s">Health is content-level: parseable, expected shape, records present.</td>
+        </tr>
+        <tr>
+          <td class="m">Coverage stopped at the state line</td>
+          <td class="s"><b>~17 states</b> publish no public work-zone or 511 feed at all.</td>
+          <td class="s">Nationwide weather alerting fills those gaps; builders let a jurisdiction author a feed without a platform.</td>
+        </tr>
+        <tr>
+          <td class="m">Nobody knew what reached drivers</td>
+          <td class="s">Publication was assumed to be arrival. No measurement either way.</td>
+          <td class="s">Deviation scorecard buckets every zone as reaching, not reaching, mistimed or unreported — and routes each to a fix.</td>
+        </tr>
+      </tbody>
+    </table></div>
+
+    <div class="rule-note"><b>The consequence was circular.</b>
+      <p>Downstream consumers could not rely on the data, so they did not integrate deeply. Because they
+      did not integrate, nobody found out which zones failed to reach anyone — and there was no signal
+      telling a state what to fix. Everything after this point exists to break that loop.</p></div>
+  </section>
+
+  <!-- ───────── 01 SPINE ───────── -->
+  <section>
+    <div class="head"><span class="step">01</span><h2>The spine</h2><span class="sub">ingest → identify → corroborate → repair → publish</span></div>
+    <p class="note">One adapter per publisher, so every defect is attributable to the adapter that produced
+    it. The event cache is the shared object everything else reads; subsystems annotate it in place rather
+    than forking their own copy.</p>
+    <div class="chart"><pre class="mermaid">
+flowchart LR
+  subgraph SRC["External sources · 254 endpoints"]
+    direction TB
+    S1["Work zones<br/>WZDx · TMDD/CARS · RCRS"]
+    S2["Field devices<br/>arrow boards · portable DMS"]
+    S3["Cameras<br/>16 networks · 21,941"]
+    S4["Sign text · Probe<br/>DMS · TomTom · HaulHub"]
+    S5["LRS &amp; geometry<br/>state · ARNOLD · OSRM"]
+    S6["Context<br/>NWS · NBI · FARS · census"]
+  end
+  A["Per-source adapters<br/>fail-safe · one per publisher"]
+  N["Normalise<br/>schema migration · lossless"]
+  I["Identify<br/>stable subject key"]
+  V["Corroborate<br/>five witnesses"]
+  R["Repair<br/>geometry cascade"]
+  C["Confidence<br/>+ conformance score"]
+  EC[("Event cache<br/>shared, annotated in place")]
+  F["Feeds out<br/>CWZ 1.0 · WZDx · CIFS"]
+  SUB["Domain subsystems<br/>flows 04–09"]
+  UI["Operator UI<br/>132 components"]
+  DEV["Deviation scorecard"]
+  EX["Exception queue<br/>finding + remedy"]
+  BLD["51 jurisdiction builders<br/>pre-filled at the location"]
+
+  S1 --> A
+  S2 --> A
+  S3 --> A
+  S4 --> A
+  S5 --> R
+  S6 --> A
+  A --> N --> I --> V --> R --> C --> EC
+  EC --> F
+  EC --> SUB
+  EC --> UI
+  EC --> DEV --> EX --> BLD
+  BLD -. "corrected record + finding id" .-> S1
+
+  classDef src fill:#eef2f7,stroke:#8fa6c0,color:#1E3A5C
+  classDef core fill:#1E3A5C,stroke:#1E3A5C,color:#ffffff
+  classDef hot fill:#B44F17,stroke:#B44F17,color:#ffffff
+  classDef out fill:#ffffff,stroke:#8fa6c0,color:#1E3A5C
+  class S1,S2,S3,S4,S5,S6 src
+  class A,N,C core
+  class I,V,R hot
+  class EC,F,SUB,UI,DEV,EX,BLD out
+    </pre></div>
+    <div class="rule-note"><b>Every check reports one of three states.</b>
+      <p>Pass, fail, or <b>not evaluated</b> — never rendered as pass. No credentials, cooldown, unreachable
+      and unparseable are four different answers, and a feed returning HTTP 200 with an error page is not healthy.</p></div>
+  </section>
+
+  <!-- ───────── 02 CORROBORATION ───────── -->
+  <section>
+    <div class="head"><span class="step">02</span><h2>Corroboration</h2><span class="sub">five independent witnesses</span></div>
+    <p class="note">Each witness originates in a different operational chain from the DOT feed making the
+    claim. <b>Positive-only and sticky</b> — corroboration accumulates and is never demoted, because most
+    witnesses can confirm presence and none can prove absence. Exactly one may demote.</p>
+    <div class="chart"><pre class="mermaid">
+flowchart TB
+  Z["Claimed work zone"]
+  D["Connected device<br/>hardware on the zone"]
+  CA["Camera vision<br/>≤2 checks ever"]
+  DM["Sign text<br/>different operator"]
+  TT["Commercial probe<br/>navigation network"]
+  HH["Worker presence<br/>contractor telematics"]
+  CH["Chainage refine<br/>along-road, not crow-flies"]
+  L[("Sticky ledger<br/>never demoted")]
+  CL[("Camera ledger<br/>may demote")]
+  EL["Elevated zone<br/>x_verification + provenance"]
+  RM["Traffic control removed<br/>zone drops from elevated feed"]
+  NE["Not elevated<br/>with the reason"]
+
+  Z --> D --> CH --> L
+  Z --> DM --> L
+  Z --> TT --> L
+  Z --> HH --> L
+  Z --> CA --> CL
+  L --> EL
+  CL --> EL
+  CL -- "daily re-check sees it gone" --> RM
+  Z -. "no camera in range · no device · source unreachable" .-> NE
+
+  classDef claim fill:#1E3A5C,stroke:#1E3A5C,color:#ffffff
+  classDef wit fill:#B44F17,stroke:#B44F17,color:#ffffff
+  classDef store fill:#eef2f7,stroke:#8fa6c0,color:#1E3A5C
+  classDef out fill:#ffffff,stroke:#8fa6c0,color:#1E3A5C
+  class Z claim
+  class D,CA,DM,TT,HH wit
+  class L,CL store
+  class EL,RM,NE,CH out
+    </pre></div>
+    <p class="note"><b>Association is multi-signal, not nearest-device.</b> A connected arrow board is almost
+    never at the zone — it sits upstream in the travel direction, often half a mile ahead, and two
+    carriageways sit about 100&nbsp;ft apart. Chainage on the state LRS turns straight-line distance into
+    true along-road distance; a miss keeps the straight-line figure rather than mixing the two.</p>
+  </section>
+
+  <!-- ───────── 03 GEOMETRY ───────── -->
+  <section>
+    <div class="head"><span class="step">03</span><h2>Geometry repair</h2><span class="sub">proposal → gates → accept or leave alone</span></div>
+    <p class="note">A closure arrives as two points and a straight line. It leaves as road-following
+    linework covering the full length, and <b>both carriageways when both are closed</b>. Every tier's
+    output is a proposal that must clear acceptance gates.</p>
+    <div class="chart"><pre class="mermaid">
+flowchart LR
+  IN["Event geometry<br/>2-point crow-flies"]
+  T["Triage<br/>fix only what is broken"]
+  L1["Tier 1 · state LRS<br/>by measure or snap"]
+  L2["Tier 2 · ARNOLD<br/>national all-roads"]
+  L3["Tier 3 · router<br/>last resort"]
+  G{"Gates<br/>length · endpoints · bearing"}
+  OK["Accepted<br/>road-following, densified<br/>x_geometry_ provenance"]
+  UN["Emitted unchanged<br/>honest straight line"]
+
+  IN --> T --> L1 --> G
+  L1 -- "no match" --> L2 --> G
+  L2 -- "no match" --> L3 --> G
+  G -- "pass" --> OK
+  G -- "all tiers fail" --> UN
+
+  classDef in fill:#eef2f7,stroke:#8fa6c0,color:#1E3A5C
+  classDef tier fill:#1E3A5C,stroke:#1E3A5C,color:#ffffff
+  classDef gate fill:#B44F17,stroke:#B44F17,color:#ffffff
+  classDef out fill:#ffffff,stroke:#8fa6c0,color:#1E3A5C
+  class IN,T in
+  class L1,L2,L3 tier
+  class G gate
+  class OK,UN out
+    </pre></div>
+    <div class="rule-note"><b>A wrong polyline is worse than an honest straight line.</b>
+      <p>The straight line advertises that it is an approximation; the wrong one does not. Correct geometry
+      decides which structures a zone interacts with, is what validation runs against, and is what mapping
+      partners need to place a closure and suggest a sensible alternative route.</p></div>
+  </section>
+
+  <!-- ───────── 04 STRUCTURES ───────── -->
+  <section>
+    <div class="head"><span class="step">04</span><h2>Structures &amp; restrictions</h2><span class="sub">bridges · nbi · warnings · osow</span></div>
+    <p class="note">Clearance informs routing on work-zone data — and a work zone on or under a structure
+    is itself a reason to re-check that clearance. That loop is the path toward clearance that reflects the
+    road as it is now, not as it was last inspected.</p>
+    <div class="chart"><pre class="mermaid">
+flowchart LR
+  NBI["National Bridge Inventory<br/>clearance · rating · inspection date"]
+  Z["Work zone<br/>corrected geometry"]
+  OU{"Does the route pass<br/>UNDER the structure?"}
+  RES["Restricts this route<br/>clearance applies"]
+  NA["Not applicable<br/>underclearance is for traffic below"]
+  W[("bridge_clearance_warnings<br/>route_restrictions")]
+  OSOW["OSOW routing<br/>oversize / overweight"]
+  DET["Detour legality<br/>which alternates a tall load may use"]
+  RC["Re-check trigger<br/>work may have changed it"]
+
+  NBI --> OU
+  Z --> OU
+  OU -- yes --> RES --> W
+  OU -- no --> NA
+  W --> OSOW
+  W --> DET
+  Z -. "resurfacing raises a deck · staged work narrows it" .-> RC
+  RC -.-> NBI
+
+  classDef src fill:#eef2f7,stroke:#8fa6c0,color:#1E3A5C
+  classDef gate fill:#B44F17,stroke:#B44F17,color:#ffffff
+  classDef out fill:#ffffff,stroke:#8fa6c0,color:#1E3A5C
+  classDef store fill:#1E3A5C,stroke:#1E3A5C,color:#ffffff
+  class NBI,Z src
+  class OU,RC gate
+  class RES,NA,OSOW,DET out
+  class W store
+    </pre></div>
+  </section>
+
+  <!-- ───────── 05 PARKING ───────── -->
+  <section>
+    <div class="head"><span class="step">05</span><h2>Truck parking &amp; freight</h2><span class="sub">28 endpoints · forecast scored against truth</span></div>
+    <p class="note">A closure tonight consumes the next three truck stops' capacity. Because both live in
+    one engine the system knows that before the shift ends. Predictions are scored against ground-truth
+    observation and the error retained — published confidence is earned, not asserted.</p>
+    <div class="chart"><pre class="mermaid">
+flowchart LR
+  TP["MAASTO TPIMS<br/>8 states · static + dynamic"]
+  RA["Rest-area cameras<br/>AI space counts"]
+  FAC[("truck_parking_facilities")]
+  AV[("parking_availability")]
+  PAT[("occupancy_patterns")]
+  PR["Hourly prediction<br/>per facility"]
+  GT[("ground_truth_observations")]
+  ACC[("prediction_accuracy")]
+  CAL["Daily calibration<br/>tunes weights"]
+  CI["Closure → parking impact<br/>facilities within ~50 mi"]
+  BW["Border wait times"]
+  OUT["Traveler + dispatcher view<br/>surge risk flagged"]
+
+  TP --> FAC
+  TP --> AV
+  RA --> GT
+  AV --> PAT --> PR --> OUT
+  PR --> ACC
+  GT --> ACC --> CAL
+  CAL -. "weights" .-> PR
+  CI --> OUT
+  BW --> OUT
+
+  classDef src fill:#eef2f7,stroke:#8fa6c0,color:#1E3A5C
+  classDef store fill:#1E3A5C,stroke:#1E3A5C,color:#ffffff
+  classDef hot fill:#B44F17,stroke:#B44F17,color:#ffffff
+  classDef out fill:#ffffff,stroke:#8fa6c0,color:#1E3A5C
+  class TP,RA,BW,CI src
+  class FAC,AV,PAT,GT,ACC store
+  class PR,CAL hot
+  class OUT out
+    </pre></div>
+  </section>
+
+  <!-- ───────── 06 RAIL ───────── -->
+  <section>
+    <div class="head"><span class="step">06</span><h2>Rail &amp; grade crossings</h2><span class="sub">observe, don't infer · privacy boundary</span></div>
+    <p class="note">Freight publishes nothing openly, and the consumer is emergency services. What leaves
+    the platform is <b>crossing state, never a train position</b> — the pattern is proven on passenger rail,
+    which does publish, before a freight railroad is asked to trust it.</p>
+    <div class="chart"><pre class="mermaid">
+flowchart LR
+  AM["Amtrak<br/>source of record"]
+  AMR["Community mirror<br/>declared fallback"]
+  RS["RailState sightings<br/>trackside machine vision"]
+  FRA["FRA blocked-crossing reports<br/>public-submitted"]
+  GT["GTFS schedule<br/>independent cross-check"]
+  NET["Rail network graph<br/>measures computed here"]
+  SNAP["Snap to track<br/>walk forward along the line"]
+  FT["Freshness tier<br/>current / marked / never shown"]
+  IMP["Crossing impact<br/>closed or closing, for about this long"]
+  HOT["Chronic hotspots<br/>which crossings swallow an hour"]
+  EMS["Emergency services<br/>511 · ATMS · routing"]
+  X(["Train position<br/>never leaves"])
+
+  AM --> NET
+  AMR -. "only if source fails" .-> NET
+  RS --> FT --> NET
+  GT -. "does the position agree?" .-> AM
+  NET --> SNAP --> IMP --> EMS
+  FRA --> HOT --> EMS
+  SNAP -.-> X
+
+  classDef src fill:#eef2f7,stroke:#8fa6c0,color:#1E3A5C
+  classDef core fill:#1E3A5C,stroke:#1E3A5C,color:#ffffff
+  classDef hot fill:#B44F17,stroke:#B44F17,color:#ffffff
+  classDef out fill:#ffffff,stroke:#8fa6c0,color:#1E3A5C
+  classDef never fill:#ffffff,stroke:#B44F17,color:#B44F17,stroke-dasharray: 4 3
+  class AM,AMR,RS,FRA,GT src
+  class NET,SNAP core
+  class FT,IMP hot
+  class HOT,EMS out
+  class X never
+    </pre></div>
+    <p class="note">A raw position carries roughly 1.8 miles of uncertainty at median speed and age — a
+    circle that wide overlaps dozens of unrelated crossings. Snapping to track turns it into a
+    one-dimensional interval that overlaps only the crossings actually ahead.</p>
+  </section>
+
+  <!-- ───────── 07 MESSAGING ───────── -->
+  <section>
+    <div class="head"><span class="step">07</span><h2>Messaging &amp; alerting</h2><span class="sub">dms 11 · ipaws 33 · diversion 9 · geofences</span></div>
+    <p class="note">Automation carries guardrails: templates are approved before use, every activation is
+    recorded, and rules that fire automatically remain reviewable. Public alerting is a far heavier claim
+    on trust than publishing a feed, and is gated accordingly.</p>
+    <div class="chart"><pre class="mermaid">
+flowchart TB
+  EV["Event on the cache"]
+  AVL["Moving asset reports position<br/>tractor · plow · arrow board · TMA"]
+  FEN["Geofence rides WITH the asset<br/>asymmetric, weighted ahead of travel"]
+  INV[("Static sign inventory<br/>fixed DMS across the network")]
+  GF{"Which fixed signs fall<br/>inside the fence right now?"}
+  REL["Asset moves on<br/>signs it has left release"]
+  RU{"Auto-DMS rule match<br/>type · severity · category"}
+  TPL[("dms_message_templates<br/>+ approvals")]
+  ACT[("dms_activations<br/>every firing recorded")]
+  SIGN["Roadside sign"]
+  Q{"IPAWS qualification<br/>≥4h closure or imminent danger"}
+  POP["Population masking<br/>geofence precision"]
+  CAP["CAP-XML · multilingual"]
+  WEA["Wireless Emergency Alert"]
+  AUD[("IPAWS audit log<br/>who sent what, when")]
+  DR[("diversion_routes<br/>pre-planned")]
+  DACT["Activation<br/>explicit, not automatic"]
+
+  EV --> RU -- match --> TPL --> ACT --> SIGN
+  AVL --> FEN --> GF
+  INV --> GF
+  GF -- "inside" --> TPL
+  GF -- "no longer inside" --> REL
+  EV --> Q -- qualifies --> POP --> CAP --> WEA
+  Q -- "does not qualify" --> NOA["No alert"]
+  WEA --> AUD
+  EV --> DR --> DACT --> SIGN
+
+  classDef src fill:#eef2f7,stroke:#8fa6c0,color:#1E3A5C
+  classDef gate fill:#B44F17,stroke:#B44F17,color:#ffffff
+  classDef store fill:#1E3A5C,stroke:#1E3A5C,color:#ffffff
+  classDef out fill:#ffffff,stroke:#8fa6c0,color:#1E3A5C
+  class EV,AVL,INV src
+  class GF,RU,Q gate
+  class FEN,REL out
+  class TPL,ACT,AUD,DR store
+  class SIGN,POP,CAP,WEA,NOA,DACT out
+    </pre></div>
+    <div class="rule-note"><b>The geofence is on the equipment, not on the road.</b>
+      <p>Sign activation is normally event-driven and static: an event fires a rule, the nearest sign lights.
+      Here the fence <b>travels with the hazard</b> — a combine, a plow, an arrow board, a TMA — and the
+      question asked continuously is <i>which fixed message devices are inside it now</i>. As the asset moves
+      the matched set changes: signs ahead pick the message up, signs behind release it. The fence is
+      asymmetric for the same reason a taper is, weighted ahead of travel because that is where drivers are
+      approaching from.</p>
+      <p>Nothing about it is specific to farm equipment. Any asset that already reports position can carry
+      one, which is what makes an ordinary AVL or telematics feed into driver-facing warning at scale — with
+      no operator watching a map, and no new field hardware.</p></div>
+  </section>
+
+  <!-- ───────── 08 ASSETS ───────── -->
+  <section>
+    <div class="head"><span class="step">08</span><h2>Assets, models &amp; design data</h2><span class="sub">its-equipment 18 · digital-infrastructure 12 · cadd 9</span></div>
+    <p class="note">The only flow here that is not about the traffic day. It runs from what was designed and
+    built to what an operational system will later need from it — and exports the gap as a machine-checkable
+    specification.</p>
+    <div class="chart"><pre class="mermaid">
+flowchart LR
+  DXF["CADD · DXF / DWG<br/>state plane → WGS84"]
+  IFC["IFC models<br/>buildingSMART 4.3"]
+  ENT[("cadd_entities<br/>road geometry + ITS assets")]
+  EL[("infrastructure_elements")]
+  STD[("infrastructure_standards<br/>ifc property → ITS use → V2X → AV need")]
+  GAP["Gap analysis<br/>what the model fails to carry"]
+  IDS["buildingSMART IDS export<br/>machine-checkable requirement"]
+  GIS["GIS export<br/>GeoJSON · shapefile · GDB"]
+  EQ[("its_equipment<br/>CCTV · RSU · DMS · RWIS · detectors")]
+  HL["Health scoring<br/>uptime, failure detection"]
+  PM["Predictive maintenance"]
+  CG["Coverage gaps<br/>priority by volume + incidents"]
+  GR["Grant matching<br/>funding the gap"]
+  AO["Aerial overlays<br/>drone GeoTIFF · site plans"]
+
+  DXF --> ENT --> GIS
+  ENT --> EQ
+  IFC --> EL --> GAP
+  STD --> GAP --> IDS
+  EQ --> HL --> PM
+  EQ --> CG --> GR
+  AO -.-> GIS
+
+  classDef src fill:#eef2f7,stroke:#8fa6c0,color:#1E3A5C
+  classDef store fill:#1E3A5C,stroke:#1E3A5C,color:#ffffff
+  classDef hot fill:#B44F17,stroke:#B44F17,color:#ffffff
+  classDef out fill:#ffffff,stroke:#8fa6c0,color:#1E3A5C
+  class DXF,IFC,AO src
+  class ENT,EL,STD,EQ store
+  class GAP,HL hot
+  class IDS,GIS,PM,CG,GR out
+    </pre></div>
+  </section>
+
+  <!-- ───────── 09 RETURN PATH ───────── -->
+  <section>
+    <div class="head"><span class="step">09</span><h2>Return to source</h2><span class="sub">the loop most systems leave open</span></div>
+    <p class="note">A finding nobody can act on changes nothing. Each carries its kind, a plain-language
+    reason, one remedy, a harm-based priority, and a deep link that opens that jurisdiction's own builder
+    pre-filled at the location. The correction carries the finding id back.</p>
+    <div class="chart"><pre class="mermaid">
+flowchart LR
+  DOT["DOT feed"]
+  NAV["Navigation view<br/>independent"]
+  SC{"Compare"}
+  M["Matched<br/>reaching drivers"]
+  DO["DOT only<br/>not reaching"]
+  TO["Nav only<br/>unreported closure"]
+  TG["Timing gap"]
+  EXQ["Exception queue<br/>kind · reason · remedy · priority"]
+  BLD["Jurisdiction builder<br/>pre-filled · works offline"]
+  ED["Agency edits<br/>in its own system"]
+  RV["Re-verify<br/>same finding id"]
+
+  DOT --> SC
+  NAV --> SC
+  SC --> M
+  SC --> DO --> EXQ
+  SC --> TO --> EXQ
+  SC --> TG --> EXQ
+  EXQ --> BLD --> ED --> RV
+  RV -- "closed" --> M
+  RV -- "still wrong" --> EXQ
+
+  classDef src fill:#eef2f7,stroke:#8fa6c0,color:#1E3A5C
+  classDef gate fill:#B44F17,stroke:#B44F17,color:#ffffff
+  classDef out fill:#ffffff,stroke:#8fa6c0,color:#1E3A5C
+  classDef good fill:#1E3A5C,stroke:#1E3A5C,color:#ffffff
+  class DOT,NAV src
+  class SC,EXQ gate
+  class DO,TO,TG,BLD,ED,RV out
+  class M good
+    </pre></div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Finding</th><th>Meaning</th><th>The one remedy</th></tr></thead>
+      <tbody>
+        <tr><td class="m">stale-active</td><td>End date passed, still active — a ghost navigation already dropped.</td><td class="s">Close it, or extend if work continues.</td></tr>
+        <tr><td class="m">bad-geometry</td><td>No usable location, so navigation cannot place it.</td><td class="s">Add or repair the geometry.</td></tr>
+        <tr><td class="m">not-reaching</td><td>Published, but no navigation source shows it.</td><td class="s">Confirm the feed carries it and is ingested.</td></tr>
+        <tr><td class="m">timing-mismatch</td><td>Reaches navigation, but the windows disagree.</td><td class="s">Correct the end date.</td></tr>
+        <tr><td class="m">missing-from-feed</td><td>Navigation shows a zone the feed does not.</td><td class="s">Author it — the builder opens pre-filled.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ───────── 10 PROGRAMME ───────── -->
+  <section>
+    <div class="head"><span class="step">10</span><h2>Programme, commercial &amp; people</h2><span class="sub">admin 32 · grants 23 · vendors 12 · calendar 16</span></div>
+    <p class="note">The half of the platform that is not a data pipeline: who may see what, which sources
+    get accepted, which gaps get funded, and how members are held to account.</p>
+    <div class="chart"><pre class="mermaid">
+flowchart TB
+  subgraph IN2["Participation"]
+    direction LR
+    FS[("feed_submissions<br/>tested before acceptance")]
+    CC[("community_contributions<br/>pending → approved")]
+    GV[("gap_priority_votes")]
+  end
+  subgraph COM["Commercial"]
+    direction LR
+    VQ["Vendor quality scores<br/>+ API usage"]
+    PC[("procurement_contracts<br/>expiration alerts")]
+    PL["Plugin providers"]
+  end
+  subgraph ACCT["Accountability"]
+    direction LR
+    DQ["7-dimension quality<br/>completeness · freshness · accuracy<br/>availability · standardisation · timeliness · usability"]
+    RC["Monthly report card"]
+    PG{"Peer group"}
+  end
+  subgraph PPL["People &amp; programme"]
+    direction LR
+    US[("users · state_credentials<br/>subscriptions")]
+    CAL[("calendar · action items")]
+    RPT["Reports · briefings"]
+    GRA["Grants pipeline<br/>discovery → justification → package"]
+  end
+  AI["AI assist<br/>summaries · analysis · calibration"]
+
+  FS --> DQ
+  CC --> FS
+  GV --> GRA
+  DQ --> RC --> PG
+  VQ --> PC
+  PL --> VQ
+  US --> RPT
+  CAL --> RPT
+  RC --> RPT
+  AI -.-> RPT
+  AI -.-> GRA
+
+  classDef store fill:#1E3A5C,stroke:#1E3A5C,color:#ffffff
+  classDef hot fill:#B44F17,stroke:#B44F17,color:#ffffff
+  classDef out fill:#ffffff,stroke:#8fa6c0,color:#1E3A5C
+  class FS,CC,GV,PC,US,CAL store
+  class DQ,PG hot
+  class VQ,PL,RC,RPT,GRA,AI out
+    </pre></div>
+    <div class="rule-note"><b>Ranked within a peer group, not against the pool.</b>
+      <p>Report cards compute national, regional <b>and peer-group</b> standing. Peer grouping is what keeps
+      benchmarking defensible between governments — a member with fewer cameras is not worse at data
+      quality, it is differently instrumented.</p></div>
+  </section>
+
+  <!-- ───────── COVERAGE ───────── -->
+  <section>
+    <div class="head"><span class="step">—</span><h2>Every API group</h2><span class="sub">87 groups · 504 endpoints</span></div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Subsystem</th><th>Groups</th><th>Flow</th></tr></thead>
+      <tbody>
+        <tr><td class="m">Events &amp; feeds</td><td><span class="n">events 10 · closures 10 · wz 6 · wzdx 8 · cwz 2 · cifs 8 · convert 3 · feeds 1 · ia 1 · fix-texas 1</span></td><td class="s">01</td></tr>
+        <tr><td class="m">Corroboration</td><td><span class="n">tomtom 4 · cameras 3 · devices 2 · field-escort 1 · confidence 2</span></td><td class="s">02</td></tr>
+        <tr><td class="m">Quality &amp; conformance</td><td><span class="n">data-quality 23 · quality 4 · compliance 3 · coverage-gaps 2 · analysis 2</span></td><td class="s">02 · 09 · 10</td></tr>
+        <tr><td class="m">Geometry &amp; network</td><td><span class="n">osrm 1 · wfs 6 · interchanges 1 · network 2 · corridor 5 · corridors 2</span></td><td class="s">03</td></tr>
+        <tr><td class="m">Structures</td><td><span class="n">bridges 1 · bridge-clearances 3 · bridge-warnings 1 · nbi 1 · warnings 2 · state-osow-regulations 3 · corridor-regulations 1</span></td><td class="s">04</td></tr>
+        <tr><td class="m">Parking &amp; freight</td><td><span class="n">parking 28 · truck-parking 1 · maasto-tpims 1 · border-wait-times 1 · border-notifications 4</span></td><td class="s">05</td></tr>
+        <tr><td class="m">Rail</td><td><span class="n">rail 5</span></td><td class="s">06</td></tr>
+        <tr><td class="m">Weather &amp; winter</td><td><span class="n">winter 7 · weather-alerts 1</span></td><td class="s">01</td></tr>
+        <tr><td class="m">Messaging &amp; alerting</td><td><span class="n">ipaws 33 · dms 11 · diversion-routes 9 · cv 5 · messages 5 · traveler 3 · geofences 1 · detour-alerts 1</span></td><td class="s">07</td></tr>
+        <tr><td class="m">Assets &amp; models</td><td><span class="n">its-equipment 18 · digital-infrastructure 12 · cadd 9 · asset-health 6 · aerial-overlays 6 · equipment 5 · predictive 4 · assets 3 · bim 3 · predictive-maintenance 3 · v2x 2</span></td><td class="s">08</td></tr>
+        <tr><td class="m">Safety &amp; analytics</td><td><span class="n">crashes 5 · population 5 · ttri 5 · analytics 5 · major-events 1</span></td><td class="s">05 · 07 · 10</td></tr>
+        <tr><td class="m">Programme</td><td><span class="n">admin 32 · calendar 16 · users 12 · states 9 · reports 8 · documentation 5 · projects 5 · biweekly-reports 4 · corridor-briefing 1 · nasco ×2</span></td><td class="s">10</td></tr>
+        <tr><td class="m">Commercial</td><td><span class="n">grants 23 · vendors 12 · procurement 6 · community 6 · plugins 5 · funding-opportunities 2</span></td><td class="s">10</td></tr>
+        <tr><td class="m">AI assist</td><td><span class="n">chatgpt 14 · chat 3</span></td><td class="s">10</td></tr>
+        <tr><td class="m">Platform ops</td><td><span class="n">scheduler 2 · debug 2 · health 1 · db-status 1</span></td><td class="s">—</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ───────── OPERATING DISCIPLINE ───────── -->
+  <section>
+    <div class="head"><span class="step">—</span><h2>Operating discipline</h2><span class="sub">why it stays cheap and honest</span></div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Rule</th><th>How it shows up</th></tr></thead>
+      <tbody>
+        <tr><td class="m">Lazy, not scheduled</td><td class="s">Camera inventories fetch on first use; vision runs per request, never in a loop; partner feeds fill when a layer is opened; device matching is on-demand with a 3-minute reuse window and a concurrency guard. An idle dashboard makes no requests.</td></tr>
+        <tr><td class="m">Budget · breaker · cache</td><td class="s">All three on every external call, with a self-imposed daily ceiling below the provider's own so the guardrail survives their terms changing.</td></tr>
+        <tr><td class="m">Ledgers bound cost</td><td class="s">Only <i>due</i> work runs. Cost is independent of call frequency, and a non-detection never consumes a check.</td></tr>
+        <tr><td class="m">Typed degradation</td><td class="s">Unavailable reports unavailable — not empty, not zero. Services ship uncredentialed and return a reason rather than throwing.</td></tr>
+        <tr><td class="m">Durable state</td><td class="s">SQLite locally, Postgres/PostGIS in production by one environment variable. Application disk is ephemeral; a sticky ledger that evaporates on deploy is not sticky.</td></tr>
+        <tr><td class="m">Source of record</td><td class="s">Authoritative source first; mirrors kept as declared fallbacks, never silently substituted.</td></tr>
+        <tr><td class="m">Self-contained tools</td><td class="s">The 51 distributed builders connect only to that jurisdiction's own public services — never back here. They work offline.</td></tr>
+        <tr><td class="m">Never synthesised</td><td class="s">Worker presence, restrictions, lane counts, organisation names, update timestamps. An unfillable field gets a placeholder that cannot be mistaken for data.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <footer>
+    Counts read from the tree: 71 service modules totalling 21,792 lines, 504 API endpoints across 87
+    groups, 65 tables, 254 external endpoints. The platform does not mint connected-vehicle messages,
+    operate roadside units or distribute to vehicles — it produces better source feeds in existing federal
+    formats for the distributors that do. The 132-component operator interface and the 51 distributed
+    jurisdiction builders are separate surfaces.
+  </footer>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<script>
+  // The artifact host renders mermaid for us; a file opened from disk has to do it itself.
+  (function(){
+    var dark = matchMedia && matchMedia('(prefers-color-scheme: dark)').matches;
+    function boot(){
+      if(!window.mermaid) return;                 // offline: the flow blocks stay readable as text
+      mermaid.initialize({ startOnLoad:true, securityLevel:'loose', theme:'base',
+        themeVariables:{
+          fontFamily:'"IBM Plex Sans",system-ui,sans-serif', fontSize:'13px',
+          lineColor: dark ? '#7C8697' : '#8fa6c0',
+          primaryColor: dark ? '#1C242E' : '#ffffff',
+          primaryTextColor: dark ? '#E6EBF1' : '#0E141B',
+          primaryBorderColor: dark ? '#2A3542' : '#8fa6c0'
+        }});
+    }
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+  })();
+</script>
+</html>
