@@ -1895,7 +1895,7 @@ async function wzSearch(){
     toast('Found '+hit.label);
   }catch(e){ if(hint) hint.innerHTML=prev; toast('Search could not reach its source'); }
 }
-async function wzRoadCheck(pt){
+async function wzRoadCheck(pt, brg){
   try{
     const d=0.006, bb=(pt.lng-d)+','+(pt.lat-d)+','+(pt.lng+d)+','+(pt.lat+d);
     const qs=TIGER_LAYERS.map(function(lid){
@@ -1925,7 +1925,7 @@ async function wzRoadCheck(pt){
     }); });
     if(!feats.length) return {onSystem:false,name:null,mtfcc:null,metres:null,cross:null};
     feats.sort(function(x,y){ return x.d-y.d; });
-    const on=feats[0];
+    let on=feats[0];
     if(on.d>40) return {onSystem:false,name:null,mtfcc:null,metres:null,cross:null};
     // Cross street: the nearest differently-named road that actually CROSSES the one we are on.
     // Two traps, both hit in testing on 14th St NW:
@@ -1946,8 +1946,23 @@ async function wzRoadCheck(pt){
         const dd=Math.hypot(ax+t*dx, ay+t*dy);
         if(dd<m){ m=dd; const L=Math.hypot(dx,dy)||1e-9; ux=dx/L; uy=dy/L; }
       } return {d:m,ux:ux,uy:uy}; }
+    // The road the zone runs ALONG, not merely the nearest one. At an intersection the endpoint
+    // sits on both roads at once and the nearer centreline wins by a metre or two -- which silently
+    // swaps the route and the cross street, reporting 17th St NW as the cross street of 17th St NW.
+    let bx=null, by=null;
+    if(Number.isFinite(brg)){
+      const r=brg*Math.PI/180; bx=Math.sin(r); by=Math.cos(r);
+      let par=null, parD=Infinity;
+      for(let i=0;i<feats.length;i++){ const f=feats[i]; if(f.d>40) break;
+        let s={d:Infinity,ux:0,uy:0};
+        f.paths.forEach(function(pa){ const t=segAt(pa,0,0); if(t.d<s.d) s=t; });
+        if(Math.abs(s.ux*by - s.uy*bx) < 0.50 && f.d < parD){ par=f; parD=f.d; }   // within ~30 deg
+      }
+      if(par) on=par;
+    }
     let onDir={d:Infinity,ux:1,uy:0};
     on.paths.forEach(function(pa){ const s=segAt(pa,0,0); if(s.d<onDir.d) onDir=s; });
+    if(bx!==null) onDir={d:0,ux:bx,uy:by};   // measure the crossing angle against the zone itself
     const same=function(n){ return on.name && n && String(n).toUpperCase()===String(on.name).toUpperCase(); };
     // Only a road someone could be directed to. TIGER's nearest crossing feature is often an
     // alley, a service drive or a parking aisle -- "at Green Ct NW" is true and useless on a
@@ -1968,12 +1983,18 @@ async function wzRoadCheck(pt){
         } }
       if(ok) hits.push(f);
     }
+    // TIGER names the same crossing roadway twice -- "Constitution Ave NW" and "US Hwy 50" --
+    // and the alias is classed as a secondary road, so preferring an arterial actively picks the
+    // designation over the name anyone uses. Local names win; designations are the fallback.
+    const DESIG=/^(?:(?:I|US|SR)[- ]?\d|(?:I|US|SR|State|Co|Cth|Cr|Fm|Rm)[- ]?(?:Hwy|Highway|Route|Rte)\b)/i;
+    const named=hits.filter(function(h){ return !DESIG.test(String(h.name||'').trim()); });
+    const pool=named.length?named:hits;
     // Nearest is not always most useful: a minor street can cross closer than the arterial
     // everyone actually navigates by. Take a primary or secondary road when one crosses within
     // 120 m; otherwise the nearest crossing street.
     let cross=null;
-    for(let i=0;i<hits.length && !cross;i++){ if(hits[i].mtfcc!=='S1400' && hits[i].d<=120) cross=hits[i].name; }
-    if(!cross && hits.length) cross=hits[0].name;
+    for(let i=0;i<pool.length && !cross;i++){ if(pool[i].mtfcc!=='S1400' && pool[i].d<=120) cross=pool[i].name; }
+    if(!cross && pool.length) cross=pool[0].name;
     // TIGER title-cases everything, including route letters: "Co Hwy Ms" is county highway MS.
     // Put the designation back in capitals so a reviewer reads it as a route, not a surname.
     const tidy=s=>String(s||'').replace(/\b(Co|Cr|Cth|St|Us|Sr|Fm|Rm)\s+Hwy\s+([A-Za-z]{1,3})\b/g,

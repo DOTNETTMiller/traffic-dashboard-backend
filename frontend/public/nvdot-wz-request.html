@@ -378,7 +378,7 @@ function wzRouteFriendly(code){ const s=String(code||'').toUpperCase().trim();
 // Generic milepost resolver (shared, config-driven). Point sources: nearest posted marker + tenths
 // interpolation between the two nearest posts on the same route. LRS-line sources (MP.line): project
 // the click onto the nearest M-enabled centerline and read the interpolated M-value.
-async function wzMilepost(pt){ if(!MP||!MP.url) return null; const k=Math.cos(pt.lat*Math.PI/180);
+async function wzMilepost(pt, brg){ if(!MP||!MP.url) return null; const k=Math.cos(pt.lat*Math.PI/180);
   try{
     if(MP.line){ const pad=0.02, bb=[pt.lng-pad,pt.lat-pad,pt.lng+pad,pt.lat+pad].join(',');
       const parts=(MP.routeCols?MP.routeCols.map(function(rc){return rc.f;}):(MP.routeParts||[MP.routeField])).filter(Boolean);
@@ -387,12 +387,20 @@ async function wzMilepost(pt){ if(!MP||!MP.url) return null; const k=Math.cos(pt
         +'&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects'
         +'&outFields='+encodeURIComponent(of)+'&returnGeometry=true&returnM=true&outSR=4326&resultRecordCount=80&f=json';
       const jl=await(await fetch(url)).json(); const px=pt.lng*k, py=pt.lat; let best={d:Infinity,m:null,attr:null,feat:null,pi:0,si:1,t:0};
+      // Same trap as the cross-street lookup: at an intersection the nearest centreline may be the
+      // crossing road, so the route resolves to it. Prefer a line running WITH the zone.
+      let pbx=null,pby=null,bestPar={d:Infinity};
+      if(Number.isFinite(brg)){ const r=brg*Math.PI/180; pbx=Math.sin(r); pby=Math.cos(r); }
       (jl.features||[]).forEach(function(feat){ ((feat.geometry&&feat.geometry.paths)||[]).forEach(function(path,pi){
         for(let i=1;i<path.length;i++){ const A=path[i-1],B=path[i];
           const ax=A[0]*k,ay=A[1],bx=B[0]*k,by=B[1],dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy||1e-12;
           let t=((px-ax)*dx+(py-ay)*dy)/l2; t=Math.max(0,Math.min(1,t));
           const fx=ax+t*dx,fy=ay+t*dy,dist=Math.hypot(px-fx,py-fy);
-          if(dist<best.d){ const mA=A[2]==null?0:A[2], mB=B[2]==null?0:B[2]; best={d:dist,m:mA+t*(mB-mA),attr:feat.attributes,feat:feat,pi:pi,si:i,t:t}; } } }); });
+          if(dist<best.d){ const mA=A[2]==null?0:A[2], mB=B[2]==null?0:B[2]; best={d:dist,m:mA+t*(mB-mA),attr:feat.attributes,feat:feat,pi:pi,si:i,t:t}; }
+          if(pbx!==null && dist<bestPar.d){ const L=Math.hypot(dx,dy)||1e-12;
+            if(Math.abs((dx/L)*pby-(dy/L)*pbx) < 0.50){ const mA=A[2]==null?0:A[2], mB=B[2]==null?0:B[2];
+              bestPar={d:dist,m:mA+t*(mB-mA),attr:feat.attributes,feat:feat,pi:pi,si:i,t:t}; } } } }); });
+      if(pbx!==null && bestPar.d<=60) best=bestPar;
       // Off-centreline distance decides whether the click is on THIS route at all.
       // A divided highway's carriageway sits ~10-25m from the centreline, so 60m covers
       // the real geometry; beyond that the point is on some other road (often a local
@@ -573,7 +581,7 @@ async function wzSearch(){
     toast('Found '+hit.label);
   }catch(e){ if(hint) hint.innerHTML=prev; toast('Search could not reach its source'); }
 }
-async function wzRoadCheck(pt){
+async function wzRoadCheck(pt, brg){
   try{
     const d=0.006, bb=(pt.lng-d)+','+(pt.lat-d)+','+(pt.lng+d)+','+(pt.lat+d);
     const qs=TIGER_LAYERS.map(function(lid){
@@ -603,7 +611,7 @@ async function wzRoadCheck(pt){
     }); });
     if(!feats.length) return {onSystem:false,name:null,mtfcc:null,metres:null,cross:null};
     feats.sort(function(x,y){ return x.d-y.d; });
-    const on=feats[0];
+    let on=feats[0];
     if(on.d>40) return {onSystem:false,name:null,mtfcc:null,metres:null,cross:null};
     // Cross street: the nearest differently-named road that actually CROSSES the one we are on.
     // Two traps, both hit in testing on 14th St NW:
@@ -624,8 +632,23 @@ async function wzRoadCheck(pt){
         const dd=Math.hypot(ax+t*dx, ay+t*dy);
         if(dd<m){ m=dd; const L=Math.hypot(dx,dy)||1e-9; ux=dx/L; uy=dy/L; }
       } return {d:m,ux:ux,uy:uy}; }
+    // The road the zone runs ALONG, not merely the nearest one. At an intersection the endpoint
+    // sits on both roads at once and the nearer centreline wins by a metre or two -- which silently
+    // swaps the route and the cross street, reporting 17th St NW as the cross street of 17th St NW.
+    let bx=null, by=null;
+    if(Number.isFinite(brg)){
+      const r=brg*Math.PI/180; bx=Math.sin(r); by=Math.cos(r);
+      let par=null, parD=Infinity;
+      for(let i=0;i<feats.length;i++){ const f=feats[i]; if(f.d>40) break;
+        let s={d:Infinity,ux:0,uy:0};
+        f.paths.forEach(function(pa){ const t=segAt(pa,0,0); if(t.d<s.d) s=t; });
+        if(Math.abs(s.ux*by - s.uy*bx) < 0.50 && f.d < parD){ par=f; parD=f.d; }   // within ~30 deg
+      }
+      if(par) on=par;
+    }
     let onDir={d:Infinity,ux:1,uy:0};
     on.paths.forEach(function(pa){ const s=segAt(pa,0,0); if(s.d<onDir.d) onDir=s; });
+    if(bx!==null) onDir={d:0,ux:bx,uy:by};   // measure the crossing angle against the zone itself
     const same=function(n){ return on.name && n && String(n).toUpperCase()===String(on.name).toUpperCase(); };
     // Only a road someone could be directed to. TIGER's nearest crossing feature is often an
     // alley, a service drive or a parking aisle -- "at Green Ct NW" is true and useless on a
@@ -646,12 +669,18 @@ async function wzRoadCheck(pt){
         } }
       if(ok) hits.push(f);
     }
+    // TIGER names the same crossing roadway twice -- "Constitution Ave NW" and "US Hwy 50" --
+    // and the alias is classed as a secondary road, so preferring an arterial actively picks the
+    // designation over the name anyone uses. Local names win; designations are the fallback.
+    const DESIG=/^(?:(?:I|US|SR)[- ]?\d|(?:I|US|SR|State|Co|Cth|Cr|Fm|Rm)[- ]?(?:Hwy|Highway|Route|Rte)\b)/i;
+    const named=hits.filter(function(h){ return !DESIG.test(String(h.name||'').trim()); });
+    const pool=named.length?named:hits;
     // Nearest is not always most useful: a minor street can cross closer than the arterial
     // everyone actually navigates by. Take a primary or secondary road when one crosses within
     // 120 m; otherwise the nearest crossing street.
     let cross=null;
-    for(let i=0;i<hits.length && !cross;i++){ if(hits[i].mtfcc!=='S1400' && hits[i].d<=120) cross=hits[i].name; }
-    if(!cross && hits.length) cross=hits[0].name;
+    for(let i=0;i<pool.length && !cross;i++){ if(pool[i].mtfcc!=='S1400' && pool[i].d<=120) cross=pool[i].name; }
+    if(!cross && pool.length) cross=pool[0].name;
     // TIGER title-cases everything, including route letters: "Co Hwy Ms" is county highway MS.
     // Put the designation back in capitals so a reviewer reads it as a route, not a surname.
     const tidy=s=>String(s||'').replace(/\b(Co|Cr|Cth|St|Us|Sr|Fm|Rm)\s+Hwy\s+([A-Za-z]{1,3})\b/g,
@@ -683,7 +712,8 @@ async function snapWZ(opts){if(!(beginPt&&endPt))return;drawWZLine();const dir=d
   // 2 milepost queries + 6 TIGER requests on every refresh to reproduce what we already have.
   // Everything else here (route drawing, direction, lane hints) still runs.
   if(!(opts&&opts.restore))
-  try{ const [a,b,ra,rb]=await Promise.all([wzMilepost(beginPt),wzMilepost(endPt),wzRoadCheck(beginPt),wzRoadCheck(endPt)]);
+  try{ const segBrg=bearing(beginPt,endPt);   // the zone's own heading, so lookups prefer the road it runs along
+    const [a,b,ra,rb]=await Promise.all([wzMilepost(beginPt,segBrg),wzMilepost(endPt,segBrg),wzRoadCheck(beginPt,segBrg),wzRoadCheck(endPt,segBrg)]);
     const okA=!ra||ra.onSystem, okB=!rb||rb.onSystem;   // null = TIGER unreachable, so don't block
     // The label on these fields promises "cross-street / MP". A milepost is what a TMC wants on
     // a numbered route; a cross street is what anyone wants on a street, and until now the
