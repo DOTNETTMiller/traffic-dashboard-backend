@@ -46,18 +46,33 @@ function dirOf(ev) {
   return 'NSEW'.includes(c) ? c : null;
 }
 
-// Every coordinate we can cheaply get. A LineString compared only at its midpoint would
-// miss a long zone that overlaps another only near one end.
+// Every coordinate we can cheaply get, whatever shape the publisher used. A LineString
+// compared only at its midpoint would miss a long zone that overlaps another near one end.
+//
+// MultiPoint is NOT an edge case here, it is the majority shape: Iowa publishes 1,155 zones
+// and every one is a MultiPoint, as are all 6,872 of New York's and all 143 of Mississippi's,
+// with Idaho, Wisconsin, North Dakota and New England mixing it with LineString. The first
+// version of this function handled only LineString and Point, which meant those states were
+// silently ineligible for deduplication and the pass reported "0 merged" for them and looked
+// healthy. An unevaluable result must never read as a clean one, so every shape is walked.
+// (A 2-point MultiPoint is a publisher expressing start+end rather than an extent.)
 function pointsOf(ev) {
-  const g = ev.geometry;
-  if (g && g.type === 'LineString' && Array.isArray(g.coordinates)) {
-    return g.coordinates.filter((c) => Array.isArray(c) && Number.isFinite(c[0]) && Number.isFinite(c[1]));
-  }
-  if (g && g.type === 'Point' && Array.isArray(g.coordinates) && Number.isFinite(g.coordinates[0])) {
-    return [g.coordinates];
-  }
+  const out = [];
+  const isPt = (c) => Array.isArray(c) && Number.isFinite(c[0]) && Number.isFinite(c[1]);
+  const walk = (g, depth) => {
+    if (!g || depth > 6) return;
+    if (Array.isArray(g)) {
+      if (isPt(g)) { out.push(g); return; }
+      for (const x of g) walk(x, depth + 1);
+      return;
+    }
+    if (g.type === 'GeometryCollection') { for (const sub of (g.geometries || [])) walk(sub, depth + 1); return; }
+    if (g.coordinates) walk(g.coordinates, depth + 1);
+  };
+  walk(ev.geometry, 0);
+  if (out.length) return out;
   const p = ev.coordinates || (Number.isFinite(ev.longitude) ? [ev.longitude, ev.latitude] : null);
-  return (Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) ? [p] : [];
+  return isPt(p) ? [p] : [];
 }
 
 function metersBetween(a, b) {
@@ -92,7 +107,10 @@ function windowsOverlap(a, b) {
 // closure, a point only asserts it exists somewhere — then field completeness.
 function richness(ev) {
   let n = 0;
-  if (ev.geometry && ev.geometry.type === 'LineString') n += 100;
+  // A LineString or MultiLineString states the EXTENT of a closure; a Point or a 2-point
+  // MultiPoint only asserts where it starts and stops. Prefer the extent.
+  const gt = (ev.geometry || {}).type;
+  if (gt === 'LineString' || gt === 'MultiLineString') n += 100;
   const pts = pointsOf(ev);
   n += Math.min(pts.length, 50);
   for (const f of ['description', 'startTime', 'endTime', 'direction', 'roadStatus', 'severity', 'lanes']) {
