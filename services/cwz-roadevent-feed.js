@@ -70,8 +70,16 @@ function buildFeed(events, opts = {}) {
       vehicle_impact: vehicleImpact(ev),
       start_date: ev.startTime || ev.startDate || updateDate,
       end_date: ev.endTime || ev.endDate || null,
-      // A connected device present and/or a camera that sees the zone verifies it.
-      is_start_position_verified: true,
+      // Only a PHYSICAL observation at the location verifies a position: a connected device
+      // matched to the zone, or a camera that saw it. This was hardcoded `true` for every
+      // feature, which made the claim on tomtom-only and dms-only zones too -- and neither
+      // verifies a position. TomTom says traffic is behaving like a work zone somewhere near
+      // here; a DMS says an operator posted text on a sign up the road. Both corroborate that
+      // the zone is REAL and ACTIVE, which is what x_verification is for. Neither says the
+      // start point is where the publisher put it.
+      // The state builders in frontend/public all emit `false` here, correctly; the aggregated
+      // feed was the only thing asserting otherwise, and it is the one FHWA has registered.
+      is_start_position_verified: !!(ev.x_cwz_connected || ev.x_camera_verified),
       x_cwz_connected: !!ev.x_cwz_connected,
       x_verification: src,                       // sources corroborating this zone: device / camera / tomtom / dms
       x_verification_count: src.length,          // 1+ — how many INDEPENDENT sources agree (the corroboration signal)
@@ -153,8 +161,15 @@ function buildFeed(events, opts = {}) {
     features.push({ id: ev.id, type: 'Feature', properties: props, geometry: geom });
   }
 
-  return {
-    feed_info: {
+  // WZDx 4.x names a ROAD EVENT feed's metadata `road_event_feed_info`; `feed_info` is the
+  // DEVICE feed's key. This emitted only `feed_info`, so a consumer validating against the
+  // RoadEventFeed schema fails before parsing a single event -- and that is how the feed
+  // registered with FHWA was being served. Checked against real publishers 2026-09-29: WSDOT's
+  // WorkZoneFeed and NE-Compass both carry `road_event_feed_info`, and WSDOT also carries
+  // `feed_info` as a back-compat alias; WSDOT's DeviceFeed carries `feed_info` alone. So the
+  // correct shape is both keys on the same object, which is what is built below.
+  // (Mississippi's work-zone feed emits `feed_info` only -- the same defect, upstream.)
+  const feedInfo = {
       title: 'CCAI Connected Work Zone — Validated RoadEvent Feed (premier, real-time)',
       description: 'Validated work zones — each confirmed by at least one independent source: a '
         + 'connected field device, camera AI, TomTom probe data, or a DMS message. Multi-state. '
@@ -171,7 +186,10 @@ function buildFeed(events, opts = {}) {
       data_sources: [
         { data_source_id: DATA_SOURCE_ID, organization_name: 'CCAI (multi-state)', update_date: updateDate }
       ]
-    },
+  };
+  return {
+    road_event_feed_info: feedInfo,
+    feed_info: feedInfo,          // back-compat alias, as WSDOT serves it
     type: 'FeatureCollection',
     features
   };

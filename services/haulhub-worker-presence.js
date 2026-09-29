@@ -61,11 +61,32 @@ function interstate(s) {
 // Because the file names are not derivable, probing for them was never going to work -- the
 // registry should be the first stop for any publisher whose naming we cannot predict.
 //
+// NOT HERE ON PURPOSE -- Delaware (del_dot_feed, 79 events) and Louisiana (la_dot_d_feed, 7).
+// Both are real HaulHub feeds and both were added here on 2026-09-29, which was a mistake and
+// is worth recording rather than quietly reverting.
+//
+// Those two documents are ALSO those states' work-zone feeds: states.db has `de` and `la`
+// pointing at these exact URLs, because DE and LA designated HaulHub as their registered WZDx
+// publisher. Using them here would corroborate a zone with the document the zone came from.
+// It does not merely duplicate -- it self-confirms: the event and the presence row are the
+// same feature, so the distance is ~0, every active zone matches, and corroborate() sets
+// x_zone_activity='confirmed-active', which deliberately OVERRIDES a suspected-inactive
+// verdict from a weaker signal. That verdict then enters the sticky, positive-only validation
+// ledger and is never demoted. Two states' zones would read as independently confirmed by a
+// contractor while resting on no independent evidence at all.
+//
+// The independence claim in the header of this file is the whole reason this validator counts
+// for anything, so it has to be checked per feed, not assumed from the publisher's name:
+// a HaulHub feed is usable here only where the state's work zones come from somewhere else.
+// Worker presence still reaches DE and LA -- it rides on their own feed as a native WZDx
+// field -- it just must not be counted a second time as separate corroboration.
+//
+// Before adding any feed here, check it against the api_url column in states.db.
+//
 // Counts in brackets are what each returned on 2026-09-08; 18 of the 37 were publishing.
 // Re-measured 2026-09-29 with the two corrected feeds in: 19 of 39 publishing, 333 events.
-// Delaware came in as the SECOND largest publisher of all (79, behind Ohio's 114 and ahead
-// of Iowa's 41) -- so the unguessable file name had been costing us the biggest single
-// addition available, which is the argument for reading the registry over probing.
+// Delaware reads as the second largest publisher of all (79, behind Ohio's 114) -- but it is
+// excluded here, see the note below, so the usable set is 17 of 37.
 // Empty is not dead -- an event is a 2h activity window, so a feed reads empty whenever no
 // covered contractor is on site at that moment.
 const FEEDS = {
@@ -104,8 +125,6 @@ const FEEDS = {
   tx:        'https://wzdx.e-dot.com/tx_dot_feed_wzdx_v4.1.geojson',  // Texas Department of Transportation
   wa:        'https://wzdx.e-dot.com/wa_feed_wzdx_v4.1.geojson',  // Washington State Department of Transportation
   wy:        'https://wzdx.e-dot.com/wy_dot_feed_wzdx_v4.1.geojson',  // Wyoming Department of Transportation
-  de:        'https://wzdx.e-dot.com/del_dot_feed_wzdx_v4.1.geojson',  // Delaware DOT  [79 on 2026-09-29]
-  la:        'https://wzdx.e-dot.com/la_dot_d_feed_wzdx_v4.1.geojson',  // Louisiana DOTD (note the _d)  [7]
   oh_county: 'https://wzdx.e-dot.com/ohio_feed_wzdx_v4.1.geojson',  // Ohio County Engineer's (county, not the state)
   la_city:   'https://wzdx.e-dot.com/la_dot_feed_wzdx_v4.1.geojson'  // City of Los Angeles (NOT Louisiana)
 };
