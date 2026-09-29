@@ -773,6 +773,17 @@ const API_CONFIG = {
     corridor: 'I-10,I-20,I-22,I-55,I-59,I-110,I-220,I-269',
     apiType: 'WZDx'
   },
+  // North Dakota — in FHWA's WZDx registry but never wired up. Keyless, v4.0, ~97 zones,
+  // 27 of them on I-29/I-94. road_names are bare numbers with a direction suffix ('29N'),
+  // so classification runs through data/state_interstate_numbers.json; measured against the
+  // descriptions' own route mentions on 2026-09-29 it missed none of them.
+  northdakota: {
+    name: 'North Dakota',
+    wzdxUrl: 'https://travelfiles.dot.nd.gov/geojson_nc/wzdx_geojson.json',
+    format: 'geojson',
+    corridor: 'I-29,I-94',
+    apiType: 'WZDx'
+  },
   newengland: {
     name: 'New England (NH/VT/ME)',
     wzdxUrl: 'https://api.dx.ne-compass.com/wzdx-latest/',
@@ -4549,7 +4560,12 @@ const isBareNumericInterstate = (name, stateName) => {
   const lookup = getStateInterstateNumbers();
   const set = lookup[stateName];
   if (!set) return false;
-  const trimmed = String(name || '').trim();
+  // A trailing direction letter is part of the same pattern: NDDOT writes road_names as
+  // '29N' / '94E', where MoDOT writes '44' and WSDOT '005'. Strip it before the numeric
+  // test. This only ever WIDENS what reaches the per-state interstate set -- membership in
+  // that set is still what decides -- so ND's '52E' (ND-52) and '2W' (US-2) stay rejected
+  // because 52 and 2 are not in North Dakota's list.
+  const trimmed = String(name || '').trim().replace(/[NSEW]$/i, '');
   if (!/^\d{1,4}$/.test(trimmed)) return false;
   const num = parseInt(trimmed, 10);
   return set.has(num);
@@ -5470,6 +5486,34 @@ async function fetchAndCacheEvents() {
       console.log(`⚠️  Removed ${duplicateCount} duplicate event(s)`);
     }
 
+    // The pass above matches on event.id, which only ever catches the same publisher's record
+    // arriving twice. It cannot see the same PHYSICAL zone arriving from two different systems
+    // under two different ids, and we ingest overlapping sources deliberately -- a state's WZDx
+    // feed and that state's own 511 construction layer both describe its work. Measured
+    // 2026-09-29: Idaho 18 of 157 were the same zone twice, Utah 0 of 52, Louisiana 0 of 28.
+    // It is source-pair-specific, which is why it is handled per event here rather than by
+    // dropping a feed.
+    //
+    // Duplicates are MERGED: the survivor carries x_also_reported_by, because two independent
+    // state systems describing the same zone is corroboration, not clutter. Fail-safe -- if
+    // this throws, the un-deduplicated set is served, which is the behaviour we had before.
+    let crossSourceMerged = 0;
+    if (process.env.DISABLE_CROSS_SOURCE_DEDUP !== 'true') {
+      try {
+        const csd = require('./services/cross-source-dedup');
+        const before = uniqueEvents.length;
+        const res = csd.dedupe(uniqueEvents);
+        if (res.merged > 0) {
+          crossSourceMerged = res.merged;
+          uniqueEvents.length = 0;
+          uniqueEvents.push(...res.events);
+          console.log(`🔗 Cross-source: merged ${res.merged} duplicate zone(s) across sources (${before} → ${uniqueEvents.length})`);
+        }
+      } catch (e) {
+        console.error('cross-source dedup skipped:', e.message);
+      }
+    }
+
     // Strip rawFields from cached events to reduce memory footprint
     // (~60% memory reduction: rawFields triple-stores every field for debugging)
     uniqueEvents.forEach(event => {
@@ -5532,6 +5576,15 @@ async function fetchAndCacheEvents() {
       lifecycle: {
         stats: lifecycleStats,
         managerStats: managerStats
+      },
+      // Both dedup passes, reported rather than just logged: a merge silently changes the
+      // event count, and a count nobody can reconcile is how a real closure goes missing
+      // without anyone noticing. idDuplicates is the same publisher's record twice;
+      // crossSourceMerged is the same physical zone from two different systems.
+      dedup: {
+        idDuplicates: duplicateCount,
+        crossSourceMerged,
+        crossSourceAgreement: activeEvents.filter(e => (e.x_cross_source_count || 0) > 1).length
       }
     };
 

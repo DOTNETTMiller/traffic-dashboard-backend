@@ -159,12 +159,26 @@ async function colorado() {
   return out;
 }
 
-// Generic one.network (511) work-zone adapter. These states publish no WZDx feed,
-// so work zones come from the platform's construction layer: /List/GetData/Construction
-// carries the metadata (roadway, dates, direction) but NO coordinates, while
-// /map/mapIcons/Construction supplies the map-pin coords — joined on event id.
-// Interstate-filtered like the rest of this file. Every other (non-one.network)
-// state's work zones still come via WZDx in API_CONFIG.
+// Generic one.network (511) work-zone adapter. Work zones come from the platform's
+// construction layer: /List/GetData/Construction carries the metadata (roadway, dates,
+// direction) but NO coordinates, while /map/mapIcons/Construction supplies the map-pin
+// coords — joined on event id. Interstate-filtered like the rest of this file.
+//
+// CORRECTED 2026-09-29: this said "these states publish no WZDx feed". Only Georgia and
+// Nevada fit that. Utah, Idaho and Louisiana all DO have WZDx feeds in API_CONFIG, so those
+// three are ingested from two sources at once. That is kept on purpose, because measuring it
+// showed the two sources mostly describe DIFFERENT zones rather than the same ones:
+//
+//   state        WZDx interstate zones   511 construction   same zone in both (300 m)
+//   Utah                 18                    34                  3
+//   Idaho               125                    32                 22
+//   Louisiana             5                    23                  0
+//
+// A state's 511 construction layer is not a copy of its WZDx feed — UDOT publishes 18 zones
+// through WZDx and 34 through its own 511 map. Dropping this adapter to stop Idaho's double
+// count would have cost Utah 31 zones and Louisiana all 23. The overlap is handled where it
+// belongs, per event, in services/cross-source-dedup.js, which merges the duplicates and
+// records the agreement instead of discarding it.
 async function oneNetworkWorkZones({ base, st, stateName, source }) {
   const [meta, geo] = await Promise.all([
     postForm(`${base}/List/GetData/Construction`, 'draw=1&start=0&length=2000'),
