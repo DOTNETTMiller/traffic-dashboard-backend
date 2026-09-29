@@ -34,6 +34,46 @@ const STATE_CODES = {
   'nj': 'NJ', 'ny': 'NY', 'pa': 'PA', 'ri': 'RI', 'vt': 'VT'
 };
 
+// The callers do not use two-letter keys. fetchStateData passes the API_CONFIG key, and those
+// are long names ('newyork', 'northcarolina', 'mississippi') or compound labels
+// ('austin_tx_wzdx', 'iowa_wzdx', 'quebec_city_wzdx'). STATE_CODES above is keyed by
+// two-letter code, so every lookup missed and enrichEvents returned the events UNCHANGED --
+// silently, because an unsupported state is a legitimate no-op. Measured 2026-09-29: of the
+// 33 configured feeds, ARNOLD resolved for exactly ONE ('tx'). Iowa, Kansas, Indiana and
+// Minnesota were fine because they are deliberately skipped and have their own enrichment;
+// the other 29 states, including all 6,872 of New York's 2-point zones, were getting no
+// geometry correction at all and nothing said so.
+//
+// Resolve the name properly instead of requiring the caller to know the code. Compound keys
+// are matched on their leading state token so a feed named for a city or a product still
+// lands on its state.
+const STATE_NAME_TO_CODE = {
+  alabama: 'al', alaska: 'ak', arizona: 'az', arkansas: 'ar', california: 'ca', colorado: 'co',
+  connecticut: 'ct', delaware: 'de', florida: 'fl', georgia: 'ga', hawaii: 'hi', idaho: 'id',
+  illinois: 'il', indiana: 'in', iowa: 'ia', kansas: 'ks', kentucky: 'ky', louisiana: 'la',
+  maine: 'me', maryland: 'md', massachusetts: 'ma', michigan: 'mi', minnesota: 'mn',
+  mississippi: 'ms', missouri: 'mo', montana: 'mt', nebraska: 'ne', nevada: 'nv',
+  newhampshire: 'nh', newjersey: 'nj', newmexico: 'nm', newyork: 'ny', northcarolina: 'nc',
+  northdakota: 'nd', ohio: 'oh', oklahoma: 'ok', oregon: 'or', pennsylvania: 'pa',
+  rhodeisland: 'ri', southcarolina: 'sc', southdakota: 'sd', tennessee: 'tn', texas: 'tx',
+  utah: 'ut', vermont: 'vt', virginia: 'va', washington: 'wa', westvirginia: 'wv',
+  wisconsin: 'wi', wyoming: 'wy'
+};
+function resolveStateCode(stateKey) {
+  const raw = String(stateKey || '').toLowerCase().trim();
+  if (!raw) return null;
+  if (STATE_CODES[raw]) return STATE_CODES[raw];                       // already a code
+  const squashed = raw.replace(/[^a-z]/g, '');
+  if (STATE_NAME_TO_CODE[squashed]) return STATE_CODES[STATE_NAME_TO_CODE[squashed]] || null;
+  // Compound key: try each underscore/hyphen token, longest first, as a name then as a code.
+  const parts = raw.split(/[^a-z]+/).filter(Boolean).sort((a, b) => b.length - a.length);
+  for (const t of parts) {
+    if (STATE_NAME_TO_CODE[t]) return STATE_CODES[STATE_NAME_TO_CODE[t]] || null;
+    if (STATE_CODES[t]) return STATE_CODES[t];
+  }
+  return null;
+}
+
 // ARNOLD data year (latest available)
 const ARNOLD_YEAR = '2019';
 
@@ -100,7 +140,7 @@ class ArnoldGeometryService {
    * Query ARNOLD FeatureServer for route geometry
    */
   async queryArnold(stateKey, routeId, bbox) {
-    const stateCode = STATE_CODES[stateKey.toLowerCase()];
+    const stateCode = resolveStateCode(stateKey);
     if (!stateCode) {
       return null; // State not supported by ARNOLD
     }
@@ -505,9 +545,47 @@ class ArnoldGeometryService {
     if (!events || events.length === 0) return events;
 
     // Check if state is supported by ARNOLD
-    if (!STATE_CODES[stateKey.toLowerCase()]) {
+    if (!resolveStateCode(stateKey)) {
+      console.warn(`ARNOLD: no state resolved from key '${stateKey}' — ${events.length} event(s) left uncorrected`);
       return events; // State not supported, return unchanged
     }
+
+    // Capability probe, once per state per process.
+    //
+    // This class asks ARNOLD for `route_id LIKE '0090%'`, i.e. a zero-padded 4-digit route
+    // number. That schema is NOT national — every state publishes its own. Measured
+    // 2026-09-29: New York uses 9-digit composites ('100147201'), Wisconsin variable-length
+    // numerics ('40261'), Mississippi a county/route composite ('25_0028P1'). The padded
+    // pattern returns 0 rows in all three, and the same is true of most states; it is the
+    // documented reason California and Texas were moved to state-centerline-first.
+    //
+    // Until the route_id query is replaced (a spatial bbox query works for every state
+    // regardless of schema and is the right fix), this probe stops the pipeline from firing
+    // thousands of requests per state that cannot match. It matters because the state-name
+    // resolution above just changed 29 states from a silent no-op into a live query path.
+    //
+    // A state that fails the probe is reported ONCE, loudly. That is the point: the previous
+    // behaviour returned events unchanged and said nothing, which reads exactly like success.
+    const probeKey = resolveStateCode(stateKey);
+    if (!ArnoldGeometryService._probe) ArnoldGeometryService._probe = new Map();
+    if (!ArnoldGeometryService._probe.has(probeKey)) {
+      let usable = false;
+      try {
+        const sample = events.find((e) => this.extractRouteId(e.corridor));
+        if (sample) {
+          const rid = this.extractRouteId(sample.corridor);
+          const rows = await this.queryArnold(stateKey, rid, null);
+          usable = !!(rows && rows.length);
+        }
+      } catch (_) { usable = false; }
+      ArnoldGeometryService._probe.set(probeKey, usable);
+      if (!usable) {
+        console.warn(`ARNOLD: ${probeKey} route_id schema does not match the zero-padded pattern — `
+          + `skipping ARNOLD for this state. Geometry correction NOT applied. Needs a spatial `
+          + `query or a state centerline (see services/state-centerline-service.js).`);
+      }
+    }
+    if (!ArnoldGeometryService._probe.get(probeKey)) return events;
 
     this.tally = { samples: {} };
 
@@ -543,3 +621,6 @@ class ArnoldGeometryService {
 
 // Export singleton instance
 module.exports = new ArnoldGeometryService();
+// Exposed so the resolution can be tested directly -- the whole defect this fixed was a
+// lookup that failed silently, so it needs to be assertable.
+module.exports.resolveStateCode = resolveStateCode;

@@ -848,9 +848,13 @@ const API_CONFIG = {
     corridor: 'I-10,I-25,I-40',
     apiType: 'WZDx'
   },
+  // Repointed 2026-09-29. The one.network endpoint configured here answered 404 -- so this
+  // state was contributing ZERO work zones, silently, while reading as a configured feed.
+  // NCDOT's own registered feed serves 6,233. Use the www host directly: drivenc.gov 302s to
+  // it, and a client that does not follow redirects sees only the 302 body.
   northcarolina: {
     name: 'North Carolina',
-    wzdxUrl: 'https://us-datacloud.one.network/wzdx-north-carolina.json?app_key=db73336d-85c4-7d0b-258b71e36573',
+    wzdxUrl: 'https://www.drivenc.gov/api/wzdx',
     format: 'json',
     corridor: 'I-40,I-85,I-95,I-77',
     apiType: 'WZDx'
