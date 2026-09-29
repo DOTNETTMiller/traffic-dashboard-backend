@@ -5584,10 +5584,14 @@ async function ensureDeviceMatch(force = false) {
     const deviceMatcher = require('./services/device-workzone-matcher');
     const deviceValidation = require('./services/device-validation');
     const deviceAdapters = require('./services/device-adapters');
-    // Multi-state device roster: Iowa (DMS_View) + adapter states (NY has routes;
-    // WA/OK/PA/ME are route-less portable feeds → matched via proximity/direction/upstream).
-    // Each source is fail-safe (bad feed → []). No-key adapters return [] cleanly.
-    const STATE_KEYS = ['ny', 'wa', 'ok', 'pa', 'me'];
+    // Multi-state device roster: Iowa (DMS_View) + every adapter that answers. Each source
+    // is fail-safe (bad feed → []) and key-gated adapters short-circuit BEFORE any network
+    // call, so listing one costs nothing and it lights up the moment a key is set.
+    // Measured 2026-09-29 (node scripts/test_device_adapters.js): 20 of 21 return live data,
+    // ~7,200 devices. NJ is the only true key holdout — 511nj.org answers 403 on both the
+    // CARS path and the public map JSON. 'newengland' emits ME/NH/VT from one shared host.
+    const STATE_KEYS = ['ny', 'wa', 'ok', 'pa', 'me', 'fl', 'ky', 'md', 'nm', 'ca',
+      'ut', 'la', 'az', 'nc', 'wi', 'nv', 'id', 'ga', 'ak', 'newengland', 'nj'];
     const lists = await Promise.all([
       deviceIngest.fetchIowaDevices().catch(() => []),
       ...STATE_KEYS.map(k => deviceAdapters.fetchState(k).then(r => Array.isArray(r) ? r : []).catch(() => []))

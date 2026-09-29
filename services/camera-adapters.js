@@ -11,6 +11,7 @@
  */
 
 const https = require('https');
+const zlib = require('zlib');
 
 function getJSON(url, timeoutMs = 12000) {
   return new Promise((resolve, reject) => {
@@ -100,12 +101,26 @@ async function minnesota() {
 }
 
 // IBI511 platform (511PA, DriveNC, …): DataTables POST + /map/Cctv/{id} snapshots. Paged.
+// These hosts repeat each record's county boundary polygon inline, so the camera list is
+// far larger on the wire than in memory and the endpoint ignores any column spec. Asking
+// for gzip is the only lever; Node's http does not decompress on its own, hence the reader.
+function readBody(res) {
+  const enc = String(res.headers['content-encoding'] || '').toLowerCase();
+  const stream = enc === 'gzip' ? res.pipe(zlib.createGunzip())
+    : enc === 'deflate' ? res.pipe(zlib.createInflate())
+      : enc === 'br' ? res.pipe(zlib.createBrotliDecompress()) : res;
+  return new Promise((resolve, reject) => {
+    let d = ''; stream.on('data', (c) => (d += c));
+    stream.on('end', () => resolve(d));
+    stream.on('error', reject);
+  });
+}
 function postForm(url, body, timeoutMs = 20000) {
   return new Promise((resolve, reject) => {
     const req = https.request(url, { method: 'POST', headers: {
       'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest',
-      'Content-Length': Buffer.byteLength(body)
-    } }, (res) => { let d = ''; res.on('data', (c) => (d += c)); res.on('end', () => { try { resolve(JSON.parse(d)); } catch (e) { reject(new Error('parse')); } }); });
+      'Accept-Encoding': 'gzip, deflate', 'User-Agent': 'Mozilla/5.0', 'Content-Length': Buffer.byteLength(body)
+    } }, (res) => { readBody(res).then((d) => { try { resolve(JSON.parse(d)); } catch (e) { reject(new Error('parse')); } }, reject); });
     req.on('error', reject);
     req.setTimeout(timeoutMs, function () { this.destroy(); reject(new Error('timeout')); });
     req.write(body); req.end();
@@ -116,30 +131,57 @@ function wktLonLat(latLng) {
   const m = w && w.match(/POINT\s*\(([-\d.]+)\s+([-\d.]+)\)/i);
   return m ? [parseFloat(m[1]), parseFloat(m[2])] : null;
 }
+// Bounded-concurrency fan-out. These hosts cap a page at 100 rows whatever `length` asks
+// for, so a big state is dozens of round trips: Georgia is 4,331 cameras = 44 pages. Done
+// sequentially that took ~45s and, worse, TRUNCATED SILENTLY — a page that failed all its
+// retries just ended the loop, so the adapter would report 1,100 cameras as if that were the
+// whole state. Fanning the pages out fixes the time; the miss count below fixes the silence.
+// The cap is not decoration: every state adapter fires at once, and these hosts start
+// dropping requests when leaned on, which is what made the sequential version flaky.
+async function pool(tasks, limit = 6) {
+  const out = new Array(tasks.length);
+  let next = 0;
+  const workers = new Array(Math.min(limit, tasks.length)).fill(0).map(async () => {
+    while (next < tasks.length) { const i = next++; out[i] = await tasks[i](); }
+  });
+  await Promise.all(workers);
+  return out;
+}
 async function ibi511Cameras(cfg) {
-  const out = []; let start = 0, total = Infinity;
-  while (start < total && start < 20000) {
-    // Retry each page with backoff: under concurrent load (all state adapters fire
-    // at once) these 511 hosts intermittently drop a request, and a single miss must
-    // not silently truncate the inventory (was capping GA at ~1500 of 4043).
-    let j = null;
-    for (let attempt = 0; attempt < 4 && !j; attempt++) {
+  // Retry each page with backoff: under concurrent load these 511 hosts intermittently drop
+  // a request, and a single miss must not silently truncate the inventory.
+  const page = async (start) => {
+    for (let attempt = 0; attempt < 4; attempt++) {
       if (attempt) await new Promise((r) => setTimeout(r, 400 * attempt));
-      j = await postForm(`${cfg.base}/List/GetData/Cameras`, `draw=1&start=${start}&length=1000`).catch(() => null);
+      const j = await postForm(`${cfg.base}/List/GetData/Cameras`, `draw=1&start=${start}&length=1000`).catch(() => null);
+      if (j) return j;
     }
-    if (!j) break;                                   // page unrecoverable after retries
-    const rows = j.data || [];
-    if (j.recordsTotal) total = j.recordsTotal;
-    if (!rows.length) break;
-    for (const c of rows) {
+    return null;
+  };
+  // Only the first page can tell us the total, so it is sequential; the rest fan out.
+  const first = await page(0);
+  if (!first) return [];
+  const step = (first.data || []).length;
+  if (!step) return [];
+  const total = Math.min(first.recordsTotal || step, 20000);
+  const tasks = [];
+  for (let start = step; start < total; start += step) tasks.push(() => page(start));
+  const pages = [first, ...await pool(tasks)];
+  const out = [];
+  let missed = 0;
+  for (const j of pages) {
+    if (!j) { missed++; continue; }
+    for (const c of (j.data || [])) {
       const ll = wktLonLat(c.latLng);
-      const im = (c.images || []).map(i => i.imageUrl).find(Boolean);
+      const im = (c.images || []).map((i) => i.imageUrl).find(Boolean);
       if (!ll || !im) continue;
       out.push({ id: `${cfg.state}-CAM-${c.id}`, state: cfg.state, route: c.roadway, direction: c.direction,
         coordinates: ll, imageUrl: /^https?:/i.test(im) ? im : `${cfg.base}${im}`, desc: c.location || c.cameraName });
     }
-    start += rows.length;
   }
+  // Say so. A short inventory that reads as complete is worse than a logged gap, because
+  // downstream "no camera here" then looks like fact rather than a page we never got.
+  if (missed) console.error(`camera-adapters ${cfg.state}: ${missed}/${pages.length} pages unrecoverable — inventory short of ${total}`);
   return out;
 }
 
@@ -177,9 +219,11 @@ const ADAPTERS = {
   ia: () => arcgisCameras({ state: 'IA',
     url: 'https://services.arcgis.com/8lRhdTsQyJpO52F1/arcgis/rest/services/Traffic_Cameras_View/FeatureServer/0/query',
     latField: 'latitude', lonField: 'longitude', imageField: 'ImageURL', routeField: 'Route', idField: 'COMMON_ID', descField: 'ImageName' }),
-  fl: () => arcgisCameras({ state: 'FL',
-    url: 'https://gis.fdot.gov/arcgis/rest/services/DIVAS_Cameras/FeatureServer/0/query',
-    latField: 'latitude', lonField: 'longitude', imageField: 'imagefilename', routeField: 'highway', dirField: 'direction', idField: 'id', descField: 'description', blockedField: 'blockedimage' })
+  // FDOT withdrew public access to DIVAS_Cameras (499 Token Required; the whole DIVAS
+  // folder left the services directory by 2026-09-29). FL511's own public map JSON is
+  // keyless and carries far more: 4,960 cameras where the ArcGIS layer now returns none.
+  fl: () => ibi511Cameras({ state: 'FL', base: 'https://fl511.com' }),
+  ak: () => ibi511Cameras({ state: 'AK', base: 'https://511.alaska.gov' })
 };
 
 // Cached combined inventory (locations static → cache long; lazy, no loop).

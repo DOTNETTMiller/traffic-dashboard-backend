@@ -21,6 +21,7 @@
  */
 
 const https = require('https');
+const zlib = require('zlib');
 const matcher = require('./device-workzone-matcher');
 
 function getJSON(url, timeoutMs = 15000) {
@@ -61,6 +62,138 @@ function normalize(o, state) {
     // evidence for validation and must not be adjudicated as if it were.
     inventory: !!o.inventory
   };
+}
+
+// ---- IBI/OneStop 511 public map JSON (keyless) -------------------------------
+// These are the same endpoints a state's own 511 map calls from the browser, so they
+// need no key and no registration — which matters, because most of these states were
+// previously filed as "one free API key away" behind the CARS v2 path and sat switched
+// off waiting for keys that were never needed.
+//
+// Two documents have to be JOINED, and neither is usable alone:
+//   /List/GetData/MessageSigns — message, roadway, direction, status, but NO position
+//   /map/mapIcons/MessageSigns — position only, keyed by the list's DT_RowId
+// Without the join every record fails normalize()'s coordinate check and the adapter
+// silently returns nothing. Verified joinable (FL, 2026-09-29: 100/100 ids matched).
+//
+// Two measured quirks worth not rediscovering:
+//   1. The list caps a page at 100 rows no matter what `length` asks for (cameras allow
+//      1000), so page on the count actually RETURNED, never the count requested.
+//   2. mapIcons `location` is [lat, lon] — the opposite order from the GeoJSON used
+//      everywhere else here. Swapping it silently lands every sign in the wrong state.
+// These 511 hosts send the SAME field twice per record: first the full county boundary
+// polygon under `area`, then a short display string under `area` again, which is the one a
+// JSON parser keeps. So the useful payload is tiny and the transfer is not — North Carolina
+// ships 9.0 MB to deliver 39 KB of signs. The endpoint ignores a DataTables column spec, so
+// the only lever is transport: asking for gzip takes that 9.0 MB to 1.9 MB. Node's http does
+// not decompress on its own, hence this reader.
+function readBody(res) {
+  const enc = String(res.headers['content-encoding'] || '').toLowerCase();
+  const stream = enc === 'gzip' ? res.pipe(zlib.createGunzip())
+    : enc === 'deflate' ? res.pipe(zlib.createInflate())
+      : enc === 'br' ? res.pipe(zlib.createBrotliDecompress()) : res;
+  return new Promise((resolve, reject) => {
+    let d = ''; stream.on('data', (c) => (d += c));
+    stream.on('end', () => resolve(d));
+    stream.on('error', reject);
+  });
+}
+function postForm511(url, body, timeoutMs = 20000) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(url, { method: 'POST', headers: {
+      'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest',
+      'Accept-Encoding': 'gzip, deflate', 'User-Agent': 'Mozilla/5.0', 'Content-Length': Buffer.byteLength(body)
+    } }, (res) => { readBody(res).then((d) => { try { resolve(JSON.parse(d)); } catch (e) { reject(new Error('parse')); } }, reject); });
+    req.on('error', reject);
+    req.setTimeout(timeoutMs, function () { this.destroy(); reject(new Error('timeout')); });
+    req.write(body); req.end();
+  });
+}
+function get511(url, timeoutMs = 20000) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest',
+      'Accept-Encoding': 'gzip, deflate', 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+      readBody(res).then((d) => { try { resolve(JSON.parse(d)); } catch (e) { reject(new Error('parse')); } }, reject);
+    });
+    req.on('error', reject);
+    req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('timeout')); });
+  });
+}
+// Bounded fan-out: the page size is capped at 100 rows server-side whatever `length` asks,
+// so a large state is many round trips, and these hosts start dropping requests when every
+// state adapter leans on them at once. Six in flight is the compromise.
+async function pool(tasks, limit = 6) {
+  const out = new Array(tasks.length);
+  let next = 0;
+  const workers = new Array(Math.min(limit, tasks.length)).fill(0).map(async () => {
+    while (next < tasks.length) { const i = next++; out[i] = await tasks[i](); }
+  });
+  await Promise.all(workers);
+  return out;
+}
+async function ibi511(cfg) {
+  // Positions first: no position, no usable device.
+  const icons = await get511(`${cfg.base}/map/mapIcons/MessageSigns`).catch(() => null);
+  const pos = new Map();
+  for (const it of ((icons && icons.item2) || [])) {
+    const L = it.location;
+    if (Array.isArray(L) && L.length >= 2) pos.set(String(it.itemId), [L[1], L[0]]); // [lat,lon] -> [lon,lat]
+  }
+  if (!pos.size) return [];
+  // Retry with backoff — these hosts intermittently drop a request when every state
+  // adapter fires at once, and one silent miss truncates the roster.
+  const page = async (start) => {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (attempt) await new Promise((r) => setTimeout(r, 400 * attempt));
+      const j = await postForm511(`${cfg.base}/List/GetData/MessageSigns`, `draw=1&start=${start}&length=1000`).catch(() => null);
+      if (j) return j;
+    }
+    return null;
+  };
+  // The first page is what tells us the total, so it has to be sequential — but every page
+  // after it can go at once. Paging them one at a time made this the slowest adapter in the
+  // set (North Carolina: 5 round trips, 17s, which alone consumed the caller's 20s cold
+  // deadline). Fanning out the remainder puts it back under 5s.
+  const first = await page(0);
+  if (!first) return [];
+  const step = (first.data || []).length;
+  if (!step) return [];
+  const total = Math.min(first.recordsTotal || step, 20000);
+  const tasks = [];
+  for (let start = step; start < total; start += step) tasks.push(() => page(start));
+  const pages = [first, ...await pool(tasks)];
+  const out = [];
+  let missed = 0;
+  for (const j of pages) {
+    if (!j) { missed++; continue; }
+    const rows = j.data || [];
+    for (const r of rows) {
+      const id = String(r.DT_RowId || '');
+      const ll = pos.get(id);
+      if (!ll) continue;                       // in the list but not on the map — no position
+      const message = [r.message, r.message2, r.message3].map((m) => String(m || '').trim()).filter(Boolean).join(' ');
+      const label = `${r.name || ''} ${r.description || ''} ${r.roadwayName || ''}`;
+      // One host can serve several states (newengland511 carries ME, NH and VT together),
+      // so the state comes from the RECORD when the caller supplies stateFrom. Labelling a
+      // shared host with a single state code files two states' signs under the third.
+      const st = cfg.stateFrom ? cfg.stateFrom(r) : cfg.state;
+      if (!st) continue;
+      const rec = normalize({
+        id, deviceType: 'dms',
+        route: r.roadwayName, direction: r.direction,
+        lon: ll[0], lat: ll[1],
+        // A sign the state reports as off is off, whatever text was last loaded into it.
+        message: /^off$/i.test(String(r.status || '')) ? '' : message,
+        updated: r.lastUpdated || null,
+        portable: /portable|pvms|pcms|trailer|arrow/i.test(label)
+      }, st);
+      if (rec) out.push(rec);
+    }
+  }
+  // Say so rather than returning a short roster that reads as complete — a device the
+  // matcher never saw becomes "no device at this zone", which is a validation claim.
+  if (missed) console.error(`device-adapters ${cfg.state || cfg.base}: ${missed}/${pages.length} pages unrecoverable — roster short of ${total}`);
+  return out;
 }
 
 // ---- generic families -------------------------------------------------------
@@ -249,9 +382,10 @@ const ADAPTERS = {
     isPortable: (a) => /trailer/i.test(a.installation_type || '') }) },
 
   // ---- Fixed DMS with live message, no key ----
-  fl: { name: 'Florida', portable: false, key: false, run: () => arcgis({
-    state: 'FL', url: 'https://gis.fdot.gov/arcgis/rest/services/DIVAS_MessageBoard/FeatureServer/0/query',
-    routeField: 'highway', dirField: 'direction', latField: 'latitude', lonField: 'longitude', messageField: 'message', updatedField: 'timestamp' }) },
+  // FDOT withdrew public access to the DIVAS_MessageBoard FeatureServer (499 Token
+  // Required, and the whole DIVAS folder is gone from the services directory as of
+  // 2026-09-29). FL511's own public map JSON replaces it and carries MORE: 1,141 signs.
+  fl: { name: 'Florida', portable: false, key: false, run: () => ibi511({ state: 'FL', base: 'https://fl511.com' }) },
   ky: { name: 'Kentucky', portable: false, key: false, run: () => arcgis({
     state: 'KY', url: 'https://services2.arcgis.com/CcI36Pduqd0OR4W9/arcgis/rest/services/dmsSigns_2020/FeatureServer/0/query',
     where: "dmsStatus = 'Online'",
@@ -263,16 +397,29 @@ const ADAPTERS = {
   nm: { name: 'New Mexico', portable: false, key: false, run: () => newmexico({}) },
   ca: { name: 'California', portable: false, key: false, run: () => california({}) },
 
-  // ---- Fixed DMS behind a free key (set the env var to enable) ----
-  ut: { name: 'Utah', portable: false, key: true, run: () => cars511({ state: 'UT', base: 'https://www.udottraffic.utah.gov', keyEnv: 'UT_511_KEY' }) },
-  la: { name: 'Louisiana', portable: false, key: true, run: () => cars511({ state: 'LA', base: 'https://511la.org', keyEnv: 'LA_511_KEY' }) },
-  az: { name: 'Arizona', portable: false, key: true, run: () => cars511({ state: 'AZ', base: 'https://az511.com', keyEnv: 'AZ_511_KEY' }) },
-  nc: { name: 'North Carolina', portable: false, key: true, run: () => cars511({ state: 'NC', base: 'https://www.drivenc.gov', keyEnv: 'NC_511_KEY' }) },
+  // ---- Fixed DMS on the keyless public 511 map JSON (was mis-filed as key-gated) ----
+  ut: { name: 'Utah', portable: false, key: false, run: () => ibi511({ state: 'UT', base: 'https://www.udottraffic.utah.gov' }) },
+  la: { name: 'Louisiana', portable: false, key: false, run: () => ibi511({ state: 'LA', base: 'https://www.511la.org' }) },
+  az: { name: 'Arizona', portable: false, key: false, run: () => ibi511({ state: 'AZ', base: 'https://az511.com' }) },
+  nc: { name: 'North Carolina', portable: false, key: false, run: () => ibi511({ state: 'NC', base: 'https://www.drivenc.gov' }) },
+  // NJ is the one holdout: 511nj.org answers 403 on BOTH the CARS path and the public
+  // map JSON, so it really does need a key. Everything else once filed here did not.
   nj: { name: 'New Jersey', portable: false, key: true, run: () => cars511({ state: 'NJ', base: 'https://511nj.org', path: 'api/getmessagesigns', keyEnv: 'NJ_511_KEY' }) },
-  wi: { name: 'Wisconsin', portable: false, key: true, run: () => cars511({ state: 'WI', base: 'https://511wi.gov', keyEnv: 'WI_511_KEY' }) },
-  nv: { name: 'Nevada', portable: false, key: true, run: () => cars511({ state: 'NV', base: 'https://www.nvroads.com', keyEnv: 'NV_511_KEY' }) },
+  wi: { name: 'Wisconsin', portable: false, key: false, run: () => ibi511({ state: 'WI', base: 'https://511wi.gov' }) },
+  nv: { name: 'Nevada', portable: false, key: false, run: () => ibi511({ state: 'NV', base: 'https://www.nvroads.com' }) },
   ny: { name: 'New York', portable: true, key: false, run: () => cars511({ state: 'NY', base: 'https://511ny.org', path: 'api/getmessagesigns', keyEnv: 'NY_511_KEY', keyless: true }) },
-  id: { name: 'Idaho', portable: false, key: true, run: () => cars511({ state: 'ID', base: 'https://511.idaho.gov', keyEnv: 'ID_511_KEY' }) }
+  id: { name: 'Idaho', portable: false, key: false, run: () => ibi511({ state: 'ID', base: 'https://511.idaho.gov' }) },
+  // Newly added — same keyless path, found by probing rather than assumed.
+  ga: { name: 'Georgia', portable: false, key: false, run: () => ibi511({ state: 'GA', base: 'https://511ga.org' }) },
+  ak: { name: 'Alaska', portable: false, key: false, run: () => ibi511({ state: 'AK', base: 'https://511.alaska.gov' }) },
+  // ME, NH and VT share ONE host. The record's `area` field is the only thing that says
+  // which state a sign is in (region and county are both null), so it is split on that —
+  // measured 2026-09-29: Maine 47, New Hampshire 33, Vermont 20 of the first 100.
+  // Additive to the `me` entry above, which reads Maine's own PORTABLE trailer inventory
+  // from MaineDOT ArcGIS — a different source and a different device class.
+  newengland: { name: 'New England (ME/NH/VT)', portable: false, key: false, run: () => ibi511({
+    base: 'https://www.newengland511.org',
+    stateFrom: (r) => ({ 'Maine': 'ME', 'New Hampshire': 'NH', 'Vermont': 'VT' })[String(r.area || '').trim()] || null }) }
 };
 
 async function fetchState(stateKey) {
