@@ -124,3 +124,53 @@ per-state portable coverage unverified.
 Add one entry to `ADAPTERS` in `services/device-adapters.js` using the `arcgis`, `cars511`, or
 `wzdxDevice` family (or a small custom fetcher), mapping its fields to the normalized device
 shape. No matcher/endpoint/frontend changes. Verify with `node scripts/test_device_adapters.js`.
+
+## Arrow boards — what the 2026-09-29 sweep actually found
+Chased properly rather than assumed, because "connected arrow boards" is the part of this
+survey that has not moved.
+
+**FHWA's WZDx Feed Registry** (`datahub.transportation.gov/resource/69qe-yiui.json`, 43 active
+feeds) is the authoritative catalogue and is worth reading before probing anything:
+- It lists **no device feeds at all** — it catalogues work-zone feeds only. Arrow-board feeds
+  are not registered anywhere central.
+- Probing every registered feed's sibling device-feed URL (`WorkZoneFeed`→`DeviceFeed`,
+  `workzones`→`devices`, and hand-written variants for UT/NC/ID/NY/WI/AZ/MS/MN/KS/IN and the
+  New England compass host) found exactly one: **Washington**, which we already have.
+
+So **WA remains the only public WZDx Device Feed in the country**, and portable/arrow-board
+coverage is still IA / WA / OK / PA / ME / NY. Everything added on 2026-09-29 is fixed DMS.
+
+### Still open for arrow boards (each needs something we do not have here)
+| Lead | Blocker |
+|---|---|
+| Colorado COtrip `/signs` (ingests iCone/NavJOY → likely portable) | needs `COLORADO_API_KEY`, which lives only in Railway prod — untestable locally |
+| Ohio OHGO devices | needs the OHGO key, same situation |
+| Delaware FirstMap `IS_MOBILE='Y'` (123 units) | **the layer is gone.** FirstMap moved to `enterprise.firstmap.delaware.gov`; its Transportation folder and `DE_Assets` now carry no DMS layer at all. The August survey did not record the URL, so there is nothing to re-check against |
+| Indiana portable DMS dataset | retrieval 404'd in August, unchanged |
+| Massachusetts RTTM portable VMS | behind developer auth |
+
+A caution from this sweep: the first pass of the sibling-URL probe reported **zero** device
+feeds everywhere, including Washington's, because Python's cert store on this machine fails
+`CERTIFICATE_VERIFY_FAILED` and every request errored into the same empty result. A probe that
+cannot reach anything reports the same thing as a probe that found nothing. It was only caught
+by checking a feed already known to work. Re-run through `curl` before believing a negative.
+
+## HaulHub — two feeds recovered from the registry
+The same registry read fixed two wrong notes in `services/haulhub-worker-presence.js`:
+- **Delaware** — recorded as "no feed under any variant tried". It publishes `del_dot_feed`
+  (spelled out, which no 2-letter or state-name variant hits): **79 events**, the *second
+  largest publisher of the 39*, behind Ohio and ahead of Iowa.
+- **Louisiana** — recorded as "publishes nothing", because `la_dot_feed` is the City of Los
+  Angeles. Its real feed is `la_dot_d_feed` — the trailing `_d` is not guessable: **8 events**.
+
+Now 39 feeds, **19 publishing, 333 events** (was 37 / 18). HaulHub needed no wiring — every
+feed already runs ungated through `fetchAllPresence()`.
+
+Since the file names are not derivable, probing for them could never have worked. The registry
+is the first stop for any publisher whose naming cannot be predicted.
+
+## Cameras
+`services/camera-adapters.js` runs **16 states ungated, 25,763 cameras** (2026-09-29): NY 1,874 ·
+MN 1,528 · PA 1,537 · NC 1,154 · AZ 644 · ME 405 · GA 4,331 · UT 2,081 · NV 652 · ID 457 ·
+LA 336 · TX 1,007 · CA 3,408 · IA 1,259 · FL 4,960 · AK 130. Probe with
+`node scripts/test_camera_adapters.js`.

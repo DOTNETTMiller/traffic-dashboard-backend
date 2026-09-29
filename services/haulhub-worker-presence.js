@@ -47,13 +47,25 @@ function interstate(s) {
 //   1. The file name is NOT derivable. HaulHub uses "{2-letter}_dot_feed", "{2-letter}_feed",
 //      "{state}_dot_feed" AND "{agency}_feed" with no rule connecting them, so every URL is
 //      recorded literally.
-//   2. "la_dot_feed" is the CITY OF LOS ANGELES, not Louisiana. Louisiana publishes nothing.
-//      Keying this by state code would have silently filed LA's crews under Louisiana.
+//   2. "la_dot_feed" is the CITY OF LOS ANGELES, not Louisiana. Keying this by state code
+//      would have silently filed LA's crews under Louisiana. Louisiana's real feed is
+//      "la_dot_d_feed" -- the trailing _d is not guessable, and probing missed it.
+//      CORRECTED 2026-09-29: the earlier note here said Louisiana publishes nothing.
 //   3. Ohio has two separate publishers: oh_dot_feed is Ohio DOT (the largest feed of all,
 //      134 records) and ohio_feed is the county engineers, a different data_source_id.
-// Delaware has no feed under any variant tried.
+// CORRECTED 2026-09-29: the note here said Delaware has no feed under any variant tried.
+// It does -- "del_dot_feed", spelled out, which none of the 2-letter/state-name variants hit.
+//
+// Both corrections came from the same place, and it is the lesson worth keeping: FHWA's own
+// WZDx Feed Registry (datahub.transportation.gov/resource/69qe-yiui.json) LISTS these URLs.
+// Because the file names are not derivable, probing for them was never going to work -- the
+// registry should be the first stop for any publisher whose naming we cannot predict.
 //
 // Counts in brackets are what each returned on 2026-09-08; 18 of the 37 were publishing.
+// Re-measured 2026-09-29 with the two corrected feeds in: 19 of 39 publishing, 333 events.
+// Delaware came in as the SECOND largest publisher of all (79, behind Ohio's 114 and ahead
+// of Iowa's 41) -- so the unguessable file name had been costing us the biggest single
+// addition available, which is the argument for reading the registry over probing.
 // Empty is not dead -- an event is a 2h activity window, so a feed reads empty whenever no
 // covered contractor is on site at that moment.
 const FEEDS = {
@@ -92,6 +104,8 @@ const FEEDS = {
   tx:        'https://wzdx.e-dot.com/tx_dot_feed_wzdx_v4.1.geojson',  // Texas Department of Transportation
   wa:        'https://wzdx.e-dot.com/wa_feed_wzdx_v4.1.geojson',  // Washington State Department of Transportation
   wy:        'https://wzdx.e-dot.com/wy_dot_feed_wzdx_v4.1.geojson',  // Wyoming Department of Transportation
+  de:        'https://wzdx.e-dot.com/del_dot_feed_wzdx_v4.1.geojson',  // Delaware DOT  [79 on 2026-09-29]
+  la:        'https://wzdx.e-dot.com/la_dot_d_feed_wzdx_v4.1.geojson',  // Louisiana DOTD (note the _d)  [7]
   oh_county: 'https://wzdx.e-dot.com/ohio_feed_wzdx_v4.1.geojson',  // Ohio County Engineer's (county, not the state)
   la_city:   'https://wzdx.e-dot.com/la_dot_feed_wzdx_v4.1.geojson'  // City of Los Angeles (NOT Louisiana)
 };
