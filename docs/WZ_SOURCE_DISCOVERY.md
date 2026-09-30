@@ -160,7 +160,44 @@ Two classification rules it earned immediately:
   wolf is a nightly job nobody reads.
 
 **What the first run found that the manual audit had missed: Florida has 11 frozen sub-publishers**,
-including **1,815 zones frozen 112 days** and **724 frozen 61 days**. Florida's feed is a
-one.network aggregate of 49 sources, so individual municipal publishers die while the feed as a
-whole looks current — a larger number of stale zones than Utah, invisible at feed level.
+including 1,815 zones frozen 112 days and 724 frozen 61 days. Florida's feed is a one.network
+aggregate of 49 sources, so individual municipal publishers die while the feed as a whole looks
+current — invisible at feed level, which is the point of measuring per source.
+
+### But how stale is stale? Corrected 2026-09-30
+
+I first read Florida's raw counts as "worse than Utah". That was wrong, and the correction is the
+more useful finding. Of Florida's 2,564 stale-source features:
+
+- `event_status` is **completed 1,744 / pending 764 / active 56**. Florida publishes an archival
+  record, not phantom active zones — unlike Utah, where all 744 say `active`.
+- every one carries an `end_date`, and **1,726 have already passed** (median 68 days ago), so the
+  ingest's 2-day past-end grace filter already removes them.
+- the 764 `pending` are **3 distinct locations**: 382 features on Cocoanut Avenue and 382 on
+  Fruitville Road, all from one Sarasota publisher. That is ~2 real zones expanded into 382
+  recurrence instances each, not 764 zones.
+- **zero are on an interstate**, so the interstate filter excludes all of them anyway.
+
+So the honest exposure across every frozen publisher found:
+
+| source | zones | days frozen | claim `active` | on an interstate | reaches our feed |
+|---|---|---|---|---|---|
+| Utah (both sources) | 744 | 1,291 | 744 | **18** | **18** |
+| Florida (11 sources) | 2,564 | 32–237 | 56 | 0 | **0** |
+| WSDOT-CIA | 370 | 851 | **0** | 0 | **0** |
+
+The whole problem is **18 Utah zones**. Raw counts from a frozen publisher say nothing until they
+are filtered by what the records actually claim and whether the pipeline would carry them.
+
+### Adjudicating them with cameras
+
+Cameras are the right instrument for this specific job, and not for a general reason: camera
+validation is the **only demotable source** in the stack. Every other validator is positive-only
+and sticky by design, so nothing else can express "this zone is finished" — which is exactly the
+question a frozen publisher raises.
+
+Measured: all **18/18** of Utah's frozen-but-active interstate zones have a camera within 500 m
+(2,081 UT cameras available), at 18 distinct locations. So 18 vision calls settle a 1,291-day
+question. TomTom is the fallback where no camera adapter exists — Washington has none — and it is
+live and nationwide via zone-derived tiles, though budget-capped by `TOMTOM_DAILY_BUDGET`.
 
