@@ -164,9 +164,61 @@ async function probe(cand) {
   return { ...cand, layerUrl, layerName, geomType, count, fields, hits, score };
 }
 
+
+// ---- Esri "Road Closures" solution sweep -------------------------------------------------
+// A separate channel, found while looking for state DOT sources and worth keeping even though
+// it answered a different question. Iowa's closure layer is `RoadClosures_public`, and so is
+// DC's HSEMA layer, and Tennessee's -- because it is an Esri Solutions template, which means
+// it is DISCOVERABLE BY NAME across every agency that deployed it.
+//
+// Measured 2026-09-30: 603 distinct feature services. A 40-service sample probed live:
+//   33/40 responded with the template schema (street, direction, starttime, endtime,
+//         description, altroute, activeincid, subtype ...)
+//   33/33 POLYLINE geometry -- real extents, not pins
+//   24/33 had at least one live record; 812 closures across the sample
+//
+// The catch, and it is the important part: ZERO of the 603 are state DOTs. They are cities and
+// counties -- Guilford County NC, Raleigh, King County WA, Worcester, Manatee County FL, even
+// Moose Jaw. So this does NOT fill a state's missing WZDx feed. What it is instead is the layer
+// WZDx structurally does not cover: LOCAL road closures, on one uniform schema, keyless, with
+// geometry and times. Roughly 9-12k closures nationally if the sample holds.
+async function sweepRoadClosures(limit = 600) {
+  const seen = new Map();
+  for (const q of ['RoadClosures_public', 'RoadClosures type:"Feature Service"']) {
+    let start = 1;
+    for (let page = 0; page < 6 && seen.size < limit; page++) {
+      let d;
+      try {
+        d = await get(`https://www.arcgis.com/sharing/rest/search?f=json&num=100&start=${start}`
+          + `&q=${encodeURIComponent(q)}`, 40000);
+      } catch (_) { break; }
+      const res = d.results || [];
+      if (!res.length) break;
+      for (const r of res) {
+        if (r.type !== 'Feature Service' || !r.url) continue;
+        if (!/roadclosure/i.test((r.title || '') + r.url)) continue;
+        if (!seen.has(r.url)) seen.set(r.url, { title: r.title, owner: r.owner, url: r.url });
+      }
+      if (!(d.nextStart > 0)) break;
+      start = d.nextStart;
+    }
+  }
+  return [...seen.values()];
+}
+
 (async () => {
   const args = process.argv.slice(2);
   const asJson = args.includes('--json');
+  if (args.includes('--roadclosures')) {
+    const found = await sweepRoadClosures();
+    if (asJson) console.log(JSON.stringify(found, null, 2));
+    else {
+      console.log(`Esri Road Closures solution deployments found: ${found.length}`);
+      console.log('These are LOCAL agencies (city/county), not state DOTs — see the note above.');
+      for (const f of found.slice(0, 25)) console.log(`  ${String(f.owner).slice(0, 30).padEnd(30)} ${f.url}`);
+    }
+    return;
+  }
   const picked = args.filter((a) => !a.startsWith('--')).map((a) => a.toLowerCase());
   const states = picked.length
     ? Object.fromEntries(Object.entries(TARGETS).filter(([k]) => picked.includes(k)))
