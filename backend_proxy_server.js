@@ -3515,7 +3515,35 @@ const normalizeEventData = async (rawData, stateName, format, sourceType = 'even
               direction: directionRaw || 'Both',
               requiresCollaboration: false,
               // Preserve GeoJSON geometry for CIFS polyline generation
-              geometry: feature.geometry || null
+              geometry: feature.geometry || null,
+              // Three things this generic WZDx path was dropping for EVERY state, which the
+              // CWZ branch below has always kept. None can be reconstructed later:
+              //
+              // data_source_id — the conformance method attributes every defect per source, and
+              //   one feed can carry several of wildly different quality. Washington is the case
+              //   in point: WSDOT-WZDB is current while WSDOT-CIA has not moved in 851 days, and
+              //   at feed level that averages out to "fresh".
+              // update_date — the only way to tell a live publisher from a frozen one. Utah's
+              //   registered feed has served the same 2023-03-19 snapshot for ~1,290 days, every
+              //   event still event_status 'active', HTTP 200, and FHWA's registry still lists it
+              //   active on a 15-minute cycle. Liveness cannot be inferred from registry
+              //   membership, from a 200, or from the events calling themselves active.
+              // worker_presence — the publisher's own crew-on-site assertion, present on 9,060
+              //   of 33,663 audited work zones (27%) and discarded here for all of them. For
+              //   scale, the HaulHub service exists to obtain this signal and yields ~333 rows.
+              //
+              // worker_presence is NOT independent corroboration: it rides on the same document
+              // as the zone, so it must never increment x_verification_count. It is CWZ payload
+              // and an activity signal, which is a different and weaker claim.
+              dataSourceId: coreDetails.data_source_id || props.data_source_id || null,
+              sourceUpdated: coreDetails.update_date || props.update_date || null,
+              worker_presence: props.worker_presence || null,
+              // Remaining CWZ 1.0 payload, passed through rather than re-derived. Absent stays
+              // absent — §7 of the conformance method: never synthesize an observation.
+              restrictions: props.restrictions || null,
+              types_of_work: props.types_of_work || null,
+              lanes: props.lanes || null,
+              vehicleImpact: props.vehicle_impact || null
             };
 
             normalized.push(attachRawFields(normalizedEvent, {
@@ -5501,6 +5529,59 @@ async function fetchAndCacheEvents() {
     // Duplicates are MERGED: the survivor carries x_also_reported_by, because two independent
     // state systems describing the same zone is corroboration, not clutter. Fail-safe -- if
     // this throws, the un-deduplicated set is served, which is the behaviour we had before.
+    // ---- Publisher freshness -------------------------------------------------------------
+    // A feed can be dead and indistinguishable from a live one: HTTP 200, a well-formed
+    // document, and every event still stamped event_status 'active'. Utah's WZDx feed has
+    // served the same 2023-03-19 snapshot for roughly 1,290 days and FHWA's registry still
+    // lists it active on a 15-minute cycle, so it contributes 744 zones that claim to be
+    // active work now. Washington is the subtler shape: WSDOT-WZDB is current while
+    // WSDOT-CIA has not moved in 851 days, and judged at FEED level the two average out to
+    // "fresh" -- which is why this is grouped by data_source_id, not by state.
+    //
+    // Judged on the SOURCE's newest timestamp, never the individual event's. A single
+    // long-running zone can legitimately go months without an update inside a perfectly live
+    // feed; a publisher that has not touched ANY of its events is the thing worth flagging.
+    //
+    // Flag, do not delete. These events may still be real roadwork, and silently dropping a
+    // closure is worse than showing one with a caveat. What the flag does buy is that a zone
+    // from a frozen publisher can be kept out of the validated/real-time CWZ feed, where
+    // "active, verified now" is the explicit claim.
+    const STALE_SOURCE_DAYS = Number(process.env.STALE_SOURCE_DAYS || 30);
+    const staleSources = {};
+    try {
+      const newestBySource = new Map();
+      for (const e of uniqueEvents) {
+        const sid = e.dataSourceId;
+        const t = e.sourceUpdated ? Date.parse(e.sourceUpdated) : NaN;
+        // Year-0001 and other junk stamps are a defect, not an age (NE-Compass emits
+        // 0001-01-01, which would otherwise read as the stalest publisher in the country).
+        if (!sid || !Number.isFinite(t) || t < Date.parse('2000-01-01')) continue;
+        const prev = newestBySource.get(sid);
+        if (prev === undefined || t > prev) newestBySource.set(sid, t);
+      }
+      const nowMs2 = Date.now();
+      for (const [sid, newest] of newestBySource) {
+        const age = Math.round((nowMs2 - newest) / 86400000);
+        if (age > STALE_SOURCE_DAYS) staleSources[sid] = age;
+      }
+      let flagged = 0;
+      for (const e of uniqueEvents) {
+        const sid = e.dataSourceId;
+        if (sid && staleSources[sid] !== undefined) {
+          e.x_stale_source = true;
+          e.x_source_age_days = staleSources[sid];
+          flagged++;
+        }
+      }
+      if (flagged > 0) {
+        console.warn(`⏳ Stale publishers: ${flagged} event(s) from ${Object.keys(staleSources).length} frozen source(s) — `
+          + Object.entries(staleSources).map(([k, v]) => `${k}=${v}d`).join(', ')
+          + ` (threshold ${STALE_SOURCE_DAYS}d). Flagged x_stale_source; excluded from the validated CWZ feed.`);
+      }
+    } catch (e) {
+      console.error('freshness check skipped:', e.message);
+    }
+
     let crossSourceMerged = 0;
     if (process.env.DISABLE_CROSS_SOURCE_DEDUP !== 'true') {
       try {
@@ -5585,6 +5666,9 @@ async function fetchAndCacheEvents() {
       // event count, and a count nobody can reconcile is how a real closure goes missing
       // without anyone noticing. idDuplicates is the same publisher's record twice;
       // crossSourceMerged is the same physical zone from two different systems.
+      // Frozen publishers, by data_source_id -> age in days. Reported rather than only
+      // logged: a feed that is up but not updating is invisible in every other metric.
+      staleSources,
       dedup: {
         idDuplicates: duplicateCount,
         crossSourceMerged,
@@ -6698,7 +6782,14 @@ app.get('/api/cwz/events', async (req, res) => {
     if (String(req.query.confidence || '').toLowerCase() === 'multi') minSources = 2;
     const ms = parseInt(req.query.min_sources, 10);
     if (Number.isFinite(ms) && ms >= 1) minSources = ms;
-    const connected = (eventsCache.data?.events || []).filter(e => sourceCount(e) >= minSources);
+    // A zone from a FROZEN publisher is excluded regardless of how many validators it has
+    // accumulated. This feed's title claims "validated, premier, real-time"; a source that has
+    // not updated in over a month cannot support the real-time half of that, and the sticky
+    // ledger means yesterday's corroboration would otherwise keep a 2023 snapshot looking
+    // verified forever. Utah alone is 744 such zones. They remain in /api/events, flagged.
+    const connected = (eventsCache.data?.events || [])
+      .filter(e => !e.x_stale_source)
+      .filter(e => sourceCount(e) >= minSources);
     res.set('Content-Type', 'application/json');
     res.json(cwz.buildFeed(connected));
   } catch (err) {

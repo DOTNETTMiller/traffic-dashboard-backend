@@ -105,6 +105,34 @@ function buildFeed(events, opts = {}) {
     //                                    equipment/crew telematics is the spec's
     //                                    "wearables-or-mobile-devices"; omitted rather than
     //                                    guessed when the source says nothing.
+    // The PUBLISHER's own worker_presence, when the upstream feed carried one. This was being
+    // discarded at ingest for every WZDx state -- 9,060 of 33,663 audited work zones (27%)
+    // arrive with it, against roughly 333 rows from HaulHub -- so the field this feed exists
+    // to complete was already present on a quarter of the zones and thrown away.
+    //
+    // Emitted FIRST so HaulHub can override it below: HaulHub is a live contractor
+    // confirmation with a timestamp, the publisher's flag often is not. Two differences from
+    // the HaulHub path matter:
+    //   - the publisher CAN assert are_workers_present: false, which HaulHub structurally
+    //     never does, and a negative assertion is information. It is passed through as given.
+    //   - it is NOT independent corroboration. It rides on the same document as the zone, so
+    //     it must not touch x_verification / x_verification_count. Provenance says so plainly.
+    if (ev.worker_presence && typeof ev.worker_presence === 'object'
+        && ev.worker_presence.are_workers_present !== undefined) {
+      props.worker_presence = ev.worker_presence;
+      props.x_worker_presence_source = 'publisher';
+    }
+    // Remaining CWZ 1.0 payload, passed through exactly as published. Absent stays absent --
+    // these are observations about a physical work zone and may never be synthesized.
+    if (ev.restrictions) props.restrictions = ev.restrictions;
+    if (ev.types_of_work) props.types_of_work = ev.types_of_work;
+    if (ev.lanes) props.lanes = ev.lanes;
+    if (ev.x_stale_source) {
+      // Belt and braces: the endpoint filters these out, but if one ever reaches the builder
+      // it must not look current. A consumer can then reject it on its own terms.
+      props.x_stale_source = true;
+      props.x_source_age_days = ev.x_source_age_days ?? null;
+    }
     if (ev.x_workers_present) {
       const wp = { are_workers_present: true };
       if (ev.x_worker_presence_confirmed_at) wp.worker_presence_last_confirmed_date = ev.x_worker_presence_confirmed_at;

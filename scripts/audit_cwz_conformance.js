@@ -121,14 +121,31 @@ function auditFeed(name, url, doc) {
     let s = perSource.get(sid);
     if (!s) perSource.set(sid, s = {
       n: 0, types: {}, geom: {}, legacy: 0, legacyFields: {}, coreMissing: {}, eventMissing: {},
-      payload: {}, workZones: 0, updateDates: 0
+      payload: {}, workZones: 0, updateDates: 0, newest: null, oldest: null, undated: 0, malformed: 0
     });
     s.n++;
     const et = c.event_type || p.event_type || '(none)';
     s.types[et] = (s.types[et] || 0) + 1;
     const g = geometryClass(f);
     s.geom[g] = (s.geom[g] || 0) + 1;
-    if (c.update_date || p.update_date) s.updateDates++;
+    // Freshness. A feed can return HTTP 200, a well-formed document and a full set of
+    // event_status:'active' zones while having stopped updating years ago -- Utah's
+    // registered feed has served the same 2023-03-19 snapshot ever since, and FHWA's
+    // registry still lists it active on a 15-minute cycle. Liveness is not implied by
+    // registry membership, by HTTP 200, or by the events calling themselves active, so it
+    // has to be measured from the data.
+    const rawTs = c.update_date || p.update_date;
+    if (rawTs) {
+      s.updateDates++;
+      const t = Date.parse(rawTs);
+      // Year 0001 and other unparseable stamps are a defect, not an age: NE-Compass emits
+      // 0001-01-01, which would otherwise read as the stalest feed in the country.
+      if (!Number.isFinite(t) || t < Date.parse('2000-01-01')) s.malformed++;
+      else {
+        if (s.newest === null || t > s.newest) s.newest = t;
+        if (s.oldest === null || t < s.oldest) s.oldest = t;
+      }
+    } else s.undated++;
 
     for (const [legacy, modern] of SCHEMA_MIGRATION) {
       if (p[legacy] !== undefined && p[modern] === undefined) {
@@ -206,6 +223,19 @@ function printReport(results, unreachable) {
       console.log('  ' + `${r.name}/${s.id}`.slice(0, 32).padEnd(34) + String(s.n).padEnd(7)
         + GEOM_ORDER.map((g) => String(s.geom[g] || 0).padEnd(15)).join(''));
     }
+  }
+
+  console.log('\nFRESHNESS — is the publisher still updating? (measured from event update_date)');
+  console.log('  source'.padEnd(34) + 'n'.padEnd(7) + 'newest event'.padEnd(22) + 'age'.padEnd(9) + 'undated'.padEnd(9) + 'malformed');
+  const NOW = Date.now(), DAY = 86400000;
+  for (const r of results) for (const s of r.perSource) {
+    const age = s.newest ? Math.round((NOW - s.newest) / DAY) : null;
+    const verdict = age === null ? (s.malformed ? 'NOT EVALUATED (bad dates)' : 'NOT EVALUATED (undated)')
+      : (age > 30 ? `STALE ${age}d` : `${age}d`);
+    console.log('  ' + `${r.name}/${s.id}`.slice(0, 32).padEnd(34) + String(s.n).padEnd(7)
+      + (s.newest ? new Date(s.newest).toISOString().slice(0, 19) : '(none)').padEnd(22)
+      + verdict.padEnd(9 + (verdict.length > 9 ? verdict.length - 9 : 0)).slice(0, 26).padEnd(9)
+      + String(s.undated).padEnd(9) + String(s.malformed));
   }
 
   console.log('\nUN-MIGRATED PRE-4.0 SCHEMA (legacy *_accuracy present, 4.1 boolean absent)');
