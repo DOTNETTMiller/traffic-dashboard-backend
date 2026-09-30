@@ -136,3 +136,31 @@ by any of the four channels. Options, in order of effort:
   nationally, Washington's included, because Python's cert store here fails
   `CERTIFICATE_VERIFY_FAILED` and every request collapsed into the same empty result. A probe that
   reaches nothing is indistinguishable from one that finds nothing.
+
+## Catching the next one: `scripts/feed_health_check.js`
+
+Everything above was found by accident in one afternoon, and all of it was months or years old.
+This is the scheduled version. It says nothing when nothing is wrong, and reports three states —
+OK / PROBLEM / NOT EVALUATED — so an unreachable feed is never counted as healthy.
+
+    node scripts/feed_health_check.js --state /data/feed_health.json
+
+Exit codes: `0` healthy · `1` a source went stale or its count fell sharply · `2` a feed is
+unreachable, unparseable, or a source's zones went to zero. Pass `--state <path>` on a persistent
+volume to enable count-drop detection (it needs the previous run to compare against). Tunable with
+`STALE_SOURCE_DAYS` (default 30) and `DROP_PCT` (default 40).
+
+Two classification rules it earned immediately:
+
+- **A 200 is not success.** Several state 511 hosts answer `200` with an HTML error page, which
+  reads as healthy to anything checking only a status code. The check rejects a body that starts
+  with `<`.
+- **401/403 is missing credentials, not an outage.** Texas passes its key as a request parameter,
+  so sniffing the URL for `key=` misses it and produced a false CRITICAL. A nightly job that cries
+  wolf is a nightly job nobody reads.
+
+**What the first run found that the manual audit had missed: Florida has 11 frozen sub-publishers**,
+including **1,815 zones frozen 112 days** and **724 frozen 61 days**. Florida's feed is a
+one.network aggregate of 49 sources, so individual municipal publishers die while the feed as a
+whole looks current — a larger number of stale zones than Utah, invisible at feed level.
+

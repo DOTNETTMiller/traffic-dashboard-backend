@@ -209,8 +209,20 @@ const utah      = () => oneNetworkWorkZones({ base: 'https://www.udottraffic.uta
 const nevada    = () => oneNetworkWorkZones({ base: 'https://www.nvroads.com',          st: 'NV', stateName: 'Nevada',    source: 'NDOT 511' });
 const idaho     = () => oneNetworkWorkZones({ base: 'https://511.idaho.gov',            st: 'ID', stateName: 'Idaho',     source: 'ITD 511' });
 const louisiana = () => oneNetworkWorkZones({ base: 'https://www.511la.org',            st: 'LA', stateName: 'Louisiana', source: 'LADOTD 511' });
+// Connecticut has NO registered WZDx feed at all, so this is the only route to its work zones.
+// 30 of its 47 construction records are on I-91 / I-84 / I-95, so it survives the interstate
+// filter comfortably.
+//
+// Alaska is deliberately NOT here, despite having the same platform and 245 records and no
+// registered feed either. Its roadwayName values are 'Highway 1', 'Highway 97', 'Highway 99';
+// Alaska's interstates are UNSIGNED (A-1 to A-4, carried on the Glenn, Parks, Richardson and
+// Seward highways), so zero of its records match an interstate pattern and an interstate-scoped
+// pipeline has nothing to hold on to. Forcing a name->A-route mapping to make the number go up
+// would be inventing a designation the state does not publish. Alaska's generated WZDx feed
+// still stands on its own (scripts/generate_wzdx_from_511.js alaska) -- it just is not ingested.
+const connecticut = () => oneNetworkWorkZones({ base: 'https://ctroads.org',              st: 'CT', stateName: 'Connecticut', source: 'CTDOT 511' });
 
-const ADAPTERS = { newyork, northcarolina, washington, florida, colorado, georgia, utah, nevada, idaho, louisiana };
+const ADAPTERS = { newyork, northcarolina, washington, florida, colorado, georgia, utah, nevada, idaho, louisiana, connecticut };
 
 // Run all adapters concurrently; never throws. Returns { events, errors, counts }.
 async function fetchAll() {
