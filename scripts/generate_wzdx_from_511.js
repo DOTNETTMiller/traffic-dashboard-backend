@@ -39,8 +39,25 @@ const zlib = require('zlib');
 const fs = require('fs');
 
 const STATES = {
-  utah:      { base: 'https://udottraffic.utah.gov', state: 'Utah', abbr: 'UT', tz: -6,
-               org: 'Utah Department of Transportation', sourceId: 'UDOT-511-Construction' },
+  // Utah has a SECOND, richer public source than its 511 map, found by searching ArcGIS
+  // Online for UDOT-owned services: 'Traffic Events View' (UPlan) carries everything the 511
+  // layer does AND the two things the 511 layer cannot give -- MPStart/MPEnd and an
+  // EncodedPolyline of the closure itself. Measured 2026-09-30 over 279 records:
+  //   EncodedPolyline populated 71, of which 57 decode to multi-vertex extents
+  //                   (median 27 vertices, max 522), all inside Utah's bbox
+  //   MPStart/MPEnd   populated 71, of which 59 have start != end -> exact LRS location,
+  //                   the best geometry class there is: no snapping, no tolerance
+  //   Direction       208/279 (the 511 layer gives 135/267)
+  //   LastUpdated     279/279
+  // So Utah is built from this and the 511 path is kept only as a fallback.
+  //
+  // What it still does NOT give, and this is worth stating precisely because it is the
+  // pooled-fund ask: LaneImpact and LanesAffected are populated on every record with the
+  // literal string 'No Data'. There is no lane detail in any public UDOT source. That one
+  // genuinely needs TMDD or direct ATMS access.
+  utah:      { base: 'https://udottraffic.utah.gov', state: 'Utah', abbr: 'UT', tz: -7,
+               org: 'Utah Department of Transportation', sourceId: 'UDOT-UPlan-TrafficEvents',
+               arcgis: 'https://services.arcgis.com/pA2nEVnB6tquxgOW/arcgis/rest/services/Traffic_Events_View/FeatureServer/0' },
   georgia:   { base: 'https://511ga.org', state: 'Georgia', abbr: 'GA', tz: -4,
                org: 'Georgia Department of Transportation', sourceId: 'GDOT-511-Construction' },
   nevada:    { base: 'https://www.nvroads.com', state: 'Nevada', abbr: 'NV', tz: -7,
@@ -239,6 +256,138 @@ function build(cfg, rows, coords, now) {
   };
 }
 
+function vehicleImpactFrom(a) {
+  if (String(a.IsFullClosure) === 'true' || a.IsFullClosure === true) return 'all-lanes-closed';
+  const cat = String(a.EventCategory || '');
+  if (/road closure|bridge closure|full closure/i.test(cat)) return 'all-lanes-closed';
+  if (/lane closure|one-way|shoulder/i.test(cat)) return 'some-lanes-closed';
+  return 'unknown';
+}
+
+// Build from an ArcGIS event service that carries mileposts and an encoded polyline.
+// Geometry preference is deliberate and ordered by what the publisher actually asserted:
+//   1. decoded EncodedPolyline  -> a real extent the publisher drew
+//   2. distinct MPStart/MPEnd   -> an exact LRS span, recorded for the correction cascade
+//   3. the service's own point  -> position only, and both verification flags stay false
+// A polyline that fails to decode falls through to the point rather than being dropped: 14 of
+// the 71 do not decode, and losing a real closure to a bad string would be the wrong trade.
+function buildFromArcgis(cfg, feats, now) {
+  const poly = require('@mapbox/polyline');
+  const features = [];
+  const tally = {};
+  const note = (k) => { tally[k] = (tally[k] || 0) + 1; };
+
+  for (const f of feats) {
+    const a = f.properties || {};
+    // Filter on Reason, not EventCategory. EventCategory is a MIX -- measured over 279
+    // records: Road Maintenance 91, Lane Closure 85, Construction 81, Road Closure 12,
+    // One-Way Traffic 4, Alert 3, Bridge Closure 2 -- and all of those except Alert are work
+    // zones. Keying the filter on it kept only the 82 literally labelled 'Construction' and
+    // silently discarded 197 real work zones. `Reason` is 'roadwork' on all 279, which is the
+    // signal that actually means "this is roadwork".
+    const reason = String(a.Reason || '');
+    const subType = String(a.EventSubType || '');
+    if (!/roadwork|construction|maintenance/i.test(reason + ' ' + subType)) { note('skipped_not_roadwork'); continue; }
+    const road = String(a.StreetName || '').trim();
+    if (!road) { note('skipped_no_road_name'); continue; }
+    const id = String(a.ClosureID || a.OBJECTID || a.ID);
+
+    let geometry = null;
+    let geomSrc = null;
+    if (a.EncodedPolyline) {
+      try {
+        const pts = poly.decode(String(a.EncodedPolyline));            // [[lat,lon], ...]
+        const coords = pts.filter((q) => Math.abs(q[0]) <= 90 && Math.abs(q[1]) <= 180).map((q) => [q[1], q[0]]);
+        if (coords.length > 1) { geometry = { type: 'LineString', coordinates: coords }; geomSrc = 'encoded-polyline'; note('extent_from_polyline'); }
+        else note('polyline_undecodable');
+      } catch (_) { note('polyline_undecodable'); }
+    }
+    if (!geometry) {
+      const g = f.geometry || {};
+      const c = g.coordinates;
+      if (Array.isArray(c) && Number.isFinite(c[0]) && Number.isFinite(c[1])) {
+        geometry = { type: 'Point', coordinates: [c[0], c[1]] }; geomSrc = 'service-point'; note('point_only');
+      }
+    }
+    if (!geometry) { note('skipped_no_position'); continue; }
+
+    // Mileposts arrive as text ('MP 323'), so the number is pulled out rather than cast.
+    const mp = (v) => { const m = String(v == null ? '' : v).match(/-?\d+(\.\d+)?/); return m ? Number(m[0]) : null; };
+    const mps = mp(a.MPStart), mpe = mp(a.MPEnd);
+    const exactSpan = mps !== null && mpe !== null && mps !== mpe;
+    if (exactSpan) note('exact_lrs_span');
+
+    const dir = direction(a.Direction || a.DirectionOfTravel);
+    if (dir === 'unknown') note('direction_unknown'); else note('direction_known');
+    note('impact_' + vehicleImpactFrom(a).replace(/-/g, '_'));
+    const updated = toISO(a.LastUpdated, cfg.tz);
+    if (updated) note('with_update_date');
+
+    const core = {
+      event_type: 'work-zone',
+      data_source_id: cfg.sourceId,
+      road_names: [road],
+      direction: dir,
+      description: String(a.Description || a.Location || '').replace(/\s*\n+\s*/g, ' ').slice(0, 1000) || null,
+      name: `${cfg.abbr}-${id}`
+    };
+    if (updated) core.update_date = updated;
+
+    const props = {
+      core_details: core,
+      // EventCategory is the publisher's own impact classification, so it answers
+      // vehicle_impact -- which was being thrown away while the field was hardcoded
+      // 'unknown'. A full/bridge closure closes all lanes; a lane closure or one-way
+      // restriction closes some. Road Maintenance and Construction say nothing about lanes
+      // on their own and stay 'unknown', which is a real WZDx value and the honest one.
+      vehicle_impact: vehicleImpactFrom(a),
+      // Only a polyline the publisher drew justifies claiming the position is verified, and
+      // even then only its start. A point never does.
+      is_start_position_verified: geomSrc === 'encoded-polyline',
+      is_end_position_verified: geomSrc === 'encoded-polyline',
+      is_start_date_verified: false,
+      is_end_date_verified: false,
+      x_source_record_id: id,
+      x_geometry_source: geomSrc,
+      x_source_system: String(a.Organization || 'UDOT')
+    };
+    if (mps !== null) props.beginning_milepost = mps;
+    if (mpe !== null) props.ending_milepost = mpe;
+    if (a.County) props.x_county = a.County;
+    if (a.Reason) props.types_of_work = [{ type_name: /roadwork|construction/i.test(String(a.Reason)) ? 'maintenance' : 'other' }];
+    if (a.DetourInstructions) props.x_detour_description = String(a.DetourInstructions).slice(0, 500);
+    // LaneImpact is the literal string 'No Data' on every record, so it is NOT emitted as
+    // lane information. Recording the absence is the honest move; inventing lanes is not.
+    if (a.LaneImpact && !/^no data$/i.test(String(a.LaneImpact))) props.x_lane_impact = String(a.LaneImpact);
+    else note('lane_data_absent_in_source');
+
+    features.push({ id: `${cfg.abbr}-${id}`, type: 'Feature', properties: props, geometry });
+  }
+
+  const newest = features.map((f) => f.properties.core_details.update_date).filter(Boolean).sort().pop() || null;
+  const feedInfo = {
+    update_date: newest || new Date(now).toISOString(),
+    publisher: cfg.org, version: '4.2',
+    license: 'https://creativecommons.org/publicdomain/zero/1.0/',
+    update_frequency: 300,
+    data_sources: [{ data_source_id: cfg.sourceId, organization_name: cfg.org, update_date: newest || new Date(now).toISOString() }],
+    x_translation: {
+      built_from: cfg.arcgis,
+      built_at: new Date(now).toISOString(),
+      timezone_assumed: `UTC${cfg.tz >= 0 ? '+' : ''}${cfg.tz} (source timestamps carry no offset; DST not modelled)`,
+      feed_update_date_is: 'the newest observed event update_date, not generation time',
+      never_synthesized: ['worker_presence', 'lanes', 'reduced_speed_limit_kph', 'geometry extent beyond the published polyline']
+    }
+  };
+  return { doc: { road_event_feed_info: feedInfo, feed_info: feedInfo, type: 'FeatureCollection', features }, tally, newest };
+}
+
+async function fetchArcgis(cfg) {
+  const url = `${cfg.arcgis}/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&resultRecordCount=2000&f=geojson`;
+  const j = await get(url, 45000);
+  return (j && j.features) || [];
+}
+
 async function fetchAll(cfg) {
   const icons = await get(`${cfg.base}/map/mapIcons/Construction`);
   const coords = new Map();
@@ -272,14 +421,22 @@ async function fetchAll(cfg) {
   const oi = args.indexOf('-o');
   const outPath = oi >= 0 ? args[oi + 1] : null;
 
-  const { rows, coords } = await fetchAll(cfg);
-  const { doc, tally, newest } = build(cfg, rows, coords, Date.now());
+  let doc, tally, newest, sourceLabel;
+  if (cfg.arcgis) {
+    const feats = await fetchArcgis(cfg);
+    ({ doc, tally, newest } = buildFromArcgis(cfg, feats, Date.now()));
+    sourceLabel = `${feats.length} ArcGIS event records`;
+  } else {
+    const { rows, coords } = await fetchAll(cfg);
+    ({ doc, tally, newest } = build(cfg, rows, coords, Date.now()));
+    sourceLabel = `${rows.length} 511 source records`;
+  }
 
   const json = JSON.stringify(doc, null, 2);
   if (outPath) fs.writeFileSync(outPath, json); else console.log(json);
 
   const ageD = newest ? Math.round((Date.now() - Date.parse(newest)) / 86400000) : null;
-  console.error(`\n${cfg.state}: ${rows.length} source records -> ${doc.features.length} WZDx work zones`);
+  console.error(`\n${cfg.state}: ${sourceLabel} -> ${doc.features.length} WZDx work zones`);
   console.error(`  newest update_date: ${newest || '(none)'}${ageD !== null ? `  (${ageD}d old)` : ''}`);
   console.error(`  ${JSON.stringify(tally)}`);
   if (outPath) console.error(`  written to ${outPath}`);

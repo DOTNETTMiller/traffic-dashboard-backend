@@ -100,10 +100,17 @@ function geometryClass(f) {
   if (pts.length > 2) return 'already-valid';
   const bm = p.beginning_milepost ?? p.begin_milepost ?? null;
   const em = p.ending_milepost ?? p.end_milepost ?? null;
-  if (pts.length === 1) return 'not-correctable';           // zero extent, publisher fix
   const haveM = Number.isFinite(Number(bm)) && Number.isFinite(Number(em));
-  if (haveM && Number(bm) !== Number(em)) return 'correctable-by-measure';
-  if (haveM && Number(bm) === Number(em)) return 'not-correctable';
+  const span = haveM && Number(bm) !== Number(em);
+  // Measures decide before vertex count does. A SINGLE point that carries distinct begin and
+  // end mileposts is correctable exactly -- the extent is reconstructable from the LRS with no
+  // snapping and no tolerance -- so calling it 'not correctable' because it has one vertex
+  // understates what a remediation pass could do and sends it to the publisher instead of to
+  // the correction cascade. Only a genuine zero extent (one point, no span, or begin == end)
+  // is a publisher fix.
+  if (span) return 'correctable-by-measure';
+  if (pts.length === 1) return 'not-correctable';
+  if (haveM) return 'not-correctable';                      // 2 points, begin == end
   return 'correctable-by-snap';
 }
 
