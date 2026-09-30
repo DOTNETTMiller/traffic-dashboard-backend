@@ -285,3 +285,47 @@ production shape is the existing camera ledger, which is the only **demotable** 
 stack: these six would be marked `suspect-inactive` with imagery attached, which is exactly the
 claim the evidence supports — and exactly what no other validator can express.
 
+## Chased and came back empty — WV, RI, DC (2026-09-30)
+
+Three leads that looked live and were not. Recorded because each one costs an hour to
+re-discover and the negative is the useful part.
+
+### West Virginia — 133 cameras, none usable
+`wv511.org` runs an ASMX service, and the endpoint its own map page calls,
+`/wsvc/gmap.asmx/buildCamerasJSONjs`, returns JavaScript containing
+`var camera_data = { "count": 133, "cams": [...] }`. The inventory is real and
+interstate-heavy: I-77 ×26, I-64 ×25, I-79 ×13, I-81 ×10, with `title`, `md5` id and
+`start_lat`/`start_lng` (strings).
+
+But **every one of the 133 is streaming-only.** Each record's `description` has the static
+image holder *commented out* in the markup and carries a `<!--STREAMING:1-->` marker with an
+empty `streamingCamHolder` div. The only image URL anywhere in the payload is
+`/images/cam_unavailable.jpg`.
+
+Camera validation needs a still frame. WV publishes none, so its 133 cameras cannot feed it
+without an HLS frame-grab capability we do not have.
+
+### Rhode Island — 7 references, all dead
+`dot.ri.gov/travel/` embeds six Wowza HLS streams and seven image paths under
+`img/travel/camimages/`, named in a genuinely useful convention that encodes route, milepost
+and direction (`95_36.8_S_CAM` = I-95, MP 36.8, southbound). Promising, and it does not work:
+every variant of that path returns **HTTP 307 and redirects to the RIDOT homepage**. The
+images are stale references in the page. Rhode Island is streaming-only too.
+
+### District of Columbia — real data, wrong roads
+Both layers found earlier are live and neither is usable here:
+- `FEEDS/DDOT/MapServer/12` "Construction Permit – Last 30 Days": 3,240 records, and **2 of
+  them mention an interstate**. They are address-keyed permits on local streets
+  (`WLFULLADDRESS`, `WORKDETAIL`), with no route field.
+- `DDOT/HSEMA_RoadClosures/MapServer/1` "Road Closures": **one** feature, a demonstration on
+  H Street NW with a start time in April 2024.
+
+DC has three short interstate segments and publishes local-street permits. Correct outcome
+for an interstate-scoped pipeline, and not a reason to go back.
+
+### The general point
+**A camera existing is not a camera being usable.** Two of the three states here publish
+cameras that no vision validator can read, and both would have been counted as coverage by
+any inventory that stops at "the state has cameras". Adding HLS frame extraction would unlock
+WV's 133 and RI's streams in one change — that is a capability decision, not a discovery one.
+
