@@ -222,7 +222,45 @@ const louisiana = () => oneNetworkWorkZones({ base: 'https://www.511la.org',    
 // still stands on its own (scripts/generate_wzdx_from_511.js alaska) -- it just is not ingested.
 const connecticut = () => oneNetworkWorkZones({ base: 'https://ctroads.org',              st: 'CT', stateName: 'Connecticut', source: 'CTDOT 511' });
 
-const ADAPTERS = { newyork, northcarolina, washington, florida, colorado, georgia, utah, nevada, idaho, louisiana, connecticut };
+// Iteris ATIS keyless GeoJSON CDN. South Carolina has NO registered WZDx feed and no 511
+// construction layer of the one.network kind, so this is the only public route to its work
+// zones. Found by reading what SC's own 511 page fetches instead of guessing endpoint paths.
+//
+// Good: every record carries a signed route ('I-77'), a direction, a milepost, and a
+// road_type that classifies interstates explicitly, so the interstate filter is exact rather
+// than a regex guess.
+// Missing: NO dates and NO update timestamp of any kind. So these zones are honestly
+// undatable -- start/end stay null rather than being invented, and freshness for this source
+// cannot be established at all, which the health check will report as NOT EVALUATED rather
+// than as fresh.
+async function iterisConstruction({ host, st, stateName, source }) {
+  const j = await getJSON(`https://${host}.cdn.iteris-atis.com/geojson/icons/metadata/icons.construction.geojson`);
+  const out = [];
+  for (const f of ((j && j.features) || [])) {
+    const p = f.properties || {};
+    const g = f.geometry || {};
+    const c = g.coordinates;
+    if (!Array.isArray(c) || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) continue;
+    // road_type is the publisher's own classification -- prefer it over pattern-matching.
+    const isInterstate = /interstate|freeway/i.test(String(p.road_type || '')) || interstate(p.route);
+    if (!isInterstate) continue;
+    const corridor = interstate(p.route) || interstate(p.location_description);
+    if (!corridor) continue;
+    out.push(mkEvent({
+      id: `${st}-EV-${p.event_id || p.name}`, state: stateName, source, corridor,
+      eventType: 'Work Zone',
+      description: [p.headline, p.location_description].filter(Boolean).join(' — '),
+      location: p.route || p.location_description,
+      direction: p.dir || null,
+      lon: c[0], lat: c[1],
+      start: null, end: null                 // the source publishes neither; never invent them
+    }));
+  }
+  return out;
+}
+const southcarolina = () => iterisConstruction({ host: 'sc', st: 'SC', stateName: 'South Carolina', source: 'SCDOT 511' });
+
+const ADAPTERS = { newyork, northcarolina, washington, florida, colorado, georgia, utah, nevada, idaho, louisiana, connecticut, southcarolina };
 
 // Run all adapters concurrently; never throws. Returns { events, errors, counts }.
 async function fetchAll() {

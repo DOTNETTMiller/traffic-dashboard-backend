@@ -185,6 +185,40 @@ async function ibi511Cameras(cfg) {
   return out;
 }
 
+// Iteris ATIS publishes a keyless GeoJSON CDN that several 511 sites read directly. Found
+// 2026-09-30 by reading what the state's own 511 page fetches rather than guessing endpoint
+// paths -- the guessing pass before it tried 16 URLs and every one returned HTML.
+// South Carolina and South Dakota both run it. Only the metadata/ path is public; data/ is 403.
+//
+// The two states shape cameras differently and the difference is not cosmetic: SC is one
+// feature per camera, SD is one feature per SITE with a nested array of cameras, so reading
+// SD as one-per-feature would report 40 cameras where there are more.
+async function iterisCameras(cfg) {
+  const j = await getJSON(`https://${cfg.host}.cdn.iteris-atis.com/geojson/icons/metadata/icons.cameras.geojson`, 25000);
+  const out = [];
+  for (const f of ((j && j.features) || [])) {
+    const g = f.geometry || {};
+    const c = g.coordinates;
+    if (!Array.isArray(c) || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) continue;
+    const p = f.properties || {};
+    if (Array.isArray(p.cameras)) {                       // South Dakota: nested per site
+      for (const cam of p.cameras) {
+        if (!cam || !cam.image) continue;
+        out.push({ id: `${cfg.state}-CAM-${p.name || ''}-${cam.id}`, state: cfg.state,
+          route: p.route || null, direction: null, coordinates: [c[0], c[1]],
+          imageUrl: cam.image, desc: cam.description || cam.name || p.name });
+      }
+      continue;
+    }
+    if (p.active === false || !p.image_url) continue;      // SC flags inactive cameras
+    out.push({ id: `${cfg.state}-CAM-${p.id != null ? p.id : p.guid}`, state: cfg.state,
+      route: (String(p.description || '').match(/\bI-\d+/) || [null])[0],
+      direction: p.direction || null, coordinates: [c[0], c[1]],
+      imageUrl: p.image_url, desc: p.description || p.name });
+  }
+  return out;
+}
+
 // Texas — City of Austin open data (Socrata, keyless). Snapshot at cctv.austinmobility.io.
 async function austin() {
   const j = await getJSON('https://data.austintexas.gov/resource/b4k4-adkb.json?$limit=2000', 15000);
@@ -223,7 +257,9 @@ const ADAPTERS = {
   // folder left the services directory by 2026-09-29). FL511's own public map JSON is
   // keyless and carries far more: 4,960 cameras where the ArcGIS layer now returns none.
   fl: () => ibi511Cameras({ state: 'FL', base: 'https://fl511.com' }),
-  ak: () => ibi511Cameras({ state: 'AK', base: 'https://511.alaska.gov' })
+  ak: () => ibi511Cameras({ state: 'AK', base: 'https://511.alaska.gov' }),
+  sc: () => iterisCameras({ state: 'SC', host: 'sc' }),
+  sd: () => iterisCameras({ state: 'SD', host: 'sd' })
 };
 
 // Cached combined inventory (locations static → cache long; lazy, no loop).
