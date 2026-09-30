@@ -201,3 +201,49 @@ Measured: all **18/18** of Utah's frozen-but-active interstate zones have a came
 question. TomTom is the fallback where no camera adapter exists — Washington has none — and it is
 live and nationwide via zone-derived tiles, though budget-capped by `TOMTOM_DAILY_BUDGET`.
 
+### The 18 adjudicated — camera results, 2026-09-30 01:38 MDT
+
+The 18 features are **10 physical projects**: eight are published twice as directional pairs.
+Nearest camera to the closest point of each zone: **8–195 m**, all ten inside or beside the
+project limits.
+
+| # | route | UDOT project | camera verdict |
+|---|---|---|---|
+| 1 | I-215 E | improve I-215 E between 3300 S and 4500 S | **clear** — open lanes, no cones, barrier or equipment |
+| 2 | I-15 MP 122 | *(no description in feed)* | **clear** — rural, open |
+| 3 | I-15 University Ave | replace/refresh pavement markings | **clear** |
+| 4 | I-15 1800 S | highway sign replacement | **clear** |
+| 5 | I-84 MP 109 | pavement preservation, 19 bridges | **clear** |
+| 6 | I-80 2200 E | improve I-80 between 1300 E and 2300 E | **clear** |
+| 7 | I-80 Echo | EB/WB I-80 bridge improvement | NOT EVALUATED — placeholder image |
+| 8 | I-15 Parrish Ln | removing damaged concrete panels, Davis County | **likely ACTIVE** — orange barrels/delineators, darkened lane |
+| 9 | I-84 Devils Slide | Weber River bridge reconstruction, Croydon | NOT EVALUATED — blown out by headlight glare |
+| 10 | I-70 | safety/service-life project | NOT EVALUATED — placeholder image |
+
+**6 clear · 1 likely active · 3 not evaluated.**
+
+What this does and does not show. Every image is 01:38 local, so the absence of *workers* proves
+nothing — nobody is paving at 2am. What it does show is the absence of work-zone *infrastructure*:
+cones, drums, temporary barrier, lane shifts. A multi-month reconstruction leaves those in place
+24 hours a day, so their absence at a camera **inside the project limits** is real evidence the
+project is finished or dormant. It is not proof of completion: a project spanning 3300 S to 4500 S
+could have work a mile from the camera.
+
+Three further cautions, each of which would have produced a wrong answer if ignored:
+
+- **Proximity is not visibility.** #10's nearest camera at 195 m is *"I-15 SB @ I-70 Interchange"* —
+  it points at I-15, not at the I-70 zone it was matched to. A distance match says a camera is
+  near, not that it is looking at the right road.
+- **Two of the ten images were the same file.** #7 and #10 are byte-identical placeholders (md5
+  `585afd07…`). A pipeline that does not hash images would have scored an "unavailable" graphic as
+  a clean look at the road, twice.
+- **First-vertex distance is not zone distance.** Measuring from each zone's first vertex put five
+  zones over 1 km from a camera; measuring to the nearest point of the geometry put all eighteen
+  under 500 m. The second is the operationally relevant number, and it is the one that decides
+  whether a zone is adjudicable at all.
+
+This was a manual visual assessment, not a run of the platform's vision pipeline. The right
+production shape is the existing camera ledger, which is the only **demotable** source in the
+stack: these six would be marked `suspect-inactive` with imagery attached, which is exactly the
+claim the evidence supports — and exactly what no other validator can express.
+
