@@ -198,8 +198,10 @@ async function iterisCameras(cfg) {
   const out = [];
   for (const f of ((j && j.features) || [])) {
     const g = f.geometry || {};
-    const c = g.coordinates;
-    if (!Array.isArray(c) || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) continue;
+    // Coerce: this platform emits coordinates as strings on some layers and numbers on
+    // others, and a raw finite-check drops the string ones without saying so.
+    const c = Array.isArray(g.coordinates) ? g.coordinates.map(Number) : null;
+    if (!c || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) continue;
     const p = f.properties || {};
     if (Array.isArray(p.cameras)) {                       // South Dakota: nested per site
       for (const cam of p.cameras) {
@@ -279,7 +281,8 @@ const ADAPTERS = {
     return out;
   },
   sc: () => iterisCameras({ state: 'SC', host: 'sc' }),
-  sd: () => iterisCameras({ state: 'SD', host: 'sd' })
+  sd: () => iterisCameras({ state: 'SD', host: 'sd' }),
+  mt: () => iterisCameras({ state: 'MT', host: 'mt' })
 };
 
 // Cached combined inventory (locations static → cache long; lazy, no loop).

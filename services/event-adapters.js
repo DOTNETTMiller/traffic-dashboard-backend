@@ -239,14 +239,19 @@ async function iterisConstruction({ host, st, stateName, source }) {
   for (const f of ((j && j.features) || [])) {
     const p = f.properties || {};
     const g = f.geometry || {};
-    const c = g.coordinates;
-    if (!Array.isArray(c) || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) continue;
+    // Coordinates arrive as STRINGS on this platform -- ['-80.978967', '34.994100'] -- and
+    // Number.isFinite('-80.97') is false, so a finite-check on the raw value silently drops
+    // every such record. It cost South Carolina all but one event and Montana all of them,
+    // while the feeds looked healthy and the adapter reported no error. Coerce, then check.
+    const c = Array.isArray(g.coordinates) ? g.coordinates.map(Number) : null;
+    if (!c || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) continue;
     // road_type is the publisher's own classification -- prefer it over pattern-matching.
+    // Montana omits the field entirely, so the route test below is what carries it there.
     const isInterstate = /interstate|freeway/i.test(String(p.road_type || '')) || interstate(p.route);
     if (!isInterstate) continue;
     const corridor = interstate(p.route) || interstate(p.location_description);
     if (!corridor) continue;
-    out.push(mkEvent({
+    const ev = mkEvent({
       id: `${st}-EV-${p.event_id || p.name}`, state: stateName, source, corridor,
       eventType: 'Work Zone',
       description: [p.headline, p.location_description].filter(Boolean).join(' — '),
@@ -254,11 +259,19 @@ async function iterisConstruction({ host, st, stateName, source }) {
       direction: p.dir || null,
       lon: c[0], lat: c[1],
       start: null, end: null                 // the source publishes neither; never invent them
-    }));
+    });
+    // Montana carries last_update (epoch seconds) where South Carolina carries no timestamp
+    // at all. Use it when present rather than assuming the family behaves uniformly.
+    const lu = Number(p.last_update);
+    if (Number.isFinite(lu) && lu > 0) ev.updated = new Date(lu * 1000).toISOString();
+    out.push(ev);
   }
   return out;
 }
 const southcarolina = () => iterisConstruction({ host: 'sc', st: 'SC', stateName: 'South Carolina', source: 'SCDOT 511' });
+// Montana runs the same Iteris ClearRoute platform. Unlike South Carolina its construction
+// records carry last_update (epoch seconds), so Montana freshness IS establishable.
+const montana = () => iterisConstruction({ host: 'mt', st: 'MT', stateName: 'Montana', source: 'MDT 511' });
 
 // Alabama — ALGO Traffic TrafficEvents. Found by resolving the SPA bundle's own URL
 // templates rather than guessing resource names: the bundle builds `${base}/${version}/
@@ -315,7 +328,7 @@ async function alabamaEvents() {
   return out;
 }
 
-const ADAPTERS = { newyork, northcarolina, washington, florida, colorado, georgia, utah, nevada, idaho, louisiana, connecticut, southcarolina, alabamaEvents };
+const ADAPTERS = { newyork, northcarolina, washington, florida, colorado, georgia, utah, nevada, idaho, louisiana, connecticut, southcarolina, montana, alabamaEvents };
 
 // Run all adapters concurrently; never throws. Returns { events, errors, counts }.
 async function fetchAll() {

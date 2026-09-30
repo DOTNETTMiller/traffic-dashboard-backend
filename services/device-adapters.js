@@ -404,6 +404,8 @@ const ADAPTERS = {
   // No timestamp of any kind, so `updated` stays null rather than being invented -- device
   // freshness for Alabama is genuinely unestablishable.
   al: { name: 'Alabama', portable: false, key: false, run: () => algotraffic({}) },
+  mt: { name: 'Montana', portable: false, key: false, run: () => iterisDms({ state: 'MT', host: 'mt' }) },
+  sc: { name: 'South Carolina', portable: false, key: false, run: () => iterisDms({ state: 'SC', host: 'sc' }) },
 
   // ---- Fixed DMS on the keyless public 511 map JSON (was mis-filed as key-gated) ----
   ut: { name: 'Utah', portable: false, key: false, run: () => ibi511({ state: 'UT', base: 'https://www.udottraffic.utah.gov' }) },
@@ -446,6 +448,32 @@ async function algotraffic() {
     }, 'AL');
     if (rec) {
       if (Number.isFinite(L.linearReference)) rec.milepost = L.linearReference;
+      out.push(rec);
+    }
+  }
+  return out;
+}
+
+// Iteris ClearRoute publishes DMS on the same keyless GeoJSON CDN as its construction and
+// camera layers. `report` is the live sign text and is present on every record; route,
+// direction and milepost are populated on about two thirds (Montana: 50 of 77), so the
+// matcher falls back to proximity for the rest, which is what it is designed to do.
+async function iterisDms(cfg) {
+  const j = await getJSON(`https://${cfg.host}.cdn.iteris-atis.com/geojson/icons/metadata/icons.dms.geojson`, 20000);
+  const out = [];
+  for (const f of ((j && j.features) || [])) {
+    const p = f.properties || {};
+    const c = (f.geometry || {}).coordinates;
+    if (!Array.isArray(c)) continue;
+    const rec = normalize({
+      id: p.id || p.name, deviceType: 'dms',
+      route: p.route || null, direction: p.direction || null,
+      lon: c[0], lat: c[1],
+      message: p.report || '', updated: null, portable: false
+    }, cfg.state);
+    if (rec) {
+      const mp = parseFloat(p.mrm);
+      if (Number.isFinite(mp)) rec.milepost = mp;
       out.push(rec);
     }
   }
