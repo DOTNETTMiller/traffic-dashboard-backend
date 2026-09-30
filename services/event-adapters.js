@@ -260,7 +260,62 @@ async function iterisConstruction({ host, st, stateName, source }) {
 }
 const southcarolina = () => iterisConstruction({ host: 'sc', st: 'SC', stateName: 'South Carolina', source: 'SCDOT 511' });
 
-const ADAPTERS = { newyork, northcarolina, washington, florida, colorado, georgia, utah, nevada, idaho, louisiana, connecticut, southcarolina };
+// Alabama — ALGO Traffic TrafficEvents. Found by resolving the SPA bundle's own URL
+// templates rather than guessing resource names: the bundle builds `${base}/${version}/
+// ${map.trafficEvents}` where the map resolves trafficEvents -> 'TrafficEvents' and the
+// version variable is 'v3.0'. Guessing had produced 404s on Incidents, Constructions,
+// Events, RoadWork and LaneClosures.
+//
+// 217 events: Roadwork 148, Incident 60, Crash 7, Facility 2. The roadwork set is better
+// than most WZDx feeds:
+//   - all 148 active, all lastUpdatedAt today (so freshness IS establishable here)
+//   - 148/148 carry a start milepost, 133/148 carry an endLocation as well, which gives a
+//     real two-point extent rather than a pin
+//   - 148/148 carry laneDirections: per-lane state, type and placement, 932 lanes in total
+//     with 73 Closed across 28 events
+//
+// That last point corrects something stated repeatedly elsewhere in this codebase and in
+// the discovery doc -- that no public state source carries lane detail and it needs TMDD.
+// Alabama publishes it, and in a shape that maps onto the WZDx `lanes` array directly.
+async function alabamaEvents() {
+  const j = await getJSON('https://api.algotraffic.com/v3.0/TrafficEvents', 25000);
+  const out = [];
+  for (const e of (Array.isArray(j) ? j : [])) {
+    if (e.type !== 'Roadwork') continue;              // incidents/crashes are a separate class
+    if (e.active === false) continue;
+    const a = e.startLocation || {};
+    const b = e.endLocation || null;
+    if (!Number.isFinite(a.latitude) || !Number.isFinite(a.longitude)) continue;
+    // Use the publisher's own route classification rather than a regex over the name.
+    if (a.routeDesignatorType !== 'Interstate') continue;
+    const corridor = interstate(a.routeDesignator) || interstate(a.displayRouteDesignator);
+    if (!corridor) continue;
+    const ev = mkEvent({
+      id: `AL-EV-${e.id}`, state: 'Alabama', source: 'ALDOT ALGO Traffic', corridor,
+      eventType: 'Work Zone',
+      description: [e.title, e.subTitle, e.description].filter(Boolean).join(' — '),
+      location: a.displayRouteDesignator || a.routeDesignator,
+      direction: a.direction || null,
+      severity: e.severity || null,
+      lon: a.longitude, lat: a.latitude,
+      start: e.start, end: e.end
+    });
+    // A start AND an end position is an extent, which is the difference between a work zone
+    // and a map pin. Only built when the publisher actually gave both.
+    if (b && Number.isFinite(b.latitude) && Number.isFinite(b.longitude)) {
+      ev.geometry = { type: 'LineString', coordinates: [[a.longitude, a.latitude], [b.longitude, b.latitude]] };
+    }
+    if (Number.isFinite(a.linearReference)) ev.beginning_milepost = a.linearReference;
+    if (b && Number.isFinite(b.linearReference)) ev.ending_milepost = b.linearReference;
+    if (e.lastUpdatedAt) ev.updated = e.lastUpdatedAt;
+    // Carried through verbatim -- this is a real observation and must not be re-derived.
+    if (Array.isArray(e.laneDirections) && e.laneDirections.length) ev.laneDirections = e.laneDirections;
+    out.push(ev);
+  }
+  return out;
+}
+
+const ADAPTERS = { newyork, northcarolina, washington, florida, colorado, georgia, utah, nevada, idaho, louisiana, connecticut, southcarolina, alabamaEvents };
 
 // Run all adapters concurrently; never throws. Returns { events, errors, counts }.
 async function fetchAll() {

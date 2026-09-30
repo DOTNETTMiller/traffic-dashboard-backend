@@ -113,9 +113,47 @@ by any of the four channels. Options, in order of effort:
    `services/haulhub-worker-presence.js` on why DE and LA are excluded there.
 2. **A free key** — Oregon's ODOT feed is registered and key-gated; ask rather than probe.
 3. **The WZDx DIY kit route** (`docs/wzdx-diy/`), already proven for Nebraska and Nevada.
-4. **TMDD / direct ATMS**, which is the only route to **lane detail** anywhere. No public source
-   in any state examined carries it: Utah populates `LaneImpact` and `LanesAffected` on every
-   record with the literal string `"No Data"`.
+4. **TMDD / direct ATMS.** Still the route to lane detail *in Utah*, where `LaneImpact` and
+   `LanesAffected` are populated on every record with the literal string `"No Data"`.
+
+   **Corrected 2026-09-30:** the broader claim — that no public state source carries lane
+   detail — was wrong. **Alabama publishes it.** Every one of its 148 roadwork events carries
+   `laneDirections`: per-lane `state`, `type` and `placement`, 932 lanes in total with 73
+   `Closed` across 28 events. It maps onto the WZDx `lanes` array directly. The claim was
+   generalised from the states examined at the time, and Alabama had been written off before
+   its API was found.
+
+### Alabama — and why "nothing public" was wrong
+
+Recorded here as having nothing. It has one of the better event APIs found anywhere, and the
+reason it was missed is the same reason twice over:
+
+- its 511 landing page is a **2.2 KB SPA shell**, so scanning page HTML sees nothing;
+- ALGO Traffic versions its API **per resource, not per host**, so `/v3/Cameras`,
+  `/v3.0/Cameras` and `/v2/Cameras` all 404 while `/v4.0/Cameras` returns 636.
+
+Guessing resource names produced 404s on `Incidents`, `Constructions`, `Events`, `RoadWork`
+and `LaneClosures`. What worked was resolving the bundle's own URL templates: it builds
+`${base}/${version}/${map.trafficEvents}`, where the map resolves `trafficEvents` →
+`TrafficEvents` and the version variable is `v3.0`.
+
+| endpoint | content |
+|---|---|
+| `api.algotraffic.com/v3.0/TrafficEvents` | 217 events — **Roadwork 148**, Incident 60, Crash 7, Facility 2 |
+| `api.algotraffic.com/v4.0/Cameras` | 636 (629 public, 307 interstate) |
+| `api.algotraffic.com/v3/MessageSigns` | 72 DMS, 54 displaying, **milepost on all 71 usable** |
+
+The roadwork set is better than most WZDx feeds: all 148 active and updated today, **148/148
+with a start milepost**, **133/148 with an `endLocation`** (a real two-point extent, not a pin),
+and **148/148 with lane detail**. 35 are on interstates and now ingest.
+
+Two things deliberately not used: the bundle embeds a 551-entry camera array and a client API
+token. The live `v4.0` endpoint makes parsing a hash-named bundle unnecessary — that filename
+changes every deploy — and every endpoint used answers unauthenticated, so building on someone's
+embedded browser credential was never necessary.
+
+**The method that works, in order:** read the 511 page's JS bundle and resolve its URL
+templates → probe the state's own ArcGIS server → then, and only then, guess.
 
 ## Rules earned the hard way
 
