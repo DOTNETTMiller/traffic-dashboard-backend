@@ -258,6 +258,26 @@ const ADAPTERS = {
   // keyless and carries far more: 4,960 cameras where the ArcGIS layer now returns none.
   fl: () => ibi511Cameras({ state: 'FL', base: 'https://fl511.com' }),
   ak: () => ibi511Cameras({ state: 'AK', base: 'https://511.alaska.gov' }),
+  // Alabama's ALGO Traffic. The collection lives at v4.0 while the snapshot image lives at
+  // v3 -- the API is versioned per resource, not per host, which is why probing /v3/Cameras
+  // and /v3.0/Cameras both 404 while /v4.0/Cameras returns 636. The v4.0 record carries NO
+  // imageUrl, so the snapshot URL is built from the id against the v3 path, verified to
+  // return a real JPEG unauthenticated.
+  al: async () => {
+    const j = await getJSON('https://api.algotraffic.com/v4.0/Cameras', 25000);
+    const out = [];
+    for (const c of (Array.isArray(j) ? j : [])) {
+      if (c.accessLevel && c.accessLevel !== 'Public') continue;   // ALDOT marks restricted feeds
+      const L = c.location || {};
+      if (!Number.isFinite(L.latitude) || !Number.isFinite(L.longitude)) continue;
+      out.push({ id: `AL-CAM-${c.id}`, state: 'AL',
+        route: L.routeDesignator || null, direction: L.direction || null,
+        coordinates: [L.longitude, L.latitude],
+        imageUrl: `https://api.algotraffic.com/v3/Cameras/${c.id}/snapshot.jpg`,
+        desc: [L.displayRouteDesignator, L.displayCrossStreet, L.city].filter(Boolean).join(' @ ') });
+    }
+    return out;
+  },
   sc: () => iterisCameras({ state: 'SC', host: 'sc' }),
   sd: () => iterisCameras({ state: 'SD', host: 'sd' })
 };

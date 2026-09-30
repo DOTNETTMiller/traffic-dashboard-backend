@@ -397,6 +397,14 @@ const ADAPTERS = {
   nm: { name: 'New Mexico', portable: false, key: false, run: () => newmexico({}) },
   ca: { name: 'California', portable: false, key: false, run: () => california({}) },
 
+  // Alabama — ALGO Traffic, keyless. Unusually well structured for a DMS feed: every sign
+  // carries routeDesignator, routeDesignatorType ('Interstate'), direction and a milepost
+  // (linearReference) on ALL 72 records, plus the actual message as pages[].lines[].text.
+  // 51 of the 72 are on interstates and 54 were displaying text when measured.
+  // No timestamp of any kind, so `updated` stays null rather than being invented -- device
+  // freshness for Alabama is genuinely unestablishable.
+  al: { name: 'Alabama', portable: false, key: false, run: () => algotraffic({}) },
+
   // ---- Fixed DMS on the keyless public 511 map JSON (was mis-filed as key-gated) ----
   ut: { name: 'Utah', portable: false, key: false, run: () => ibi511({ state: 'UT', base: 'https://www.udottraffic.utah.gov' }) },
   la: { name: 'Louisiana', portable: false, key: false, run: () => ibi511({ state: 'LA', base: 'https://www.511la.org' }) },
@@ -421,6 +429,28 @@ const ADAPTERS = {
     base: 'https://www.newengland511.org',
     stateFrom: (r) => ({ 'Maine': 'ME', 'New Hampshire': 'NH', 'Vermont': 'VT' })[String(r.area || '').trim()] || null }) }
 };
+
+async function algotraffic() {
+  const j = await getJSON('https://api.algotraffic.com/v3/MessageSigns', 20000);
+  const out = [];
+  for (const s of (Array.isArray(j) ? j : [])) {
+    const L = s.location || {};
+    // The sign cycles pages; the displayed message is every line of every page in order.
+    const message = (s.pages || []).flatMap((p) => (p.lines || [])
+      .map((l) => String(l.text || '').trim()).filter(Boolean)).join(' ');
+    const rec = normalize({
+      id: s.id, deviceType: 'dms',
+      route: L.routeDesignator, direction: L.direction,
+      lon: L.longitude, lat: L.latitude,
+      message, updated: null, portable: false
+    }, 'AL');
+    if (rec) {
+      if (Number.isFinite(L.linearReference)) rec.milepost = L.linearReference;
+      out.push(rec);
+    }
+  }
+  return out;
+}
 
 async function fetchState(stateKey) {
   const a = ADAPTERS[String(stateKey || '').toLowerCase()];

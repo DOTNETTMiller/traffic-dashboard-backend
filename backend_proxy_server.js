@@ -5732,7 +5732,7 @@ async function ensureDeviceMatch(force = false) {
     // ~7,200 devices. NJ is the only true key holdout — 511nj.org answers 403 on both the
     // CARS path and the public map JSON. 'newengland' emits ME/NH/VT from one shared host.
     const STATE_KEYS = ['ny', 'wa', 'ok', 'pa', 'me', 'fl', 'ky', 'md', 'nm', 'ca',
-      'ut', 'la', 'az', 'nc', 'wi', 'nv', 'id', 'ga', 'ak', 'newengland', 'nj'];
+      'ut', 'la', 'az', 'nc', 'wi', 'nv', 'id', 'ga', 'ak', 'newengland', 'nj', 'al'];
     const lists = await Promise.all([
       deviceIngest.fetchIowaDevices().catch(() => []),
       ...STATE_KEYS.map(k => deviceAdapters.fetchState(k).then(r => Array.isArray(r) ? r : []).catch(() => []))
