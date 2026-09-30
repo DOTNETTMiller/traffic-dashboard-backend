@@ -39,25 +39,45 @@ const zlib = require('zlib');
 const fs = require('fs');
 
 const STATES = {
-  // Utah has a SECOND, richer public source than its 511 map, found by searching ArcGIS
-  // Online for UDOT-owned services: 'Traffic Events View' (UPlan) carries everything the 511
-  // layer does AND the two things the 511 layer cannot give -- MPStart/MPEnd and an
-  // EncodedPolyline of the closure itself. Measured 2026-09-30 over 279 records:
-  //   EncodedPolyline populated 71, of which 57 decode to multi-vertex extents
-  //                   (median 27 vertices, max 522), all inside Utah's bbox
-  //   MPStart/MPEnd   populated 71, of which 59 have start != end -> exact LRS location,
-  //                   the best geometry class there is: no snapping, no tolerance
-  //   Direction       208/279 (the 511 layer gives 135/267)
-  //   LastUpdated     279/279
-  // So Utah is built from this and the 511 path is kept only as a fallback.
+  // Utah is assembled from TWO public UDOT sources because neither is sufficient alone, and
+  // which one is the base matters. Measured 2026-09-30:
   //
-  // What it still does NOT give, and this is worth stating precisely because it is the
-  // pooled-fund ask: LaneImpact and LanesAffected are populated on every record with the
-  // literal string 'No Data'. There is no lane detail in any public UDOT source. That one
-  // genuinely needs TMDD or direct ATMS access.
+  //   511 Construction (base)  275 records, ALL with startDate/endDate and lastUpdated,
+  //                            but position is a single map pin and there are no mileposts.
+  //   UPlan 'Traffic Events View' (enrichment)
+  //                            279 records, of which only 71 carry a non-empty Location --
+  //                            and those same 71 are exactly the ones carrying an
+  //                            EncodedPolyline and MPStart/MPEnd. The other 208 are bare.
+  //
+  // The first version had this backwards: UPlan as the base. That produced 271 zones with 57
+  // real extents but start_date missing on 224 of them, and start_date is REQUIRED on a WZDx
+  // work zone -- worse conformance than the 511 build it was meant to improve. UPlan is a rich
+  // SUBSET, not a superset.
+  //
+  // The join is the Location string, verbatim, against the 511 layer's locationDescription.
+  // Worth recording how that was nearly got wrong: a first check reported 255 of 279 records
+  // joining, which was a false positive -- 208 empty Locations were matching 511 records with
+  // an empty locationDescription. Guarding the empty key is what makes the number real.
+  //
+  // What no public UDOT source has: LANE DETAIL. LaneImpact and LanesAffected are populated on
+  // every record with the literal string 'No Data'. That one genuinely needs TMDD or ATMS.
   utah:      { base: 'https://udottraffic.utah.gov', state: 'Utah', abbr: 'UT', tz: -7,
-               org: 'Utah Department of Transportation', sourceId: 'UDOT-UPlan-TrafficEvents',
-               arcgis: 'https://services.arcgis.com/pA2nEVnB6tquxgOW/arcgis/rest/services/Traffic_Events_View/FeatureServer/0' },
+               org: 'Utah Department of Transportation', sourceId: 'UDOT-511-Construction+UPlan-Geometry',
+               enrichGeom: 'https://services.arcgis.com/pA2nEVnB6tquxgOW/arcgis/rest/services/Traffic_Events_View/FeatureServer/0',
+               // UDOT's event data is split across three public views and NO view has all of
+               // it. Neither ArcGIS service carries a start_date, and start_date is REQUIRED
+               // on a WZDx work zone, so building from the polyline service alone produced a
+               // feed missing a required field on all 271 records -- worse conformance than
+               // the 511 build it improved on geometrically.
+               //
+               // None of the three shares an id: ClosureID and ID are null on every ArcGIS
+               // record. What they DO share is the Location string, verbatim, and it joins:
+               //   511 Construction  -> startDate   (255/279 TOC records match)
+               //   UDOT_Events       -> PlannedEndDate (71/71 of the polyline records match)
+               // Location is not unique -- 279 records share 72 values -- so the join is
+               // many-to-one and takes the first match. Records sharing a Location and road
+               // are the same project, so a shared date is right rather than merely close.
+               },
   georgia:   { base: 'https://511ga.org', state: 'Georgia', abbr: 'GA', tz: -4,
                org: 'Georgia Department of Transportation', sourceId: 'GDOT-511-Construction' },
   nevada:    { base: 'https://www.nvroads.com', state: 'Nevada', abbr: 'NV', tz: -7,
@@ -65,7 +85,26 @@ const STATES = {
   idaho:     { base: 'https://511.idaho.gov', state: 'Idaho', abbr: 'ID', tz: -6,
                org: 'Idaho Transportation Department', sourceId: 'ITD-511-Construction' },
   louisiana: { base: 'https://www.511la.org', state: 'Louisiana', abbr: 'LA', tz: -5,
-               org: 'Louisiana DOTD', sourceId: 'LADOTD-511-Construction' }
+               org: 'Louisiana DOTD', sourceId: 'LADOTD-511-Construction' },
+  // Found 2026-09-30 by testing List/GetData/Construction across every candidate 511 host
+  // rather than searching ArcGIS Online, which had worked only for Utah. Alaska and
+  // Connecticut have NO registered WZDx feed at all, so for them this is the whole feed.
+  alaska:    { base: 'https://511.alaska.gov', state: 'Alaska', abbr: 'AK', tz: -9,
+               org: 'Alaska DOT&PF', sourceId: 'AKDOT-511-Construction' },
+  connecticut: { base: 'https://ctroads.org', state: 'Connecticut', abbr: 'CT', tz: -5,
+               org: 'Connecticut DOT', sourceId: 'CTDOT-511-Construction' },
+  // Arizona HAS a live registered feed, but not one record in it carries an update_date, so
+  // its freshness cannot be established. This source does carry lastUpdated.
+  arizona:   { base: 'https://az511.com', state: 'Arizona', abbr: 'AZ', tz: -7,
+               org: 'Arizona DOT', sourceId: 'ADOT-511-Construction' },
+  // ME, NH and VT share one host. Its registered WZDx feed stamps every event year 0001, so
+  // freshness there is unestablishable; this layer carries real timestamps. Split on the
+  // record's `state` field -- note that is NOT the `area` field the MessageSigns layer uses,
+  // and `area` is empty here, so reusing that mapping would have filed all three states as one.
+  newengland: { base: 'https://www.newengland511.org', state: 'New England', abbr: 'NE-C', tz: -5,
+               org: 'Maine DOT / NHDOT / VTrans', sourceId: 'NECOMPASS-511-Construction',
+               stateField: 'state',
+               stateMap: { 'Maine': 'ME', 'New Hampshire': 'NH', 'Vermont': 'VT' } }
 };
 
 function readBody(res) {
@@ -148,7 +187,7 @@ function restrictions(r) {
   return out;
 }
 
-function build(cfg, rows, coords, now) {
+function build(cfg, rows, coords, now, geomEnrich) {
   const features = [];
   const derivedTally = {};
   const note = (k) => { derivedTally[k] = (derivedTally[k] || 0) + 1; };
@@ -174,13 +213,24 @@ function build(cfg, rows, coords, now) {
     const desc = [r.description, r.locationDescription].map((x) => String(x || '').trim())
       .filter(Boolean).join(' — ').replace(/\s*\n+\s*/g, ' ').slice(0, 1000) || null;
 
+    // A shared host must attribute each record to its own state, or two states' work zones
+    // get filed under the third. The field differs per layer on the same platform -- this one
+    // is `state`, while the MessageSigns layer uses `area` and leaves `state` empty.
+    let stAbbr = cfg.abbr;
+    if (cfg.stateField) {
+      const raw = String(r[cfg.stateField] || '').trim();
+      stAbbr = (cfg.stateMap || {})[raw] || null;
+      if (!stAbbr) { note('skipped_unattributable_state'); continue; }
+      note('state_' + stAbbr);
+    }
+
     const core = {
       event_type: 'work-zone',
-      data_source_id: cfg.sourceId,
+      data_source_id: cfg.stateField ? `${cfg.sourceId}-${stAbbr}` : cfg.sourceId,
       road_names: [road],
       direction: dir,
       description: desc,
-      name: `${cfg.abbr}-511-${id}`
+      name: `${stAbbr}-511-${id}`
     };
     if (updated) core.update_date = updated;
 
@@ -212,12 +262,27 @@ function build(cfg, rows, coords, now) {
     if (rest.length) note('with_restrictions');
     if (updated) note('with_update_date');
 
-    features.push({
-      id: `${cfg.abbr}-511-${id}`,
-      type: 'Feature',
-      properties: props,
-      geometry: { type: 'Point', coordinates: ll }
-    });
+    // Prefer a published extent over the map pin. This is the only thing that moves a record
+    // out of 'not-correctable' geometry, so it is the whole reason the enrichment exists.
+    let geometry = { type: 'Point', coordinates: ll };
+    const ge = geomEnrich && geomEnrich.get(locKey(r.locationDescription));
+    if (ge) {
+      if (ge.coords) {
+        geometry = { type: 'LineString', coordinates: ge.coords };
+        props.is_start_position_verified = true;
+        props.is_end_position_verified = true;
+        props.x_geometry_source = 'udot-uplan-polyline';
+        note('extent_from_enrichment');
+      }
+      if (ge.bm !== null && ge.bm !== undefined) props.beginning_milepost = ge.bm;
+      if (ge.em !== null && ge.em !== undefined) props.ending_milepost = ge.em;
+      if (ge.bm !== null && ge.em !== null && ge.bm !== ge.em) note('exact_lrs_span');
+      if (ge.impact) {
+        const vi = vehicleImpactFrom({ EventCategory: ge.impact });
+        if (vi !== 'unknown') { props.vehicle_impact = vi; note('impact_from_enrichment'); }
+      }
+    }
+    features.push({ id: `${stAbbr}-511-${id}`, type: 'Feature', properties: props, geometry });
   }
 
   // Feed metadata. update_date is the NEWEST event timestamp we actually observed, never the
@@ -233,11 +298,10 @@ function build(cfg, rows, coords, now) {
     license: 'https://creativecommons.org/publicdomain/zero/1.0/',
     contact_name: 'see publisher',
     update_frequency: 300,
-    data_sources: [{
-      data_source_id: cfg.sourceId,
-      organization_name: cfg.org,
-      update_date: newest || new Date(now).toISOString()
-    }],
+    // Every data_source_id a feature references must be declared, or the reference dangles --
+    // which is one of the defects the audit flags in other publishers' feeds.
+    data_sources: [...new Set(features.map((f) => f.properties.core_details.data_source_id))]
+      .map((sid) => ({ data_source_id: sid, organization_name: cfg.org, update_date: newest || new Date(now).toISOString() })),
     // Say where this came from and what was assumed. A translated feed that hides its
     // provenance is harder to trust than one that states it.
     x_translation: {
@@ -271,7 +335,7 @@ function vehicleImpactFrom(a) {
 //   3. the service's own point  -> position only, and both verification flags stay false
 // A polyline that fails to decode falls through to the point rather than being dropped: 14 of
 // the 71 do not decode, and losing a real closure to a bad string would be the wrong trade.
-function buildFromArcgis(cfg, feats, now) {
+function buildFromArcgis(cfg, feats, now, dateMap) {
   const poly = require('@mapbox/polyline');
   const features = [];
   const tally = {};
@@ -356,6 +420,11 @@ function buildFromArcgis(cfg, feats, now) {
     if (a.County) props.x_county = a.County;
     if (a.Reason) props.types_of_work = [{ type_name: /roadwork|construction/i.test(String(a.Reason)) ? 'maintenance' : 'other' }];
     if (a.DetourInstructions) props.x_detour_description = String(a.DetourInstructions).slice(0, 500);
+    // start_date is REQUIRED on a WZDx work zone and this service has no date fields at all,
+    // so it comes from the joined views. Absent stays absent rather than being invented.
+    const dj = dateMap && dateMap.get(locKey(a.Location));
+    if (dj && dj.start) { props.start_date = dj.start; note('start_date_joined'); } else note('start_date_absent');
+    if (dj && dj.end) { props.end_date = dj.end; note('end_date_joined'); }
     // LaneImpact is the literal string 'No Data' on every record, so it is NOT emitted as
     // lane information. Recording the absence is the honest move; inventing lanes is not.
     if (a.LaneImpact && !/^no data$/i.test(String(a.LaneImpact))) props.x_lane_impact = String(a.LaneImpact);
@@ -386,6 +455,71 @@ async function fetchArcgis(cfg) {
   const url = `${cfg.arcgis}/query?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&resultRecordCount=2000&f=geojson`;
   const j = await get(url, 45000);
   return (j && j.features) || [];
+}
+
+const locKey = (s) => String(s == null ? '' : s).trim().toLowerCase().split(/\s+/).join(' ');
+
+// The dates the polyline service does not carry, gathered from the two views that do.
+async function fetchDateSources(cfg) {
+  const byLoc = new Map();
+  const put = (loc, patch) => {
+    const k = locKey(loc);
+    if (!k) return;
+    const prev = byLoc.get(k) || {};
+    byLoc.set(k, { start: prev.start || patch.start || null, end: prev.end || patch.end || null });
+  };
+  if (cfg.arcgisDates) {
+    try {
+      const j = await get(`${cfg.arcgisDates}/query?where=1%3D1&outFields=*&returnGeometry=false&resultRecordCount=2000&f=json`, 45000);
+      for (const f of (j.features || [])) {
+        const a = f.attributes || {};
+        // Epoch SECONDS here, not milliseconds — multiplying is not optional.
+        const e = Number(a.PlannedEndDate);
+        put(a.Location, { end: Number.isFinite(e) && e > 0 ? new Date(e * 1000).toISOString() : null });
+      }
+    } catch (_) { /* dates are an enrichment, never a hard dependency */ }
+  }
+  if (cfg.join511Dates) {
+    try {
+      const j = await post(`${cfg.base}/List/GetData/Construction`, 'draw=1&start=0&length=2000', 45000);
+      for (const r of ((j && j.data) || [])) {
+        put(r.locationDescription, { start: toISO(r.startDate, cfg.tz), end: toISO(r.endDate, cfg.tz) });
+      }
+    } catch (_) { /* ditto */ }
+  }
+  return byLoc;
+}
+
+// Geometry from a companion ArcGIS service, keyed by the Location string. Returns a map of
+// locationKey -> { coordinates, mileposts }, and only for records that actually carry a
+// decodable polyline: an entry that cannot improve on a map pin should not exist.
+async function fetchGeomEnrichment(cfg) {
+  const out = new Map();
+  if (!cfg.enrichGeom) return out;
+  let feats = [];
+  try {
+    const j = await get(`${cfg.enrichGeom}/query?where=1%3D1&outFields=*&returnGeometry=false&resultRecordCount=2000&f=json`, 45000);
+    feats = j.features || [];
+  } catch (_) { return out; }                  // enrichment never blocks the feed
+  const poly = require('@mapbox/polyline');
+  for (const f of feats) {
+    const a = f.attributes || {};
+    const k = locKey(a.Location);
+    if (!k || out.has(k)) continue;
+    const mp = (v) => { const m = String(v == null ? '' : v).match(/-?\d+(\.\d+)?/); return m ? Number(m[0]) : null; };
+    let coords = null;
+    if (a.EncodedPolyline) {
+      try {
+        const pts = poly.decode(String(a.EncodedPolyline));
+        const c = pts.filter((q) => Math.abs(q[0]) <= 90 && Math.abs(q[1]) <= 180).map((q) => [q[1], q[0]]);
+        if (c.length > 1) coords = c;
+      } catch (_) { /* fall through to mileposts only */ }
+    }
+    const bm = mp(a.MPStart), em = mp(a.MPEnd);
+    if (!coords && !(bm !== null && em !== null && bm !== em)) continue;
+    out.set(k, { coords, bm, em, impact: a.EventCategory || null });
+  }
+  return out;
 }
 
 async function fetchAll(cfg) {
@@ -423,12 +557,12 @@ async function fetchAll(cfg) {
 
   let doc, tally, newest, sourceLabel;
   if (cfg.arcgis) {
-    const feats = await fetchArcgis(cfg);
-    ({ doc, tally, newest } = buildFromArcgis(cfg, feats, Date.now()));
+    const [feats, dateMap] = await Promise.all([fetchArcgis(cfg), fetchDateSources(cfg)]);
+    ({ doc, tally, newest } = buildFromArcgis(cfg, feats, Date.now(), dateMap));
     sourceLabel = `${feats.length} ArcGIS event records`;
   } else {
-    const { rows, coords } = await fetchAll(cfg);
-    ({ doc, tally, newest } = build(cfg, rows, coords, Date.now()));
+    const [{ rows, coords }, geomEnrich] = await Promise.all([fetchAll(cfg), fetchGeomEnrichment(cfg)]);
+    ({ doc, tally, newest } = build(cfg, rows, coords, Date.now(), geomEnrich));
     sourceLabel = `${rows.length} 511 source records`;
   }
 
