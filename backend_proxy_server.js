@@ -6659,120 +6659,7 @@ app.get('/api/cwz/events', async (req, res) => {
   }
   try {
     const cwz = require('./services/cwz-roadevent-feed');
-    // Re-stamp camera-verified from the durable ledger. The x_camera_* flags live on the
-    // transient event cache (wiped each refresh); the ledger is the source of truth, so
-    // re-apply for free on open — no vision call. This is what persists camera validation.
-    try {
-      const verified = await require('./services/camera-check-ledger').verifiedMap();
-      for (const e of (eventsCache.data?.events || [])) {
-        const v = verified[e.id];
-        if (!v) continue;
-        e.x_camera_verified = true;
-        if (v.camera_url) e.x_camera_url = v.camera_url;
-        if (v.camera_id) e.x_camera_id = v.camera_id;
-        if (v.devices) { try { e.x_camera_detected = JSON.parse(v.devices); } catch (_) { /* ignore */ } }
-        e.x_camera_checked_at = v.detected_at || e.x_camera_checked_at;
-        if (!e.x_zone_activity || e.x_zone_activity === 'suspect-inactive') e.x_zone_activity = 'confirmed-active';
-      }
-    } catch (_) { /* ledger optional */ }
-    // Independent secondary corroboration: TomTom (commercial, non-DOT) construction/closure
-    // near a zone confirms it from a source that never touches the WZDx feed. Free (reuses
-    // cached incidents) + lazy. NATIONWIDE: the zone-wide tile set is built from the active
-    // work-zone locations themselves, so corroboration follows the zones across every state,
-    // not just the I-80/I-35 corridor. The zone set refreshes in the BACKGROUND (never blocks
-    // this response); corridor set is kept warm as a fallback.
-    try {
-      const events = eventsCache.data?.events || [];
-      const cvv = require('./services/camera-validation');
-      const pts = [];
-      for (const e of events) {
-        if (cvv.isActiveNow(e) !== true) continue;   // NATIONWIDE validation (all states/interstates); 12h TTL keeps credit use ~4x under the old cadence
-        const p = e.coordinates || (e.longitude != null ? [e.longitude, e.latitude] : null);
-        if (Array.isArray(p)) pts.push(p);
-      }
-      // Refresh the zone-wide TomTom set. Normally in the BACKGROUND (never blocks).
-      // EXCEPTION: on a genuinely COLD cache (no zone AND no corridor incidents cached),
-      // await the fetch once so this response actually carries corroboration — the
-      // Validated Work Zones layer loads once (no polling), so a fire-and-forget refresh
-      // would leave that single load with zero TomTom matches until something else warms
-      // the cache. One-time cold-fill only; warm calls stay non-blocking.
-      const zAge = tomtomZoneCache.timestamp ? Date.now() - tomtomZoneCache.timestamp : Infinity;
-      const zoneStale = (zAge === Infinity || zAge > tomtomZoneCache.ttl);
-      const haveAnyIncidents = (tomtomZoneCache.data?.incidents?.length || 0)
-                             + (tomtomCache.data?.incidents?.length || 0) > 0;
-      if (zoneStale && !tomtomZoneCache.isRefreshing) {
-        if (!haveAnyIncidents) {
-          await withDeadline(refreshTomTomForZones(pts), 12000, 'tomtom zones');   // cold: fill once, but never indefinitely
-        } else {
-          refreshTomTomForZones(pts);            // warm: refresh in background, use cache now
-        }
-      }
-      // Union corridor + nationwide, de-duped by incident id.
-      const byId = new Map();
-      for (const i of (tomtomZoneCache.data?.incidents || [])) byId.set(i.id, i);
-      for (const i of (tomtomCache.data?.incidents || [])) if (!byId.has(i.id)) byId.set(i.id, i);
-      const all = [...byId.values()];
-      if (all.length) require('./services/tomtom-corroboration').corroborate(events, all);
-    } catch (_) { /* corroboration optional */ }
-    // Independent secondary corroboration: DMS message text. A message sign near a zone
-    // displaying "ROAD WORK / LANE CLOSED / CLOSED AT / FOLLOW DETOUR" is human-posted
-    // evidence from a DIFFERENT operational system than the WZDx feed. Free (a few
-    // CORS-open queries, cached 10 min) + lazy.
-    try {
-      const events = eventsCache.data?.events || [];
-      const dmsCorr = require('./services/dms-corroboration');
-      const signs = await withDeadline(dmsCorr.fetchSigns(), 10000, 'dms signs') || [];
-      if (signs.length) dmsCorr.corroborate(events, signs);
-    } catch (_) { /* dms corroboration optional */ }
-    // Independent secondary corroboration: HaulHub worker presence. The signal comes from
-    // the CONTRACTOR's crew check-in and heavy-equipment telematics, so it is a different
-    // operational chain from the DOT feed being validated — and it is the only source that
-    // reports people on the ground rather than inferring work from traffic, a sign, or a
-    // camera frame. Free (one CORS-open document, cached 5 min) + lazy.
-    try {
-      const events = eventsCache.data?.events || [];
-      const hh = require('./services/haulhub-worker-presence');
-      const presence = await withDeadline(hh.fetchAllPresence(), 12000, 'haulhub presence') || [];
-      if (presence.length) hh.corroborate(events, presence);
-    } catch (_) { /* worker-presence corroboration optional */ }
-    // The maintenance fleet photographs the network as it drives it, so a work zone can have
-    // a recent picture even where no fixed camera exists. Attached as EVIDENCE, not as a
-    // validating source -- a truck passing proves a photo exists, not that the zone is
-    // active. Cheap (grid-indexed, ~12 ms over 6,288 events) and deadlined like the rest.
-    try {
-      const wrs = require('./services/winter-road-service');
-      const cams = await withDeadline(wrs.fetchPlowCams(), 8000, 'fleet cams') || [];
-      if (cams.length) wrs.corroborate(eventsCache.data?.events || [], cams, { radiusM: 400, maxAgeMin: 360 });
-    } catch (_) { /* fleet imagery optional */ }
-    // Sticky, positive-only accumulation for TomTom / DMS / device: once a zone is corroborated
-    // by any of these it STAYS corroborated across refreshes and (for TomTom) the credit
-    // cooldown — the validation accumulates and is never demoted. Cameras are excluded on
-    // purpose: they re-check daily via camera-check-ledger and CAN demote (a camera can see a
-    // zone is finished), so they must not be made permanently sticky here.
-    try {
-      const vl = require('./services/validation-ledger');
-      await withDeadline(vl.hydrate(), 5000, 'validation ledger');
-      for (const e of (eventsCache.data?.events || [])) {
-        const id = e.id || e.road_event_id;
-        if (!id) continue;
-        if (e.x_tomtom_corroborated) vl.add('tomtom', id, { id: e.x_tomtom_id || null });
-        if (e.x_dms_corroborated)    vl.add('dms', id, { msg: e.x_dms_message || null });
-        if (e.x_cwz_connected)       vl.add('device', id, {});
-        if (e.x_workers_present)     vl.add('haulhub', id, { at: e.x_worker_presence_confirmed_at || null, conf: e.x_worker_presence_confidence || null });
-        if (!e.x_tomtom_corroborated && vl.has('tomtom', id)) { e.x_tomtom_corroborated = true; e.x_tomtom_sticky = true; }
-        if (!e.x_dms_corroborated && vl.has('dms', id)) {
-          e.x_dms_corroborated = true; e.x_dms_sticky = true;
-          const m = vl.metaOf('dms', id); if (m && m.msg && !e.x_dms_message) e.x_dms_message = m.msg;
-        }
-        if (!e.x_cwz_connected && vl.has('device', id)) { e.x_cwz_connected = true; e.x_device_sticky = true; }
-        if (!e.x_workers_present && vl.has('haulhub', id)) {
-          e.x_workers_present = true; e.x_haulhub_sticky = true; e.x_worker_presence_source = 'haulhub';
-          const m = vl.metaOf('haulhub', id);
-          if (m && m.at && !e.x_worker_presence_confirmed_at) e.x_worker_presence_confirmed_at = m.at;
-          if (m && m.conf && !e.x_worker_presence_confidence) e.x_worker_presence_confidence = m.conf;
-        }
-      }
-    } catch (_) { /* sticky accumulation optional */ }
+    await ensureCorroboration();
     // Elevated = device-verified (connected board) OR camera-verified (a camera saw the zone)
     // OR independently corroborated by TomTom (commercial probe) or a DMS message (operator-posted).
     // Confidence filter: ?confidence=multi (or ?min_sources=N) returns only zones corroborated by N+
@@ -6787,11 +6674,193 @@ app.get('/api/cwz/events', async (req, res) => {
     // not updated in over a month cannot support the real-time half of that, and the sticky
     // ledger means yesterday's corroboration would otherwise keep a 2023 snapshot looking
     // verified forever. Utah alone is 744 such zones. They remain in /api/events, flagged.
+    // Scope filters. The feed could already be narrowed by CONFIDENCE but not by place, so
+    // "show me validated work zones on I-80 in Iowa" was not expressible -- which is the first
+    // question anyone actually asks of it.
+    const vc = require('./services/validation-coverage');
+    const wantState = req.query.state ? String(req.query.state).toLowerCase() : null;
+    const wantRoute = req.query.route ? String(req.query.route).toUpperCase().replace(/\s+/g, '-') : null;
     const connected = (eventsCache.data?.events || [])
       .filter(e => !e.x_stale_source)
+      .filter(e => !wantState || String(e.state || '').toLowerCase() === wantState
+        || String(e.state || '').toLowerCase().slice(0, 2) === wantState.slice(0, 2))
+      .filter(e => !wantRoute || vc.routeOf(e) === wantRoute)
       .filter(e => sourceCount(e) >= minSources);
     res.set('Content-Type', 'application/json');
     res.json(cwz.buildFeed(connected));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Validation coverage — validated work zones against the total in the same scope.
+ *
+ *   /api/cwz/coverage                      national
+ *   /api/cwz/coverage?by=state             every state, ranked
+ *   /api/cwz/coverage?by=route             every interstate, ranked
+ *   /api/cwz/coverage?state=Iowa           one state
+ *   /api/cwz/coverage?route=I-80&by=state  one corridor, split by state
+ *
+ * Rates are over the EVALUABLE population, never over the raw total: a zone from a frozen
+ * publisher, or one with no position, could not have been corroborated by anything, and
+ * counting it as a validation failure would blame the wrong thing. Those are reported
+ * separately as notEvaluable with their reason.
+ */
+
+/**
+ * Apply every corroboration pass to the cached event set, in place.
+ *
+ * This lived inside the /api/cwz/events handler, which meant the validator flags only existed
+ * on events if somebody had loaded that endpoint recently. /api/cwz/coverage reads the same
+ * cached objects, so it reported 51 validated zones (1.3%) on a cold cache and 287 (7%) after
+ * a single unrelated request -- the same question answered two ways depending on other
+ * traffic. A coverage figure that moves with who else called what is not a figure anyone can
+ * quote, so both endpoints now go through here.
+ *
+ * Mutates the shared cached event objects by design: the device matcher already works that way
+ * and the flags are meant to be visible to every consumer of the cache, not just the caller.
+ */
+async function ensureCorroboration() {
+// Re-stamp camera-verified from the durable ledger. The x_camera_* flags live on the
+// transient event cache (wiped each refresh); the ledger is the source of truth, so
+// re-apply for free on open — no vision call. This is what persists camera validation.
+try {
+  const verified = await require('./services/camera-check-ledger').verifiedMap();
+  for (const e of (eventsCache.data?.events || [])) {
+    const v = verified[e.id];
+    if (!v) continue;
+    e.x_camera_verified = true;
+    if (v.camera_url) e.x_camera_url = v.camera_url;
+    if (v.camera_id) e.x_camera_id = v.camera_id;
+    if (v.devices) { try { e.x_camera_detected = JSON.parse(v.devices); } catch (_) { /* ignore */ } }
+    e.x_camera_checked_at = v.detected_at || e.x_camera_checked_at;
+    if (!e.x_zone_activity || e.x_zone_activity === 'suspect-inactive') e.x_zone_activity = 'confirmed-active';
+  }
+} catch (_) { /* ledger optional */ }
+// Independent secondary corroboration: TomTom (commercial, non-DOT) construction/closure
+// near a zone confirms it from a source that never touches the WZDx feed. Free (reuses
+// cached incidents) + lazy. NATIONWIDE: the zone-wide tile set is built from the active
+// work-zone locations themselves, so corroboration follows the zones across every state,
+// not just the I-80/I-35 corridor. The zone set refreshes in the BACKGROUND (never blocks
+// this response); corridor set is kept warm as a fallback.
+try {
+  const events = eventsCache.data?.events || [];
+  const cvv = require('./services/camera-validation');
+  const pts = [];
+  for (const e of events) {
+    if (cvv.isActiveNow(e) !== true) continue;   // NATIONWIDE validation (all states/interstates); 12h TTL keeps credit use ~4x under the old cadence
+    const p = e.coordinates || (e.longitude != null ? [e.longitude, e.latitude] : null);
+    if (Array.isArray(p)) pts.push(p);
+  }
+  // Refresh the zone-wide TomTom set. Normally in the BACKGROUND (never blocks).
+  // EXCEPTION: on a genuinely COLD cache (no zone AND no corridor incidents cached),
+  // await the fetch once so this response actually carries corroboration — the
+  // Validated Work Zones layer loads once (no polling), so a fire-and-forget refresh
+  // would leave that single load with zero TomTom matches until something else warms
+  // the cache. One-time cold-fill only; warm calls stay non-blocking.
+  const zAge = tomtomZoneCache.timestamp ? Date.now() - tomtomZoneCache.timestamp : Infinity;
+  const zoneStale = (zAge === Infinity || zAge > tomtomZoneCache.ttl);
+  const haveAnyIncidents = (tomtomZoneCache.data?.incidents?.length || 0)
+                         + (tomtomCache.data?.incidents?.length || 0) > 0;
+  if (zoneStale && !tomtomZoneCache.isRefreshing) {
+    if (!haveAnyIncidents) {
+      await withDeadline(refreshTomTomForZones(pts), 12000, 'tomtom zones');   // cold: fill once, but never indefinitely
+    } else {
+      refreshTomTomForZones(pts);            // warm: refresh in background, use cache now
+    }
+  }
+  // Union corridor + nationwide, de-duped by incident id.
+  const byId = new Map();
+  for (const i of (tomtomZoneCache.data?.incidents || [])) byId.set(i.id, i);
+  for (const i of (tomtomCache.data?.incidents || [])) if (!byId.has(i.id)) byId.set(i.id, i);
+  const all = [...byId.values()];
+  if (all.length) require('./services/tomtom-corroboration').corroborate(events, all);
+} catch (_) { /* corroboration optional */ }
+// Independent secondary corroboration: DMS message text. A message sign near a zone
+// displaying "ROAD WORK / LANE CLOSED / CLOSED AT / FOLLOW DETOUR" is human-posted
+// evidence from a DIFFERENT operational system than the WZDx feed. Free (a few
+// CORS-open queries, cached 10 min) + lazy.
+try {
+  const events = eventsCache.data?.events || [];
+  const dmsCorr = require('./services/dms-corroboration');
+  const signs = await withDeadline(dmsCorr.fetchSigns(), 10000, 'dms signs') || [];
+  if (signs.length) dmsCorr.corroborate(events, signs);
+} catch (_) { /* dms corroboration optional */ }
+// Independent secondary corroboration: HaulHub worker presence. The signal comes from
+// the CONTRACTOR's crew check-in and heavy-equipment telematics, so it is a different
+// operational chain from the DOT feed being validated — and it is the only source that
+// reports people on the ground rather than inferring work from traffic, a sign, or a
+// camera frame. Free (one CORS-open document, cached 5 min) + lazy.
+try {
+  const events = eventsCache.data?.events || [];
+  const hh = require('./services/haulhub-worker-presence');
+  const presence = await withDeadline(hh.fetchAllPresence(), 12000, 'haulhub presence') || [];
+  if (presence.length) hh.corroborate(events, presence);
+} catch (_) { /* worker-presence corroboration optional */ }
+// The maintenance fleet photographs the network as it drives it, so a work zone can have
+// a recent picture even where no fixed camera exists. Attached as EVIDENCE, not as a
+// validating source -- a truck passing proves a photo exists, not that the zone is
+// active. Cheap (grid-indexed, ~12 ms over 6,288 events) and deadlined like the rest.
+try {
+  const wrs = require('./services/winter-road-service');
+  const cams = await withDeadline(wrs.fetchPlowCams(), 8000, 'fleet cams') || [];
+  if (cams.length) wrs.corroborate(eventsCache.data?.events || [], cams, { radiusM: 400, maxAgeMin: 360 });
+} catch (_) { /* fleet imagery optional */ }
+// Sticky, positive-only accumulation for TomTom / DMS / device: once a zone is corroborated
+// by any of these it STAYS corroborated across refreshes and (for TomTom) the credit
+// cooldown — the validation accumulates and is never demoted. Cameras are excluded on
+// purpose: they re-check daily via camera-check-ledger and CAN demote (a camera can see a
+// zone is finished), so they must not be made permanently sticky here.
+try {
+  const vl = require('./services/validation-ledger');
+  await withDeadline(vl.hydrate(), 5000, 'validation ledger');
+  for (const e of (eventsCache.data?.events || [])) {
+    const id = e.id || e.road_event_id;
+    if (!id) continue;
+    if (e.x_tomtom_corroborated) vl.add('tomtom', id, { id: e.x_tomtom_id || null });
+    if (e.x_dms_corroborated)    vl.add('dms', id, { msg: e.x_dms_message || null });
+    if (e.x_cwz_connected)       vl.add('device', id, {});
+    if (e.x_workers_present)     vl.add('haulhub', id, { at: e.x_worker_presence_confirmed_at || null, conf: e.x_worker_presence_confidence || null });
+    if (!e.x_tomtom_corroborated && vl.has('tomtom', id)) { e.x_tomtom_corroborated = true; e.x_tomtom_sticky = true; }
+    if (!e.x_dms_corroborated && vl.has('dms', id)) {
+      e.x_dms_corroborated = true; e.x_dms_sticky = true;
+      const m = vl.metaOf('dms', id); if (m && m.msg && !e.x_dms_message) e.x_dms_message = m.msg;
+    }
+    if (!e.x_cwz_connected && vl.has('device', id)) { e.x_cwz_connected = true; e.x_device_sticky = true; }
+    if (!e.x_workers_present && vl.has('haulhub', id)) {
+      e.x_workers_present = true; e.x_haulhub_sticky = true; e.x_worker_presence_source = 'haulhub';
+      const m = vl.metaOf('haulhub', id);
+      if (m && m.at && !e.x_worker_presence_confirmed_at) e.x_worker_presence_confirmed_at = m.at;
+      if (m && m.conf && !e.x_worker_presence_confidence) e.x_worker_presence_confidence = m.conf;
+    }
+  }
+} catch (_) { /* sticky accumulation optional */ }
+}
+
+app.get('/api/cwz/coverage', async (req, res) => {
+  if (!eventsCache.data && startupCachePromise) {
+    await withDeadline(startupCachePromise, 25000, 'startup cache');
+  }
+  // Same serve-stale-and-refresh shape the other device-dependent endpoints use: a coverage
+  // number that waits on a 20s device match is a coverage number nobody loads twice.
+  if (devicesCache && devicesCache.timestamp) ensureDeviceMatch();
+  else await withDeadline(ensureDeviceMatch(), 20000, 'device match (cold)');
+  try {
+    // Run the same corroboration the validated feed runs, so coverage does not depend on
+    // whether anyone has loaded /api/cwz/events recently.
+    await ensureCorroboration();
+    const vc = require('./services/validation-coverage');
+    const by = ['state', 'route'].includes(String(req.query.by)) ? String(req.query.by) : 'none';
+    const out = vc.coverage(eventsCache.data?.events || [], {
+      state: req.query.state || null,
+      route: req.query.route || null,
+      by,
+      workZonesOnly: req.query.all_events !== 'true'
+    });
+    out.generated_at = new Date().toISOString();
+    out.source_timestamp = eventsCache.timestamp || null;
+    res.json(out);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
