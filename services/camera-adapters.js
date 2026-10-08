@@ -282,7 +282,17 @@ const ADAPTERS = {
   },
   sc: () => iterisCameras({ state: 'SC', host: 'sc' }),
   sd: () => iterisCameras({ state: 'SD', host: 'sd' }),
-  mt: () => iterisCameras({ state: 'MT', host: 'mt' })
+  mt: () => iterisCameras({ state: 'MT', host: 'mt' }),
+  // Added 2026-10-08 from a headroom analysis, not from a feed hunt. Wisconsin had 713
+  // unvalidated work zones and only 4 of them within 500 m of any camera we held -- because
+  // there was no Wisconsin camera adapter at all, while 511wi.gov serves 490 cameras on the
+  // same keyless IBI endpoint already used for nine other states. Kentucky is the same shape:
+  // its DMS already fed the device validator while its 256 cameras went unused.
+  wi: () => ibi511Cameras({ state: 'WI', base: 'https://511wi.gov' }),
+  ky: () => arcgisCameras({ state: 'KY',
+    url: 'https://services2.arcgis.com/CcI36Pduqd0OR4W9/arcgis/rest/services/trafficCamerasCur_Prd/FeatureServer/0/query',
+    latField: 'latitude', lonField: 'longitude', imageField: 'snapshot', routeField: 'highway',
+    dirField: 'direction', idField: 'id', descField: 'description' })
 };
 
 // Cached combined inventory (locations static → cache long; lazy, no loop).
