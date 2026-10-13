@@ -360,6 +360,8 @@ async function newmexico(cfg) {
 // verified=true means an actual data pull succeeded during the 2026-08 survey.
 
 const ADAPTERS = {
+  // MnDOT IRIS: current messages joined to the public sign-location configuration.
+  mn: { name: 'Minnesota', portable: false, key: false, run: () => require('./mn-traffic-detectors').fetchSigns() },
   // ---- Portable / arrow-board capable, no key (the priority set) ----
   wa: { name: 'Washington', portable: true, key: false, run: () => wzdxDevice({ state: 'WA', url: 'https://wzdx.wsdot.wa.gov/api/v4/DeviceFeed' }) },
   ok: { name: 'Oklahoma', portable: true, key: false, run: () => oklahoma({}) },

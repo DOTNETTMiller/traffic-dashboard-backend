@@ -5731,7 +5731,7 @@ async function ensureDeviceMatch(force = false) {
     // Measured 2026-09-29 (node scripts/test_device_adapters.js): 20 of 21 return live data,
     // ~7,200 devices. NJ is the only true key holdout — 511nj.org answers 403 on both the
     // CARS path and the public map JSON. 'newengland' emits ME/NH/VT from one shared host.
-    const STATE_KEYS = ['ny', 'wa', 'ok', 'pa', 'me', 'fl', 'ky', 'md', 'nm', 'ca',
+    const STATE_KEYS = ['ny', 'wa', 'ok', 'pa', 'me', 'fl', 'ky', 'md', 'nm', 'ca', 'mn',
       'ut', 'la', 'az', 'nc', 'wi', 'nv', 'id', 'ga', 'ak', 'newengland', 'nj', 'al', 'mt', 'sc'];
     const lists = await Promise.all([
       deviceIngest.fetchIowaDevices().catch(() => []),
@@ -6722,6 +6722,16 @@ app.get('/api/cwz/events', async (req, res) => {
  * and the flags are meant to be visible to every consumer of the cache, not just the caller.
  */
 async function ensureCorroboration() {
+// Keyless, physical traffic measurements from MnDOT's IRIS detector network. These
+// describe nearby traffic conditions and do not change the zone's validation count.
+try {
+  const events = eventsCache.data?.events || [];
+  const mnTraffic = require('./services/mn-traffic-detectors');
+  if (events.some(e => /^(MN|Minnesota(?:\s|$))/i.test(String(e.state || '').trim()))) {
+    const data = await withDeadline(mnTraffic.snapshot(), 9000, 'Minnesota traffic detectors');
+    mnTraffic.annotate(events, data?.rows || []);
+  }
+} catch (_) { /* detector measurements optional */ }
 // Re-stamp camera-verified from the durable ledger. The x_camera_* flags live on the
 // transient event cache (wiped each refresh); the ledger is the source of truth, so
 // re-apply for free on open — no vision call. This is what persists camera validation.
@@ -6837,6 +6847,23 @@ try {
   }
 } catch (_) { /* sticky accumulation optional */ }
 }
+
+// Live MnDOT detector/station measurements with source health and observation times.
+app.get('/api/traffic/mn/detectors', async (req, res) => {
+  try {
+    const mn = require('./services/mn-traffic-detectors');
+    const route = req.query.route ? mn.routeOf(req.query.route) : null;
+    const direction = req.query.direction ? mn.directionOf(req.query.direction) : null;
+    if ((req.query.route && !route) || (req.query.direction && !direction)) {
+      return res.status(400).json({ error: 'Use a signed route such as I-35W and direction N, S, E or W.' });
+    }
+    const data = await mn.snapshot();
+    const limit = Math.min(Math.max(Math.floor(Number(req.query.limit)) || 1000, 1), 10000);
+    const rows = data.rows.filter(row => (!route || row.route === route) && (!direction || row.direction === direction));
+    res.set('Cache-Control', 'public, max-age=15');
+    res.json({ ...data, count: rows.length, returned: Math.min(rows.length, limit), rows: rows.slice(0, limit) });
+  } catch (err) { res.status(502).json({ error: err.message }); }
+});
 
 app.get('/api/cwz/coverage', async (req, res) => {
   if (!eventsCache.data && startupCachePromise) {

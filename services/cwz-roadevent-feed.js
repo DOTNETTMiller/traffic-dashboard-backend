@@ -164,6 +164,15 @@ function buildFeed(events, opts = {}) {
     // validating source -- it is not counted in x_verification and does not make a zone
     // "validated". A truck driving past proves an image of that place exists; only something
     // that looks at the image can say what is in it.
+    // Traffic measurements support impact assessment, without asserting a live closure.
+    if (Array.isArray(ev.x_traffic_measurements) && ev.x_traffic_measurements.length) {
+      const nowMs = typeof now === 'number' ? now : Date.parse(now);
+      props.x_traffic_measurements = ev.x_traffic_measurements.filter(row => {
+        const age = nowMs - Date.parse(row.observedAt || '');
+        return Number.isFinite(age) && age >= -60000 && age <= 5 * 60000;
+      });
+      if (!props.x_traffic_measurements.length) delete props.x_traffic_measurements;
+    }
     if (ev.x_fleet_camera_url) {
       props.x_fleet_camera_url = ev.x_fleet_camera_url;
       props.x_fleet_camera_at = ev.x_fleet_camera_at || null;

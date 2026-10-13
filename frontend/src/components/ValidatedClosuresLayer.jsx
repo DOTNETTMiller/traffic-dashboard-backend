@@ -261,6 +261,26 @@ export default function ValidatedClosuresLayer({ visible = false, sources: enabl
                       x_verification. Sitting it among them — which it did — read as a fifth
                       source no matter what the caption said. Its own heading keeps the
                       distinction visible rather than merely stated. */}
+                  {p.x_traffic_measurements?.length > 0 && (
+                    <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px dashed #d4d4d8' }}>
+                      <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 5 }}>Measured traffic — MnDOT IRIS</div>
+                      {p.x_traffic_measurements.map(row => (
+                        <div key={`${row.kind}:${row.id}`} style={{ background: '#eff6ff', borderRadius: 6, padding: '6px 8px', marginBottom: 5 }}>
+                          <div style={{ fontSize: 12, color: '#1e3a8a' }}>
+                            {row.route} {row.direction} · {row.label || row.id}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#334155' }}>
+                            {row.speedMph != null ? `${row.speedMph} mph` : 'Speed not reported'}
+                            {row.flowVph != null ? ` · ${row.flowVph} vehicles/hour` : ''}
+                            {row.occupancyPct != null ? ` · ${row.occupancyPct}% occupancy` : ''}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#64748b' }}>
+                            {fmtDate(row.observedAt)} · {fmtDist(row.distanceM)} from zone
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {p.x_fleet_camera_url && (
                     <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px dashed #d4d4d8' }}>
                       <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4, color: '#7c2d12' }}>
