@@ -44,6 +44,7 @@ import ClosureApprovalDashboard from './components/ClosureApprovalDashboard';
 import DMSMessagingPanel from './components/DMSMessagingPanel';
 import DiversionRoutePanel from './components/DiversionRoutePanel';
 import NavSidebar from './components/NavSidebar';
+import CrossingProjectionDemo from './components/CrossingProjectionDemo';
 import IntroSplash from './components/IntroSplash';
 import './styles/App.css';
 
@@ -89,7 +90,7 @@ const LoadingFallback = () => (
 );
 
 function App() {
-  const [view, setView] = useState('map'); // 'map', 'table', 'report', 'alignment', 'messages', 'docs', or 'admin'
+  const [view, setView] = useState(() => new URLSearchParams(window.location.search).get('view') === 'crossingProjectionDemo' ? 'crossingProjectionDemo' : 'map'); // 'map', 'table', 'report', 'alignment', 'messages', 'docs', or 'admin'
   const [filters, setFilters] = useState({
     state: '',
     corridor: '',
@@ -948,7 +949,7 @@ function App() {
       />
 
       {/* Controls */}
-      <div className="controls">
+      <div className="controls" style={view === 'crossingProjectionDemo' ? { display: 'none' } : undefined}>
         <div className="control-buttons">
           <label className="refresh-toggle">
             <input
@@ -966,7 +967,7 @@ function App() {
 
       {/* Main Content */}
       <div className="main-content">
-        {view !== 'report' && view !== 'alignment' && view !== 'admin' && view !== 'adminUsers' && view !== 'messages' && view !== 'closureApproval' && view !== 'dmsMessaging' && view !== 'diversionRoutes' && (
+        {view !== 'report' && view !== 'alignment' && view !== 'admin' && view !== 'adminUsers' && view !== 'messages' && view !== 'closureApproval' && view !== 'dmsMessaging' && view !== 'diversionRoutes' && view !== 'crossingProjectionDemo' && (
           <>
             <EventFilters
               events={events}
@@ -991,13 +992,15 @@ function App() {
           </>
         )}
 
-        {error && view !== 'admin' && view !== 'adminUsers' && view !== 'messages' && view !== 'alignment' && view !== 'closureApproval' && view !== 'dmsMessaging' && view !== 'diversionRoutes' && (
+        {error && view !== 'admin' && view !== 'adminUsers' && view !== 'messages' && view !== 'alignment' && view !== 'closureApproval' && view !== 'dmsMessaging' && view !== 'diversionRoutes' && view !== 'crossingProjectionDemo' && (
           <div className="error-banner">
             Error loading events: {error}
           </div>
         )}
 
-        {view === 'feedSubmission' ? (
+        {view === 'crossingProjectionDemo' ? (
+          <CrossingProjectionDemo />
+        ) : view === 'feedSubmission' ? (
           <div style={{
             flex: 1,
             overflowY: 'auto',

@@ -120,6 +120,7 @@ const NAV = [
       { view: 'closureApproval',       icon: '✅', label: 'Closure Approval' },
       { view: 'diversionRoutes',       icon: '🛣️', label: 'Diversion Route Library' },
       { view: 'corridorDelays',        icon: '⏰', label: 'Corridor Delays' },
+      { view: 'crossingProjectionDemo', icon: '🚆', label: 'Crossing Projection Demo' },
       { view: 'crashAnalytics',        icon: '🚧', label: 'Crash Analytics' },
       { view: 'predictiveAnalytics',   icon: '🔮', label: 'Predictive Analytics' },
       { view: 'assetHealth',           icon: '🔧', label: 'Asset Health' },
