@@ -10,7 +10,8 @@
     "simulate:atms": "node scripts/atms-simulate.cjs",
     "test:atms-interop": "node scripts/atms-interop.cjs",
     "check:atms-install": "node products/atms/preflight.cjs",
-    "start:atms": "node products/atms/server.cjs"
+    "start:atms": "node products/atms/server.cjs",
+    "check:atms-bench": "node scripts/atms-bench-selftest.cjs"
   },
   "keywords": [
     "traffic",

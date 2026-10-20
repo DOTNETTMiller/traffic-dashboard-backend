@@ -43,6 +43,8 @@ Simulated evidence remains simulated and cannot verify a physical command.
 ## Read-only controller bench inspection
 
 Run only on equipment and networks the agency has authorized you to inspect.
+For an Iowa DOT sign, follow [FIELD_RUN_IOWA.md](FIELD_RUN_IOWA.md); run
+`npm run check:atms-bench` first to confirm the tool on the field machine.
 The tool sends GET requests only; it never reserves/modifies a slot or activates
 a message. It checks the configured reserved slot exists and the end-duration
 policy already points to blank. It does not commission either setting.
