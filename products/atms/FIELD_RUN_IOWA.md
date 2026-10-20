@@ -16,7 +16,7 @@ and compared against the live feed with `atms-bench-compare-iowa.cjs`.
 Result: 68/68 exact MULTI readback, 68/68 fully decoded to their words, and
 all 68 kept the strict `message` null so none could verify an ATMS command.
 
-This first failed 0/135 (63 permanent DMS plus portable boards): the read path
+This first failed 0/135 (permanent DMS plus portable boards): the read path
 only accepted `[nl]`, and every Iowa sign uses `[pt] [jp] [jl] [fo] [nl] [np]
 [sc]`. A real sign would have failed the same way. Reads now return the raw
 `multi`, a `display` decode (pages, text, `complete`, `unrenderable`), and
