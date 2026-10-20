@@ -5,7 +5,12 @@
   "main": "backend_proxy_server.js",
   "scripts": {
     "start": "node start.js",
-    "test": "node tests/compliance-analyzer.test.js"
+    "test": "node tests/compliance-analyzer.test.js",
+    "test:atms": "node --test tests/atms/*.test.js",
+    "simulate:atms": "node scripts/atms-simulate.cjs",
+    "test:atms-interop": "node scripts/atms-interop.cjs",
+    "check:atms-install": "node products/atms/preflight.cjs",
+    "start:atms": "node products/atms/server.cjs"
   },
   "keywords": [
     "traffic",
@@ -23,7 +28,10 @@
     "@tmcw/togeojson": "^7.1.2",
     "@turf/turf": "^7.3.4",
     "@xmldom/xmldom": "^0.8.11",
+    "ajv": "8.17.1",
+    "ajv-formats": "3.0.1",
     "archiver": "^7.0.1",
+    "asn1-ber": "^1.2.2",
     "axios": "^1.6.0",
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^12.4.1",
@@ -37,6 +45,7 @@
     "jsonwebtoken": "^9.0.2",
     "jszip": "^3.10.1",
     "multer": "^2.0.2",
+    "net-snmp": "^3.29.2",
     "nodemailer": "^7.0.9",
     "openai": "^6.7.0",
     "papaparse": "^5.5.3",

@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { fileURLToPath } from 'node:url'
 
 // Vite configuration for Matt's Experimental Sandbox - includes 3D model viewer support and PWA
 export default defineConfig({
@@ -18,6 +19,11 @@ export default defineConfig({
     // Ensure WASM files are copied to dist folder
     assetsInlineLimit: 0, // Don't inline WASM files
     rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        atms: fileURLToPath(new URL('./atms.html', import.meta.url)),
+        camera: fileURLToPath(new URL('./camera.html', import.meta.url))
+      },
       output: {
         // Keep WASM files in their original location
         assetFileNames: (assetInfo) => {

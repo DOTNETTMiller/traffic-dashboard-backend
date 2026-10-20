@@ -1,0 +1,64 @@
+{
+    "$id": "https://raw.githubusercontent.com/ite-org/cwz/main/schemas/1.0/WorkZoneFeed.json",
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "CWZ v1.0 Work Zone Feed",
+    "description": "The GeoJSON output of a CWZ Work Zone Feed v1.0.",
+    "type": "object",
+    "required": [
+        "feed_info",
+        "type",
+        "features"
+    ],
+    "properties": {
+        "feed_info": {
+            "$ref": "https://raw.githubusercontent.com/ite-org/cwz/main/schemas/1.0/FeedInfo.json"
+        },
+        "type": {
+            "description": "The GeoJSON type.",
+            "enum": [
+                "FeatureCollection"
+            ]
+        },
+        "features": {
+            "description": "An array of GeoJSON Feature objects which represent CWZ road events.",
+            "type": "array",
+            "items": {
+                "allOf": [
+                    {
+                        "properties": {
+                            "properties": {
+                                "properties": {
+                                    "core_details": {
+                                        "properties": {
+                                            "event_type": {
+                                                "enum": [
+                                                    "work-zone",
+                                                    "detour"
+                                                ]
+                                            }
+                                        },
+                                        "required": [
+                                            "event_type"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "core_details"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "properties"
+                        ]
+                    },
+                    {
+                        "$ref": "https://raw.githubusercontent.com/ite-org/cwz/main/schemas/1.0/RoadEventFeature.json"
+                    }
+                ]
+            }
+        },
+        "bbox": {
+            "$ref": "https://raw.githubusercontent.com/ite-org/cwz/main/schemas/1.0/BoundingBox.json"
+        }
+    }
+}

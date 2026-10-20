@@ -1,0 +1,101 @@
+{
+    "$id": "https://raw.githubusercontent.com/ite-org/cwz/main/schemas/1.0/FeedInfo.json",
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "CWZ Feed Information",
+    "description": "Describes CWZ feed header information such as metadata, contact information, and data sources.",
+    "type": "object",
+    "required": [
+        "publisher",
+        "update_frequency",
+        "update_date",
+        "version",
+        "license",
+        "data_sources"
+    ],
+    "properties": {
+        "publisher": {
+            "description": "The organization responsible for publishing the feed.",
+            "type": "string"
+        },
+        "contact_name": {
+            "description": "The name of the individual or group responsible for the data feed.",
+            "type": "string"
+        },
+        "contact_email": {
+            "description": "The email address of the individual or group responsible for the data feed.",
+            "type": "string",
+            "format": "email"
+        },
+        "update_frequency": {
+            "description": "The frequency in seconds at which the data feed is updated.",
+            "type": "integer",
+            "minimum": -1
+        },
+        "update_date": {
+            "description": "The UTC date and time when the GeoJSON file (representing the instance of the feed) was generated.",
+            "type": "string",
+            "format": "date-time"
+        },
+        "version": {
+            "description": "The CWZ specification version used to create the data feed, in 'major.minor' format.",
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+        },
+        "license": {
+            "description": "The URL of the license that applies to the data in the CWZ feed. This *must* be the string \"https://creativecommons.org/publicdomain/zero/1.0/\".",
+            "enum": [
+                "https://creativecommons.org/publicdomain/zero/1.0/"
+            ]
+        },
+        "data_sources": {
+            "description": "A list of specific data sources for the road event data in the feed.",
+            "type": "array",
+            "items": {
+                "$ref": "#/definitions/FeedDataSource"
+            },
+            "minItems": 1
+        }
+    },
+    "definitions": {
+        "FeedDataSource": {
+            "title": "CWZ Feed Data Source",
+            "description": "Describes information about a specific data source used to build the work zone data feed.",
+            "type": "object",
+            "required": [
+                "data_source_id",
+                "organization_name",
+                "update_frequency",
+                "update_date"
+            ],
+            "properties": {
+                "data_source_id": {
+                    "description": "Unique identifier for the organization providing work zone data. This identifier is a Universally Unique IDentifier (UUID) as defined in [RFC 4122](https://datatracker.ietf.org/doc/html/rfc4122).",
+                    "type": "string"
+                },
+                "organization_name": {
+                    "description": "The name of the organization for the authoritative source of the work zone data.",
+                    "type": "string"
+                },
+                "contact_name": {
+                    "description": "The name of the individual or group responsible for the data source.",
+                    "type": "string"
+                },
+                "contact_email": {
+                    "description": "The email address of the individual or group responsible for the data source.",
+                    "type": "string",
+                    "format": "email"
+                },
+                "update_frequency": {
+                    "description": "The frequency in seconds at which the data source is updated.",
+                    "type": "integer",
+                    "minimum": -1
+                },
+                "update_date": {
+                    "description": "The UTC date and time when the data source was last updated.",
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        }
+    }
+}

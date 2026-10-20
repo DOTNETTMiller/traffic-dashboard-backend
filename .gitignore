@@ -35,6 +35,7 @@ coverage/
 
 # Misc
 .cache/
+products/atms/runtime/
 
 # Data storage
 messages.json
@@ -74,3 +75,5 @@ scripts/sync_to_postgis.js
 SECURITY_BREACH_REMEDIATION.md
 SECURITY_AUDIT_RESULTS.md
 check_db_production.js
+outputs/
+*.bak-*

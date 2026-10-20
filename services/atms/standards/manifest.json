@@ -1,0 +1,78 @@
+{
+  "downloadedOn": "2026-10-18",
+  "wzdxCommit": "be5a8001b03c057bd84cb326fd0a452a7047aec2",
+  "cwzArchive": "https://www.ite.org/ITEORG/assets/File/cwz_schemas.zip",
+  "cwzArchiveSha256": "db4a937d4193c070ec40da31ff38c0b01ba1dbc827b3711fc13b761693aed2e1",
+  "files": [
+    {
+      "file": "wzdx-4.2/BoundingBox.json",
+      "url": "https://raw.githubusercontent.com/usdot-jpo-ode/wzdx/be5a8001b03c057bd84cb326fd0a452a7047aec2/schemas/4.2/BoundingBox.json",
+      "sha256": "a5233aacea34f6a9789fc008008879792b20921461201c795533e461225babda"
+    },
+    {
+      "file": "wzdx-4.2/Direction.json",
+      "url": "https://raw.githubusercontent.com/usdot-jpo-ode/wzdx/be5a8001b03c057bd84cb326fd0a452a7047aec2/schemas/4.2/Direction.json",
+      "sha256": "98cbd07ca39d7d09f790e028ec8f6363a3dad6fbe82f98572791986fb3af0a73"
+    },
+    {
+      "file": "wzdx-4.2/FeedInfo.json",
+      "url": "https://raw.githubusercontent.com/usdot-jpo-ode/wzdx/be5a8001b03c057bd84cb326fd0a452a7047aec2/schemas/4.2/FeedInfo.json",
+      "sha256": "4bdb7d76249397f5ae410b70fe9b7dfe705635ba381257530aae412d93b87e74"
+    },
+    {
+      "file": "wzdx-4.2/RoadEventFeature.json",
+      "url": "https://raw.githubusercontent.com/usdot-jpo-ode/wzdx/be5a8001b03c057bd84cb326fd0a452a7047aec2/schemas/4.2/RoadEventFeature.json",
+      "sha256": "26020f0c646fd5ed16cb6b1f83c41499d878259df08da7ad2f7d4b790a479e1b"
+    },
+    {
+      "file": "wzdx-4.2/WorkZoneFeed.json",
+      "url": "https://raw.githubusercontent.com/usdot-jpo-ode/wzdx/be5a8001b03c057bd84cb326fd0a452a7047aec2/schemas/4.2/WorkZoneFeed.json",
+      "sha256": "81e575ec9c7016fdb73674b5bdd42824c4dd6a1268afc42e75ce2dd1550138c7"
+    },
+    {
+      "file": "wzdx-4.2/LICENSE",
+      "url": "https://raw.githubusercontent.com/usdot-jpo-ode/wzdx/be5a8001b03c057bd84cb326fd0a452a7047aec2/LICENSE",
+      "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
+    },
+    {
+      "file": "cwz-1.0/BoundingBox.json",
+      "url": "https://www.ite.org/ITEORG/assets/File/cwz_schemas.zip",
+      "sha256": "8cb79ea011713a69616a3071a23a5aa3ff27add42b7687cb348129decd01cfad"
+    },
+    {
+      "file": "cwz-1.0/Direction.json",
+      "url": "https://www.ite.org/ITEORG/assets/File/cwz_schemas.zip",
+      "sha256": "1de0be6676432fb28dbd7e44eeb0eb0d443cf992cbaedd5819d19d2fdc0e9d0c"
+    },
+    {
+      "file": "cwz-1.0/FeedInfo.json",
+      "url": "https://www.ite.org/ITEORG/assets/File/cwz_schemas.zip",
+      "sha256": "65b52c25df4fbe96dd4bd9ec32cd4449219298d47f9a461738f605837c55808a"
+    },
+    {
+      "file": "cwz-1.0/RoadEventFeature.json",
+      "url": "https://www.ite.org/ITEORG/assets/File/cwz_schemas.zip",
+      "sha256": "405ca8169b2436ac3bbf3e22689e3ed3bfc7689034e50fc2aeb50af9f41ec715"
+    },
+    {
+      "file": "cwz-1.0/WorkZoneFeed.json",
+      "url": "https://www.ite.org/ITEORG/assets/File/cwz_schemas.zip",
+      "sha256": "1398473417e4fc3c00cbb037031666400f9c234dec4db83680516a9be34a0efe"
+    },
+    {
+      "file": "geojson/LineString.json",
+      "url": "https://geojson.org/schema/LineString.json",
+      "sha256": "38089f2d5b0ff4b14a3252266d12b589f5f0e7bcb6cf49558801065c9ed02ecb"
+    },
+    {
+      "file": "geojson/MultiPoint.json",
+      "url": "https://geojson.org/schema/MultiPoint.json",
+      "sha256": "402f60cda7dd391e4f1f596143a243a7360d2b7e6f01a7f26a32a773267ffb95"
+    },
+    {
+      "file": "geojson/Point.json",
+      "url": "https://geojson.org/schema/Point.json",
+      "sha256": "35dd9cc5537e3a02a58ec63c22001508bd0c26036803f86004bb7cad0e9ad8b1"
+    }
+  ]
+}

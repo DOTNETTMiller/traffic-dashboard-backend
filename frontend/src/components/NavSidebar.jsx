@@ -868,6 +868,13 @@ export default function NavSidebar({
           {/* Footer rail — pinned to the bottom. Persistent shortcuts to
               the floating Inbox + AI Assistant panels. */}
           <nav className="nav-footer">
+            <NavLink
+              icon="🛣️"
+              label="PurposeBuilt ATMS"
+              active={false}
+              expanded={expanded}
+              onClick={() => { window.location.assign('/atms.html'); }}
+            />
             {NAV_FOOTER.map(item => {
               const active = item.toggleProp ? !!footerToggleStates[item.toggleProp] : false;
               return (
