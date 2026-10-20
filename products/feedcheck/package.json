@@ -1,0 +1,11 @@
+{
+  "name": "purposebuilt-feedcheck",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Portable transportation feed diagnostics. No runtime dependencies.",
+  "scripts": {
+    "build": "node build.cjs",
+    "test": "node --test test/*.test.cjs",
+    "start": "node preview.cjs"
+  }
+}

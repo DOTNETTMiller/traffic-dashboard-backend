@@ -1,0 +1,68 @@
+PURPOSEBUILT FEEDCHECK — LOCAL EDITION v0.1
+
+GET STARTED
+1. Extract this folder.
+2. Open feedcheck.html in a current Chrome, Edge, Firefox, or Safari browser.
+3. Select Explore a sample to see an illustrative assessment.
+4. Choose your own JSON file, paste JSON, or enter a public feed URL.
+5. Optionally set a consistent feed label and your organization/project name.
+6. Run assessment. Review the Findings tab for record IDs, paths, and next steps.
+7. Export Findings CSV or Report JSON, or use Print / PDF to save a report.
+
+FILES STAY LOCAL
+The application processes file and pasted input in browser memory. It does not
+upload data, include analytics, or save it automatically. Export reports and
+snapshots when you need a record. Reloading the page clears the working session.
+Public URL input contacts the feed publisher directly.
+
+COMPARE TWO CHECKS
+After the first assessment, open Compare snapshots and download the current
+snapshot. Later, assess the same feed using the same label. Choose the earlier
+baseline JSON. Both assessments must have unique, non-empty event IDs.
+Snapshots contain source labels, IDs, and content fingerprints; full event
+records are omitted. Keep snapshots with your project records.
+
+SUPPORTED INPUT
+- GeoJSON FeatureCollections containing transportation road events.
+- WZDx-style road-event features with properties.core_details.
+- Flat JSON event arrays, or {"events":[...]}.
+Limits: 20 MB per file and 25,000 records per assessment.
+XML, device feeds, and custom vendor field mappings are outside this edition.
+The How checks work tab lists supported generic field names.
+
+URL TROUBLESHOOTING
+A publisher may block cross-origin browser requests (CORS). If a public URL
+fails, download its JSON and use the file tab. API keys, credentials, query
+parameters, and fragments are not accepted in URL input. Download authenticated
+feeds separately. The optional command-line runner avoids browser CORS limits.
+
+OPTIONAL COMMAND-LINE RUNNER
+Requires Node.js 20 or later. No package installation is needed.
+
+  node cli.cjs --input feed.json --source "Agency work zones" --output report.json
+  node cli.cjs --input feed.json --format csv --output findings.csv
+  node cli.cjs --url https://agency.gov/feed.json --fail-on error
+  node cli.cjs --help
+
+The runner refuses to overwrite existing output files. Use a new output name
+for each run. Your existing scheduler can invoke it; scheduling and notification
+delivery are not included. The runner must retain its src/checker.js file.
+
+INTERPRETING FINDINGS
+Errors flag structural or consistency problems. Warnings request review.
+Age and ended-event findings depend on your configured thresholds. A long-
+running or intentionally retained event may be valid. Start time is never used
+as a substitute for confirmation/update time.
+
+Without findings means only that no event-level rules fired. Check feed-level
+findings separately. An empty feed cannot establish event quality.
+Geometry checks verify structure and coordinate ranges, not road alignment.
+This edition does not certify full WZDx/CWZ conformance, establish real-world
+coverage or accuracy, modify source feeds, or monitor while closed.
+
+SUPPORT
+matthew@purposebuilt.systems
+https://purposebuilt.systems/contact
+
+Commercial scope, support, and update terms are supplied with your purchase
+or agency agreement. No hosted service or recurring fee is required by the tool.

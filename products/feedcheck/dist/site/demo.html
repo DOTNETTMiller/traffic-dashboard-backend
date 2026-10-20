@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="PurposeBuilt FeedCheck: portable diagnostics for transportation event feeds. Find stale events, duplicate IDs, invalid geometry, and lifecycle issues. Review locally and export actionable reports.">
+<meta name="color-scheme" content="light">
+<title>FeedCheck · PurposeBuilt Systems</title>
+<style>:root{--ink:#182427;--muted:#617173;--paper:#f4f6f5;--line:#dde3e0;--orange:#f08230;--green:#1e6656;--red:#ad3434;--amber:#925f0d;--nav:#111918;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--paper);font-synthesis:none}*{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}button,a,input,summary,label.file-button{touch-action:manipulation}button,a,summary{ -webkit-tap-highlight-color:transparent}button{cursor:pointer}a{color:inherit}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible,.dropzone:focus-within{outline:3px solid #227d73;outline-offset:4px}[hidden]{display:none!important}.brandbar{height:80px;background:#0e0e10;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 34px;border-bottom:3px solid var(--orange)}.brand{display:flex;align-items:center;gap:12px;text-decoration:none;font-size:17px;letter-spacing:.14em;font-weight:800}.brand svg{color:var(--orange)}.brand small{display:block;font-size:8px;letter-spacing:.2em;color:#b4bdb9;margin-top:4px}.edition{display:flex;align-items:center;gap:9px;letter-spacing:.13em;font-size:10px;font-weight:650;color:#c6cfcb}.status-dot{height:6px;width:6px;background:#9cbaa8;border-radius:50%}.version{color:#8d9994;border-left:1px solid #424b45;padding-left:12px;margin-left:5px}.shell{display:grid;grid-template-columns:238px minmax(0,1fr);min-height:calc(100vh - 80px)}.sidebar{background:var(--nav);color:#d3ddd7;padding:32px 18px;display:flex;flex-direction:column}.product-mark{display:flex;gap:12px;align-items:center;margin:0 10px 40px;font-size:23px;font-weight:650;letter-spacing:-.04em;color:#fff}.product-icon{font-size:25px;background:#26322c;border:1px solid #3d4c42;border-radius:11px;width:41px;height:41px;display:grid;place-items:center;color:#e9b38a}.product-mark small{display:block;font-size:9px;font-weight:400;letter-spacing:0;color:#a0b0a6;margin-top:5px}nav{display:grid;gap:7px}.nav-item{border:0;color:#b7c4bd;background:transparent;text-align:left;display:flex;align-items:center;gap:12px;padding:13px 12px;font-size:12px;border-radius:6px}.nav-item.active{background:#2c3931;color:white;box-shadow:inset 3px 0 var(--orange)}.nav-item:hover{background:#25312b}.nav-item>span:first-child{font-size:18px;width:19px;text-align:center}.count{margin-left:auto;font-size:10px;background:#425048;padding:3px 6px;border-radius:4px}.sidebar-note{margin:80px 10px 0;padding-top:24px;border-top:1px solid #344138;font-size:11px;line-height:1.8;color:#9eafa5}.sidebar-note .small-label{color:#c3cfc6;font-size:9px}.sidebar-note a{display:inline-block;color:#e8ede9;font-size:11px;text-decoration:none;margin-top:8px}main{padding:42px 42px 24px;max-width:1500px;width:100%;margin:auto;align-self:start}.eyebrow,.small-label{font-size:10px;font-weight:700;letter-spacing:.13em;color:var(--green)}.eyebrow{margin:0 0 12px}.page-heading{display:flex;justify-content:space-between;gap:22px;align-items:center;margin-bottom:30px}h1{font-size:clamp(27px,3vw,39px);line-height:1.16;letter-spacing:-.045em;margin:0;font-weight:650}h2{font-size:18px;letter-spacing:-.025em;margin:0;font-weight:650}h3{font-size:16px;letter-spacing:-.02em;margin:12px 0}p{line-height:1.7}.lede{font-size:13px;color:var(--muted);margin:12px 0 0}.button{display:inline-flex;align-items:center;justify-content:center;gap:16px;border:1px solid #cbd5cf;border-radius:6px;background:white;color:var(--ink);padding:12px 17px;font-size:12px;font-weight:650;text-decoration:none;white-space:nowrap;line-height:1.25}.button:hover{background:#edf2ee}.button.primary{background:var(--orange);color:#1b1a17;border-color:var(--orange);min-height:43px}.button.primary:hover{background:#f39450}.button:disabled{opacity:.45;cursor:not-allowed}.button.compact{font-size:11px;padding:9px 12px;gap:6px}.input-card{border:1px solid var(--line);background:white;border-radius:10px;padding:23px 25px;box-shadow:0 3px 8px #1b3e2010}.input-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}.pill{font-size:10px;padding:6px 10px;border:1px solid #dce6df;border-radius:20px;background:#f5f9f5;color:#40654e;white-space:nowrap}.input-tabs{display:flex;gap:24px;border-bottom:1px solid var(--line);margin:18px 0}.input-tabs button{padding:9px 0 12px;border:0;border-bottom:2px solid transparent;background:none;color:var(--muted);font-size:12px}.input-tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--orange);font-weight:650}.dropzone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;background:#f9fbf9;border:1px dashed #bacbc0;border-radius:7px;padding:20px;min-height:135px;cursor:pointer;position:relative;text-align:center}.dropzone.dragging{background:#e7f3eb;border-color:var(--green)}.dropzone strong{font-size:12px;font-weight:600;overflow-wrap:anywhere}.dropzone>span:last-of-type{font-size:10px;color:var(--muted)}.upload-icon{font-size:21px;color:var(--green);height:30px;width:30px;border:1px solid #d4e2d8;background:white;border-radius:7px;display:grid;place-items:center;margin-bottom:3px}.dropzone input,.file-button input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}.input-bottom{display:flex;align-items:flex-end;gap:24px;justify-content:space-between;margin-top:19px}.input-options{display:grid;grid-template-columns:1fr 1fr;gap:18px;flex:1}.input-options label,.thresholds label{font-size:10px;font-weight:600;color:var(--muted);display:grid;gap:7px}input,select,textarea{border:1px solid #ccd6cf;border-radius:5px;background:white;padding:10px 11px;color:var(--ink);font-size:12px;min-width:0;width:100%}textarea{resize:vertical;min-height:120px;font-family:ui-monospace,monospace;font-size:11px}input::placeholder,textarea::placeholder{color:#7e8983}.field-label{display:block;font-size:11px;margin-bottom:8px;font-weight:600}.field-help{font-size:11px;color:var(--muted);margin:9px 0 0;line-height:1.6}.settings{margin-top:17px;color:var(--muted);font-size:11px}.settings summary{cursor:pointer;width:fit-content}.thresholds{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-top:15px;max-width:630px}.welcome{display:grid;grid-template-columns:1fr 1fr;gap:70px;padding:42px 12px 15px}.welcome h2{font-size:28px;letter-spacing:-.04em;margin:14px 0}.welcome p{font-size:12px;color:var(--muted);max-width:410px}.text-button{padding:4px 0;background:transparent;border:0;font-size:12px;font-weight:650;color:var(--green)}.welcome ol{padding:0;margin:0;display:grid;gap:20px;list-style:none}.welcome li{display:flex;gap:16px}.welcome li>span{font-family:ui-monospace,monospace;font-size:11px;color:#78968a;border:1px solid #d7e2da;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;flex-shrink:0}.welcome strong{font-size:12px}.welcome li p{margin:5px 0 0;font-size:11px}.report-toolbar{margin:30px 0 19px;display:flex;align-items:center;justify-content:space-between;gap:16px}.report-toolbar>div:first-child{display:grid;gap:6px;min-width:0}.live-label{font-size:13px;font-weight:650;overflow-wrap:anywhere}#report-date{font-size:10px;color:var(--muted)}.toolbar-actions{display:flex;gap:6px;flex-wrap:wrap}.demo-banner{background:#fff2e5;color:#7e4616;border:1px solid #edd4bb;padding:10px 14px;font-size:11px;border-radius:6px;margin-bottom:16px}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}.metric{background:white;border:1px solid var(--line);border-radius:8px;padding:19px}.metric-label{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}.metric strong{display:block;font-size:34px;letter-spacing:-.05em;margin:12px 0 7px;font-weight:600;font-variant-numeric:tabular-nums}.metric small{font-size:10px;line-height:1.5;display:block;color:var(--muted)}.metric.error strong{color:var(--red)}.metric.warning strong{color:var(--amber)}.metric.clear strong{color:var(--green)}.assessment-note{font-size:11px;color:var(--muted);margin:13px 0 24px}.overview-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:18px}.panel{background:white;border:1px solid var(--line);border-radius:8px;padding:23px}.panel h2{font-size:15px}.panel-intro{font-size:11px;color:var(--muted);margin:8px 0 18px}.rule-row{display:flex;justify-content:space-between;gap:14px;font-size:11px;margin-top:15px}.rule-row strong{font-size:11px;font-variant-numeric:tabular-nums}.rule-track{height:5px;background:#edf1ed;margin-top:8px;border-radius:4px;overflow:hidden}.rule-fill{height:100%;background:#b5c8bb;border-radius:4px}.rule-fill.error{background:#bf6963}.details-list{margin:18px 0 0}.details-list div{display:flex;justify-content:space-between;gap:15px;border-bottom:1px solid #edf1ed;padding:11px 0;font-size:11px}.details-list dt{color:var(--muted)}.details-list dd{margin:0;text-align:right}.panel .button{margin-top:20px}.scope-note{font-size:11px;color:var(--muted);padding:15px 0 0;line-height:1.8}.section-top{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:30px 0 20px}.section-top p{font-size:12px;color:var(--muted);margin:7px 0 0}.filters{display:flex;gap:8px}.filters select{width:140px}.filters input{width:225px}.finding{background:white;border:1px solid var(--line);border-radius:7px;padding:19px 21px;margin-bottom:10px;display:grid;grid-template-columns:80px 1fr;gap:15px;break-inside:avoid}.severity{font-size:9px;font-weight:750;text-transform:uppercase;letter-spacing:.07em;border-radius:4px;padding:6px 8px;display:inline-block;width:fit-content;align-self:start}.severity.error{color:#9b3029;background:#fbedea}.severity.warning{color:#86600d;background:#fbf2da}.finding h3{font-size:13px;margin:0 0 9px;line-height:1.5}.finding-meta{display:flex;gap:8px 16px;flex-wrap:wrap;font-size:10px;color:var(--muted)}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.9em;overflow-wrap:anywhere}.finding p{font-size:11px;color:var(--muted);margin:12px 0 0}.finding p strong{color:var(--green);font-weight:650}.finding .path{display:block;background:#f4f7f4;padding:8px 10px;margin-top:12px;color:#596a5f;overflow-wrap:anywhere;font-size:10px}.empty{padding:35px 20px;border:1px dashed #cbd7ce;border-radius:8px;font-size:12px;text-align:center;color:var(--muted)}.comparison-card{display:grid;grid-template-columns:1fr 1fr;background:white;border:1px solid var(--line);border-radius:8px}.comparison-card>div{padding:25px}.comparison-card>div+div{border-left:1px solid var(--line)}.comparison-card h3{margin-top:0}.comparison-card p{font-size:12px;color:var(--muted)}.file-button{position:relative;cursor:pointer}.file-button:focus-within{outline:3px solid #227d73;outline-offset:4px}#comparison-results{margin-top:22px}.change-list{font-size:11px;color:var(--muted);overflow-wrap:anywhere}.method-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.method-grid article{background:white;border:1px solid var(--line);border-radius:8px;padding:25px}.method-grid p,.method-grid li{font-size:12px;color:var(--muted);line-height:1.8}.method-grid ul{padding-left:17px}.method-grid a{font-size:11px;color:var(--green)}#message{border-radius:6px;padding:13px 16px;margin-top:15px;font-size:12px;line-height:1.6;overflow-wrap:anywhere;background:#e8f3eb;color:#235b42}#message.error{background:#fbeeea;color:#913a2d}footer{margin-top:45px;border-top:1px solid var(--line);padding-top:20px;display:flex;justify-content:space-between;gap:15px;font-size:9px;color:var(--muted)}.footer-separator{padding:0 8px;color:#b6c1b9}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.print-heading{display:none}
+@media print{.scope-note{display:block!important;font-size:8px}}
+@media(min-width:1600px){main{padding-top:52px}.page-heading{margin-bottom:38px}.input-card{padding:27px 30px}.dropzone{min-height:150px}}
+@media(max-width:1100px){.shell{grid-template-columns:200px 1fr}main{padding:30px 25px}.sidebar{padding:28px 12px}.product-mark{font-size:20px;gap:8px;margin-left:7px}.product-mark small{font-size:8px}.page-heading{align-items:flex-start}.page-heading>.button{padding:10px}.input-bottom{gap:12px}.input-options{gap:10px}.input-options label{font-size:9px}.input-bottom>.button{padding:12px}.metric{padding:15px}.metric-label{font-size:9px}.welcome{gap:30px}.overview-grid{grid-template-columns:1fr 1fr}.report-toolbar{align-items:flex-start;flex-direction:column}.section-top{align-items:flex-start;flex-direction:column}}
+@media(max-width:760px){.brandbar{height:68px;padding:0 18px}.brand{font-size:13px}.brand small{font-size:6px}.edition{font-size:8px;gap:6px}.version{display:none}.shell{display:block}.sidebar{padding:0;background:#18241d}.product-mark,.sidebar-note{display:none}.sidebar nav{display:flex;gap:4px;overflow:auto;padding:8px 10px}.nav-item{white-space:nowrap;font-size:10px;padding:10px}.nav-item>span:first-child{font-size:14px;width:14px}.nav-item.active{box-shadow:inset 0 -2px var(--orange)}.count{padding:2px 4px}main{padding:27px 18px}.page-heading{flex-direction:column;gap:15px;margin-bottom:23px}.eyebrow{font-size:8px;letter-spacing:.1em}.lede{font-size:12px}.page-heading>.button{font-size:11px}.input-card{padding:19px 16px}.input-heading h2{font-size:16px}.pill{font-size:8px;padding:5px 7px}.dropzone{padding:18px 10px}.dropzone strong{font-size:11px}.dropzone>span:last-of-type{font-size:9px}.input-bottom{flex-direction:column;align-items:stretch}.input-options{width:100%}.input-bottom>.button{margin-top:2px}.thresholds{gap:8px}.thresholds label{font-size:9px}.thresholds input{padding:8px}.welcome{grid-template-columns:1fr;padding:30px 0;gap:25px}.welcome h2{font-size:26px}.welcome p{max-width:none}.welcome ol{gap:17px}.metrics{grid-template-columns:1fr 1fr;gap:10px}.metric strong{font-size:30px}.overview-grid{grid-template-columns:1fr;gap:13px}.panel{padding:20px}.toolbar-actions{gap:5px}.button.compact{font-size:10px;padding:9px}.filters{width:100%}.filters input{width:100%}.filters select{width:130px}.finding{grid-template-columns:1fr;gap:12px;padding:17px}.comparison-card,.method-grid{grid-template-columns:1fr}.comparison-card>div+div{border-left:0;border-top:1px solid var(--line)}footer{flex-direction:column;font-size:9px;gap:5px;margin-top:30px}}
+@media print{@page{size:A4;margin:16mm}body{background:white;font-size:10pt;color:#000}.brandbar{background:white;color:#000;height:60px;padding:0;border-bottom:2px solid #000}.brand small{color:#555}.edition{color:#333}.shell{display:block}.sidebar,.page-heading,.input-card,.toolbar-actions,#message,footer,.filters,#more-findings,.panel .button,.section-top p{display:none!important}main{padding:0;max-width:none}.report-toolbar{display:block!important;margin:20px 0}#report-label{font-size:14px}.view{display:none!important}#view-overview,#view-findings{display:block!important}#welcome{display:none!important}.overview-grid{grid-template-columns:1fr 1fr}.metric,.panel,.finding{box-shadow:none;border:1px solid #bbb}.metrics{grid-template-columns:repeat(4,1fr);gap:8px}.metric{padding:10px}.metric strong{font-size:23px}.metric small{font-size:8px}.metric-label{font-size:8px}.assessment-note{font-size:9px}.section-top{margin:25px 0 15px}.finding{padding:12px;grid-template-columns:65px 1fr;gap:10px}.finding h3{font-size:11px}.finding p{font-size:10px}.finding-meta,.finding .path{font-size:8px}.finding .path{background:none}.demo-banner{border-color:#999;color:#000;background:none}.print-heading{display:block}.comparison-card{break-inside:avoid}a{text-decoration:none}.method-grid article{break-inside:avoid}}
+
+body[data-edition="demo"] .input-card,body[data-edition="demo"] [data-view="compare"]{display:none!important}
+</style>
+</head>
+<body data-edition="demo">
+<header class="brandbar"><a class="brand" href="https://purposebuilt.systems" target="_blank" rel="noopener"><svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><path fill="currentColor" d="M2 4h17l11 12-11 12H2l11-12z"/></svg><span>PURPOSEBUILT<small>SYSTEMS / TRANSPORTATION TOOLS</small></span></a><div class="edition"><span class="status-dot"></span>SAMPLE DEMO <span class="version">v0.1</span></div></header>
+<div class="shell">
+<aside class="sidebar"><div class="product-mark"><span class="product-icon" aria-hidden="true">↳</span><div>FeedCheck<small>Know what your feed is saying.</small></div></div><nav aria-label="Workspace"><button class="nav-item active" data-view="overview" aria-current="page"><span aria-hidden="true">▦</span>Overview</button><button class="nav-item" data-view="findings"><span aria-hidden="true">≡</span>Findings<span id="nav-count" class="count">0</span></button><button class="nav-item" data-view="compare"><span aria-hidden="true">⇄</span>Compare snapshots</button><button class="nav-item" data-view="method"><span aria-hidden="true">ⓘ</span>How checks work</button></nav><div class="sidebar-note"><span class="small-label">BUILT FOR THE REVIEW</span><p>Your files stay in this browser. Export the evidence. Keep the conversation moving.</p><a href="https://purposebuilt.systems/contact" target="_blank" rel="noopener">PurposeBuilt support ↗</a></div></aside>
+<main id="main">
+<div class="page-heading"><div><p class="eyebrow">TRANSPORTATION DATA / FEED DIAGNOSTICS</p><h1 id="page-title">A clearer picture of your feed.</h1><p class="lede">Find the records that need attention. Leave with a useful report.</p></div><button class="button secondary" id="sample">Explore a sample <span aria-hidden="true">↗</span></button></div>
+<section class="input-card" aria-labelledby="input-title"><div class="input-heading"><h2 id="input-title">Check a feed</h2><span class="pill">No upload to a server</span></div><div class="input-tabs" role="tablist" aria-label="Feed input method"><button role="tab" id="tab-file" aria-selected="true" aria-controls="input-file" data-input="file">JSON file</button><button role="tab" id="tab-paste" aria-selected="false" aria-controls="input-paste" data-input="paste" tabindex="-1">Paste JSON</button><button role="tab" id="tab-url" aria-selected="false" aria-controls="input-url" data-input="url" tabindex="-1">Feed URL</button></div>
+<div id="input-file" role="tabpanel" aria-labelledby="tab-file"><label class="dropzone" id="dropzone" for="feed-file"><span class="upload-icon" aria-hidden="true">↑</span><strong id="file-label">Choose a JSON file or drop it here</strong><span>GeoJSON / WZDx-style road events / event JSON · Up to 20 MB</span><input type="file" id="feed-file" accept=".json,.geojson,application/json,application/geo+json"></label></div>
+<div id="input-paste" role="tabpanel" aria-labelledby="tab-paste" hidden><label class="field-label" for="json-input">Feed JSON</label><textarea id="json-input" rows="5" spellcheck="false" placeholder='{"type":"FeatureCollection","features":[…]}'></textarea></div>
+<div id="input-url" role="tabpanel" aria-labelledby="tab-url" hidden><label class="field-label" for="feed-url">Public feed URL</label><input id="feed-url" type="url" placeholder="https://agency.gov/workzones.json" autocomplete="off"><p class="field-help">Your browser requests this URL directly. The publisher must allow cross-origin requests (CORS). If blocked, download the JSON and use the file tab. Authenticated feeds: download a file; do not enter API keys here.</p></div>
+<div class="input-bottom"><div class="input-options"><label>Feed label<input id="feed-label" placeholder="e.g. Agency work-zone feed" maxlength="180"></label><label>Organization / project<input id="organization" placeholder="Shown on your report" maxlength="160"></label></div><button class="button primary" id="run">Run assessment <span aria-hidden="true">→</span></button></div>
+<details class="settings"><summary>Review thresholds</summary><div class="thresholds"><label>Feed age (minutes)<input id="feed-minutes" type="number" min="1" max="87600" value="60"></label><label>Event confirmation age (hours)<input id="event-hours" type="number" min="1" max="87600" value="24"></label><label>Ended-event grace (hours)<input id="expired-hours" type="number" min="1" max="87600" value="1"></label></div><p class="field-help">Age flags are review prompts. Long-running events and intentionally retained records may be valid. Changing a threshold requires a new assessment.</p></details>
+</section>
+<div id="message" role="status" aria-live="polite" hidden></div>
+<div class="report-toolbar" id="report-toolbar" hidden><div><span class="live-label" id="report-label"></span><span id="report-date"></span></div><div class="toolbar-actions"><button class="button compact" id="export-csv">Findings CSV ↓</button><button class="button compact" id="export-json">Report JSON ↓</button><button class="button compact" id="print">Print / PDF ↗</button></div></div>
+<section id="view-overview" class="view"><div class="welcome" id="welcome"><div><span class="small-label">ONE FEED. ONE FOCUSED REVIEW.</span><h2>Catch the quiet failures.</h2><p>A feed can load successfully and still contain duplicate events, unusable coordinates, or records that have outlived the work.</p><button class="text-button" id="sample-welcome">See an example assessment →</button></div><ol><li><span>01</span><div><strong>Bring your feed</strong><p>Open a file, paste JSON, or request a public URL.</p></div></li><li><span>02</span><div><strong>Follow the evidence</strong><p>Each finding includes a record, JSON path, and next step.</p></div></li><li><span>03</span><div><strong>Share a useful report</strong><p>Export findings for your team or your feed provider.</p></div></li></ol></div><div id="overview-report" hidden></div></section>
+<section id="view-findings" class="view" hidden><div class="section-top"><div><h2>The findings</h2><p>Specific records. Specific next steps.</p></div><div class="filters"><label class="sr-only" for="severity">Severity</label><select id="severity"><option value="all">All severities</option><option value="error">Errors</option><option value="warning">Warnings</option></select><label class="sr-only" for="search">Search findings</label><input id="search" type="search" placeholder="Search ID, rule, or path…"></div></div><div id="findings-list" class="findings-list"><p class="empty">Run an assessment to see findings.</p></div><button class="button secondary" id="more-findings" hidden>Show more findings</button></section>
+<section id="view-compare" class="view" hidden><div class="section-top"><div><h2>What changed between checks?</h2><p>Compare stable event IDs to see additions, removals, and changed records.</p></div></div><div class="comparison-card"><div><h3>Keep a baseline</h3><p>Download a compact snapshot after an assessment. Open it alongside a later check of the same feed.</p><button class="button secondary" id="save-snapshot" disabled>Download current snapshot ↓</button></div><div><h3>Compare with a previous check</h3><p>Use the same feed label for both assessments. Snapshots contain IDs and content fingerprints, without full event records.</p><label class="button secondary file-button" for="baseline-file">Choose baseline JSON<input id="baseline-file" type="file" accept=".json,application/json"></label><p id="baseline-name" class="field-help">No baseline selected</p></div></div><div id="comparison-results"></div><p class="scope-note">A removed ID can be normal lifecycle activity. Fingerprints detect likely content changes; they are not cryptographic evidence. Comparison does not establish whether the source is complete.</p></section>
+<section id="view-method" class="view" hidden><div class="section-top"><div><h2>Clear checks. Clear limits.</h2><p>A practical review aid for road-event feeds.</p></div></div><div class="method-grid"><article><span class="small-label">WHAT WE CHECK</span><h3>Operational data hygiene</h3><ul><li>Missing, invalid, or duplicated record IDs</li><li>Missing road names and event classifications</li><li>Invalid timestamps, timezone omissions, and reversed date ranges</li><li>Feed and event age against your thresholds</li><li>Events beyond their end time and grace period</li><li>Geometry structure and coordinate ranges</li></ul></article><article><span class="small-label">WHAT A RESULT MEANS</span><h3>Evidence for a conversation</h3><p><strong>Error:</strong> a structural or consistency issue that can prevent reliable use.</p><p><strong>Warning:</strong> a missing field or operational condition that needs review.</p><p>“Without findings” means no event-level rules fired. Feed-level findings are shown separately. An empty feed never receives an all-clear conclusion.</p></article><article><span class="small-label">SUPPORTED INPUT</span><h3>Keep the first version focused</h3><p>GeoJSON FeatureCollections; WZDx-style road events with <code>properties.core_details</code>; flat JSON event arrays or <code>{"events":[…]}</code>.</p><p>Generic fields: <code>id/eventId</code>, <code>road/roadName/corridor</code>, <code>eventType/type</code>, <code>startDate/startTime</code>, <code>endDate/endTime</code>, <code>updated/lastUpdated</code>, and GeoJSON geometry or numeric <code>latitude/longitude</code>.</p><p>WZDx-style input reads dates from event properties and update time from core details. Device feeds, XML, and custom vendor mappings are outside this edition.</p></article><article><span class="small-label">PRIVACY &amp; SCOPE</span><h3>Local by design</h3><p>No analytics, accounts, external libraries, or automatic storage. File and pasted data are processed in browser memory. URL checks contact only the feed URL you provide.</p><p>Exports contain source labels, findings, and record IDs. URL query strings and credentials are removed from report source labels. Review file names and labels before sharing.</p><p>This tool does not certify full WZDx/CWZ conformance, verify field accuracy, establish missing real-world events, or monitor feeds while closed.</p><a href="https://github.com/usdot-jpo-ode/wzdx/tree/main/schemas/4.2" target="_blank" rel="noopener">Official WZDx schemas ↗</a></article></div></section>
+<footer><span>PurposeBuilt Systems <span class="footer-separator">/</span> FeedCheck Local Edition</span><span>Operational checks, with evidence you can use.</span></footer>
+</main></div>
+<script>(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.FeedCheck = factory();
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+  const VERSION = '0.1.0';
+  const MAX_BYTES = 20 * 1024 * 1024;
+  const MAX_RECORDS = 25000;
+  const object = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+  const present = v => v !== undefined && v !== null && v !== '';
+  const text = v => typeof v === 'string' && v.trim().length > 0;
+  const first = (...values) => values.find(present);
+  const idValue = v => (typeof v === 'string' && v.trim() !== '') || (typeof v === 'number' && Number.isFinite(v));
+  // Require a timezone: Date.parse alone accepts ambiguous local dates and normalizes Feb 30.
+  function timestamp(v) {
+    if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(v)) return NaN;
+    const [y, m, d, h, min, sec] = v.slice(0, 19).split(/\D/).map(Number);
+    const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const zone = v.match(/([+-])(\d{2}):(\d{2})$/);
+    if (m < 1 || m > 12 || d < 1 || d > days || h > 23 || min > 59 || sec > 59 || (zone && (+zone[2] > 23 || +zone[3] > 59))) return NaN;
+    return Date.parse(v);
+  }
+  function geometryError(g) {
+    if (!object(g)) return 'Supply a GeoJSON geometry object.';
+    const position = p => Array.isArray(p) && p.length >= 2 && p.every(Number.isFinite) && Math.abs(p[0]) <= 180 && Math.abs(p[1]) <= 90;
+    const line = a => Array.isArray(a) && a.length >= 2 && a.every(position);
+    const ring = a => Array.isArray(a) && a.length >= 4 && a.every(position) && JSON.stringify(a[0]) === JSON.stringify(a[a.length - 1]);
+    const polygon = a => Array.isArray(a) && a.length > 0 && a.every(ring);
+    const many = (a, check) => Array.isArray(a) && a.length > 0 && a.every(check);
+    const c = g.coordinates;
+    const valid = {
+      Point: () => position(c), MultiPoint: () => many(c, position),
+      LineString: () => line(c), MultiLineString: () => many(c, line),
+      Polygon: () => polygon(c), MultiPolygon: () => many(c, polygon),
+      GeometryCollection: () => many(g.geometries, child => !geometryError(child))
+    };
+    return !Object.hasOwn(valid, g.type) ? 'Use a supported GeoJSON geometry type.' : valid[g.type]() ? null : 'Check coordinate nesting, numeric longitude/latitude ranges, minimum positions, and closed polygon rings.';
+  }
+  function sourceLabel(value) {
+    try {
+      const u = new URL(value);
+      if (['http:', 'https:'].includes(u.protocol)) return u.origin + u.pathname;
+    } catch (_) { /* file labels are allowed */ }
+    return String(value || 'Untitled feed').slice(0, 240);
+  }
+  function parse(raw) {
+    if (typeof raw !== 'string') throw new Error('Provide JSON text.');
+    if (new TextEncoder().encode(raw).length > MAX_BYTES) throw new Error('This edition supports files up to 20 MB.');
+    try { return JSON.parse(raw.replace(/^\uFEFF/, '')); }
+    catch (_) { throw new Error('This is not valid JSON. Check for trailing commas, an HTML error page, or an incomplete download.'); }
+  }
+  function hash(value) {
+    // Stable field order avoids false changes caused only by JSON key ordering.
+    function stable(v) {
+      if (Array.isArray(v)) return '[' + v.map(stable).join(',') + ']';
+      if (object(v)) return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + stable(v[k])).join(',') + '}';
+      return JSON.stringify(v);
+    }
+    const s = stable(value);
+    let a = 2166136261;
+    for (let i = 0; i < s.length; i++) a = Math.imul(a ^ s.charCodeAt(i), 16777619);
+    return (a >>> 0).toString(16).padStart(8, '0');
+  }
+  function analyze(data, options = {}) {
+    const now = options.now === undefined ? Date.now() : new Date(options.now).getTime();
+    if (!Number.isFinite(now)) throw new Error('Invalid assessment time.');
+    const settings = {
+      feedMinutes: Number(options.feedMinutes ?? 60),
+      eventHours: Number(options.eventHours ?? 24),
+      expiredHours: Number(options.expiredHours ?? 1)
+    };
+    if (Object.values(settings).some(n => !Number.isFinite(n) || n <= 0 || n > 87600)) throw new Error('Thresholds must be positive numbers, at most 87,600.');
+    let records, base, format;
+    const infoKey = object(data) && object(data.feed_info) ? 'feed_info' : 'road_event_feed_info';
+    const info = object(data) && object(data[infoKey]) ? data[infoKey] : {};
+    if (object(data) && data.type === 'FeatureCollection' && Array.isArray(data.features)) {
+      records = data.features; base = '$.features';
+      format = Object.keys(info).length || records.some(r => object(r?.properties?.core_details)) ? 'WZDx-style GeoJSON' : 'GeoJSON';
+    } else if (Array.isArray(data)) { records = data; base = '$'; format = 'Event JSON'; }
+    else if (object(data) && Array.isArray(data.events)) { records = data.events; base = '$.events'; format = 'Event JSON'; }
+    else throw new Error('Unsupported feed. Use a GeoJSON FeatureCollection, an array of event objects, or an object with an events array. XML and device feeds are outside this edition.');
+    if (records.length > MAX_RECORDS) throw new Error('This edition supports up to 25,000 records per assessment.');
+    const geojson = format !== 'Event JSON';
+    const wzdx = format === 'WZDx-style GeoJSON';
+    if (wzdx && records.some(r => present(r?.properties?.core_details?.device_type))) throw new Error('This appears to be a device feed. FeedCheck currently assesses road-event feeds.');
+    const issues = [];
+    const add = (severity, code, index, path, message, action, recordId = '') => issues.push({ severity, code, index, recordId: String(recordId), path, message, action });
+    const feedIssue = (severity, code, path, message, action) => add(severity, code, null, path, message, action);
+    if (!records.length) feedIssue('warning', 'EMPTY_FEED', base, 'The feed contains no records.', 'Confirm this is expected against the source system. An empty feed cannot establish event quality.');
+    const feedDate = first(info.update_date, object(data) ? data.updated : undefined);
+    if (!present(feedDate)) feedIssue('warning', 'FEED_TIME_MISSING', wzdx ? '$.' + infoKey + '.update_date' : '$.updated', 'Feed publication time is unavailable.', 'Publish an RFC 3339 update timestamp so consumers can assess feed freshness.');
+    else {
+      const t = timestamp(feedDate);
+      if (!Number.isFinite(t)) feedIssue('error', 'FEED_TIME_INVALID', '$.' + (wzdx ? infoKey + '.update_date' : 'updated'), 'Feed publication timestamp is invalid or lacks a timezone.', 'Use a full timestamp such as 2026-10-17T15:00:00Z.');
+      else if (t > now + 300000) feedIssue('warning', 'FEED_TIME_FUTURE', '$.' + (wzdx ? infoKey + '.update_date' : 'updated'), 'Feed publication time is more than five minutes in the future.', 'Verify the source clock and timezone.');
+      else if (now - t > settings.feedMinutes * 60000) feedIssue('warning', 'FEED_STALE', '$.' + (wzdx ? infoKey + '.update_date' : 'updated'), 'Feed publication exceeds the ' + settings.feedMinutes + '-minute freshness threshold.', 'Check the publisher and compare with its documented refresh interval.');
+    }
+    const normalized = records.map((record, index) => {
+      const r = object(record) ? record : {};
+      const p = geojson ? (object(r.properties) ? r.properties : {}) : r;
+      const core = object(p.core_details) ? p.core_details : p;
+      return {
+        index, raw: record, id: first(r.id, p.id, p.eventId),
+        road: first(core.road_names, p.road, p.roadName, p.corridor),
+        start: first(p.start_date, p.startDate, p.startTime, core.start_date),
+        end: first(p.end_date, p.endDate, p.endTime, core.end_date),
+        updated: first(core.update_date, p.updated, p.update_date, p.lastUpdated),
+        geometry: geojson || present(p.geometry) ? r.geometry || p.geometry : (present(p.longitude) && present(p.latitude) ? { type: 'Point', coordinates: [p.longitude, p.latitude] } : null),
+        type: first(core.event_type, p.eventType, p.type),
+        fields: {
+          start: present(p.start_date) ? 'start_date' : present(p.startDate) ? 'startDate' : present(p.startTime) ? 'startTime' : 'core_details.start_date',
+          end: present(p.end_date) ? 'end_date' : present(p.endDate) ? 'endDate' : present(p.endTime) ? 'endTime' : 'core_details.end_date',
+          updated: core !== p && present(core.update_date) ? 'core_details.update_date' : present(p.updated) ? 'updated' : present(p.update_date) ? 'update_date' : 'lastUpdated',
+          road: present(core.road_names) ? (core !== p ? 'core_details.road_names' : 'road_names') : present(p.road) ? 'road' : present(p.roadName) ? 'roadName' : present(p.corridor) ? 'corridor' : (wzdx ? 'core_details.road_names' : 'road'),
+          type: present(core.event_type) ? (core !== p ? 'core_details.event_type' : 'event_type') : present(p.eventType) ? 'eventType' : present(p.type) ? 'type' : (wzdx ? 'core_details.event_type' : 'eventType')
+        }
+      };
+    });
+    const ids = new Map();
+    for (const r of normalized) if (idValue(r.id)) ids.set(String(r.id), (ids.get(String(r.id)) || 0) + 1);
+    for (const r of normalized) {
+      const path = base + '[' + r.index + ']';
+      const pp = path + (geojson ? '.properties.' : '.');
+      const issue = (severity, code, field, message, action) => add(severity, code, r.index, field.startsWith('$') ? field : pp + field, message, action, idValue(r.id) ? r.id : '(missing ID)');
+      if (!object(r.raw)) { issue('error', 'RECORD_INVALID', path, 'Record is not an object.', 'Remove or replace this malformed record at the source.'); continue; }
+      const rawProperties = geojson && object(r.raw.properties) ? r.raw.properties : r.raw;
+      const idPath = present(r.raw.id) ? path + '.id' : (geojson && present(rawProperties.id)) ? pp + 'id' : present(rawProperties.eventId) ? pp + 'eventId' : path + '.id';
+      if (geojson && r.raw.type !== 'Feature') issue('error', 'FEATURE_TYPE', path + '.type', 'Record is not a GeoJSON Feature.', 'Set type to Feature and verify its properties and geometry.');
+      if (geojson && !object(r.raw.properties)) issue('error', 'PROPERTIES_INVALID', path + '.properties', 'Feature properties are missing or invalid.', 'Supply an object containing the event attributes.');
+      if (!idValue(r.id)) issue('error', 'ID_MISSING', idPath, 'A stable event identifier is missing or invalid.', 'Assign a non-empty string or finite numeric ID that remains stable across updates.');
+      else if (ids.get(String(r.id)) > 1) issue('error', 'ID_DUPLICATE', idPath, 'ID occurs ' + ids.get(String(r.id)) + ' times in this feed.', 'Assign unique IDs; check for duplicated source imports.');
+      if (!(text(r.road) || (Array.isArray(r.road) && r.road.length > 0 && r.road.every(text)))) issue('warning', 'ROAD_MISSING', r.fields.road, 'A usable road name is missing.', 'Provide the affected road name or a non-empty array of road names.');
+      if (!text(r.type)) issue('warning', 'EVENT_TYPE_MISSING', r.fields.type, 'Event classification is missing.', 'Publish a meaningful event type in the source feed.');
+      if (!present(r.start)) issue('warning', 'START_MISSING', wzdx ? 'start_date' : 'startDate', 'Event start time is missing.', 'Publish the actual or planned start as a full timestamp with timezone.');
+      const times = {};
+      for (const field of ['start', 'end', 'updated']) {
+        if (!present(r[field])) continue;
+        times[field] = timestamp(r[field]);
+        if (!Number.isFinite(times[field])) issue('error', 'TIME_INVALID', r.fields[field], field + ' timestamp is invalid or lacks a timezone.', 'Use an RFC 3339 timestamp with a valid calendar date and timezone.');
+      }
+      if (!present(r.updated)) issue('warning', 'UPDATE_MISSING', wzdx ? 'core_details.update_date' : 'updated', 'Event confirmation/update time is unavailable.', 'Publish when the source last updated or confirmed this event. Start time is not update time.');
+      if (Number.isFinite(times.updated) && times.updated > now + 300000) issue('warning', 'UPDATE_FUTURE', r.fields.updated, 'Event update is more than five minutes in the future.', 'Verify source clocks and timezone conversion.');
+      else if (Number.isFinite(times.updated) && now - times.updated > settings.eventHours * 3600000) issue('warning', 'EVENT_STALE', r.fields.updated, 'Event has not been confirmed within ' + settings.eventHours + ' hours.', 'Check whether the event is still current. Long-running events can be valid; this threshold is an operational review flag.');
+      if (Number.isFinite(times.start) && Number.isFinite(times.end) && times.end < times.start) issue('error', 'TIME_ORDER', r.fields.end, 'End time precedes start time.', 'Correct the source dates or timezone conversion.');
+      else if (Number.isFinite(times.end) && now - times.end > settings.expiredHours * 3600000) issue('warning', 'EVENT_ENDED', r.fields.end, 'Event ended more than ' + settings.expiredHours + ' hours ago.', 'Confirm whether retention is intentional. Remove or archive events according to the publisher’s lifecycle policy.');
+      const geoError = geometryError(r.geometry);
+      if (geoError) issue('error', 'GEOMETRY_INVALID', path + '.geometry', r.geometry ? 'Geometry cannot be interpreted reliably.' : 'Event geometry is missing.', geoError);
+    }
+    issues.sort((a, b) => (a.severity === 'error' ? 0 : 1) - (b.severity === 'error' ? 0 : 1) || (a.index ?? -1) - (b.index ?? -1));
+    const flagged = new Set(issues.filter(i => i.index !== null).map(i => i.index));
+    const entries = normalized.map(r => ({ id: idValue(r.id) ? String(r.id) : null, fingerprint: hash(r.raw) }));
+    return {
+      product: 'PurposeBuilt FeedCheck', version: VERSION, assessedAt: new Date(now).toISOString(),
+      source: sourceLabel(options.source), organization: String(options.organization || '').slice(0, 160),
+      format, declaredVersion: String(info.version || 'Not declared'), settings,
+      summary: { records: records.length, flagged: flagged.size, clear: records.length - flagged.size, errors: issues.filter(i => i.severity === 'error').length, warnings: issues.filter(i => i.severity === 'warning').length, feedFindings: issues.filter(i => i.index === null).length },
+      issues, entries,
+      scope: 'Operational checks only; not full schema certification, ground-truth verification, coverage measurement, or an uptime monitor.'
+    };
+  }
+  function snapshot(report) {
+    return { kind: 'purposebuilt-feedcheck-snapshot', version: 1, source: report.source, assessedAt: report.assessedAt, format: report.format, settings: report.settings, summary: report.summary, entries: report.entries };
+  }
+  function validateSnapshot(s) {
+    if (!object(s) || s.kind !== 'purposebuilt-feedcheck-snapshot' || s.version !== 1 || !text(s.source) || !Number.isFinite(timestamp(s.assessedAt)) || !Array.isArray(s.entries) || s.entries.length > MAX_RECORDS || !s.entries.every(e => object(e) && (e.id === null || typeof e.id === 'string') && typeof e.fingerprint === 'string') || !object(s.summary) || !Number.isFinite(s.summary.records)) throw new Error('Choose a valid FeedCheck baseline snapshot JSON.');
+    return s;
+  }
+  function compare(report, baseline) {
+    validateSnapshot(baseline);
+    if (report.source !== baseline.source) throw new Error('Baseline source differs. Use a baseline from the same feed, or assess both files using the same feed label.');
+    const duplicateOrMissing = entries => entries.some(e => e.id === null) || new Set(entries.map(e => e.id)).size !== entries.length;
+    if (duplicateOrMissing(report.entries) || duplicateOrMissing(baseline.entries)) throw new Error('Comparison needs unique, non-empty IDs in both assessments. Resolve ID findings first.');
+    const previous = new Map(baseline.entries.map(e => [e.id, e.fingerprint]));
+    const current = new Map(report.entries.map(e => [e.id, e.fingerprint]));
+    return { previousAt: baseline.assessedAt, previousRecords: baseline.entries.length, added: report.entries.filter(e => !previous.has(e.id)).map(e => e.id), removed: baseline.entries.filter(e => !current.has(e.id)).map(e => e.id), changed: report.entries.filter(e => previous.has(e.id) && previous.get(e.id) !== e.fingerprint).map(e => e.id), unchanged: report.entries.filter(e => previous.get(e.id) === e.fingerprint).length, recordDelta: report.entries.length - baseline.entries.length };
+  }
+  function csv(report) {
+    const cell = v => {
+      let s = String(v ?? '');
+      if (/^[\s\u0000-\u001f]*[=+\-@]/.test(s) || /^[\t\r\n]/.test(s)) s = "'" + s;
+      return '"' + s.replace(/"/g, '""') + '"';
+    };
+    const rows = [['Source', 'Assessed at', 'Severity', 'Rule', 'Record ID', 'JSON path', 'Finding', 'Suggested action']];
+    for (const i of report.issues) rows.push([report.source, report.assessedAt, i.severity, i.code, i.recordId, i.path, i.message, i.action]);
+    return '\uFEFF' + rows.map(row => row.map(cell).join(',')).join('\r\n');
+  }
+  function sample(now = Date.now()) {
+    const iso = hours => new Date(now + hours * 3600000).toISOString();
+    const event = (id, road) => ({ type: 'Feature', id, properties: { core_details: { event_type: 'work-zone', road_names: [road], direction: 'eastbound', update_date: iso(-0.1) }, start_date: iso(-2), end_date: iso(8) }, geometry: { type: 'LineString', coordinates: [[-93.64, 41.59], [-93.62, 41.60]] } });
+    const features = [event('FC-100', 'I-80'), event('FC-101', 'I-35'), event('FC-102', 'US-30'), event('FC-103', 'I-80'), event('FC-104', 'I-35'), event('FC-105', 'US-65')];
+    features[1].properties.core_details.update_date = iso(-48);
+    features[2].geometry.coordinates[1] = [-193.62, 41.60];
+    features[3].properties.end_date = iso(-3);
+    features[4].properties.core_details.road_names = [];
+    return { type: 'FeatureCollection', feed_info: { version: '4.2', publisher: 'PurposeBuilt example data', update_date: iso(-0.1) }, features };
+  }
+  return { VERSION, MAX_BYTES, MAX_RECORDS, parse, analyze, snapshot, validateSnapshot, compare, csv, sample, sourceLabel, timestamp, geometryError };
+});
+</script>
+<script>(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const sampleOnly = document.body.dataset.edition === 'demo';
+  const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  let mode = 'file', selectedFile = null, report = null, baseline = null, demo = false, visibleLimit = 100;
+  let running = false, allForPrint = false;
+  function message(value, error = false) {
+    $('message').textContent = value;
+    $('message').className = error ? 'error' : '';
+    $('message').hidden = !value;
+  }
+  function switchView(view) {
+    for (const button of document.querySelectorAll('[data-view]')) {
+      const active = button.dataset.view === view;
+      button.classList.toggle('active', active);
+      if (active) button.setAttribute('aria-current', 'page');
+      else button.removeAttribute('aria-current');
+    }
+    for (const section of document.querySelectorAll('.view')) section.hidden = section.id !== 'view-' + view;
+  }
+  for (const button of document.querySelectorAll('[data-view]')) button.addEventListener('click', () => switchView(button.dataset.view));
+  const inputTabs = Array.from(document.querySelectorAll('[data-input]'));
+  function setInput(next) {
+    mode = next;
+    for (const button of inputTabs) {
+      const selected = button.dataset.input === mode;
+      button.setAttribute('aria-selected', String(selected));
+      button.tabIndex = selected ? 0 : -1;
+      $('input-' + button.dataset.input).hidden = !selected;
+    }
+  }
+  inputTabs.forEach((button, index) => {
+    button.addEventListener('click', () => setInput(button.dataset.input));
+    button.addEventListener('keydown', event => {
+      const next = event.key === 'ArrowRight' ? (index + 1) % 3 : event.key === 'ArrowLeft' ? (index + 2) % 3 : event.key === 'Home' ? 0 : event.key === 'End' ? 2 : null;
+      if (next !== null) { event.preventDefault(); setInput(inputTabs[next].dataset.input); inputTabs[next].focus(); }
+    });
+  });
+  function chooseFile(file) {
+    if (!file) return;
+    if (file.size > FeedCheck.MAX_BYTES) { message('Choose a JSON file under 20 MB.', true); return; }
+    selectedFile = file;
+    $('file-label').textContent = file.name + ' · ' + (file.size / 1024).toFixed(0) + ' KB';
+    setInput('file');
+    message('File selected. Run the assessment when you’re ready.');
+  }
+  $('feed-file').addEventListener('change', event => chooseFile(event.target.files[0]));
+  for (const name of ['dragover', 'dragleave', 'drop']) $('dropzone').addEventListener(name, event => {
+    event.preventDefault();
+    $('dropzone').classList.toggle('dragging', name === 'dragover');
+    if (name === 'drop') chooseFile(event.dataTransfer.files[0]);
+  });
+  function settings() {
+    return { feedMinutes: $('feed-minutes').value, eventHours: $('event-hours').value, expiredHours: $('expired-hours').value, organization: $('organization').value };
+  }
+  function metric(label, value, detail, cls = '') {
+    return '<div class="metric ' + cls + '"><span class="metric-label">' + escape(label) + '</span><strong>' + escape(value) + '</strong><small>' + escape(detail) + '</small></div>';
+  }
+  const labels = {
+    ID_MISSING: 'Missing IDs', ID_DUPLICATE: 'Duplicate IDs', GEOMETRY_INVALID: 'Geometry problems', TIME_INVALID: 'Invalid event timestamps', TIME_ORDER: 'Reversed event dates',
+    UPDATE_MISSING: 'Missing event updates', EVENT_STALE: 'Stale event confirmations', EVENT_ENDED: 'Ended events to review', ROAD_MISSING: 'Missing road names',
+    EVENT_TYPE_MISSING: 'Missing event types', START_MISSING: 'Missing event starts', UPDATE_FUTURE: 'Future event updates', FEATURE_TYPE: 'Invalid feature types', PROPERTIES_INVALID: 'Invalid properties', RECORD_INVALID: 'Malformed records',
+    EMPTY_FEED: 'Empty feed', FEED_TIME_MISSING: 'Missing feed timestamp', FEED_TIME_INVALID: 'Invalid feed timestamp', FEED_TIME_FUTURE: 'Future feed timestamp', FEED_STALE: 'Stale feed publication'
+  };
+  function renderOverview() {
+    if (!report) return;
+    const s = report.summary;
+    const groups = new Map();
+    for (const issue of report.issues) {
+      const group = groups.get(issue.code) || { count: 0, severity: issue.severity };
+      group.count++; groups.set(issue.code, group);
+    }
+    const top = Array.from(groups).sort((a, b) => b[1].count - a[1].count).slice(0, 6);
+    const max = Math.max(1, ...top.map(g => g[1].count));
+    const groupHtml = top.map(([code, g]) => '<div class="rule-row"><span>' + escape(labels[code] || code) + '</span><strong>' + g.count + '</strong></div><div class="rule-track"><div class="rule-fill ' + g.severity + '" style="width:' + Math.round(g.count / max * 100) + '%"></div></div>').join('');
+    const status = s.records === 0 ? 'No event quality conclusion: the feed is empty.' : s.errors + s.warnings === 0 ? 'No findings from the checks in this edition. Confirm source coverage and field accuracy separately.' : s.flagged === 0 ? 'Event-level checks found no issues. Review the feed-level findings below.' : s.flagged + ' of ' + s.records + ' records need review. Some records have more than one finding.';
+    $('overview-report').innerHTML = (demo ? '<div class="demo-banner"><strong>Sample assessment</strong> · Synthetic records with intentional issues. This is not a live agency feed or a complete WZDx schema example.</div>' : '') +
+      '<div class="metrics">' + metric('Records checked', s.records, report.format) + metric('Without findings', s.clear, s.records ? 'Event-level checks only' : 'No records to assess', 'clear') + metric('Errors', s.errors, 'Structural or consistency issues', 'error') + metric('Warnings', s.warnings, 'Conditions to review', 'warning') + '</div>' +
+      '<p class="assessment-note">' + escape(status) + ' Feed-level findings: <strong>' + s.feedFindings + '</strong>.</p>' +
+      '<div class="overview-grid"><article class="panel"><h2>' + (top.length ? 'Where to focus' : 'Review complete') + '</h2><p class="panel-intro">' + (top.length ? 'Most frequent findings in this assessment.' : 'No configured rules fired. This does not certify conformance or real-world accuracy.') + '</p>' + groupHtml + (top.length ? '<button class="button secondary" id="review-findings">Review all findings →</button>' : '') + '</article>' +
+      '<article class="panel"><h2>Assessment details</h2><dl class="details-list"><div><dt>Detected structure</dt><dd>' + escape(report.format) + '</dd></div><div><dt>Declared version</dt><dd>' + escape(report.declaredVersion) + '</dd></div><div><dt>Feed age threshold</dt><dd>' + report.settings.feedMinutes + ' minutes</dd></div><div><dt>Event age threshold</dt><dd>' + report.settings.eventHours + ' hours</dd></div><div><dt>Ended-event grace</dt><dd>' + report.settings.expiredHours + ' hours</dd></div>' + (report.organization ? '<div><dt>Prepared for</dt><dd>' + escape(report.organization) + '</dd></div>' : '') + '</dl></article></div>' +
+      '<p class="scope-note">Operational review, not full schema certification. Geometry checks establish structure and coordinate ranges; they do not establish whether an event is on the correct road. FeedCheck does not modify the source feed.</p>';
+    $('review-findings')?.addEventListener('click', () => switchView('findings'));
+  }
+  function renderFindings() {
+    if (!report) return;
+    const search = $('search').value.trim().toLowerCase();
+    const severity = $('severity').value;
+    const filtered = report.issues.filter(i => (allForPrint || severity === 'all' || i.severity === severity) && (allForPrint || !search || [i.recordId, i.code, i.path, i.message, i.action].some(v => v.toLowerCase().includes(search))));
+    const shown = allForPrint ? filtered : filtered.slice(0, visibleLimit);
+    $('findings-list').innerHTML = filtered.length ? '<p class="field-help">Showing ' + shown.length + ' of ' + filtered.length + ' matching findings' + (allForPrint ? '' : ' · Exports always include all findings') + '</p>' + shown.map(i =>
+      '<article class="finding"><span class="severity ' + i.severity + '">' + i.severity + '</span><div><h3>' + escape(i.message) + '</h3><div class="finding-meta"><span>' + (i.index === null ? 'Feed-level finding' : 'Record ' + (i.index + 1) + ' / ID: ' + escape(i.recordId)) + '</span><code>' + escape(i.code) + '</code></div><code class="path">' + escape(i.path) + '</code><p><strong>Next step</strong> · ' + escape(i.action) + '</p></div></article>'
+    ).join('') : '<p class="empty">' + (report.issues.length ? 'No findings match these filters.' : report.summary.records ? 'No findings from this edition’s checks. See the scope notes before sharing a conclusion.' : 'No event records to review. See the empty-feed finding.') + '</p>';
+    $('more-findings').hidden = allForPrint || shown.length >= filtered.length;
+  }
+  function renderComparison() {
+    if (!report || !baseline) { $('comparison-results').innerHTML = '<p class="empty">' + (!report ? 'Run a current assessment, then choose a baseline snapshot.' : 'Choose a baseline snapshot to compare with this assessment.') + '</p>'; return; }
+    try {
+      const c = FeedCheck.compare(report, baseline);
+      const ids = (list, label) => '<p class="change-list"><strong>' + label + ':</strong> ' + (list.length ? escape(list.slice(0, 100).join(', ')) + (list.length > 100 ? ' … (' + list.length + ' total)' : '') : 'None') + '</p>';
+      const thresholdsDiffer = JSON.stringify(report.settings) !== JSON.stringify(baseline.settings);
+      $('comparison-results').innerHTML = '<p class="field-help">Compared with ' + escape(new Date(c.previousAt).toLocaleString()) + ' · ' + escape(baseline.source) + '</p>' +
+        '<div class="metrics">' + metric('Added IDs', c.added.length, 'Not present in baseline') + metric('Removed IDs', c.removed.length, 'Confirm expected lifecycle activity') + metric('Changed records', c.changed.length, 'Same ID, different content') + metric('Unchanged', c.unchanged, 'Same ID and content fingerprint') + '</div>' + ids(c.added, 'Added') + ids(c.removed, 'Removed') + ids(c.changed, 'Changed') + (thresholdsDiffer ? '<p class="scope-note">Review thresholds differ between assessments. The ID and content comparison is still available; do not compare finding totals as equivalent tests.</p>' : '');
+    } catch (error) { $('comparison-results').innerHTML = '<p class="empty">' + escape(error.message) + '</p>'; }
+  }
+  function display(nextReport, isDemo) {
+    report = nextReport; demo = isDemo; visibleLimit = 100;
+    $('search').value = ''; $('severity').value = 'all';
+    $('report-toolbar').hidden = false;
+    $('overview-report').hidden = false;
+    $('welcome').hidden = true;
+    $('save-snapshot').disabled = false;
+    $('report-label').textContent = report.source;
+    $('report-date').textContent = (report.organization ? report.organization + ' · ' : '') + 'Assessed ' + new Date(report.assessedAt).toLocaleString();
+    $('nav-count').textContent = report.issues.length;
+    $('page-title').textContent = 'The evidence, at a glance.';
+    renderOverview(); renderFindings(); renderComparison(); switchView('overview');
+  }
+  async function readLimited(response) {
+    if (!response.ok) throw new Error('The feed returned HTTP ' + response.status + '. Check the URL and publisher status.');
+    if (Number(response.headers.get('Content-Length')) > FeedCheck.MAX_BYTES) throw new Error('The feed exceeds the 20 MB limit.');
+    if (!response.body) throw new Error('The response contained no readable data.');
+    const reader = response.body.getReader();
+    const chunks = []; let bytes = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > FeedCheck.MAX_BYTES) { await reader.cancel(); throw new Error('The feed exceeds the 20 MB limit.'); }
+      chunks.push(value);
+    }
+    const buffer = new Uint8Array(bytes); let offset = 0;
+    for (const chunk of chunks) { buffer.set(chunk, offset); offset += chunk.length; }
+    return new TextDecoder().decode(buffer);
+  }
+  $('run').addEventListener('click', async () => {
+    if (sampleOnly) { message('This is the sample demo. The Local Edition opens your own feeds.', true); return; }
+    if (running) return;
+    running = true; $('run').disabled = true; $('sample').disabled = true; $('sample-welcome').disabled = true;
+    $('run').textContent = 'Checking…'; message('Reading the feed. Previous results remain visible until this assessment succeeds.');
+    try {
+      let raw, source;
+      if (mode === 'file') {
+        if (!selectedFile) throw new Error('Choose a JSON file first, or use the Paste JSON tab.');
+        raw = await selectedFile.text(); source = selectedFile.name;
+      } else if (mode === 'paste') { raw = $('json-input').value; source = 'Pasted feed'; }
+      else {
+        let url;
+        try { url = new URL($('feed-url').value); } catch (_) { throw new Error('Enter a complete public feed URL, starting with https://.'); }
+        if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('Use a public HTTP(S) URL without credentials, query parameters, or a fragment. For feeds requiring keys, download the JSON and use the file tab.');
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        try { raw = await readLimited(await fetch(url.href, { signal: controller.signal, credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store' })); }
+        catch (error) {
+          if (error.name === 'AbortError') throw new Error('The feed took longer than 20 seconds. Download its JSON and use the file tab.');
+          if (error instanceof TypeError) throw new Error('The browser could not read this URL. The publisher may block cross-origin requests (CORS), be unavailable, or require authentication. Download the JSON from the source and use the file tab.');
+          throw error;
+        } finally { clearTimeout(timeout); }
+        source = url.href;
+      }
+      // Let the loading state paint before processing a large file.
+      await new Promise(resolve => setTimeout(resolve, 20));
+      display(FeedCheck.analyze(FeedCheck.parse(raw), { ...settings(), source: $('feed-label').value.trim() || source }), false);
+      message('Assessment complete. Your source data was not modified. Exports include all findings, regardless of the active filter.');
+    } catch (error) { message(error.message + (report ? ' The previous assessment is still shown below.' : ''), true); }
+    finally {
+      running = false; $('run').disabled = false; $('sample').disabled = false; $('sample-welcome').disabled = false;
+      $('run').innerHTML = 'Run assessment <span aria-hidden="true">→</span>';
+    }
+  });
+  function loadSample() {
+    if (running) return;
+    try {
+      display(FeedCheck.analyze(FeedCheck.sample(), { ...settings(), source: 'Sample / illustrative road events' }), true);
+      message('Sample loaded: six synthetic events with intentional issues. ' + (sampleOnly ? 'The Local Edition lets you assess your own feeds.' : 'Load your own feed above to run a real assessment.'));
+    } catch (error) { message(error.message, true); }
+  }
+  $('sample').addEventListener('click', loadSample);
+  $('sample-welcome').addEventListener('click', loadSample);
+  $('search').addEventListener('input', () => { visibleLimit = 100; renderFindings(); });
+  $('severity').addEventListener('change', () => { visibleLimit = 100; renderFindings(); });
+  $('more-findings').addEventListener('click', () => { visibleLimit += 100; renderFindings(); });
+  function download(content, type, suffix) {
+    if (!report) return;
+    const blob = new Blob([content], { type });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href; link.download = 'purposebuilt-feedcheck-' + report.assessedAt.slice(0, 10) + '-' + suffix;
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 1000);
+  }
+  $('export-csv').addEventListener('click', () => download(FeedCheck.csv(report), 'text/csv;charset=utf-8', 'findings.csv'));
+  $('export-json').addEventListener('click', () => {
+    const { entries, ...publicReport } = report;
+    download(JSON.stringify({ ...publicReport, sampleData: demo }, null, 2), 'application/json', 'report.json');
+  });
+  $('save-snapshot').addEventListener('click', () => download(JSON.stringify(FeedCheck.snapshot(report), null, 2), 'application/json', 'snapshot.json'));
+  $('baseline-file').addEventListener('change', async event => {
+    const file = event.target.files[0];
+    if (!file) return;
+    try {
+      if (file.size > FeedCheck.MAX_BYTES) throw new Error('Baseline exceeds the 20 MB limit.');
+      baseline = FeedCheck.validateSnapshot(FeedCheck.parse(await file.text()));
+      $('baseline-name').textContent = file.name;
+      renderComparison(); message('Baseline loaded. Comparison requires the same feed label and unique IDs in both assessments.');
+    } catch (error) { message(error.message + (baseline ? ' The previous baseline remains selected.' : ''), true); }
+    finally { event.target.value = ''; }
+  });
+  $('print').addEventListener('click', () => window.print());
+  window.addEventListener('beforeprint', () => { allForPrint = true; renderFindings(); });
+  window.addEventListener('afterprint', () => { allForPrint = false; renderFindings(); });
+  renderComparison();
+  if (sampleOnly) loadSample();
+})();
+</script>
+</body></html>

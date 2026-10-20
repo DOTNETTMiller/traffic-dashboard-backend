@@ -1,0 +1,27 @@
+FeedCheck Local Edition v0.1 — verification record, 2026-10-17
+
+Automated: npm test
+- 27 checks covering feed parsing, real calendar/timezone validation, geometry,
+  malformed records, duplicate IDs, scope/denominators, supported aliases,
+  thresholds, snapshot comparisons, export safety, CLI behavior, and packaging.
+- No parent-application state or database was used.
+
+Browser: Google Chrome, through native UI
+- Main app opens on local preview.
+- Example: 6 records, 2 errors, 2 warnings, 4 flagged records.
+- Clean pasted generic event feed: 1 record, 0 errors, 0 warnings.
+- Invalid pasted JSON: useful error; previous assessment remains visible.
+- Desktop findings layout visually inspected.
+- Product page opens as a local file and its sample link works.
+- Sample-only UI demo runs from file:// with no server dependency.
+- Print preview includes both summary and all four sample findings, two pages.
+  A subsequent CSS adjustment retains the operational-scope note in print.
+
+Limits of this verification
+- The native file picker did not accept the automated path reliably; file input
+  and baseline upload have not been fully exercised end to end in the browser.
+  Their JSON parsing and comparison engine paths are covered by automated tests.
+- CSV and JSON export contents are covered by engine tests. Browser downloads,
+  URL/CORS failure paths, and mobile layout require additional end-to-end QA.
+- No production feed coverage or formal conformance certification was claimed.
+- No checkout, licensing service, email delivery, or public deployment was run.

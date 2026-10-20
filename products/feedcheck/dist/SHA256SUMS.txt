@@ -1,0 +1,2 @@
+55cd1cc84475918519b3146308ae9f93e5c40ccf9a02b0ca4a9f79d6e441fcc9  purposebuilt-feedcheck-local-v0.1.0.zip
+a9c628db687d9167f580b26b0d48db81b1843227730a1d5c3c97d1a0d7a23d4c  purposebuilt-feedcheck-site-v0.1.0.zip
