@@ -102,6 +102,8 @@
   }
   @media (max-width:480px) { .row { flex-direction:column; gap:0; } }
   @media (prefers-reduced-motion:reduce) { * { transition:none !important; animation:none !important; } }
+
+  .builder-html-download{display:inline-flex;align-items:center;justify-content:center;gap:6px;margin-left:auto;padding:9px 12px;border:1px solid var(--accent,#03617a);border-radius:7px;background:#fff;color:var(--accent,#03617a);font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;min-height:38px}.builder-html-download:hover{background:var(--accent-soft,#e6f0f3)}.builder-html-download:focus-visible{outline:3px solid var(--accent,#03617a);outline-offset:3px}
 </style>
 </head>
 <body>
@@ -112,6 +114,7 @@
     <div class="title">CARS 511 Work-Zone Request Builder</div>
     <span class="sub">Mark the road → auto-fill road/county → detour → NBI clearances (detour governs) → schedule → fill the official 511 PDF. Review before submitting.</span>
   </div>
+  <a class="builder-html-download" href="iadot-wz-request-standalone.html" download="iadot-wz-request-standalone.html" aria-label="Download CARS 511 Work-Zone Request Builder as HTML" title="Save the standalone builder to your computer">↓ Download HTML</a>
 </header>
 <button id="drawerTab" type="button" onclick="toggleDrawer()" aria-label="Show the full map">🗺 View map</button>
 <div class="wrap">

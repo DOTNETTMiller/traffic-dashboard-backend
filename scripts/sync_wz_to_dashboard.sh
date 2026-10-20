@@ -29,6 +29,10 @@ WZ="$DASH/public/wz"
 
 [ -d "$WZ" ] || { echo "dashboard wz/ not found: $WZ" >&2; exit 1; }
 
+# Maintain the directory beside the builders so download labels and targets
+# are reviewed and synced with the files they distribute.
+cp "$SRC/wz-builders.html" "$WZ/index.html"
+
 n=0
 for f in "$SRC"/*-wz-request-standalone.html; do
   base="$(basename "$f" -wz-request-standalone.html)"
