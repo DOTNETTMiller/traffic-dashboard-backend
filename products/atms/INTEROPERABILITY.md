@@ -90,6 +90,55 @@ objects leave inspection failed. No report enables live control or changes
 installation acceptance. Do not rerun destructive tests against live roadside
 signs: control tests require isolated bench equipment and agency supervision.
 
+## Independent checks without hardware
+
+Everything above the field matrix was originally tested against the ATMS's own
+emulator, built with the same SNMP library as the adapter. These checks use
+code and documents the ATMS did not write.
+
+**Standard definitions** — `npm run check:atms-mib -- 1203.txt` reads every
+OBJECT-TYPE from your copy of NTCIP 1203 v02 (free PDF from ntcip.org, then
+`pdftotext -layout`) and checks each of the 25 identifiers the adapter uses:
+object exists, writes only to read-write objects, enumerations and ranges
+mean what the adapter assumes, message memory types. Result 2026-10-20: 0
+failures. The standard's text is copyrighted, so nothing from it is stored
+here. The machine-readable MIB files themselves come from NEMA on request
+(ntcip@nema.org); this check does not need them.
+
+**Recorded controllers** — `scripts/atms-replay-recording.cjs` turns a plain
+`snmpwalk -On` dump of a real sign into an snmpsim recording and runs the
+read-only bench against it. Anyone with a sign can produce the dump with one
+read-only command and email it; no network access or credentials change
+hands:
+
+```sh
+snmpwalk -v2c -c <read-only community> -On <controller> 1.3.6.1.4.1.1206.4.2.3 > sign-walk.txt
+node scripts/atms-replay-recording.cjs --matrix sign-walk.txt
+```
+
+`npm run check:atms-replay` runs the matrix on `fixtures/sample-sign-walk.txt`
+(a recording of the emulator showing a real Iowa message). Requires
+`pip install snmpsim pysmi cryptography`; without `cryptography` snmpsim
+cannot encrypt and every SNMPv3 read fails with a decryption error.
+
+**Independent SNMP implementations** — the matrix runs the ATMS adapter
+(node net-snmp) against snmpsim (pysnmp) as the agent:
+
+| Case | Result 2026-10-20 |
+| --- | --- |
+| SNMPv1, v2c, v2c with 8 varbinds | observed |
+| SNMPv3 SHA/AES, SHA-256/AES, SHA-256/AES with 8 varbinds | observed |
+| Wrong community, wrong privacy key | refused |
+
+Cross-checks in the other direction also pass: Net-SNMP 5.6 (C) reads the
+emulator over v2c and snmpsim over v3 SHA/AES; pysnmp reads the emulator over
+v3 SHA-256/AES. A current Net-SNMP agent (5.9) was not tested: Homebrew
+cannot build it on this macOS and Docker is not installed.
+
+What this still does not show: a real controller's timing, buffer limits,
+MIB edition quirks or write behaviour. A recording narrows the first three to
+the values that controller actually returns.
+
 ## Per-model physical acceptance matrix
 
 Copy one row set for every model/firmware/profile/network path. Retain date,

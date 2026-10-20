@@ -11,7 +11,9 @@
     "test:atms-interop": "node scripts/atms-interop.cjs",
     "check:atms-install": "node products/atms/preflight.cjs",
     "start:atms": "node products/atms/server.cjs",
-    "check:atms-bench": "node scripts/atms-bench-selftest.cjs"
+    "check:atms-bench": "node scripts/atms-bench-selftest.cjs",
+    "check:atms-mib": "node scripts/atms-ntcip-mib-check.cjs",
+    "check:atms-replay": "node scripts/atms-replay-recording.cjs --matrix"
   },
   "keywords": [
     "traffic",

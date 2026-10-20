@@ -22,13 +22,15 @@ function fromMulti(multi) {
   return plain;
 }
 // Reads any MULTI an agency sign may already be displaying (NTCIP 1203 v02,
-// section 6.4). Layout tags (justification, fonts, page timing, spacing,
-// colors) do not change the words and are dropped. Tags that substitute
-// content the controller fills in or draws (fields, graphics, moving text,
-// manufacturer-specific) cannot be known from the string, so they are listed
-// in `unrenderable` and the text is marked incomplete. This is for display and
-// evidence only; command verification still compares the strict profile text.
-const LAYOUT_TAGS = /^(\/?(jl|jp|fo|pt|sc|cf|cb|pb|tr|cr|fl|nl|np|spacing|sp))/i;
+// section 6.4, 18 tags). Layout tags (colors, rectangles, flash, font,
+// justification, page time, character spacing) do not change the words and are
+// dropped. Content the controller supplies — fields [f], graphics [g],
+// font-dependent glyphs [hc], moving text [mv], manufacturer tags [ms], or
+// anything not in the standard — cannot be known from the string, so it is
+// listed in `unrenderable` and the text is marked incomplete. This is for
+// display and evidence only; command verification still compares the strict
+// profile text.
+const LAYOUT_TAGS = new Set(['cb', 'pb', 'cf', 'cr', 'fl', '/fl', 'fo', 'jl', 'jp', 'pt', 'sc', '/sc', 'tr']);
 function decodeMulti(multi) {
   const pages = [[]];
   const unrenderable = [];
@@ -43,7 +45,7 @@ function decodeMulti(multi) {
     i = end + 1;
     if (/^nl\d*$/i.test(tag)) { pages[pages.length - 1].push(line); line = ''; }
     else if (/^np$/i.test(tag)) { pages[pages.length - 1].push(line); line = ''; pages.push([]); }
-    else if (!LAYOUT_TAGS.test(tag)) unrenderable.push(`[${tag}]`);
+    else if (!LAYOUT_TAGS.has((tag.match(/^\/?[a-z]+/i) || [''])[0].toLowerCase())) unrenderable.push(`[${tag}]`);
   }
   pages[pages.length - 1].push(line);
   const clean = pages.map(p => p.map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean)).filter(p => p.length);

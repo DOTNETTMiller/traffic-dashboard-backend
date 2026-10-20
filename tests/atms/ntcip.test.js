@@ -165,6 +165,16 @@ test('content the controller substitutes is flagged, never guessed', () => {
   assert.equal(d.complete, false);
   assert.deepEqual(d.unrenderable, ['[f8]', '[g1]']);
   assert.equal(decodeMulti('BROKEN [jl3').complete, false);
+  // [hc] selects a glyph from the sign's own font, so its meaning is font-dependent.
+  assert.deepEqual(decodeMulti('THIS IS [hc8A] A TEST').unrenderable, ['[hc8A]']);
+  assert.deepEqual(decodeMulti('[mvcl100,1,10,SLOW]').unrenderable, ['[mvcl100,1,10,SLOW]']);
+  assert.deepEqual(decodeMulti('[spacing2]X').unrenderable, ['[spacing2]']);
+});
+
+test('every NTCIP 1203 layout tag is dropped without losing words', () => {
+  const d = decodeMulti('[cb1][pb0,0,0][cf255,255,0][cr1,1,10,10,255,0,0][fo2][jp3][jl3][pt30o5][sc2]SLOW[/sc][nl][fl5o5]DOWN[/fl][np][tr1,1,50,20]WORK ZONE');
+  assert.equal(d.complete, true);
+  assert.deepEqual(d.pages, [['SLOW', 'DOWN'], ['WORK ZONE']]);
 });
 
 test('reading an agency-formatted sign succeeds but can never verify a command', async () => {
