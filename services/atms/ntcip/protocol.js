@@ -21,6 +21,34 @@ function fromMulti(multi) {
   toMulti(plain); // Never discard unsupported formatting and falsely claim a match.
   return plain;
 }
+// Reads any MULTI an agency sign may already be displaying (NTCIP 1203 v02,
+// section 6.4). Layout tags (justification, fonts, page timing, spacing,
+// colors) do not change the words and are dropped. Tags that substitute
+// content the controller fills in or draws (fields, graphics, moving text,
+// manufacturer-specific) cannot be known from the string, so they are listed
+// in `unrenderable` and the text is marked incomplete. This is for display and
+// evidence only; command verification still compares the strict profile text.
+const LAYOUT_TAGS = /^(\/?(jl|jp|fo|pt|sc|cf|cb|pb|tr|cr|fl|nl|np|spacing|sp))/i;
+function decodeMulti(multi) {
+  const pages = [[]];
+  const unrenderable = [];
+  let line = '';
+  const s = String(multi);
+  for (let i = 0; i < s.length;) {
+    if (s.startsWith('[[', i) || s.startsWith(']]', i)) { line += s[i]; i += 2; continue; }
+    if (s[i] !== '[') { line += s[i++]; continue; }
+    const end = s.indexOf(']', i);
+    if (end < 0) { unrenderable.push(s.slice(i)); break; }
+    const tag = s.slice(i + 1, end);
+    i = end + 1;
+    if (/^nl\d*$/i.test(tag)) { pages[pages.length - 1].push(line); line = ''; }
+    else if (/^np$/i.test(tag)) { pages[pages.length - 1].push(line); line = ''; pages.push([]); }
+    else if (!LAYOUT_TAGS.test(tag)) unrenderable.push(`[${tag}]`);
+  }
+  pages[pages.length - 1].push(line);
+  const clean = pages.map(p => p.map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean)).filter(p => p.length);
+  return { pages: clean, text: clean.map(p => p.join('\n')).join('\n\n'), complete: unrenderable.length === 0, unrenderable };
+}
 function messageId(memory, slot, crc) {
   const b = Buffer.alloc(5); b[0] = memory; b.writeUInt16BE(slot, 1); b.writeUInt16BE(crc, 3); return b;
 }
@@ -42,4 +70,4 @@ function crc16(multi, beacon = 0, pixelService = 0) {
   crc = (crc ^ 0xffff) & 0xffff;
   return ((crc & 255) << 8) | (crc >>> 8);
 }
-module.exports = { OID, cell, PRIORITIES, toMulti, fromMulti, messageId, activation, decodeActivation, crc16 };
+module.exports = { OID, cell, PRIORITIES, toMulti, fromMulti, decodeMulti, messageId, activation, decodeActivation, crc16 };

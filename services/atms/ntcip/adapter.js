@@ -1,7 +1,7 @@
 'use strict';
 const snmp = require('net-snmp');
 const { createControllerSession } = require('./session');
-const { OID, cell, PRIORITIES, toMulti, fromMulti, activation } = require('./protocol');
+const { OID, cell, PRIORITIES, toMulti, fromMulti, decodeMulti, activation } = require('./protocol');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 class NtcipError extends Error {
   constructor(message, { notApplied = false } = {}) { super(message); this.notApplied = notApplied; }
@@ -40,7 +40,13 @@ class NtcipAdapter {
   async read() {
     const [multi, owner, source, priority, mode, remaining, activationState, sourceMode] = await this.get(cell(3, 5), cell(4, 5), OID.source, cell(8, 5), OID.controlMode, OID.remaining, OID.activationState, OID.sourceMode);
     if (!Buffer.isBuffer(multi) || !Buffer.isBuffer(owner) || !Buffer.isBuffer(source) || source.length !== 5 || ![priority, mode, remaining, activationState, sourceMode].every(Number.isInteger)) throw new NtcipError('Malformed controller readback.');
-    return { message: fromMulti(multi.toString('latin1')), multi: multi.toString('latin1'), owner: owner.toString(), source: source.toString('hex'), priority, mode, remaining, activationState, sourceMode, observedAt: new Date(this.now()).toISOString() };
+    const raw = multi.toString('latin1');
+    // `message` stays strict: set only when the sign shows plain profile text,
+    // so a formatted agency message can never verify a command. `display`
+    // carries the readable words of whatever the sign shows.
+    let message = null;
+    try { message = fromMulti(raw); } catch { /* agency formatting; see display */ }
+    return { message, display: decodeMulti(raw), multi: raw, owner: owner.toString(), source: source.toString('hex'), priority, mode, remaining, activationState, sourceMode, observedAt: new Date(this.now()).toISOString() };
   }
   async waitFor(oid, success, failure) {
     const deadline = Date.now() + (this.config.validationTimeout || 3000);

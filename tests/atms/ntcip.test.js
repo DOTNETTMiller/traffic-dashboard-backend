@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
 const { NtcipAdapter } = require('../../services/atms/ntcip/adapter');
 const { createEmulator } = require('../../services/atms/ntcip/emulator');
-const { activation, crc16, toMulti, fromMulti, OID, cell } = require('../../services/atms/ntcip/protocol');
+const { activation, crc16, toMulti, fromMulti, decodeMulti, OID, cell } = require('../../services/atms/ntcip/protocol');
 const { Operations } = require('../../services/atms/core');
 const { Dispatcher } = require('../../services/atms/dispatcher');
 const { TrainingNtcipLab } = require('../../services/atms/ntcip/training-lab');
@@ -140,4 +140,44 @@ test('emulator rejects malformed BER, multi-varbind writes, and incorrect activa
   assert.equal(emulator.state.activations, 1);
   await assert.rejects(adapter.request('set', [{ oid: cell(9, 4, 2), type: 2, value: 6 }, { oid: cell(8, 4, 2), type: 2, value: 255 }]));
   assert.equal(emulator.state.slots.get(2).status, 1);
+});
+
+// MULTI strings copied from Iowa DOT's public DMS_View feed (2026-10-20),
+// unescaped as a controller holds them. Agency signs use layout tags that the
+// write profile never produces; reading them must work without loosening verification.
+const IOWA_MULTI = {
+  twoPage: '[pt40o0][jp3][jl3][fo2]DELAYS[nl2][jl3][fo2]3 MILES[nl2][jl3][fo2]AHEAD[np][pt40o0][jp3][jl3][fo2]PREPARE[nl2][jl3][fo2]TO[nl2][jl3][fo2]STOP',
+  onePage: '[jp3][jl3][fo1]RAMP TO I-80/35 E[nl3][jl3][fo1]CLOSING[nl3][jl3][fo1]TONIGHT 9PM-5AM',
+  symbols: '[pt40o0][jp3][jl3][fo1]TEMP[nl][jl3][fo1]ROAD[nl][jl3][fo1]CLOSURES[np][pt40o0][jp3][jl3][fo1]10/26[nl][jl3][fo1]& 10/27[nl][jl3][fo1]9AM-3PM'
+};
+
+test('agency-formatted MULTI decodes to its words, page by page', () => {
+  assert.deepEqual(decodeMulti(IOWA_MULTI.twoPage).pages, [['DELAYS', '3 MILES', 'AHEAD'], ['PREPARE', 'TO', 'STOP']]);
+  assert.equal(decodeMulti(IOWA_MULTI.onePage).text, 'RAMP TO I-80/35 E\nCLOSING\nTONIGHT 9PM-5AM');
+  assert.equal(decodeMulti(IOWA_MULTI.symbols).pages[1][1], '& 10/27');
+  for (const multi of Object.values(IOWA_MULTI)) assert.equal(decodeMulti(multi).complete, true);
+  assert.equal(decodeMulti('USE [[LEFT]] LANE').text, 'USE [LEFT] LANE');
+  assert.equal(decodeMulti('').text, '');
+});
+
+test('content the controller substitutes is flagged, never guessed', () => {
+  const d = decodeMulti('TRAVEL TIME[nl]DES MOINES [f8] MIN[np][g1]');
+  assert.equal(d.complete, false);
+  assert.deepEqual(d.unrenderable, ['[f8]', '[g1]']);
+  assert.equal(decodeMulti('BROKEN [jl3').complete, false);
+});
+
+test('reading an agency-formatted sign succeeds but can never verify a command', async () => {
+  const peer = await createEmulator();
+  try {
+    peer.state.multi = IOWA_MULTI.onePage;
+    const adapter = new NtcipAdapter({ host: '127.0.0.1', port: peer.port, community: peer.community, slot: 1, timeout: 500 });
+    try {
+      const observation = await adapter.read();
+      assert.equal(observation.multi, IOWA_MULTI.onePage);
+      assert.equal(observation.message, null);
+      assert.equal(observation.display.text, 'RAMP TO I-80/35 E\nCLOSING\nTONIGHT 9PM-5AM');
+      assert.notEqual(observation.message, 'RAMP TO I-80/35 E\nCLOSING\nTONIGHT 9PM-5AM');
+    } finally { adapter.close(); }
+  } finally { await peer.close(); }
 });

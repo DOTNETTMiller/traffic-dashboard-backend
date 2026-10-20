@@ -5,6 +5,29 @@ no writes, and corroborate the readback against Iowa's public DMS_View feed.
 This fills nothing in the physical acceptance matrix by itself. It establishes
 that discovery and readback work against real equipment.
 
+## Proven without a field run (2026-10-20)
+
+Agency authorization for a controller read is unlikely, so the same chain was
+run against Iowa's real message content instead. DMS_View publishes each
+sign's raw MULTI string. Every permanent Iowa DMS (68) had its live MULTI
+loaded into an emulated controller, read back over SNMP by the ATMS adapter,
+and compared against the live feed with `atms-bench-compare-iowa.cjs`.
+
+Result: 68/68 exact MULTI readback, 68/68 fully decoded to their words, and
+all 68 kept the strict `message` null so none could verify an ATMS command.
+
+This first failed 0/135 (63 permanent DMS plus portable boards): the read path
+only accepted `[nl]`, and every Iowa sign uses `[pt] [jp] [jl] [fo] [nl] [np]
+[sc]`. A real sign would have failed the same way. Reads now return the raw
+`multi`, a `display` decode (pages, text, `complete`, `unrenderable`), and
+`message` only for plain profile text. Fields, graphics and other
+controller-substituted content are listed, never guessed. The feed
+HTML-escapes MULTI (`&amp;`, `&gt;`); the compare tool unescapes it.
+
+Still unproven without hardware: real controller SNMP behaviour (agent quirks,
+MIB edition, varbind limits, timing), network/credential handling, and every
+write-side item in the acceptance matrix.
+
 ## Before the day — from Iowa DOT
 
 Nothing here can be obtained by probing. Every item comes from the agency.

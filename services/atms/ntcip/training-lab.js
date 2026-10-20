@@ -63,7 +63,7 @@ class TrainingNtcipLab {
       try {
         const observation = await adapter.read();
         const caps = await adapter.discover();
-        device = this.ops.put('TRAINING', 'device', { ...device, ...caps, displayedMessage: observation.message, observedAt: observation.observedAt, communicationFault: observation.mode !== 4 ? 'Controller local mode: central commands are blocked.' : null, protocolScenario: emulator.state.fault, controllerMode: observation.mode, controllerMinutesRemaining: observation.remaining, protocolTrace: emulator.snapshot().trace.slice(-24) }, device.version);
+        device = this.ops.put('TRAINING', 'device', { ...device, ...caps, displayedMessage: observation.message ?? observation.display.text, displayComplete: observation.display.complete, observedAt: observation.observedAt, communicationFault: observation.mode !== 4 ? 'Controller local mode: central commands are blocked.' : null, protocolScenario: emulator.state.fault, controllerMode: observation.mode, controllerMinutesRemaining: observation.remaining, protocolTrace: emulator.snapshot().trace.slice(-24) }, device.version);
         for (const command of this.ops.list('TRAINING', 'command').filter(c => c.deviceId === id && ['simulated', 'dispatching', 'acknowledged', 'unknown', 'timed_out', 'expiry_unconfirmed'].includes(c.status))) {
           if (!this.ops.db.prepare('SELECT command_id FROM atms_ntcip_journal WHERE command_id=?').get(command.id)) continue;
           const matches = observation.message === command.message && (command.operation === 'blank' ? observation.source.startsWith('07') : observation.owner === 'PB:' + command.id && observation.sourceMode === 8);
