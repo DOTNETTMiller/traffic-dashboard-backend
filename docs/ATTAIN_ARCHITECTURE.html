@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Iowa-Led ATTAIN — I-35 & I-80 Work Zone + Truck Parking Architecture</title>
+</head>
+<body>
+<style>
+  :root {
+    --ground: #F2F4F6;
+    --panel: #FFFFFF;
+    --ink: #16202A;
+    --ink-soft: #4A5866;
+    --line: #D4DAE0;
+    --orange: #E8720C;
+    --orange-soft: #FDF0E3;
+    --blue: #1D5FAD;
+    --blue-soft: #E8F0FA;
+    --green: #2E7D4F;
+    --green-soft: #E7F2EB;
+    --shadow: 0 1px 3px rgba(22,32,42,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #101820;
+      --panel: #1A2430;
+      --ink: #E8EDF2;
+      --ink-soft: #9AA8B5;
+      --line: #2E3B48;
+      --orange: #F08A2E;
+      --orange-soft: #33241442;
+      --blue: #5D96D8;
+      --blue-soft: #16283D;
+      --green: #5CAD82;
+      --green-soft: #16281E;
+      --shadow: 0 1px 3px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #101820; --panel: #1A2430; --ink: #E8EDF2; --ink-soft: #9AA8B5;
+    --line: #2E3B48; --orange: #F08A2E; --orange-soft: #33241442; --blue: #5D96D8;
+    --blue-soft: #16283D; --green: #5CAD82; --green-soft: #16281E;
+    --shadow: 0 1px 3px rgba(0,0,0,.4);
+  }
+  :root[data-theme="light"] {
+    --ground: #F2F4F6; --panel: #FFFFFF; --ink: #16202A; --ink-soft: #4A5866;
+    --line: #D4DAE0; --orange: #E8720C; --orange-soft: #FDF0E3; --blue: #1D5FAD;
+    --blue-soft: #E8F0FA; --green: #2E7D4F; --green-soft: #E7F2EB;
+    --shadow: 0 1px 3px rgba(22,32,42,.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: Charter, Georgia, 'Times New Roman', serif;
+    font-size: 17px; line-height: 1.55;
+  }
+  .sans { font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 48px 24px 72px; }
+  header { border-bottom: 4px solid var(--ink); padding-bottom: 20px; margin-bottom: 8px; }
+  .eyebrow {
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink-soft); margin: 0 0 10px;
+  }
+  h1 {
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-weight: 800; font-size: clamp(28px, 4.5vw, 42px);
+    letter-spacing: -.02em; line-height: 1.08; margin: 0 0 10px; text-wrap: balance;
+  }
+  .thesis { font-size: 19px; color: var(--ink-soft); max-width: 62ch; margin: 0; }
+  .thesis strong { color: var(--ink); }
+
+  h2 {
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-weight: 800; font-size: 20px; letter-spacing: -.01em;
+    margin: 48px 0 6px; text-wrap: balance;
+  }
+  .h2-sub { color: var(--ink-soft); margin: 0 0 18px; font-size: 15.5px; }
+
+  /* ---- Cross-section diagram ---- */
+  .stack { display: flex; flex-direction: column; }
+  .layer {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    box-shadow: var(--shadow); padding: 16px 18px 14px;
+    display: grid; grid-template-columns: 118px 1fr; gap: 4px 18px;
+  }
+  .layer.engine { border-left: 5px solid var(--orange); background: var(--panel); }
+  .layer.states { border-left: 5px solid var(--blue); }
+  .layer.signals { border-left: 5px solid var(--blue); }
+  .layer.exchange { border-left: 5px solid var(--ink-soft); }
+  .layer.consumers { border-left: 5px solid var(--green); }
+  .lnum {
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-soft); padding-top: 4px;
+  }
+  .ltitle {
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-weight: 700; font-size: 17px; margin: 0;
+  }
+  .ldesc { grid-column: 2; margin: 0; font-size: 15.5px; color: var(--ink-soft); }
+  .ldesc strong { color: var(--ink); }
+  .chips { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip {
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 12.5px; font-weight: 600; padding: 3px 10px; border-radius: 100px;
+    background: var(--blue-soft); color: var(--blue); border: 1px solid transparent;
+  }
+  .chip.o { background: var(--orange-soft); color: var(--orange); }
+  .chip.g { background: var(--green-soft); color: var(--green); }
+  .chip.n { background: var(--ground); color: var(--ink-soft); border-color: var(--line); }
+  .flow {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    padding: 6px 0; color: var(--ink-soft);
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 13px; font-weight: 600;
+  }
+  .flow::before, .flow::after { content: ""; width: 2px; height: 16px; background: var(--line); }
+  .flow::before { display: none; }
+  .arrow { color: var(--ink-soft); font-size: 15px; }
+
+  .loop {
+    margin-top: 14px; border: 1.5px dashed var(--orange); border-radius: 6px;
+    padding: 13px 18px; background: var(--orange-soft);
+    display: grid; grid-template-columns: 118px 1fr; gap: 4px 18px;
+  }
+  .loop .lnum { color: var(--orange); }
+  .loop .ldesc { color: var(--ink); opacity: .85; }
+
+  /* ---- Value cards ---- */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: 16px 18px; box-shadow: var(--shadow);
+  }
+  .card h3 {
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15.5px; font-weight: 700; margin: 0 0 6px;
+  }
+  .card p { margin: 0; font-size: 14.5px; color: var(--ink-soft); }
+
+  /* ---- Budget strip ---- */
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  .tblwrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; box-shadow: var(--shadow); }
+  th {
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+    text-align: left; color: var(--ink-soft); font-weight: 600;
+    padding: 12px 16px 8px; border-bottom: 2px solid var(--line);
+  }
+  td { padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  tr:last-child td { border-bottom: none; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; font-weight: 600; }
+  tr.total td { font-weight: 700; border-top: 2px solid var(--ink); }
+
+  footer { margin-top: 44px; padding-top: 16px; border-top: 1px solid var(--line);
+    font-size: 13.5px; color: var(--ink-soft); }
+
+  /* ---- Dual-stream + outcome additions ---- */
+  .duo { grid-column: 2; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .duo .cell { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; background: var(--ground); }
+  .duo .cell h4 {
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 13px; font-weight: 700; margin: 0 0 4px; letter-spacing: .02em;
+  }
+  .duo .cell p { margin: 0; font-size: 13.5px; color: var(--ink-soft); }
+  .outcome {
+    margin-top: 14px; border: 1px solid var(--line); border-left: 5px solid var(--green);
+    border-radius: 6px; background: var(--panel); box-shadow: var(--shadow);
+    padding: 18px; display: grid; grid-template-columns: auto 1fr; gap: 6px 24px; align-items: center;
+  }
+  .stat {
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-weight: 800; font-size: clamp(26px, 4vw, 38px); letter-spacing: -.02em;
+    color: var(--green); white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  .stat small { display: block; font-size: 12px; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--ink-soft); margin-top: 2px; }
+  .impacts { display: flex; flex-wrap: wrap; gap: 6px; }
+  @media (max-width: 620px) {
+    .duo { grid-template-columns: 1fr; grid-column: 1; }
+    .outcome { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 620px) {
+    .layer, .loop { grid-template-columns: 1fr; }
+    .ldesc, .chips { grid-column: 1; }
+  }
+  @media print {
+    .layer, .loop, .outcome, .card, .tblwrap { break-inside: avoid; box-shadow: none; }
+    h2 { break-after: avoid; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">ATTAIN FY25–26 · Iowa DOT, Lead Applicant · CCAI · I-35 &amp; I-80 Corridors · Briefing Exhibit</p>
+    <h1>Trusted work zone and truck parking data across I-35 and I-80</h1>
+    <p class="thesis">Sixteen states keep publishing exactly what they publish today. The project brings
+    <strong>public and private data together</strong>, verifies every work zone, predicts parking
+    at every facility, and delivers one trusted feed to every navigation app, truck, and connected
+    vehicle — border to border on I-35, coast to coast on I-80, meeting at the Iowa crossroads —
+    so a driver ending a shift finds a legal, safe parking spot in
+    <strong>30 minutes instead of 60</strong>.</p>
+  </header>
+
+  <h2>How the data flows</h2>
+  <p class="h2-sub">Read top to bottom: what exists today enters at Layer 1; drivers receive the result at Layer 5.</p>
+
+  <div class="stack">
+    <div class="layer states">
+      <span class="lnum">Layer 1</span>
+      <p class="ltitle">Public data the sixteen states already produce — unchanged</p>
+      <p class="ldesc"><strong>No new systems, no new staff, no new publishing obligations.</strong>
+      Participation and support of the shared feed is the entire ask. Where a state has no digital
+      feed today, proven lightweight tooling generates one from data the state already produces
+      (demonstrated for Nebraska and Nevada).</p>
+      <div class="duo">
+        <div class="cell">
+          <h4>Work zones</h4>
+          <p>Work zone &amp; incident reports from each state's existing 511 / traffic management systems</p>
+        </div>
+        <div class="cell">
+          <h4>Truck parking</h4>
+          <p>TPIMS space-detection at instrumented facilities · ground-truth devices (cameras,
+          in-ground sensors) — incl. Iowa rest-area cameras with AI occupancy counts, live today ·
+          historical occupancy archives that teach the predictions what "normal" looks like</p>
+        </div>
+      </div>
+      <div class="chips">
+        <span class="chip n">I-35</span>
+        <span class="chip">Texas</span><span class="chip">Oklahoma</span><span class="chip">Kansas</span>
+        <span class="chip">Missouri</span><span class="chip">Minnesota</span>
+        <span class="chip n">I-80</span>
+        <span class="chip">California</span><span class="chip">Nevada</span><span class="chip">Utah</span>
+        <span class="chip">Wyoming</span><span class="chip">Nebraska</span><span class="chip">Illinois</span>
+        <span class="chip">Indiana</span><span class="chip">Ohio</span><span class="chip">Pennsylvania</span>
+        <span class="chip">New Jersey</span>
+        <span class="chip o">Iowa — where the corridors meet</span>
+      </div>
+    </div>
+
+    <div class="flow"><span class="arrow">▼</span> joined by</div>
+
+    <div class="layer signals">
+      <span class="lnum">Layer 2</span>
+      <p class="ltitle">Private &amp; partner data from the road itself</p>
+      <p class="ldesc">Independent signals confirm what's really happening — whether each
+      reported work zone is truly active, and how full each parking facility actually is.</p>
+      <div class="duo">
+        <div class="cell">
+          <h4>Verifies work zones</h4>
+          <p>Vehicle probe &amp; movement data · construction e-ticketing (material deliveries) ·
+          connected field devices (arrow boards, cones, sensors) · connected-truck in-cab alert
+          networks</p>
+        </div>
+        <div class="cell">
+          <h4>Sharpens parking predictions</h4>
+          <p>Fleet telematics &amp; ELD provider input (where trucks actually park and dwell) ·
+          crowd-sourced driver apps · connected-vehicle movement analytics · camera-based AI
+          counts · closure &amp; work zone activity that will consume downstream parking</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow"><span class="arrow">▼</span> brought together in</div>
+
+    <div class="layer engine">
+      <span class="lnum">Layer 3</span>
+      <p class="ltitle">The verification &amp; prediction engine</p>
+      <p class="ldesc">Where it all comes together. Every work zone is cross-checked against the
+      evidence and given a <strong>confidence score</strong>; map errors are corrected to follow the
+      actual roadway. Every parking facility gets an <strong>hourly occupancy prediction</strong> —
+      trained on historical occupancy, fed by every live signal, continuously calibrated against
+      ground-truth counts. When a closure will fill the next three
+      truck stops, the engine knows <strong>before the driver's shift ends</strong>.</p>
+      <div class="chips">
+        <span class="chip o">Confidence score on every event</span>
+        <span class="chip o">Hourly parking prediction per facility</span>
+        <span class="chip o">Closure → parking impact linkage</span>
+        <span class="chip o">Monthly state report cards</span>
+      </div>
+    </div>
+
+    <div class="flow"><span class="arrow">▼</span> exchanged through</div>
+
+    <div class="layer exchange">
+      <span class="lnum">Layer 4</span>
+      <p class="ltitle">One governed exchange — MITRE iNODE</p>
+      <p class="ldesc">A single, secure connection point with provenance and access control.
+      Consumers connect <strong>once</strong> to reach all sixteen states — instead of
+      negotiating fifty separate state integrations. The exchange manages the flow
+      <strong>in both directions</strong>: validated data out to consumers, and verified
+      corrections and field evidence back to inform each state's source feed.</p>
+    </div>
+
+    <div class="flow"><span class="arrow">▼</span> delivered to</div>
+
+    <div class="layer consumers">
+      <span class="lnum">Layer 5</span>
+      <p class="ltitle">The people who need it, in the systems they already use</p>
+      <p class="ldesc">Work zones published in the two formats the market consumes — WZDx (federal
+      standard) and CIFS (the format Google and Waze ingest directly). Parking availability and
+      predictions delivered to the driver's cab, the dispatcher's screen, and roadside signs.</p>
+      <div class="chips">
+        <span class="chip g">Navigation apps (Google · Waze · Apple)</span>
+        <span class="chip g">Trucks &amp; fleets (in-cab alert networks · telematics)</span>
+        <span class="chip g">Connected &amp; automated vehicles (V2X / C-V2X message distribution)</span>
+        <span class="chip g">DMS roadside signs</span>
+        <span class="chip g">Public dashboard &amp; FHWA</span>
+      </div>
+    </div>
+
+    <div class="outcome">
+      <div class="stat">60 → 30 min<small>End-of-shift parking search</small></div>
+      <div>
+        <p class="ldesc" style="grid-column:auto; margin-bottom:8px;">Cutting search time in half
+        pays out four ways, every day, corridor-wide:</p>
+        <div class="impacts">
+          <span class="chip g">Supply chain productivity ↑</span>
+          <span class="chip g">Fuel burned searching ↓</span>
+          <span class="chip g">Trucks on ramps &amp; shoulders ↓</span>
+          <span class="chip g">Hours-of-service violations ↓</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="loop">
+      <span class="lnum">Return loop</span>
+      <p class="ltitle sans" style="font-weight:700; font-size:16px; margin:0;">Did the driver see it? Did the source feed learn?</p>
+      <p class="ldesc">Two loops close through the MITRE-managed exchange. <strong>Market
+      penetration:</strong> the observatory compares what states publish against what navigation
+      services actually display to travelers (probe-data providers today; the major consumer map
+      platforms by invitation) — so leadership can see which operational practices get work zones
+      in front of drivers, and standardize what works across all sixteen states.
+      <strong>Feedback to the source:</strong> validated field evidence and verified corrections
+      return through the exchange to inform each state's original feed — the system continuously
+      improves the data it started with.</p>
+    </div>
+  </div>
+
+  <h2>Why this architecture wins</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>Almost nothing is asked of the states</h3>
+      <p>The layered design means states contribute what they already produce. Quality is raised
+      above them, not demanded from them — so sixteen states can say yes quickly, and more can join later.</p>
+    </div>
+    <div class="card">
+      <h3>Trust, measured in public</h3>
+      <p>Every event carries a confidence score; every state gets a monthly report card on a public
+      dashboard. FHWA can watch corridor data quality improve for the life of the award.</p>
+    </div>
+    <div class="card">
+      <h3>One connection instead of fifty</h3>
+      <p>Google, Waze, fleets, and AV developers connect once to the exchange and receive the whole
+      corridor — the adoption barrier that has held work zone data back simply disappears.</p>
+    </div>
+    <div class="card">
+      <h3>Built on systems running today</h3>
+      <p>The ingestion platform, quality scoring, and probe comparison are operational now across
+      roughly 70 data sources and 39 work zone feeds. Grant funds deployment, not invention.</p>
+    </div>
+  </div>
+
+  <h2>What the grant buys</h2>
+  <p class="h2-sub">$6.0M Federal (71% share) · $2.4M non-Federal committed (29% — exceeds the 20% required;
+  led by private-partner in-kind) · $8.4M total · 36 months + evaluation period. Right-sized to the program:
+  $120M across ~20 expected awards.</p>
+  <div class="tblwrap">
+    <table>
+      <tr><th>Deployment element</th><th style="text-align:right">Federal</th></tr>
+      <tr><td>Private data subscriptions &amp; partner data agreements (telematics/ELD, probe &amp; CV analytics, e-ticketing, in-cab alerts)</td><td class="num">$1.4M</td></tr>
+      <tr><td>Truck parking availability &amp; prediction network (detection at priority gap facilities, delivery to cab/dispatch/signs)</td><td class="num">$1.0M</td></tr>
+      <tr><td>Connected work zone field pilot (~12–15 zones per season, automated device-to-event linkage)</td><td class="num">$1.0M</td></tr>
+      <tr><td>Standardized publication &amp; geometry correction across all 16 corridor states</td><td class="num">$0.7M</td></tr>
+      <tr><td>Verification &amp; prediction engine, public dashboard &amp; evaluation</td><td class="num">$0.7M</td></tr>
+      <tr><td>Exchange backbone — governed multi-state exchange + V2X/C-V2X distribution</td><td class="num">$0.6M</td></tr>
+      <tr><td>Program management, systems engineering, governance</td><td class="num">$0.4M</td></tr>
+      <tr><td>Outreach, training &amp; national transferability toolkit</td><td class="num">$0.2M</td></tr>
+      <tr class="total"><td>Total Federal request</td><td class="num">$6.0M</td></tr>
+    </table>
+  </div>
+
+  <footer>
+    Iowa DOT, lead applicant · supporting CCAI year-one work plan · I-35 Anchor State · I-80 Corridor Coalition ·
+    partner states join by letter of commitment · Prepared as a leadership briefing exhibit for the
+    FHWA ATTAIN application (FY25–26 NOFO · 20% non-Federal match · deadline August 11, 2026).
+    Baseline: ATRI driver-diary research — drivers average ~56 minutes/day searching for parking,
+    ≈$5,000/year in lost wages. Private-sector data categories are shown generically for
+    procurement neutrality; the market includes probe/movement analytics, construction e-ticketing, connected field devices and ground-truth sensors, in-cab alert networks, fleet telematics and ELD providers, and crowd-sourced driver apps — selected competitively after award. V2X/TIM message distribution services are likewise procured competitively.
+  </footer>
+</div>
+
+</body>
+</html>

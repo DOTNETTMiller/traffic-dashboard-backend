@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Iowa ATTAIN Application — One-Page Summary</title>
+<style>
+  @page { size: letter; margin: 0; }
+  :root {
+    --ink: #16202A; --ink-soft: #46535F; --line: #D4DAE0;
+    --blue: #1D5FAD; --blue-soft: #E8F0FA;
+    --orange: #E8720C; --orange-soft: #FDF0E3;
+    --green: #2E7D4F; --green-soft: #E7F2EB;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 8.5in; height: 11in; }
+  body {
+    font-family: Charter, Georgia, 'Times New Roman', serif;
+    color: var(--ink); background: #FFFFFF;
+    padding: 0.52in 0.55in 0.42in;
+    display: flex; flex-direction: column; gap: 13px;
+    font-size: 11.3px; line-height: 1.42;
+  }
+  .sans { font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+
+  /* Header */
+  header { border-bottom: 3.5px solid var(--ink); padding-bottom: 11px; }
+  .eyebrow {
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 8.6px; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--ink-soft); margin-bottom: 6px;
+    display: flex; justify-content: space-between;
+  }
+  h1 {
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-weight: 800; font-size: 24px; letter-spacing: -.015em; line-height: 1.1;
+  }
+  .subtitle { font-size: 12.5px; color: var(--ink-soft); margin-top: 4px; }
+  .subtitle strong { color: var(--ink); }
+
+  /* Stat band */
+  .statband {
+    display: grid; grid-template-columns: auto 1fr 1fr 1fr; gap: 14px; align-items: center;
+    border: 1px solid var(--line); border-left: 4.5px solid var(--green);
+    border-radius: 6px; padding: 10px 16px; background: var(--green-soft);
+  }
+  .bigstat {
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-weight: 800; font-size: 30px; letter-spacing: -.02em; color: var(--green);
+    white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  .bigstat small {
+    display: block; font-size: 7.8px; font-weight: 700; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--ink-soft); margin-top: 1px;
+  }
+  .statfact { font-size: 10.3px; color: var(--ink-soft); border-left: 1px solid rgba(46,125,79,.35); padding-left: 12px; }
+  .statfact b { display: block; color: var(--ink);
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 11.5px; }
+
+  /* Sections */
+  h2 {
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-weight: 800; font-size: 12.5px; letter-spacing: .01em; margin-bottom: 4px;
+  }
+  h2 .tick { color: var(--orange); }
+  p + p { margin-top: 5px; }
+
+  .cols { display: grid; grid-template-columns: 1.08fr 0.92fr; gap: 16px; flex: 1; }
+  .col { display: flex; flex-direction: column; gap: 11px; }
+  .block {}
+
+  /* Flow strip */
+  .flow {
+    display: grid; grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr; gap: 4px;
+    align-items: stretch; margin-top: 6px;
+  }
+  .fstep {
+    border: 1px solid var(--line); border-radius: 5px; padding: 6px 7px;
+    font-size: 8.8px; line-height: 1.3; color: var(--ink-soft); background: #FFF;
+  }
+  .fstep b {
+    display: block; color: var(--ink); font-size: 9.3px;
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+  .fstep.hot { border-color: var(--orange); background: var(--orange-soft); }
+  .farrow { align-self: center; color: var(--ink-soft); font-size: 10px; }
+
+  ul { padding-left: 15px; display: flex; flex-direction: column; gap: 4px; }
+  li::marker { color: var(--blue); }
+  li b { font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 11px; }
+
+  /* Outcomes table */
+  table { width: 100%; border-collapse: collapse; font-size: 10.2px; }
+  th {
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 8.2px; letter-spacing: .09em; text-transform: uppercase; font-weight: 700;
+    text-align: left; color: var(--ink-soft); padding: 3px 8px 3px 0;
+    border-bottom: 1.5px solid var(--ink);
+  }
+  td { padding: 4.5px 8px 4.5px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td:first-child { font-weight: 700; width: 42%;
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 10.2px; }
+  td:last-child, th:last-child { color: var(--ink-soft); }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--line); padding-top: 8px;
+    display: flex; justify-content: space-between; gap: 18px;
+    font-size: 9px; color: var(--ink-soft);
+  }
+  .chiprow { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .chip {
+    font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-size: 8.4px; font-weight: 700; padding: 2px 8px; border-radius: 100px;
+    background: var(--blue-soft); color: var(--blue);
+  }
+  .chip.o { background: var(--orange-soft); color: var(--orange); }
+</style>
+</head>
+<body>
+
+  <header>
+    <div class="eyebrow">
+      <span>FHWA ATTAIN · FY25–26 · Application Summary for the Governor's Office</span>
+      <span>Deadline August 11, 2026</span>
+    </div>
+    <h1>Iowa leads 16 states to end the truck parking search</h1>
+    <p class="subtitle"><strong>Request: $6M Federal (71% share) · $2.4M non-Federal committed (29% —
+    exceeding the 20% required, led by private-partner contributions).</strong> Iowa DOT, lead applicant —
+    supporting the CCAI year-one work plan, I-35 Anchor State activities, and the I-80 Corridor Coalition.
+    Right-sized to the program: $120M across ~20 expected awards.</p>
+  </header>
+
+  <div class="statband">
+    <div class="bigstat">60 → 30 min<small>End-of-shift parking search</small></div>
+    <div class="statfact"><b>~56 min/day</b> national average a trucker spends hunting for parking
+    (ATRI driver diaries) — ≈$5,000/yr in lost wages</div>
+    <div class="statfact"><b>16 states, 2 corridors</b> — I-35 border to border, I-80 coast to coast,
+    meeting at the Iowa crossroads</div>
+    <div class="statfact"><b>Live instruments today</b> — predictions calibrated against Iowa's own
+    rest-area camera counts</div>
+  </div>
+
+  <div class="cols">
+    <div class="col">
+      <div class="block">
+        <h2><span class="tick">■</span> What Iowa is proposing</h2>
+        <p>A multi-state project on the I-35 and I-80 corridors that brings <strong>public and private
+        data together</strong> for the two problems drivers feel most: work zones that appear without
+        warning, and nowhere to park at the end of a shift. States keep publishing exactly what they
+        publish today — no new systems, no new staff. The project layers independent evidence on top,
+        verifies every work zone, predicts parking availability at every facility hourly, and delivers
+        one trusted feed to the places drivers already look.</p>
+      </div>
+
+      <div class="block">
+        <h2><span class="tick">■</span> How it works</h2>
+        <div class="flow">
+          <div class="fstep"><b>Public data</b>511/TMC work zone reports · parking sensors, cameras
+          &amp; historical occupancy — states unchanged</div>
+          <div class="farrow">→</div>
+          <div class="fstep"><b>+ Private data</b>vehicle probes · e-ticketing · connected devices ·
+          in-cab alert networks · fleet telematics &amp; ELD · driver apps</div>
+          <div class="farrow">→</div>
+          <div class="fstep hot"><b>Verify &amp; predict</b>confidence score on every work zone ·
+          hourly parking prediction per facility</div>
+          <div class="farrow">→</div>
+          <div class="fstep"><b>One exchange → drivers</b>navigation apps · in-cab systems · V2X/C-V2X ·
+          highway signs — validated data also returns to improve state feeds</div>
+        </div>
+      </div>
+
+      <div class="block">
+        <h2><span class="tick">■</span> Why Iowa leads credibly</h2>
+        <ul>
+          <li><b>The platform is operational today</b> — ingesting ~39 work zone feeds nationally,
+          with parking predictions calibrated against Iowa's rest-area camera network.</li>
+          <li><b>Iowa is the geographic and institutional hub</b> — the two corridors physically meet
+          here, and Iowa anchors the AASHTO-coordinated corridor initiative.</li>
+          <li><b>The coalition scales because the ask is small</b> — partner states join by letter of
+          commitment; private providers are selected competitively after award.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="block">
+        <h2><span class="tick">■</span> What Iowans — and the nation — get</h2>
+        <table>
+          <tr><th>Outcome</th><th>Why it matters</th></tr>
+          <tr><td>Parking search cut in half</td><td>Driver hours returned to the supply chain;
+          freight moves on schedule</td></tr>
+          <tr><td>Fewer trucks on ramps &amp; shoulders</td><td>A documented fatal-crash factor,
+          reduced</td></tr>
+          <tr><td>Fewer hours-of-service violations</td><td>Drivers stop choosing between compliance
+          and safety</td></tr>
+          <tr><td>Work zones visible in every nav app</td><td>Fewer rear-end crashes in queues;
+          road workers safer</td></tr>
+          <tr><td>Public accountability</td><td>Monthly data quality report card per state, on a
+          public dashboard</td></tr>
+        </table>
+      </div>
+
+      <div class="block">
+        <h2><span class="tick">■</span> Accountability from day one</h2>
+        <p>Performance is measured by instruments that already exist — parking prediction accuracy
+        tracking and independent multi-source work zone verification — reported publicly, so FHWA
+        and the Governor's Office can watch both corridors improve quarter by quarter.</p>
+        <div class="chiprow">
+          <span class="chip o">Confidence score on every event</span>
+          <span class="chip o">Hourly prediction per facility</span>
+          <span class="chip">Monthly state report cards</span>
+          <span class="chip">Public dashboard</span>
+        </div>
+      </div>
+
+      <div class="block">
+        <h2><span class="tick">■</span> Downstream, every day, corridor-wide</h2>
+        <p>Supply-chain productivity ↑ · fuel burned searching ↓ · unsafe shoulder parking ↓ ·
+        hours-of-service violations ↓ — cutting the search in half pays out four ways, across
+        the two corridors that carry the nation's freight.</p>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <span>Iowa Department of Transportation · FHWA ATTAIN FY25–26 · partner states: TX · OK · KS · MO · MN ·
+    CA · NV · UT · WY · NE · IL · IN · OH · PA · NJ</span>
+    <span>Contact: {Iowa DOT project lead} · {phone / email}</span>
+  </footer>
+
+</body>
+</html>

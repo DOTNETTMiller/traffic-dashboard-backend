@@ -1,0 +1,5 @@
+{
+  "mode": "Built-in image_gen edit",
+  "file": "ccai-corridor-highway-cover-v2.png",
+  "prompt": "Use case: precise-object-edit. Edit target: attached aerial interstate interchange cover artwork. Repair the interchange geometry: the loop ramps must actually connect to the interstate through clearly visible smooth entry and exit connections, continuous paved lanes, correctly oriented merge and diverge tapers and acceleration/deceleration lanes. No isolated loops, dangling roads, abrupt ramp ends, or roads that simply circle back without reaching the freeway. Rebuild the right-hand foreground loop ramp and its connections if needed. Use a believable partial cloverleaf arrangement around the existing crossroad bridge with a clearly connected 270-degree loop ramp feeding into the outside freeway lane. Simplify excess ramps rather than preserve impossible geometry. Preserve the wide aerial viewpoint, main interstate diagonal, crossroad bridge, blue-hour navy/steel-blue photographic treatment, farmland, quiet dark left half for title overlay, few cars, realistic perspective. No text, labels, logos, watermark, or artificial glowing lines."
+}

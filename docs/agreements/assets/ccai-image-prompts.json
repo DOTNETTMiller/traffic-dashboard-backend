@@ -1,0 +1,13 @@
+{
+  "mode": "Built-in image_gen",
+  "images": [
+    {
+      "file": "ccai-corridor-highway-cover.png",
+      "prompt": "Use case: photorealistic-natural. Asset type: wide cover artwork for a CCAI transportation data sharing guide. Create a polished photorealistic aerial view of a Midwestern interstate highway interchange at blue hour, graceful curved ramps and realistic lane markings, a few vehicles, agricultural landscape beyond. Composition: wide landscape 16:9, highway detail concentrated on right half; left half dark quiet navy landscape with negative space for an HTML title overlay. Color palette deep navy #0d2340, steel blue #1f5aa8, restrained red vehicle light accents. Natural photographic texture, professional transportation publication, believable engineering, no text, no logos, no watermark, no diagrams or glowing futuristic effects."
+    },
+    {
+      "file": "ccai-workzone-cover.png",
+      "prompt": "Use case: photorealistic-natural. Asset type: wide cover artwork for a CCAI work zone data specifications publication. Create a professional photorealistic elevated aerial view of a realistic interstate maintenance work zone at blue hour in the American Midwest. Right half of composition contains a safely separated closed lane with orderly orange channelizing barrels, one maintenance truck with amber beacon, a small crew safely inside the closed area in high visibility gear, a portable roadside traffic sensor and a portable message board with its face turned away so there is no lettering. A few vehicles pass in open lanes. Wide landscape 16:9 composition, left half has dark quiet navy road shoulder and landscape with generous negative space for an HTML title overlay. Deep navy #0d2340, steel blue #1f5aa8, muted red and amber accents; natural texture, restrained cinematic lighting, believable road geometry, no text, no logos, no watermark, no floating UI, no futuristic glow. This is illustrative artwork, not documentation of a particular project."
+    }
+  ]
+}

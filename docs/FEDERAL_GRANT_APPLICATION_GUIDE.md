@@ -514,7 +514,7 @@ Fleet Management:
 | Grant Program | Best Fit Score | Why | Typical Award | Match Req |
 |--------------|----------------|-----|---------------|-----------|
 | **SMART** | ⭐⭐⭐⭐⭐ | Coordinated automation, V2I, data integration, multi-jurisdictional | $2M - $15M | 50% |
-| **ATCMTD** | ⭐⭐⭐⭐⭐ | Advanced tech deployment, connected infrastructure, innovation | $1M - $12M | 50% |
+| **ATTAIN** (formerly ATCMTD) | ⭐⭐⭐⭐⭐ | Advanced tech deployment, connected infrastructure, innovation | $2M - $12M | 20% (BIL raised Federal share to 80%; was 50% under FAST Act) |
 | **RAISE** | ⭐⭐⭐⭐ | Multi-modal, safety, economic, quality of life, multi-state | $1M - $25M | 20% (rural), 50% (urban) |
 | **INFRA** | ⭐⭐⭐ | Large freight projects, good for >$25M applications | $25M - $100M+ | 60% |
 | **PROTECT** | ⭐⭐⭐ | Resilience focus, good if emphasizing extreme weather impacts | $500K - $25M | 0-30% |
@@ -1266,7 +1266,7 @@ data quality and distribution."
 
 **Tier 1 (Highest Priority):**
 1. **SMART Grant** - Perfect alignment, coordinated automation, multi-state, data sharing
-2. **ATCMTD** - Advanced tech, V2X, innovation focus
+2. **ATTAIN (formerly ATCMTD)** - Advanced tech, V2X, innovation focus; 20% non-Federal match under BIL
 
 **Tier 2 (Strong Fit):**
 3. **RAISE** - Multi-modal, multi-state, comprehensive merit criteria

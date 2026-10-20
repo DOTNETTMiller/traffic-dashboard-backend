@@ -154,7 +154,7 @@ export default function FederalGrantResources({ darkMode = false }) {
       arcItsRelevance: 'VERY HIGH - Core ITS technology deployment',
       nofoUrl: 'https://www.fhwa.dot.gov/infrastructure-investment-and-jobs-act/attain.cfm',
       grantsGovUrl: 'https://www.grants.gov/search-grants?keywords=ATTAIN',
-      applicationPeriod: '$60M annually (FY22-26). Check grants.gov for current NOFO',
+      applicationPeriod: 'FY25-FY26 NOFO: $120M combined, ~20 awards, deadline Aug 11, 2026. Check grants.gov for current NOFO',
       keyRequirements: [
         'Technology deployment plan',
         'Data sharing requirements',
@@ -163,7 +163,7 @@ export default function FederalGrantResources({ darkMode = false }) {
         'Performance measurement plan'
       ],
       typicalAward: '$2M - $12M',
-      matchRequired: '50% minimum',
+      matchRequired: '20% minimum non-Federal (Federal share up to 80%); in-kind generally allowable per 2 CFR 200.306 — confirm in current NOFO',
       color: '#ec4899'
     },
     {

@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 950" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4A5866"/>
+    </marker>
+    <marker id="arrO" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#E8720C"/>
+    </marker>
+    <marker id="arrB" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1D5FAD"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1240" height="950" fill="#FFFFFF"/>
+
+  <!-- Title -->
+  <text x="40" y="44" font-size="24" font-weight="800" fill="#16202A">How the Iowa-led ATTAIN project works — I-35 and I-80, sixteen states</text>
+  <text x="40" y="66" font-size="14" fill="#4A5866">Public + private data, brought together once — delivered everywhere drivers decide.</text>
+  <text x="40" y="84" font-size="14" fill="#4A5866">Iowa DOT, lead applicant · CCAI year-one work plan · I-35 Anchor State · I-80 Corridor Coalition · the corridors meet in Iowa</text>
+
+  <!-- Group labels -->
+  <text x="190" y="103" font-size="12" font-weight="700" letter-spacing="2" fill="#1D5FAD" text-anchor="middle">WORK ZONES</text>
+  <line x1="40" y1="109" x2="620" y2="109" stroke="#D4DAE0" stroke-width="1"/>
+  <text x="1050" y="103" font-size="12" font-weight="700" letter-spacing="2" fill="#1D5FAD" text-anchor="middle">TRUCK PARKING</text>
+  <line x1="640" y1="109" x2="1200" y2="109" stroke="#D4DAE0" stroke-width="1"/>
+
+  <!-- Input boxes row -->
+  <!-- WZ public -->
+  <rect x="40" y="122" width="280" height="168" rx="8" fill="#E8F0FA" stroke="#1D5FAD" stroke-width="1.5"/>
+  <text x="56" y="147" font-size="11" font-weight="700" letter-spacing="1.5" fill="#1D5FAD">PUBLIC · STATES, UNCHANGED</text>
+  <text x="56" y="172" font-size="14" font-weight="700" fill="#16202A">State work zone reports</text>
+  <text x="56" y="194" font-size="12.5" fill="#4A5866">
+    <tspan x="56" dy="0">Existing 511 / TMC systems</tspan>
+    <tspan x="56" dy="17" font-size="11.5">I-35: TX · OK · KS · MO · IA · MN</tspan>
+    <tspan x="56" dy="16" font-size="11.5">I-80: CA · NV · UT · WY · NE · IA ·</tspan>
+    <tspan x="56" dy="15" font-size="11.5">IL · IN · OH · PA · NJ</tspan>
+    <tspan x="56" dy="22" font-style="italic">No new systems, staff, or obligations</tspan>
+  </text>
+
+  <!-- WZ private -->
+  <rect x="340" y="122" width="280" height="168" rx="8" fill="#F2F4F6" stroke="#8895A3" stroke-width="1.5" stroke-dasharray="5 3"/>
+  <text x="356" y="147" font-size="11" font-weight="700" letter-spacing="1.5" fill="#4A5866">PRIVATE &amp; PARTNER</text>
+  <text x="356" y="172" font-size="14" font-weight="700" fill="#16202A">Independent evidence</text>
+  <text x="356" y="194" font-size="12.5" fill="#4A5866">
+    <tspan x="356" dy="0">Vehicle probe &amp; movement data</tspan>
+    <tspan x="356" dy="18">Construction e-ticketing</tspan>
+    <tspan x="356" dy="18">Connected field devices</tspan>
+    <tspan x="356" dy="18">In-cab alert networks</tspan>
+  </text>
+
+  <!-- PK public -->
+  <rect x="640" y="122" width="280" height="168" rx="8" fill="#E8F0FA" stroke="#1D5FAD" stroke-width="1.5"/>
+  <text x="656" y="147" font-size="11" font-weight="700" letter-spacing="1.5" fill="#1D5FAD">PUBLIC · STATES, UNCHANGED</text>
+  <text x="656" y="172" font-size="14" font-weight="700" fill="#16202A">Parking detection</text>
+  <text x="656" y="194" font-size="12.5" fill="#4A5866">
+    <tspan x="656" dy="0">TPIMS space sensors</tspan>
+    <tspan x="656" dy="17">Ground-truth devices (cameras,</tspan>
+    <tspan x="656" dy="16">in-ground sensors) — IA live today</tspan>
+    <tspan x="656" dy="17">Historical occupancy archives</tspan>
+  </text>
+
+  <!-- PK private -->
+  <rect x="940" y="122" width="280" height="168" rx="8" fill="#F2F4F6" stroke="#8895A3" stroke-width="1.5" stroke-dasharray="5 3"/>
+  <text x="956" y="147" font-size="11" font-weight="700" letter-spacing="1.5" fill="#4A5866">PRIVATE &amp; PARTNER</text>
+  <text x="956" y="172" font-size="14" font-weight="700" fill="#16202A">Prediction signals</text>
+  <text x="956" y="194" font-size="12.5" fill="#4A5866">
+    <tspan x="956" dy="0">Fleet telematics &amp; ELD input</tspan>
+    <tspan x="956" dy="17">Crowd-sourced driver apps</tspan>
+    <tspan x="956" dy="16">CV movement analytics</tspan>
+    <tspan x="956" dy="17">Camera AI counts · closures</tspan>
+    <tspan x="956" dy="16">that consume parking</tspan>
+  </text>
+
+  <!-- Arrows into engine -->
+  <line x1="180" y1="290" x2="180" y2="342" stroke="#4A5866" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="480" y1="290" x2="480" y2="342" stroke="#4A5866" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="780" y1="290" x2="780" y2="342" stroke="#4A5866" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="1080" y1="290" x2="1080" y2="342" stroke="#4A5866" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Engine -->
+  <rect x="140" y="348" width="960" height="118" rx="8" fill="#FDF0E3" stroke="#E8720C" stroke-width="2"/>
+  <text x="620" y="376" font-size="12" font-weight="700" letter-spacing="2" fill="#E8720C" text-anchor="middle">WHERE IT COMES TOGETHER</text>
+  <text x="620" y="400" font-size="17" font-weight="800" fill="#16202A" text-anchor="middle">Verification &amp; prediction engine</text>
+  <text x="620" y="424" font-size="13" fill="#4A5866" text-anchor="middle">Confidence score on every work zone · map geometry corrected · hourly occupancy prediction per parking facility</text>
+  <text x="620" y="444" font-size="13" font-weight="600" fill="#16202A" text-anchor="middle">Closure → parking linkage: when tonight's work zone will fill the next three truck stops, drivers know before the shift ends</text>
+
+  <!-- Arrow to exchange -->
+  <line x1="620" y1="466" x2="620" y2="512" stroke="#4A5866" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Exchange -->
+  <rect x="290" y="518" width="660" height="72" rx="8" fill="#FFFFFF" stroke="#4A5866" stroke-width="1.5"/>
+  <text x="620" y="548" font-size="16" font-weight="800" fill="#16202A" text-anchor="middle">One governed exchange — MITRE iNODE</text>
+  <text x="620" y="570" font-size="13" fill="#4A5866" text-anchor="middle">Consumers connect once and reach all sixteen states across both corridors — not fifty separate integrations</text>
+
+  <!-- Arrow to delivery -->
+  <line x1="620" y1="590" x2="620" y2="636" stroke="#4A5866" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Delivery -->
+  <rect x="140" y="642" width="960" height="96" rx="8" fill="#E7F2EB" stroke="#2E7D4F" stroke-width="1.5"/>
+  <text x="620" y="670" font-size="16" font-weight="800" fill="#16202A" text-anchor="middle">Delivered where decisions happen</text>
+  <text x="620" y="694" font-size="13" fill="#4A5866" text-anchor="middle">Navigation apps — Google · Waze · Apple (via WZDx + CIFS) · fleet dispatch &amp; in-cab alert networks &amp; telematics</text>
+  <text x="620" y="714" font-size="13" fill="#4A5866" text-anchor="middle">connected &amp; automated vehicles (V2X / C-V2X message distribution) · DMS highway signs · public dashboard &amp; FHWA</text>
+
+  <!-- Arrow to outcome -->
+  <line x1="620" y1="738" x2="620" y2="784" stroke="#4A5866" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Outcome -->
+  <rect x="140" y="790" width="960" height="108" rx="8" fill="#FFFFFF" stroke="#2E7D4F" stroke-width="2.5"/>
+  <text x="330" y="852" font-size="40" font-weight="800" fill="#2E7D4F" text-anchor="middle">60 → 30 min</text>
+  <text x="330" y="876" font-size="11" font-weight="700" letter-spacing="1.5" fill="#4A5866" text-anchor="middle">END-OF-SHIFT PARKING SEARCH</text>
+  <line x1="530" y1="806" x2="530" y2="882" stroke="#D4DAE0" stroke-width="1"/>
+  <text x="560" y="826" font-size="13.5" fill="#16202A">
+    <tspan x="560" dy="0" font-weight="700">Every day, corridor-wide:</tspan>
+    <tspan x="560" dy="22">▲ Supply-chain productivity &#160;&#160;&#160; ▼ Fuel burned searching</tspan>
+    <tspan x="560" dy="22">▼ Trucks parked on ramps &amp; shoulders &#160;&#160;&#160; ▼ Hours-of-service violations</tspan>
+  </text>
+
+  <!-- Feedback to source feeds (left side, managed on MITRE) -->
+  <path d="M 290 554 H 24 V 206 H 32" fill="none" stroke="#1D5FAD" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrB)"/>
+  <text x="14" y="470" font-size="11" font-weight="700" letter-spacing="1" fill="#1D5FAD" transform="rotate(-90 14 470)" text-anchor="middle">FEEDBACK · VALIDATED DATA RETURNS TO INFORM STATE FEEDS — MANAGED ON MITRE</text>
+
+  <!-- Return loop -->
+  <path d="M 1100 690 H 1168 V 407 H 1108" fill="none" stroke="#E8720C" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrO)"/>
+  <text x="1178" y="500" font-size="11" font-weight="700" letter-spacing="1" fill="#E8720C" transform="rotate(90 1178 500)" text-anchor="middle">RETURN LOOP · DID THE DRIVER ACTUALLY SEE IT?</text>
+
+  <!-- Footer -->
+  <text x="40" y="922" font-size="11.5" fill="#8895A3">Baseline: ATRI driver-diary research — drivers average ~56 minutes/day searching for parking, ≈$5,000/year in lost wages. &#160; FHWA ATTAIN FY25–26 · deadline August 11, 2026.</text>
+  <text x="40" y="938" font-size="11.5" fill="#8895A3">Solid boxes = public data (unchanged) · dashed boxes = private &amp; partner data, shown generically for procurement neutrality — providers selected competitively after award.</text>
+</svg>

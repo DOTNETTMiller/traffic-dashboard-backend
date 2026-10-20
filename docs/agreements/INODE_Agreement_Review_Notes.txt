@@ -1,0 +1,38 @@
+INODE Universal Data Sharing Agreement
+Source mapping and completion notes
+Prepared October 12 2026
+
+Purpose
+The accompanying Word document is a reusable legal drafting template. Its master terms support public agency data, consented vendor data, and specifically approved restricted data. It is not an executed agreement or a determination that all clauses are enforceable in every jurisdiction. Counsel for the operator and participating entities should finalize it before signature.
+
+Sources used
+1. TETC TDM DUA R011 2026 08 Aug 23A DRAFT_CLEAN.docx, supplied from Downloads. This is a draft source, not treated as an executed license. Sections 4 through 10 inform agency eligibility, cross-member access, permitted uses, public outputs, contractor need to know, preservation of notices, privacy, and incident notification. Sections 11 through 15 inform vendor risk terms, responsibility, termination, rights assurances, and general clauses. Attachment B informs the separation of vendor portal subscriptions from dataset and exported output rights.
+2. executed-data-sharing-agreement.pdf, supplied from Downloads. The Texas Oklahoma Interstate Transportation Data Agreement, Contract 97-6FEDA001, executed in June 2026, informs reciprocal sharing, the five-year default, source ownership, no-fee agency exchange, public entity protections, public records compliance, as-is data, and attachment administration. Attachment A informs the dataset inventory and disclosure of AI processing. Attachment B informs security, residency, incidents and AI authorization. Attachment C informs governance roles, quarterly coordination and annual review. The accompanying business case memo is context, not incorporated contract language.
+3. docs/INODE_ARCHITECTURE_REVIEW_RULES.md, especially Sections 1, 2, 4, 5 and 7: rights brokerage, catalog and lineage, additive evidence, three-state reporting, source correction, retained authorship and exit portability. The draft treats these as proposed contractual obligations, not verified capabilities of the present INODE operator.
+4. docs/INODE_INFOGRAPHIC_REVISION_PROMPT.md: peer comparisons accounting for coverage, automation safeguards, multiple transportation domains, and permission for safe outputs derived from sensitive inputs.
+5. docs/pooled-fund-digital-infrastructure.md, Section 5: permitted transportation purposes, tiered access and governance. Proposed platform ownership, perpetual historical retention, and automatic SOC 2 requirements were not copied.
+6. docs/PLATFORM_STEWARDSHIP_AND_SUSTAINABILITY.md: separation of governance from operation and member procurement. Proposed AASHTO governance, dues and organizational arrangements were not treated as established facts or commitments.
+7. NIST Cybersecurity Framework 2.0, official publication: https://www.nist.gov/publications/nist-cybersecurity-framework-csf-20 . Used to ground the risk-based security approach in Attachment C; alignment is not certification and is not a claim of existing compliance.
+
+Material drafting choices
+The Texas Oklahoma source authorizes public information and excludes third-party compilations. The INODE template adds separate routes for licensed and restricted data; it does not imply that the original interstate agreement authorizes those routes.
+TETC permits broad access among eligible agencies because its vendors expressly grant that right. The INODE template requires the relevant vendor or rights holder to consent to the equivalent access; membership alone is insufficient.
+The source TETC draft permits archival use but also requires destruction on termination. The INODE schedule makes delivery duration, received-data use, post-termination archive rights, and destruction separate explicit decisions.
+The template protects lawful public records disclosure without promising confidentiality exemptions or importing Texas and Oklahoma laws into every Participant's obligations.
+Vendor portal permissions remain separate. The template does not import the source's broad perpetual vendor license to agency feedback, automatic subjurisdiction eligibility, or automatic portal seat increases.
+No blanket safety exception overrides vendor rights or privacy. Approved traveler information and emergency outputs must be identified in the dataset schedule or disclosed pursuant to law.
+The template uses proposed 24-hour incident notice, 30-day ordinary notice and deletion, 90-day maximum ordinary backup rotation, quarterly access review, 12-month audit retention, and a five-year master term. These are drafting defaults to confirm against actual capabilities, licenses and governmental retention requirements.
+Restricted or regulated data requires a further signed addendum. This document alone is not a health, criminal justice, classified data, international transfer or comprehensive personal data processing agreement.
+Indemnity, insurance and any direct damages cap require an express negotiated addendum. The template preserves public entity limitations and existing procurement indemnities. Counsel should assess the consequential damages exclusion and its exceptions.
+
+Complete before execution
+Identify the actual legal operator; do not substitute an exchange name for a legal entity. Confirm operator authority, Participant statutory or organizational authority, required counsel and agency approvals, governance powers, and accession enforceability among providers and recipients.
+Complete governing law and lawful forum for each operator-participant relationship and each provider-recipient dataset relationship. Resolve conflicting public entity requirements by signed addendum before access.
+Approve a schedule for each dataset, with the underlying license, eligible recipients, contractor eligibility, public output permissions, navigation permissions, AI permissions, fees, service expectations, retention and surviving rights. Obtain affirmative vendor consent where existing licenses are insufficient.
+Confirm that security controls, operating procedures, rights registers, portability, logging and incident routes can be implemented. The agreement does not prove these capabilities already exist.
+Execute any restricted data, vendor indemnity, regulated data or other required addenda. Retain actual written recipient acceptance of each schedule and version.
+
+Illustrative onboarding patterns
+An agency-owned public work-zone feed can use the Public route with a stated open license and explicit downstream and navigation permissions.
+A procured probe dataset can use the Participant route after the rights holder authorizes the named agencies or defined agency class; public maps and summary outputs need explicit permissions, and portal subscriptions remain separate.
+Railroad movement inputs can use the Restricted route with approved source-side processing and an approved crossing-state output. The schedule must expressly prohibit release of raw train positions and specify output granularity and delays; the template does not assume a railroad has consented.
