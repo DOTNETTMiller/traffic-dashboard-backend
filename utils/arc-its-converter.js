@@ -92,7 +92,7 @@ class ARCITSConverter {
     const arcItsId = this.generateARCITSId(equipment);
     const category = this.getARCITSCategory(equipment.equipmentType);
     const functions = this.getARCITSFunctions(equipment);
-    const interfaceType = this.getARCITSInterface(equipment.equipmentType);
+    const interfaceType = equipment.arcItsInterface || 'Unknown — not verified';
 
     return {
       ...equipment,
@@ -104,8 +104,10 @@ class ARCITSConverter {
       ...(equipment.equipmentType === 'rsu' ? this.enhanceRSUData(equipment) : {}),
       // Add standardized metadata
       metadata: {
-        arcItsCompliant: true,
-        arcItsVersion: 'ARC-IT 10.0',
+        arcItsCompliant: null,
+        mappingStatus: 'proposed',
+        candidateInterface: this.getARCITSInterface(equipment.equipmentType),
+        arcItsVersion: null,
         conversionDate: new Date().toISOString(),
         standardsCompliance: this.getStandardsCompliance(equipment)
       }
@@ -197,8 +199,8 @@ class ARCITSConverter {
    */
   enhanceRSUData(equipment) {
     return {
-      rsuMode: equipment.rsuMode || 'continuous',
-      communicationRange: equipment.communicationRange || 300, // default 300m
+      rsuMode: equipment.rsuMode || 'unknown',
+      communicationRange: equipment.communicationRange > 0 ? Number(equipment.communicationRange) : null,
       supportedProtocols: this.standardizeProtocols(equipment.supportedProtocols),
       v2xApplications: this.determineV2XApplications(equipment),
       messageTypes: this.getSupportedMessageTypes(equipment)
@@ -209,7 +211,7 @@ class ARCITSConverter {
    * Standardize protocol names
    */
   standardizeProtocols(protocols) {
-    if (!protocols) return JSON.stringify(['DSRC']);
+    if (!protocols) return JSON.stringify([]);
 
     const protocolList = typeof protocols === 'string' ? protocols.split(',') : protocols;
     const standardized = protocolList.map(p => {
@@ -286,30 +288,8 @@ class ARCITSConverter {
    * Determine standards compliance
    */
   getStandardsCompliance(equipment) {
-    const compliance = {
-      arcIt: true,
-      ntcip: false,
-      saeJ2735: false,
-      ieee1609: false
-    };
-
-    switch (equipment.equipmentType) {
-      case 'camera':
-        compliance.ntcip = true; // NTCIP 1205
-        break;
-      case 'dms':
-        compliance.ntcip = true; // NTCIP 1203
-        break;
-      case 'rsu':
-        compliance.saeJ2735 = true;
-        compliance.ieee1609 = true;
-        break;
-      case 'sensor':
-        compliance.ntcip = true; // NTCIP 1204/1218
-        break;
-    }
-
-    return compliance;
+    // Equipment classification does not establish standards conformance.
+    return { arcIt: null, ntcip: null, saeJ2735: null, ieee1609: null };
   }
 
   /**

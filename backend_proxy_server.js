@@ -357,6 +357,17 @@ const requireUser = (req, res, next) => {
   }
 };
 
+// Dedicated operational boundary. ATMS remains disabled until persistent storage,
+// individual identities, and explicit operator/supervisor allowlists are configured.
+require('./services/atms/bootstrap').mountATMS(app, {
+  authenticate: requireUser,
+  sourceProvider: async () => {
+    // Reuse the HTTP provider so embedded and standalone ATMS imports have the
+    // same collection clocks, device metadata and detector observations.
+    return require('./services/atms/source-provider').createSourceProvider({ baseUrl: `http://127.0.0.1:${process.env.PORT || 3001}` })();
+  }
+});
+
 // Combined authentication middleware - accepts both User JWT and State password
 const requireUserOrStateAuth = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -5718,7 +5729,6 @@ async function ensureDeviceMatch(force = false) {
   const age = devicesCache.timestamp ? Date.now() - devicesCache.timestamp : Infinity;
   if (!force && age < deviceMatch.ttl) return; // fresh enough — reuse
   const events = (eventsCache.data && eventsCache.data.events) || [];
-  if (!events.length) return;
   deviceMatch.running = true;
   try {
     const deviceIngest = require('./services/device-ingest');
@@ -5733,11 +5743,13 @@ async function ensureDeviceMatch(force = false) {
     // CARS path and the public map JSON. 'newengland' emits ME/NH/VT from one shared host.
     const STATE_KEYS = ['ny', 'wa', 'ok', 'pa', 'me', 'fl', 'ky', 'md', 'nm', 'ca', 'mn',
       'ut', 'la', 'az', 'nc', 'wi', 'nv', 'id', 'ga', 'ak', 'newengland', 'nj', 'al', 'mt', 'sc'];
-    const lists = await Promise.all([
-      deviceIngest.fetchIowaDevices().catch(() => []),
-      ...STATE_KEYS.map(k => deviceAdapters.fetchState(k).then(r => Array.isArray(r) ? r : []).catch(() => []))
+    const sourceIds = ['ia', ...STATE_KEYS];
+    const results = await Promise.allSettled([
+      deviceIngest.fetchIowaDevices({ all: true }),
+      ...STATE_KEYS.map(k => deviceAdapters.fetchState(k))
     ]);
-    const devices = lists.flat();
+    const sources = results.map((r, i) => ({ id: sourceIds[i], status: r.status === 'rejected' ? 'unavailable' : !Array.isArray(r.value) ? 'skipped' : r.value.length ? 'ok' : 'empty-unverified', count: r.status === 'fulfilled' && Array.isArray(r.value) ? r.value.length : 0 }));
+    const devices = results.flatMap((r, i) => r.status === 'fulfilled' && Array.isArray(r.value) ? r.value.map(d => ({ ...d, sourceAdapter: sourceIds[i] })) : []);
     // Match against ALL events — proximity (<=maxMatchM) guarantees geographic correctness,
     // so no fragile per-state event-label filtering is needed.
     let match = deviceMatcher.matchDevices(devices, events);
@@ -5754,7 +5766,7 @@ async function ensureDeviceMatch(force = false) {
     require('./services/device-health-store').record(validation.summary);
     const prevTrend = devicesCache.trend || [];
     devicesCache = {
-      devices, links: match.links, review: match.review,
+      devices, sources, links: match.links, review: match.review,
       unmatchedCount: match.unmatched.length, timestamp: Date.now(),
       validation: validation.summary, matchValidations: validation.matches,
       anomalies: validation.anomalies, suspectInactive,
@@ -6454,6 +6466,8 @@ app.get('/api/devices', async (req, res) => {
     const l = linkByDevice.get(d.id);
     return {
       id: d.id, deviceType: d.deviceType, signType: d.signType || null,
+      state: d.state || null, inventory: !!d.inventory, portable: d.portable ?? null,
+      sourceAdapter: d.sourceAdapter || null, ntcip: d.ntcip || null,
       route: d.route, direction: d.direction, coordinates: d.coordinates,
       mode: d.mode, updated: d.updated,
       matched: !!l, road_event_id: l ? l.road_event_id : null, confidence: l ? l.confidence : null
@@ -6462,6 +6476,8 @@ app.get('/api/devices', async (req, res) => {
   res.json({
     success: true,
     timestamp: devicesCache.timestamp ? new Date(devicesCache.timestamp).toISOString() : null,
+    collectionStatus: (devicesCache.sources || []).some(s => s.status !== 'ok') ? 'partial' : 'ok',
+    sources: devicesCache.sources || [],
     counts: {
       devices: devices.length,
       autoLinked: links.length,
@@ -14134,10 +14150,12 @@ async function autoActivateDMS(event) {
       [rule.template_id]
     );
 
-    console.log(`  ✅ Auto-activated DMS: "${final_message}"`);
+    console.log(`  📝 Automatic DMS request recorded (field state unconfirmed): "${final_message}"`);
 
     return {
       activation: activationResult.rows[0],
+      deliveryState: 'recorded_only',
+      physicalDeviceConfirmed: false,
       rule: rule,
       message: final_message
     };
@@ -14148,7 +14166,7 @@ async function autoActivateDMS(event) {
 }
 
 // Endpoint to manually trigger auto-DMS for an event
-app.post('/api/dms/auto-activate', async (req, res) => {
+app.post('/api/dms/auto-activate', requireUserOrStateAuth, async (req, res) => {
   if (!pgPool) {
     return res.status(503).json({
       success: false,
@@ -14512,7 +14530,9 @@ app.post('/api/dms/activate', requireUserOrStateAuth, async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'DMS message activated',
+      message: 'DMS request recorded; physical sign display has not been confirmed',
+      deliveryState: 'recorded_only',
+      physicalDeviceConfirmed: false,
       activation: activationResult.rows[0],
       final_message
     });
