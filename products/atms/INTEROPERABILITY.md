@@ -116,7 +116,7 @@ Daktronics, Skyline, Ledstar, ADDCO, SES and Wanco signs. Its message CRC
 
 | Sign | Quirk recorded in IRIS | This adapter |
 | --- | --- | --- |
-| Ledstar, some firmware | Request-ids above 127 encoded as negative; IRIS caps them at 127 | net-snmp uses random 32-bit ids; would fail |
+| Ledstar, some firmware | Request-ids above 127 encoded as negative; IRIS caps them at 127 | Ids kept in 1..127 for every v1/v2c controller (`session.js`); tested against a proxy that drops answers to ids above 127 |
 | Ledstar | `noSuchName` (not `readOnly`) when setting `dmsActivateMessage` with a read-only community | Reported as an SNMP error, not as a credential problem |
 | Ledstar | `dmsMultiSyntaxError` = other with a text description for graphics that do not fit | Graphics not sent |
 | Ledstar, one firmware | Locks up if `dmsTimeCommLoss` is non-zero | Not written |
@@ -127,8 +127,11 @@ Daktronics, Skyline, Ledstar, ADDCO, SES and Wanco signs. Its message CRC
 | Old Skyline | Invalid source table after long power-down | Source shown as raw hex, not flagged |
 
 None of IRIS's code is copied here. Failing closed is the right default for
-every row except the first, which would stop a Ledstar controller from
-answering at all; the fix is a per-device request-id limit.
+every row except the first, which would make a Ledstar controller look
+offline: net-snmp drops a response whose id it did not send, without an
+error. The note dates to at least 2007 (IRIS's first public import) and MnDOT
+kept it for Ledstar in 2023. The limit applies to every controller, as IRIS
+did for all signs until 2023; SNMPv3 sessions are unchanged.
 
 **Recorded controllers** — `scripts/atms-replay-recording.cjs` turns a plain
 `snmpwalk -On` dump of a real sign into an snmpsim recording and runs the
