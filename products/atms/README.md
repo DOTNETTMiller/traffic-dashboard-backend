@@ -125,6 +125,11 @@ persistent `ATMS_DB_PATH`, `ATMS_AGENCY`, the same membership allowlists, and
 It does not include a separate password enrollment or identity-provider service.
 See `.env.example`; it is documentation, not an automatically loaded env file.
 
+## Hosted beta
+
+`npm run start:atms-beta` serves private, expiring training sandboxes to
+PurposeBuilt accounts with beta access. See `BETA.md`.
+
 ## DTCD closure push
 
 Set `ATMS_DTCD_WEBHOOK_SECRET` (32+ characters) to accept signed closure

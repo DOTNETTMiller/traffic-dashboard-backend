@@ -1,6 +1,8 @@
 const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-let trainingToken = null;
+let trainingToken = null, betaToken = null;
 export function setTrainingToken(value) { trainingToken = value; }
+// Hosted beta: identifies this account's sandbox when choosing a training role.
+export function setBetaToken(value) { betaToken = value; }
 export async function druPreviewPhotoUrl(bundleId, index, signal) {
   const response = await fetch(base + '/api/atms/architecture/dru/bundles/' + encodeURIComponent(bundleId) + '/photos/' + index, {
     credentials: 'omit', cache: 'no-store', signal: signal || AbortSignal.timeout(25000),
@@ -48,7 +50,7 @@ export async function request(path, { method = 'GET', body, key, anonymous = fal
   try {
     const response = await fetch(base + '/api/atms' + path, {
       method, signal: controller.signal, cache: 'no-store', credentials: 'omit',
-      headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json', 'X-ATMS-Client': 'workspace', 'Idempotency-Key': key || crypto.randomUUID() } : {}), ...(!anonymous && token ? { Authorization: 'Bearer ' + token } : {}) },
+      headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json', 'X-ATMS-Client': 'workspace', 'Idempotency-Key': key || crypto.randomUUID() } : {}), ...(!anonymous && token ? { Authorization: 'Bearer ' + token } : {}), ...(betaToken ? { 'X-ATMS-Beta': betaToken } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {})
     });
     const text = await response.text();
