@@ -125,6 +125,11 @@ persistent `ATMS_DB_PATH`, `ATMS_AGENCY`, the same membership allowlists, and
 It does not include a separate password enrollment or identity-provider service.
 See `.env.example`; it is documentation, not an automatically loaded env file.
 
+## DTCD closure push
+
+Set `ATMS_DTCD_WEBHOOK_SECRET` (32+ characters) to accept signed closure
+changes from DTCD at `POST /api/atms/dtcd/closures`. See `DTCD.md`.
+
 ## Device-control boundary
 
 Public feeds populate read-only devices, regardless of any control fields in

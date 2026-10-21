@@ -46,7 +46,8 @@ function mountATMS(app, { authenticate, sourceProvider, env = process.env }) {
   ops.gatewayAvailable = !!gateway;
   provisionDevices(ops, env, gateway);
   const dispatcher = new Dispatcher(ops, { gateway }); dispatcher.start();
-  const router = createRouter({ ops, authenticate, sourceProvider, gateway, video, publicFeedAgency: env.ATMS_PUBLIC_FEED_ENABLED === 'true' ? env.ATMS_AGENCY : null, resolveActor: req => actorFromUser(req.user, { agency: env.ATMS_AGENCY, operators: names(env.ATMS_OPERATOR_USERS), supervisors: names(env.ATMS_SUPERVISOR_USERS), viewers: names(env.ATMS_VIEWER_USERS) }) });
+  const dtcd = require('./dtcd').configuredDtcd(env);
+  const router = createRouter({ ops, authenticate, sourceProvider, gateway, dtcd, video, publicFeedAgency: env.ATMS_PUBLIC_FEED_ENABLED === 'true' ? env.ATMS_AGENCY : null, resolveActor: req => actorFromUser(req.user, { agency: env.ATMS_AGENCY, operators: names(env.ATMS_OPERATOR_USERS), supervisors: names(env.ATMS_SUPERVISOR_USERS), viewers: names(env.ATMS_VIEWER_USERS) }) });
   app.use('/api/atms', router);
   return { ops, dispatcher };
 }

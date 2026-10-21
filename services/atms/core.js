@@ -322,6 +322,33 @@ class Operations {
       return this.serviceCommand(agency, command, { status: simulation ? 'simulated' : command.operation === 'blank' ? 'cleared' : 'verified', verifiedAt: simulation ? null : input.observedAt, simulatedAt: simulation ? this.iso() : null, readback: input.message, failure: null }, simulation ? 'command.simulated_result' : 'command.device_verified');
     }).immediate();
   }
+  // One source-reported road event, shared by snapshot imports and pushed sources.
+  sourceEvent(raw, sourceKey, rawId, sourceName, observedAt, old) {
+    const coordinate = value => !['number', 'string'].includes(typeof value) || (typeof value === 'string' && !value.trim()) ? NaN : Number(value);
+    const spatial = sourceGeometry(raw, sourceName, observedAt);
+    const point = geometryAnchor(spatial.geometry);
+    const latitude = coordinate(raw.latitude ?? point?.[1]), longitude = coordinate(raw.longitude ?? point?.[0]);
+    const event = {
+      id: sourceKey, sourceId: String(rawId), title: String(raw.description || raw.headline || raw.eventType || 'Source-reported event').slice(0, 500),
+      route: String(raw.corridor || raw.road || raw.route || raw.location || 'Unknown road').slice(0, 100),
+      jurisdiction: String(raw.state || raw.stateKey || 'Unknown'), direction: String(raw.direction || 'unknown'),
+      severity: /critical|severe/i.test(raw.severity) ? 'critical' : /major|high/i.test(raw.severity) ? 'major' : /minor|low/i.test(raw.severity) ? 'minor' : 'moderate',
+      kind: /closure|closed/i.test(String(raw.eventType || raw.type)) ? 'closure' : 'incident',
+      latitude: Number.isFinite(latitude) && Math.abs(latitude) <= 90 ? latitude : null,
+      longitude: Number.isFinite(longitude) && Math.abs(longitude) <= 180 ? longitude : null,
+      observedAt, sourceUpdatedAt: raw.updated || raw.update_date || raw.lastUpdated || null, sourceName,
+      present: true, incidentId: old?.incidentId || null
+    };
+    if (!spatial.geometry && event.latitude != null && event.longitude != null) {
+      spatial.geometry = { type: 'Point', coordinates: [event.longitude, event.latitude] };
+      spatial.geometryEvidence.status = 'source_reported';
+      spatial.geometryEvidence.note = 'Source coordinates locate a report, not the affected road limits.';
+    }
+    spatial.geometryEvidence.fingerprint = geometryHash({ geometry: spatial.geometry, route: event.route, direction: event.direction });
+    Object.assign(event, spatial);
+    event.feedSource = require('./feed-publisher').sourceValues(raw);
+    return event;
+  }
   ingest(agency, { events, devices = [], observedAt, sourceName = 'Corridor Communicator', failedSources = 0, collections, eventsAvailable = true, eventsComplete = true, deviceObservedAt }) {
     if (!Array.isArray(events) || events.length > 25000 || !Array.isArray(devices) || devices.length > 25000) fail(400, 'Source batches support up to 25,000 events and devices.');
     const observed = Date.parse(observedAt);
@@ -340,32 +367,10 @@ class Operations {
         const sourceKey = `${String(raw.state || raw.stateKey || 'unknown')}:${String(rawId)}`;
         if (seen.has(sourceKey)) { rejected++; continue; } seen.add(sourceKey);
         const old = this.get(agency, 'event', sourceKey);
-        const coordinate = value => !['number', 'string'].includes(typeof value) || (typeof value === 'string' && !value.trim()) ? NaN : Number(value);
-        const spatial = sourceGeometry(raw, sourceName, observedAt);
-        const point = geometryAnchor(spatial.geometry);
-        const latitude = coordinate(raw.latitude ?? point?.[1]), longitude = coordinate(raw.longitude ?? point?.[0]);
-        const event = {
-          id: sourceKey, sourceId: String(rawId), title: String(raw.description || raw.headline || raw.eventType || 'Source-reported event').slice(0, 500),
-          route: String(raw.corridor || raw.road || raw.route || raw.location || 'Unknown road').slice(0, 100),
-          jurisdiction: String(raw.state || raw.stateKey || 'Unknown'), direction: String(raw.direction || 'unknown'),
-          severity: /critical|severe/i.test(raw.severity) ? 'critical' : /major|high/i.test(raw.severity) ? 'major' : /minor|low/i.test(raw.severity) ? 'minor' : 'moderate',
-          kind: /closure|closed/i.test(String(raw.eventType || raw.type)) ? 'closure' : 'incident',
-          latitude: Number.isFinite(latitude) && Math.abs(latitude) <= 90 ? latitude : null,
-          longitude: Number.isFinite(longitude) && Math.abs(longitude) <= 180 ? longitude : null,
-          observedAt, sourceUpdatedAt: raw.updated || raw.update_date || raw.lastUpdated || null, sourceName,
-          present: true, incidentId: old?.incidentId || null
-        };
-        if (!spatial.geometry && event.latitude != null && event.longitude != null) {
-          spatial.geometry = { type: 'Point', coordinates: [event.longitude, event.latitude] };
-          spatial.geometryEvidence.status = 'source_reported';
-          spatial.geometryEvidence.note = 'Source coordinates locate a report, not the affected road limits.';
-        }
-        spatial.geometryEvidence.fingerprint = geometryHash({ geometry: spatial.geometry, route: event.route, direction: event.direction });
-        Object.assign(event, spatial);
-        event.feedSource = require('./feed-publisher').sourceValues(raw);
+        const event = this.sourceEvent(raw, sourceKey, rawId, sourceName, observedAt, old);
         this.put(agency, 'event', event, old?.version);
       }
-      for (const old of existing) if (eventsAvailable && eventsComplete && old.present && !seen.has(old.id)) this.put(agency, 'event', { ...old, present: false, missingSince: observedAt }, old.version);
+      for (const old of existing) if (eventsAvailable && eventsComplete && old.present && !old.pushedBy && !seen.has(old.id)) this.put(agency, 'event', { ...old, present: false, missingSince: observedAt }, old.version);
       const captured = collections || [
         { sourceId: 'corridor-events', kind: 'events', status: failedSources ? 'partial' : events.length ? 'ok' : 'empty', collectedAt: this.iso(), sourceObservedAt: observedAt, payload: { events } },
         ...(devices.length || deviceObservedAt ? [{ sourceId: 'corridor-devices', kind: 'devices', status: devices.length ? 'ok' : 'empty', collectedAt: this.iso(), sourceObservedAt: deviceObservedAt || null, payload: { devices } }] : [])

@@ -2,16 +2,22 @@
 const express = require('express');
 const { requireRole, Fault } = require('./core');
 const { verifyGateway } = require('./dispatcher');
+const { receiveDtcd } = require('./dtcd');
 
-function createRouter({ ops, authenticate, resolveActor, sourceProvider, gateway = null, trainingLab = null, simulationDesk = null, publicFeedAgency = null, video = null }) {
+function createRouter({ ops, authenticate, resolveActor, sourceProvider, gateway = null, dtcd = null, trainingLab = null, simulationDesk = null, publicFeedAgency = null, video = null }) {
   const router = express.Router();
   router.use((req, res, next) => { res.set('Cache-Control', 'no-store, private'); next(); });
   router.use((req, res, next) => {
-    if (req.body && Buffer.byteLength(JSON.stringify(req.body)) > (req.path.startsWith('/gateway/') ? 32768 : 65536)) return res.status(413).json({ error: 'ATMS request exceeds the permitted size.' });
+    if (req.body && Buffer.byteLength(JSON.stringify(req.body)) > (req.path.startsWith('/gateway/') ? 32768 : req.path.startsWith('/dtcd/') ? 262144 : 65536)) return res.status(413).json({ error: 'ATMS request exceeds the permitted size.' });
     next();
   });
   router.post('/gateway/evidence', express.json({ limit: '32kb' }), (req, res, next) => {
     try { res.json(verifyGateway(ops, gateway, req.headers, req.body)); } catch (e) { next(e); }
+  });
+  // DTCD signs the exact bytes it sends. The host's JSON parser keeps them as
+  // req.rawBody; a standalone mount reads them here.
+  router.post('/dtcd/closures', express.raw({ type: 'application/json', limit: '256kb' }), (req, res, next) => {
+    try { res.json(receiveDtcd(ops, dtcd, req.headers, req.rawBody || (Buffer.isBuffer(req.body) ? req.body : null))); } catch (e) { next(e); }
   });
   const serveFeed = (agency, profile, res) => {
     const publication = ops.publishedFeed(agency, profile);

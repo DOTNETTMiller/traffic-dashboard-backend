@@ -286,7 +286,7 @@ setTimeout(() => migrateUsersToEmailUsernames(), 1000);
 
 // Enable CORS for your frontend
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); // Increased for AI corridor summaries with large event datasets
+app.use(express.json({ limit: '50mb', verify: (req, res, buf) => { if (req.url.startsWith('/api/atms/dtcd/')) req.rawBody = buf; } })); // Increased for AI corridor summaries; DTCD push keeps its signed bytes
 
 // Ensure Express trusts upstream proxies (Railway, etc.) for HTTPS detection
 app.set('trust proxy', 1);
