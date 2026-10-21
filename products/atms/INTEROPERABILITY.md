@@ -96,14 +96,39 @@ Everything above the field matrix was originally tested against the ATMS's own
 emulator, built with the same SNMP library as the adapter. These checks use
 code and documents the ATMS did not write.
 
-**Standard definitions** — `npm run check:atms-mib -- 1203.txt` reads every
-OBJECT-TYPE from your copy of NTCIP 1203 v02 (free PDF from ntcip.org, then
-`pdftotext -layout`) and checks each of the 25 identifiers the adapter uses:
-object exists, writes only to read-write objects, enumerations and ranges
-mean what the adapter assumes, message memory types. Result 2026-10-20: 0
-failures. The standard's text is copyrighted, so nothing from it is stored
-here. The machine-readable MIB files themselves come from NEMA on request
-(ntcip@nema.org); this check does not need them.
+**Standard definitions** — `npm run check:atms-mib` reads every OBJECT-TYPE
+in the official NTCIP 1203 MIB and checks each of the 25 identifiers the
+adapter uses: object exists, writes only to read-write objects, enumerations
+and ranges mean what the adapter assumes, message memory types. The MIB is
+`mibs/NTCIP1203-Dms.mib`, published by ITE at
+[ite-org/NTCIP-1203](https://github.com/ite-org/NTCIP-1203) (commit
+6ae7e8b5737b, revision 202504020500Z, v04 in SMIv2) and redistributable
+unedited with its notice, so it is stored here unmodified. Passing
+`-- 1203.txt` checks the v02 standard's text instead (free PDF from
+ntcip.org, then `pdftotext -layout`; copyrighted, not stored here). Result
+2026-10-21: 0 failures against both v02 and v04.
+
+**Another production ATMS** — MnDOT's open-source
+[IRIS](https://github.com/mnit-rtmc/iris) (GPL-2.0, in daily use) drives real
+Daktronics, Skyline, Ledstar, ADDCO, SES and Wanco signs. Its message CRC
+(CRC-16 over MULTI plus beacon and pixel-service bytes, byte-swapped) matches
+`crc16` here. Its code records field quirks this adapter has not met yet:
+
+| Sign | Quirk recorded in IRIS | This adapter |
+| --- | --- | --- |
+| Ledstar, some firmware | Request-ids above 127 encoded as negative; IRIS caps them at 127 | net-snmp uses random 32-bit ids; would fail |
+| Ledstar | `noSuchName` (not `readOnly`) when setting `dmsActivateMessage` with a read-only community | Reported as an SNMP error, not as a credential problem |
+| Ledstar | `dmsMultiSyntaxError` = other with a text description for graphics that do not fit | Graphics not sent |
+| Ledstar, one firmware | Locks up if `dmsTimeCommLoss` is non-zero | Not written |
+| Daktronics | `badValue` instead of `noSuchName` for unsupported objects | Any error fails the command |
+| Some vendors | `genErr` on `modifyReq` | Any error fails the command |
+| ADDCO | Validation fails with no defined error | Fails the command |
+| Some signs | Blank message reported with an undefined memory type | Unknown source is reported as is |
+| Old Skyline | Invalid source table after long power-down | Source shown as raw hex, not flagged |
+
+None of IRIS's code is copied here. Failing closed is the right default for
+every row except the first, which would stop a Ledstar controller from
+answering at all; the fix is a per-device request-id limit.
 
 **Recorded controllers** — `scripts/atms-replay-recording.cjs` turns a plain
 `snmpwalk -On` dump of a real sign into an snmpsim recording and runs the

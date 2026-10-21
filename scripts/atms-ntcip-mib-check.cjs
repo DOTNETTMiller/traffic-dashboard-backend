@@ -4,12 +4,14 @@
 // only to read-write objects, and the values and enumerations the adapter
 // relies on are the ones the standard defines.
 //
-// The standard is copyrighted ("Do Not Copy Without Written Permission"), so
-// nothing from it is stored in this repository. Supply your own copy:
-//   https://www.ntcip.org/file/2018/11/NTCIP1203v02-35a.pdf
+// By default it reads products/atms/mibs/NTCIP1203-Dms.mib, the official MIB
+// ITE publishes at github.com/ite-org/NTCIP-1203 (redistributable unedited).
+// It also reads the text of the v02 standard, which is copyrighted and not
+// stored here:
 //   pdftotext -layout NTCIP1203v02-35a.pdf 1203.txt
 //   node scripts/atms-ntcip-mib-check.cjs 1203.txt
 const fs = require('node:fs');
+const path = require('node:path');
 const { OID, cell } = require('../services/atms/ntcip/protocol');
 
 // What the adapter does with each object, taken from services/atms/ntcip/adapter.js.
@@ -77,8 +79,8 @@ function parseStandard(text) {
 }
 
 function main() {
-  const file = process.argv[2];
-  if (!file) throw new Error('Use: node scripts/atms-ntcip-mib-check.cjs <pdftotext -layout output of NTCIP 1203>');
+  const file = process.argv[2] || path.join(__dirname, '../products/atms/mibs/NTCIP1203-Dms.mib');
+  console.log(`Reading ${path.relative(process.cwd(), file)}`);
   const { objects, enums } = parseStandard(fs.readFileSync(file, 'utf8'));
   if (objects.size < 100) throw new Error(`Only ${objects.size} definitions found; is this the NTCIP 1203 text?`);
   const findings = [];
